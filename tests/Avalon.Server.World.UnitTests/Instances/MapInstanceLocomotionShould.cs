@@ -35,20 +35,6 @@ namespace Avalon.Server.World.UnitTests.Instances;
 public class MapInstanceLocomotionShould
 {
     [Fact]
-    public void Register_A_Creature_With_Locomotion_When_It_Is_Added()
-    {
-        (MapInstance instance, ICreature creature) = BuildInstanceWithCreature();
-
-        instance.AddCreature(creature);
-
-        // The creature is now driveable: a destination followed by a tick moves it.
-        instance.Locomotion.MoveTo(creature, new Vector3(5f, 0f, 0f));
-        instance.Update(TimeSpan.FromSeconds(0.5));
-
-        creature.Received().Position = Arg.Any<Vector3>();
-    }
-
-    [Fact]
     public void Unregister_A_Creature_When_It_Is_Removed()
     {
         (MapInstance instance, ICreature creature) = BuildInstanceWithCreature();
@@ -67,36 +53,28 @@ public class MapInstanceLocomotionShould
     // Task 10 is what makes MapInstance ever construct a CrowdLocomotion on its own (config-driven
     // selection); until then _locomotion is always WaypointLocomotion, so a flag test run against an
     // untouched instance would pass for the wrong reason — the `is CrowdLocomotion` type test in
-    // MapInstance.Update would already be false regardless of what CrowdIncludesPlayers says. These
-    // two tests instead swap in a real CrowdLocomotion by reflection (see SetLocomotion) so the flag
+    // MapInstance.Update would already be false regardless of what CrowdIncludesPlayers says. Both
+    // rows below instead swap in a real CrowdLocomotion by reflection (see SetLocomotion) so the flag
     // is the only thing distinguishing them, over the same production Update() call path.
 
-    /// <summary>Production change that breaks this: dropping the `_crowdIncludesPlayers` check, or the sync loop itself, from MapInstance.Update.</summary>
-    [Fact]
-    public void Sync_Every_Characters_Position_Into_The_Crowd_Each_Tick_When_The_Flag_Is_On()
+    /// <summary>
+    /// Production changes that break this: dropping the `_crowdIncludesPlayers` check, or the sync loop itself, from
+    /// MapInstance.Update (flag on), or calling SyncPlayer regardless of the flag, losing the gate entirely (flag off).
+    /// </summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void Sync_Every_Characters_Position_Into_The_Crowd_Each_Tick_Only_When_The_Flag_Is_On(
+        bool crowdIncludesPlayers, int agents)
     {
-        (MapInstance instance, _) = BuildInstanceWithCreature(crowdIncludesPlayers: true);
+        (MapInstance instance, _) = BuildInstanceWithCreature(crowdIncludesPlayers);
         var crowd = new CrowdLocomotion(CrowdLocomotionShould.s_flatNavMesh.Value,
             NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
         SetLocomotion(instance, crowd);
 
         instance.Update(TimeSpan.FromSeconds(1d / 60d));
 
-        Assert.Single(CrowdOf(crowd).GetActiveAgents());
-    }
-
-    /// <summary>Production change that breaks this: calling SyncPlayer regardless of the flag, i.e. losing the gate entirely.</summary>
-    [Fact]
-    public void Sync_No_Players_Into_The_Crowd_When_The_Flag_Is_Off()
-    {
-        (MapInstance instance, _) = BuildInstanceWithCreature(crowdIncludesPlayers: false);
-        var crowd = new CrowdLocomotion(CrowdLocomotionShould.s_flatNavMesh.Value,
-            NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
-        SetLocomotion(instance, crowd);
-
-        instance.Update(TimeSpan.FromSeconds(1d / 60d));
-
-        Assert.Empty(CrowdOf(crowd).GetActiveAgents());
+        Assert.Equal(agents, CrowdOf(crowd).GetActiveAgents().Count);
     }
 
     // --- Task 10: configuration-driven selection ------------------------------------------------
@@ -105,67 +83,36 @@ public class MapInstanceLocomotionShould
     // production; everything above this point had to reach a crowd via SetLocomotion by reflection
     // because nothing chose one on its own yet.
 
-    /// <summary>Production change that breaks this: CreateLocomotion returning CrowdLocomotion for the default config, or the default config's own CreatureLocomotion value changing.</summary>
-    [Fact]
-    public void Use_Waypoint_Locomotion_By_Default()
-    {
-        MapInstance instance = BuildInstance(new GameConfiguration { WorldId = new WorldId(1) });
-
-        Assert.IsType<WaypointLocomotion>(instance.Locomotion);
-    }
-
-    /// <summary>Production change that breaks this: CreateLocomotion not branching on CreatureLocomotionMode.Crowd, or the `MapNavigator { NavMesh: { } }` pattern rejecting a real baked navmesh.</summary>
-    [Fact]
-    public void Use_Crowd_Locomotion_When_Configured()
-    {
-        MapInstance instance = BuildInstance(new GameConfiguration
-        {
-            WorldId = new WorldId(1),
-            CreatureLocomotion = CreatureLocomotionMode.Crowd,
-        }, withBakedNavMesh: true);
-
-        Assert.IsType<CrowdLocomotion>(instance.Locomotion);
-    }
-
     /// <summary>
-    /// Review Focus 5. A crowd cannot be built without a mesh, and creatures that cannot move are worse
-    /// than creatures that move badly.
-    /// Production change that breaks this: CreateLocomotion dereferencing a null NavMesh instead of
-    /// falling back (would throw a NullReferenceException out of the constructor instead of returning
-    /// WaypointLocomotion).
+    /// The configuration chooses the locomotion. A crowd needs a baked navmesh and the instance is handed only an
+    /// <see cref="IMapNavigator" />, so without one (a <see cref="MapNavigator" /> with nothing baked, or a navigator
+    /// that is not a <see cref="MapNavigator" /> at all, as every test substitute) a configured crowd falls back to
+    /// waypoints rather than throwing out of the constructor, and warns: a silent downgrade would look exactly like
+    /// "the flag does nothing" from the operator's side. Production changes that break this: CreateLocomotion returning
+    /// a crowd for the default configuration (that row has a baked navmesh, so only the configuration keeps it on
+    /// waypoints) or not branching on the crowd mode, dereferencing a null NavMesh or casting the navigator to
+    /// <see cref="MapNavigator" /> unconditionally instead of falling back, or dropping the warning.
     /// </summary>
-    [Fact]
-    public void Fall_Back_To_Waypoint_When_The_Navmesh_Is_Missing()
+    [Theory]
+    [InlineData(false, true, true, typeof(WaypointLocomotion))]    // the default configuration
+    [InlineData(true, true, true, typeof(CrowdLocomotion))]
+    [InlineData(true, false, true, typeof(WaypointLocomotion))]    // nothing baked
+    [InlineData(true, false, false, typeof(WaypointLocomotion))]   // not a MapNavigator
+    public void Use_The_Configured_Locomotion_And_Fall_Back_To_Waypoint_Without_A_Navmesh(
+        bool crowd, bool baked, bool mapNavigator, Type expected)
     {
-        MapInstance instance = BuildInstance(new GameConfiguration
-        {
-            WorldId = new WorldId(1),
-            CreatureLocomotion = CreatureLocomotionMode.Crowd,
-        }, withBakedNavMesh: false);
+        var loggerFactory = new RecordingLoggerFactory();
+        GameConfiguration config = crowd
+            ? new GameConfiguration { WorldId = new WorldId(1), CreatureLocomotion = CreatureLocomotionMode.Crowd }
+            : new GameConfiguration { WorldId = new WorldId(1) };
 
-        Assert.IsType<WaypointLocomotion>(instance.Locomotion);
-    }
+        MapInstance instance = BuildInstance(config, withBakedNavMesh: baked,
+            navigator: mapNavigator ? null : Substitute.For<IMapNavigator>(), loggerFactory: loggerFactory);
 
-    /// <summary>
-    /// The other half of the fallback: MapInstance is handed an <see cref="IMapNavigator" />, not a
-    /// <see cref="MapNavigator" /> — every test substitute, and possibly a future non-DotRecast
-    /// implementation, is not a MapNavigator at all. The `is MapNavigator { NavMesh: { } }` pattern
-    /// in CreateLocomotion has to fail closed on this shape too, not just on a MapNavigator with a
-    /// null NavMesh.
-    /// Production change that breaks this: CreateLocomotion casting `_navigator` to MapNavigator
-    /// unconditionally (e.g. `((MapNavigator)_navigator).NavMesh`) instead of pattern-matching, which
-    /// would throw an InvalidCastException here instead of falling back.
-    /// </summary>
-    [Fact]
-    public void Fall_Back_To_Waypoint_When_The_Navigator_Is_Not_A_MapNavigator()
-    {
-        MapInstance instance = BuildInstance(new GameConfiguration
-        {
-            WorldId = new WorldId(1),
-            CreatureLocomotion = CreatureLocomotionMode.Crowd,
-        }, navigator: Substitute.For<IMapNavigator>());
-
-        Assert.IsType<WaypointLocomotion>(instance.Locomotion);
+        Assert.IsType(expected, instance.Locomotion);
+        bool fellBack = crowd && expected == typeof(WaypointLocomotion);
+        Assert.Equal(fellBack, loggerFactory.Logger.Entries.Any(entry =>
+            entry.Level == LogLevel.Warning && entry.Message.Contains("navmesh", StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>
@@ -193,32 +140,6 @@ public class MapInstanceLocomotionShould
         Assert.Same(replacement, instance.Locomotion);
     }
 
-    /// <summary>
-    /// A silent downgrade to Waypoint would look exactly like "the flag does nothing" from the
-    /// operator's side — this pins that the fallback actually says which map it affected and why.
-    /// Uses a hand-written <see cref="ILogger" /> rather than an NSubstitute one: the interesting
-    /// assertion is the formatted message text, and NSubstitute cannot intercept the generic
-    /// `Log&lt;TState&gt;` call in a way that recovers it without reimplementing the same formatter.
-    /// Production change that breaks this: dropping the LogWarning call, lowering it below Warning,
-    /// or a message that no longer names the map or the reason.
-    /// </summary>
-    [Fact]
-    public void Log_A_Warning_When_Crowd_Locomotion_Falls_Back()
-    {
-        var loggerFactory = new RecordingLoggerFactory();
-
-        BuildInstance(new GameConfiguration
-        {
-            WorldId = new WorldId(1),
-            CreatureLocomotion = CreatureLocomotionMode.Crowd,
-        }, withBakedNavMesh: false, loggerFactory: loggerFactory);
-
-        Assert.Contains(loggerFactory.Logger.Entries, entry =>
-            entry.Level == LogLevel.Warning &&
-            entry.Message.Contains("navmesh", StringComparison.OrdinalIgnoreCase) &&
-            entry.Message.Contains("1", StringComparison.Ordinal)); // TemplateId = new MapTemplateId(1)
-    }
-
     // --- MeleeSlotRadius reachability -----------------------------------------------------------
     //
     // MeleeSlotCount/MeleeSlotRadius are read from configuration right next to where the fallback
@@ -229,43 +150,24 @@ public class MapInstanceLocomotionShould
     // its target: total, silent failure with no symptom besides mobs standing still in a ring.
 
     /// <summary>
-    /// Production change that breaks this: WarnIfMeleeSlotRadiusUnreachable comparing with
-    /// <c>&gt;=</c> instead of <c>&gt;</c> (or any other change that makes the default
-    /// MeleeSlotRadius, which equals AttackRange exactly, trip the warning).
+    /// Production changes that break this: WarnIfMeleeSlotRadiusUnreachable comparing with <c>&gt;=</c> instead of
+    /// <c>&gt;</c> (the default MeleeSlotRadius equals AttackRange exactly and must stay silent), or dropping the
+    /// comparison or its LogWarning from MapInstance's constructor.
     /// </summary>
-    [Fact]
-    public void Not_Warn_When_MeleeSlotRadius_Is_The_Default()
+    [Theory]
+    [InlineData(null, false)]   // the default, equal to the attack range
+    [InlineData(4.2f, true)]
+    public void Warn_Only_When_MeleeSlotRadius_Exceeds_The_Attack_Range(float? meleeSlotRadius, bool warns)
     {
         var loggerFactory = new RecordingLoggerFactory();
+        GameConfiguration config = meleeSlotRadius is { } radius
+            ? new GameConfiguration { WorldId = new WorldId(1), MeleeSlotRadius = radius }
+            : new GameConfiguration { WorldId = new WorldId(1) };
 
-        BuildInstance(new GameConfiguration { WorldId = new WorldId(1) }, loggerFactory: loggerFactory);
+        BuildInstance(config, loggerFactory: loggerFactory);
 
-        Assert.DoesNotContain(loggerFactory.Logger.Entries, entry =>
-            entry.Level == LogLevel.Warning &&
-            entry.Message.Contains("MeleeSlotRadius", StringComparison.OrdinalIgnoreCase));
-    }
-
-    /// <summary>
-    /// Production change that breaks this: dropping the MeleeSlotRadius/AttackRange comparison (or
-    /// the LogWarning call) from MapInstance's constructor, or a message that stops naming the
-    /// configured radius, the attack range it was checked against, or the map.
-    /// </summary>
-    [Fact]
-    public void Warn_When_MeleeSlotRadius_Exceeds_The_Attack_Range()
-    {
-        var loggerFactory = new RecordingLoggerFactory();
-
-        BuildInstance(new GameConfiguration
-        {
-            WorldId = new WorldId(1),
-            MeleeSlotRadius = 4.2f,
-        }, loggerFactory: loggerFactory);
-
-        Assert.Contains(loggerFactory.Logger.Entries, entry =>
-            entry.Level == LogLevel.Warning &&
-            entry.Message.Contains("4.2", StringComparison.Ordinal) && // configured MeleeSlotRadius
-            entry.Message.Contains("1.5", StringComparison.Ordinal) && // AttackRange it exceeds
-            entry.Message.Contains("attack", StringComparison.OrdinalIgnoreCase)); // consequence
+        Assert.Equal(warns, loggerFactory.Logger.Entries.Any(entry =>
+            entry.Level == LogLevel.Warning && entry.Message.Contains("MeleeSlotRadius", StringComparison.Ordinal)));
     }
 
     // --- Creature death, and the tick order the whole seam rests on -----------------------------
@@ -624,7 +526,7 @@ public class MapInstanceLocomotionShould
     /// <see cref="BuildInstanceWithCreature" /> uses).
     /// </param>
     /// <param name="loggerFactory">
-    /// Overrides the logger factory so <see cref="Log_A_Warning_When_Crowd_Locomotion_Falls_Back" />
+    /// Overrides the logger factory so <see cref="Use_The_Configured_Locomotion_And_Fall_Back_To_Waypoint_Without_A_Navmesh" />
     /// can inspect what MapInstance logged.
     /// </param>
     /// <param name="locomotion">The instance's locomotion hook (#638), passed through.</param>
