@@ -2,7 +2,6 @@ using System.Runtime.CompilerServices;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Maintenance;
-using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging;
@@ -29,18 +28,7 @@ public static class CharacterReadinessBarrier
             return;
         }
 
-        Task<WorldEntryDecision> check = WorldDatabaseWork.ThreadPool.Run(async () =>
-        {
-            try
-            {
-                return await gate.CheckAsync(connection.AccountId, CancellationToken.None)
-                    .WaitAsync(TimeSpan.FromSeconds(5), CancellationToken.None);
-            }
-            catch (Exception)
-            {
-                return default;
-            }
-        });
+        Task<WorldEntryDecision> check = gate.CheckOffTick(connection.AccountId);
         s_pendingChecks.Add(connection, check);
         connection.EnqueueContinuation(check, decision =>
         {

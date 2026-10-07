@@ -29,7 +29,7 @@ public interface IMFAHashService
     /// <summary>
     /// Spends the hash: deletes it, and returns true only to the caller whose delete removed its
     /// reverse key. Redis tells exactly one caller that, so of two verifies racing on one hash,
-    /// only one may go on (#478, as #450 does for world keys).
+    /// only one may go on (#478).
     /// </summary>
     Task<bool> TryConsumeAsync(string hash, AccountId accountId);
 
@@ -97,7 +97,7 @@ public class MFAHashService : IMFAHashService
         // old password and one with the new, share the per-account record, but not this key.
         _ = transaction.StringSetAsync(
             CacheKeys.MfaReverseHash(hash),
-            CacheKeys.WorldKeyValue(account.Id!.Value, account.CredentialsVersion),
+            CacheKeys.AccountVersionValue(account.Id!.Value, account.CredentialsVersion),
             _expiry);
 
         bool committed = await transaction.ExecuteAsync();
@@ -121,7 +121,7 @@ public class MFAHashService : IMFAHashService
     public async Task<int> GetHashCredentialsVersionAsync(string hash)
     {
         string? value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
-        return CacheKeys.TryParseWorldKeyValue(value, out _, out int version) ? version : -1;
+        return CacheKeys.TryParseAccountVersionValue(value, out _, out int version) ? version : -1;
     }
 
     public Task<long> RecordAttemptAsync(AccountId accountId) =>

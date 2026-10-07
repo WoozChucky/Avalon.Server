@@ -10,15 +10,14 @@ public static class CacheKeys
     public static string GameAuth(string environment, string kind, string digest) => $"game-auth:{{{environment}}}:{kind}:{digest}";
 
     /// <summary>
-    /// An account id with a credentials version, as <c>{accountId}:{version}</c> (#495): the value
-    /// stored under <see cref="WorldKey"/> (the version of the connection that selected the world)
-    /// and under <see cref="MfaReverseHash"/> (the version of the login that issued the hash).
+    /// An account id with a credentials version, as <c>{accountId}:{version}</c> (#495): the value stored under
+    /// <see cref="MfaReverseHash"/> (the version of the login that issued the hash).
     /// </summary>
-    public static string WorldKeyValue(long accountId, int credentialsVersion) =>
+    public static string AccountVersionValue(long accountId, int credentialsVersion) =>
         string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{accountId}:{credentialsVersion}");
 
-    /// <summary>Reads a <see cref="WorldKeyValue"/>. False for anything else, a bare id included.</summary>
-    public static bool TryParseWorldKeyValue(string? value, out long accountId, out int credentialsVersion)
+    /// <summary>Reads an <see cref="AccountVersionValue"/>. False for anything else, a bare id included.</summary>
+    public static bool TryParseAccountVersionValue(string? value, out long accountId, out int credentialsVersion)
     {
         accountId = 0;
         credentialsVersion = 0;
@@ -47,18 +46,7 @@ public static class CacheKeys
     /// </summary>
     public const string AuthAccountsOnlineChannel = "auth:accounts:online";
 
-    /// <summary>
-    /// Glob pattern used to scan all active MFA hash entries. Passed to the Redis KEYS command.
-    /// </summary>
-    public const string AccountMfaGlobPattern = "auth:account:*:mfa";
-
     // ── Pub/Sub Channels (dynamic) ────────────────────────────────────────────
-
-    /// <summary>
-    /// Published by the Auth server when an account selects a world to enter.
-    /// Message format: <c>account:{accountId}:worldKey:{worldKeyBase64}</c>.
-    /// </summary>
-    public static string WorldSelectChannel(ushort worldId) => $"world:{worldId}:select";
 
     /// <summary>
     /// Published by the API after a template save to ask a world to reload part of its static data.
@@ -73,19 +61,6 @@ public static class CacheKeys
     public static string WorldReloadResultChannel(ushort worldId) => $"world:{worldId}:reload:result";
 
     // ── String Keys ───────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// One-time authentication token that maps a world entry key to the account ID attempting to join.
-    /// Value: account ID string. Expires after 5 minutes. Named by the key's SHA-256, not the key:
-    /// Redis exceptions carry key names, and a logged exception would otherwise log the key (#535).
-    /// </summary>
-    public static string WorldKey(ushort worldId, string worldKeyBase64) => $"world:{worldId}:keys:{Digest(worldKeyBase64)}";
-
-    /// <summary>
-    /// Mutex key that prevents an account from holding more than one active world session concurrently.
-    /// Written with SETNX; removed on successful hand-off. Value: "1". Expires after 5 minutes.
-    /// </summary>
-    public static string AccountInWorld(long accountId) => $"account:{accountId}:inWorld";
 
     /// <summary>
     /// Login and MFA-code attempts from one source, across every account it tried (#471), over the game

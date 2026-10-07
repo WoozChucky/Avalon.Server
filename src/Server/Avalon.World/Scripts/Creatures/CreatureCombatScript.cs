@@ -115,7 +115,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     // The safety net on the walk home (#715): a creature walking home ignores every hit (#610), so one that
     // never counts as home would be unhittable for good. It is put home and reset once it has come no closer
-    // to home, by ReturnProgressStep on X/Z, for ReturnStallLimit, or has been on its way for ReturnHomeLimit.
+    // to home, by ReturnProgressStep on X/Z, for s_returnStallLimit, or has been on its way for s_returnHomeLimit.
     // The leash is 40 m, 10 s at the slowest seeded run speed (4 m/s), so the cap leaves room for a detour.
     private static readonly TimeSpan s_returnStallLimit = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan s_returnHomeLimit = TimeSpan.FromSeconds(15);

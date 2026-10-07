@@ -176,9 +176,8 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
                 connection.CryptoSession.Encrypt));
 
             // Mirror EnterMapHandler.OnInstanceReceived: every chunk-layout-built instance ships
-            // its layout to the client so ClientMapNavigator can rebake the navmesh, the
-            // ChunkLayoutVisualizer can repaint geometry, and PortalRuntimeSpawner can recreate
-            // portal triggers. Town instances always have a Layout; fallback is defensive.
+            // its layout to the client, which bakes the same navmesh from it and builds the map's
+            // geometry and portals. Town instances always have a Layout; fallback is defensive.
             if (townInstance is MapInstance layoutMi && layoutMi.Layout is { } layout)
             {
                 var dtos = layout.Chunks.Select(c => new PlacedChunkDto
