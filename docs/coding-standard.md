@@ -153,8 +153,7 @@ dotnet format whitespace Avalon.sln --verify-no-changes
 dotnet format style Avalon.sln --verify-no-changes
 ```
 
-`tools/Avalon.Commerce.Check` and `tools/Avalon.EmailVerification.Check` are not in the solution: pass their `.csproj`
-instead. Run `whitespace` and `style` rather than a bare `dotnet format`, whose `analyzers` pass would also apply
+Run `whitespace` and `style` rather than a bare `dotnet format`, whose `analyzers` pass would also apply
 third-party fixes (Meziantou's among them) that can change behaviour. `dotnet format` does not fix naming (IDE1006):
 rename in the IDE.
 
