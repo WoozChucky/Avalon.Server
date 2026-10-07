@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Authentication;
 using System.Text;
@@ -319,7 +320,7 @@ public class AccountService : IAccountService
         }
     }
 
-    public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken)
+    public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default)
     {
         return await _accountRepository.PaginateAsync(filters, false, cancellationToken);
     }
@@ -773,7 +774,7 @@ public class AccountService : IAccountService
         try
         {
             // Kick any live world session, the same way a ban or a password change does.
-            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString(CultureInfo.InvariantCulture));
         }
         catch (Exception ex)
         {

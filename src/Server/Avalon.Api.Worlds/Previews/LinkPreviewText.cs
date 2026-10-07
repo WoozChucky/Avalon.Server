@@ -104,11 +104,11 @@ public static partial class LinkPreviewText
     private static string Num(ushort value) => value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary><c>MainHand</c> as <c>Main Hand</c>.</summary>
-    private static string SplitWords(string name) => SplitRegex().Replace(name, "$1 $2");
+    private static string SplitWords(string name) => SplitRegex().Replace(name, "${lower} ${upper}");
 
-    [GeneratedRegex(@"\s+")]
+    [GeneratedRegex(@"\s+", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex Whitespace();
 
-    [GeneratedRegex("([a-z])([A-Z])")]
+    [GeneratedRegex("(?<lower>[a-z])(?<upper>[A-Z])", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex SplitRegex();
 }

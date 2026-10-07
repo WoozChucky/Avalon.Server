@@ -16,7 +16,7 @@ internal static class RefreshCookie
                 Secure = true,
                 SameSite = SameSiteMode.Strict,
                 Path = config.RefreshCookiePath,
-                Expires = expiresAt,
+                Expires = new DateTimeOffset(DateTime.SpecifyKind(expiresAt, DateTimeKind.Utc)),
             });
     }
 }

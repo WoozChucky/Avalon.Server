@@ -40,11 +40,13 @@ public class MetricsManager : IMetricsManager
 
         _running = true;
 
-        _defaultProperties = new ConcurrentDictionary<string, string>(defaultProperties ?? new Dictionary<string, string>());
+        _defaultProperties = new ConcurrentDictionary<string, string>(
+            defaultProperties ?? new Dictionary<string, string>(StringComparer.Ordinal), StringComparer.Ordinal);
 
         _logger.LogInformation("Metrics Manager is starting");
 
-        Task.Factory.StartNew(Worker, _cancellationTokenSource.Token);
+        // Fire and forget: the worker catches its own failures and ends when Stop cancels it.
+        _ = Task.Factory.StartNew(Worker, _cancellationTokenSource.Token);
     }
 
     public void Stop()
@@ -75,7 +77,7 @@ public class MetricsManager : IMetricsManager
 
     public void SetDefaultProperties(Dictionary<string, string> properties)
     {
-        _defaultProperties = new ConcurrentDictionary<string, string>(properties);
+        _defaultProperties = new ConcurrentDictionary<string, string>(properties, StringComparer.Ordinal);
     }
 
     private async Task Worker()

@@ -41,7 +41,7 @@ public static partial class Simulation
             catch (InvalidDataException e)
             {
                 Match key = OverrideKey().Match(e.Message);
-                return Invalid(new Issue(key.Success ? $"overrides.{key.Groups[1].Value}" : "overrides", e.Message));
+                return Invalid(new Issue(key.Success ? $"overrides.{key.Groups["key"].Value}" : "overrides", e.Message));
             }
         }
 
@@ -165,6 +165,6 @@ public static partial class Simulation
     private static RunResult Empty(RunStatus status, OverrideReport overrides, IReadOnlyList<Issue> issues, int seed, int runs) =>
         new(status, [], new GradeReport([]), [], new RunSummary(0, 0, 0), overrides, issues, seed, runs);
 
-    [GeneratedRegex(@"^Override '([^']+)'")]
+    [GeneratedRegex(@"^Override '(?<key>[^']+)'", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex OverrideKey();
 }

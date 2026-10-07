@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Authentication;
@@ -98,7 +99,7 @@ public sealed class AccountRefreshController : BaseController
         }
         catch (RefreshTheftException ex)
         {
-            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, ex.AccountId.Value.ToString());
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, ex.AccountId.Value.ToString(CultureInfo.InvariantCulture));
             ClearRefreshCookie();
             return Unauthorized();
         }

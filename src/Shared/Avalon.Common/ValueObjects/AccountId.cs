@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Avalon.Common.ValueObjects;
 
 public class AccountId : ValueObject<long>, IHideObjectMembers
@@ -8,5 +10,5 @@ public class AccountId : ValueObject<long>, IHideObjectMembers
 
     public static implicit operator long(AccountId accountId) => accountId.Value;
     public static implicit operator AccountId(long value) => new(value);
-    public static implicit operator AccountId(string value) => new(long.Parse(value));
+    public static implicit operator AccountId(string value) => new(long.Parse(value, CultureInfo.InvariantCulture));
 }

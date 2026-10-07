@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Security.Authentication;
 using System.Security.Claims;
@@ -185,7 +186,7 @@ public sealed class ClientAuthController : BaseController
         }
         catch (RefreshTheftException ex)
         {
-            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, ex.AccountId.Value.ToString());
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, ex.AccountId.Value.ToString(CultureInfo.InvariantCulture));
             return Unauthorized();
         }
         catch (UnauthorizedAccessException)

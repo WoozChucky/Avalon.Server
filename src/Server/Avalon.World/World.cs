@@ -409,14 +409,14 @@ public class World : IWorld
 
     /// <summary>
     /// Snapshots the character and queues its logout save, synchronously, on the tick, so a relog's
-    /// WhenIdle already sees it. Null when there is nothing to save.
+    /// WhenIdle already sees it. False, at once, when there is nothing to save.
     /// </summary>
-    private Task<bool>? QueueDespawnSave(IServiceProvider services, ICharacter character, IMapInstance? instance)
+    private Task<bool> QueueDespawnSave(IServiceProvider services, ICharacter character, IMapInstance? instance)
     {
         if (character is not CharacterEntity { Data: { } dbCharacter } entity)
         {
             _logger.LogWarning("Character {CharacterId} has no row to save on world de-spawn", character.Guid);
-            return null;
+            return Task.FromResult(false);
         }
 
         ICharacterSaver characterSaver = services.GetRequiredService<ICharacterSaver>();

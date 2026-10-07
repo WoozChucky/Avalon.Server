@@ -99,7 +99,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
         foreach (string raw in objText.Split('\n'))
         {
             string line = raw.Trim();
-            if (line.StartsWith("v "))
+            if (line.StartsWith("v ", StringComparison.Ordinal))
             {
                 string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 float x = float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
@@ -112,7 +112,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
                   .Append(w.z.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
                 vCount++;
             }
-            else if (line.StartsWith("f "))
+            else if (line.StartsWith("f ", StringComparison.Ordinal))
             {
                 string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 sb.Append("f");

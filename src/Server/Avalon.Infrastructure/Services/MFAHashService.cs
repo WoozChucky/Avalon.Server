@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.Extensions.Logging;
@@ -61,7 +62,9 @@ public class MFAHashService : IMFAHashService
             // Reused only while it was issued at this row's credentials version (#495): a hash left
             // by a login with the old password must not be handed to a login with the new one.
             int existingVersion = await GetHashCredentialsVersionAsync(existingHash!);
-            if (DateTime.TryParse(expiry, out DateTime expiryDate) && expiryDate > DateTime.UtcNow
+            // Written below as a round-trip UTC string: read back as UTC, never shifted to the server's time zone.
+            if (DateTime.TryParse((string?)expiry, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out DateTime expiryDate)
+                && expiryDate > DateTime.UtcNow
                 && existingVersion == account.CredentialsVersion)
             {
                 _logger.LogDebug("Returning existing hash");
@@ -86,7 +89,7 @@ public class MFAHashService : IMFAHashService
             {
                 new HashEntry("hash", hash),
                 new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
-                new HashEntry("accountId", account.Id.Value.ToString())
+                new HashEntry("accountId", account.Id.Value.ToString(CultureInfo.InvariantCulture))
             });
         _ = transaction.KeyExpireAsync(CacheKeys.AccountMfa(account.Id), _expiry);
         // The reverse key carries the version of the row whose password issued this very hash

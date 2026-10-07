@@ -19,10 +19,10 @@ public static class SteamWebLinkSecretProtection
         services.PostConfigure<LoggerFilterOptions>(options =>
         {
             string?[] providers = options.Rules.Select(r => r.ProviderName).Append(null).Append("Serilog").Append("OpenTelemetry")
-                .Append("Serilog.Extensions.Logging.SerilogLoggerProvider").Append("OpenTelemetry.Logs.OpenTelemetryLoggerProvider").Distinct().ToArray();
+                .Append("Serilog.Extensions.Logging.SerilogLoggerProvider").Append("OpenTelemetry.Logs.OpenTelemetryLoggerProvider").Distinct(StringComparer.Ordinal).ToArray();
             string[] prefixes = new[] { "Microsoft.AspNetCore.Hosting.Diagnostics", "AspNet.Security.OpenId" };
             string?[] categories = options.Rules.Select(r => r.CategoryName).Where(c => c is not null && prefixes.Any(p => c.StartsWith(p, StringComparison.Ordinal)))
-                .Concat(prefixes).Distinct().ToArray();
+                .Concat(prefixes).Distinct(StringComparer.Ordinal).ToArray();
             foreach (string? provider in providers)
                 foreach (string? category in categories) options.Rules.Add(new(provider, category, LogLevel.None, null));
         });

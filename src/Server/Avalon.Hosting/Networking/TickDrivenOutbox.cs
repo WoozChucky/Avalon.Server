@@ -99,8 +99,9 @@ public sealed class TickDrivenOutbox : IOutbox
 
         // ExecuteSynchronously: if WriteAsync completes synchronously (e.g., MemoryStream),
         // the continuation runs inline on the tick thread — zero TP hops.
-        // For a real socket, async completion schedules exactly 1 WI.
-        _stream.WriteAsync(_burstWriter.WrittenMemory, _cts.Token)
+        // For a real socket, async completion schedules exactly 1 WI. The continuation observes the write's outcome;
+        // its own task is discarded, since OnWriteCompleted handles every way the write ends.
+        _ = _stream.WriteAsync(_burstWriter.WrittenMemory, _cts.Token)
             .AsTask()
             .ContinueWith(
                 s_onWriteCompleted,

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
@@ -10,7 +11,7 @@ public static class ClaimsPrincipalExtensions
     {
         string raw = user.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new InvalidOperationException("missing sub claim");
-        return new AccountId(long.Parse(raw));
+        return new AccountId(long.Parse(raw, CultureInfo.InvariantCulture));
     }
 
     /// <summary>

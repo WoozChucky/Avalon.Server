@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using Avalon.Common.Accounts;
@@ -65,7 +66,7 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
 
         var claims = new List<Claim>
         {
-            new(ClaimTypes.NameIdentifier, account.Id.Value.ToString()),
+            new(ClaimTypes.NameIdentifier, account.Id.Value.ToString(CultureInfo.InvariantCulture)),
             new(ClaimTypes.Name, account.Username),
             // Account.Email is nullable and a claim's value is not: an account without an email throws here, as it
             // always has. The code standard changes no behaviour (#791).

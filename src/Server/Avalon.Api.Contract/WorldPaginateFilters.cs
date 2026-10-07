@@ -29,7 +29,7 @@ public class WorldPaginateFilters : EntityPaginateFilter<WorldEntity>
         if (string.IsNullOrEmpty(SortBy))
             return w => w.Name;
 
-        return SortBy.ToLower() switch
+        return SortBy.ToLowerInvariant() switch
         {
             "name" => w => w.Name,
             _ => null
