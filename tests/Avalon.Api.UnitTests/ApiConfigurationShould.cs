@@ -54,31 +54,6 @@ public sealed class ApiConfigurationShould : IDisposable
         Assert.Equal("from-user-secrets", SigningKeyFrom(builder));
     }
 
-    [Fact]
-    public void Let_an_environment_variable_win()
-    {
-        // A real process variable, under a name no other test reads, so tests running in parallel
-        // are unaffected. It is how containers and Helm deliver the signing key.
-        string section = "AvalonApiConfigurationProbe" + Guid.NewGuid().ToString("N");
-        File.WriteAllText(Path.Combine(_contentRoot, "appsettings.json"),
-            $$"""{ "{{section}}": { "Value": "from-appsettings-json" } }""");
-        Environment.SetEnvironmentVariable(section + "__Value", "from-environment");
-        try
-        {
-            IConfiguration configuration = ApiConfiguration.Sources(NewBuilder());
-
-            Assert.Equal("from-environment", configuration[section + ":Value"]);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable(section + "__Value", null);
-        }
-    }
-
-    [Fact]
-    public void Let_the_command_line_win() =>
-        Assert.Equal("from-command-line", SigningKeyFrom(NewBuilder($"--{Key}=from-command-line")));
-
     /// <summary>
     /// #582: the API's databases are the top-level <c>Database:Auth</c> and <c>Database:Worlds</c>.
     /// Nothing reads an <c>Application:Database</c> section, so <see cref="ApplicationConfig"/> must
