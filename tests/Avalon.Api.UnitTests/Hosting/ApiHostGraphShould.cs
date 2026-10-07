@@ -3,6 +3,7 @@ using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Worlds;
 using Avalon.Hosting;
 using Avalon.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
@@ -30,9 +31,10 @@ public class ApiHostGraphShould
             Cache = new CacheConfiguration(),
         };
 
+        IConfiguration configuration = new ConfigurationBuilder().Build();
         ServiceCollection services = new();
         services.AddLogging();
-        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+        services.AddSingleton(configuration);
         services.AddHttpContextAccessor();
         services.AddSingleton(config);
         services.AddSingleton(config.Environment);
@@ -41,9 +43,11 @@ public class ApiHostGraphShould
         services.AddSingleton(config.Cache);
         // AddAuth, which Program.cs calls first, registers the signing key JwtUtils takes (#482).
         services.AddSingleton(JwtSigningKey.Create(config.Authentication));
-        // The shared hosting the api's services run on, as the host registers it before them (#794).
-        services.AddApiHosting(MonolithApi.MonolithNeeds, config.ForwardedHeaders);
+        // The shared hosting for the needs of the api's services, as the host registers it before them, then the
+        // services' own registrations (#794).
+        services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
         services.AddInfrastructure(config);
+        services.AddWorlds(configuration);
 
         ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);
 
@@ -67,19 +71,22 @@ public class ApiHostGraphShould
         ServiceCollection services = new();
         services.AddLogging();
         // WorldDatabases is built from configuration when first resolved, as in the api.
-        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+        IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 ["Database:Worlds:1:World:ConnectionString"] = "Host=w",
                 ["Database:Worlds:1:Characters:ConnectionString"] = "Host=c",
             })
-            .Build());
+            .Build();
+        services.AddSingleton(configuration);
         services.AddHttpContextAccessor();
         services.AddSingleton(config);
         services.AddSingleton(config.Authentication);
-        // The shared hosting the api's services run on, as the host registers it before them (#794).
-        services.AddApiHosting(MonolithApi.MonolithNeeds, config.ForwardedHeaders);
+        // The shared hosting for the needs of the api's services, as the host registers it before them, then the
+        // services' own registrations (#794).
+        services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
         services.AddInfrastructure(config);
+        services.AddWorlds(configuration);
 
         using ServiceProvider provider = services.BuildServiceProvider();
 
@@ -106,13 +113,14 @@ public class ApiHostGraphShould
         ServiceCollection services = new();
         services.AddLogging();
         // Resolving the repositories builds the per-request context factories, which read the configured worlds.
-        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+        IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
             {
                 ["Database:Worlds:1:World:ConnectionString"] = "Host=w",
                 ["Database:Worlds:1:Characters:ConnectionString"] = "Host=c",
             })
-            .Build());
+            .Build();
+        services.AddSingleton(configuration);
         services.AddHttpContextAccessor();
         services.AddSingleton(config);
         services.AddSingleton(config.Environment);
@@ -120,15 +128,17 @@ public class ApiHostGraphShould
         services.AddSingleton(config.Notification);
         services.AddSingleton(config.Cache);
         services.AddSingleton(JwtSigningKey.Create(config.Authentication));
-        // The shared hosting the api's services run on, as the host registers it before them (#794).
-        services.AddApiHosting(MonolithApi.MonolithNeeds, config.ForwardedHeaders);
+        // The shared hosting for the needs of the api's services, as the host registers it before them, then the
+        // services' own registrations (#794).
+        services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
         services.AddInfrastructure(config);
+        services.AddWorlds(configuration);
 
         using ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);
         using IServiceScope scope = provider.CreateScope();
 
-        Assert.IsType<Avalon.Api.Services.CharacterService>(
-            scope.ServiceProvider.GetRequiredService<Avalon.Api.Services.ICharacterService>());
+        Assert.IsType<Avalon.Api.Worlds.Services.CharacterService>(
+            scope.ServiceProvider.GetRequiredService<Avalon.Api.Worlds.Services.ICharacterService>());
         Assert.NotNull(provider.GetRequiredService<Avalon.Database.Character.Repositories.ICharacterAuraRepository>());
     }
 }

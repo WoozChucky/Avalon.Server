@@ -5,6 +5,7 @@ using Avalon.Api.Exceptions;
 using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Testing;
+using Avalon.Api.Worlds.Exceptions;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,9 @@ namespace Avalon.Api.Hosting.UnitTests.Middlewares;
 public class ExceptionHandlerMiddlewareMappingShould
 {
     private const string ServiceUnavailableDetail = "The service is temporarily unavailable. Try again shortly.";
+
+    /// <summary>Identity's mappers and the worlds service's, whose exceptions these cases throw, in the host's order (#794).</summary>
+    private static readonly IReadOnlyList<IExceptionProblemMapper> s_mappers = [.. MonolithApi.ProblemMappers, new WorldsProblemMapper()];
 
     public static TheoryData<Exception, int, string, string, string, string?> Mappings => new()
     {
@@ -69,7 +73,7 @@ public class ExceptionHandlerMiddlewareMappingShould
         string detail, string? loggedError)
     {
         var logs = new CapturingLoggerFactory();
-        var middleware = new ExceptionHandlerMiddleware(_ => throw exception, logs, MonolithApi.ProblemMappers);
+        var middleware = new ExceptionHandlerMiddleware(_ => throw exception, logs, s_mappers);
         var context = new DefaultHttpContext();
         context.Request.Method = "POST";
         context.Request.Path = "/account/login";
@@ -110,7 +114,7 @@ public class ExceptionHandlerMiddlewareMappingShould
     public async Task Map_a_refresh_that_lost_a_race_as_the_refresh_endpoint_answers_it()
     {
         var logs = new CapturingLoggerFactory();
-        var middleware = new ExceptionHandlerMiddleware(_ => throw new RefreshAlreadyRotatedException(), logs, MonolithApi.ProblemMappers);
+        var middleware = new ExceptionHandlerMiddleware(_ => throw new RefreshAlreadyRotatedException(), logs, s_mappers);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddControllers();
@@ -137,7 +141,7 @@ public class ExceptionHandlerMiddlewareMappingShould
     public async Task Map_a_character_gone_by_the_write_as_the_endpoints_own_not_found()
     {
         var logs = new CapturingLoggerFactory();
-        var middleware = new ExceptionHandlerMiddleware(_ => throw new CharacterNotFoundException(), logs, MonolithApi.ProblemMappers);
+        var middleware = new ExceptionHandlerMiddleware(_ => throw new CharacterNotFoundException(), logs, s_mappers);
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddControllers();

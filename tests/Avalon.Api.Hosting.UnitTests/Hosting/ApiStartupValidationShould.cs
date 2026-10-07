@@ -3,6 +3,7 @@ using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Testing;
+using Avalon.Api.Worlds;
 using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Infrastructure.Configuration;
@@ -243,7 +244,8 @@ public class ApiStartupValidationShould
 
         ServiceCollection services = new();
         services.AddLogging();
-        services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        services.AddSingleton(configuration);
         services.AddHttpContextAccessor();
         services.AddSingleton(config);
         services.AddSingleton(config.Environment);
@@ -251,9 +253,11 @@ public class ApiStartupValidationShould
         services.AddSingleton(config.Notification);
         services.AddSingleton(config.Cache);
         services.AddSingleton(JwtSigningKey.Create(config.Authentication));
-        // The shared hosting the api's services run on, as the host registers it before them (#794).
-        services.AddApiHosting(MonolithApi.MonolithNeeds, config.ForwardedHeaders);
+        // The shared hosting for the needs of the api's services, as the host registers it before them, then the
+        // services' own registrations (#794).
+        services.AddApiHosting(ApiServiceNeeds.Union(ApiServices.All.Select(service => service.Needs)), config.ForwardedHeaders);
         services.AddInfrastructure(config);
+        services.AddWorlds(configuration);
         configure?.Invoke(services);
 
         return services.BuildServiceProvider(AvalonServiceProvider.Options);
