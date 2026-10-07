@@ -20,7 +20,7 @@ public class LoginLimitsShould
                 [$"Application:Authentication:{setting}"] = value,
             })
             .Build();
-        ApplicationConfig config = ApiConfiguration.Bind(configuration);
+        var config = ApplicationConfig.Bind(configuration);
 
         new ServiceCollection().AddInfrastructure(config);
     }

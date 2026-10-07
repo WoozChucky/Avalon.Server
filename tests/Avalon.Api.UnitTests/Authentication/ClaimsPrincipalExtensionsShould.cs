@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using Avalon.Api.Authentication;
+using Avalon.Api.Hosting.Authentication;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Authentication;

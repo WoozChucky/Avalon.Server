@@ -1,9 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
 using Avalon.Api.UnitTests.Authentication;
-using Avalon.Api.Worlds;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
@@ -58,7 +58,7 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
         {
             services.AddWorldDatabases(databases);
             services.AddSingleton(_authWorlds);
-            services.AddSingleton(Substitute.For<IWorldRepositories>());
+            services.AddSingleton(Substitute.For<IWorldContentRepositories>());
             services.AddMemoryCache();
             services.AddScoped<IObservabilityService, ObservabilityService>();
         });

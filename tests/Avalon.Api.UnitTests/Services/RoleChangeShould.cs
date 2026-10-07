@@ -2,7 +2,7 @@ using System.Net;
 using System.Text;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
-using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Api.UnitTests.Authentication;
 using Avalon.Common.ValueObjects;

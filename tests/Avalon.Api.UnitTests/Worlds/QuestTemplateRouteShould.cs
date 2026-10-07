@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.UnitTests.Authentication;
-using Avalon.Api.Worlds;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World.Extensions;

@@ -1,5 +1,5 @@
 using Avalon.Api.Authentication;
-using Avalon.Api.Routing;
+using Avalon.Api.Hosting.Routing;
 using Avalon.Api.UnitTests.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

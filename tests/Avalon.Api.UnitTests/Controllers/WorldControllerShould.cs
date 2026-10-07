@@ -1,8 +1,8 @@
 using System.Reflection;
 using System.Security.Claims;
-using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
+using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Services;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;

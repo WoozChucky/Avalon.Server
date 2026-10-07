@@ -1,3 +1,4 @@
+using Avalon.Api.Hosting.Middlewares;
 using OpenTelemetry.Instrumentation.AspNetCore;
 
 namespace Avalon.Api.Authentication;
@@ -6,6 +7,8 @@ public static class SteamWebLinkSecretProtection
 {
     public static void AddSteamWebLinkSecretProtection(this IServiceCollection services)
     {
+        // The callback's query carries the provider's signed assertion: the request log keeps its path only.
+        services.Configure<RequestLoggingOptions>(options => options.HideQueryString.Add(SteamOpenIdCallbackMiddleware.IsCallback));
         services.PostConfigure<AspNetCoreTraceInstrumentationOptions>(options =>
         {
             Func<HttpContext, bool>? previous = options.Filter;

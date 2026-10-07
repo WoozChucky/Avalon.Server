@@ -1,6 +1,8 @@
-using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting;
+using Avalon.Api.Hosting.Authentication.Jwt;
+using Avalon.Api.Hosting.Config;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Database.Character;
 using Avalon.Database.World;
 using Avalon.Domain.Auth;
@@ -94,6 +96,8 @@ public class WorldContextSensitiveLoggingShould
         services.AddSingleton(config.Notification);
         services.AddSingleton(config.Cache);
         services.AddSingleton(JwtSigningKey.Create(config.Authentication));
+        // The shared hosting the api's services run on, as the host registers it before them (#794).
+        services.AddApiHosting(MonolithApi.MonolithNeeds, config.ForwardedHeaders);
         services.AddInfrastructure(config);
 
         return services.BuildServiceProvider();

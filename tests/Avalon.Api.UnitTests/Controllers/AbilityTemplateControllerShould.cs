@@ -1,8 +1,8 @@
 using System.Security.Claims;
 using System.Text.Json;
-using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
+using Avalon.Api.Hosting.Authentication;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.World.Repositories;
@@ -19,7 +19,7 @@ public class AbilityTemplateControllerShould
     private readonly IAbilityTemplateRepository _repository = Substitute.For<IAbilityTemplateRepository>();
 
     private AbilityTemplateController MakeSut(ClaimsPrincipal user) =>
-        new(_repository, Substitute.For<Avalon.Api.Worlds.ICurrentWorld>(),
+        new(_repository, Substitute.For<Avalon.Api.Hosting.Worlds.ICurrentWorld>(),
             Microsoft.Extensions.Options.Options.Create(new Avalon.Api.Templates.TemplateEditingOptions()))
         {
             ControllerContext = new ControllerContext

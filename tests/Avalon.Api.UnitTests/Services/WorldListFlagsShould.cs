@@ -1,6 +1,6 @@
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
-using Avalon.Api.Worlds;
 using Avalon.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;

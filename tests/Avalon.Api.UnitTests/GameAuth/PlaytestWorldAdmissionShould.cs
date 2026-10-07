@@ -1,6 +1,6 @@
 using Avalon.Api.Controllers;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
-using Avalon.Api.Worlds;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;

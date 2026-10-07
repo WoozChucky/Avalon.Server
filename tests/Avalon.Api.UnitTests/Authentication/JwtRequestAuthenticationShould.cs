@@ -1,7 +1,6 @@
 using System.Data.Common;
 using System.Net;
-using Avalon.Api.Authentication;
-using Avalon.Api.Services;
+using Avalon.Api.Hosting.Authentication;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
@@ -10,6 +9,7 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
 using static Avalon.Api.UnitTests.Authentication.ApiAuthHost;
+using Avalon.Database.Auth.Repositories;
 
 namespace Avalon.Api.UnitTests.Authentication;
 
@@ -21,7 +21,8 @@ namespace Avalon.Api.UnitTests.Authentication;
 public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
 {
     private ApiAuthHost _host = null!;
-    private IAccountService Accounts => _host.Accounts;
+    // The repository authentication reads the account through (#794).
+    private IAccountRepository Accounts => _host.AccountRepository;
 
     public async Task InitializeAsync() => _host = await ApiAuthHost.StartAsync();
 
@@ -39,7 +40,7 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         // Authentication loads the account; the authorization handler reuses it.
-        await Accounts.Received(1).FindByIdAsync(IsTheCaller, Arg.Any<CancellationToken>());
+        await Accounts.Received(1).FindByIdAsync(IsTheCaller, Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -76,7 +77,7 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
         using HttpResponseMessage response = await _host.GetAsync("/admin", token);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        await Accounts.Received().FindByIdAsync(IsTheCaller, Arg.Any<CancellationToken>());
+        await Accounts.Received().FindByIdAsync(IsTheCaller, Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -115,7 +116,7 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
         using HttpResponseMessage response = await _host.GetAsync("/player", token);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        await Accounts.Received().FindByIdAsync(IsTheCaller, Arg.Any<CancellationToken>());
+        await Accounts.Received().FindByIdAsync(IsTheCaller, Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -196,7 +197,7 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
     [Fact]
     public async Task Answer_503_when_the_account_lookup_hits_a_database_failure()
     {
-        Accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        Accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new FakeDbException());
 
         using HttpResponseMessage response = await _host.GetAsync("/player", Mint(MakeAccount()));
@@ -207,7 +208,7 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
     [Fact]
     public async Task Never_let_a_request_through_when_the_account_lookup_throws()
     {
-        Accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        Accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("boom"));
 
         using HttpResponseMessage response = await _host.GetAsync("/player", Mint(MakeAccount()));

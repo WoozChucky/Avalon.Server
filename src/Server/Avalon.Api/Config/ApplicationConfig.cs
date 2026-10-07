@@ -1,9 +1,12 @@
+using Avalon.Api.Hosting.Config;
 using Avalon.Infrastructure.Configuration;
 
 namespace Avalon.Api.Config;
 
 public class ApplicationConfig
 {
+    public const string Section = "Application";
+
     public string Name { get; set; } = string.Empty;
     /// <summary>The world public tooltip links read when they name none (the live world); falls back to the first readable one.</summary>
     public ushort? PublicWorldId { get; set; }
@@ -21,4 +24,12 @@ public class ApplicationConfig
     public Distribution.DistributionConfiguration? Distribution { get; set; }
     public Balance.BalanceConfiguration? Balance { get; set; }
     public Commerce.CommerceConfiguration? Commerce { get; set; }
+
+    /// <summary>The "Application" section, bound as the services still in Avalon.Api read it.</summary>
+    public static ApplicationConfig Bind(IConfiguration configuration)
+    {
+        ApplicationConfig applicationConfig = new();
+        configuration.Bind(Section, applicationConfig);
+        return applicationConfig;
+    }
 }

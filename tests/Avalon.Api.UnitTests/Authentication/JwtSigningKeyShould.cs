@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
+using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
@@ -36,7 +37,7 @@ public class JwtSigningKeyShould
         if (signingKey is not null) settings[SettingName] = signingKey;
 
         IConfigurationRoot configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        ApplicationConfig applicationConfig = ApiConfiguration.Bind(configuration);
+        var applicationConfig = ApplicationConfig.Bind(configuration);
 
         var services = new ServiceCollection();
         services.AddAuth(applicationConfig);

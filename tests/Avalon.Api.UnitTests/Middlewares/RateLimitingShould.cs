@@ -4,8 +4,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
-using Avalon.Api.Config;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Config;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.UnitTests.Authentication;
 using Avalon.Common.Accounts;
 using Avalon.Common.Telemetry;
@@ -94,11 +94,12 @@ public sealed class RateLimitingShould
         return account;
     }
 
-    /// <summary>A second account the host's account service knows, with its own access token.</summary>
+    /// <summary>A second account the host's account lookup knows, with its own access token.</summary>
     private static string OtherAccountToken(ApiAuthHost host)
     {
         Account other = AccountWithId(OtherAccountId);
-        host.Accounts.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == OtherAccountId), Arg.Any<CancellationToken>())
+        host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == OtherAccountId), Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
             .Returns(other);
         return ApiAuthHost.Mint(other);
     }
@@ -217,8 +218,8 @@ public sealed class RateLimitingShould
         await SpendAsync(host, 3, token: token);
 
         Assert.Equal(HttpStatusCode.TooManyRequests, await SendAsync(host));
-        await host.Accounts.Received().FindByIdAsync(Arg.Is<AccountId>(id => id.Value == ApiAuthHost.AccountIdValue),
-            Arg.Any<CancellationToken>());
+        await host.AccountRepository.Received().FindByIdAsync(Arg.Is<AccountId>(id => id.Value == ApiAuthHost.AccountIdValue),
+            Arg.Any<bool>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>
@@ -230,14 +231,14 @@ public sealed class RateLimitingShould
     {
         await using ApiAuthHost host = await StartAsync();
         host.AccountNowIs(ApiAuthHost.MakeAccount());
-        host.Pats.FindByRawTokenAsync(PatToken, Arg.Any<CancellationToken>()).Returns(PatFor(PatToken));
+        host.PatIs(PatToken, PatFor(PatToken));
         string jwt = ApiAuthHost.Mint(ApiAuthHost.MakeAccount());
 
         await SpendAsync(host, 3);
         Assert.Equal(HttpStatusCode.TooManyRequests, await SendAsync(host));
 
         await SpendAsync(host, 3, "/player", token: PatToken, scheme: "Avalon");
-        await host.Pats.Received(3).FindByRawTokenAsync(PatToken, Arg.Any<CancellationToken>());
+        await host.PatRepository.Received(3).FindByHashAsync(ApiAuthHost.TokenHash(PatToken), Arg.Any<CancellationToken>());
         await SpendAsync(host, 2, "/player", token: jwt);
         Assert.Equal(HttpStatusCode.TooManyRequests,
             await SendAsync(host, "/player", token: PatToken, scheme: "Avalon"));
@@ -261,8 +262,8 @@ public sealed class RateLimitingShould
         }
 
         // Each lookup is made once per request (authorization reuses the early one); none past the budget.
-        await host.Pats.Received(ApiRateLimiting.FailedPatLookupsPerMinute)
-            .FindByRawTokenAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await host.PatRepository.Received(ApiRateLimiting.FailedPatLookupsPerMinute)
+            .FindByHashAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>());
 
         // Another source still has its own budget.
         Assert.Equal(HttpStatusCode.Unauthorized,
@@ -274,7 +275,7 @@ public sealed class RateLimitingShould
     {
         await using ApiAuthHost host = await StartAsync(anonymous: 1, authenticated: 50);
         host.AccountNowIs(ApiAuthHost.MakeAccount());
-        host.Pats.FindByRawTokenAsync(PatToken, Arg.Any<CancellationToken>()).Returns(PatFor(PatToken));
+        host.PatIs(PatToken, PatFor(PatToken));
 
         await SpendAsync(host, 3, "/player", token: PatToken, scheme: "Avalon");
         Assert.Equal(HttpStatusCode.OK, await SendAsync(host));
@@ -305,7 +306,7 @@ public sealed class RateLimitingShould
 
         await ApiRateLimiting.IdentifyPersonalAccessTokenAsync(context);
 
-        await authentication.Received(1).AuthenticateAsync(context, Avalon.Api.Authentication.AV.AvalonAuthenticationSchemeOptions.SchemeName);
+        await authentication.Received(1).AuthenticateAsync(context, Avalon.Api.Hosting.Authentication.AV.AvalonAuthenticationSchemeOptions.SchemeName);
     }
 
     /// <summary>
@@ -317,12 +318,12 @@ public sealed class RateLimitingShould
     {
         await using ApiAuthHost host = await StartAsync();
         host.AccountNowIs(ApiAuthHost.MakeAccount());
-        host.Pats.FindByRawTokenAsync(PatToken, Arg.Any<CancellationToken>()).Returns(PatFor(PatToken));
+        host.PatIs(PatToken, PatFor(PatToken));
 
         Assert.Equal(HttpStatusCode.OK, await SendAsync(host, token: PatToken, scheme: "Avalon"));
 
-        await host.Pats.DidNotReceiveWithAnyArgs().FindByRawTokenAsync(default!, default);
-        await host.Pats.DidNotReceiveWithAnyArgs().TouchLastUsedAsync(default!, default);
+        await host.PatRepository.DidNotReceiveWithAnyArgs().FindByHashAsync(default!, default);
+        await host.PatRepository.DidNotReceiveWithAnyArgs().UpdateLastUsedIfStaleAsync(default!, default, default, default);
     }
 
     private static HttpContext PatRequest(Microsoft.AspNetCore.Authentication.IAuthenticationService authentication,

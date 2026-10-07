@@ -1,6 +1,6 @@
 using System.Security.Claims;
-using Avalon.Api.Authentication;
 using Avalon.Api.Config;
+using Avalon.Api.Hosting.Authentication;
 using Avalon.Common.Accounts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;

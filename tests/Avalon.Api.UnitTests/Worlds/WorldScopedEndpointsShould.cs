@@ -1,6 +1,6 @@
 using System.Net;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.UnitTests.Authentication;
-using Avalon.Api.Worlds;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

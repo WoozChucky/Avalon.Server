@@ -1,6 +1,6 @@
 using System.Net;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.UnitTests.Authentication;
-using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth;

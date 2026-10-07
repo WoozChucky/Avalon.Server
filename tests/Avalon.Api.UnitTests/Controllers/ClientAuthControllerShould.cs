@@ -2,12 +2,12 @@ using System.Net;
 using System.Reflection;
 using System.Security.Authentication;
 using System.Security.Claims;
+using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Exceptions;
-using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
@@ -408,7 +408,7 @@ public class ClientAuthControllerShould
         EnableRateLimitingAttribute? attribute = typeof(ClientAuthController).GetMethod(action)!
             .GetCustomAttribute<EnableRateLimitingAttribute>();
 
-        Assert.Equal(ApiRateLimiting.ClientAuthPolicy, attribute?.PolicyName);
+        Assert.Equal(ClientAuthRateLimiting.Policy, attribute?.PolicyName);
     }
 
     [Fact]

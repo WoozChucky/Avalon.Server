@@ -1,6 +1,6 @@
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
-using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
@@ -27,7 +27,7 @@ public class ObservabilityServiceShould
     private readonly IMapTemplateRepository _maps = Substitute.For<IMapTemplateRepository>();
     private readonly IProceduralMapConfigRepository _configs = Substitute.For<IProceduralMapConfigRepository>();
     private readonly IProceduralLayoutInputsResolver _inputsResolver = Substitute.For<IProceduralLayoutInputsResolver>();
-    private readonly IWorldRepositories _perWorld = Substitute.For<IWorldRepositories>();
+    private readonly IWorldContentRepositories _perWorld = Substitute.For<IWorldContentRepositories>();
     private readonly WorldDatabases _databases = new(
     [
         new ConfiguredWorld(new WorldId(1), "Host=w1", "Host=c1"),

@@ -1,5 +1,6 @@
-using Avalon.Api.Authentication;
 using Avalon.Api.Distribution;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Common.Accounts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

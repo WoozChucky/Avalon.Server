@@ -1,6 +1,6 @@
 using Avalon.Api.Contract;
-using Avalon.Api.Exceptions;
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting.Exceptions;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Common.Accounts;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;

@@ -1,11 +1,12 @@
 using System.Net;
 using System.Security.Authentication;
 using System.Text;
-using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Services.Email;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;

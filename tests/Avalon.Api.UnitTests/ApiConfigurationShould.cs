@@ -1,4 +1,5 @@
 using Avalon.Api.Config;
+using Avalon.Api.Hosting.Config;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Xunit;
@@ -34,7 +35,7 @@ public sealed class ApiConfigurationShould : IDisposable
     });
 
     private static string? SigningKeyFrom(WebApplicationBuilder builder) =>
-        ApiConfiguration.Bind(ApiConfiguration.Sources(builder)).Authentication?.IssuerSigningKey;
+        ApplicationConfig.Bind(ApiConfiguration.Sources(builder)).Authentication?.IssuerSigningKey;
 
     [Fact]
     public void Read_appsettings_json_when_nothing_overrides_it() =>

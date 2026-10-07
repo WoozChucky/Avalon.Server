@@ -1,7 +1,6 @@
 using System.Security.Authentication;
-using System.Security.Cryptography;
-using System.Text;
-using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Authentication.AV;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
@@ -49,7 +48,6 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
     public const string TokenPrefix = "avp_";
     public const string CredentialsChanged = "Credentials changed; sign in again";
     public const int TokenPrefixDisplayLength = 8;
-    private static readonly TimeSpan s_lastUsedBucket = TimeSpan.FromSeconds(60);
 
     private readonly IPersonalAccessTokenRepository _repository;
     private readonly ISecureRandom _random;
@@ -118,7 +116,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
             .TrimEnd('=');
         string token = TokenPrefix + base64Url;
 
-        byte[] tokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
+        byte[] tokenHash = PersonalAccessTokens.Hash(token);
         string prefix = token[..TokenPrefixDisplayLength];
 
         var entity = new PersonalAccessToken
@@ -156,8 +154,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
 
     public Task<PersonalAccessToken?> FindByRawTokenAsync(string token, CancellationToken cancellationToken = default)
     {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
-        return _repository.FindByHashAsync(hash, cancellationToken);
+        return _repository.FindByHashAsync(PersonalAccessTokens.Hash(token), cancellationToken);
     }
 
     public Task RevokeAsync(PersonalAccessToken token, AccountId revokedBy, CancellationToken cancellationToken = default)
@@ -173,6 +170,6 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
     public Task TouchLastUsedAsync(PersonalAccessTokenId id, CancellationToken cancellationToken = default)
     {
         DateTime now = _time.GetUtcNow().UtcDateTime;
-        return _repository.UpdateLastUsedIfStaleAsync(id, now, s_lastUsedBucket, cancellationToken);
+        return _repository.UpdateLastUsedIfStaleAsync(id, now, PersonalAccessTokens.LastUsedBucket, cancellationToken);
     }
 }

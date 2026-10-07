@@ -1,6 +1,6 @@
 using System.Data.Common;
 using System.Text.Json;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Middlewares;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using StackExchange.Redis;
@@ -49,7 +49,7 @@ public class ExceptionHandlerMiddlewareShould
     {
         var middleware = new ExceptionHandlerMiddleware(
             _ => throw new Avalon.Api.Distribution.DistributionUnavailableException("Downloads are not available right now."),
-            NullLoggerFactory.Instance);
+            NullLoggerFactory.Instance, MonolithApi.ProblemMappers);
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
 
@@ -66,7 +66,7 @@ public class ExceptionHandlerMiddlewareShould
     public async Task Answer_an_email_that_could_not_be_sent_with_503()
     {
         var middleware = new ExceptionHandlerMiddleware(_ => throw new Avalon.Api.Exceptions.EmailDeliveryException(),
-            NullLoggerFactory.Instance);
+            NullLoggerFactory.Instance, MonolithApi.ProblemMappers);
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
 

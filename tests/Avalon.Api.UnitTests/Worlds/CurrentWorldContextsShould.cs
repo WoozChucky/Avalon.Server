@@ -1,4 +1,4 @@
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Extensions;

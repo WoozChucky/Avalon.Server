@@ -4,6 +4,7 @@ using System.Text;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
 using Avalon.Api.UnitTests.Authentication;
@@ -675,8 +676,12 @@ public sealed class EmailChangeShould : IDisposable
     public async Task Answer_both_endpoints_with_501_over_http_when_no_sender_is_configured()
     {
         Account account = await AccountAsync();
-        await using ApiAuthHost host = await ApiAuthHost.StartAsync(_cache,
-            services => services.AddScoped<IAccountService>(_ => Service()));
+        await using ApiAuthHost host = await ApiAuthHost.StartAsync(_cache, services =>
+        {
+            services.AddScoped<IAccountService>(_ => Service());
+            // Authentication reads the account through the repository (#794).
+            services.AddSingleton<IAccountRepository>(_accounts);
+        });
 
         using var start = new HttpRequestMessage(HttpMethod.Post, "/account/email/change")
         {
@@ -720,6 +725,8 @@ public sealed class EmailChangeShould : IDisposable
             {
                 services.AddSingleton<IEmailSender>(sender);
                 services.AddScoped<IAccountService>(_ => Service(sender: sender));
+                // Authentication reads the account through the repository (#794).
+                services.AddSingleton<IAccountRepository>(_accounts);
             });
 
             using var start = new HttpRequestMessage(HttpMethod.Post, "/account/email/change")

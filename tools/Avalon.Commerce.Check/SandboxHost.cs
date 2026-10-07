@@ -4,7 +4,7 @@ using Avalon.Api;
 using Avalon.Api.Commerce;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Commerce;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Configuration;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
@@ -49,6 +49,8 @@ internal static class SandboxHost
         builder.Services.AddSingleton<IOptions<StoreAuthenticationConfiguration>>(Options.Create(authentication));
         builder.Services.AddSingleton<IPurchaseRepository, PurchaseRepository>();
         builder.Services.AddCommerce();
+        // A refused purchase is answered as the api answers it (#794: the exception middleware asks the services' mappers).
+        builder.Services.AddSingleton<IExceptionProblemMapper, CommerceProblemMapper>();
         builder.Services.AddAuthentication("Fixture").AddScheme<AuthenticationSchemeOptions, FixtureAuthentication>("Fixture", _ => { });
         builder.Services.AddAuthorization();
         var accounts = new AccountRepository(factory);

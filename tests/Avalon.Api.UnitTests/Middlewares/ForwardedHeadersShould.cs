@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
 using System.Net;
 using Avalon.Api.Config;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Config;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Infrastructure.Login;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -30,7 +31,7 @@ public sealed class ForwardedHeadersShould
     private static ForwardedHeadersConfig Bind(Dictionary<string, string?> settings)
     {
         IConfigurationRoot configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        return ApiConfiguration.Bind(configuration).ForwardedHeaders ?? new ForwardedHeadersConfig();
+        return ApplicationConfig.Bind(configuration).ForwardedHeaders ?? new ForwardedHeadersConfig();
     }
 
     [Fact]

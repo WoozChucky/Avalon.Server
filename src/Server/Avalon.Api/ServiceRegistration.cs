@@ -1,44 +1,36 @@
-using System.Security.Claims;
 using Avalon.Api.Authentication;
-using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Balance;
 using Avalon.Api.Config;
 using Avalon.Api.Controllers;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Previews;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
-using Avalon.Api.Worlds;
-using Avalon.Database;
-using Avalon.Database.Auth.Extensions;
-using Avalon.Database.Character.Extensions;
-using Avalon.Database.Extensions;
-using Avalon.Database.World.Extensions;
-using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
-using Avalon.Infrastructure.Configuration;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Infrastructure.Login;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Primitives;
-using Microsoft.IdentityModel.Tokens;
-using Microsoft.Net.Http.Headers;
 
 namespace Avalon.Api;
 
+/// <summary>
+/// What the services still in Avalon.Api register (#794): everything but the shared hosting, which
+/// <see cref="AvalonApiHost"/> registers. <see cref="MonolithApi"/> calls it; each service takes its part as it moves
+/// into its own library.
+/// </summary>
 public static class ServiceRegistration
 {
     /// <summary>
-    /// Serilog first, then the service defaults (#562): AddCustomLogging clears every logging
-    /// provider registered before it, so the OpenTelemetry one AddServiceDefaults adds must come
-    /// after it, as it does on the auth and world servers. The #558 EF rules reach both.
+    /// The host's logging and service defaults (<see cref="AvalonApiHost.AddApiLoggingAndServiceDefaults"/>), and the
+    /// Steam web link's protection of its secrets in the logs and traces they reach.
     /// </summary>
     public static void AddLoggingAndServiceDefaults(this WebApplicationBuilder builder, IConfiguration configuration)
     {
-        builder.Services.AddCustomLogging(configuration);
-        builder.AddServiceDefaults();
+        builder.AddApiLoggingAndServiceDefaults(configuration);
         builder.Services.AddSteamWebLinkSecretProtection();
     }
 
@@ -75,9 +67,13 @@ public static class ServiceRegistration
         });
 #pragma warning restore EXTEXP0001
 
+    /// <summary>
+    /// The services' registrations. The shared hosting they run on, the auth database, the world databases and their
+    /// repositories, Redis, the forwarded headers, the request rate limiter and the time provider, is registered by
+    /// <see cref="ApiHostingRegistration.AddApiHosting"/>.
+    /// </summary>
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
-        services.AddAuthDatabase();
         services.AddSteamStoreAuthentication();
         services.AddCommerce();
         services.AddSteamWebLink();
@@ -104,18 +100,8 @@ public static class ServiceRegistration
         services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
         services.AddSingleton(PublicSiteSettings.Create(config.PublicSiteUrl));
         services.AddOptions<PreviewConfiguration>().BindConfiguration("Application:Previews");
-        // Checked at startup (ApiStartup), naming the setting, like the auth and world servers do.
-        services.ValidateDatabasesOnStart(DatabaseConnections.Auth);
-        // The repositories only. Their contexts come from AddWorldDatabases: one world and characters
-        // database per world under Database:Worlds, chosen per request (#523).
-        services.AddCharacterRepositories();
-        services.AddWorldRepositories();
-        services.AddWorldDatabases();
-
-        services.AddOptions<CacheConfiguration>()
-            .BindConfiguration("Application:Cache")
-            .ValidateDataAnnotations()
-            .ValidateOnStart();
+        // Observability's reads of a presence's own world, the layout inputs included.
+        services.AddSingleton<IWorldContentRepositories, WorldContentRepositories>();
 
         services.AddOptions<Templates.TemplateEditingOptions>()
             .BindConfiguration(Templates.TemplateEditingOptions.Section)
@@ -156,7 +142,6 @@ public static class ServiceRegistration
         services.AddSingleton<ILauncherAuthCodes, LauncherAuthCodes>();
         services.AddSingleton<Avalon.Infrastructure.GameTickets.IGameTicketStore,
             Avalon.Infrastructure.GameTickets.RedisGameTicketStore>();
-        services.AddSingleton(TimeProvider.System);
         services.AddMfaService();
         // The login policy the Auth server shares (#478), with the limits under
         // Application:Authentication, checked here since that section is bound without validation.
@@ -166,150 +151,40 @@ public static class ServiceRegistration
         services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<AuthenticationConfig>());
         services.AddLoginPolicy();
         services.AddScoped<IReauthentication, Reauthentication>();
-        // Which proxies' X-Forwarded-For is believed: the caller's address is its login source.
-        // Built here so a bad entry stops startup, naming the setting.
-        services.AddSingleton(Middlewares.ForwardedHeadersSetup.BuildOptions(config.ForwardedHeaders));
-        services.AddSingleton<Middlewares.UntrustedForwardedHeaderLog>();
-        // Request rate limiting under Application:RateLimiting (#561), per account or per source.
-        services.AddApiRateLimiting();
+        // Launcher sign-in's own request limit (#591), on top of the shared rate limiter.
+        services.AddClientAuthRateLimiting();
         services.AddSecureRandom();
-        services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         services.AddSingleton<IWorldReadiness, WorldReadiness>();
         services.AddWorldMaintenanceControl();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IJwtUtils, JwtUtils>();
+        // The store's publisher key and the Steam web link's URLs, checked before the api serves (ApiStartup).
+        services.AddSingleton<IApiStartupCheck, IdentityStartupCheck>();
     }
 
+    /// <summary>
+    /// The shared token validation (<see cref="ApiAuthentication.AddApiAuthentication"/>) with what the services add
+    /// to it (<see cref="AddServiceAuthentication"/>), as the host composes the two.
+    /// </summary>
     public static void AddAuth(this IServiceCollection services, ApplicationConfig config)
     {
-        SymmetricSecurityKey signingKey = AddSigningKey(services, config);
-        AddAuthenticationSchemes(services, config, signingKey);
-        AddAuthorizationPolicies(services);
-        AddAuthorizationHandlers(services);
+        services.AddApiAuthentication(config.Authentication);
+        services.AddServiceAuthentication();
     }
 
-    private static SymmetricSecurityKey AddSigningKey(IServiceCollection services, ApplicationConfig config)
+    /// <summary>
+    /// What the services add to the shared token validation: the game workload scheme, its policy and its rate-limit
+    /// partition, and the resource authorization handlers (characters; accounts and personal access tokens).
+    /// </summary>
+    public static void AddServiceAuthentication(this IServiceCollection services)
     {
-        // Checked here, eagerly, so a missing or weak key stops startup instead of surfacing on the
-        // first request (#482).
-        // One instance, registered for JwtUtils, so signing and validation share it.
-        SymmetricSecurityKey signingKey = JwtSigningKey.Create(config.Authentication);
-        services.AddSingleton(signingKey);
-        return signingKey;
-    }
+        services.AddAuthentication()
+            .AddScheme<AuthenticationSchemeOptions, GameServerAuthHandler>(GameServerAuthHandler.Scheme, _ => { });
+        services.AddAuthorization(options => options.AddPolicy(GameServerAuthHandler.Scheme, policy => policy
+            .AddAuthenticationSchemes(GameServerAuthHandler.Scheme).RequireAuthenticatedUser()
+            .RequireClaim(GameServerAuthHandler.ServerIdClaim)));
+        services.AddSingleton<IRateLimitWorkloads, GameServerRateLimitWorkloads>();
 
-    private static void AddAuthenticationSchemes(IServiceCollection services, ApplicationConfig config,
-        SymmetricSecurityKey signingKey)
-    {
-        services.AddAuthentication(options =>
-            {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-            }).AddJwtBearer(x =>
-            {
-                x.SaveToken = true;
-                x.Events = new JwtBearerEvents
-                {
-                    OnMessageReceived = ReadAccessToken,
-                    // A valid signature is not enough: the account behind the token is reloaded
-                    // and re-checked on every request, as a PAT's is (#480).
-                    OnTokenValidated = JwtAccountRevalidation.OnTokenValidated,
-                };
-
-                x.TokenValidationParameters = BuildTokenValidationParameters(config, signingKey);
-
-                x.Validate(JwtBearerDefaults.AuthenticationScheme);
-            })
-            .AddScheme<AvalonAuthenticationSchemeOptions, AvalonAuthenticationHandler>(
-                AvalonAuthenticationSchemeOptions.SchemeName,
-                AvalonAuthenticationSchemeOptions.SchemeName,
-                options => { }
-            ).AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, GameServerAuthHandler>(
-                GameServerAuthHandler.Scheme, _ => { });
-    }
-
-    private static Task ReadAccessToken(MessageReceivedContext context)
-    {
-        if (context.Request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues authHeader))
-        {
-            string value = authHeader.ToString();
-            // Only extract the token when the scheme is Bearer (JWT).
-            // Avalon-scheme headers (PATs) are handled by AvalonAuthenticationHandler;
-            // passing them to JwtBearer causes a Fail() result and a spurious 401.
-            if (value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            {
-                context.Token = value["Bearer ".Length..];
-            }
-        }
-        else if (context.Request.Cookies.TryGetValue(AuthConstants.CookieName, out string? cookie))
-        {
-            context.Token = cookie;
-        }
-
-        return Task.CompletedTask;
-    }
-
-    private static TokenValidationParameters BuildTokenValidationParameters(ApplicationConfig config,
-        SymmetricSecurityKey signingKey) =>
-        new()
-        {
-            ValidIssuer = config.Authentication!.Issuer,
-            ValidateIssuer = config.Authentication.ValidateIssuer,
-            IssuerSigningKey = signingKey,
-            // Not configurable: a token is only as good as the key that signed it.
-            ValidateIssuerSigningKey = true,
-            ValidAudience = config.Authentication.Audience,
-            ValidateAudience = config.Authentication.ValidateAudience,
-            // The access token's lifetime (AccessTokenLifetimeMinutes) is enforced, with the
-            // configured skew; a client past it gets a 401 and refreshes (#480).
-            ValidateLifetime = true,
-            ClockSkew = TimeSpan.FromMinutes(config.Authentication.ClockSkewInMinutes),
-            RoleClaimType = ClaimTypes.GroupSid,
-            // JwtUtils signs with HMAC-SHA256 only; nothing else is accepted.
-            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
-        };
-
-    private static void AddAuthorizationPolicies(IServiceCollection services)
-    {
-        services.AddAuthorization(options =>
-        {
-            options.AddPolicy(GameServerAuthHandler.Scheme, policy => policy
-                .AddAuthenticationSchemes(GameServerAuthHandler.Scheme).RequireAuthenticatedUser()
-                .RequireClaim(GameServerAuthHandler.ServerIdClaim));
-            options.DefaultPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme,
-                    AvalonAuthenticationSchemeOptions.SchemeName)
-                .RequireAuthenticatedUser()
-                .AddRequirements(new AvalonAuthRequirement())
-                .Build();
-
-            options.AddPolicy(AvalonRoles.Console, policy => policy
-                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Console)
-                .Combine(options.DefaultPolicy)
-            );
-
-            options.AddPolicy(AvalonRoles.Admin, policy => policy
-                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Admin, AvalonRoles.Console)
-                .Combine(options.DefaultPolicy)
-            );
-
-            options.AddPolicy(AvalonRoles.GameMaster, policy => policy
-                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console)
-                .Combine(options.DefaultPolicy)
-            );
-
-            options.AddPolicy(AvalonRoles.Player, policy => policy
-                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Player, AvalonRoles.Tournament, AvalonRoles.PTR,
-                    AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console)
-                .Combine(options.DefaultPolicy)
-            );
-        });
-    }
-
-    private static void AddAuthorizationHandlers(IServiceCollection services)
-    {
-        services.AddScoped<IAuthContext, AuthContext>();
-        services.AddScoped<IAuthorizationHandler, AvalonAuthHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.CharacterReadHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.CharacterWriteHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.AccountReadHandler>();

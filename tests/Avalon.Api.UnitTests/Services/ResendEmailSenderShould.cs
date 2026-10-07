@@ -25,7 +25,7 @@ public sealed class ResendEmailSenderShould
             ["Application:Email:FromName"] = "Avalon",
             ["Application:Email:ResendApiKey"] = Secret,
         };
-        EmailConfig config = ApiConfiguration.Bind(new ConfigurationBuilder().AddInMemoryCollection(settings).Build()).Email!;
+        EmailConfig config = ApplicationConfig.Bind(new ConfigurationBuilder().AddInMemoryCollection(settings).Build()).Email!;
         IHostEnvironment env = Substitute.For<IHostEnvironment>(); env.EnvironmentName.Returns("Production");
         var services = new ServiceCollection();
         services.AddLogging();

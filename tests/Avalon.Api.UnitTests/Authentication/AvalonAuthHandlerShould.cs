@@ -1,8 +1,8 @@
 using System.Security.Authentication;
 using System.Security.Claims;
-using Avalon.Api.Authentication;
-using Avalon.Api.Services;
+using Avalon.Api.Hosting.Authentication;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -20,7 +20,8 @@ namespace Avalon.Api.UnitTests.Authentication;
 /// </summary>
 public class AvalonAuthHandlerShould
 {
-    private readonly IAccountService _accounts = Substitute.For<IAccountService>();
+    // The repository the handler reads, on every API service (#794).
+    private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
 
     private async Task<AuthorizationHandlerContext> AuthorizeAsync()
     {
@@ -49,7 +50,7 @@ public class AvalonAuthHandlerShould
     }
 
     private void AccountIs(AccountStatus status) =>
-        _accounts.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == 7), Arg.Any<CancellationToken>())
+        _accounts.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == 7), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Account
             {
                 Id = new AccountId(7),

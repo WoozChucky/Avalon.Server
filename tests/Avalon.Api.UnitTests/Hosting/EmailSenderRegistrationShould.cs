@@ -68,7 +68,7 @@ public class EmailSenderRegistrationShould
     }
 
     private static EmailConfig Bind(Dictionary<string, string?> settings) =>
-        ApiConfiguration.Bind(new ConfigurationBuilder().AddInMemoryCollection(settings).Build()).Email
+        ApplicationConfig.Bind(new ConfigurationBuilder().AddInMemoryCollection(settings).Build()).Email
         ?? new EmailConfig();
 
     private static IEmailSender? Registered(EmailConfig? config, string environment)

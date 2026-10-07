@@ -1,8 +1,9 @@
-using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
@@ -140,7 +141,7 @@ public class MFAController : BaseController
 
         // The account was read by the policy, which checked its version against the hash's (#495).
         RefreshIssueResult issue = await _refreshService.IssueAsync(account.Id, account.CredentialsVersion, CancellationToken);
-        SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
+        RefreshCookie.Set(Response, issue.RawToken, issue.ExpiresAt, _authConfig);
 
         return new AuthenticateResponse
         {

@@ -3,7 +3,8 @@ using System.Text.Json;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Contract;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Api.Services;
 using Avalon.Common.GameAuth;
 using Avalon.Infrastructure.GameAuth;
@@ -16,7 +17,7 @@ namespace Avalon.Api.Controllers;
 
 [ApiController, Authorize(Policy = AvalonRoles.Player), Route("account/links")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-[RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+[RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ClientAuthRateLimiting.Policy)]
 public sealed class AccountLinksController(PendingLinkStore links, AccountLinkReauthentication recent,
     IAuthContext auth) : BaseController
 {

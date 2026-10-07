@@ -6,7 +6,10 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Controllers;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Authentication.AV;
+using Avalon.Api.Hosting.Authentication.Jwt;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
@@ -31,7 +34,7 @@ namespace Avalon.Api.UnitTests.Authentication;
 
 /// <summary>
 /// An in-memory api: the real <see cref="ServiceRegistration.AddAuth"/>, the real controllers and
-/// the middleware order of Program.cs, with every service below the controllers substituted.
+/// the middleware order of the host, with every service below the controllers substituted.
 /// Requests go over HTTP, so the bearer handler, its events, the policies and
 /// <see cref="AvalonAuthHandler"/> all run as they do in production. A few minimal endpoints stand
 /// in for "any endpoint behind policy X".
@@ -63,6 +66,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
 
     public IAccountService Accounts { get; } = Substitute.For<IAccountService>();
     public IAccountRepository AccountRepository { get; } = Substitute.For<IAccountRepository>();
+    public IPersonalAccessTokenRepository PatRepository { get; } = Substitute.For<IPersonalAccessTokenRepository>();
     public IRefreshTokenService Refresh { get; } = Substitute.For<IRefreshTokenService>();
     public IMFAService Mfa { get; } = Substitute.For<IMFAService>();
     public IMFAHashService MfaHashes { get; } = Substitute.For<IMFAHashService>();
@@ -105,13 +109,18 @@ public sealed class ApiAuthHost : IAsyncDisposable
         services.AddSingleton(AuthConfig);
         services.AddSingleton(Refresh);
         services.AddSingleton(AccountRepository);
+        services.AddSingleton(PatRepository);
         // Which peers are proxies (loopback by default): the refresh grace is not given behind one.
-        services.AddSingleton(Avalon.Api.Middlewares.ForwardedHeadersSetup.BuildOptions(null));
+        services.AddSingleton(Avalon.Api.Hosting.Middlewares.ForwardedHeadersSetup.BuildOptions(null));
         services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<UntrustedForwardedHeaderLog>();
         // The request rate limiter (#561), with its defaults unless a test configures it.
         services.AddApiRateLimiting();
+        services.AddClientAuthRateLimiting();
         builder.AddDefaultHealthChecks();
+        // The services' exceptions are answered as the host answers them.
+        foreach (IExceptionProblemMapper mapper in MonolithApi.ProblemMappers)
+            services.AddSingleton(mapper);
         services.AddSingleton(Mfa);
         services.AddSingleton(Cache);
         // The real login policy (#478) over the substitutes above: a live hash for the account, a
@@ -144,7 +153,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         _app.UseRouting();
         _app.UseAuthentication();
         _app.UseApiRateLimiting();
-        _app.UseMiddleware<Avalon.Api.Worlds.WorldRouteMiddleware>();
+        _app.UseMiddleware<Avalon.Api.Hosting.Worlds.WorldRouteMiddleware>();
         _app.UseAuthorization();
         _app.MapGet("/player", () => "ok").RequireAuthorization(AvalonRoles.Player);
         _app.MapGet("/admin", () => "ok").RequireAuthorization(AvalonRoles.Admin);
@@ -154,7 +163,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         _app.MapGet("/anonymous", (HttpContext http) => http.User.Identity?.IsAuthenticated == true ? "user" : "anonymous")
             .AllowAnonymous();
         // Stands in for the launcher sign-in endpoints (#591): the same named policy, no dependencies.
-        _app.MapGet(ClientAuthLimitedPath, () => "ok").RequireRateLimiting(ApiRateLimiting.ClientAuthPolicy);
+        _app.MapGet(ClientAuthLimitedPath, () => "ok").RequireRateLimiting(ClientAuthRateLimiting.Policy);
         _app.MapControllers();
 
         await _app.StartAsync();
@@ -180,10 +189,29 @@ public sealed class ApiAuthHost : IAsyncDisposable
             Status = status,
         };
 
-    /// <summary>What the account service returns for exactly <see cref="AccountIdValue"/>, and nothing else.</summary>
-    public void AccountNowIs(Account? account) =>
+    /// <summary>
+    /// What the account lookups return for exactly <see cref="AccountIdValue"/>, and nothing else: the repository
+    /// authentication reads (#794) and the account service the controllers read.
+    /// </summary>
+    public void AccountNowIs(Account? account)
+    {
         Accounts.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<CancellationToken>())
             .Returns(account);
+        AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
+            .Returns(account);
+    }
+
+    /// <summary>An argument matching the hash a personal access token is looked up by.</summary>
+    public static byte[] TokenHash(string token)
+    {
+        byte[] expected = PersonalAccessTokens.Hash(token);
+        return Arg.Is<byte[]>(hash => hash.SequenceEqual(expected));
+    }
+
+    /// <summary>What the personal access token lookup returns for <paramref name="token"/>.</summary>
+    public void PatIs(string token, PersonalAccessToken? pat) =>
+        PatRepository.FindByHashAsync(TokenHash(token), Arg.Any<CancellationToken>()).Returns(pat);
 
     public static string Mint(Account account) => new JwtUtils(AuthConfig, JwtSigningKey.Create(AuthConfig)).GenerateJwtToken(account);
 

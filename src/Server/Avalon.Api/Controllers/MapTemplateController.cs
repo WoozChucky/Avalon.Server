@@ -1,7 +1,8 @@
-using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
-using Avalon.Api.Worlds;
 using Avalon.Database;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

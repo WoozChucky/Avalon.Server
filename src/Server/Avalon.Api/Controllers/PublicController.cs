@@ -1,6 +1,6 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;

@@ -1,5 +1,5 @@
 using Avalon.Api.Authentication;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -33,6 +33,23 @@ public sealed class SteamWebSecretProtectionShould
         var callback = new DefaultHttpContext(); callback.Request.Path = SteamWebLinkOptions.CallbackPath;
         Assert.False(options.Filter!(callback));
         callback.Request.Path = "/account"; Assert.True(options.Filter(callback));
+    }
+
+    /// <summary>
+    /// The callback's query carries Steam's signed assertion: the request log keeps the path and leaves the query out
+    /// (#794: the shared request log asks the services which queries to hide).
+    /// </summary>
+    [Fact]
+    public void Keep_the_callbacks_query_out_of_the_request_log()
+    {
+        var services = new ServiceCollection();
+        services.AddSteamWebLinkSecretProtection();
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        RequestLoggingOptions options = provider.GetRequiredService<IOptions<RequestLoggingOptions>>().Value;
+
+        Assert.True(options.HidesQueryOf(SteamWebLinkOptions.CallbackPath));
+        Assert.False(options.HidesQueryOf("/account"));
     }
 
     [Fact]

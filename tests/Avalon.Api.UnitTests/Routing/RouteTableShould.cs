@@ -1,4 +1,4 @@
-using Avalon.Api.Routing;
+using Avalon.Api.Hosting.Routing;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Routing;

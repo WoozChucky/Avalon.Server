@@ -6,7 +6,9 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
@@ -90,7 +92,7 @@ public sealed class ClientAuthController : BaseController
     [HttpPost("code", Name = "CreateLauncherCode")]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [Authorize(Policy = AvalonRoles.Player)]
-    [EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+    [EnableRateLimiting(ClientAuthRateLimiting.Policy)]
     [ProducesResponseType(typeof(ClientAuthCodeResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Code([FromBody] ClientAuthCodeRequest request)
@@ -115,7 +117,7 @@ public sealed class ClientAuthController : BaseController
     /// <summary>Trades a code and the verifier behind its challenge for the launcher's tokens.</summary>
     [HttpPost("token", Name = "ExchangeLauncherCode")]
     [AllowAnonymous]
-    [EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+    [EnableRateLimiting(ClientAuthRateLimiting.Policy)]
     [ProducesResponseType(typeof(ClientAuthTokens), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Token([FromBody] ClientAuthTokenRequest request)
@@ -148,7 +150,7 @@ public sealed class ClientAuthController : BaseController
     /// </summary>
     [HttpPost(GameAuthTokenKinds.Refresh, Name = "RefreshLauncherSession")]
     [AllowAnonymous]
-    [EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+    [EnableRateLimiting(ClientAuthRateLimiting.Policy)]
     [ProducesResponseType(typeof(ClientAuthTokens), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Refresh([FromBody] ClientAuthRefreshRequest request)
@@ -194,7 +196,7 @@ public sealed class ClientAuthController : BaseController
 
     [HttpPost("game-ticket", Name = "CreateGameTicket")]
     [Authorize(Policy = AvalonRoles.Player)]
-    [EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+    [EnableRateLimiting(ClientAuthRateLimiting.Policy)]
     [ProducesResponseType(typeof(ClientGameTicketResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> GameTicket()
     {
@@ -241,7 +243,7 @@ public sealed class ClientAuthController : BaseController
     /// <summary>Signs the launcher out: ends the session the token belongs to. 204 whatever the token.</summary>
     [HttpPost("revoke", Name = "RevokeLauncherSession")]
     [AllowAnonymous]
-    [EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+    [EnableRateLimiting(ClientAuthRateLimiting.Policy)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> Revoke([FromBody] ClientAuthRefreshRequest request)
     {

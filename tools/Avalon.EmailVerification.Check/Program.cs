@@ -5,7 +5,7 @@ using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Services.Email;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
@@ -105,6 +105,8 @@ try
     builder.Logging.ClearProviders(); // Never log request bodies, proof URLs or mail bodies.
     builder.Services.AddAuthentication("Smoke").AddScheme<AuthenticationSchemeOptions, SmokeAuthentication>("Smoke", _ => { });
     builder.Services.AddAuthorization();
+    // Email delivery failures are answered as the api answers them (#794: the exception middleware asks the services' mappers).
+    builder.Services.AddSingleton<IExceptionProblemMapper, Avalon.Api.Exceptions.IdentityProblemMapper>();
     var mailConfig = new EmailConfig
     {
         Sender = EmailSenderKind.Pickup,

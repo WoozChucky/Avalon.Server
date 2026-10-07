@@ -1,8 +1,9 @@
-using Avalon.Api.Authentication;
-using Avalon.Api.Authorization;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Authorization;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
 using Avalon.Common.ValueObjects;
@@ -84,7 +85,7 @@ public class AccountController : BaseController
             // Against the version the password was checked at (#495): a change committed since
             // refuses the family, and the caller gets 401 instead of this response.
             RefreshIssueResult issue = await _refreshService.IssueAsync(accountId.Value, credentialsVersion, CancellationToken);
-            SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
+            RefreshCookie.Set(Response, issue.RawToken, issue.ExpiresAt, _authConfig);
         }
         return response;
     }
@@ -100,7 +101,7 @@ public class AccountController : BaseController
         (RegisterResponse? response, AccountId? accountId) = await _accountService.Register(model, userAgent, SourceAddress, CancellationToken);
         // A new account starts at credentials version 0 (#495).
         RefreshIssueResult issue = await _refreshService.IssueAsync(accountId, 0, CancellationToken);
-        SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
+        RefreshCookie.Set(Response, issue.RawToken, issue.ExpiresAt, _authConfig);
         return response;
     }
 

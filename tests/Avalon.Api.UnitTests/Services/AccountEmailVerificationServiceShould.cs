@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Services.Email;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth;

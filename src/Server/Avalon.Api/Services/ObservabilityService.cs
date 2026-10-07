@@ -1,5 +1,5 @@
 using Avalon.Api.Contract;
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -47,7 +47,7 @@ public interface IObservabilityService
 /// the only way to discover which world ids to look up.
 ///
 /// Presence is cross-world (Redis); every database lookup (template names, the layout-staleness
-/// check) reads the presence's own world through <see cref="IWorldRepositories"/>, and is skipped
+/// check) reads the presence's own world through <see cref="IWorldContentRepositories"/>, and is skipped
 /// for a world this api does not serve or that is unavailable (#523). Only worlds the caller may
 /// enter are shown. A template-name lookup that fails in one world names the template by its id
 /// and never fails the whole list.
@@ -57,7 +57,7 @@ public class ObservabilityService : IObservabilityService
     private readonly IReplicatedCache _cache;
     private readonly IWorldRepository _worlds;
     private readonly IWorldDatabases _databases;
-    private readonly IWorldRepositories _perWorld;
+    private readonly IWorldContentRepositories _perWorld;
     private readonly IMemoryCache _poolMemberCache;
     private readonly ILogger<ObservabilityService> _logger;
 
@@ -65,7 +65,7 @@ public class ObservabilityService : IObservabilityService
         IReplicatedCache cache,
         IWorldRepository worlds,
         IWorldDatabases databases,
-        IWorldRepositories perWorld,
+        IWorldContentRepositories perWorld,
         IMemoryCache poolMemberCache,
         ILogger<ObservabilityService> logger)
     {

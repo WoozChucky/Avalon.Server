@@ -2,10 +2,10 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
-using Avalon.Api.Authentication.AV;
-using Avalon.Api.Services;
+using Avalon.Api.Hosting.Authentication.AV;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
@@ -18,8 +18,9 @@ namespace Avalon.Api.UnitTests.Authentication;
 
 public class AvalonAuthenticationHandlerShould
 {
-    private readonly IPersonalAccessTokenService _pats = Substitute.For<IPersonalAccessTokenService>();
-    private readonly IAccountService _accounts = Substitute.For<IAccountService>();
+    // The repositories the scheme reads, on every API service (#794).
+    private readonly IPersonalAccessTokenRepository _pats = Substitute.For<IPersonalAccessTokenRepository>();
+    private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
 
     private static readonly AvalonAuthenticationSchemeOptions s_options = new();
 
@@ -28,7 +29,8 @@ public class AvalonAuthenticationHandlerShould
         IOptionsMonitor<AvalonAuthenticationSchemeOptions> monitor = Substitute.For<IOptionsMonitor<AvalonAuthenticationSchemeOptions>>();
         monitor.Get(Arg.Any<string>()).Returns(s_options);
 
-        var handler = new AvalonAuthenticationHandler(monitor, NullLoggerFactory.Instance, UrlEncoder.Default, _pats, _accounts);
+        var handler = new AvalonAuthenticationHandler(monitor, NullLoggerFactory.Instance, UrlEncoder.Default, _pats, _accounts,
+            TimeProvider.System);
         var context = new DefaultHttpContext();
         if (header is not null) context.Request.Headers["Authorization"] = header;
 
@@ -93,7 +95,7 @@ public class AvalonAuthenticationHandlerShould
     public async Task Fail_WhenTokenUnknown()
     {
         string valid = "avp_" + new string('A', 43);
-        _pats.FindByRawTokenAsync(valid, Arg.Any<CancellationToken>()).Returns((PersonalAccessToken?)null);
+        _pats.FindByHashAsync(ApiAuthHost.TokenHash(valid), Arg.Any<CancellationToken>()).Returns((PersonalAccessToken?)null);
 
         AuthenticateResult result = await Authenticate("Avalon " + valid);
         Assert.NotNull(result.Failure);
@@ -103,9 +105,9 @@ public class AvalonAuthenticationHandlerShould
     public async Task Fail_WhenTokenRevoked()
     {
         string token = "avp_" + new string('A', 43);
-        _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>())
+        _pats.FindByHashAsync(ApiAuthHost.TokenHash(token), Arg.Any<CancellationToken>())
              .Returns(MakePat(token, revokedAt: DateTime.UtcNow.AddMinutes(-1)));
-        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(MakeAccount());
+        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(MakeAccount());
 
         AuthenticateResult result = await Authenticate("Avalon " + token);
         Assert.NotNull(result.Failure);
@@ -115,7 +117,7 @@ public class AvalonAuthenticationHandlerShould
     public async Task Fail_WhenTokenExpired()
     {
         string token = "avp_" + new string('A', 43);
-        _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>())
+        _pats.FindByHashAsync(ApiAuthHost.TokenHash(token), Arg.Any<CancellationToken>())
              .Returns(MakePat(token, expiresAt: DateTime.UtcNow.AddMinutes(-1)));
 
         AuthenticateResult result = await Authenticate("Avalon " + token);
@@ -126,8 +128,8 @@ public class AvalonAuthenticationHandlerShould
     public async Task Fail_WhenAccountInactive()
     {
         string token = "avp_" + new string('A', 43);
-        _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>()).Returns(MakePat(token));
-        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        _pats.FindByHashAsync(ApiAuthHost.TokenHash(token), Arg.Any<CancellationToken>()).Returns(MakePat(token));
+        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                  .Returns(MakeAccount(status: AccountStatus.Banned));
 
         AuthenticateResult result = await Authenticate("Avalon " + token);
@@ -138,9 +140,9 @@ public class AvalonAuthenticationHandlerShould
     public async Task Success_WithPatIdClaimAndTokenRoles()
     {
         string token = "avp_" + new string('A', 43);
-        _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>()).Returns(MakePat(token, AccountAccessLevel.Player));
+        _pats.FindByHashAsync(ApiAuthHost.TokenHash(token), Arg.Any<CancellationToken>()).Returns(MakePat(token, AccountAccessLevel.Player));
         // The account must still hold Player: claims are the token's roles masked by the account's current ones.
-        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                  .Returns(MakeAccount(AccountAccessLevel.Player | AccountAccessLevel.Admin));
 
         AuthenticateResult result = await Authenticate("Avalon " + token);
@@ -158,9 +160,9 @@ public class AvalonAuthenticationHandlerShould
     public async Task NotGrantAdmin_WhenAccountWasDemotedAfterMinting()
     {
         string token = "avp_" + new string('A', 43);
-        _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>())
+        _pats.FindByHashAsync(ApiAuthHost.TokenHash(token), Arg.Any<CancellationToken>())
              .Returns(MakePat(token, AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
-        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                  .Returns(MakeAccount(AccountAccessLevel.Player));
 
         AuthenticateResult result = await Authenticate("Avalon " + token);
@@ -178,8 +180,8 @@ public class AvalonAuthenticationHandlerShould
     public async Task KeepNarrowerTokenScope_WhenAccountHoldsMore()
     {
         string token = "avp_" + new string('A', 43);
-        _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>()).Returns(MakePat(token, AccountAccessLevel.Player));
-        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        _pats.FindByHashAsync(ApiAuthHost.TokenHash(token), Arg.Any<CancellationToken>()).Returns(MakePat(token, AccountAccessLevel.Player));
+        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
                  .Returns(MakeAccount(AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
 
         AuthenticateResult result = await Authenticate("Avalon " + token);

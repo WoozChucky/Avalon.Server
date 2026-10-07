@@ -1,5 +1,5 @@
 using System.Text;
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Domain.Auth;
 using Microsoft.Extensions.Configuration;
 using Xunit;

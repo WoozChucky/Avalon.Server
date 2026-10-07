@@ -3,9 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
 using Avalon.Api.UnitTests.Authentication;
-using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
@@ -198,7 +198,7 @@ public sealed class WorldRouteShould : IAsyncLifetime
     public async Task Apply_the_world_rule_to_a_personal_access_token()
     {
         const string Token = "avp_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-        _host.Pats.FindByRawTokenAsync(Token, Arg.Any<CancellationToken>()).Returns(new PersonalAccessToken
+        _host.PatIs(Token, new PersonalAccessToken
         {
             Id = new PersonalAccessTokenId(5),
             AccountId = new AccountId(ApiAuthHost.AccountIdValue),

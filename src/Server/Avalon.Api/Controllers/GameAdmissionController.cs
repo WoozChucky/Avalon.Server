@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
-using Avalon.Api.Middlewares;
 using Avalon.Common.GameAuth;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Authorization;
@@ -13,7 +13,7 @@ namespace Avalon.Api.Controllers;
 
 [ApiController, AllowAnonymous, Route("game")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-[RequestSizeLimit(GameAuthPolicy.MaximumControlBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+[RequestSizeLimit(GameAuthPolicy.MaximumControlBodyBytes), EnableRateLimiting(ClientAuthRateLimiting.Policy)]
 public sealed class GameAdmissionController(GameAuthorizationService authorization, JoinTicketStore tickets,
     IGameServerAllocator allocator, GameApplicationAccessPolicy applications) : ControllerBase
 {

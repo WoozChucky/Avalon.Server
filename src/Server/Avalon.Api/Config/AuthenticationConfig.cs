@@ -1,15 +1,14 @@
+using Avalon.Api.Hosting.Config;
 using Avalon.Infrastructure.Login;
 
 namespace Avalon.Api.Config;
 
-public class AuthenticationConfig : ILoginLimits
+/// <summary>
+/// <c>Application:Authentication</c> as the service that mints tokens reads it: what every service reads to validate
+/// them (<see cref="TokenValidationConfig"/>), the tokens' lifetimes, the refresh cookie, and the login limits.
+/// </summary>
+public class AuthenticationConfig : TokenValidationConfig, ILoginLimits
 {
-    public string IssuerSigningKey { get; set; } = string.Empty;
-    public string Issuer { get; set; } = string.Empty;
-    public bool ValidateIssuer { get; set; }
-    public string Audience { get; set; } = string.Empty;
-    public bool ValidateAudience { get; set; }
-    public int ClockSkewInMinutes { get; set; }
     public int AccessTokenLifetimeMinutes { get; set; } = 15;
     public int RefreshTokenLifetimeDays { get; set; } = 30;
     public string RefreshCookieName { get; set; } = "av_refresh";
