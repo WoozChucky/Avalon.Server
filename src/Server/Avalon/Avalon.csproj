@@ -10,7 +10,7 @@
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
   </PropertyGroup>
 
-  <Sdk Name="Aspire.AppHost.Sdk" Version="13.6.0"/>
+  <Sdk Name="Aspire.AppHost.Sdk" Version="13.6.1"/>
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost"/>
