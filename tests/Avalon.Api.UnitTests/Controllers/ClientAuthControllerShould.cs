@@ -281,7 +281,9 @@ public class ClientAuthControllerShould
 
         IActionResult result = await Sut().Token(new ClientAuthTokenRequest
         {
-            Code = "the-code", Verifier = Verifier, RedirectPort = 50000,
+            Code = "the-code",
+            Verifier = Verifier,
+            RedirectPort = 50000,
         });
 
         Assert.Equal("family-jwt", Assert.IsType<ClientAuthTokens>(Assert.IsType<OkObjectResult>(result).Value).AccessToken);

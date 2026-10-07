@@ -291,5 +291,5 @@ public class AuthServer(
 
     private static Func<IConnection, Packet?, object> BuildContextFactory<TPacket>() where TPacket : Packet
         => static (conn, pkt) => new AuthPacketContext<TPacket>
-            { Connection = (IAuthConnection)conn!, Packet = (TPacket)pkt! };
+        { Connection = (IAuthConnection)conn!, Packet = (TPacket)pkt! };
 }

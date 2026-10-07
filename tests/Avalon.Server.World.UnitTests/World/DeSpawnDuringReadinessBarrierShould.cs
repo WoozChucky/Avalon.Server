@@ -86,8 +86,13 @@ public class DeSpawnDuringReadinessBarrierShould
         resolver.ResolveTownAsync(new MapTemplateId(2), Arg.Any<CancellationToken>()).Returns(townFound.Task);
         var town = new MapTemplate
         {
-            Id = new MapTemplateId(1), Name = "town", Description = "town", MapType = MapType.Town,
-            DefaultSpawnX = 10, DefaultSpawnY = 20, DefaultSpawnZ = 30
+            Id = new MapTemplateId(1),
+            Name = "town",
+            Description = "town",
+            MapType = MapType.Town,
+            DefaultSpawnX = 10,
+            DefaultSpawnY = 20,
+            DefaultSpawnZ = 30
         };
 
         (Avalon.World.World world, _, _) = await LoadedWorldAsync(saver, resolver, [town]);
@@ -137,8 +142,13 @@ public class DeSpawnDuringReadinessBarrierShould
     {
         var town = new MapTemplate
         {
-            Id = new MapTemplateId(1), Name = "town", Description = "town", MapType = MapType.Town,
-            DefaultSpawnX = 10, DefaultSpawnY = 20, DefaultSpawnZ = 30
+            Id = new MapTemplateId(1),
+            Name = "town",
+            Description = "town",
+            MapType = MapType.Town,
+            DefaultSpawnX = 10,
+            DefaultSpawnY = 20,
+            DefaultSpawnZ = 30
         };
 
         CharacterSaveBatch batch = await DeadLogoutWithBrokenTownLookupAsync([town]);
@@ -187,7 +197,12 @@ public class DeSpawnDuringReadinessBarrierShould
 
         var row = new Character
         {
-            Id = new CharacterId(7), Name = "Tester", Map = 2, Health = 100, Online = true, Money = 500,
+            Id = new CharacterId(7),
+            Name = "Tester",
+            Map = 2,
+            Health = 100,
+            Online = true,
+            Money = 500,
         };
         var entity = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration())
         {
@@ -267,7 +282,11 @@ public class DeSpawnDuringReadinessBarrierShould
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Auth.World
             {
-                Name = "test", Host = "127.0.0.1", Port = 0, MinVersion = "0.0.1", Version = "1.0.0"
+                Name = "test",
+                Host = "127.0.0.1",
+                Port = 0,
+                MinVersion = "0.0.1",
+                Version = "1.0.0"
             });
 
         var levels = Substitute.For<ICharacterLevelExperienceRepository>();

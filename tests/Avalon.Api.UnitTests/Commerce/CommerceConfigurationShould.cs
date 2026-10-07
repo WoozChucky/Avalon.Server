@@ -91,7 +91,7 @@ public sealed class CommerceConfigurationShould
         var host = Substitute.For<IHostEnvironment>();
         host.EnvironmentName = Environments.Development;
         var validator = new CommerceOptionsValidator(host, Options.Create(new StoreAuthenticationConfiguration
-            { Environment = "development", SteamIdentityPrefix = "avalon-auth-dev" }),
+        { Environment = "development", SteamIdentityPrefix = "avalon-auth-dev" }),
             [new PaymentProviderRegistration("another-provider", _ => true)]);
         Assert.True(validator.Validate(null, config).Succeeded);
         config.Provider = "unregistered-provider";
@@ -100,9 +100,14 @@ public sealed class CommerceConfigurationShould
 
     internal static CommerceConfiguration Valid() => new()
     {
-        Enabled = true, PublicSiteOrigin = "https://example.test", OfferId = "base-eur",
-        ProviderPriceId = "price_test", ProviderCatalogProductId = "prod_test", ProviderAccountId = "acct_test",
-        ApiKey = "sk_test_private", WebhookSecret = "whsec_private",
+        Enabled = true,
+        PublicSiteOrigin = "https://example.test",
+        OfferId = "base-eur",
+        ProviderPriceId = "price_test",
+        ProviderCatalogProductId = "prod_test",
+        ProviderAccountId = "acct_test",
+        ApiKey = "sk_test_private",
+        WebhookSecret = "whsec_private",
         PaymentMethods = ["card"],
     };
 

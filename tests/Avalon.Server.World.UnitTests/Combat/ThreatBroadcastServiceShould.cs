@@ -160,7 +160,7 @@ public class ThreatBroadcastServiceShould
         var creatures = new Dictionary<ObjectGuid, ICreature>
         {
             [env.hostileGuid] = env.hostile,
-            [hostile2Guid]    = hostile2,
+            [hostile2Guid] = hostile2,
         };
 
         env.svc.Tick(new[] { conn }, creatures, env.combat);
@@ -175,22 +175,22 @@ public class ThreatBroadcastServiceShould
 
     private sealed record TestEnv(
         ThreatBroadcastService svc,
-        ICombatService          combat,
-        EncounterRegistry       registry,
-        ObjectGuid              hostileGuid,
-        ICreature               hostile);
+        ICombatService combat,
+        EncounterRegistry registry,
+        ObjectGuid hostileGuid,
+        ICreature hostile);
 
     private static TestEnv BuildEnvironment(uint intervalMs = 250, float deltaThreshold = 0.05f)
     {
         var cfg = new CombatConfig
         {
-            InitialThreatSeed             = 0f,
-            ThreatBroadcastIntervalMs     = intervalMs,
+            InitialThreatSeed = 0f,
+            ThreatBroadcastIntervalMs = intervalMs,
             ThreatBroadcastDeltaThreshold = deltaThreshold,
         };
         var registry = new EncounterRegistry(cfg);
-        var ctx      = Substitute.For<Avalon.World.Public.Instances.ISimulationContext>();
-        var combat   = new CombatService(cfg, registry, ctx);
+        var ctx = Substitute.For<Avalon.World.Public.Instances.ISimulationContext>();
+        var combat = new CombatService(cfg, registry, ctx);
 
         var svc = new ThreatBroadcastService(cfg);
 

@@ -308,8 +308,12 @@ public sealed class RefreshRotationRaceShould : IDisposable
 
         RefreshRotation outcome = await real.RotateAsync(parent, new RefreshToken
         {
-            AccountId = account.Id, FamilyId = parent.FamilyId, Index = 1, Hash = [7, 7, 7],
-            CreatedAt = DateTime.UtcNow, ExpiresAt = parent.ExpiresAt,
+            AccountId = account.Id,
+            FamilyId = parent.FamilyId,
+            Index = 1,
+            Hash = [7, 7, 7],
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = parent.ExpiresAt,
         }, DateTime.UtcNow);
 
         Assert.Equal(RefreshRotation.ParentNotLive, outcome);

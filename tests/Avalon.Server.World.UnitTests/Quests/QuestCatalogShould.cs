@@ -237,7 +237,10 @@ public class QuestCatalogShould
     {
         var objective = new QuestObjective
         {
-            Id = 11, Type = type, Count = 1, DescriptionTextId = ObjectiveText,
+            Id = 11,
+            Type = type,
+            Count = 1,
+            DescriptionTextId = ObjectiveText,
             CreatureTemplateId = creature is { } c ? new CreatureTemplateId(c) : null,
             ItemTemplateId = item is { } i ? new ItemTemplateId(i) : null,
         };

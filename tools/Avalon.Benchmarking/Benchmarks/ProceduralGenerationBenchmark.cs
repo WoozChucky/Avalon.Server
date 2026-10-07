@@ -14,7 +14,7 @@ public class ProceduralGenerationBenchmark
     private ProceduralMapConfig _cfg = default!;
 
     [Params(10, 20, 50)] public int PoolSize;
-    [Params(5, 10, 15)]  public int PathLen;
+    [Params(5, 10, 15)] public int PathLen;
 
     [GlobalSetup]
     public void Setup()
@@ -24,8 +24,8 @@ public class ProceduralGenerationBenchmark
         _cfg = new ProceduralMapConfig
         {
             MapTemplateId = new MapTemplateId(1),
-            ChunkPoolId   = new ChunkPoolId(1),
-            SpawnTableId  = new SpawnTableId(1),
+            ChunkPoolId = new ChunkPoolId(1),
+            SpawnTableId = new SpawnTableId(1),
             MainPathMin = (ushort)PathLen,
             MainPathMax = (ushort)PathLen,
             BranchChance = 0,

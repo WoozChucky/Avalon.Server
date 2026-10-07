@@ -17,7 +17,9 @@ public class BankDialogueShould
         new DialogueChooseHandler(NullLogger<DialogueChooseHandler>.Instance, w.World).Execute(w.Connection,
             new CDialogueChoosePacket
             {
-                TargetGuid = BankerWorld.BankerGuid.RawValue, NodeId = BankerWorld.BankerRoot, OptionId = option,
+                TargetGuid = BankerWorld.BankerGuid.RawValue,
+                NodeId = BankerWorld.BankerRoot,
+                OptionId = option,
             });
 
     private static void Interact(BankerWorld w) =>

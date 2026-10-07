@@ -35,8 +35,8 @@ public class ChunkLibrary : IChunkLibrary
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var templateRepo = scope.ServiceProvider.GetRequiredService<IChunkTemplateRepository>();
-        var poolRepo     = scope.ServiceProvider.GetRequiredService<IChunkPoolRepository>();
-        var configRepo   = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
+        var poolRepo = scope.ServiceProvider.GetRequiredService<IChunkPoolRepository>();
+        var configRepo = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
 
         var templates = await templateRepo.FindAllWithSlotsAsync(ct);
         _templates = templates.ToDictionary(t => t.Id);

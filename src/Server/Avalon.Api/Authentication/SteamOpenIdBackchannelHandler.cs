@@ -9,9 +9,12 @@ public sealed class SteamOpenIdBackchannelHandler : DelegatingHandler
 {
     public SteamOpenIdBackchannelHandler() : base(new SocketsHttpHandler
     {
-        AllowAutoRedirect = false, ConnectTimeout = GameAuthPolicy.TransportTimeout, MaxConnectionsPerServer = 32,
+        AllowAutoRedirect = false,
+        ConnectTimeout = GameAuthPolicy.TransportTimeout,
+        MaxConnectionsPerServer = 32,
         ActivityHeadersPropagator = null,
-    }) { }
+    })
+    { }
     public SteamOpenIdBackchannelHandler(HttpMessageHandler transport) : base(transport) { }
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {

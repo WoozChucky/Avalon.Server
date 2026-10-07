@@ -75,7 +75,7 @@ public class ProceduralLayoutGenerator
         for (int step = 1; step < pathLen; step++)
         {
             bool requiredForward = step == pathLen - 1 && cfg.ForwardPortalTargetMapId is not null;
-            bool requiredBoss    = step == pathLen - 1 && cfg.HasBoss;
+            bool requiredBoss = step == pathLen - 1 && cfg.HasBoss;
             // Mid-path chunks must have ≥2 exits — single-exit chunks (deadends, boss with
             // S-only) trap the walk on their second tick (only exit is the one we entered
             // through). Last step is exempt: boss has 1 exit by design.

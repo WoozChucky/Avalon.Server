@@ -17,7 +17,10 @@ public class VendorStockRepositoryShould
 {
     private static VendorStock Row(int id, uint sequence, ulong item = 1) => new()
     {
-        Id = id, CreatureTemplateId = new CreatureTemplateId(11), Sequence = sequence, ItemTemplateId = new ItemTemplateId(item),
+        Id = id,
+        CreatureTemplateId = new CreatureTemplateId(11),
+        Sequence = sequence,
+        ItemTemplateId = new ItemTemplateId(item),
     };
 
     [Fact]

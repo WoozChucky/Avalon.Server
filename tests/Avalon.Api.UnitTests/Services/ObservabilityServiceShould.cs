@@ -69,7 +69,9 @@ public class ObservabilityServiceShould
         _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(call => Task.FromResult<AvalonWorld?>(new AvalonWorld
             {
-                Id = call.Arg<WorldId>(), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Player,
+                Id = call.Arg<WorldId>(),
+                Name = "Aurora",
+                AccessLevelRequired = AccountAccessLevel.Player,
             }));
         _maps.FindByIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
              .Returns(new MapTemplate { Id = new MapTemplateId(12), Name = "Crypt" });
@@ -666,7 +668,9 @@ public class ObservabilityServiceShould
         _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<AvalonWorld?>(new AvalonWorld
             {
-                Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Admin,
+                Id = new WorldId(1),
+                Name = "Aurora",
+                AccessLevelRequired = AccountAccessLevel.Admin,
             }));
 
         Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, caller, CancellationToken.None));
@@ -711,7 +715,9 @@ public class ObservabilityServiceShould
         _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<AvalonWorld?>(new AvalonWorld
             {
-                Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Admin,
+                Id = new WorldId(1),
+                Name = "Aurora",
+                AccessLevelRequired = AccountAccessLevel.Admin,
             }));
 
         Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None));

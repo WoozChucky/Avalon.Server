@@ -25,12 +25,16 @@ public class AuraStatsIntegrationShould
             AuraSchedule.Start(T0, template.DurationMs, template.TickIntervalMs), template.DurationMs, T0.UtcDateTime);
 
     private static readonly ClassLevelStat WarriorOne = new()
-        { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
+    { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
 
     private static readonly ItemTemplate Plate = new()
     {
-        Id = new ItemTemplateId(905_001), Name = "Plate", Slot = ItemSlotType.Chest, MaxStackSize = 1,
-        StatType1 = StatType.Armor, StatValue1 = 30,
+        Id = new ItemTemplateId(905_001),
+        Name = "Plate",
+        Slot = ItemSlotType.Chest,
+        MaxStackSize = 1,
+        StatType1 = StatType.Armor,
+        StatValue1 = 30,
     };
 
     private static CharacterEntity Warrior()
@@ -71,8 +75,18 @@ public class AuraStatsIntegrationShould
 
     private static Creature Wolf() => new()
     {
-        Guid = new ObjectGuid(ObjectType.Creature, 905_901), Level = 3, Health = 100, CurrentHealth = 100,
-        BaseMaxHealth = 100, Armor = 40, CritPct = 5f, DodgePct = 2f, BlockPct = 1f, DamageMin = 5, DamageMax = 9, Speed = 4f,
+        Guid = new ObjectGuid(ObjectType.Creature, 905_901),
+        Level = 3,
+        Health = 100,
+        CurrentHealth = 100,
+        BaseMaxHealth = 100,
+        Armor = 40,
+        CritPct = 5f,
+        DodgePct = 2f,
+        BlockPct = 1f,
+        DamageMin = 5,
+        DamageMax = 9,
+        Speed = 4f,
     };
 
     [Fact]

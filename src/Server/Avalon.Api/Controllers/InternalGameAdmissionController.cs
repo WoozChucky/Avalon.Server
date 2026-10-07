@@ -26,8 +26,10 @@ public sealed partial class InternalGameAdmissionController(JoinTicketStore tick
             var receipt = await tickets.RedeemAsync(request.JoinTicket, serverId, request.ConnectionId, request.RedemptionId, cancellationToken);
             return receipt.Error switch
             {
-                null => Ok(receipt), GameAuthErrors.InProgress or GameAuthErrors.SessionConflict => Conflict(receipt),
-                GameAuthErrors.WorldUnavailable => StatusCode(503, receipt), _ => Unauthorized(receipt),
+                null => Ok(receipt),
+                GameAuthErrors.InProgress or GameAuthErrors.SessionConflict => Conflict(receipt),
+                GameAuthErrors.WorldUnavailable => StatusCode(503, receipt),
+                _ => Unauthorized(receipt),
             };
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)

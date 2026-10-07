@@ -52,8 +52,14 @@ public sealed class CharacterConsolidationRepository(IDbContextFactory<Character
             .ExecuteUpdateAsync(u => u.SetProperty(c => c.AccountId, target).SetProperty(c => c.Online, false), cancellationToken);
         await db.Characters.Where(c => c.AccountId == target && c.Online)
             .ExecuteUpdateAsync(u => u.SetProperty(c => c.Online, false), cancellationToken);
-        db.CharacterConsolidationReceipts.Add(new CharacterConsolidationReceipt { Id = operation, SourceAccountId = source,
-            TargetAccountId = target, TransferredCharacters = count, TransferredAt = now });
+        db.CharacterConsolidationReceipts.Add(new CharacterConsolidationReceipt
+        {
+            Id = operation,
+            SourceAccountId = source,
+            TargetAccountId = target,
+            TransferredCharacters = count,
+            TransferredAt = now
+        });
         await db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(null, count);

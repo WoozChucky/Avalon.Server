@@ -31,7 +31,7 @@ internal static class QuestTestData
     /// <summary>One dialogue root per creature template given, so a quest naming it as giver, ender or Talk target loads (#737).</summary>
     public static List<DialogueNode> Roots(params ulong[] creatures) =>
         creatures.Select((creature, i) => new DialogueNode
-            { Id = 9900 + i, CreatureTemplateId = creature, IsRoot = true, TextId = BodyText }).ToList();
+        { Id = 9900 + i, CreatureTemplateId = creature, IsRoot = true, TextId = BodyText }).ToList();
 
     public static CreatureTemplate Creature(ulong id, string name) => new() { Id = id, Name = name };
 
@@ -43,7 +43,11 @@ internal static class QuestTestData
 
     public static ItemTemplate TuskItem() => new()
     {
-        Id = Tusk, Name = "Tusk", Class = ItemClass.Quest, SubClass = ItemSubClass.QuestItem, MaxStackSize = 20,
+        Id = Tusk,
+        Name = "Tusk",
+        Class = ItemClass.Quest,
+        SubClass = ItemSubClass.QuestItem,
+        MaxStackSize = 20,
         Flags = ItemTemplateFlags.QuestItem | ItemTemplateFlags.NoSell,
     };
 
@@ -65,19 +69,19 @@ internal static class QuestTestData
 
     public static QuestTemplate Quest(uint id, ulong giver = Giver, ulong ender = Giver, ushort level = 1,
         uint? requires = null, string? script = null) => new()
-    {
-        Id = id,
-        TitleTextId = TitleText,
-        DescriptionTextId = BodyText,
-        CompletionTextId = DoneText,
-        GiverCreatureId = giver,
-        EnderCreatureId = ender,
-        LevelRequirement = level,
-        RequiredQuestId = requires is { } r ? new QuestTemplateId(r) : null,
-        RewardExperience = 50,
-        RewardMoney = 30,
-        ScriptName = script,
-    };
+        {
+            Id = id,
+            TitleTextId = TitleText,
+            DescriptionTextId = BodyText,
+            CompletionTextId = DoneText,
+            GiverCreatureId = giver,
+            EnderCreatureId = ender,
+            LevelRequirement = level,
+            RequiredQuestId = requires is { } r ? new QuestTemplateId(r) : null,
+            RewardExperience = 50,
+            RewardMoney = 30,
+            ScriptName = script,
+        };
 
     public static QuestTemplate WithStage(this QuestTemplate quest, int sequence, params QuestObjective[] objectives)
     {
@@ -99,18 +103,18 @@ internal static class QuestTestData
     }
 
     public static QuestObjective Kill(uint id, ulong creature, uint count) => new()
-        { Id = id, Type = QuestObjectiveType.Kill, CreatureTemplateId = creature, Count = count, DescriptionTextId = ObjectiveText };
+    { Id = id, Type = QuestObjectiveType.Kill, CreatureTemplateId = creature, Count = count, DescriptionTextId = ObjectiveText };
 
     public static QuestObjective Talk(uint id, ulong creature) => new()
-        { Id = id, Type = QuestObjectiveType.Talk, CreatureTemplateId = creature, Count = 1, DescriptionTextId = ObjectiveText };
+    { Id = id, Type = QuestObjectiveType.Talk, CreatureTemplateId = creature, Count = 1, DescriptionTextId = ObjectiveText };
 
     public static QuestObjective Scripted(uint id, uint count) => new()
-        { Id = id, Type = QuestObjectiveType.Scripted, Count = count, DescriptionTextId = ObjectiveText };
+    { Id = id, Type = QuestObjectiveType.Scripted, Count = count, DescriptionTextId = ObjectiveText };
 
     public static QuestObjective Collect(uint id, ulong item, uint count, params (ulong Creature, float Chance)[] drops)
     {
         var objective = new QuestObjective
-            { Id = id, Type = QuestObjectiveType.Collect, ItemTemplateId = item, Count = count, DescriptionTextId = ObjectiveText };
+        { Id = id, Type = QuestObjectiveType.Collect, ItemTemplateId = item, Count = count, DescriptionTextId = ObjectiveText };
         foreach ((ulong creature, float chance) in drops)
             objective.Drops.Add(new QuestItemDrop { ObjectiveId = id, CreatureTemplateId = creature, Chance = chance });
         return objective;

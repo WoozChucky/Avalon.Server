@@ -32,7 +32,8 @@ public sealed class WorldTlsTransport : IDisposable
         {
             await stream.AuthenticateAsServerAsync(new SslServerAuthenticationOptions
             {
-                ServerCertificate = certificate, ClientCertificateRequired = false,
+                ServerCertificate = certificate,
+                ClientCertificateRequired = false,
                 EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck
             }, timeout.Token);

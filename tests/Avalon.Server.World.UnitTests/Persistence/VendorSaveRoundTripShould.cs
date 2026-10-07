@@ -50,12 +50,20 @@ public sealed class VendorSaveRoundTripShould : IDisposable
             {
                 context.ItemInstances.Add(new ItemInstance
                 {
-                    Id = item.InstanceId, TemplateId = item.TemplateId, CharacterId = character.Data!.Id,
-                    Count = item.Count, Durability = item.Durability, Flags = item.Flags, UpdatedAt = DateTime.UtcNow,
+                    Id = item.InstanceId,
+                    TemplateId = item.TemplateId,
+                    CharacterId = character.Data!.Id,
+                    Count = item.Count,
+                    Durability = item.Durability,
+                    Flags = item.Flags,
+                    UpdatedAt = DateTime.UtcNow,
                 });
                 context.CharacterInventory.Add(new CharacterInventory
                 {
-                    CharacterId = character.Data!.Id, Container = InventoryType.Bag, Slot = item.Slot, ItemId = item.InstanceId,
+                    CharacterId = character.Data!.Id,
+                    Container = InventoryType.Bag,
+                    Slot = item.Slot,
+                    ItemId = item.InstanceId,
                 });
             }
 

@@ -244,7 +244,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
         _maintenanceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The maintenance countdown");
-        
+
         _logger.LogInformation("R2R enabled: {R2R}",
             System.Runtime.CompilerServices.RuntimeFeature.IsSupported("IsDynamicCodeCompiled"));
 
@@ -746,7 +746,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     private static Func<IConnection, Packet?, object> BuildContextFactory<TPacket>() where TPacket : Packet
         => static (conn, pkt) => new WorldPacketContext<TPacket>
-            { Connection = (IWorldConnection)conn!, Packet = (TPacket)pkt! };
+        { Connection = (IWorldConnection)conn!, Packet = (TPacket)pkt! };
 
     private void PublishCatalogOnHotReload(ScriptCatalogPublisher catalog) =>
         _scriptHotReloader.ScriptsHotReloaded += types =>

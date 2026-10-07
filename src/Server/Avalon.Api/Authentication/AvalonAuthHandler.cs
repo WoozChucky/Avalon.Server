@@ -27,7 +27,7 @@ public class AvalonAuthHandler : IAuthorizationHandler
             return;
         }
 
-        if (context.User.Identity is {IsAuthenticated: false})
+        if (context.User.Identity is { IsAuthenticated: false })
         {
             context.Fail();
             throw new AuthenticationException("User is not authenticated");

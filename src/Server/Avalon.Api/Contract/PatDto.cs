@@ -1,4 +1,5 @@
 namespace Avalon.Api.Contract;
+
 public class PatDto
 {
     public uint Id { get; set; }

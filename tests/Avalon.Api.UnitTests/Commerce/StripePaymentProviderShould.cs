@@ -159,8 +159,16 @@ public sealed class StripePaymentProviderShould
     public void Verify_raw_signature_and_environment_before_normalizing(int age, bool live, bool rejected)
     {
         var timestamp = new DateTimeOffset(Now.AddSeconds(age)).ToUnixTimeSeconds();
-        var raw = JsonSerializer.Serialize(new { id = "evt_test", @object = "event", api_version = "2026-09-30.endive", created = timestamp,
-            livemode = live, type = "checkout.session.completed", data = new { @object = new { id = "cs_test", @object = "checkout.session", livemode = live } } });
+        var raw = JsonSerializer.Serialize(new
+        {
+            id = "evt_test",
+            @object = "event",
+            api_version = "2026-09-30.endive",
+            created = timestamp,
+            livemode = live,
+            type = "checkout.session.completed",
+            data = new { @object = new { id = "cs_test", @object = "checkout.session", livemode = live } }
+        });
         var signed = $"{timestamp}.{raw}";
         var signature = Convert.ToHexString(HMACSHA256.HashData(Encoding.UTF8.GetBytes("whsec_private"), Encoding.UTF8.GetBytes(signed))).ToLowerInvariant();
         var headers = new Dictionary<string, string> { ["Stripe-Signature"] = $"t={timestamp},v1={signature}" };
@@ -196,21 +204,49 @@ public sealed class StripePaymentProviderShould
             var path = request.RequestUri!.AbsolutePath;
             object payload;
             if (path == "/v1/account") payload = new { id = Account, @object = "account" };
-            else if (path.StartsWith("/v1/prices/", StringComparison.Ordinal)) payload = new { id = "price_test", @object = "price", active = true, livemode = Live,
-                type = "one_time", currency = Currency, unit_amount = Gross, tax_behavior = TaxBehavior, product = "prod_test" };
+            else if (path.StartsWith("/v1/prices/", StringComparison.Ordinal)) payload = new
+            {
+                id = "price_test",
+                @object = "price",
+                active = true,
+                livemode = Live,
+                type = "one_time",
+                currency = Currency,
+                unit_amount = Gross,
+                tax_behavior = TaxBehavior,
+                product = "prod_test"
+            };
             else if (path.StartsWith("/v1/products/", StringComparison.Ordinal)) payload = new { id = "prod_test", @object = "product", active = true, livemode = Live };
-            else if (path.StartsWith("/v1/payment_intents/", StringComparison.Ordinal)) payload = new { id = "pi_test", @object = "payment_intent", livemode = false,
-                amount = Gross, amount_received = Paid ? Gross : 0, currency = Currency, status = Paid ? "succeeded" : "processing" };
-            else if (path.EndsWith("/line_items", StringComparison.Ordinal)) payload = new { @object = "list", has_more = false, data = MissingLines ? Array.Empty<object>() : new object[] {
-                new { id = "li_test", @object = "item", quantity = 1, amount_total = Gross, currency = Currency, price = new { id = "price_test", @object = "price", product = "prod_test" } } } };
+            else if (path.StartsWith("/v1/payment_intents/", StringComparison.Ordinal)) payload = new
+            {
+                id = "pi_test",
+                @object = "payment_intent",
+                livemode = false,
+                amount = Gross,
+                amount_received = Paid ? Gross : 0,
+                currency = Currency,
+                status = Paid ? "succeeded" : "processing"
+            };
+            else if (path.EndsWith("/line_items", StringComparison.Ordinal)) payload = new
+            {
+                @object = "list",
+                has_more = false,
+                data = MissingLines ? Array.Empty<object>() : new object[] {
+                new { id = "li_test", @object = "item", quantity = 1, amount_total = Gross, currency = Currency, price = new { id = "price_test", @object = "price", product = "prod_test" } } }
+            };
             else if (path == "/v1/refunds" && request.Method == HttpMethod.Post)
             {
                 Body = await request.Content!.ReadAsStringAsync(ct);
                 Key = request.Headers.GetValues("Idempotency-Key").Single();
                 payload = new { id = "re_test", @object = "refund", status = "pending", amount = Gross, currency = Currency, payment_intent = "pi_test" };
             }
-            else if (path == "/v1/refunds") payload = new { @object = "list", has_more = !request.RequestUri.Query.Contains("starting_after", StringComparison.Ordinal), data = new[] {
-                new { id = request.RequestUri.Query.Contains("starting_after", StringComparison.Ordinal) ? "re_two" : "re_one", @object = "refund", status = Refunded ? "succeeded" : "failed", amount = Gross, currency = Currency, payment_intent = "pi_test", livemode = false } } };
+            else if (path == "/v1/refunds") payload = new
+            {
+                @object = "list",
+                has_more = !request.RequestUri.Query.Contains("starting_after", StringComparison.Ordinal),
+                data = new[] {
+                new { id = request.RequestUri.Query.Contains("starting_after", StringComparison.Ordinal) ? "re_two" : "re_one", @object = "refund", status = Refunded ? "succeeded" : "failed", amount = Gross, currency = Currency, payment_intent = "pi_test", livemode = false } }
+            };
             else if (path == "/v1/disputes") payload = new { @object = "list", has_more = false, data = Disputed ? new object[] { new { id = "dp_test", @object = "dispute", status = "needs_response", amount = Gross, currency = Currency, payment_intent = "pi_test", livemode = false } } : [] };
             else
             {
@@ -222,10 +258,24 @@ public sealed class StripePaymentProviderShould
                     if (RequireHostedPageMode && !Uri.UnescapeDataString(Body).Split('&').Contains("ui_mode=hosted_page", StringComparer.Ordinal))
                         return new(HttpStatusCode.BadRequest) { Content = new StringContent("{\"error\":{\"message\":\"Use hosted_page for this API version.\",\"param\":\"ui_mode\",\"type\":\"invalid_request_error\"}}", Encoding.UTF8, "application/json") };
                 }
-                payload = new { id = "cs_test", @object = "checkout.session", livemode = false, url = Url, mode = "payment", status = "complete", payment_status = Paid ? "paid" : "unpaid",
-                    payment_intent = "pi_test", expires_at = new DateTimeOffset(Now.AddMinutes(30)).ToUnixTimeSeconds(), amount_total = Gross, amount_subtotal = Gross, currency = Currency,
-                    automatic_tax = new { enabled = true, status = "complete" }, total_details = new { amount_tax = 0, amount_discount = 0, amount_shipping = 0 },
-                    metadata = new { order_id = Order.ToString("D"), attempt_id = Attempt.ToString("D") } };
+                payload = new
+                {
+                    id = "cs_test",
+                    @object = "checkout.session",
+                    livemode = false,
+                    url = Url,
+                    mode = "payment",
+                    status = "complete",
+                    payment_status = Paid ? "paid" : "unpaid",
+                    payment_intent = "pi_test",
+                    expires_at = new DateTimeOffset(Now.AddMinutes(30)).ToUnixTimeSeconds(),
+                    amount_total = Gross,
+                    amount_subtotal = Gross,
+                    currency = Currency,
+                    automatic_tax = new { enabled = true, status = "complete" },
+                    total_details = new { amount_tax = 0, amount_discount = 0, amount_shipping = 0 },
+                    metadata = new { order_id = Order.ToString("D"), attempt_id = Attempt.ToString("D") }
+                };
             }
             return new(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json") };
         }

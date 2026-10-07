@@ -9,7 +9,10 @@ public class GroundLootStoreShould
 {
     private static GroundLoot Pile(uint id) => new()
     {
-        Guid = new ObjectGuid(ObjectType.Loot, id), Position = Vector3.zero, Gold = 10, FreeForAllAt = DateTime.UnixEpoch
+        Guid = new ObjectGuid(ObjectType.Loot, id),
+        Position = Vector3.zero,
+        Gold = 10,
+        FreeForAllAt = DateTime.UnixEpoch
     };
 
     [Fact]

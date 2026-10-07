@@ -369,9 +369,16 @@ public class CreatureCastShould
         player.Character.Position = new Vector3(0f, 0f, 1.5f);
         var wolf = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, 163_961), TemplateId = new CreatureTemplateId(5),
-            Metadata = Loot.LootTestData.BoarTemplate(null), Name = "Wolf", Position = Vector3.zero,
-            Health = 100, CurrentHealth = 100, DamageMin = 3, DamageMax = 7, CritPct = 100f,
+            Guid = new ObjectGuid(ObjectType.Creature, 163_961),
+            TemplateId = new CreatureTemplateId(5),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Name = "Wolf",
+            Position = Vector3.zero,
+            Health = 100,
+            CurrentHealth = 100,
+            DamageMin = 3,
+            DamageMax = 7,
+            CritPct = 100f,
         };
         wolf.Abilities.Load(CreatureAbilitiesShould.Catalog(Bite()), new CreatureAbilityKit(BiteId), NullLogger.Instance, "Wolf");
         instance.AddCreature(wolf);

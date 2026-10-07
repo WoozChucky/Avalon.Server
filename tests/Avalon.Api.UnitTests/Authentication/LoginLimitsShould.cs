@@ -55,8 +55,11 @@ public class LoginLimitsShould
         var logger = new CapturingLogger();
         var limits = new AuthenticationConfig
         {
-            MaxFailedLoginAttempts = 6, LockoutDurationMinutes = 16, MaxFailedLoginsPerSource = 11,
-            FailedLoginSourceWindowMinutes = 17, MaxFailedMfaAttempts = 4,
+            MaxFailedLoginAttempts = 6,
+            LockoutDurationMinutes = 16,
+            MaxFailedLoginsPerSource = 11,
+            FailedLoginSourceWindowMinutes = 17,
+            MaxFailedMfaAttempts = 4,
         };
 
         Avalon.Infrastructure.Login.LoginLimitsValidation.LogAtStartup(logger, limits, "Application:Authentication");

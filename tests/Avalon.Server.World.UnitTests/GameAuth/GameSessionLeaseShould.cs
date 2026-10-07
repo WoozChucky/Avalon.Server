@@ -8,9 +8,16 @@ public sealed class GameSessionLeaseShould
     private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero));
     private SessionLeaseResponse Reply() => new()
     {
-        State = "active", AccountId = "42", GameSessionId = Guid.NewGuid().ToString("D"),
-        GameContextId = Guid.NewGuid().ToString("D"), FencingToken = "7", ServerId = "world-one", WorldId = 1,
-        AccessLevel = 1, CredentialsVersion = 3, SessionEpoch = "9",
+        State = "active",
+        AccountId = "42",
+        GameSessionId = Guid.NewGuid().ToString("D"),
+        GameContextId = Guid.NewGuid().ToString("D"),
+        FencingToken = "7",
+        ServerId = "world-one",
+        WorldId = 1,
+        AccessLevel = 1,
+        CredentialsVersion = 3,
+        SessionEpoch = "9",
         LeaseUntil = _clock.GetUtcNow().UtcDateTime.AddSeconds(45),
         AuthorizationUntil = _clock.GetUtcNow().UtcDateTime.AddMinutes(5)
     };

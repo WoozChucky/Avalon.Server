@@ -40,10 +40,16 @@ internal sealed class ItemUseWorld : IDisposable
 
     private static ItemTemplate Usable(ulong id, string name, string? script, uint? castMs = null, uint? cooldownMs = null,
         string? group = null) => new()
-    {
-        Id = new ItemTemplateId(id), Name = name, Class = ItemClass.Consumable, MaxStackSize = 20,
-        UseScript = script, UseCastTimeMs = castMs, UseCooldownMs = cooldownMs, UseCooldownGroup = group,
-    };
+        {
+            Id = new ItemTemplateId(id),
+            Name = name,
+            Class = ItemClass.Consumable,
+            MaxStackSize = 20,
+            UseScript = script,
+            UseCastTimeMs = castMs,
+            UseCooldownMs = cooldownMs,
+            UseCooldownGroup = group,
+        };
 
     public FakeTimeProvider Time { get; } = new();
     public IWorld World { get; }
@@ -56,7 +62,13 @@ internal sealed class ItemUseWorld : IDisposable
     /// <summary>The character's class and level, so a gear change has stats to refresh.</summary>
     public static readonly ClassLevelStat WarriorLevel1 = new()
     {
-        Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+        Class = CharacterClass.Warrior,
+        Level = 1,
+        BaseHp = 20,
+        Stamina = 22,
+        Strength = 23,
+        Agility = 20,
+        Intellect = 20,
     };
 
     public static async Task<ItemUseWorld> CreateAsync() => new(await TestStaticData.LoadAsync(

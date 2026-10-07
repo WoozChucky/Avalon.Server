@@ -8,9 +8,18 @@ public class PeriodicHitShould
 {
     private static CombatFormula Formula() => new()
     {
-        Id = CombatFormula.SingletonId, ArmorBase = 50f, ArmorPerLevel = 10f, ArmorCap = 0.75f,
-        CritMultiplier = 1.5f, BlockMultiplier = 0.5f, CritCap = 50f, DodgeCap = 30f, BlockCap = 50f,
-        HasteCap = 50f, MoveSpeedCap = 35f, MoveSpeedFloor = -50f,
+        Id = CombatFormula.SingletonId,
+        ArmorBase = 50f,
+        ArmorPerLevel = 10f,
+        ArmorCap = 0.75f,
+        CritMultiplier = 1.5f,
+        BlockMultiplier = 0.5f,
+        CritCap = 50f,
+        DodgeCap = 30f,
+        BlockCap = 50f,
+        HasteCap = 50f,
+        MoveSpeedCap = 35f,
+        MoveSpeedFloor = -50f,
     };
 
     private sealed class Rolls(params double[] doubles) : ICombatRandom

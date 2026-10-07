@@ -165,9 +165,18 @@ public sealed class PurchaseServiceShould
     public async Task Disabled_commerce_keeps_production_grants_visible()
     {
         using var f = await Fixture.Create();
-        await new GameLicenseRepository(f.Db).RecordGrantAsync(new GameLicense { Id = Guid.NewGuid(), AccountId = f.Account.Id,
-            Product = StoreAuthenticationConfiguration.Product, Provider = "avalon", Environment = "production", ProviderProductId = "base",
-            AuthorityKind = LicenseAuthorityKind.StoredGrant, LicenseReference = "production-grant", GrantedAt = f.Clock.Now });
+        await new GameLicenseRepository(f.Db).RecordGrantAsync(new GameLicense
+        {
+            Id = Guid.NewGuid(),
+            AccountId = f.Account.Id,
+            Product = StoreAuthenticationConfiguration.Product,
+            Provider = "avalon",
+            Environment = "production",
+            ProviderProductId = "base",
+            AuthorityKind = LicenseAuthorityKind.StoredGrant,
+            LicenseReference = "production-grant",
+            GrantedAt = f.Clock.Now
+        });
         f.Config.Enabled = false;
         var service = new PurchaseService(new PurchaseRepository(f.Db, f.Clock), new PaymentProviderRegistry([f.Provider]), Options.Create(f.Config),
             Options.Create(new StoreAuthenticationConfiguration { Environment = "production" }), f.Budget, f.Clock);
@@ -182,8 +191,17 @@ public sealed class PurchaseServiceShould
         public Clock Clock { get; } = new();
         public FakeProvider Provider { get; } = new();
         public FakeBudget Budget { get; } = new();
-        public CommerceConfiguration Config { get; } = new() { Enabled = true, Provider = "alternate", ProviderAccountId = "merchant", OfferId = "base",
-            ProviderPriceId = "price", ProviderCatalogProductId = "catalog", PublicSiteOrigin = "https://avalon.example.test", PaymentMethods = ["card"] };
+        public CommerceConfiguration Config { get; } = new()
+        {
+            Enabled = true,
+            Provider = "alternate",
+            ProviderAccountId = "merchant",
+            OfferId = "base",
+            ProviderPriceId = "price",
+            ProviderCatalogProductId = "catalog",
+            PublicSiteOrigin = "https://avalon.example.test",
+            PaymentMethods = ["card"]
+        };
         public Account Account { get; private set; } = null!;
         public PurchaseService Service => new(new PurchaseRepository(Db, Clock), new PaymentProviderRegistry([Provider]), Options.Create(Config),
             Options.Create(new StoreAuthenticationConfiguration { Environment = "development" }), Budget, Clock);
@@ -195,8 +213,15 @@ public sealed class PurchaseServiceShould
         }
         public Task<GameLicense> Grant(string provider, LicenseAuthorityKind kind) => new GameLicenseRepository(Db).RecordGrantAsync(new GameLicense
         {
-            Id = Guid.NewGuid(), AccountId = Account.Id, Product = StoreAuthenticationConfiguration.Product, Provider = provider,
-            Environment = "development", ProviderProductId = "base", LicenseReference = Guid.NewGuid().ToString("N"), AuthorityKind = kind, GrantedAt = Clock.Now,
+            Id = Guid.NewGuid(),
+            AccountId = Account.Id,
+            Product = StoreAuthenticationConfiguration.Product,
+            Provider = provider,
+            Environment = "development",
+            ProviderProductId = "base",
+            LicenseReference = Guid.NewGuid().ToString("N"),
+            AuthorityKind = kind,
+            GrantedAt = Clock.Now,
         });
         public void Dispose() => Db.Dispose();
     }

@@ -38,8 +38,12 @@ public class WorldScriptsController : BaseController
             ? new WorldScriptCatalogDto()
             : new WorldScriptCatalogDto
             {
-                Ai = [.. catalog.Ai], Ability = [.. catalog.Ability], Quest = [.. catalog.Quest],
-                Item = [.. catalog.Item ?? []], Aura = [.. catalog.Aura ?? []], Published = true,
+                Ai = [.. catalog.Ai],
+                Ability = [.. catalog.Ability],
+                Quest = [.. catalog.Quest],
+                Item = [.. catalog.Item ?? []],
+                Aura = [.. catalog.Aura ?? []],
+                Published = true,
             };
     }
 }

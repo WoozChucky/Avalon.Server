@@ -26,7 +26,11 @@ public sealed class RestMfaCodeShould
 
     private readonly Account _account = new()
     {
-        Id = new AccountId(7), Username = "CALLER", Email = "c@avalon.monster", Salt = [1], Verifier = [2],
+        Id = new AccountId(7),
+        Username = "CALLER",
+        Email = "c@avalon.monster",
+        Salt = [1],
+        Verifier = [2],
         JoinDate = DateTime.UtcNow,
     };
 
@@ -61,9 +65,16 @@ public sealed class RestMfaCodeShould
             lock (_gate)
                 row = new MFASetup
                 {
-                    Id = _row, AccountId = _account.Id, Secret = _secret, RecoveryCode1 = [], RecoveryCode2 = [],
-                    RecoveryCode3 = [], Status = MfaSetupStatus.Confirmed, CreatedAt = DateTime.UtcNow,
-                    ConfirmedAt = DateTime.UtcNow, LastAcceptedTotpStep = _lastAcceptedStep,
+                    Id = _row,
+                    AccountId = _account.Id,
+                    Secret = _secret,
+                    RecoveryCode1 = [],
+                    RecoveryCode2 = [],
+                    RecoveryCode3 = [],
+                    Status = MfaSetupStatus.Confirmed,
+                    CreatedAt = DateTime.UtcNow,
+                    ConfirmedAt = DateTime.UtcNow,
+                    LastAcceptedTotpStep = _lastAcceptedStep,
                 };
             if (_holdReads)
             {

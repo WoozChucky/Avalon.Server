@@ -680,7 +680,8 @@ public sealed class EmailChangeShould : IDisposable
         {
             Content = System.Net.Http.Json.JsonContent.Create(new
             {
-                newEmail = "moved@avalon.monster", currentPassword = TestPasswords.Valid,
+                newEmail = "moved@avalon.monster",
+                currentPassword = TestPasswords.Valid,
             }),
         };
         start.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
@@ -707,7 +708,9 @@ public sealed class EmailChangeShould : IDisposable
         var sender = new PickupEmailSender(
             new Avalon.Api.Config.EmailConfig
             {
-                Sender = Avalon.Api.Config.EmailSenderKind.Pickup, PickupDirectory = pickup, From = "noreply@avalon.monster",
+                Sender = Avalon.Api.Config.EmailSenderKind.Pickup,
+                PickupDirectory = pickup,
+                From = "noreply@avalon.monster",
             }, TimeProvider.System);
         try
         {
@@ -721,7 +724,8 @@ public sealed class EmailChangeShould : IDisposable
             {
                 Content = System.Net.Http.Json.JsonContent.Create(new
                 {
-                    newEmail = "moved@avalon.monster", currentPassword = TestPasswords.Valid,
+                    newEmail = "moved@avalon.monster",
+                    currentPassword = TestPasswords.Valid,
                 }),
             };
             start.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",

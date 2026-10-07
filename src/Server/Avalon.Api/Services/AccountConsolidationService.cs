@@ -79,7 +79,9 @@ public sealed class AccountConsolidationService(IAccountConsolidationRepository 
     private static AccountConsolidationReply Reply(AccountConsolidation operation, string? error = null, string? state = null) => new(
         state ?? (operation.State switch { AccountConsolidationState.Completed => "completed", AccountConsolidationState.Finalized => "finishing", _ => "transferring" }), error)
     {
-        OperationId = operation.Id.ToString("N"), WorldsCompleted = operation.Worlds.Count(w => w.TransferredAt is not null),
-        WorldsTotal = operation.Worlds.Count, TransferredCharacters = operation.Worlds.Sum(w => (long)w.TransferredCharacters),
+        OperationId = operation.Id.ToString("N"),
+        WorldsCompleted = operation.Worlds.Count(w => w.TransferredAt is not null),
+        WorldsTotal = operation.Worlds.Count,
+        TransferredCharacters = operation.Worlds.Sum(w => (long)w.TransferredCharacters),
     };
 }

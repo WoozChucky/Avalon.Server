@@ -37,7 +37,11 @@ public class QuestItemDropShould
         var creature = new Creature
         {
             Guid = new ObjectGuid(ObjectType.Creature, Interlocked.Increment(ref _nextCreature)),
-            Metadata = metadata, TemplateId = metadata.Id, Position = Vector3.zero, Level = 1, Experience = 1,
+            Metadata = metadata,
+            TemplateId = metadata.Id,
+            Position = Vector3.zero,
+            Level = 1,
+            Experience = 1,
         };
         instance.AddCreature(creature);
         return creature;

@@ -169,10 +169,16 @@ public sealed class ApiAuthHost : IAsyncDisposable
 
     public static Account MakeAccount(AccountAccessLevel level = AccountAccessLevel.Player,
         AccountStatus status = AccountStatus.Active) => new()
-    {
-        Id = new AccountId(AccountIdValue), Username = "CALLER", Email = "caller@avalon.monster",
-        Salt = [1], Verifier = [2], JoinDate = DateTime.UtcNow, AccessLevel = level, Status = status,
-    };
+        {
+            Id = new AccountId(AccountIdValue),
+            Username = "CALLER",
+            Email = "caller@avalon.monster",
+            Salt = [1],
+            Verifier = [2],
+            JoinDate = DateTime.UtcNow,
+            AccessLevel = level,
+            Status = status,
+        };
 
     /// <summary>What the account service returns for exactly <see cref="AccountIdValue"/>, and nothing else.</summary>
     public void AccountNowIs(Account? account) =>

@@ -36,7 +36,10 @@ public class GameContextStoreShould
         _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
         _links.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns(new ExternalIdentity
         {
-            Id = Guid.NewGuid(), AccountId = _account.Id, Provider = "steam", ProviderSubject = "76561198000000001",
+            Id = Guid.NewGuid(),
+            AccountId = _account.Id,
+            Provider = "steam",
+            ProviderSubject = "76561198000000001",
         });
         _ownership.CheckAsync(Arg.Any<uint>(), "76561198000000001", Arg.Any<CancellationToken>()).Returns(call => new SteamOwnershipResult(
             SteamOwnershipStatus.Owned, "76561198000000001", _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
@@ -312,7 +315,10 @@ public class GameContextStoreShould
         var proofAttempt = (await Attempt("steam", context.GameContextCredential))!;
         _links.FindAsync("steam", "76561198000000001", Arg.Any<CancellationToken>()).Returns(new ExternalIdentity
         {
-            Id = Guid.NewGuid(), AccountId = new AccountId(8), Provider = "steam", ProviderSubject = "76561198000000001",
+            Id = Guid.NewGuid(),
+            AccountId = new AccountId(8),
+            Provider = "steam",
+            ProviderSubject = "76561198000000001",
         });
         Assert.Equal("ACCOUNT_MISMATCH", (await Service().AuthenticateSteamAsync(proofAttempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None)).Error);
         Assert.Null(await Service().GetContextAsync(context.GameContextCredential!, true, CancellationToken.None));

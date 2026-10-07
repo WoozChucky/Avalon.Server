@@ -17,7 +17,8 @@ public sealed class GameAdmissionHandlerShould
         api.AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new WorldAdmissionResult(lease, null));
         await new GameAdmissionHandler(api).ExecuteAsync(new()
         {
-            Connection = connection, Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
+            Connection = connection,
+            Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
         });
         Assert.Null(connection.AccountId); Assert.Null(connection.GameplayAuthority);
         var deadline = DateTime.UtcNow.AddSeconds(5);
@@ -34,7 +35,8 @@ public sealed class GameAdmissionHandlerShould
         var api = Substitute.For<IGameAdmissionClient>();
         await new GameAdmissionHandler(api).ExecuteAsync(new()
         {
-            Connection = connection, Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
+            Connection = connection,
+            Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
         });
         await api.DidNotReceiveWithAnyArgs().AdmitAsync(default!, default, default, default);
         Assert.True(connection.IsClosing); Assert.Null(connection.AccountId);
@@ -47,7 +49,8 @@ public sealed class GameAdmissionHandlerShould
         using var connection = WorldAdmissionConnection.Create(tls: tls); var api = Substitute.For<IGameAdmissionClient>();
         await new GameAdmissionHandler(api).ExecuteAsync(new()
         {
-            Connection = connection, Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = malformedKey ? [] : new CryptoManager().GetPublicKey() }
+            Connection = connection,
+            Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = malformedKey ? [] : new CryptoManager().GetPublicKey() }
         });
         await api.DidNotReceiveWithAnyArgs().AdmitAsync(default!, default, default, default);
         Assert.True(connection.IsClosing); Assert.Null(connection.GameplayAuthority);
@@ -59,7 +62,8 @@ public sealed class GameAdmissionHandlerShould
         api.AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new WorldAdmissionResult(null, "INVALID_TICKET"));
         await new GameAdmissionHandler(api).ExecuteAsync(new()
         {
-            Connection = connection, Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
+            Connection = connection,
+            Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
         });
         var deadline = DateTime.UtcNow.AddSeconds(5);
         while (!connection.IsClosing && DateTime.UtcNow < deadline) { connection.FlushContinuations(); await Task.Yield(); }

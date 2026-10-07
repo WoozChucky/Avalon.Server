@@ -122,8 +122,11 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             return await FinishErrorAsync(claim, GameAuthErrors.InvalidHandoff, cancellationToken);
         var context = NewContext(claim.Record) with
         {
-            State = GameAuthStates.PendingLicense, AccountId = account.Id.Value, CredentialsVersion = account.CredentialsVersion,
-            SessionEpoch = account.SessionEpoch, LauncherFamilyId = grant.FamilyId,
+            State = GameAuthStates.PendingLicense,
+            AccountId = account.Id.Value,
+            CredentialsVersion = account.CredentialsVersion,
+            SessionEpoch = account.SessionEpoch,
+            LauncherFamilyId = grant.FamilyId,
         };
         var license = await licenseAuthority.VerifyAsync(new(account.Id, application, null, null, null, Now), cancellationToken);
         context = WithAuthority(context, license);
@@ -177,22 +180,32 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         var sameSource = existing?.ApplicationKey == application.Key && existing.ProviderSubject == identity.ProviderSubject;
         var context = (sameSource ? existing! : NewContext(claim.Record) with
         {
-            AccountId = existing?.AccountId, CredentialsVersion = existing?.CredentialsVersion ?? 0,
-            SessionEpoch = existing?.SessionEpoch ?? 0, LauncherFamilyId = existing?.LauncherFamilyId,
+            AccountId = existing?.AccountId,
+            CredentialsVersion = existing?.CredentialsVersion ?? 0,
+            SessionEpoch = existing?.SessionEpoch ?? 0,
+            LauncherFamilyId = existing?.LauncherFamilyId,
         }) with
         {
-            ApplicationKey = application.Key, Provider = provider, ProviderSubject = identity.ProviderSubject,
-            IdentityVerifiedAt = identity.VerifiedAt, IdentityValidUntil = identity.ValidUntil,
-            LicenseId = sameSource ? existing!.LicenseId : null, LicenseRevision = sameSource ? existing!.LicenseRevision : null,
+            ApplicationKey = application.Key,
+            Provider = provider,
+            ProviderSubject = identity.ProviderSubject,
+            IdentityVerifiedAt = identity.VerifiedAt,
+            IdentityValidUntil = identity.ValidUntil,
+            LicenseId = sameSource ? existing!.LicenseId : null,
+            LicenseRevision = sameSource ? existing!.LicenseRevision : null,
             AuthorizationValidUntil = sameSource ? existing!.AuthorizationValidUntil : null,
         };
         if (linked is null && existing?.AccountId is not null)
         {
             context = context with
             {
-                State = GameAuthStates.PendingLink, PendingLinkId = Guid.NewGuid(), LinkChallenge = claim.Record.LinkChallenge,
+                State = GameAuthStates.PendingLink,
+                PendingLinkId = Guid.NewGuid(),
+                LinkChallenge = claim.Record.LinkChallenge,
                 LinkProofExpiresAt = Earlier(claim.Record.CreatedAt.Add(GameAuthPolicy.LinkProofLifetime), identity.ValidUntil),
-                AuthorizationValidUntil = null, LicenseId = null, LicenseRevision = null,
+                AuthorizationValidUntil = null,
+                LicenseId = null,
+                LicenseRevision = null,
             };
             return await FinishContextAsync(claim, context, existing, proofDigest, cancellationToken, GameAuthErrors.AccountLinkRequired);
         }
@@ -230,8 +243,14 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         context = WithAuthority(context, license) with { PendingLinkId = null, LinkChallenge = null, LinkProofExpiresAt = null };
         if (license.Status == GameLicenseCheckStatus.Unavailable && sameSource && existing is not null &&
             await HasCurrentLicenseAsync(existing, cancellationToken))
-            context = context with { State = existing.State, AuthorizationValidUntil = existing.AuthorizationValidUntil,
-                LicenseId = existing.LicenseId, LicenseRevision = existing.LicenseRevision, LicenseObservationId = existing.LicenseObservationId };
+            context = context with
+            {
+                State = existing.State,
+                AuthorizationValidUntil = existing.AuthorizationValidUntil,
+                LicenseId = existing.LicenseId,
+                LicenseRevision = existing.LicenseRevision,
+                LicenseObservationId = existing.LicenseObservationId
+            };
         return await FinishContextAsync(claim, context, existing, proofDigest, cancellationToken,
             license.Status == GameLicenseCheckStatus.Unavailable ? GameAuthErrors.ProviderUnavailable : null);
     }
@@ -239,16 +258,26 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
     private static GameContextRecord WithAuthority(GameContextRecord context, GameLicenseAuthorityResult license) => context with
     {
         State = license.Status == GameLicenseCheckStatus.Licensed ? GameAuthStates.Authorized : GameAuthStates.PendingLicense,
-        AuthorizationValidUntil = license.AuthorizedUntil is { } until ? Earlier(until, context.AbsoluteExpiresAt) : null, LicenseObservationId = license.ObservationId,
-        LicenseId = license.LicenseId ?? context.LicenseId, LicenseRevision = license.Revision ?? context.LicenseRevision,
+        AuthorizationValidUntil = license.AuthorizedUntil is { } until ? Earlier(until, context.AbsoluteExpiresAt) : null,
+        LicenseObservationId = license.ObservationId,
+        LicenseId = license.LicenseId ?? context.LicenseId,
+        LicenseRevision = license.Revision ?? context.LicenseRevision,
     };
 
     private GameContextRecord NewContext(AuthAttemptRecord attempt) => new()
     {
-        Id = Guid.NewGuid(), ClientRunId = attempt.ClientRunId, SteamAppId = attempt.SteamAppId, ProtocolVersion = attempt.ProtocolVersion,
-        ApplicationKey = attempt.ApplicationKey, Provider = options.Value.ResolveApplication(attempt.ApplicationKey)?.Provider,
-        Environment = options.Value.Environment, State = GameAuthStates.PendingIdentity, CreatedAt = Now, AbsoluteExpiresAt = Now.Add(GameAuthPolicy.AbsoluteContextLifetime),
-        CredentialDigest = "", RefreshDigest = "",
+        Id = Guid.NewGuid(),
+        ClientRunId = attempt.ClientRunId,
+        SteamAppId = attempt.SteamAppId,
+        ProtocolVersion = attempt.ProtocolVersion,
+        ApplicationKey = attempt.ApplicationKey,
+        Provider = options.Value.ResolveApplication(attempt.ApplicationKey)?.Provider,
+        Environment = options.Value.Environment,
+        State = GameAuthStates.PendingIdentity,
+        CreatedAt = Now,
+        AbsoluteExpiresAt = Now.Add(GameAuthPolicy.AbsoluteContextLifetime),
+        CredentialDigest = "",
+        RefreshDigest = "",
     };
 
     private sealed record Claim(string Key, string Raw, AuthAttemptRecord Record);
@@ -298,8 +327,10 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         if (reply.State == GameAuthStates.Authorized && reply.AuthorizationValidUntil is { } licenseEnd && licenseEnd < expires) expires = licenseEnd;
         return new(claim.Key, claim.Raw, GameAuthJson.Serialize(claim.Record with
         {
-            Receipt = crypto.Protect(reply, attempts.ReceiptBinding(claim.Key, claim.Record.Binding!)), ReceiptExpiresAt = expires,
-            WorkerId = null, WorkerUntil = null,
+            Receipt = crypto.Protect(reply, attempts.ReceiptBinding(claim.Key, claim.Record.Binding!)),
+            ReceiptExpiresAt = expires,
+            WorkerId = null,
+            WorkerUntil = null,
         }), claim.Record.CreatedAt.Add(GameAuthPolicy.AbsoluteContextLifetime));
     }
 
@@ -321,7 +352,8 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         var refresh = GameAuthCryptography.NewToken();
         context = context with
         {
-            CredentialDigest = GameAuthCryptography.Digest(credential), RefreshDigest = GameAuthCryptography.Digest(refresh),
+            CredentialDigest = GameAuthCryptography.Digest(credential),
+            RefreshDigest = GameAuthCryptography.Digest(refresh),
             CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt),
             Generation = (previous?.Id == context.Id ? previous.Generation : 0) + 1,
         };
@@ -360,15 +392,22 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
 
     private GameAuthReply Response(GameContextRecord context, string credential, string? refresh, string? error = null) => new()
     {
-        State = context.State == GameAuthStates.Authorized && !HasLicense(context) ? GameAuthStates.PendingLicense : context.State, Error = error,
-        AccountId = context.AccountId?.ToString(CultureInfo.InvariantCulture), GameContextCredential = credential,
-        GameContextRefreshToken = refresh, ContextExpiresAt = context.CredentialExpiresAt,
-        AuthorizationValidUntil = context.AuthorizationValidUntil, LicenseSource = context.Provider,
-        PendingLinkId = context.PendingLinkId?.ToString("N"), NextAction = context.State switch
+        State = context.State == GameAuthStates.Authorized && !HasLicense(context) ? GameAuthStates.PendingLicense : context.State,
+        Error = error,
+        AccountId = context.AccountId?.ToString(CultureInfo.InvariantCulture),
+        GameContextCredential = credential,
+        GameContextRefreshToken = refresh,
+        ContextExpiresAt = context.CredentialExpiresAt,
+        AuthorizationValidUntil = context.AuthorizationValidUntil,
+        LicenseSource = context.Provider,
+        PendingLinkId = context.PendingLinkId?.ToString("N"),
+        NextAction = context.State switch
         {
-            GameAuthStates.PendingLink => "link_account", GameAuthStates.Authorized when HasLicense(context) => "select_world",
+            GameAuthStates.PendingLink => "link_account",
+            GameAuthStates.Authorized when HasLicense(context) => "select_world",
             _ when error == GameAuthErrors.ProviderUnavailable => "retry_license_check",
-            _ when context.Provider is null => "play_through_steam", _ => "purchase_license",
+            _ when context.Provider is null => "play_through_steam",
+            _ => "purchase_license",
         },
     };
 
@@ -418,16 +457,23 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             var nextRefresh = GameAuthCryptography.NewToken();
             var next = renewed with
             {
-                Generation = context.Generation + 1, CredentialDigest = GameAuthCryptography.Digest(nextCredential),
-                RefreshDigest = GameAuthCryptography.Digest(nextRefresh), CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt),
+                Generation = context.Generation + 1,
+                CredentialDigest = GameAuthCryptography.Digest(nextCredential),
+                RefreshDigest = GameAuthCryptography.Digest(nextRefresh),
+                CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt),
                 State = renewed.State == GameAuthStates.Authorized && !HasLicense(renewed) ? GameAuthStates.PendingLicense : renewed.State,
             };
             var reply = Response(next, nextCredential, nextRefresh, renewalError);
             var receiptUntil = Earlier(Now.Add(GameAuthPolicy.RefreshReceiptLifetime), next.CredentialExpiresAt);
             if (next.State == GameAuthStates.Authorized && GameContextAuthorizationWindow.Deadline(next) is { } licenseUntil)
                 receiptUntil = Earlier(receiptUntil, licenseUntil);
-            var spent = token with { Spent = true, RequestId = requestId,
-                Receipt = crypto.Protect(reply, tokenKey + ":" + requestId.ToString("N")), ReceiptExpiresAt = receiptUntil };
+            var spent = token with
+            {
+                Spent = true,
+                RequestId = requestId,
+                Receipt = crypto.Protect(reply, tokenKey + ":" + requestId.ToString("N")),
+                ReceiptExpiresAt = receiptUntil
+            };
             var changes = new GameAuthMutation[]
             {
                 new(tokenKey, rawToken, GameAuthJson.Serialize(spent), context.AbsoluteExpiresAt),

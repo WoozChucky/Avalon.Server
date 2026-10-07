@@ -82,8 +82,14 @@ public sealed class SteamWebLinkStore(IGameContextStore store, GameAuthCryptogra
                 record.BrowserDigest != GameAuthCryptography.Digest(browser) || !Cookie(record, cookie)) return null;
             if (record.State == "committing") return record.ConfirmationId == confirm && record.ConsolidationConsent == consolidationConsent ? record : null;
             if (record.State != "verified" || record.ProofExpiresAt <= Now || !Authority(record, root)) return null;
-            var next = record with { State = "committing", ConfirmationId = confirm, ConfirmedMfaId = mfaId,
-                ConsolidationConsent = consolidationConsent, ExpiresAt = Now.Add(GameAuthPolicy.WebConfirmationLifetime) };
+            var next = record with
+            {
+                State = "committing",
+                ConfirmationId = confirm,
+                ConfirmedMfaId = mfaId,
+                ConsolidationConsent = consolidationConsent,
+                ExpiresAt = Now.Add(GameAuthPolicy.WebConfirmationLifetime)
+            };
             if (await store.CompareExchangeAsync([new(key, raw, GameAuthJson.Serialize(next), next.ExpiresAt)], ct)) return next;
         }
         return null;

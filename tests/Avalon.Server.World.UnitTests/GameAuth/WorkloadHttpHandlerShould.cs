@@ -30,7 +30,10 @@ public sealed class WorkloadHttpHandlerShould
     private static string Pin(X509Certificate2 certificate) => Convert.ToHexString(SHA256.HashData(certificate.RawData));
 
     [Theory]
-    [InlineData(null)] [InlineData("")] [InlineData("AA")] [InlineData("invalid")]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("AA")]
+    [InlineData("invalid")]
     public void Refuse_missing_or_malformed_pins(string? pin)
     {
         Assert.False(ApiCertificateTrust.IsValidPin(pin));
@@ -81,7 +84,9 @@ public sealed class WorkloadHttpHandlerShould
     }
 
     [Theory]
-    [InlineData("pin")] [InlineData("hostname")] [InlineData("expiry")]
+    [InlineData("pin")]
+    [InlineData("hostname")]
+    [InlineData("expiry")]
     public async Task Refuse_wrong_pin_wrong_hostname_or_expiry_before_any_HTTP_request(string failure)
     {
         using var server = Certificate();

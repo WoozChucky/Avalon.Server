@@ -431,7 +431,10 @@ public class CastAbilityHandlerShould
         var f = new Fixture();
         IAbility ability = f.GiveAbility(new AbilityMetadata
         {
-            Name = "X", ScriptName = "x", AimMode = AbilityAimMode.Cursor, CastTime = 1f,
+            Name = "X",
+            ScriptName = "x",
+            AimMode = AbilityAimMode.Cursor,
+            CastTime = 1f,
         });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = 5f, Y = 0f, Z = 6f } });
@@ -451,7 +454,11 @@ public class CastAbilityHandlerShould
         f.Character.PowerType.Returns(PowerType.None);
         f.GiveAbility(new AbilityMetadata
         {
-            Name = "X", ScriptName = "x", Cost = 10, CostPowerType = PowerType.Mana, CastTime = castTime,
+            Name = "X",
+            ScriptName = "x",
+            Cost = 10,
+            CostPowerType = PowerType.Mana,
+            CastTime = castTime,
         });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });
@@ -507,7 +514,11 @@ public class CastAbilityHandlerShould
         f.Character.CurrentPower.Returns((uint?)100);
         f.GiveAbility(new AbilityMetadata
         {
-            Name = "Flame Surge", ScriptName = "x", Cost = 20, CostPowerType = costPool, CastTime = castTime,
+            Name = "Flame Surge",
+            ScriptName = "x",
+            Cost = 20,
+            CostPowerType = costPool,
+            CastTime = castTime,
         });
 
         f.Cast(new CCastAbilityPacket { AbilityId = 1 });

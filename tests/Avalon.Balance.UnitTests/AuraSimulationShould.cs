@@ -14,23 +14,49 @@ public class AuraSimulationShould
 {
     private static AuraTemplate Bleed() => new()
     {
-        Id = new AuraId(9901), Name = "Test Bleed", Icon = "bleed", Kind = AuraKind.Harmful, DurationMs = 12000,
-        TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 12f, ScalingStat = ScalingStat.Attack,
-        ScalingCoefficient = 0.25f, Stacking = AuraStacking.Stack, MaxStacks = 3,
+        Id = new AuraId(9901),
+        Name = "Test Bleed",
+        Icon = "bleed",
+        Kind = AuraKind.Harmful,
+        DurationMs = 12000,
+        TickIntervalMs = 3000,
+        PeriodicKind = AuraPeriodicKind.Damage,
+        PeriodicBase = 12f,
+        ScalingStat = ScalingStat.Attack,
+        ScalingCoefficient = 0.25f,
+        Stacking = AuraStacking.Stack,
+        MaxStacks = 3,
     };
 
     private static AuraTemplate Ward() => new()
     {
-        Id = new AuraId(9905), Name = "Test Ward", Icon = "ward", Kind = AuraKind.Helpful, DurationMs = 30000,
-        Stacking = AuraStacking.Refresh, MaxStacks = 1,
+        Id = new AuraId(9905),
+        Name = "Test Ward",
+        Icon = "ward",
+        Kind = AuraKind.Helpful,
+        DurationMs = 30000,
+        Stacking = AuraStacking.Refresh,
+        MaxStacks = 1,
     };
 
     private static AbilityTemplate Rend() => new()
     {
-        Id = new AbilityId(9203), Name = "Test Rend", ScriptName = AbilityRules.ConeScript, Shape = AbilityShape.Cone,
-        AimMode = AbilityAimMode.Movement, Reach = 2.5f, ArcDegrees = 90f, Cooldown = 6000, Effects = SpellEffect.Damage,
-        EffectValue = 8, ScalingStat = ScalingStat.Attack, ScalingCoefficient = 0.2f, BaseDamageCoefficient = 0.5f,
-        AllowedClasses = [CharacterClass.Warrior], AuraId = new AuraId(9901), ThreatMultiplier = 1f,
+        Id = new AbilityId(9203),
+        Name = "Test Rend",
+        ScriptName = AbilityRules.ConeScript,
+        Shape = AbilityShape.Cone,
+        AimMode = AbilityAimMode.Movement,
+        Reach = 2.5f,
+        ArcDegrees = 90f,
+        Cooldown = 6000,
+        Effects = SpellEffect.Damage,
+        EffectValue = 8,
+        ScalingStat = ScalingStat.Attack,
+        ScalingCoefficient = 0.2f,
+        BaseDamageCoefficient = 0.5f,
+        AllowedClasses = [CharacterClass.Warrior],
+        AuraId = new AuraId(9901),
+        ThreatMultiplier = 1f,
     };
 
     private static BalanceData Data(AuraTemplate? bleed = null, Action<SeedTables>? change = null)
@@ -40,7 +66,7 @@ public class AuraSimulationShould
         seed.AuraTemplates.Add(bleed ?? Bleed());
         seed.AuraTemplates.Add(Ward());
         seed.AuraStatModifiers.Add(new AuraStatModifier
-            { AuraId = new AuraId(9905), Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = 50f });
+        { AuraId = new AuraId(9905), Stat = AuraStat.Armor, Kind = AuraModifierKind.Flat, Value = 50f });
         seed.AbilityTemplates.Add(Rend());
         return BalanceData.From(seed);
     }

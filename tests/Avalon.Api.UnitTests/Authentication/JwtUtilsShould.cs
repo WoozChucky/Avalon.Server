@@ -63,9 +63,9 @@ public class JwtUtilsShould
 
         var groupSids = ReadGroupSids(token);
 
-        Assert.Contains("Player",     groupSids);
+        Assert.Contains("Player", groupSids);
         Assert.Contains("GameMaster", groupSids);
-        Assert.Contains("Admin",      groupSids);
+        Assert.Contains("Admin", groupSids);
     }
 
     [Fact]

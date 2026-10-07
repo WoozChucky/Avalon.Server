@@ -209,10 +209,27 @@ public sealed class PaymentReconciliationShould
         var duplicateId = Guid.NewGuid();
         await using (var db = f.Db.CreateDbContext())
         {
-            db.PaymentAttempts.Add(new PaymentAttempt { Id = duplicateId, OrderId = original.OrderId, Sequence = 2, Provider = "alternate", ProviderAccountId = "merchant",
-                Environment = "sandbox", OperationKey = "second-operation", ProviderPriceId = "price", ProviderCatalogProductId = "catalog", PaymentMethods = "card",
-                CheckoutEmail = "buyer@example.test", SuccessUrl = "https://avalon.example.test", CancelUrl = "https://avalon.example.test",
-                State = PaymentAttemptState.CheckoutOpen, CheckoutReference = "second-checkout", RequestedExpiresAt = f.Clock.Now.AddMinutes(30), FirstDispatchedAt = f.Clock.Now, CreatedAt = f.Clock.Now });
+            db.PaymentAttempts.Add(new PaymentAttempt
+            {
+                Id = duplicateId,
+                OrderId = original.OrderId,
+                Sequence = 2,
+                Provider = "alternate",
+                ProviderAccountId = "merchant",
+                Environment = "sandbox",
+                OperationKey = "second-operation",
+                ProviderPriceId = "price",
+                ProviderCatalogProductId = "catalog",
+                PaymentMethods = "card",
+                CheckoutEmail = "buyer@example.test",
+                SuccessUrl = "https://avalon.example.test",
+                CancelUrl = "https://avalon.example.test",
+                State = PaymentAttemptState.CheckoutOpen,
+                CheckoutReference = "second-checkout",
+                RequestedExpiresAt = f.Clock.Now.AddMinutes(30),
+                FirstDispatchedAt = f.Clock.Now,
+                CreatedAt = f.Clock.Now
+            });
             await db.SaveChangesAsync();
         }
         f.Provider.Snapshot = original with { AttemptId = duplicateId, CheckoutReference = "second-checkout", PaymentReference = "second-payment" };
@@ -246,8 +263,14 @@ public sealed class PaymentReconciliationShould
     public async Task Consolidation_during_fulfillment_uses_trusted_beneficiary()
     {
         using var f = await Setup();
-        var target = await new AccountRepository(f.Db).CreateAsync(new Avalon.Domain.Auth.Account { Username = "TARGET", Email = "target@example.test",
-            Salt = [1], Verifier = [2], JoinDate = f.Clock.Now });
+        var target = await new AccountRepository(f.Db).CreateAsync(new Avalon.Domain.Auth.Account
+        {
+            Username = "TARGET",
+            Email = "target@example.test",
+            Salt = [1],
+            Verifier = [2],
+            JoinDate = f.Clock.Now
+        });
         await using (var db = f.Db.CreateDbContext())
         {
             await db.PurchaseOrders.Where(x => x.Id == f.Provider.Snapshot!.OrderId)
@@ -275,10 +298,22 @@ public sealed class PaymentReconciliationShould
     {
         var repo = new PurchaseRepository(f.Db, f.Clock);
         var snapshot = f.Provider.Snapshot!;
-        var row = new PaymentEvent { Id = Guid.NewGuid(), Provider = "alternate", ProviderAccountId = "merchant", Environment = "sandbox",
-            ExternalReference = Guid.NewGuid().ToString("N"), Type = "paid", ResourceKind = "checkout", ResourceReference = snapshot.CheckoutReference,
-            PaymentReference = snapshot.PaymentReference, OrderId = snapshot.OrderId, PaymentAttemptId = (await repo.FindLatestAttemptAsync(snapshot.OrderId))!.Id,
-            CreatedAt = f.Clock.Now, NextAttemptAt = f.Clock.Now };
+        var row = new PaymentEvent
+        {
+            Id = Guid.NewGuid(),
+            Provider = "alternate",
+            ProviderAccountId = "merchant",
+            Environment = "sandbox",
+            ExternalReference = Guid.NewGuid().ToString("N"),
+            Type = "paid",
+            ResourceKind = "checkout",
+            ResourceReference = snapshot.CheckoutReference,
+            PaymentReference = snapshot.PaymentReference,
+            OrderId = snapshot.OrderId,
+            PaymentAttemptId = (await repo.FindLatestAttemptAsync(snapshot.OrderId))!.Id,
+            CreatedAt = f.Clock.Now,
+            NextAttemptAt = f.Clock.Now
+        };
         await repo.AcceptEventAsync(row);
         var claim = (await repo.ClaimEventsAsync(f.Clock.Now, 10, TimeSpan.FromMinutes(2))).Single(x => x.Event.Id == row.Id);
         var service = new PaymentReconciliationService(repo, new PaymentProviderRegistry([f.Provider]), Options.Create(f.Config), f.Clock);

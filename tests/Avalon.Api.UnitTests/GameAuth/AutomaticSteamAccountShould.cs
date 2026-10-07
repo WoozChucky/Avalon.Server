@@ -35,7 +35,8 @@ public class AutomaticSteamAccountShould
         _ownership.CheckAsync(Arg.Any<uint>(), Subject, Arg.Any<CancellationToken>()).Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime.AddMinutes(5)));
         _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);
         _registration.CreateFromStoreAsync(Arg.Any<Guid>(), "steam", Subject, Arg.Any<DateTime>(), "127.0.0.1", Arg.Any<CancellationToken>())
-            .Returns(call => {
+            .Returns(call =>
+            {
                 var identity = new ExternalIdentity { Id = call.ArgAt<Guid>(0), AccountId = _account.Id, Provider = "steam", ProviderSubject = Subject };
                 _identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns(identity);
                 return new IdentityLinkResult(IdentityLinkStatus.Linked, identity);

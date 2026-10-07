@@ -30,7 +30,11 @@ public class SUnitDamagePacket : Packet
         => PacketSerializationHelper.Serialize(
             new SUnitDamagePacket
             {
-                Attacker = attacker.RawValue, Target = target, CurrentHealth = currentHealth, Damage = damage, Result = result,
+                Attacker = attacker.RawValue,
+                Target = target,
+                CurrentHealth = currentHealth,
+                Damage = damage,
+                Result = result,
                 AuraId = auraId,
             },
             PacketType, Flags, Protocol, encryptFunc);

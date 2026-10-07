@@ -44,7 +44,9 @@ public sealed partial class InternalGameAdmissionController
             var reply = await action(serverId, new AccountId(accountId), request.GameSessionId, fence, cancellationToken);
             return reply.Error switch
             {
-                null => Ok(reply), GameAuthErrors.BarrierPending => StatusCode(503, reply), _ => Unauthorized(reply),
+                null => Ok(reply),
+                GameAuthErrors.BarrierPending => StatusCode(503, reply),
+                _ => Unauthorized(reply),
             };
         }
         catch (Exception error) when (error is DbException or RedisException or JsonException or CryptographicException)

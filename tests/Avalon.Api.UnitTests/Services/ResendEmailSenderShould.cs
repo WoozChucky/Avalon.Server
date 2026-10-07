@@ -51,7 +51,10 @@ public sealed class ResendEmailSenderShould
     }
 
     [Theory]
-    [InlineData(401)] [InlineData(429)] [InlineData(500)] [InlineData(302)]
+    [InlineData(401)]
+    [InlineData(429)]
+    [InlineData(500)]
+    [InlineData(302)]
     public async Task DoesNotLeakSecretsOnFailure(int status)
     {
         var handler = new Handler { Status = (HttpStatusCode)status, Response = "provider-secret " + Secret };
@@ -63,7 +66,9 @@ public sealed class ResendEmailSenderShould
     }
 
     [Theory]
-    [InlineData("{}")] [InlineData("{\"id\":\"\"}")] [InlineData("not-json")]
+    [InlineData("{}")]
+    [InlineData("{\"id\":\"\"}")]
+    [InlineData("not-json")]
     public async Task RefusesMalformedSuccess(string response)
     {
         await Assert.ThrowsAsync<EmailDeliveryException>(() => Sender(new Handler { Response = response }).SendAsync("player@example.test", "Verify", "token", default));

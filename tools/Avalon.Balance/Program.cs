@@ -83,7 +83,9 @@ static string Commit(string root)
     {
         using var git = Process.Start(new ProcessStartInfo("git", "rev-parse --short HEAD")
         {
-            WorkingDirectory = root, RedirectStandardOutput = true, UseShellExecute = false,
+            WorkingDirectory = root,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
         });
         if (git is null) return "unknown";
         string sha = git.StandardOutput.ReadToEnd().Trim();

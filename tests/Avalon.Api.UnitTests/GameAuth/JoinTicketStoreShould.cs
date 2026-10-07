@@ -115,9 +115,16 @@ public sealed class JoinTicketStoreShould
         var auth = await _h.Authenticate();
         var active = new GameSession
         {
-            AccountId = _h.Account.Id, GameSessionId = Guid.NewGuid(), GameContextId = Guid.NewGuid(), FencingToken = 3,
-            ServerId = "world-1", WorldId = 1, Environment = "production", State = GameSessionState.Active,
-            CreatedAt = _h.Clock.GetUtcNow().UtcDateTime, LeaseUntil = _h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45),
+            AccountId = _h.Account.Id,
+            GameSessionId = Guid.NewGuid(),
+            GameContextId = Guid.NewGuid(),
+            FencingToken = 3,
+            ServerId = "world-1",
+            WorldId = 1,
+            Environment = "production",
+            State = GameSessionState.Active,
+            CreatedAt = _h.Clock.GetUtcNow().UtcDateTime,
+            LeaseUntil = _h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45),
             LicenseUntil = _h.Clock.GetUtcNow().UtcDateTime.AddMinutes(5),
         };
         _h.Sessions.FindAsync(_h.Account.Id, Arg.Any<CancellationToken>()).Returns(active);
@@ -168,10 +175,22 @@ internal sealed class JoinHarness
         Sessions.TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             var r = call.Arg<GameSessionReservation>();
-            var head = new GameSession { AccountId = r.AccountId, GameSessionId = r.GameSessionId, GameContextId = r.GameContextId,
-                FencingToken = r.ExpectedFence + 1, ServerId = r.ServerId, WorldId = r.WorldId, Environment = r.Environment,
-                State = GameSessionState.Pending, CredentialsVersion = r.CredentialsVersion, SessionEpoch = r.SessionEpoch,
-                CreatedAt = Clock.GetUtcNow().UtcDateTime, LeaseUntil = Clock.GetUtcNow().UtcDateTime.AddSeconds(45), LicenseUntil = r.LicenseUntil };
+            var head = new GameSession
+            {
+                AccountId = r.AccountId,
+                GameSessionId = r.GameSessionId,
+                GameContextId = r.GameContextId,
+                FencingToken = r.ExpectedFence + 1,
+                ServerId = r.ServerId,
+                WorldId = r.WorldId,
+                Environment = r.Environment,
+                State = GameSessionState.Pending,
+                CredentialsVersion = r.CredentialsVersion,
+                SessionEpoch = r.SessionEpoch,
+                CreatedAt = Clock.GetUtcNow().UtcDateTime,
+                LeaseUntil = Clock.GetUtcNow().UtcDateTime.AddSeconds(45),
+                LicenseUntil = r.LicenseUntil
+            };
             Sessions.FindAsync(Account.Id, Arg.Any<CancellationToken>()).Returns(head);
             return head;
         });
@@ -184,10 +203,18 @@ internal sealed class JoinHarness
     }
     public async Task<GameAuthReply> AuthenticateAvalon()
     {
-        TestGameAuthorization.Licenses(Store).Rows.Add(new GameLicense { Id = Guid.NewGuid(), AccountId = Account.Id,
-            Provider = "avalon", Environment = "production", Product = StoreAuthenticationConfiguration.Product, ProviderProductId = "base",
-            LicenseReference = "native-test-grant", AuthorityKind = Avalon.Common.GameAuth.LicenseAuthorityKind.StoredGrant,
-            GrantedAt = Clock.GetUtcNow().UtcDateTime });
+        TestGameAuthorization.Licenses(Store).Rows.Add(new GameLicense
+        {
+            Id = Guid.NewGuid(),
+            AccountId = Account.Id,
+            Provider = "avalon",
+            Environment = "production",
+            Product = StoreAuthenticationConfiguration.Product,
+            ProviderProductId = "base",
+            LicenseReference = "native-test-grant",
+            AuthorityKind = Avalon.Common.GameAuth.LicenseAuthorityKind.StoredGrant,
+            GrantedAt = Clock.GetUtcNow().UtcDateTime
+        });
         var attempt = (await Authorization.CreateAttemptAsync("avalon", "1", Guid.NewGuid(), new string('A', 43), null, null, default))!;
         var ticket = GameAuthCryptography.NewToken();
         Store.Seed(Avalon.Infrastructure.GameTickets.RedisGameTicketStore.Key(ticket), $"7|{_family:D}|0|0|production");

@@ -53,13 +53,13 @@ public class AbilityFootprintDto
 
     public static AbilityFootprintDto Create(AbilityShape shape, Vector3 origin, Vector3? direction, Vector3? centre,
         float radius, float reach, float arcDegrees) => new()
-    {
-        Shape = shape,
-        Origin = Vector3Dto.From(origin),
-        Direction = direction is { } d ? Vector3Dto.From(d) : null,
-        Centre = centre is { } c ? Vector3Dto.From(c) : null,
-        Radius = radius,
-        Reach = reach,
-        ArcDegrees = arcDegrees,
-    };
+        {
+            Shape = shape,
+            Origin = Vector3Dto.From(origin),
+            Direction = direction is { } d ? Vector3Dto.From(d) : null,
+            Centre = centre is { } c ? Vector3Dto.From(c) : null,
+            Radius = radius,
+            Reach = reach,
+            ArcDegrees = arcDegrees,
+        };
 }

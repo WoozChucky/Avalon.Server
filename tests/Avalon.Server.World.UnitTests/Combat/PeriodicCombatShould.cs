@@ -40,7 +40,11 @@ public class PeriodicCombatShould
 
     private static Creature Boar(uint health = 100, uint armor = 0) => new()
     {
-        Guid = new ObjectGuid(ObjectType.Creature, 908_901), Level = 1, Health = health, CurrentHealth = health, Armor = armor,
+        Guid = new ObjectGuid(ObjectType.Creature, 908_901),
+        Level = 1,
+        Health = health,
+        CurrentHealth = health,
+        Armor = armor,
     };
 
     private static CharacterEntity Warrior(uint id = 908_101)
@@ -243,7 +247,11 @@ public class PeriodicCombatShould
     {
         var boar = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, 908_902), Level = 1, Health = 100, CurrentHealth = 100, DodgePct = 30f,
+            Guid = new ObjectGuid(ObjectType.Creature, 908_902),
+            Level = 1,
+            Health = 100,
+            CurrentHealth = 100,
+            DodgePct = 30f,
         };
         boar.Script = new RecordingAiScript(boar);
         var dodging = new CombatService(new CombatConfig(), _registry, outcomes: _outcomes, time: _time,

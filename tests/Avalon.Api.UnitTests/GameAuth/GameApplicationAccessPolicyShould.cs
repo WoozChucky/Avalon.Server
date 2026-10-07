@@ -9,7 +9,8 @@ public class GameApplicationAccessPolicyShould
 {
     private static StoreAuthenticationConfiguration Configuration() => new()
     {
-        SteamAppId = 2499460, SteamPublisherKey = "private-test-secret",
+        SteamAppId = 2499460,
+        SteamPublisherKey = "private-test-secret",
         SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] },
     };
 

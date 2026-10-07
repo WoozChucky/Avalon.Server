@@ -58,8 +58,13 @@ public class AccountLoginStatusShould
     {
         var account = new Account
         {
-            Id = new AccountId(7), Username = "CALLER", Email = "c@avalon.monster",
-            Salt = [1], Verifier = Verifier, JoinDate = DateTime.UtcNow, Status = status,
+            Id = new AccountId(7),
+            Username = "CALLER",
+            Email = "c@avalon.monster",
+            Salt = [1],
+            Verifier = Verifier,
+            JoinDate = DateTime.UtcNow,
+            Status = status,
         };
         _accounts.FindByUserNameAsync("CALLER", Arg.Any<CancellationToken>()).Returns(account);
         _mfaSetups.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())

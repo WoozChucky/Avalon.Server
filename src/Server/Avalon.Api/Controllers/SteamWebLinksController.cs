@@ -122,7 +122,8 @@ public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLink
             return new("consolidating", reply.Error) { Consolidation = reply };
         }
         var link = await identities.LinkWithAuthorityAsync(new(record.Id, record.AccountId, StoreProviders.Steam, record.SteamSubject,
-            record.CredentialsVersion, record.SessionEpoch, record.ConfirmedMfaId) { ProofExpiresAt = record.ProofExpiresAt!.Value }, clock.GetUtcNow().UtcDateTime, ct);
+            record.CredentialsVersion, record.SessionEpoch, record.ConfirmedMfaId)
+        { ProofExpiresAt = record.ProofExpiresAt!.Value }, clock.GetUtcNow().UtcDateTime, ct);
         return link.Status is IdentityLinkStatus.Linked or IdentityLinkStatus.AlreadyLinked ? new("linked") :
             new(GameAuthStates.Pending, link.Status == IdentityLinkStatus.SubjectTaken ? GameAuthErrors.SteamLinkChangedStartAgain : GameAuthErrors.LinkUnavailable);
     });

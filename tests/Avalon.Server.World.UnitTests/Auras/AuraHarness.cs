@@ -77,8 +77,13 @@ internal sealed class AuraHarness
     {
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, id), Level = 1, Health = health, CurrentHealth = health,
-            BaseMaxHealth = health, Armor = armor, Speed = 4f,
+            Guid = new ObjectGuid(ObjectType.Creature, id),
+            Level = 1,
+            Health = health,
+            CurrentHealth = health,
+            BaseMaxHealth = health,
+            Armor = armor,
+            Speed = 4f,
         };
         Creatures[creature.Guid] = creature;
         return creature;

@@ -63,9 +63,13 @@ public sealed class TemplateEditShould : IAsyncLifetime
         {
             db.AuraTemplates.Add(new Avalon.Domain.World.AuraTemplate
             {
-                Id = new Avalon.Common.ValueObjects.AuraId(TestWard), Name = "Test Ward", Icon = "ward",
-                Kind = Avalon.Domain.World.AuraKind.Helpful, DurationMs = 10000,
-                Stacking = Avalon.Domain.World.AuraStacking.Refresh, MaxStacks = 1,
+                Id = new Avalon.Common.ValueObjects.AuraId(TestWard),
+                Name = "Test Ward",
+                Icon = "ward",
+                Kind = Avalon.Domain.World.AuraKind.Helpful,
+                DurationMs = 10000,
+                Stacking = Avalon.Domain.World.AuraStacking.Refresh,
+                MaxStacks = 1,
                 Modifiers =
                 [
                     new Avalon.Domain.World.AuraStatModifier
@@ -110,8 +114,12 @@ public sealed class TemplateEditShould : IAsyncLifetime
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntity
             {
-                Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = AccountAccessLevel.Player,
-                Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+                Id = new WorldId(id),
+                Name = $"World{id}",
+                AccessLevelRequired = AccountAccessLevel.Player,
+                Host = "h",
+                MinVersion = "0.0.1",
+                Version = "0.0.1",
             });
 
     private string Token(AccountAccessLevel level)
@@ -896,26 +904,38 @@ public sealed class TemplateEditShould : IAsyncLifetime
             var quest = new Avalon.Domain.World.QuestTemplate
             {
                 Id = new Avalon.Common.ValueObjects.QuestTemplateId(FixtureQuest),
-                TitleTextId = text, DescriptionTextId = text, CompletionTextId = text,
-                GiverCreatureId = creature, EnderCreatureId = creature, LevelRequirement = 1,
+                TitleTextId = text,
+                DescriptionTextId = text,
+                CompletionTextId = text,
+                GiverCreatureId = creature,
+                EnderCreatureId = creature,
+                LevelRequirement = 1,
             };
             quest.Stages.Add(new Avalon.Domain.World.QuestStage { QuestId = quest.Id, Sequence = 0, DescriptionTextId = text });
             quest.Objectives.Add(collects is { } item
                 ? new Avalon.Domain.World.QuestObjective
                 {
-                    Id = FixtureObjective, QuestId = quest.Id, StageSequence = 0,
+                    Id = FixtureObjective,
+                    QuestId = quest.Id,
+                    StageSequence = 0,
                     Type = Avalon.Domain.World.QuestObjectiveType.Collect,
-                    ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(item), Count = 1, DescriptionTextId = text,
+                    ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(item),
+                    Count = 1,
+                    DescriptionTextId = text,
                 }
                 : new Avalon.Domain.World.QuestObjective
                 {
-                    Id = FixtureObjective, QuestId = quest.Id, StageSequence = 0,
-                    Type = Avalon.Domain.World.QuestObjectiveType.Talk, CreatureTemplateId = creature, Count = 1,
+                    Id = FixtureObjective,
+                    QuestId = quest.Id,
+                    StageSequence = 0,
+                    Type = Avalon.Domain.World.QuestObjectiveType.Talk,
+                    CreatureTemplateId = creature,
+                    Count = 1,
                     DescriptionTextId = text,
                 });
             if (pays is { } reward)
                 quest.ItemRewards.Add(new Avalon.Domain.World.QuestItemReward
-                    { QuestId = quest.Id, ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(reward), Count = 1 });
+                { QuestId = quest.Id, ItemTemplateId = new Avalon.Common.ValueObjects.ItemTemplateId(reward), Count = 1 });
             db.QuestTemplates.Add(quest);
         });
     }
@@ -1141,8 +1161,11 @@ public sealed class TemplateEditShould : IAsyncLifetime
         using (var read = new WorldDbContext(options)) row = read.ItemTemplates.AsNoTracking().AsEnumerable().First();
         var request = new Avalon.Api.Contract.UpdateItemTemplateRequest
         {
-            Name = "renamed", MaxStackSize = Math.Max(1, row.MaxStackSize), AllowedClasses = row.AllowedClasses.ToList(),
-            Class = (Avalon.Api.Contract.ItemClass)row.Class, SubClass = (Avalon.Api.Contract.ItemSubClass)row.SubClass,
+            Name = "renamed",
+            MaxStackSize = Math.Max(1, row.MaxStackSize),
+            AllowedClasses = row.AllowedClasses.ToList(),
+            Class = (Avalon.Api.Contract.ItemClass)row.Class,
+            SubClass = (Avalon.Api.Contract.ItemSubClass)row.SubClass,
             Rarity = (Avalon.Api.Contract.ItemRarity)row.Rarity,
         };
 

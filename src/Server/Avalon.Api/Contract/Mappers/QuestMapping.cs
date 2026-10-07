@@ -53,7 +53,9 @@ public static class QuestMapping
             .OrderBy(d => d.ObjectiveId).ThenBy(d => d.CreatureTemplateId.Value)
             .Select(d => new QuestItemDropDto
             {
-                ObjectiveId = d.ObjectiveId, CreatureTemplateId = d.CreatureTemplateId.Value, Chance = d.Chance,
+                ObjectiveId = d.ObjectiveId,
+                CreatureTemplateId = d.CreatureTemplateId.Value,
+                Chance = d.Chance,
             })
             .ToList(),
     };

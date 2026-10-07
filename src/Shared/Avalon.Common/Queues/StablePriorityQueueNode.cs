@@ -1,4 +1,4 @@
-﻿namespace Avalon.Common.Queues
+namespace Avalon.Common.Queues
 {
     public class StablePriorityQueueNode : FastPriorityQueueNode
     {

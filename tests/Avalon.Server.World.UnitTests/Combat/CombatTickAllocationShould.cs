@@ -30,9 +30,9 @@ public class CombatTickAllocationShould
 
         var creature = new Creature
         {
-            Guid          = new ObjectGuid(ObjectType.Creature, 9_001),
-            Metadata      = Substitute.For<ICreatureMetadata>(),
-            Health        = 100,
+            Guid = new ObjectGuid(ObjectType.Creature, 9_001),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Health = 100,
             CurrentHealth = 100,
         };
         CharacterEntity player = TestCharacters.New(9_002);

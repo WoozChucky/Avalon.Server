@@ -75,11 +75,19 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
 
     private static GameSession NewHead(GameSessionReservation reservation, DateTime now, GameSession? previous) => new()
     {
-        AccountId = reservation.AccountId, GameSessionId = reservation.GameSessionId, GameContextId = reservation.GameContextId,
-        FencingToken = checked(reservation.ExpectedFence + 1), ServerId = reservation.ServerId,
-        WorldId = reservation.WorldId, Environment = reservation.Environment, State = GameSessionState.Pending,
-        CredentialsVersion = reservation.CredentialsVersion, SessionEpoch = reservation.SessionEpoch,
-        CreatedAt = now, LeaseUntil = Earlier(now.Add(GameAuthPolicy.SessionLeaseLifetime), reservation.LicenseUntil), LicenseUntil = reservation.LicenseUntil,
+        AccountId = reservation.AccountId,
+        GameSessionId = reservation.GameSessionId,
+        GameContextId = reservation.GameContextId,
+        FencingToken = checked(reservation.ExpectedFence + 1),
+        ServerId = reservation.ServerId,
+        WorldId = reservation.WorldId,
+        Environment = reservation.Environment,
+        State = GameSessionState.Pending,
+        CredentialsVersion = reservation.CredentialsVersion,
+        SessionEpoch = reservation.SessionEpoch,
+        CreatedAt = now,
+        LeaseUntil = Earlier(now.Add(GameAuthPolicy.SessionLeaseLifetime), reservation.LicenseUntil),
+        LicenseUntil = reservation.LicenseUntil,
         // An expired pending target never became the writer. Retain the last active ancestor for its save barrier.
         PreviousGameSessionId = previous?.State == GameSessionState.Pending ? previous.PreviousGameSessionId : previous?.GameSessionId,
         PreviousServerId = previous?.State == GameSessionState.Pending ? previous.PreviousServerId : previous?.ServerId,

@@ -27,9 +27,14 @@ public class ItemUseCastsShould
 
     private void Start(float seconds = 3f) => _casts.Start(new PendingItemUse
     {
-        Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = _casts.TakeCastId(),
-        CastTimeSeconds = seconds, CanComplete = () => _canComplete,
-        Completed = () => _ends.Add("completed"), Interrupted = () => _ends.Add("interrupted"),
+        Character = _character,
+        Item = Scroll,
+        StartPosition = _character.Position,
+        CastId = _casts.TakeCastId(),
+        CastTimeSeconds = seconds,
+        CanComplete = () => _canComplete,
+        Completed = () => _ends.Add("completed"),
+        Interrupted = () => _ends.Add("interrupted"),
     });
 
     [Fact]
@@ -121,9 +126,14 @@ public class ItemUseCastsShould
     {
         _casts.Start(new PendingItemUse
         {
-            Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = 9,
-            CastTimeSeconds = 0.5f, CanComplete = () => true,
-            Completed = () => throw new InvalidOperationException("boom"), Interrupted = () => { },
+            Character = _character,
+            Item = Scroll,
+            StartPosition = _character.Position,
+            CastId = 9,
+            CastTimeSeconds = 0.5f,
+            CanComplete = () => true,
+            Completed = () => throw new InvalidOperationException("boom"),
+            Interrupted = () => { },
         });
 
         _casts.Update(TimeSpan.FromSeconds(1));
@@ -142,15 +152,24 @@ public class ItemUseCastsShould
         var otherEnds = new List<string>();
         PendingItemUse OtherCast(float seconds) => new()
         {
-            Character = other, Item = Scroll, StartPosition = other.Position, CastId = _casts.TakeCastId(),
-            CastTimeSeconds = seconds, CanComplete = () => true,
-            Completed = () => otherEnds.Add($"completed {seconds}"), Interrupted = () => otherEnds.Add($"interrupted {seconds}"),
+            Character = other,
+            Item = Scroll,
+            StartPosition = other.Position,
+            CastId = _casts.TakeCastId(),
+            CastTimeSeconds = seconds,
+            CanComplete = () => true,
+            Completed = () => otherEnds.Add($"completed {seconds}"),
+            Interrupted = () => otherEnds.Add($"interrupted {seconds}"),
         };
 
         _casts.Start(new PendingItemUse
         {
-            Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = _casts.TakeCastId(),
-            CastTimeSeconds = 1f, CanComplete = () => true,
+            Character = _character,
+            Item = Scroll,
+            StartPosition = _character.Position,
+            CastId = _casts.TakeCastId(),
+            CastTimeSeconds = 1f,
+            CanComplete = () => true,
             Completed = () =>
             {
                 _casts.Interrupt(other.Guid);
@@ -174,9 +193,14 @@ public class ItemUseCastsShould
         var casts = new ItemUseCasts(_audience, () => ++_lastId, logger);
         casts.Start(new PendingItemUse
         {
-            Character = _character, Item = Scroll, StartPosition = _character.Position, CastId = casts.TakeCastId(),
-            CastTimeSeconds = 1f, CanComplete = () => throw new InvalidOperationException("boom"),
-            Completed = () => _ends.Add("completed"), Interrupted = () => _ends.Add("interrupted"),
+            Character = _character,
+            Item = Scroll,
+            StartPosition = _character.Position,
+            CastId = casts.TakeCastId(),
+            CastTimeSeconds = 1f,
+            CanComplete = () => throw new InvalidOperationException("boom"),
+            Completed = () => _ends.Add("completed"),
+            Interrupted = () => _ends.Add("interrupted"),
         });
 
         casts.Update(TimeSpan.FromSeconds(1));

@@ -32,8 +32,12 @@ public class AccountCharactersServiceShould
     {
         _rows.Add(new WorldEntity
         {
-            Id = new WorldId(id), Name = name, AccessLevelRequired = required,
-            Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+            Id = new WorldId(id),
+            Name = name,
+            AccessLevelRequired = required,
+            Host = "h",
+            MinVersion = "0.0.1",
+            Version = "0.0.1",
         });
         if (configured) _configured.Add(new ConfiguredWorld(new WorldId(id), $"Host=w{id}", $"Host=c{id}"));
 
@@ -41,7 +45,10 @@ public class AccountCharactersServiceShould
         repository.FindByAccountAsync(Owner, Arg.Any<CancellationToken>()).Returns(characters
             .Select((character, i) => new Character
             {
-                Id = new CharacterId((uint)(id * 100 + i)), AccountId = Owner, Name = character, CreationDate = DateTime.UtcNow,
+                Id = new CharacterId((uint)(id * 100 + i)),
+                AccountId = Owner,
+                Name = character,
+                CreationDate = DateTime.UtcNow,
             })
             .ToList());
         _perWorld.Characters(Arg.Is<WorldId>(w => w.Value == id)).Returns(repository);

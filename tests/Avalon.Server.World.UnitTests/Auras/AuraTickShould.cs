@@ -86,9 +86,16 @@ public class AuraTickShould
     {
         _h.Use(new AuraTemplate
         {
-            Id = new AuraId(907), Name = "Graze", Icon = "graze", Kind = AuraKind.Harmful, DurationMs = 12000,
-            TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 10f,
-            Stacking = AuraStacking.Refresh, MaxStacks = 1,
+            Id = new AuraId(907),
+            Name = "Graze",
+            Icon = "graze",
+            Kind = AuraKind.Harmful,
+            DurationMs = 12000,
+            TickIntervalMs = 3000,
+            PeriodicKind = AuraPeriodicKind.Damage,
+            PeriodicBase = 10f,
+            Stacking = AuraStacking.Refresh,
+            MaxStacks = 1,
         });
         Creature boar = _h.Creature(910_911);
         _h.Auras.Apply(_h.Player(910_113), boar, new AuraId(907), AuraSource.None);
@@ -285,9 +292,16 @@ public class AuraTickShould
     {
         _h.Use(AuraTestData.Bleed(), new AuraTemplate
         {
-            Id = new AuraId(907), Name = "Graze", Icon = "graze", Kind = AuraKind.Harmful, DurationMs = 12000,
-            TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 10f,
-            Stacking = AuraStacking.Refresh, MaxStacks = 1,
+            Id = new AuraId(907),
+            Name = "Graze",
+            Icon = "graze",
+            Kind = AuraKind.Harmful,
+            DurationMs = 12000,
+            TickIntervalMs = 3000,
+            PeriodicKind = AuraPeriodicKind.Damage,
+            PeriodicBase = 10f,
+            Stacking = AuraStacking.Refresh,
+            MaxStacks = 1,
         });
         Creature thrower = _h.Creature(910_915);
         Creature other = _h.Creature(910_916);
@@ -468,9 +482,16 @@ public class AuraTickShould
     {
         _h.Use(new AuraTemplate
         {
-            Id = new AuraId(908), Name = "Scratch", Icon = "scratch", Kind = AuraKind.Harmful, DurationMs = 12000,
-            TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 1f,
-            Stacking = AuraStacking.Refresh, MaxStacks = 1,
+            Id = new AuraId(908),
+            Name = "Scratch",
+            Icon = "scratch",
+            Kind = AuraKind.Harmful,
+            DurationMs = 12000,
+            TickIntervalMs = 3000,
+            PeriodicKind = AuraPeriodicKind.Damage,
+            PeriodicBase = 1f,
+            Stacking = AuraStacking.Refresh,
+            MaxStacks = 1,
         });
         Creature boar = _h.Creature(910_921);
         _h.Auras.Apply(_h.Player(910_142), boar, new AuraId(908), AuraSource.None);

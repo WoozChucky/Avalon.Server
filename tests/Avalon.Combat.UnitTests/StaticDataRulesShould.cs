@@ -39,9 +39,17 @@ public class StaticDataRulesShould
     private static ClassStatFactors[] Factors() => Enum.GetValues<CharacterClass>()
         .Select(c => new ClassStatFactors
         {
-            Class = c, HpPerStamina = 10, PowerPerIntellect = 1, PowerPerAgility = 0, FixedPower = null,
-            AttackPerStrength = 2, AttackPerAgility = 0, AbilityPerIntellect = 0.2,
-            BaseBlock = 5f, BaseDodge = 3f, BaseCrit = 5f,
+            Class = c,
+            HpPerStamina = 10,
+            PowerPerIntellect = 1,
+            PowerPerAgility = 0,
+            FixedPower = null,
+            AttackPerStrength = 2,
+            AttackPerAgility = 0,
+            AbilityPerIntellect = 0.2,
+            BaseBlock = 5f,
+            BaseDodge = 3f,
+            BaseCrit = 5f,
         })
         .ToArray();
 

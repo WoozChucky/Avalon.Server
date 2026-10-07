@@ -160,8 +160,14 @@ public class VendorRulesShould
         {
             var raised = new ItemTemplate
             {
-                Id = Charm.Id, Name = Charm.Name, Class = Charm.Class, SubClass = Charm.SubClass,
-                MaxStackSize = Charm.MaxStackSize, Flags = Charm.Flags, BuyPrice = Charm.BuyPrice, SellPrice = sellPrice,
+                Id = Charm.Id,
+                Name = Charm.Name,
+                Class = Charm.Class,
+                SubClass = Charm.SubClass,
+                MaxStackSize = Charm.MaxStackSize,
+                Flags = Charm.Flags,
+                BuyPrice = Charm.BuyPrice,
+                SellPrice = sellPrice,
             };
             find = id => id == Charm.Id ? raised : Find(id);
         }
@@ -221,8 +227,14 @@ public class VendorRulesShould
         CharacterEntity character = Arrange([], 1000, dead: false);
         var flagged = new ItemTemplate
         {
-            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
-            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+            Id = Tonic.Id,
+            Name = Tonic.Name,
+            Class = Tonic.Class,
+            SubClass = Tonic.SubClass,
+            MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem,
+            BuyPrice = Tonic.BuyPrice,
+            SellPrice = Tonic.SellPrice,
         };
         ItemTemplate? FindFlagged(ItemTemplateId id) => id == Tonic.Id ? flagged : Find(id);
 
@@ -395,8 +407,14 @@ public class VendorRulesShould
         character.Buyback.Push(new BuybackEntry(TestCharacters.Item(0, Tonic, 5), 20));
         var flagged = new ItemTemplate
         {
-            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass, MaxStackSize = Tonic.MaxStackSize,
-            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem, BuyPrice = Tonic.BuyPrice, SellPrice = Tonic.SellPrice,
+            Id = Tonic.Id,
+            Name = Tonic.Name,
+            Class = Tonic.Class,
+            SubClass = Tonic.SubClass,
+            MaxStackSize = Tonic.MaxStackSize,
+            Flags = Tonic.Flags | ItemTemplateFlags.QuestItem,
+            BuyPrice = Tonic.BuyPrice,
+            SellPrice = Tonic.SellPrice,
         };
         ItemTemplate? FindFlagged(ItemTemplateId id) => id == Tonic.Id ? flagged : Find(id);
 

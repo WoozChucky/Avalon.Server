@@ -16,7 +16,9 @@ public class PartyHealthScalingShould
     {
         Guid = new ObjectGuid(ObjectType.Creature, id),
         Metadata = Loot.LootTestData.BoarTemplate(null),   // a template with an id: the state writer sends it
-        BaseMaxHealth = 100, Health = 100, CurrentHealth = 50,
+        BaseMaxHealth = 100,
+        Health = 100,
+        CurrentHealth = 50,
     };
 
     [Fact]

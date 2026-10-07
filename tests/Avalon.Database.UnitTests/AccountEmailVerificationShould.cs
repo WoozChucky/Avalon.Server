@@ -36,8 +36,12 @@ public sealed class AccountEmailVerificationShould
     }
 
     [Theory]
-    [InlineData("expiry")] [InlineData("email")] [InlineData("credentials")]
-    [InlineData("account")] [InlineData("consolidation")] [InlineData("banned")]
+    [InlineData("expiry")]
+    [InlineData("email")]
+    [InlineData("credentials")]
+    [InlineData("account")]
+    [InlineData("consolidation")]
+    [InlineData("banned")]
     public async Task RefusesInvalidProofWithoutConsumingIt(string cause)
     {
         using var db = SqliteDatabase.Auth();

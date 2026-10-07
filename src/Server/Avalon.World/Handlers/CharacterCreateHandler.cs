@@ -45,10 +45,18 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         var stats = CharacterStatsCalculator.Calculate(level, [], world.Data.Combat.Factors[createInfo.Class]);
         var row = new Character
         {
-            AccountId = authority.AccountId, Name = CharacterName.Display(packet.Name), Level = level.Level,
-            Class = createInfo.Class, Gender = (CharacterGender)(byte)packet.Gender,
-            X = createInfo.X, Y = createInfo.Y, Z = createInfo.Z, Rotation = createInfo.Rotation, Map = createInfo.Map,
-            CreationDate = DateTime.UtcNow, Health = (int)Math.Min(stats.MaxHealth, (uint)int.MaxValue),
+            AccountId = authority.AccountId,
+            Name = CharacterName.Display(packet.Name),
+            Level = level.Level,
+            Class = createInfo.Class,
+            Gender = (CharacterGender)(byte)packet.Gender,
+            X = createInfo.X,
+            Y = createInfo.Y,
+            Z = createInfo.Z,
+            Rotation = createInfo.Rotation,
+            Map = createInfo.Map,
+            CreationDate = DateTime.UtcNow,
+            Health = (int)Math.Min(stats.MaxHealth, (uint)int.MaxValue),
             Power1 = (int)Math.Min(stats.MaxPower, (uint)int.MaxValue)
         };
         var items = new List<ItemInstance>(); var slots = new List<CharacterInventory>();
@@ -61,8 +69,11 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             }
             var item = new ItemInstance
             {
-                Id = itemIds.Next(), TemplateId = template.Id, Count = template.Stackable ? template.MaxStackSize : 1,
-                Durability = ItemInstanceDefaults.InitialDurability(template), UpdatedAt = DateTime.UtcNow
+                Id = itemIds.Next(),
+                TemplateId = template.Id,
+                Count = template.Stackable ? template.MaxStackSize : 1,
+                Durability = ItemInstanceDefaults.InitialDurability(template),
+                UpdatedAt = DateTime.UtcNow
             };
             items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (ushort)(slots.Count) });
         }
@@ -82,8 +93,10 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             if (!connection.IsConnected || connection.IsClosing) return;
             Answer(connection, reply.Error switch
             {
-                null => SCharacterCreateResult.Success, GameAuthErrors.NameTaken => SCharacterCreateResult.NameAlreadyExists,
-                GameAuthErrors.MaxCharacters => SCharacterCreateResult.MaxCharactersReached, _ => SCharacterCreateResult.InternalDatabaseError
+                null => SCharacterCreateResult.Success,
+                GameAuthErrors.NameTaken => SCharacterCreateResult.NameAlreadyExists,
+                GameAuthErrors.MaxCharacters => SCharacterCreateResult.MaxCharactersReached,
+                _ => SCharacterCreateResult.InternalDatabaseError
             });
 #pragma warning disable MA0045 // Tick continuations must not await socket cleanup.
             if (reply.Error == GameAuthErrors.AuthorityRevoked) connection.Close();

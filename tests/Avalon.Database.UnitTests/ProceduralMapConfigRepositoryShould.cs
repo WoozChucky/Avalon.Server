@@ -17,8 +17,12 @@ public class ProceduralMapConfigRepositoryShould
         {
             write.ProceduralMapConfigs.Add(new ProceduralMapConfig
             {
-                MapTemplateId = new MapTemplateId(70), ChunkPoolId = new ChunkPoolId(1), SpawnTableId = new SpawnTableId(1),
-                MainPathMin = 2, MainPathMax = 3, BackPortalTargetMapId = 1,
+                MapTemplateId = new MapTemplateId(70),
+                ChunkPoolId = new ChunkPoolId(1),
+                SpawnTableId = new SpawnTableId(1),
+                MainPathMin = 2,
+                MainPathMax = 3,
+                BackPortalTargetMapId = 1,
                 DepthBands =
                 [
                     new ProceduralDepthBand { MinDepth = 1, MaxDepth = 3, MinLevel = 1, MaxLevel = 3 },
@@ -44,8 +48,12 @@ public class ProceduralMapConfigRepositoryShould
         {
             write.ProceduralMapConfigs.Add(new ProceduralMapConfig
             {
-                MapTemplateId = new MapTemplateId(71), ChunkPoolId = new ChunkPoolId(1), SpawnTableId = new SpawnTableId(1),
-                MainPathMin = 2, MainPathMax = 3, BackPortalTargetMapId = 1,
+                MapTemplateId = new MapTemplateId(71),
+                ChunkPoolId = new ChunkPoolId(1),
+                SpawnTableId = new SpawnTableId(1),
+                MainPathMin = 2,
+                MainPathMax = 3,
+                BackPortalTargetMapId = 1,
                 DepthBands = [new ProceduralDepthBand { MinDepth = 0, MaxDepth = 2, MinLevel = 1, MaxLevel = 2 }],
             });
             await write.SaveChangesAsync();

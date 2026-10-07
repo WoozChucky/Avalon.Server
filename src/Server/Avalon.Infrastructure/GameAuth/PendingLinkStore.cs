@@ -105,12 +105,26 @@ public sealed class PendingLinkStore(GameAuthorizationService authorization, IGa
         var expires = Now.Add(GameAuthPolicy.LinkConsentLifetime) < context.LinkProofExpiresAt ? Now.Add(GameAuthPolicy.LinkConsentLifetime) : context.LinkProofExpiresAt!.Value;
         var consent = new LinkConsentRecord
         {
-            OperationId = Guid.NewGuid(), BrowserRequestId = requestId, PendingLinkId = id,
-            ContextId = context.Id, SteamAppId = context.SteamAppId, ApplicationKey = context.ApplicationKey, Provider = context.Provider!, ContextGeneration = context.Generation, CredentialDigest = context.CredentialDigest,
-            Challenge = context.LinkChallenge!, ProviderSubject = context.ProviderSubject!, AccountId = accountId.Value,
-            CredentialsVersion = credentialsVersion, SessionEpoch = sessionEpoch, ConfirmedMfaId = confirmedMfaId,
-            Username = account.Username, CodeDigest = GameAuthCryptography.Digest(code),
-            CodeEnvelope = crypto.ProtectText(code, key), ExpiresAt = expires, ProofExpiresAt = context.LinkProofExpiresAt!.Value,
+            OperationId = Guid.NewGuid(),
+            BrowserRequestId = requestId,
+            PendingLinkId = id,
+            ContextId = context.Id,
+            SteamAppId = context.SteamAppId,
+            ApplicationKey = context.ApplicationKey,
+            Provider = context.Provider!,
+            ContextGeneration = context.Generation,
+            CredentialDigest = context.CredentialDigest,
+            Challenge = context.LinkChallenge!,
+            ProviderSubject = context.ProviderSubject!,
+            AccountId = accountId.Value,
+            CredentialsVersion = credentialsVersion,
+            SessionEpoch = sessionEpoch,
+            ConfirmedMfaId = confirmedMfaId,
+            Username = account.Username,
+            CodeDigest = GameAuthCryptography.Digest(code),
+            CodeEnvelope = crypto.ProtectText(code, key),
+            ExpiresAt = expires,
+            ProofExpiresAt = context.LinkProofExpiresAt!.Value,
         };
         var contextKey = CacheKeys.GameAuth(options.Value.Environment, "context", context.Id.ToString("N"));
         var mutations = new GameAuthMutation[]

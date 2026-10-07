@@ -99,9 +99,22 @@ public sealed partial class PurchaseRepository
             var refund = refunds.SingleOrDefault(x => x.ExternalReference == evidence.RefundReference);
             if (refund is null)
             {
-                refund = new PaymentRefund { Id = Guid.NewGuid(), PaymentAttemptId = attempt.Id, Provider = s.Provider, ProviderAccountId = s.ProviderAccountId,
-                    Environment = s.PaymentEnvironment, OperationKey = Guid.NewGuid().ToString("N"), RequestedBy = null, Reason = "Observed provider reversal",
-                    AmountMinor = evidence.AmountMinor, ExternalReference = evidence.RefundReference, State = evidence.State, Unresolved = false, RequestedAt = Now };
+                refund = new PaymentRefund
+                {
+                    Id = Guid.NewGuid(),
+                    PaymentAttemptId = attempt.Id,
+                    Provider = s.Provider,
+                    ProviderAccountId = s.ProviderAccountId,
+                    Environment = s.PaymentEnvironment,
+                    OperationKey = Guid.NewGuid().ToString("N"),
+                    RequestedBy = null,
+                    Reason = "Observed provider reversal",
+                    AmountMinor = evidence.AmountMinor,
+                    ExternalReference = evidence.RefundReference,
+                    State = evidence.State,
+                    Unresolved = false,
+                    RequestedAt = Now
+                };
                 db.PaymentRefunds.Add(refund); refunds.Add(refund);
             }
             else if (refund.State == PaymentRefundState.Succeeded && evidence.State != PaymentRefundState.Succeeded)
@@ -120,8 +133,18 @@ public sealed partial class PurchaseRepository
             var dispute = disputes.SingleOrDefault(x => x.ExternalReference == evidence.DisputeReference);
             if (dispute is null)
             {
-                dispute = new PaymentDispute { Id = Guid.NewGuid(), PaymentAttemptId = attempt.Id, Provider = s.Provider, ProviderAccountId = s.ProviderAccountId,
-                    Environment = s.PaymentEnvironment, ExternalReference = evidence.DisputeReference, State = evidence.State, CreatedAt = Now, ObservedAt = Now };
+                dispute = new PaymentDispute
+                {
+                    Id = Guid.NewGuid(),
+                    PaymentAttemptId = attempt.Id,
+                    Provider = s.Provider,
+                    ProviderAccountId = s.ProviderAccountId,
+                    Environment = s.PaymentEnvironment,
+                    ExternalReference = evidence.DisputeReference,
+                    State = evidence.State,
+                    CreatedAt = Now,
+                    ObservedAt = Now
+                };
                 db.PaymentDisputes.Add(dispute); disputes.Add(dispute);
             }
             else if (dispute.State is not (PaymentDisputeState.Lost or PaymentDisputeState.Accepted) && dispute.State != evidence.State)
@@ -141,9 +164,18 @@ public sealed partial class PurchaseRepository
             return await Review(db, transaction, order, attempt, "INVALID_LICENSE_BINDING", ct);
         if (s.Paid && !refunded && !lost && order.ReversedAt is null && order.FundingAttemptId is null)
         {
-            license = new GameLicense { Id = Guid.NewGuid(), AccountId = order.AccountId, Provider = PurchaseLicense.Provider, Environment = order.LicenseEnvironment,
-                Product = order.Product, ProviderProductId = PurchaseLicense.ProviderProduct, LicenseReference = PurchaseLicense.Reference(order.Id),
-                AuthorityKind = LicenseAuthorityKind.StoredGrant, GrantedAt = Now };
+            license = new GameLicense
+            {
+                Id = Guid.NewGuid(),
+                AccountId = order.AccountId,
+                Provider = PurchaseLicense.Provider,
+                Environment = order.LicenseEnvironment,
+                Product = order.Product,
+                ProviderProductId = PurchaseLicense.ProviderProduct,
+                LicenseReference = PurchaseLicense.Reference(order.Id),
+                AuthorityKind = LicenseAuthorityKind.StoredGrant,
+                GrantedAt = Now
+            };
             db.GameLicenses.Add(license);
             order.LicenseId = license.Id; order.FundingAttemptId = attempt.Id; order.FulfilledAt = Now; funding = true;
             order.TaxMinor = s.TaxMinor; order.SubtotalMinor = s.SubtotalMinor;

@@ -70,8 +70,12 @@ public sealed class WorldObservabilityRouteShould : IAsyncLifetime
     {
         var row = new WorldEntity
         {
-            Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = required,
-            Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+            Id = new WorldId(id),
+            Name = $"World{id}",
+            AccessLevelRequired = required,
+            Host = "h",
+            MinVersion = "0.0.1",
+            Version = "0.0.1",
         };
         _rows.Add(row);
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())

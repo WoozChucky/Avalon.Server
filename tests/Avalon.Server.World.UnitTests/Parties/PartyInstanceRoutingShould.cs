@@ -353,8 +353,11 @@ public class PartyMapEntryShould
         (EnterMapHandler handler, IWorld world, PartyTestWorld parties, PartyClient a, _, Captured captured, _) =
             Arrange(new MapTemplate
             {
-                Id = new MapTemplateId(Dungeon), MapType = MapType.Normal, MaxPlayers = maxPlayers,
-                Name = "dungeon", Description = "",
+                Id = new MapTemplateId(Dungeon),
+                MapType = MapType.Normal,
+                MaxPlayers = maxPlayers,
+                Name = "dungeon",
+                Description = "",
             });
         return (handler, world, parties, a, captured);
     }
@@ -487,7 +490,11 @@ public class PartyWorldWiringShould
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Auth.World
             {
-                Name = "test", Host = "127.0.0.1", Port = 0, MinVersion = "0.0.1", Version = "1.0.0",
+                Name = "test",
+                Host = "127.0.0.1",
+                Port = 0,
+                MinVersion = "0.0.1",
+                Version = "1.0.0",
             });
 
         var factory = Substitute.For<IChunkLayoutInstanceFactory>();

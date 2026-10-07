@@ -90,7 +90,7 @@ public class AuraStatsShould
     public void Fold_auras_into_a_characters_stats_after_gear()
     {
         var row = new ClassLevelStat
-            { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
+        { Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, Stamina = 22, Strength = 23, Agility = 20, Intellect = 20 };
         var factors = new ClassStatFactors { Class = CharacterClass.Warrior, HpPerStamina = 10, FixedPower = 100, AttackPerStrength = 2 };
         var plate = new ItemTemplate { Name = "Plate", Slot = ItemSlotType.Chest, StatType1 = StatType.Armor, StatValue1 = 24 };
 

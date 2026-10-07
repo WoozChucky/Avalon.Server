@@ -34,12 +34,17 @@ public class AuraTransferShould
     {
         var row = new Character
         {
-            Id = new CharacterId(id), AccountId = new AccountId(1), Name = $"Tester{id}", Class = CharacterClass.Warrior,
+            Id = new CharacterId(id),
+            AccountId = new AccountId(1),
+            Name = $"Tester{id}",
+            Class = CharacterClass.Warrior,
             CreationDate = DateTime.UtcNow,
         };
         return new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), _clock)
         {
-            Data = row, Health = 500, CurrentHealth = 400,
+            Data = row,
+            Health = 500,
+            CurrentHealth = 400,
         };
     }
 

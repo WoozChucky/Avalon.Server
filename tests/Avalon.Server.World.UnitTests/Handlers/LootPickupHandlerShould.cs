@@ -65,7 +65,11 @@ public class LootPickupHandlerShould
 
     private void DropGold(Vector3 at) => _store.Add(new GroundLoot
     {
-        Guid = DropGuid, Position = at, Gold = 25, OwnerCharacterId = 7, FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
+        Guid = DropGuid,
+        Position = at,
+        Gold = 25,
+        OwnerCharacterId = 7,
+        FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
     });
 
     private void PickUp() => _handler.Execute(_connection, new CLootPickupPacket { LootGuid = DropGuid.RawValue });
@@ -110,8 +114,12 @@ public class LootPickupHandlerShould
         // 999 is in no template list: an Items reload removed it after the kill rolled it.
         _store.Add(new GroundLoot
         {
-            Guid = DropGuid, Position = Vector3.zero, ItemTemplateId = new ItemTemplateId(999), Count = 1,
-            OwnerCharacterId = 7, FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
+            Guid = DropGuid,
+            Position = Vector3.zero,
+            ItemTemplateId = new ItemTemplateId(999),
+            Count = 1,
+            OwnerCharacterId = 7,
+            FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
         });
 
         PickUp();
@@ -177,8 +185,12 @@ public class LootPickupHandlerShould
     {
         _store.Add(new GroundLoot
         {
-            Guid = DropGuid, Position = Vector3.zero, ItemTemplateId = Potion.Id, Count = 3,
-            OwnerCharacterId = 7, FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
+            Guid = DropGuid,
+            Position = Vector3.zero,
+            ItemTemplateId = Potion.Id,
+            Count = 3,
+            OwnerCharacterId = 7,
+            FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
         });
 
         PickUp();

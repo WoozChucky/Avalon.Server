@@ -45,9 +45,19 @@ public sealed class AvalonGameAuthorizationShould
     }
     private GameLicense Grant(DateTime? expires = null, string provider = "avalon")
     {
-        var row = new GameLicense { Id = Guid.NewGuid(), AccountId = _account.Id, Provider = provider, Product = StoreAuthenticationConfiguration.Product,
-            Environment = "production", ProviderProductId = "base", LicenseReference = Guid.NewGuid().ToString("N"),
-            AuthorityKind = LicenseAuthorityKind.StoredGrant, GrantedAt = Now, ExpiresAt = expires };
+        var row = new GameLicense
+        {
+            Id = Guid.NewGuid(),
+            AccountId = _account.Id,
+            Provider = provider,
+            Product = StoreAuthenticationConfiguration.Product,
+            Environment = "production",
+            ProviderProductId = "base",
+            LicenseReference = Guid.NewGuid().ToString("N"),
+            AuthorityKind = LicenseAuthorityKind.StoredGrant,
+            GrantedAt = Now,
+            ExpiresAt = expires
+        };
         _licenses.Rows.Add(row); return row;
     }
     private async Task<(GameAuthReply Reply, string Attempt, string Ticket, Guid Request)> Handoff(GameAuthorizationService? service = null)
@@ -64,9 +74,19 @@ public sealed class AvalonGameAuthorizationShould
         var grant = Grant();
         var initial = (await Handoff()).Reply;
         var original = (await Service().GetContextAsync(initial.GameContextCredential!, true, default))!;
-        var worldSession = new GameSession { GameContextId = original.Id, AccountId = _account.Id, ServerId = "world-1", Environment = "production",
-            GameSessionId = Guid.NewGuid(), WorldId = 1, FencingToken = 1, State = GameSessionState.Active,
-            LeaseUntil = Now.AddSeconds(30), LicenseUntil = original.AuthorizationValidUntil!.Value };
+        var worldSession = new GameSession
+        {
+            GameContextId = original.Id,
+            AccountId = _account.Id,
+            ServerId = "world-1",
+            Environment = "production",
+            GameSessionId = Guid.NewGuid(),
+            WorldId = 1,
+            FencingToken = 1,
+            State = GameSessionState.Active,
+            LeaseUntil = Now.AddSeconds(30),
+            LicenseUntil = original.AuthorizationValidUntil!.Value
+        };
         var sessions = Substitute.For<IGameSessionRepository>();
         sessions.FindAsync(_account.Id, Arg.Any<CancellationToken>()).Returns(worldSession);
         sessions.TryRenewAsync(_account.Id, worldSession.GameSessionId, 1, "world-1", 0, 0,

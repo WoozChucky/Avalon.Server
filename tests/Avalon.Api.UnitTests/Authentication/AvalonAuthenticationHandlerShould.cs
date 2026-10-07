@@ -39,26 +39,32 @@ public class AvalonAuthenticationHandlerShould
 
     private static Account MakeAccount(AccountAccessLevel roles = AccountAccessLevel.Player, AccountStatus status = AccountStatus.Active) => new()
     {
-        Id = new AccountId(7), Username = "u", Email = "u@t",
-        Salt = new byte[] {1}, Verifier = new byte[] {2},
-        JoinDate = DateTime.UtcNow, AccessLevel = roles, Status = status,
+        Id = new AccountId(7),
+        Username = "u",
+        Email = "u@t",
+        Salt = new byte[] { 1 },
+        Verifier = new byte[] { 2 },
+        JoinDate = DateTime.UtcNow,
+        AccessLevel = roles,
+        Status = status,
     };
 
     private static PersonalAccessToken MakePat(string token, AccountAccessLevel roles = AccountAccessLevel.Player,
         DateTime? expiresAt = null, DateTime? revokedAt = null) => new()
-    {
-        Id = new PersonalAccessTokenId(5),
-        AccountId = new AccountId(7),
-        TokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token)),
-        Name = "ci",
-        TokenPrefix = token[..8],
-        Roles = roles,
-        CreatedAt = DateTime.UtcNow,
-        ExpiresAt = expiresAt ?? DateTime.UtcNow.AddDays(1),
-        RevokedAt = revokedAt,
-    };
+        {
+            Id = new PersonalAccessTokenId(5),
+            AccountId = new AccountId(7),
+            TokenHash = SHA256.HashData(Encoding.UTF8.GetBytes(token)),
+            Name = "ci",
+            TokenPrefix = token[..8],
+            Roles = roles,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = expiresAt ?? DateTime.UtcNow.AddDays(1),
+            RevokedAt = revokedAt,
+        };
 
-    [Fact] public async Task NoResult_WhenHeaderMissing() =>
+    [Fact]
+    public async Task NoResult_WhenHeaderMissing() =>
         Assert.False((await Authenticate(null)).Succeeded);
 
     [Fact]

@@ -39,8 +39,12 @@ public class AuraReplicationShould
     {
         var boar = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, id), Metadata = Loot.LootTestData.BoarTemplate(null),
-            Position = new Vector3(0f, 0f, 3f), Level = 1, Health = 100, CurrentHealth = 100,
+            Guid = new ObjectGuid(ObjectType.Creature, id),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = new Vector3(0f, 0f, 3f),
+            Level = 1,
+            Health = 100,
+            CurrentHealth = 100,
         };
         instance.AddCreature(boar);
         return boar;

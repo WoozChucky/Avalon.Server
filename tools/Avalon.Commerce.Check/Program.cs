@@ -51,9 +51,21 @@ try
     Console.WriteLine("PASS real cross-connection reservation and attempt-claim races");
 
     var eventReference = Guid.NewGuid().ToString("N");
-    PaymentEvent Event() => new() { Id = Guid.NewGuid(), Provider = "fixture", ProviderAccountId = "merchant", Environment = "sandbox", ExternalReference = eventReference,
-        Type = "fixture-payment", ResourceKind = PaymentResourceKinds.Checkout, ResourceReference = "checkout-first", OrderId = first.Order!.Id, PaymentAttemptId = first.Attempt.Id,
-        CreatedAt = now, NextAttemptAt = now };
+    PaymentEvent Event() => new()
+    {
+        Id = Guid.NewGuid(),
+        Provider = "fixture",
+        ProviderAccountId = "merchant",
+        Environment = "sandbox",
+        ExternalReference = eventReference,
+        Type = "fixture-payment",
+        ResourceKind = PaymentResourceKinds.Checkout,
+        ResourceReference = "checkout-first",
+        OrderId = first.Order!.Id,
+        PaymentAttemptId = first.Attempt.Id,
+        CreatedAt = now,
+        NextAttemptAt = now
+    };
     var accepted = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => repo.AcceptEventAsync(Event())));
     Check(accepted.Count(x => x) == 1, "Duplicate verified events were not durably deduplicated.");
     var eventClaims = await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => repo.ClaimEventsAsync(DateTime.UtcNow, 1, TimeSpan.FromMinutes(2))));
@@ -132,8 +144,17 @@ catch (CheckFailure ex) { Console.Error.WriteLine(ex.Message); Environment.ExitC
 catch (Exception ex) { Console.Error.WriteLine($"Commerce checker failed ({ex.GetType().Name}); diagnostic bodies and credentials were not logged."); Environment.ExitCode = 1; }
 
 static void Check(bool condition, string message) { if (!condition) throw new CheckFailure(message); }
-static Account NewAccount(string username, DateTime now, bool store = false) => new() { Username = username, Email = username.ToLowerInvariant() + "@example.test", EmailVerifiedAt = now,
-    Salt = [1], Verifier = [2], JoinDate = now, AccessLevel = AccountAccessLevel.Player, IsStoreGenerated = store };
+static Account NewAccount(string username, DateTime now, bool store = false) => new()
+{
+    Username = username,
+    Email = username.ToLowerInvariant() + "@example.test",
+    EmailVerifiedAt = now,
+    Salt = [1],
+    Verifier = [2],
+    JoinDate = now,
+    AccessLevel = AccountAccessLevel.Player,
+    IsStoreGenerated = store
+};
 static PurchaseReservation Reservation(AccountId account, DateTime now) => new(account, 0, "avalon.base", "fixture-offer", "fixture-price", 800, "eur", "fixture", "merchant",
     "sandbox", "development", "https://example.test", "ignored@example.test", "fixture-product", "card", now.AddMinutes(30));
 static PaymentSnapshot Snapshot(Guid order, Guid attempt, string reference, DateTime now) => new("fixture", "merchant", "sandbox", order, attempt,

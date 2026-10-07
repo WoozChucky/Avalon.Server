@@ -86,7 +86,9 @@ public class CharacterSelectHandlerShould
             Class = CharacterClass.Warrior,
             Level = 1,
             Map = TownMapId,
-            X = 1, Y = 2, Z = 3,
+            X = 1,
+            Y = 2,
+            Z = 3,
             Money = money,
             Health = storedHealth,
             Power1 = storedPower,
@@ -182,8 +184,12 @@ public class CharacterSelectHandlerShould
 
         return new Fixture
         {
-            Handler = handler, Connection = connection, World = world,
-            Instance = instance, Sent = sent, SentPackets = sentPackets,
+            Handler = handler,
+            Connection = connection,
+            World = world,
+            Instance = instance,
+            Sent = sent,
+            SentPackets = sentPackets,
             ItemInstances = itemInstanceRepository
         };
     }
@@ -208,12 +214,19 @@ public class CharacterSelectHandlerShould
             var id = new ItemInstanceId(Guid.NewGuid());
             rows.Add(new CharacterInventory
             {
-                CharacterId = TheCharacter, Container = container, Slot = slot, ItemId = id
+                CharacterId = TheCharacter,
+                Container = container,
+                Slot = slot,
+                ItemId = id
             });
             instances.Add(new ItemInstance
             {
-                Id = id, TemplateId = new ItemTemplateId(template), CharacterId = TheCharacter,
-                Count = count, Durability = durability, Flags = flags
+                Id = id,
+                TemplateId = new ItemTemplateId(template),
+                CharacterId = TheCharacter,
+                Count = count,
+                Durability = durability,
+                Flags = flags
             });
         }
 
@@ -590,8 +603,14 @@ public class CharacterSelectHandlerShould
             (InventoryType.Equipment, 3, EquipTemplates.Chestguard.Id.Value, 1u, 69u, ItemInstanceFlags.None));
         ClassLevelStat warrior = new()
         {
-            Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0,
-            Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+            Class = CharacterClass.Warrior,
+            Level = 1,
+            BaseHp = 20,
+            BaseMana = 0,
+            Stamina = 22,
+            Strength = 23,
+            Agility = 20,
+            Intellect = 20,
         };
         Fixture f = await BuildAsync(rows, instances, classStats: [warrior],
             itemTemplates: [EquipTemplates.Chestguard], storedHealth: 1);
@@ -618,15 +637,25 @@ public class CharacterSelectHandlerShould
     {
         var boots = new ItemTemplate
         {
-            Id = new ItemTemplateId(627_201), Name = "Swift Boots", Slot = ItemSlotType.Feet, MaxStackSize = 1,
-            StatType1 = StatType.MovementSpeed, StatValue1 = 10,
+            Id = new ItemTemplateId(627_201),
+            Name = "Swift Boots",
+            Slot = ItemSlotType.Feet,
+            MaxStackSize = 1,
+            StatType1 = StatType.MovementSpeed,
+            StatValue1 = 10,
         };
         (List<CharacterInventory> rows, List<ItemInstance> instances) = BuildInventory(
             (InventoryType.Equipment, Avalon.World.Inventory.EquipmentSlots.Feet, boots.Id.Value, 1u, 100u, ItemInstanceFlags.None));
         ClassLevelStat warrior = new()
         {
-            Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0,
-            Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+            Class = CharacterClass.Warrior,
+            Level = 1,
+            BaseHp = 20,
+            BaseMana = 0,
+            Stamina = 22,
+            Strength = 23,
+            Agility = 20,
+            Intellect = 20,
         };
         Fixture f = await BuildAsync(rows, instances, classStats: [warrior], itemTemplates: [boots]);
 

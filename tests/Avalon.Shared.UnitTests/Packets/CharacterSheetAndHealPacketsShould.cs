@@ -34,8 +34,18 @@ public class CharacterSheetAndHealPacketsShould
     {
         var sheet = new SCharacterStatsPacket
         {
-            Stamina = 22, Strength = 23, Agility = 20, Intellect = 21, Armor = 8, AttackDamage = 50, AbilityDamage = 12,
-            CritPct = 5.5f, DodgePct = 30f, BlockPct = 2.25f, WeaponMin = 4, WeaponMax = 9,
+            Stamina = 22,
+            Strength = 23,
+            Agility = 20,
+            Intellect = 21,
+            Armor = 8,
+            AttackDamage = 50,
+            AbilityDamage = 12,
+            CritPct = 5.5f,
+            DodgePct = 30f,
+            BlockPct = 2.25f,
+            WeaponMin = 4,
+            WeaponMax = 9,
         };
 
         NetworkPacket packet = SCharacterStatsPacket.Create(sheet, Plain);

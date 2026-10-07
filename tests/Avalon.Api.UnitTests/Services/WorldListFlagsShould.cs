@@ -37,8 +37,14 @@ public sealed class WorldListFlagsShould : IDisposable
 
     private static WorldEntity World(ushort id, AccountAccessLevel required) => new()
     {
-        Id = new WorldId(id), Name = $"World{id}", Host = "h", Port = 21000 + id,
-        MinVersion = "0.0.1", Version = "0.0.1", AccessLevelRequired = required, UpdatedAt = DateTime.UtcNow,
+        Id = new WorldId(id),
+        Name = $"World{id}",
+        Host = "h",
+        Port = 21000 + id,
+        MinVersion = "0.0.1",
+        Version = "0.0.1",
+        AccessLevelRequired = required,
+        UpdatedAt = DateTime.UtcNow,
     };
 
     private WorldService Sut() => new(new WorldRepository(_database), _databases,

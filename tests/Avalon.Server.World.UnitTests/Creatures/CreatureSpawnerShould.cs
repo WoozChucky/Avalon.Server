@@ -52,7 +52,11 @@ public class CreatureSpawnerShould
         // database, never the same in-memory instance twice.
         repos.BaseStats[0] = new CreatureBaseStat
         {
-            Level = 1, Health = originalHealth + 500, DamageMin = 4, DamageMax = 7, Experience = 25
+            Level = 1,
+            Health = originalHealth + 500,
+            DamageMin = 4,
+            DamageMax = 7,
+            Experience = 25
         };
         data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
 

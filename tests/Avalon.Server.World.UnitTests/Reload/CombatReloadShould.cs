@@ -36,8 +36,14 @@ public class CombatReloadShould
 
     private static readonly ClassLevelStat WarriorLevel1 = new()
     {
-        Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0,
-        Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+        Class = CharacterClass.Warrior,
+        Level = 1,
+        BaseHp = 20,
+        BaseMana = 0,
+        Stamina = 22,
+        Strength = 23,
+        Agility = 20,
+        Intellect = 20,
     };
 
     private static Task<StaticData> Load(Rows rows) =>

@@ -32,7 +32,7 @@ public static class MappingExtensions
         WorldName = worldName,
         Name = character.Name,
         Class = character.Class,
-        Gender = (CharacterGender) character.Gender,
+        Gender = (CharacterGender)character.Gender,
         Level = character.Level,
         Experience = character.Experience,
         Map = character.Map,

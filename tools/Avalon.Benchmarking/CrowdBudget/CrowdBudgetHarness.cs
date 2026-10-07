@@ -366,8 +366,12 @@ public static class CrowdBudgetHarness
     {
         var row = new Character
         {
-            Id = new CharacterId(id), AccountId = new AccountId(1), Name = $"Bench{id}",
-            Class = CharacterClass.Warrior, CreationDate = DateTime.UtcNow, Health = 100_000_000,
+            Id = new CharacterId(id),
+            AccountId = new AccountId(1),
+            Name = $"Bench{id}",
+            Class = CharacterClass.Warrior,
+            CreationDate = DateTime.UtcNow,
+            Health = 100_000_000,
         };
         var ch = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration()) { Data = row };
         ch.CurrentHealth = ch.Health;
@@ -402,7 +406,10 @@ public static class CrowdBudgetHarness
     {
         private static readonly Dictionary<int, string> Names = new()
         {
-            [1] = "town_sw_01", [2] = "town_se_01", [3] = "town_nw_01", [4] = "town_ne_01",
+            [1] = "town_sw_01",
+            [2] = "town_se_01",
+            [3] = "town_nw_01",
+            [4] = "town_ne_01",
         };
 
         public Task LoadAsync(CancellationToken ct) => Task.CompletedTask;

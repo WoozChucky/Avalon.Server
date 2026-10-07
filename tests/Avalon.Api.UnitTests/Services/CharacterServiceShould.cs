@@ -146,9 +146,14 @@ public class CharacterServiceShould
 
     private static AbilityTemplate Cleave() => new()
     {
-        Id = new AbilityId(210), Name = "Cleave", ScriptName = "ConeAbilityScript",
-        Affects = Avalon.Network.Packets.Abilities.AbilityAffects.Hostile, EffectValue = 10,
-        ScalingStat = Avalon.World.Public.Abilities.ScalingStat.Attack, ScalingCoefficient = 0.5f, BaseDamageCoefficient = 1f,
+        Id = new AbilityId(210),
+        Name = "Cleave",
+        ScriptName = "ConeAbilityScript",
+        Affects = Avalon.Network.Packets.Abilities.AbilityAffects.Hostile,
+        EffectValue = 10,
+        ScalingStat = Avalon.World.Public.Abilities.ScalingStat.Attack,
+        ScalingCoefficient = 0.5f,
+        BaseDamageCoefficient = 1f,
         Effects = Avalon.World.Public.Enums.SpellEffect.Damage,
     };
 
@@ -159,8 +164,11 @@ public class CharacterServiceShould
         var id = new CharacterId(42);
         ItemTemplate axe = new()
         {
-            Id = new ItemTemplateId(5), Name = "Axe", Slot = Avalon.Domain.World.ItemSlotType.MainHand,
-            DamageMin1 = 24, DamageMax1 = 28,
+            Id = new ItemTemplateId(5),
+            Name = "Axe",
+            Slot = Avalon.Domain.World.ItemSlotType.MainHand,
+            DamageMin1 = 24,
+            DamageMax1 = 28,
         };
 
         CharacterAbilitiesDto? result = await AbilityService(id, Cleave(),
@@ -250,9 +258,20 @@ public class CharacterServiceShould
         var stats = Substitute.For<ICharacterStatsRepository>();
         stats.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new CharacterStats
         {
-            CharacterId = id, MaxHealth = 320, MaxPower1 = 100, MaxPower2 = 5, Stamina = 26, Strength = 27,
-            Agility = 23, Intellect = 20, Armor = 12, BlockPct = 5f, DodgePct = 3.664f, CritPct = 5.5f,
-            AttackDamage = 54, AbilityDamage = 4,
+            CharacterId = id,
+            MaxHealth = 320,
+            MaxPower1 = 100,
+            MaxPower2 = 5,
+            Stamina = 26,
+            Strength = 27,
+            Agility = 23,
+            Intellect = 20,
+            Armor = 12,
+            BlockPct = 5f,
+            DodgePct = 3.664f,
+            CritPct = 5.5f,
+            AttackDamage = 54,
+            AbilityDamage = 4,
         });
 
         CharacterStatsDto? dto = await StatsService(stats).GetStatsAsync(id);

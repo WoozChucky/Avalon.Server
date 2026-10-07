@@ -48,16 +48,20 @@ public class InstanceAbilityCastSystemShould
     /// <summary>An ability whose cost, if any, is spent from <paramref name="pool" /> (#652): Mana, the default caster's.</summary>
     private static GameAbility Ability(uint cost = 0, float castTime = 0f, string script = "Recording",
         PowerType pool = PowerType.Mana) => new()
-    {
-        AbilityId = new AbilityId(1),
-        Metadata = new AbilityMetadata
         {
-            Name = "x", ScriptName = script, Cost = cost, CostPowerType = cost > 0 ? pool : PowerType.None,
-            CastTime = castTime, Cooldown = 2f,
-        },
-        CastTimeTimer = castTime,
-        CooldownTimer = 0f,
-    };
+            AbilityId = new AbilityId(1),
+            Metadata = new AbilityMetadata
+            {
+                Name = "x",
+                ScriptName = script,
+                Cost = cost,
+                CostPowerType = cost > 0 ? pool : PowerType.None,
+                CastTime = castTime,
+                Cooldown = 2f,
+            },
+            CastTimeTimer = castTime,
+            CooldownTimer = 0f,
+        };
 
     private static ICharacter Caster(PowerType type = PowerType.Mana, uint power = 100)
     {

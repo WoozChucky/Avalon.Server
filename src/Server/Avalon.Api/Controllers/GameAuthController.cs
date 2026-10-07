@@ -101,8 +101,10 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
             if (reply.GameContextCredential is not null || reply.Error is null) return LogResult(Ok(reply), operation);
             return LogResult(reply.Error switch
             {
-                GameAuthErrors.InProgress => StatusCode(409, reply), GameAuthErrors.ProviderUnavailable => StatusCode(503, reply),
-                GameAuthErrors.AccountMismatch => Conflict(reply), _ => Unauthorized(reply),
+                GameAuthErrors.InProgress => StatusCode(409, reply),
+                GameAuthErrors.ProviderUnavailable => StatusCode(503, reply),
+                GameAuthErrors.AccountMismatch => Conflict(reply),
+                _ => Unauthorized(reply),
             }, operation);
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)

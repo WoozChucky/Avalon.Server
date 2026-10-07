@@ -107,10 +107,28 @@ public sealed class PurchaseAdministrationShould
         var duplicate = Guid.NewGuid();
         await using (var db = f.Db.CreateDbContext())
         {
-            db.PaymentAttempts.Add(new PaymentAttempt { Id = duplicate, OrderId = original.OrderId, Sequence = 2, Provider = "alternate", ProviderAccountId = "merchant",
-                Environment = "sandbox", OperationKey = "duplicate", ProviderPriceId = "price", ProviderCatalogProductId = "catalog", PaymentMethods = "card",
-                CheckoutEmail = "buyer@example.test", SuccessUrl = "https://avalon.example.test", CancelUrl = "https://avalon.example.test", State = PaymentAttemptState.Paid,
-                CheckoutReference = "duplicate-checkout", PaymentReference = "duplicate-payment", CreatedAt = f.Clock.Now, FirstDispatchedAt = f.Clock.Now, RequestedExpiresAt = f.Clock.Now.AddMinutes(30) });
+            db.PaymentAttempts.Add(new PaymentAttempt
+            {
+                Id = duplicate,
+                OrderId = original.OrderId,
+                Sequence = 2,
+                Provider = "alternate",
+                ProviderAccountId = "merchant",
+                Environment = "sandbox",
+                OperationKey = "duplicate",
+                ProviderPriceId = "price",
+                ProviderCatalogProductId = "catalog",
+                PaymentMethods = "card",
+                CheckoutEmail = "buyer@example.test",
+                SuccessUrl = "https://avalon.example.test",
+                CancelUrl = "https://avalon.example.test",
+                State = PaymentAttemptState.Paid,
+                CheckoutReference = "duplicate-checkout",
+                PaymentReference = "duplicate-payment",
+                CreatedAt = f.Clock.Now,
+                FirstDispatchedAt = f.Clock.Now,
+                RequestedExpiresAt = f.Clock.Now.AddMinutes(30)
+            });
             await db.SaveChangesAsync();
         }
         f.Provider.Snapshot = original with { AttemptId = duplicate, CheckoutReference = "duplicate-checkout", PaymentReference = "duplicate-payment" };
@@ -187,9 +205,22 @@ public sealed class PurchaseAdministrationShould
         var snapshot = f.Provider.Snapshot!;
         await using (var db = f.Db.CreateDbContext())
         {
-            db.PaymentRefunds.Add(new PaymentRefund { Id = Guid.NewGuid(), PaymentAttemptId = snapshot.AttemptId, Provider = "alternate",
-                ProviderAccountId = "merchant", Environment = "sandbox", OperationKey = "prior-key", RequestedBy = f.Account.Id,
-                Reason = "Prior request", AmountMinor = 800, ExternalReference = "prior-refund", State = state, Unresolved = false, RequestedAt = f.Clock.Now });
+            db.PaymentRefunds.Add(new PaymentRefund
+            {
+                Id = Guid.NewGuid(),
+                PaymentAttemptId = snapshot.AttemptId,
+                Provider = "alternate",
+                ProviderAccountId = "merchant",
+                Environment = "sandbox",
+                OperationKey = "prior-key",
+                RequestedBy = f.Account.Id,
+                Reason = "Prior request",
+                AmountMinor = 800,
+                ExternalReference = "prior-refund",
+                State = state,
+                Unresolved = false,
+                RequestedAt = f.Clock.Now
+            });
             await db.SaveChangesAsync();
         }
         f.Provider.Snapshot = snapshot with { Refunds = [new("prior-refund", "payment", 800, "eur", state)] };
@@ -208,9 +239,22 @@ public sealed class PurchaseAdministrationShould
         var snapshot = f.Provider.Snapshot!;
         await using (var db = f.Db.CreateDbContext())
         {
-            db.PaymentRefunds.Add(new PaymentRefund { Id = Guid.NewGuid(), PaymentAttemptId = snapshot.AttemptId, Provider = "alternate",
-                ProviderAccountId = "merchant", Environment = "sandbox", OperationKey = "prior-key", RequestedBy = f.Account.Id,
-                Reason = "Prior request", AmountMinor = 800, ExternalReference = "prior-refund", State = PaymentRefundState.Failed, Unresolved = false, RequestedAt = f.Clock.Now });
+            db.PaymentRefunds.Add(new PaymentRefund
+            {
+                Id = Guid.NewGuid(),
+                PaymentAttemptId = snapshot.AttemptId,
+                Provider = "alternate",
+                ProviderAccountId = "merchant",
+                Environment = "sandbox",
+                OperationKey = "prior-key",
+                RequestedBy = f.Account.Id,
+                Reason = "Prior request",
+                AmountMinor = 800,
+                ExternalReference = "prior-refund",
+                State = PaymentRefundState.Failed,
+                Unresolved = false,
+                RequestedAt = f.Clock.Now
+            });
             await db.SaveChangesAsync();
         }
         f.Provider.Snapshot = snapshot with { Refunds = [new("prior-refund", "payment", 800, "eur", PaymentRefundState.Pending)] };

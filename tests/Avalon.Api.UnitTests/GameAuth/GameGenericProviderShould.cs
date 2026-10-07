@@ -50,10 +50,19 @@ public sealed class GameGenericProviderShould
         sessions.TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             var reservation = call.Arg<GameSessionReservation>();
-            return new GameSession { AccountId = reservation.AccountId, GameSessionId = reservation.GameSessionId,
-                GameContextId = reservation.GameContextId, FencingToken = 1, ServerId = "world-1", WorldId = 1,
-                Environment = "production", CreatedAt = clock.GetUtcNow().UtcDateTime, LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(30),
-                LicenseUntil = reservation.LicenseUntil };
+            return new GameSession
+            {
+                AccountId = reservation.AccountId,
+                GameSessionId = reservation.GameSessionId,
+                GameContextId = reservation.GameContextId,
+                FencingToken = 1,
+                ServerId = "world-1",
+                WorldId = 1,
+                Environment = "production",
+                CreatedAt = clock.GetUtcNow().UtcDateTime,
+                LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(30),
+                LicenseUntil = reservation.LicenseUntil
+            };
         });
         var tickets = new JoinTicketStore(store, crypto, service, sessions, allocator, config, clock, new(config));
         var issued = await tickets.IssueAsync(refreshed.GameContextCredential!, 1, null, Guid.NewGuid(), false, false, default);

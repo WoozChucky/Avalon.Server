@@ -81,11 +81,11 @@ public class CharacterService : ICharacterService
         if (dto.Name is not null)
             await RenameAsync(character, dto.Name, cancellationToken);
 
-        if (dto.Level.HasValue)      character.Level = dto.Level.Value;
+        if (dto.Level.HasValue) character.Level = dto.Level.Value;
         if (dto.Experience.HasValue) character.Experience = dto.Experience.Value;
-        if (dto.Health.HasValue)     character.Health = dto.Health.Value;
-        if (dto.Power1.HasValue)     character.Power1 = dto.Power1.Value;
-        if (dto.Power2.HasValue)     character.Power2 = dto.Power2.Value;
+        if (dto.Health.HasValue) character.Health = dto.Health.Value;
+        if (dto.Power1.HasValue) character.Power1 = dto.Power1.Value;
+        if (dto.Power2.HasValue) character.Power2 = dto.Power2.Value;
 
         // A tracked update never writes the name (it is insert-only to the change tracker): the rename above did.
         await _characterRepository.UpdateAsync(character, cancellationToken);

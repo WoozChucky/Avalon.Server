@@ -273,23 +273,25 @@ public class ObservabilityService : IObservabilityService
 
     private async Task<InstancePresenceDto> ToDtoAsync(
         InstancePresenceSnapshot instance, ushort worldId, CancellationToken ct) => new()
-    {
-        InstanceId = instance.InstanceId,
-        TemplateId = instance.TemplateId,
-        TemplateName = await TemplateNameAsync(worldId, instance.TemplateId, ct),
-        Seed = instance.Seed,
-        MapType = ParseMapType(instance.MapType),
-        WorldId = worldId,
-        OwnerCharacterId = instance.OwnerCharacterId,
-        Characters = (instance.Characters ?? []).Select(ToDto).ToList(),
-    };
+        {
+            InstanceId = instance.InstanceId,
+            TemplateId = instance.TemplateId,
+            TemplateName = await TemplateNameAsync(worldId, instance.TemplateId, ct),
+            Seed = instance.Seed,
+            MapType = ParseMapType(instance.MapType),
+            WorldId = worldId,
+            OwnerCharacterId = instance.OwnerCharacterId,
+            Characters = (instance.Characters ?? []).Select(ToDto).ToList(),
+        };
 
     private static CharacterPresenceDto ToDto(CharacterPresenceSnapshot c) => new()
     {
         CharacterId = c.CharacterId,
         Name = c.Name,
         Class = c.Class,
-        X = c.X, Y = c.Y, Z = c.Z,
+        X = c.X,
+        Y = c.Y,
+        Z = c.Z,
         Orientation = c.Orientation,
         Level = c.Level,
         CurrentHealth = c.CurrentHealth,

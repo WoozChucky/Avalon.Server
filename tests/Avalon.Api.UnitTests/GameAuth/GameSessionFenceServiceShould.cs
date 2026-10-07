@@ -26,10 +26,23 @@ public sealed class GameSessionFenceServiceShould
         var auth = native ? await _h.AuthenticateAvalon() : await _h.Authenticate(appId);
         var context = (await _h.Authorization.GetContextAsync(auth.GameContextCredential!, true, CancellationToken.None))!;
         var now = _h.Clock.GetUtcNow().UtcDateTime;
-        _head = new GameSession { AccountId = _h.Account.Id, GameSessionId = Guid.NewGuid(), GameContextId = context.Id,
-            FencingToken = 2, ServerId = "world-" + worldId, WorldId = worldId, Environment = "production", State = GameSessionState.Pending,
-            PreviousWorldId = 2, PreviousServerId = "world-2", PreviousGameSessionId = Guid.NewGuid(),
-            CreatedAt = now, LeaseUntil = now.AddSeconds(45), LicenseUntil = now.AddMinutes(5) };
+        _head = new GameSession
+        {
+            AccountId = _h.Account.Id,
+            GameSessionId = Guid.NewGuid(),
+            GameContextId = context.Id,
+            FencingToken = 2,
+            ServerId = "world-" + worldId,
+            WorldId = worldId,
+            Environment = "production",
+            State = GameSessionState.Pending,
+            PreviousWorldId = 2,
+            PreviousServerId = "world-2",
+            PreviousGameSessionId = Guid.NewGuid(),
+            CreatedAt = now,
+            LeaseUntil = now.AddSeconds(45),
+            LicenseUntil = now.AddMinutes(5)
+        };
         _h.Sessions.FindAsync(_h.Account.Id, Arg.Any<CancellationToken>()).Returns(_head);
         _worlds.GameplayFences(new WorldId(worldId)).Returns(_target);
         _worlds.GameplayFences(new WorldId(2)).Returns(_previous);

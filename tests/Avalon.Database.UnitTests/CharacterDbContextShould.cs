@@ -68,13 +68,21 @@ public class CharacterDbContextShould
 
             write.ItemInstances.Add(new ItemInstance
             {
-                Id = itemId, TemplateId = new ItemTemplateId(4242), CharacterId = owner,
-                Count = 7, Durability = 33, Charges = 2, Flags = ItemInstanceFlags.Broken,
+                Id = itemId,
+                TemplateId = new ItemTemplateId(4242),
+                CharacterId = owner,
+                Count = 7,
+                Durability = 33,
+                Charges = 2,
+                Flags = ItemInstanceFlags.Broken,
                 UpdatedAt = DateTime.UtcNow,
             });
             write.CharacterInventory.Add(new CharacterInventory
             {
-                CharacterId = owner, Container = InventoryType.Bag, Slot = 3, ItemId = itemId,
+                CharacterId = owner,
+                Container = InventoryType.Bag,
+                Slot = 3,
+                ItemId = itemId,
             });
             await write.SaveChangesAsync();
         }
@@ -105,7 +113,9 @@ public class CharacterDbContextShould
 
         context.CharacterInventory.Add(new CharacterInventory
         {
-            CharacterId = character.Id, Container = InventoryType.Bag, Slot = 0,
+            CharacterId = character.Id,
+            Container = InventoryType.Bag,
+            Slot = 0,
             ItemId = new ItemInstanceId(Guid.CreateVersion7()),
         });
 
@@ -149,12 +159,18 @@ public class CharacterDbContextShould
                 var itemId = new ItemInstanceId(Guid.CreateVersion7());
                 write.ItemInstances.Add(new ItemInstance
                 {
-                    Id = itemId, TemplateId = new ItemTemplateId(4242), CharacterId = holder, Count = 1,
+                    Id = itemId,
+                    TemplateId = new ItemTemplateId(4242),
+                    CharacterId = holder,
+                    Count = 1,
                     UpdatedAt = DateTime.UtcNow,
                 });
                 write.CharacterInventory.Add(new CharacterInventory
                 {
-                    CharacterId = holder, Container = InventoryType.Bag, Slot = slot, ItemId = itemId,
+                    CharacterId = holder,
+                    Container = InventoryType.Bag,
+                    Slot = slot,
+                    ItemId = itemId,
                 });
             }
 

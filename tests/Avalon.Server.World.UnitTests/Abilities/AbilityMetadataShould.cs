@@ -39,9 +39,18 @@ public class AbilityMetadataShould
     {
         var original = new AbilityMetadata
         {
-            Name = "x", ScriptName = "x", AimMode = AbilityAimMode.Cursor, Shape = AbilityShape.Projectile,
-            Anchor = AbilityAnchor.AimPoint, Reach = 1f, Radius = 2f, ArcDegrees = 3f, ProjectileSpeed = 4f,
-            Pierce = true, Affects = AbilityAffects.Ally, PowerGainPerHit = 5,
+            Name = "x",
+            ScriptName = "x",
+            AimMode = AbilityAimMode.Cursor,
+            Shape = AbilityShape.Projectile,
+            Anchor = AbilityAnchor.AimPoint,
+            Reach = 1f,
+            Radius = 2f,
+            ArcDegrees = 3f,
+            ProjectileSpeed = 4f,
+            Pierce = true,
+            Affects = AbilityAffects.Ally,
+            PowerGainPerHit = 5,
         };
 
         AbilityMetadata clone = original.Clone();

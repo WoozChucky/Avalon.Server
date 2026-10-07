@@ -78,8 +78,14 @@ public sealed class AccountConsolidationShould
         await using (var db = database.CreateDbContext())
         {
             await db.Accounts.Where(a => a.Id == target.Id).ExecuteUpdateAsync(u => u.SetProperty(a => a.EmailVerifiedAt, (DateTime?)now));
-            db.AccountEmailVerifications.Add(new AccountEmailVerification { AccountId = source.Id,
-                TokenHash = new string('a', 64), Email = "prior@example.test", IssuedAt = now, ExpiresAt = now.AddMinutes(30) });
+            db.AccountEmailVerifications.Add(new AccountEmailVerification
+            {
+                AccountId = source.Id,
+                TokenHash = new string('a', 64),
+                Email = "prior@example.test",
+                IssuedAt = now,
+                ExpiresAt = now.AddMinutes(30)
+            });
             await db.SaveChangesAsync();
         }
         var repository = new AccountConsolidationRepository(database, _clock);
@@ -100,11 +106,20 @@ public sealed class AccountConsolidationShould
         await using (var db = database.CreateDbContext())
         {
             foreach (var provider in new[] { "steam", "avalon", "test-store" })
-                db.GameLicenses.Add(new GameLicense { Id = Guid.NewGuid(), AccountId = source.Id, Provider = provider,
-                    Product = "avalon.base", Environment = "production", ProviderProductId = "base",
-                    LicenseReference = provider + "-grant", GrantedAt = now,
+                db.GameLicenses.Add(new GameLicense
+                {
+                    Id = Guid.NewGuid(),
+                    AccountId = source.Id,
+                    Provider = provider,
+                    Product = "avalon.base",
+                    Environment = "production",
+                    ProviderProductId = "base",
+                    LicenseReference = provider + "-grant",
+                    GrantedAt = now,
                     AuthorityKind = provider == "avalon" ? Avalon.Common.GameAuth.LicenseAuthorityKind.StoredGrant : Avalon.Common.GameAuth.LicenseAuthorityKind.VerifiedOwnership,
-                    LastObservedAt = now, VerifiedUntil = now.AddMinutes(5) });
+                    LastObservedAt = now,
+                    VerifiedUntil = now.AddMinutes(5)
+                });
             await db.SaveChangesAsync();
         }
         var repository = new AccountConsolidationRepository(database, _clock);
@@ -115,8 +130,11 @@ public sealed class AccountConsolidationShould
         await using var read = database.CreateDbContext();
         var rows = await read.GameLicenses.OrderBy(x => x.Provider).ToListAsync();
         Assert.Equal(3, rows.Count);
-        Assert.All(rows, row => { Assert.Equal(target.Id, row.AccountId); Assert.Equal(2, row.AuthorityRevision);
-            Assert.Equal(row.Provider + "-grant", row.LicenseReference); Assert.Null(row.VerifiedUntil); Assert.Null(row.RevokedAt); });
+        Assert.All(rows, row =>
+        {
+            Assert.Equal(target.Id, row.AccountId); Assert.Equal(2, row.AuthorityRevision);
+            Assert.Equal(row.Provider + "-grant", row.LicenseReference); Assert.Null(row.VerifiedUntil); Assert.Null(row.RevokedAt);
+        });
         Assert.True(rows.Single(x => x.Provider == "avalon").Authorizes(target.Id, "avalon.base", "production", now));
         Assert.False(rows.Single(x => x.Provider == "steam").Authorizes(target.Id, "avalon.base", "production", now));
     }

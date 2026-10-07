@@ -15,8 +15,11 @@ public sealed class SteamOpenIdStateFormat(GameAuthCryptography crypto) : ISecur
     public AuthenticationProperties? Unprotect(string? protectedText, string? purpose)
     {
         if (protectedText is null || protectedText.Length > 8192) return null;
-        try { return PropertiesSerializer.Default.Deserialize(Convert.FromBase64String(crypto.UnprotectText(
-            System.Text.Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(protectedText)), Binding + purpose))); }
+        try
+        {
+            return PropertiesSerializer.Default.Deserialize(Convert.FromBase64String(crypto.UnprotectText(
+            System.Text.Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(protectedText)), Binding + purpose)));
+        }
         catch (Exception e) when (e is FormatException or CryptographicException or ArgumentException) { return null; }
     }
 }

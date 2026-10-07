@@ -244,8 +244,10 @@ public sealed class ItemUseContext(
 
         var ability = new GameAbility
         {
-            AbilityId = abilityId, Metadata = AbilityMetadataMapper.From(row),
-            CastTimeTimer = (float)row.CastTime / 1000, CooldownTimer = 0f,
+            AbilityId = abilityId,
+            Metadata = AbilityMetadataMapper.From(row),
+            CastTimeTimer = (float)row.CastTime / 1000,
+            CooldownTimer = 0f,
         };
         return ability.Metadata.CastTime > 0 ? null : ability;
     }

@@ -63,7 +63,9 @@ public static class PublicMapping
             if (max is not > 0) continue;
             yield return new PublicItemDamageDto
             {
-                Min = Math.Min(min ?? 0, max.Value), Max = max.Value, Type = (DamageType?)type,
+                Min = Math.Min(min ?? 0, max.Value),
+                Max = max.Value,
+                Type = (DamageType?)type,
             };
         }
     }

@@ -356,9 +356,15 @@ public class CreatureAbilityAiShould
         player.Character.Position = new Vector3(0f, 0f, 1.5f);
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, 163_991), TemplateId = new CreatureTemplateId(8),
-            Metadata = Loot.LootTestData.BoarTemplate(null), Name = "Alpha", Position = Vector3.zero,
-            Health = 100, CurrentHealth = 100, DamageMin = 5, DamageMax = 5,
+            Guid = new ObjectGuid(ObjectType.Creature, 163_991),
+            TemplateId = new CreatureTemplateId(8),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Name = "Alpha",
+            Position = Vector3.zero,
+            Health = 100,
+            CurrentHealth = 100,
+            DamageMin = 5,
+            DamageMax = 5,
         };
         var script = new KitCombatScript(creature, instance, catalog: TestKit.Catalog(WindUp()),
             kit: new CreatureAbilityKit(TestKit.BasicId, WindUpId));
@@ -392,9 +398,13 @@ public class CreatureAbilityAiShould
         player.Character.Position = new Vector3(0f, 0f, 1.5f);
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, 163_992), TemplateId = new CreatureTemplateId(8),
-            Metadata = Loot.LootTestData.BoarTemplate(null), Name = "Alpha", Position = Vector3.zero,
-            Health = 100, CurrentHealth = 100,
+            Guid = new ObjectGuid(ObjectType.Creature, 163_992),
+            TemplateId = new CreatureTemplateId(8),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Name = "Alpha",
+            Position = Vector3.zero,
+            Health = 100,
+            CurrentHealth = 100,
         };
         var script = new KitCombatScript(creature, instance, catalog: TestKit.Catalog(WindUp()),
             kit: new CreatureAbilityKit(TestKit.BasicId, WindUpId));

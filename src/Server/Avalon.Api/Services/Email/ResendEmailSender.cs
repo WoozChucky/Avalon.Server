@@ -22,7 +22,9 @@ public sealed class ResendEmailSender(HttpClient http, EmailConfig config) : IEm
         request.Content = JsonContent.Create(new
         {
             from = string.IsNullOrEmpty(config.FromName) ? config.From : $"{config.FromName} <{config.From}>",
-            to = new[] { to }, subject, text = textBody,
+            to = new[] { to },
+            subject,
+            text = textBody,
         });
         try
         {

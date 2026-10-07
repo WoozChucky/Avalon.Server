@@ -86,7 +86,11 @@ public class ScriptHotReloadPollingShould
         worldRepository.FindByIdAsync(Arg.Any<Avalon.Domain.Auth.WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Avalon.Domain.Auth.World
             {
-                Name = "test", Host = "127.0.0.1", Port = 0, MinVersion = "0.0.1", Version = "1.0.0"
+                Name = "test",
+                Host = "127.0.0.1",
+                Port = 0,
+                MinVersion = "0.0.1",
+                Version = "1.0.0"
             });
 
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();

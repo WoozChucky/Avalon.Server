@@ -47,9 +47,13 @@ public class ForestCreatureScriptsShould
         {
             Creature = new Creature
             {
-                Guid = new ObjectGuid(ObjectType.Creature, 163_500), TemplateId = new CreatureTemplateId(4),
-                Metadata = Loot.LootTestData.BoarTemplate(null), Name = scriptType.Name, Position = Vector3.zero,
-                Health = 100, CurrentHealth = 100,
+                Guid = new ObjectGuid(ObjectType.Creature, 163_500),
+                TemplateId = new CreatureTemplateId(4),
+                Metadata = Loot.LootTestData.BoarTemplate(null),
+                Name = scriptType.Name,
+                Position = Vector3.zero,
+                Health = 100,
+                CurrentHealth = 100,
             };
 
             Target.Guid.Returns(new ObjectGuid(ObjectType.Character, 163_501));

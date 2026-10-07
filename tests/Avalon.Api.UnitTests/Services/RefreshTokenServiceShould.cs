@@ -50,8 +50,11 @@ public class RefreshTokenServiceShould
     {
         var web = new RefreshToken
         {
-            AccountId = new AccountId(1L), FamilyId = Guid.NewGuid(), Client = SessionClient.Web,
-            Revoked = true, ExpiresAt = DateTime.UtcNow.AddDays(1),
+            AccountId = new AccountId(1L),
+            FamilyId = Guid.NewGuid(),
+            Client = SessionClient.Web,
+            Revoked = true,
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
         };
         _repo.FindByHashAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>()).Returns(web);
         var service = new RefreshTokenService(_repo, _random, TimeProvider.System);
@@ -69,8 +72,11 @@ public class RefreshTokenServiceShould
     {
         var parent = new RefreshToken
         {
-            AccountId = new AccountId(1L), FamilyId = Guid.NewGuid(), Client = SessionClient.Launcher,
-            DeviceName = "MOTHERSHIP", ExpiresAt = DateTime.UtcNow.AddDays(1),
+            AccountId = new AccountId(1L),
+            FamilyId = Guid.NewGuid(),
+            Client = SessionClient.Launcher,
+            DeviceName = "MOTHERSHIP",
+            ExpiresAt = DateTime.UtcNow.AddDays(1),
         };
         _repo.FindByHashAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>()).Returns(parent);
         _repo.RotateAsync(Arg.Any<RefreshToken>(), Arg.Any<RefreshToken>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
@@ -90,7 +96,9 @@ public class RefreshTokenServiceShould
         var familyId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
         _repo.FindByHashAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>()).Returns(new RefreshToken
         {
-            AccountId = new AccountId(1L), FamilyId = familyId, Client = SessionClient.Launcher,
+            AccountId = new AccountId(1L),
+            FamilyId = familyId,
+            Client = SessionClient.Launcher,
             ExpiresAt = DateTime.UtcNow.AddDays(1),
         });
         _repo.RotateAsync(Arg.Any<RefreshToken>(), Arg.Any<RefreshToken>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())

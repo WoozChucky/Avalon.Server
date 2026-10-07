@@ -82,7 +82,8 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
             return await PostAsync<SessionLeaseResponse>("sessions/" + action, new
             {
                 AccountId = lease.Authority.AccountId.Value.ToString(CultureInfo.InvariantCulture),
-                lease.Authority.GameSessionId, FencingToken = lease.Authority.FencingToken.ToString(CultureInfo.InvariantCulture)
+                lease.Authority.GameSessionId,
+                FencingToken = lease.Authority.FencingToken.ToString(CultureInfo.InvariantCulture)
             }, cancellationToken) ?? new() { Error = GameAuthErrors.ServiceUnavailable };
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException or IOException)

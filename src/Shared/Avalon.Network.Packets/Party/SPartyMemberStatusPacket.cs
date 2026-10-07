@@ -26,8 +26,13 @@ public class SPartyMemberStatusPacket : Packet
         => PacketSerializationHelper.Serialize(
             new SPartyMemberStatusPacket
             {
-                CharacterId = characterId, Health = health, MaxHealth = maxHealth, Power = power, MaxPower = maxPower,
-                PowerType = powerType, IsDead = isDead
+                CharacterId = characterId,
+                Health = health,
+                MaxHealth = maxHealth,
+                Power = power,
+                MaxPower = maxPower,
+                PowerType = powerType,
+                IsDead = isDead
             },
             PacketType, Flags, Protocol, encrypt);
 }

@@ -217,8 +217,13 @@ public class MapInstanceVendorShould
 
         var dearerTonic = new ItemTemplate
         {
-            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass,
-            MaxStackSize = Tonic.MaxStackSize, BuyPrice = 15, SellPrice = Tonic.SellPrice,
+            Id = Tonic.Id,
+            Name = Tonic.Name,
+            Class = Tonic.Class,
+            SubClass = Tonic.SubClass,
+            MaxStackSize = Tonic.MaxStackSize,
+            BuyPrice = 15,
+            SellPrice = Tonic.SellPrice,
         };
         _data.Apply(new ItemsPatch(Items.Select(t => t.Id == Tonic.Id ? dearerTonic : t).ToList()));
         instance.Update(Tick);

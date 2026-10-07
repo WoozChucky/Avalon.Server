@@ -24,14 +24,14 @@ namespace Avalon.World.Combat;
 
 public sealed class CombatService : ICombatService, IHostileEncounterExit
 {
-    private readonly CombatConfig        _config;
-    private readonly EncounterRegistry   _registry;
+    private readonly CombatConfig _config;
+    private readonly EncounterRegistry _registry;
     private readonly ISimulationContext? _context;
-    private readonly PvpToggle?          _pvp;
-    private readonly ICombatOutcomes?    _outcomes;
-    private readonly TimeProvider        _time;
-    private readonly float               _furyFromDamageTaken;
-    private readonly ICombatRandom       _random;
+    private readonly PvpToggle? _pvp;
+    private readonly ICombatOutcomes? _outcomes;
+    private readonly TimeProvider _time;
+    private readonly float _furyFromDamageTaken;
+    private readonly ICombatRandom _random;
     private readonly Func<CombatFormula> _formula;
 
     /// <summary>The seeded formula, for a service built without an accessor (tests).</summary>
@@ -50,14 +50,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         float furyFromDamageTaken = GameConfiguration.DefaultFuryFromDamageTaken, ICombatRandom? random = null,
         Func<CombatFormula>? formula = null)
     {
-        _random   = random ?? CombatRandom.Steady;
-        _formula  = formula ?? (() => SeededFormula);
-        _time     = time ?? TimeProvider.System;
+        _random = random ?? CombatRandom.Steady;
+        _formula = formula ?? (() => SeededFormula);
+        _time = time ?? TimeProvider.System;
         _furyFromDamageTaken = furyFromDamageTaken;
-        _config   = config;
+        _config = config;
         _registry = registry;
-        _context  = context;
-        _pvp      = pvp;
+        _context = context;
+        _pvp = pvp;
         _outcomes = outcomes;
     }
 
@@ -162,7 +162,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // Combat tag — MarkCombat exists only on ICharacter (see ICharacter.cs). Apply to whichever
         // participants are characters; creature in-combat state is tracked through encounter membership.
         if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
-        if (target   is ICharacter targetCharacter)   targetCharacter.MarkCombat();
+        if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
 
         // Death detection (G1): if the OnHit above pushed the target to a lethal state, notify the
         // encounter and broadcast SUnitDeathPacket. ICharacter exposes IsDead explicitly; creatures
@@ -252,7 +252,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         }
 
         if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
-        if (target   is ICharacter targetCharacter)   targetCharacter.MarkCombat();
+        if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
     }
 
     /// <summary>What a unit attacks with (#506); a unit that is neither a character nor a creature brings its level alone.</summary>
@@ -323,8 +323,8 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     private static void ClassifyAndAdd(Encounter enc, IUnit unit)
     {
-        if (unit is ICreature)        enc.AddHostile(unit);
-        else if (unit is ICharacter)  enc.AddPlayer(unit);
+        if (unit is ICreature) enc.AddHostile(unit);
+        else if (unit is ICharacter) enc.AddPlayer(unit);
     }
 
     /// <summary>
@@ -601,7 +601,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         float deltaToBecomeTop = (top + 1.0f) - current;
         enc.AddThreat(creature, caster, deltaToBecomeTop);
 
-        creature.TauntedBy      = caster;
+        creature.TauntedBy = caster;
         creature.TauntExpiresAt = _time.GetUtcNow().UtcDateTime.AddMilliseconds(durationMs);
     }
 
@@ -641,7 +641,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // (full restore). We need a partial revive driven by ReviveHealthFraction, so we
         // clear IsDead directly via the setter and assign the partial HP value ourselves.
         uint maxHealth = character.Health;
-        uint reviveHp  = (uint)(maxHealth * _config.ReviveHealthFraction);
+        uint reviveHp = (uint)(maxHealth * _config.ReviveHealthFraction);
 
         // Defensive: a tiny ReviveHealthFraction × small max can truncate to 0. Reviving
         // alive-but-at-0HP would be a degenerate state (death detection treats HP==0 as
@@ -650,9 +650,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Clear dead-flag first so observers don't see "alive but at 0 HP" mid-revive
         // (mirrors the ordering inside CharacterEntity.Revive()).
-        character.IsDead        = false;
+        character.IsDead = false;
         character.CurrentHealth = reviveHp;
-        character.Position      = position;
+        character.Position = position;
 
         _context?.BroadcastUnitRevive(character, position, reviveHp);
     }

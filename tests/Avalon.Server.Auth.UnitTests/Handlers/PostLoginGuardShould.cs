@@ -46,15 +46,26 @@ public sealed class PostLoginGuardShould
 
     private static AvalonWorld World() => new()
     {
-        Id = new WorldId(1), Name = "World", Host = "localhost", Port = 7001, MinVersion = "0.0.1",
-        Version = "0.0.1", AccessLevelRequired = AccountAccessLevel.Player,
+        Id = new WorldId(1),
+        Name = "World",
+        Host = "localhost",
+        Port = 7001,
+        MinVersion = "0.0.1",
+        Version = "0.0.1",
+        AccessLevelRequired = AccountAccessLevel.Player,
     };
 
     private void AccountIs(AccountStatus status, int credentialsVersion) =>
         _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new Account
         {
-            Id = new AccountId(1L), Username = "TESTUSER", Email = "t@t", Salt = [1], Verifier = [2],
-            JoinDate = DateTime.UtcNow, AccessLevel = AccountAccessLevel.Player, Status = status,
+            Id = new AccountId(1L),
+            Username = "TESTUSER",
+            Email = "t@t",
+            Salt = [1],
+            Verifier = [2],
+            JoinDate = DateTime.UtcNow,
+            AccessLevel = AccountAccessLevel.Player,
+            Status = status,
             CredentialsVersion = credentialsVersion,
         });
 
@@ -67,7 +78,7 @@ public sealed class PostLoginGuardShould
             .ExecuteAsync(new AuthPacketContext<CMFASetupPacket> { Packet = new CMFASetupPacket(), Connection = _connection }),
         "MFA confirm" => new CMFAConfirmHandler(NullLoggerFactory.Instance, _mfa, _accounts)
             .ExecuteAsync(new AuthPacketContext<CMFAConfirmPacket>
-                { Packet = new CMFAConfirmPacket { Code = "123456" }, Connection = _connection }),
+            { Packet = new CMFAConfirmPacket { Code = "123456" }, Connection = _connection }),
         "MFA reset" => new CMFAResetHandler(NullLoggerFactory.Instance, _mfa, _accounts)
             .ExecuteAsync(new AuthPacketContext<CMFAResetPacket>
             {

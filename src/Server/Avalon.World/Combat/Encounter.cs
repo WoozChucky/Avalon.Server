@@ -11,7 +11,7 @@ public sealed class Encounter : IEncounter
     private readonly CombatConfig _config;
     private readonly TimeProvider _time;
     private readonly HashSet<IUnit> _hostiles = new();
-    private readonly HashSet<IUnit> _players  = new();
+    private readonly HashSet<IUnit> _players = new();
     private readonly Dictionary<IUnit, Dictionary<IUnit, float>> _threat = new();
 
     // Reused every tick by Update: the attackers whose threat decayed to nothing. The tick allocates nothing.
@@ -20,21 +20,21 @@ public sealed class Encounter : IEncounter
     /// <param name="time">The instance's clock, the one the rest of the world times by (#614).</param>
     public Encounter(CombatConfig config, TimeProvider? time = null)
     {
-        _config        = config;
-        _time          = time ?? TimeProvider.System;
-        Id             = Guid.NewGuid();
-        SpawnedAt      = Now;
+        _config = config;
+        _time = time ?? TimeProvider.System;
+        Id = Guid.NewGuid();
+        SpawnedAt = Now;
         LastDamageTime = Now;
     }
 
     private DateTime Now => _time.GetUtcNow().UtcDateTime;
 
-    public Guid     Id             { get; }
-    public DateTime SpawnedAt      { get; }
+    public Guid Id { get; }
+    public DateTime SpawnedAt { get; }
     public DateTime LastDamageTime { get; private set; }
 
     public IReadOnlyCollection<IUnit> Hostiles => _hostiles;
-    public IReadOnlyCollection<IUnit> Players  => _players;
+    public IReadOnlyCollection<IUnit> Players => _players;
 
     public bool ShouldEnd { get; private set; }
 
@@ -73,7 +73,7 @@ public sealed class Encounter : IEncounter
         if (!_threat.TryGetValue(hostile, out var list) || list.Count == 0)
             return null;
         IUnit? top = null;
-        var    max = float.MinValue;
+        var max = float.MinValue;
         foreach (var (u, t) in list)
         {
             if (t > max)
@@ -125,14 +125,14 @@ public sealed class Encounter : IEncounter
                     rate *= _config.OutOfRangeDecayMultiplier;
                 float next = threat - rate * dt;
                 if (next <= 0) _decayed.Add(attacker);
-                else           threatList[attacker] = next;
+                else threatList[attacker] = next;
             }
             foreach (var u in _decayed) threatList.Remove(u);
         }
         _decayed.Clear();
 
         bool noHostiles = _hostiles.Count == 0;
-        bool pastGrace  = (Now - LastDamageTime).TotalSeconds >= _config.EncounterEndGraceSeconds;
+        bool pastGrace = (Now - LastDamageTime).TotalSeconds >= _config.EncounterEndGraceSeconds;
         ShouldEnd = noHostiles && pastGrace;
     }
 }

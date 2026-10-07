@@ -196,11 +196,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _encounterRegistry = new EncounterRegistry(combatConfig, _time);
         // #506: every roll goes through the container's combat random, and each hit reads the current
         // combat formula once. Both fall back, so an instance built without them (tests) still fights.
-        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time,
+        _combatService = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time,
             furyFromDamageTaken: world.Configuration.FuryFromDamageTaken,
             random: serviceProvider.GetService<ICombatRandom>(),
             formula: () => world.Data?.Combat?.Formula ?? SeededFormula);
-        _threatBroadcast   = new ThreatBroadcastService(combatConfig, _time);
+        _threatBroadcast = new ThreatBroadcastService(combatConfig, _time);
 
         // Auras: one system per instance over its own units, ticked right after the ability cast system on this
         // instance's clock. The catalog and the reference data are read through the world each time, so a reload
@@ -1813,7 +1813,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         // Capacities sized for a typical instance (32 entities visible per player).
         // List<T> grows automatically if exceeded — this avoids early reallocation.
-        public List<ObjectState> AddedObjects   { get; } = new(32);
+        public List<ObjectState> AddedObjects { get; } = new(32);
         public List<ObjectState> UpdatedObjects { get; } = new(32);
     }
 }

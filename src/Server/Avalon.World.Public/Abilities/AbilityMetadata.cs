@@ -26,55 +26,55 @@ public class AbilityMetadata
 
     public uint EffectValue { get; init; }
 
-    public float        ThreatMultiplier { get; init; } = 1.0f;
-    public float        HealThreatPerHp  { get; init; } = 0.0f;
-    public uint         TauntDurationMs  { get; init; } = 0;
-    public AbilityFlags Flags            { get; init; } = AbilityFlags.None;
-    public uint         AnimationId      { get; init; } = 0;
+    public float ThreatMultiplier { get; init; } = 1.0f;
+    public float HealThreatPerHp { get; init; } = 0.0f;
+    public uint TauntDurationMs { get; init; } = 0;
+    public AbilityFlags Flags { get; init; } = AbilityFlags.None;
+    public uint AnimationId { get; init; } = 0;
 
     // Aim and shape (#164), copied from the template.
 
     /// <summary>From the caster toward the cursor, else along its facing (Movement, #716), or at the cursor's ground point (Cursor).</summary>
-    public AbilityAimMode AimMode         { get; init; } = AbilityAimMode.Movement;
+    public AbilityAimMode AimMode { get; init; } = AbilityAimMode.Movement;
 
     /// <summary>Circle, cone or projectile.</summary>
-    public AbilityShape   Shape           { get; init; } = AbilityShape.Circle;
+    public AbilityShape Shape { get; init; } = AbilityShape.Circle;
 
     /// <summary>Circle only: centred on the caster or on the aim point.</summary>
-    public AbilityAnchor  Anchor          { get; init; } = AbilityAnchor.Caster;
+    public AbilityAnchor Anchor { get; init; } = AbilityAnchor.Caster;
 
     /// <summary>Metres: aim point clamp, cone length or projectile travel; 0 for a circle on the caster.</summary>
-    public float          Reach           { get; init; }
+    public float Reach { get; init; }
 
     /// <summary>Metres. A circle's radius; 0 otherwise.</summary>
-    public float          Radius          { get; init; }
+    public float Radius { get; init; }
 
     /// <summary>Degrees. A cone's full arc; 0 otherwise.</summary>
-    public float          ArcDegrees      { get; init; }
+    public float ArcDegrees { get; init; }
 
     /// <summary>Metres per second. Projectile only; 0 otherwise.</summary>
-    public float          ProjectileSpeed { get; init; }
+    public float ProjectileSpeed { get; init; }
 
     /// <summary>Projectile only: false ends at the first hit, true hits each unit once and flies on.</summary>
-    public bool           Pierce          { get; init; }
+    public bool Pierce { get; init; }
 
     /// <summary>Hostile units are damaged, allies are healed.</summary>
-    public AbilityAffects Affects         { get; init; } = AbilityAffects.Hostile;
+    public AbilityAffects Affects { get; init; } = AbilityAffects.Hostile;
 
     /// <summary>Power the caster gains per unit this ability damages (#526); 0 gains nothing.</summary>
-    public int            PowerGainPerHit { get; init; }
+    public int PowerGainPerHit { get; init; }
 
     /// <summary>The derived damage stat the ability scales with (#506).</summary>
-    public ScalingStat    ScalingStat        { get; init; } = ScalingStat.Attack;
+    public ScalingStat ScalingStat { get; init; } = ScalingStat.Attack;
 
     /// <summary>Multiplies the caster's <see cref="ScalingStat" /> into the damage or heal (#506).</summary>
-    public float          ScalingCoefficient { get; init; }
+    public float ScalingCoefficient { get; init; }
 
     /// <summary>
     /// Multiplies a roll of the caster's base damage into the damage or heal (#506): a character's main-hand
     /// weapon, a creature's natural DamageMin..DamageMax (#163).
     /// </summary>
-    public float          BaseDamageCoefficient { get; init; }
+    public float BaseDamageCoefficient { get; init; }
 
     public AbilityMetadata Clone() =>
         new()

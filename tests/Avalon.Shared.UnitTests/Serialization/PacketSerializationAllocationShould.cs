@@ -97,7 +97,11 @@ public class PacketSerializationAllocationShould
     {
         var packet = new SChatMessagePacket
         {
-            AccountId = 42, CharacterId = 7, CharacterName = "Alice", Message = new string('m', 300), DateTime = When,
+            AccountId = 42,
+            CharacterId = 7,
+            CharacterName = "Alice",
+            Message = new string('m', 300),
+            DateTime = When,
         };
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);

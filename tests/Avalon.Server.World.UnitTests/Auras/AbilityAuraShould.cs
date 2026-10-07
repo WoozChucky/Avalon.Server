@@ -102,8 +102,13 @@ public class AbilityAuraShould
     {
         var creature = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, id), Metadata = Loot.LootTestData.BoarTemplate(null),
-            Position = new Vector3(0f, 0f, 2f), Level = 1, Health = health, CurrentHealth = health, DodgePct = dodge,
+            Guid = new ObjectGuid(ObjectType.Creature, id),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = new Vector3(0f, 0f, 2f),
+            Level = 1,
+            Health = health,
+            CurrentHealth = health,
+            DodgePct = dodge,
         };
         creature.Script = new CombatResolutionShould.CountingWoundScript(creature);
         instance.AddCreature(creature);

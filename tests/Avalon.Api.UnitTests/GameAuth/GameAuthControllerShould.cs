@@ -44,8 +44,13 @@ public class GameAuthControllerShould
             Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(), config, TimeProvider.System);
         var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         controller.Request.Scheme = scheme;
-        var result = await controller.ProviderAttempt(new GameProviderAttemptRequest { ApplicationKey = application, ProtocolVersion = "0.2.0",
-            ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, default);
+        var result = await controller.ProviderAttempt(new GameProviderAttemptRequest
+        {
+            ApplicationKey = application,
+            ProtocolVersion = "0.2.0",
+            ClientRunId = Guid.NewGuid(),
+            LinkChallenge = new string('A', 43)
+        }, default);
         if (accepted)
         {
             var reply = Assert.IsType<ProviderAuthAttemptReply>(Assert.IsType<OkObjectResult>(result).Value);
@@ -92,7 +97,10 @@ public class GameAuthControllerShould
         var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         var result = await controller.ProviderAttempt(new GameProviderAttemptRequest
         {
-            ApplicationKey = "steam.main", ProtocolVersion = "1", ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43),
+            ApplicationKey = "steam.main",
+            ProtocolVersion = "1",
+            ClientRunId = Guid.NewGuid(),
+            LinkChallenge = new string('A', 43),
         }, CancellationToken.None);
         Assert.IsType<BadRequestObjectResult>(result);
         Assert.Empty(store.Entries);
@@ -114,7 +122,7 @@ public class GameAuthControllerShould
         var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         controller.Request.Scheme = "https";
         var result = Assert.IsType<BadRequestObjectResult>(await controller.ProviderAttempt(new GameProviderAttemptRequest
-        { ApplicationKey = "steam.main", ProtocolVersion = version, ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A',43) }, CancellationToken.None));
+        { ApplicationKey = "steam.main", ProtocolVersion = version, ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, CancellationToken.None));
         Assert.Equal("UNSUPPORTED_PROTOCOL", Assert.IsType<GameAuthReply>(result.Value).Error);
         Assert.Empty(store.Entries);
     }

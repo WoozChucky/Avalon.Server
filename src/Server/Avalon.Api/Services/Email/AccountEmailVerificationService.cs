@@ -38,7 +38,8 @@ public sealed class AccountEmailVerificationService(IAccountRepository accounts,
         DateTime? resendAt = challenge?.IssuedAt.AddSeconds(config.VerificationCooldownSeconds);
         return new AccountEmailVerificationStatusDto
         {
-            EmailVerifiedAt = account.EmailVerifiedAt, DeliveryAvailable = DeliveryAvailable,
+            EmailVerifiedAt = account.EmailVerifiedAt,
+            DeliveryAvailable = DeliveryAvailable,
             ResendAvailableAt = resendAt > Now ? resendAt : null,
         };
     }

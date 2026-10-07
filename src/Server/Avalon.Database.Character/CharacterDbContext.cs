@@ -178,7 +178,7 @@ public partial class CharacterDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<CharacterInventory> builder)
     {
-        builder.HasKey(b => new {b.CharacterId, b.Container, b.Slot});
+        builder.HasKey(b => new { b.CharacterId, b.Container, b.Slot });
 
         builder.Property(b => b.CharacterId)
             .HasConversion(
@@ -209,7 +209,7 @@ public partial class CharacterDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<CharacterAbility> builder)
     {
-        builder.HasKey(b => new {b.CharacterId, b.AbilityId});
+        builder.HasKey(b => new { b.CharacterId, b.AbilityId });
 
         builder.Property(b => b.CharacterId)
             .HasConversion(

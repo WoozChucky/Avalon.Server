@@ -14,7 +14,7 @@ public sealed class EncounterRegistry : IEncounterRegistry
     public EncounterRegistry(CombatConfig config, TimeProvider? time = null)
     {
         _config = config;
-        _time   = time;
+        _time = time;
     }
 
     public IReadOnlyCollection<IEncounter> Active => _active;

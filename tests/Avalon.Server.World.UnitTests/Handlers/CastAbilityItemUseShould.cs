@@ -24,9 +24,14 @@ public class CastAbilityItemUseShould
         var ends = new List<string>();
         instance.ItemUses.Start(new PendingItemUse
         {
-            Character = client.Character, Item = new ItemTemplateId(3), StartPosition = client.Character.Position,
-            CastId = instance.ItemUses.TakeCastId(), CastTimeSeconds = 3f, CanComplete = () => true,
-            Completed = () => ends.Add("completed"), Interrupted = () => ends.Add("interrupted"),
+            Character = client.Character,
+            Item = new ItemTemplateId(3),
+            StartPosition = client.Character.Position,
+            CastId = instance.ItemUses.TakeCastId(),
+            CastTimeSeconds = 3f,
+            CanComplete = () => true,
+            Completed = () => ends.Add("completed"),
+            Interrupted = () => ends.Add("interrupted"),
         });
 
         handler.Execute(client.Connection, new CCastAbilityPacket { AbilityId = 1 });
@@ -47,9 +52,14 @@ public class CastAbilityItemUseShould
         var ends = new List<string>();
         instance.ItemUses.Start(new PendingItemUse
         {
-            Character = client.Character, Item = new ItemTemplateId(3), StartPosition = client.Character.Position,
-            CastId = instance.ItemUses.TakeCastId(), CastTimeSeconds = 3f, CanComplete = () => true,
-            Completed = () => ends.Add("completed"), Interrupted = () => ends.Add("interrupted"),
+            Character = client.Character,
+            Item = new ItemTemplateId(3),
+            StartPosition = client.Character.Position,
+            CastId = instance.ItemUses.TakeCastId(),
+            CastTimeSeconds = 3f,
+            CanComplete = () => true,
+            Completed = () => ends.Add("completed"),
+            Interrupted = () => ends.Add("interrupted"),
         });
 
         handler.Execute(client.Connection, new CCastAbilityPacket { AbilityId = 1 });

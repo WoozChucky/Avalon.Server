@@ -22,9 +22,14 @@ public class MapInstanceItemUseShould
 
     private static PendingItemUse Pending(MapInstanceClient client, List<string> ends, float seconds = 3f) => new()
     {
-        Character = client.Character, Item = Scroll, StartPosition = client.Character.Position,
-        CastId = 0, CastTimeSeconds = seconds, CanComplete = () => true,
-        Completed = () => ends.Add("completed"), Interrupted = () => ends.Add("interrupted"),
+        Character = client.Character,
+        Item = Scroll,
+        StartPosition = client.Character.Position,
+        CastId = 0,
+        CastTimeSeconds = seconds,
+        CanComplete = () => true,
+        Completed = () => ends.Add("completed"),
+        Interrupted = () => ends.Add("interrupted"),
     };
 
     [Fact]
@@ -48,9 +53,14 @@ public class MapInstanceItemUseShould
         uint castId = instance.ItemUses.TakeCastId();
         instance.ItemUses.Start(new PendingItemUse
         {
-            Character = client.Character, Item = Scroll, StartPosition = client.Character.Position, CastId = castId,
-            CastTimeSeconds = 3f, CanComplete = () => true,
-            Completed = () => ends.Add("completed"), Interrupted = () => ends.Add("interrupted"),
+            Character = client.Character,
+            Item = Scroll,
+            StartPosition = client.Character.Position,
+            CastId = castId,
+            CastTimeSeconds = 3f,
+            CanComplete = () => true,
+            Completed = () => ends.Add("completed"),
+            Interrupted = () => ends.Add("interrupted"),
         });
 
         instance.Update(TimeSpan.FromSeconds(3.1));
@@ -141,8 +151,11 @@ public class MapInstanceItemUseShould
         var creature = new Creature
         {
             Guid = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, id),
-            Metadata = Loot.LootTestData.BoarTemplate(null), Position = new Avalon.Common.Mathematics.Vector3(0, 0, 3),
-            Health = 100, CurrentHealth = 100, Level = 1,
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = new Avalon.Common.Mathematics.Vector3(0, 0, 3),
+            Health = 100,
+            CurrentHealth = 100,
+            Level = 1,
         };
         instance.AddCreature(creature);
         return creature;

@@ -312,8 +312,13 @@ public class TownNpcPlacementShould
     /// <summary>Which building each NPC belongs to (TownPieces.Building names).</summary>
     private static readonly Dictionary<ulong, string> BuildingOf = new()
     {
-        [1] = "Town hall", [2] = "Hunter's lodge", [12] = "Smithy", [13] = "Armourer's stall",
-        [14] = "General-goods stall", [3] = "Inn", [11] = "Bank",
+        [1] = "Town hall",
+        [2] = "Hunter's lodge",
+        [12] = "Smithy",
+        [13] = "Armourer's stall",
+        [14] = "General-goods stall",
+        [3] = "Inn",
+        [11] = "Bank",
     };
 
     /// <summary>Every solid of the town (a non-walkable piece standing below 2 m), with its distance to a world point.</summary>
@@ -407,21 +412,21 @@ public class TownNpcPlacementShould
             {
                 float reach = FramedFraction * distance;
                 for (float dx = -reach; dx <= reach; dx += PlayerGridStep)
-                for (float dz = -reach; dz <= reach; dz += PlayerGridStep)
-                {
-                    if (dx * dx + dz * dz > reach * reach)
-                        continue;
-                    Vector3 eye = new Vector3(x + dx, CameraPivotHeight, z + dz) + toCamera * distance;
-                    Vector3 line = eye - head;
-                    float length = MathF.Sqrt(line.x * line.x + line.y * line.y + line.z * line.z);
-                    for (float t = SightStep; t < length; t += SightStep)
+                    for (float dz = -reach; dz <= reach; dz += PlayerGridStep)
                     {
-                        float f = t / length;
-                        string? hit = SolidAt(head.x + line.x * f, head.y + line.y * f, head.z + line.z * f);
-                        Assert.True(hit is null,
-                            $"creature {spawn.CreatureTemplateId.Value} at ({x}, {z}) is hidden by {hit} from a player at ({x + dx}, {z + dz}), zoom {distance}");
+                        if (dx * dx + dz * dz > reach * reach)
+                            continue;
+                        Vector3 eye = new Vector3(x + dx, CameraPivotHeight, z + dz) + toCamera * distance;
+                        Vector3 line = eye - head;
+                        float length = MathF.Sqrt(line.x * line.x + line.y * line.y + line.z * line.z);
+                        for (float t = SightStep; t < length; t += SightStep)
+                        {
+                            float f = t / length;
+                            string? hit = SolidAt(head.x + line.x * f, head.y + line.y * f, head.z + line.z * f);
+                            Assert.True(hit is null,
+                                $"creature {spawn.CreatureTemplateId.Value} at ({x}, {z}) is hidden by {hit} from a player at ({x + dx}, {z + dz}), zoom {distance}");
+                        }
                     }
-                }
             }
         }
     }

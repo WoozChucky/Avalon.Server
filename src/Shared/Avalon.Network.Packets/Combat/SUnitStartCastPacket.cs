@@ -53,7 +53,11 @@ public class SUnitStartCastPacket : Packet
         => PacketSerializationHelper.Serialize(
             new SUnitStartCastPacket
             {
-                Caster = caster.RawValue, CastTime = castTime, AbilityId = abilityId, CastId = castId, Footprint = footprint,
+                Caster = caster.RawValue,
+                CastTime = castTime,
+                AbilityId = abilityId,
+                CastId = castId,
+                Footprint = footprint,
             },
             PacketType, Flags, Protocol, encryptFunc);
 }

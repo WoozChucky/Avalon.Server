@@ -46,10 +46,21 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         var ticketKey = Key("join-ticket", GameAuthCryptography.Digest(ticket));
         var grant = new JoinTicketGrant
         {
-            TicketId = Guid.NewGuid(), GameSessionId = Guid.NewGuid(), ContextId = context.Id, ContextGeneration = context.Generation,
-            AccountId = accountId, CredentialsVersion = context.CredentialsVersion, SessionEpoch = context.SessionEpoch,
-            ServerId = destination.ServerId, WorldId = worldId, CharacterId = characterId, Environment = options.Value.Environment,
-            ExpectedFence = head?.FencingToken ?? 0, Takeover = confirmTakeover || reconnect, ExpiresAt = expires, AuthorizationUntil = until,
+            TicketId = Guid.NewGuid(),
+            GameSessionId = Guid.NewGuid(),
+            ContextId = context.Id,
+            ContextGeneration = context.Generation,
+            AccountId = accountId,
+            CredentialsVersion = context.CredentialsVersion,
+            SessionEpoch = context.SessionEpoch,
+            ServerId = destination.ServerId,
+            WorldId = worldId,
+            CharacterId = characterId,
+            Environment = options.Value.Environment,
+            ExpectedFence = head?.FencingToken ?? 0,
+            Takeover = confirmTakeover || reconnect,
+            ExpiresAt = expires,
+            AuthorizationUntil = until,
         };
         var reply = new GameJoinReply(JoinTicket: ticket, ExpiresAt: expires, Destination: destination);
         var contextKey = Key("context", context.Id.ToString("N"));
@@ -98,16 +109,24 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             if (!await store.CompareExchangeAsync([new(key, raw, claimedRaw, grant.ExpiresAt.Add(GameAuthPolicy.JoinReceiptRetention))], cancellationToken)) continue;
             var reservation = new GameSessionReservation(new AccountId(grant.AccountId), grant.ExpectedFence, grant.GameSessionId,
                 serverId, grant.WorldId, grant.Environment, grant.CredentialsVersion, grant.SessionEpoch, grant.AuthorizationUntil, grant.Takeover)
-                { GameContextId = grant.ContextId, AdmissionExpiresAt = grant.ExpiresAt };
+            { GameContextId = grant.ContextId, AdmissionExpiresAt = grant.ExpiresAt };
             var head = await sessions.TryReserveAsync(reservation, Now, cancellationToken);
             var reply = head is null ? JoinRedemptionReceipt.Failure(GameAuthErrors.SessionConflict) :
                 grant.ExpiresAt <= Now ? JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired) : new JoinRedemptionReceipt
                 {
-                    AccountId = grant.AccountId.ToString(CultureInfo.InvariantCulture), GameSessionId = head.GameSessionId.ToString("D"),
-                    GameContextId = grant.ContextId.ToString("D"), FencingToken = head.FencingToken.ToString(CultureInfo.InvariantCulture),
-                    ConnectionId = connectionId.ToString("D"), RedemptionId = redemptionId.ToString("D"), ServerId = serverId,
-                    WorldId = grant.WorldId, CharacterId = grant.CharacterId, CredentialsVersion = head.CredentialsVersion,
-                    SessionEpoch = head.SessionEpoch.ToString(CultureInfo.InvariantCulture), LeaseUntil = head.LeaseUntil, AuthorizationUntil = head.LicenseUntil,
+                    AccountId = grant.AccountId.ToString(CultureInfo.InvariantCulture),
+                    GameSessionId = head.GameSessionId.ToString("D"),
+                    GameContextId = grant.ContextId.ToString("D"),
+                    FencingToken = head.FencingToken.ToString(CultureInfo.InvariantCulture),
+                    ConnectionId = connectionId.ToString("D"),
+                    RedemptionId = redemptionId.ToString("D"),
+                    ServerId = serverId,
+                    WorldId = grant.WorldId,
+                    CharacterId = grant.CharacterId,
+                    CredentialsVersion = head.CredentialsVersion,
+                    SessionEpoch = head.SessionEpoch.ToString(CultureInfo.InvariantCulture),
+                    LeaseUntil = head.LeaseUntil,
+                    AuthorizationUntil = head.LicenseUntil,
                 };
             var expiry = Min(grant.ExpiresAt.Add(GameAuthPolicy.JoinReceiptRetention), grant.AuthorizationUntil, head?.LeaseUntil ?? grant.ExpiresAt);
             var finished = claimed with { Receipt = crypto.ProtectText(GameAuthJson.Serialize(reply), key + ":" + binding), ReceiptExpiresAt = expiry, WorkerUntil = null };

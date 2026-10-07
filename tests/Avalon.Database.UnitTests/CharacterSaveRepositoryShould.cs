@@ -141,8 +141,18 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         CharacterRow row = await SeedCharacterAsync(1);
         CharacterAura Aura(int slot, uint auraId) => new()
         {
-            CharacterId = row.Id, Slot = slot, AuraId = auraId, CasterGuid = 5, Stacks = 1, RemainingMs = 4000,
-            DurationMs = 6000, TicksLeft = 1, TickAmount = 2.5f, CritPct = 1f, CasterLevel = 3, PeriodicCarry = 0.75d,
+            CharacterId = row.Id,
+            Slot = slot,
+            AuraId = auraId,
+            CasterGuid = 5,
+            Stacks = 1,
+            RemainingMs = 4000,
+            DurationMs = 6000,
+            TicksLeft = 1,
+            TickAmount = 2.5f,
+            CritPct = 1f,
+            CasterLevel = 3,
+            PeriodicCarry = 0.75d,
             AppliedAt = DateTime.UtcNow,
         };
 
@@ -158,7 +168,10 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
     {
         var row = new CharacterRow
         {
-            Id = new CharacterId(id), AccountId = new AccountId(1), Name = $"Saver{id}", CreationDate = DateTime.UtcNow,
+            Id = new CharacterId(id),
+            AccountId = new AccountId(1),
+            Name = $"Saver{id}",
+            CreationDate = DateTime.UtcNow,
         };
         await using CharacterDbContext context = _database.CreateDbContext();
         context.Characters.Add(row);

@@ -127,8 +127,18 @@ public sealed class PurchaseRepositoryShould
         Assert.Single(await repo.ClaimEventsAsync(_clock.Now, 10, TimeSpan.FromMinutes(2)));
     }
 
-    private static PaymentEvent Event(string reference) => new() { Id = Guid.NewGuid(), Provider = "stripe", ProviderAccountId = "merchant-test",
-        Environment = "sandbox", ExternalReference = reference, Type = "checkout", ResourceReference = "checkout-one", CreatedAt = Now, NextAttemptAt = Now };
+    private static PaymentEvent Event(string reference) => new()
+    {
+        Id = Guid.NewGuid(),
+        Provider = "stripe",
+        ProviderAccountId = "merchant-test",
+        Environment = "sandbox",
+        ExternalReference = reference,
+        Type = "checkout",
+        ResourceReference = "checkout-one",
+        CreatedAt = Now,
+        NextAttemptAt = Now
+    };
 
     internal static async Task<Avalon.Domain.Auth.Account> Account(SqliteDatabase<AuthDbContext> database, string name)
     {

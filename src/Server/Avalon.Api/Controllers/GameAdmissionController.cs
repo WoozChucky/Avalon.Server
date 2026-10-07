@@ -56,9 +56,11 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
                 requestId, request.ConfirmTakeover, reconnect, cancellationToken);
             return reply.Error switch
             {
-                null => Ok(reply), GameAuthErrors.InvalidRequest => BadRequest(reply),
+                null => Ok(reply),
+                GameAuthErrors.InvalidRequest => BadRequest(reply),
                 GameAuthErrors.ActiveGameSession or GameAuthErrors.IdempotencyConflict or GameAuthErrors.ContextChanged => Conflict(reply),
-                GameAuthErrors.WorldUnavailable => StatusCode(503, reply), _ => Unauthorized(reply),
+                GameAuthErrors.WorldUnavailable => StatusCode(503, reply),
+                _ => Unauthorized(reply),
             };
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)

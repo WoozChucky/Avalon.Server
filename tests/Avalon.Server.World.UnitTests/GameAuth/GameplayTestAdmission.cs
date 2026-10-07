@@ -22,10 +22,18 @@ internal static class GameplayTestAdmission
         typeof(Avalon.World.WorldConnection).GetField("_tlsAuthenticated", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(connection, true);
         var lease = GameSessionLease.TryCreate(new()
         {
-            State = "active", AccountId = account.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            GameSessionId = Guid.NewGuid().ToString("D"), GameContextId = Guid.NewGuid().ToString("D"), FencingToken = "1",
-            ServerId = "world-one", WorldId = 1, AccessLevel = (ushort)connection.AccessLevel, CredentialsVersion = 0, SessionEpoch = "0",
-            LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(44), AuthorizationUntil = clock.GetUtcNow().UtcDateTime.AddMinutes(5)
+            State = "active",
+            AccountId = account.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            GameSessionId = Guid.NewGuid().ToString("D"),
+            GameContextId = Guid.NewGuid().ToString("D"),
+            FencingToken = "1",
+            ServerId = "world-one",
+            WorldId = 1,
+            AccessLevel = (ushort)connection.AccessLevel,
+            CredentialsVersion = 0,
+            SessionEpoch = "0",
+            LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(44),
+            AuthorizationUntil = clock.GetUtcNow().UtcDateTime.AddMinutes(5)
         }, "world-one", 1, clock)!;
         connection.PublishAdmission(lease); connection.AcceptProtocol();
         return lease;

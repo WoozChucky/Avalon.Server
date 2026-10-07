@@ -126,7 +126,7 @@ public class CreatureCombatScriptShould
 
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
 
         var metadata = Substitute.For<ICreatureMetadata>();
@@ -189,7 +189,7 @@ public class CreatureCombatScriptShould
 
         ICreature creature = Substitute.For<ICreature>();
         creature.Position.Returns(new Vector3(5f, 0f, 5f));
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
 
@@ -248,11 +248,11 @@ public class CreatureCombatScriptShould
         var (script, encounter, _) = BuildScript(out var creature);
 
         ICharacter tank = Substitute.For<ICharacter>();
-        ICharacter dps  = Substitute.For<ICharacter>();
+        ICharacter dps = Substitute.For<ICharacter>();
 
         // DPS would normally be top-threat, but tank has an active taunt.
         encounter.GetTopThreat(creature).Returns(dps);
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = DateTime.UtcNow.AddSeconds(5);
 
         IUnit? picked = script.PickTarget();
@@ -266,12 +266,12 @@ public class CreatureCombatScriptShould
         var (script, encounter, _) = BuildScript(out var creature);
 
         ICharacter tank = Substitute.For<ICharacter>();
-        ICharacter dps  = Substitute.For<ICharacter>();
+        ICharacter dps = Substitute.For<ICharacter>();
 
         encounter.GetTopThreat(creature).Returns(dps);
 
         // Taunt that has already expired.
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = DateTime.UtcNow.AddSeconds(-1);
 
         IUnit? picked = script.PickTarget();
@@ -289,9 +289,9 @@ public class CreatureCombatScriptShould
         var clock = new FixedTimeProvider(new DateTimeOffset(2040, 1, 1, 12, 0, 0, TimeSpan.Zero));
         var (script, encounter, _) = BuildScript(out var creature, clock);
         ICharacter tank = Substitute.For<ICharacter>();
-        ICharacter dps  = Substitute.For<ICharacter>();
+        ICharacter dps = Substitute.For<ICharacter>();
         encounter.GetTopThreat(creature).Returns(dps);
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = clock.Now.UtcDateTime.AddSeconds(5);
 
         Assert.Same(tank, script.PickTarget());
@@ -315,7 +315,7 @@ public class CreatureCombatScriptShould
         ICreature creature = Substitute.For<ICreature>();
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         ICharacter tank = Substitute.For<ICharacter>();
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = clock.Now.UtcDateTime.AddSeconds(5);
 
         var script = (CreatureCombatScript)ActivatorUtilities.CreateInstance(
@@ -332,7 +332,7 @@ public class CreatureCombatScriptShould
         var (script, encounter, _) = BuildScript(out var creature, clock);
         ICharacter tank = Substitute.For<ICharacter>();
         encounter.GetTopThreat(creature).Returns(Substitute.For<ICharacter>());
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = clock.Now.UtcDateTime.AddMilliseconds(1);
 
         Assert.Same(tank, script.PickTarget());
@@ -346,11 +346,11 @@ public class CreatureCombatScriptShould
         // floating-point edge cases), the taunter wins while the taunt is active.
         var (script, encounter, _) = BuildScript(out var creature);
 
-        ICharacter tank      = Substitute.For<ICharacter>();
+        ICharacter tank = Substitute.For<ICharacter>();
         ICharacter someoneElse = Substitute.For<ICharacter>();
 
         encounter.GetTopThreat(creature).Returns(someoneElse);
-        creature.TauntedBy      = tank;
+        creature.TauntedBy = tank;
         creature.TauntExpiresAt = DateTime.UtcNow.AddSeconds(2);
 
         IUnit? picked = script.PickTarget();
@@ -439,7 +439,7 @@ public class CreatureCombatScriptShould
 
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         creature.Speed.Returns(4f);
@@ -631,7 +631,7 @@ public class CreatureCombatScriptShould
             ICreature creature = Substitute.For<ICreature>();
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(i + 1)));
             creature.Position.Returns(starts[i]);
-            creature.TauntedBy      = null;
+            creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
 
             var metadata = Substitute.For<ICreatureMetadata>();
@@ -743,7 +743,7 @@ public class CreatureCombatScriptShould
             ICreature creature = Substitute.For<ICreature>();
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(i + 1)));
             creature.Position.Returns(starts[i]);
-            creature.TauntedBy      = null;
+            creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
 
             var metadata = Substitute.For<ICreatureMetadata>();
@@ -857,7 +857,7 @@ public class CreatureCombatScriptShould
             ICreature creature = Substitute.For<ICreature>();
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(i + 1)));
             creature.Position.Returns(starts[i]);
-            creature.TauntedBy      = null;
+            creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
 
             var metadata = Substitute.For<ICreatureMetadata>();
@@ -961,7 +961,7 @@ public class CreatureCombatScriptShould
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
         creature.Position.Returns(new Vector3(12f, 0f, 0f));
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
 
         var metadata = Substitute.For<ICreatureMetadata>();
@@ -1823,12 +1823,12 @@ public class CreatureCombatScriptShould
         // NSubstitute auto-substitutes reference-type reads. Initialise the taunt fields so
         // the no-taunt branch in PickTarget is the default rather than picking up an
         // auto-stubbed IUnit.
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
 
         var encounter = Substitute.For<IEncounter>();
-        var combat    = Substitute.For<ICombatService>();
+        var combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(creature).Returns(encounter);
 
         var context = Substitute.For<ISimulationContext>();
@@ -1849,7 +1849,7 @@ public class CreatureCombatScriptShould
             creature = Substitute.For<ICreature>();
             creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
             creature.Position.Returns(Vector3.zero);
-            creature.TauntedBy      = null;
+            creature.TauntedBy = null;
             creature.TauntExpiresAt = DateTime.MinValue;
             creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         }
@@ -1903,7 +1903,7 @@ public class CreatureCombatScriptShould
     {
         ICreature creature = Substitute.For<ICreature>();
         creature.Position.Returns(home);
-        creature.TauntedBy      = null;
+        creature.TauntedBy = null;
         creature.TauntExpiresAt = DateTime.MinValue;
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         creature.Health.Returns(100u);

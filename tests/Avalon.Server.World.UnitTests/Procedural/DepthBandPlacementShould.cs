@@ -65,8 +65,13 @@ public class DepthBandPlacementShould
 
     private static SpawnTableEntry Entry(int id, string tag, ulong creature, byte min, byte max) => new()
     {
-        Id = id, SpawnTableId = new SpawnTableId(1), Tag = tag, CreatureId = new CreatureTemplateId(creature),
-        Weight = 1f, MinCount = min, MaxCount = max,
+        Id = id,
+        SpawnTableId = new SpawnTableId(1),
+        Tag = tag,
+        CreatureId = new CreatureTemplateId(creature),
+        Weight = 1f,
+        MinCount = min,
+        MaxCount = max,
     };
 
     private static CreaturePlacementService Service(ICreatureSpawner spawner, Dictionary<int, ChunkTemplate> templates, params SpawnTableEntry[] entries)
@@ -82,7 +87,8 @@ public class DepthBandPlacementShould
 
     private static ChunkTemplate Piece(int id, params string[] tags) => new()
     {
-        Id = new ChunkTemplateId(id), Name = $"p{id}",
+        Id = new ChunkTemplateId(id),
+        Name = $"p{id}",
         SpawnSlots = tags.Select((t, i) => new ChunkSpawnSlot { Tag = t, LocalX = 5 + i * 5, LocalY = 1, LocalZ = 10 }).ToList(),
     };
 
@@ -206,7 +212,8 @@ public class DepthBandPlacementShould
 
     private static ChunkTemplate Slots(int id, params (string Tag, float X, float Z)[] slots) => new()
     {
-        Id = new ChunkTemplateId(id), Name = $"p{id}",
+        Id = new ChunkTemplateId(id),
+        Name = $"p{id}",
         SpawnSlots = slots.Select(s => new ChunkSpawnSlot { Tag = s.Tag, LocalX = s.X, LocalY = 1, LocalZ = s.Z }).ToList(),
     };
 
@@ -233,7 +240,10 @@ public class DepthBandPlacementShould
         var spawned = new List<Spawned>();
         var templates = new Dictionary<int, ChunkTemplate>
         {
-            [1] = Piece(1, "pack"), [2] = Piece(2, "pack"), [3] = Piece(3, "pack"), [4] = Piece(4, "pack"),
+            [1] = Piece(1, "pack"),
+            [2] = Piece(2, "pack"),
+            [3] = Piece(3, "pack"),
+            [4] = Piece(4, "pack"),
         };
         CreaturePlacementService service = Service(Recording(spawned), templates, Entry(1, "pack", 4, 1, 1));
 

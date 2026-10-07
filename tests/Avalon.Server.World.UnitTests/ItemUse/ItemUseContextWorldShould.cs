@@ -46,8 +46,13 @@ public class ItemUseContextWorldShould
     {
         var boar = new Creature
         {
-            Guid = new ObjectGuid(ObjectType.Creature, id), Metadata = Loot.LootTestData.BoarTemplate(null),
-            Position = at, Health = 100, CurrentHealth = 100, Level = 1, Invulnerable = invulnerable,
+            Guid = new ObjectGuid(ObjectType.Creature, id),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = at,
+            Health = 100,
+            CurrentHealth = 100,
+            Level = 1,
+            Invulnerable = invulnerable,
         };
         instance.AddCreature(boar);
         return boar;

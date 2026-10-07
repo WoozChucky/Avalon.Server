@@ -39,20 +39,38 @@ public class CombatResolutionShould
 {
     private static readonly ClassLevelStat WarriorLevel1 = new()
     {
-        Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0,
-        Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+        Class = CharacterClass.Warrior,
+        Level = 1,
+        BaseHp = 20,
+        BaseMana = 0,
+        Stamina = 22,
+        Strength = 23,
+        Agility = 20,
+        Intellect = 20,
     };
 
     private static readonly ClassLevelStat WarriorLevel2 = new()
     {
-        Class = CharacterClass.Warrior, Level = 2, BaseHp = 40, BaseMana = 0,
-        Stamina = 24, Strength = 25, Agility = 21, Intellect = 20,
+        Class = CharacterClass.Warrior,
+        Level = 2,
+        BaseHp = 40,
+        BaseMana = 0,
+        Stamina = 24,
+        Strength = 25,
+        Agility = 21,
+        Intellect = 20,
     };
 
     private static readonly ClassLevelStat WizardLevel1 = new()
     {
-        Class = CharacterClass.Wizard, Level = 1, BaseHp = 16, BaseMana = 20,
-        Stamina = 21, Strength = 20, Agility = 20, Intellect = 23,
+        Class = CharacterClass.Wizard,
+        Level = 1,
+        BaseHp = 16,
+        BaseMana = 20,
+        Stamina = 21,
+        Strength = 20,
+        Agility = 20,
+        Intellect = 23,
     };
 
     private static readonly ClassLevelStat[] Rows = [WarriorLevel1, WarriorLevel2, WizardLevel1];
@@ -67,8 +85,12 @@ public class CombatResolutionShould
     /// <summary>Chest armour 24, the plan's worked example.</summary>
     private static readonly ItemTemplate Plate = new()
     {
-        Id = new ItemTemplateId(506_004), Name = "Plate", Slot = ItemSlotType.Chest, MaxStackSize = 1,
-        StatType1 = StatType.Armor, StatValue1 = 24,
+        Id = new ItemTemplateId(506_004),
+        Name = "Plate",
+        Slot = ItemSlotType.Chest,
+        MaxStackSize = 1,
+        StatType1 = StatType.Armor,
+        StatValue1 = 24,
     };
 
     private static readonly Dictionary<ItemTemplateId, ItemTemplate> Templates =
@@ -76,8 +98,14 @@ public class CombatResolutionShould
 
     private static ItemTemplate Weapon(ulong id, uint min, uint max) => new()
     {
-        Id = new ItemTemplateId(id), Name = $"Weapon {id}", Class = ItemClass.Weapon, SubClass = ItemSubClass.OneHanded,
-        Slot = ItemSlotType.MainHand, MaxStackSize = 1, DamageMin1 = min, DamageMax1 = max,
+        Id = new ItemTemplateId(id),
+        Name = $"Weapon {id}",
+        Class = ItemClass.Weapon,
+        SubClass = ItemSubClass.OneHanded,
+        Slot = ItemSlotType.MainHand,
+        MaxStackSize = 1,
+        DamageMin1 = min,
+        DamageMax1 = max,
     };
 
     /// <summary>Cleave as seeded (#506): 12 + 0.3 x AttackDamage + 1.0 x a weapon roll, 8 Fury per unit damaged.</summary>
@@ -197,11 +225,15 @@ public class CombatResolutionShould
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, random: rng);
         var row = new Avalon.Domain.Characters.Character
         {
-            Id = new CharacterId(506_121), AccountId = new AccountId(1), Name = "Wizard", Class = CharacterClass.Wizard,
+            Id = new CharacterId(506_121),
+            AccountId = new AccountId(1),
+            Name = "Wizard",
+            Class = CharacterClass.Wizard,
             CreationDate = DateTime.UtcNow,
         };
         var wizard = new CharacterEntity(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, row,
-            new Avalon.Combat.RegenConfiguration()) { Data = row };
+            new Avalon.Combat.RegenConfiguration())
+        { Data = row };
         MapInstanceClient caster = Join(instance, wizard);
         wizard.PowerType = PowerType.Mana;
         wizard.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.MainHand, Staff)]);

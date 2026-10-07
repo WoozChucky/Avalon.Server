@@ -145,7 +145,8 @@ public sealed class ProcessContinuationsShould : IDisposable
                 tcs.SetResult(true);
                 Volatile.Write(ref pending, null);
             }
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         completer.Start();
 
         var lost = 0;

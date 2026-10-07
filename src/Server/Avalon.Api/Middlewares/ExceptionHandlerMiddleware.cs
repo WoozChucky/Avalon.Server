@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using System.Net;
 using System.Security.Authentication;
 using Avalon.Api.Exceptions;

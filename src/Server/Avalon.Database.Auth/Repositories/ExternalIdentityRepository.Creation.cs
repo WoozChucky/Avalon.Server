@@ -42,10 +42,17 @@ public sealed partial class ExternalIdentityRepository
         // The caller supplies account details. Privileges and initial authority are fixed here.
         var account = new Account
         {
-            Username = operation.Account.Username, Email = operation.Account.Email, IsStoreGenerated = operation.Account.IsStoreGenerated,
-            Salt = operation.Account.Salt.ToArray(), Verifier = operation.Account.Verifier.ToArray(),
-            JoinDate = now, LastLogin = now, LastIp = operation.Account.LastIp,
-            Status = AccountStatus.Active, AccessLevel = AccountAccessLevel.Player, SessionEpoch = 1,
+            Username = operation.Account.Username,
+            Email = operation.Account.Email,
+            IsStoreGenerated = operation.Account.IsStoreGenerated,
+            Salt = operation.Account.Salt.ToArray(),
+            Verifier = operation.Account.Verifier.ToArray(),
+            JoinDate = now,
+            LastLogin = now,
+            LastIp = operation.Account.LastIp,
+            Status = AccountStatus.Active,
+            AccessLevel = AccountAccessLevel.Player,
+            SessionEpoch = 1,
         };
         db.Accounts.Add(account);
         try
@@ -53,14 +60,21 @@ public sealed partial class ExternalIdentityRepository
             await db.SaveChangesAsync(cancellationToken);
             var identity = new ExternalIdentity
             {
-                Id = operation.OperationId, AccountId = account.Id, Provider = operation.Provider,
-                ProviderSubject = operation.Subject, LinkedAt = now,
+                Id = operation.OperationId,
+                AccountId = account.Id,
+                Provider = operation.Provider,
+                ProviderSubject = operation.Subject,
+                LinkedAt = now,
             };
             db.ExternalIdentities.Add(identity);
             db.StoreAccountCreations.Add(new StoreAccountCreation
             {
-                Id = operation.OperationId, AccountId = account.Id, Provider = operation.Provider, ProviderSubject = operation.Subject,
-                CreatedAt = now, ProofExpiresAt = operation.ProofExpiresAt,
+                Id = operation.OperationId,
+                AccountId = account.Id,
+                Provider = operation.Provider,
+                ProviderSubject = operation.Subject,
+                CreatedAt = now,
+                ProofExpiresAt = operation.ProofExpiresAt,
             });
             await db.SaveChangesAsync(cancellationToken);
             if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);

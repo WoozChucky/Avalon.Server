@@ -97,9 +97,18 @@ public sealed class LicenseHoldShould
     private static async Task<GameLicense> Grant(SqliteDatabase<AuthDbContext> database, Avalon.Common.ValueObjects.AccountId? accountId = null)
     {
         var account = accountId ?? (await PurchaseRepositoryShould.Account(database, "HOLD")).Id;
-        return await new GameLicenseRepository(database).RecordGrantAsync(new GameLicense { Id = Guid.NewGuid(), AccountId = account,
-            Product = "avalon.base", Provider = "avalon", Environment = "development", ProviderProductId = "base", LicenseReference = Guid.NewGuid().ToString("N"),
-            AuthorityKind = LicenseAuthorityKind.StoredGrant, GrantedAt = Now.AddDays(-1) });
+        return await new GameLicenseRepository(database).RecordGrantAsync(new GameLicense
+        {
+            Id = Guid.NewGuid(),
+            AccountId = account,
+            Product = "avalon.base",
+            Provider = "avalon",
+            Environment = "development",
+            ProviderProductId = "base",
+            LicenseReference = Guid.NewGuid().ToString("N"),
+            AuthorityKind = LicenseAuthorityKind.StoredGrant,
+            GrantedAt = Now.AddDays(-1)
+        });
     }
 
     [Fact]

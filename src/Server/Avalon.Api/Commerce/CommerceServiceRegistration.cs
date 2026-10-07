@@ -27,8 +27,10 @@ public static class CommerceServiceRegistration
             .ConfigureAdditionalHttpMessageHandlers((handlers, _) => { handlers.Clear(); handlers.Add(new Commerce.PaymentSecretProtectionHandler()); })
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
             {
-                AllowAutoRedirect = false, MaxConnectionsPerServer = 16,
-                ConnectTimeout = TimeSpan.FromSeconds(5), ActivityHeadersPropagator = null,
+                AllowAutoRedirect = false,
+                MaxConnectionsPerServer = 16,
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+                ActivityHeadersPropagator = null,
             });
 #pragma warning restore EXTEXP0001
         services.AddSingleton(sp =>

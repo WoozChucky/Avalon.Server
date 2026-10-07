@@ -149,7 +149,9 @@ public class RepositoryWritePathShould
 
         Domain.Characters.Character owner = await characters.CreateAsync(new Domain.Characters.Character
         {
-            AccountId = new AccountId(1), Name = "Holder", CreationDate = DateTime.UtcNow,
+            AccountId = new AccountId(1),
+            Name = "Holder",
+            CreationDate = DateTime.UtcNow,
         });
 
         List<ItemInstance> created = await items.CreateAsync([NewItemInstance(owner.Id), NewItemInstance(owner.Id)]);
@@ -157,7 +159,10 @@ public class RepositoryWritePathShould
         await slots.CreateAsync(created
             .Select((item, index) => new Domain.Characters.CharacterInventory
             {
-                CharacterId = owner.Id, Container = InventoryType.Bag, Slot = (ushort)index, ItemId = item.Id,
+                CharacterId = owner.Id,
+                Container = InventoryType.Bag,
+                Slot = (ushort)index,
+                ItemId = item.Id,
             })
             .ToList());
 

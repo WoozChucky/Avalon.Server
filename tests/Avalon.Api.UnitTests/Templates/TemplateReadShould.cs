@@ -34,7 +34,7 @@ public class TemplateReadShould
         var row = new ItemTemplate { Id = new ItemTemplateId(1), Name = "Sword" };
         repository.FindByIdAsync(Arg.Any<ItemTemplateId>(), false, Arg.Any<CancellationToken>()).Returns(row);
         var sut = new ItemTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
-            { ControllerContext = Context() };
+        { ControllerContext = Context() };
 
         var dto = Dto<ItemTemplateDto>(await sut.Get(1, CancellationToken.None));
 
@@ -52,7 +52,7 @@ public class TemplateReadShould
         var row = new AbilityTemplate { Id = new AbilityId(1), Name = "Cleave", ScriptName = "s", AuraId = new AuraId(1) };
         repository.FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>()).Returns(row);
         var sut = new AbilityTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
-            { ControllerContext = Context() };
+        { ControllerContext = Context() };
 
         var dto = Dto<AbilityTemplateDto>(await sut.Get(1, CancellationToken.None));
 
@@ -68,13 +68,18 @@ public class TemplateReadShould
         var repository = Substitute.For<IAuraTemplateRepository>();
         var row = new Avalon.Domain.World.AuraTemplate
         {
-            Id = new AuraId(5), Name = "Fortified", Icon = "fortified", Kind = Avalon.Domain.World.AuraKind.Helpful,
-            DurationMs = 30000, Stacking = Avalon.Domain.World.AuraStacking.Refresh, MaxStacks = 1,
+            Id = new AuraId(5),
+            Name = "Fortified",
+            Icon = "fortified",
+            Kind = Avalon.Domain.World.AuraKind.Helpful,
+            DurationMs = 30000,
+            Stacking = Avalon.Domain.World.AuraStacking.Refresh,
+            MaxStacks = 1,
             Modifiers = [new Avalon.Domain.World.AuraStatModifier { AuraId = new AuraId(5), Stat = Avalon.Domain.World.AuraStat.Armor, Kind = Avalon.Domain.World.AuraModifierKind.Percent, Value = 20f }],
         };
         repository.FindByIdAsync(Arg.Any<AuraId>(), Arg.Any<CancellationToken>()).Returns(row);
         var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
-            { ControllerContext = Context() };
+        { ControllerContext = Context() };
 
         var dto = Dto<AuraTemplateDto>(await sut.Get(5, CancellationToken.None));
 
@@ -93,14 +98,21 @@ public class TemplateReadShould
         var repository = Substitute.For<IAuraTemplateRepository>();
         var row = new Avalon.Domain.World.AuraTemplate
         {
-            Id = new AuraId(6), Name = "Poison", Icon = "poison", Kind = Avalon.Domain.World.AuraKind.Harmful,
-            DurationMs = 9000, TickIntervalMs = 3000, PeriodicKind = Avalon.Domain.World.AuraPeriodicKind.Damage,
-            PeriodicBase = 3f, BaseDamageCoefficient = 1f,
-            Stacking = Avalon.Domain.World.AuraStacking.Stack, MaxStacks = 3,
+            Id = new AuraId(6),
+            Name = "Poison",
+            Icon = "poison",
+            Kind = Avalon.Domain.World.AuraKind.Harmful,
+            DurationMs = 9000,
+            TickIntervalMs = 3000,
+            PeriodicKind = Avalon.Domain.World.AuraPeriodicKind.Damage,
+            PeriodicBase = 3f,
+            BaseDamageCoefficient = 1f,
+            Stacking = Avalon.Domain.World.AuraStacking.Stack,
+            MaxStacks = 3,
         };
         repository.FindByIdAsync(Arg.Any<AuraId>(), Arg.Any<CancellationToken>()).Returns(row);
         var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
-            { ControllerContext = Context() };
+        { ControllerContext = Context() };
 
         var dto = Dto<AuraTemplateDto>(await sut.Get(6, CancellationToken.None));
 
@@ -114,7 +126,7 @@ public class TemplateReadShould
     {
         var repository = Substitute.For<IAuraTemplateRepository>();
         var sut = new AuraTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
-            { ControllerContext = Context() };
+        { ControllerContext = Context() };
 
         Assert.IsType<NotFoundResult>(await sut.Get(7, CancellationToken.None));
     }
@@ -141,7 +153,7 @@ public class TemplateReadShould
         var row = new CreatureTemplate { Id = new CreatureTemplateId(1), Name = "Wolf" };
         repository.FindByIdAsync(Arg.Any<CreatureTemplateId>(), false, Arg.Any<CancellationToken>()).Returns(row);
         var sut = new CreatureTemplateController(repository, World(world), Microsoft.Extensions.Options.Options.Create(Options))
-            { ControllerContext = Context() };
+        { ControllerContext = Context() };
 
         var dto = Dto<CreatureTemplateDto>(await sut.Get(1, CancellationToken.None));
 
@@ -158,7 +170,7 @@ public class TemplateReadShould
         repository.PaginateAsync(Arg.Any<EntityPaginateFilter<ItemTemplate>>(), false, Arg.Any<CancellationToken>())
             .Returns(new PagedResult<ItemTemplate>(1, 50, 1, [row]));
         var sut = new ItemTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
-            { ControllerContext = Context() };
+        { ControllerContext = Context() };
 
         var page = await sut.List(1, 50, CancellationToken.None);
 
@@ -172,12 +184,17 @@ public class TemplateReadShould
         var repository = Substitute.For<IItemTemplateRepository>();
         var row = new ItemTemplate
         {
-            Id = new ItemTemplateId(3), Name = "Town Portal Scroll", UseScript = "TownPortalScroll", UseCastTimeMs = 3000,
-            UseCooldownMs = 30000, UseCooldownGroup = "scroll", UseValue = 7,
+            Id = new ItemTemplateId(3),
+            Name = "Town Portal Scroll",
+            UseScript = "TownPortalScroll",
+            UseCastTimeMs = 3000,
+            UseCooldownMs = 30000,
+            UseCooldownGroup = "scroll",
+            UseValue = 7,
         };
         repository.FindByIdAsync(Arg.Any<ItemTemplateId>(), false, Arg.Any<CancellationToken>()).Returns(row);
         var sut = new ItemTemplateController(repository, World(1), Microsoft.Extensions.Options.Options.Create(Options))
-            { ControllerContext = Context() };
+        { ControllerContext = Context() };
 
         var dto = Dto<ItemTemplateDto>(await sut.Get(3, CancellationToken.None));
 

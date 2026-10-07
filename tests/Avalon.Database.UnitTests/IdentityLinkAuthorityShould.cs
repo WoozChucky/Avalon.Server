@@ -61,7 +61,7 @@ public class IdentityLinkAuthorityShould
         var account = await accounts.CreateAsync(StoreAuthenticationModelShould.Account("EXPIRED"));
         var repo = new ExternalIdentityRepository(database, new FixedClock(Now.AddMinutes(5)));
         var operation = new IdentityLinkOperation(Guid.NewGuid(), account.Id, "steam", "76561198000000001", 0, 0, null)
-            { ProofExpiresAt = Now.AddMinutes(5) };
+        { ProofExpiresAt = Now.AddMinutes(5) };
         Assert.Equal(IdentityLinkStatus.AuthorityChanged, (await repo.LinkWithAuthorityAsync(operation, Now)).Status);
         Assert.Null(await repo.FindAsync("steam", "76561198000000001"));
         Assert.Equal(0, (await accounts.FindByIdAsync(account.Id))!.SessionEpoch);

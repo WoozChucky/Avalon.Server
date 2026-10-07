@@ -452,8 +452,12 @@ public class CharacterSelectChainShould : IDisposable
 
         held.SetResult(new Character
         {
-            Id = TheCharacter, AccountId = TheAccount, Name = "Tester", Class = CharacterClass.Warrior,
-            Level = 1, Map = TownMapId
+            Id = TheCharacter,
+            AccountId = TheAccount,
+            Name = "Tester",
+            Class = CharacterClass.Warrior,
+            Level = 1,
+            Map = TownMapId
         });
 
         await readByKicker.Task.WaitAsync(Patience);
@@ -531,7 +535,9 @@ public class CharacterSelectChainShould : IDisposable
             Class = CharacterClass.Warrior,
             Level = 1,
             Map = TownMapId,
-            X = 1, Y = 2, Z = 3
+            X = 1,
+            Y = 2,
+            Z = 3
         };
 
         _characters.FindForGameplayAsync(Arg.Is<GameplayWriteAuthority>(a => a.AccountId == TheAccount), TheCharacter, Arg.Any<CancellationToken>())
@@ -600,12 +606,19 @@ public class CharacterSelectChainShould : IDisposable
             var id = new ItemInstanceId(Guid.NewGuid());
             rows.Add(new CharacterInventory
             {
-                CharacterId = TheCharacter, Container = container, Slot = slot, ItemId = id
+                CharacterId = TheCharacter,
+                Container = container,
+                Slot = slot,
+                ItemId = id
             });
             instances.Add(new ItemInstance
             {
-                Id = id, TemplateId = new ItemTemplateId(template), CharacterId = TheCharacter,
-                Count = 1, Durability = 100, Flags = ItemInstanceFlags.None
+                Id = id,
+                TemplateId = new ItemTemplateId(template),
+                CharacterId = TheCharacter,
+                Count = 1,
+                Durability = 100,
+                Flags = ItemInstanceFlags.None
             });
         }
 
@@ -641,8 +654,13 @@ public class CharacterSelectChainShould : IDisposable
 
     private static Avalon.Domain.Auth.Account AccountIn(Avalon.Common.Accounts.AccountLocale locale) => new()
     {
-        Id = TheAccount, Username = "TESTER", Salt = [], Verifier = [], Email = "tester@example.com",
-        JoinDate = DateTime.UnixEpoch, Locale = locale,
+        Id = TheAccount,
+        Username = "TESTER",
+        Salt = [],
+        Verifier = [],
+        Email = "tester@example.com",
+        JoinDate = DateTime.UnixEpoch,
+        Locale = locale,
     };
 
     /// <summary>

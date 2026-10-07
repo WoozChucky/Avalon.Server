@@ -28,7 +28,8 @@ public sealed class GameWorkloadMiddlewareShould
             ? AuthenticateResult.Success(new AuthenticationTicket(workload, GameServerAuthHandler.Scheme)) : AuthenticateResult.Fail("untrusted"));
         var app = new ApplicationBuilder(services);
         app.UseGameWorkloadAuthentication();
-        app.Run(http => {
+        app.Run(http =>
+        {
             if (accepted) Assert.Same(workload, http.User);
             else Assert.False(http.User.Identity?.IsAuthenticated == true);
             Assert.DoesNotContain(http.User.Claims, claim => claim.Value == "forged-player");

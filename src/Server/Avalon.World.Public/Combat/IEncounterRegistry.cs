@@ -8,6 +8,6 @@ public interface IEncounterRegistry
     IReadOnlyCollection<IEncounter> Active { get; }
 
     IEncounter? FindEncounterContaining(IUnit unit);
-    IEncounter  CreateEncounter();
-    void        Dispose(IEncounter encounter);
+    IEncounter CreateEncounter();
+    void Dispose(IEncounter encounter);
 }

@@ -34,7 +34,10 @@ public class AuraSaveShould
     {
         var row = new Character
         {
-            Id = new CharacterId(id), AccountId = new AccountId(1), Name = $"Tester{id}", Class = CharacterClass.Warrior,
+            Id = new CharacterId(id),
+            AccountId = new AccountId(1),
+            Name = $"Tester{id}",
+            Class = CharacterClass.Warrior,
             CreationDate = DateTime.UtcNow,
         };
         return new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), clock ?? _clock) { Data = row };
@@ -123,8 +126,17 @@ public class AuraSaveShould
 
     private static CharacterAura Saved(uint auraId, uint remainingMs, int ticksLeft, int slot = 0) => new()
     {
-        CharacterId = new CharacterId(913_102), Slot = slot, AuraId = auraId, CasterGuid = 0, Stacks = 2,
-        RemainingMs = remainingMs, DurationMs = 12000, TicksLeft = ticksLeft, TickAmount = 3f, CritPct = 0f, CasterLevel = 1,
+        CharacterId = new CharacterId(913_102),
+        Slot = slot,
+        AuraId = auraId,
+        CasterGuid = 0,
+        Stacks = 2,
+        RemainingMs = remainingMs,
+        DurationMs = 12000,
+        TicksLeft = ticksLeft,
+        TickAmount = 3f,
+        CritPct = 0f,
+        CasterLevel = 1,
         AppliedAt = T0.UtcDateTime,
     };
 

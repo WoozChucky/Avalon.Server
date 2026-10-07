@@ -29,7 +29,11 @@ public class CMFAConfirmHandlerShould
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(ci => new Account
             {
-                Id = ci.ArgAt<AccountId>(0), Username = "TESTUSER", Email = "t@t", Salt = [1], Verifier = [2],
+                Id = ci.ArgAt<AccountId>(0),
+                Username = "TESTUSER",
+                Email = "t@t",
+                Salt = [1],
+                Verifier = [2],
                 JoinDate = DateTime.UtcNow,
             });
     }

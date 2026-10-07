@@ -34,7 +34,7 @@ public sealed class ThreatBroadcastService
     public ThreatBroadcastService(CombatConfig config, TimeProvider? time = null)
     {
         _config = config;
-        _time   = time ?? TimeProvider.System;
+        _time = time ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -136,7 +136,7 @@ public sealed class ThreatBroadcastService
         {
             entries[i++] = new ThreatEntry
             {
-                AttackerGuid  = attacker.Guid.RawValue,
+                AttackerGuid = attacker.Guid.RawValue,
                 ThreatPercent = threat / total,
             };
         }

@@ -203,7 +203,7 @@ public sealed class QuestService(
         if (character.Quests.Get(questId) is not { } active
             || !Catalog.TryGet(questId, out QuestView? quest)
             || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is not
-                { Type: Domain.World.QuestObjectiveType.Kill or Domain.World.QuestObjectiveType.Talk })
+            { Type: Domain.World.QuestObjectiveType.Kill or Domain.World.QuestObjectiveType.Talk })
             return false;
 
         return AddProgress(character, questId, objectiveId, amount);
@@ -774,7 +774,7 @@ public sealed class QuestService(
                        && StillActive(character, quest, active)
                        && Catalog.TryGet(quest.Id, out QuestView? live)
                        && CurrentStage(live, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is
-                           { Type: Domain.World.QuestObjectiveType.Scripted };
+                       { Type: Domain.World.QuestObjectiveType.Scripted };
         if (allowed)
             return AddProgress(character, quest.Id, objectiveId, amount);
 

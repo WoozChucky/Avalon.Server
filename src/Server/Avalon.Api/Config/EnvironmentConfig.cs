@@ -1,4 +1,4 @@
-﻿namespace Avalon.Api.Config;
+namespace Avalon.Api.Config;
 
 public class EnvironmentConfig
 {

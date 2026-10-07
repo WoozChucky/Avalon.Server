@@ -38,7 +38,8 @@ public sealed class WorldDatabaseWorkShould
                 release.Wait(TimeSpan.FromSeconds(10));
                 return Task.FromResult(42);
             }));
-        }) { IsBackground = true };
+        })
+        { IsBackground = true };
         tick.Start();
         try
         {

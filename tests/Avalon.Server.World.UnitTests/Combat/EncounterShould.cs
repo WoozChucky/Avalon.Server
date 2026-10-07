@@ -15,13 +15,13 @@ public class EncounterShould
     {
         var enc = new Encounter(new CombatConfig());
         var hostile = Substitute.For<IUnit>();
-        var player  = Substitute.For<IUnit>();
+        var player = Substitute.For<IUnit>();
 
         enc.AddHostile(hostile);
         enc.AddPlayer(player);
 
         Assert.Contains(hostile, enc.Hostiles);
-        Assert.Contains(player,  enc.Players);
+        Assert.Contains(player, enc.Players);
     }
 
     [Fact]
@@ -29,7 +29,7 @@ public class EncounterShould
     {
         var enc = new Encounter(new CombatConfig { InitialThreatSeed = 1.0f });
         var hostile = Substitute.For<IUnit>();
-        var player  = Substitute.For<IUnit>();
+        var player = Substitute.For<IUnit>();
 
         enc.AddHostile(hostile);
         enc.AddPlayer(player);
@@ -43,7 +43,7 @@ public class EncounterShould
     {
         var enc = new Encounter(new CombatConfig { InitialThreatSeed = 1.0f });
         var hostile = Substitute.For<IUnit>();
-        var player  = Substitute.For<IUnit>();
+        var player = Substitute.For<IUnit>();
 
         // Player added first, then hostile.
         enc.AddPlayer(player);
@@ -58,7 +58,7 @@ public class EncounterShould
     {
         var enc = new Encounter(new CombatConfig { InitialThreatSeed = 0.0f });
         var hostile = Substitute.For<IUnit>();
-        var player  = Substitute.For<IUnit>();
+        var player = Substitute.For<IUnit>();
 
         enc.AddHostile(hostile);
         enc.AddPlayer(player);
@@ -104,7 +104,7 @@ public class EncounterShould
         var enc = new Encounter(new CombatConfig { InitialThreatSeed = 0.0f });
         var h1 = Substitute.For<IUnit>();
         var h2 = Substitute.For<IUnit>();
-        var p  = Substitute.For<IUnit>();
+        var p = Substitute.For<IUnit>();
 
         enc.AddHostile(h1);
         enc.AddHostile(h2);
@@ -122,15 +122,16 @@ public class EncounterShould
     [Fact]
     public void Should_decay_threat_per_tick()
     {
-        var enc = new Encounter(new CombatConfig {
+        var enc = new Encounter(new CombatConfig
+        {
             DefaultDecayRatePerSecond = 1.0f,
             EngagementRadius = 1000.0f,
             InitialThreatSeed = 0
         });
         var hostile = Substitute.For<IUnit>();
         var attacker = Substitute.For<IUnit>();
-        attacker.Position.Returns(new Vector3(0,0,0));
-        hostile.Position.Returns(new Vector3(0,0,0));
+        attacker.Position.Returns(new Vector3(0, 0, 0));
+        hostile.Position.Returns(new Vector3(0, 0, 0));
 
         enc.AddHostile(hostile);
         enc.AddPlayer(attacker);
@@ -144,7 +145,8 @@ public class EncounterShould
     [Fact]
     public void Should_remove_threat_entry_when_decayed_to_zero()
     {
-        var cfg = new CombatConfig {
+        var cfg = new CombatConfig
+        {
             DefaultDecayRatePerSecond = 100.0f,
             EngagementRadius = 1000.0f,
             InitialThreatSeed = 0
@@ -167,7 +169,8 @@ public class EncounterShould
     [Fact]
     public void Should_accelerate_decay_when_attacker_outside_engagement_radius()
     {
-        var cfg = new CombatConfig {
+        var cfg = new CombatConfig
+        {
             DefaultDecayRatePerSecond = 1.0f,
             OutOfRangeDecayMultiplier = 5.0f,
             EngagementRadius = 1.0f,
@@ -177,7 +180,7 @@ public class EncounterShould
         var hostile = Substitute.For<IUnit>();
         var attacker = Substitute.For<IUnit>();
         hostile.Position.Returns(default(Vector3));
-        attacker.Position.Returns(new Vector3(100,0,0));
+        attacker.Position.Returns(new Vector3(100, 0, 0));
 
         enc.AddHostile(hostile);
         enc.AddPlayer(attacker);
@@ -191,7 +194,8 @@ public class EncounterShould
     [Fact]
     public void Should_not_end_during_5_second_grace_window()
     {
-        var enc = new Encounter(new CombatConfig {
+        var enc = new Encounter(new CombatConfig
+        {
             EncounterEndGraceSeconds = 5.0f,
             InitialThreatSeed = 0
         });
@@ -207,7 +211,8 @@ public class EncounterShould
     [Fact]
     public void Should_end_when_all_hostiles_dead_after_grace()
     {
-        var enc = new Encounter(new CombatConfig {
+        var enc = new Encounter(new CombatConfig
+        {
             EncounterEndGraceSeconds = 1.0f,
             InitialThreatSeed = 0
         });
@@ -229,7 +234,7 @@ public class EncounterShould
         var enc = new Encounter(new CombatConfig { InitialThreatSeed = 0 });
         var h1 = Substitute.For<IUnit>();
         var h2 = Substitute.For<IUnit>();
-        var p  = Substitute.For<IUnit>();
+        var p = Substitute.For<IUnit>();
         enc.AddHostile(h1);
         enc.AddHostile(h2);
         enc.AddPlayer(p);
@@ -250,7 +255,7 @@ public class EncounterShould
         // RemovePlayer is the only way to evict a player from an active encounter.
         var enc = new Encounter(new CombatConfig { InitialThreatSeed = 0 });
         var hostile = Substitute.For<IUnit>();
-        var player  = Substitute.For<IUnit>();
+        var player = Substitute.For<IUnit>();
         enc.AddHostile(hostile);
         enc.AddPlayer(player);
         enc.AddThreat(hostile, player, 5.0f);

@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 // ReSharper disable ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
 #pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
 
@@ -405,7 +405,7 @@ namespace Avalon.Common.Queues
         }
 
         /// <summary>
-        /// This method must be called on a node every time its priority changes while it is in the queue.  
+        /// This method must be called on a node every time its priority changes while it is in the queue.
         /// <b>Forgetting to call this method will result in a corrupted queue!</b>
         /// Calling this method on a node not in the queue results in undefined behavior
         /// O(log n)
@@ -448,7 +448,7 @@ namespace Avalon.Common.Queues
         }
 
         /// <summary>
-        /// Removes a node from the queue.  The node does not need to be the head of the queue.  
+        /// Removes a node from the queue.  The node does not need to be the head of the queue.
         /// If the node is not in the queue, the result is undefined.  If unsure, check Contains() first
         /// O(log n)
         /// </summary>

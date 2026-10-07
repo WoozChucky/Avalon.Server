@@ -16,9 +16,9 @@ namespace Avalon.Network.Packets.Combat;
 [Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_TARGET_UNIT)]
 public class CTargetUnitPacket : Packet
 {
-    public static NetworkPacketType  PacketType = NetworkPacketType.CMSG_TARGET_UNIT;
-    public static NetworkProtocol    Protocol   = NetworkProtocol.Tcp;
-    public static NetworkPacketFlags Flags      = NetworkPacketFlags.Encrypted;
+    public static NetworkPacketType PacketType = NetworkPacketType.CMSG_TARGET_UNIT;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     /// <summary>
     /// Raw <c>ObjectGuid</c> of the targeted unit, or <c>null</c> to clear the current target.

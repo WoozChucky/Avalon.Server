@@ -17,8 +17,8 @@ public class ChunkLibraryShould
     public async Task Throw_when_pool_has_no_entry_chunk()
     {
         var templateRepo = Substitute.For<IChunkTemplateRepository>();
-        var poolRepo     = Substitute.For<IChunkPoolRepository>();
-        var configRepo   = Substitute.For<IProceduralMapConfigRepository>();
+        var poolRepo = Substitute.For<IChunkPoolRepository>();
+        var configRepo = Substitute.For<IProceduralMapConfigRepository>();
 
         var template = new ChunkTemplate
         {
@@ -44,7 +44,8 @@ public class ChunkLibraryShould
             MapTemplateId = new MapTemplateId(10),
             ChunkPoolId = new ChunkPoolId(1),
             SpawnTableId = new SpawnTableId(1),
-            MainPathMin = 2, MainPathMax = 4,
+            MainPathMin = 2,
+            MainPathMax = 4,
             BackPortalTargetMapId = 1
         };
 
@@ -69,7 +70,9 @@ public class ChunkLibraryShould
         var entryChunk = new ChunkTemplate
         {
             Id = new ChunkTemplateId(1),
-            Name = "Entry", AssetKey = "Chunks/Entry", GeometryFile = "Chunks/Entry.obj",
+            Name = "Entry",
+            AssetKey = "Chunks/Entry",
+            GeometryFile = "Chunks/Entry.obj",
             Exits = 0b_000_010_000_010,
             SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
             PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
@@ -110,7 +113,8 @@ public class ChunkLibraryShould
     {
         var entryChunk = new ChunkTemplate
         {
-            Id = new ChunkTemplateId(1), Name = "Entry",
+            Id = new ChunkTemplateId(1),
+            Name = "Entry",
             SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
             PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
         };
@@ -148,7 +152,8 @@ public class ChunkLibraryShould
     {
         var entryChunk = new ChunkTemplate
         {
-            Id = new ChunkTemplateId(1), Name = "Entry",
+            Id = new ChunkTemplateId(1),
+            Name = "Entry",
             SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
             PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
         };
@@ -186,7 +191,8 @@ public class ChunkLibraryShould
     {
         var entryChunk = new ChunkTemplate
         {
-            Id = new ChunkTemplateId(1), Name = "Entry",
+            Id = new ChunkTemplateId(1),
+            Name = "Entry",
             SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
             PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
         };
@@ -227,7 +233,9 @@ public class ChunkLibraryShould
     {
         var entry = new ChunkTemplate
         {
-            Id = new ChunkTemplateId(1), Name = "Entry", Exits = 0b_000_000_000_010,
+            Id = new ChunkTemplateId(1),
+            Name = "Entry",
+            Exits = 0b_000_000_000_010,
             SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "entry" } },
             PortalSlots = new List<ChunkPortalSlot> { new() { Role = PortalRole.Back } }
         };
@@ -235,7 +243,8 @@ public class ChunkLibraryShould
         var b = new ChunkTemplate { Id = new ChunkTemplateId(3), Name = "b", SpawnSlots = new List<ChunkSpawnSlot> { new() { Tag = "boss" } } };
         var pool = new ChunkPool
         {
-            Id = new ChunkPoolId(1), Name = "p1",
+            Id = new ChunkPoolId(1),
+            Name = "p1",
             Memberships = new List<ChunkPoolMembership>
             {
                 new() { ChunkPoolId = new ChunkPoolId(1), ChunkTemplateId = entry.Id, Template = entry }
@@ -316,8 +325,8 @@ public class ChunkLibraryShould
         ILoggerFactory? loggerFactory = null)
     {
         var templateRepo = Substitute.For<IChunkTemplateRepository>();
-        var poolRepo     = Substitute.For<IChunkPoolRepository>();
-        var configRepo   = Substitute.For<IProceduralMapConfigRepository>();
+        var poolRepo = Substitute.For<IChunkPoolRepository>();
+        var configRepo = Substitute.For<IProceduralMapConfigRepository>();
         templateRepo.FindAllWithSlotsAsync(Arg.Any<CancellationToken>()).Returns(templates);
         poolRepo.FindAllWithMembershipsAsync(Arg.Any<CancellationToken>()).Returns(pools);
         configRepo.FindAllAsync(Arg.Any<CancellationToken>()).Returns(configs);

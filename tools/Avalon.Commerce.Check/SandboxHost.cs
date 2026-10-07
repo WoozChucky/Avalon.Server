@@ -31,9 +31,13 @@ internal static class SandboxHost
         builder.WebHost.UseKestrelHttpsConfiguration();
         builder.Configuration.Sources.Clear();
         builder.Configuration.AddEnvironmentVariables("AVALON_COMMERCE_SANDBOX_");
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
-            ["Application:Commerce:Enabled"] = "true", ["Application:Commerce:PaymentEnvironment"] = "sandbox", ["Application:Commerce:LicenseEnvironment"] = "development",
-            ["Application:StoreAuthentication:Environment"] = "development", ["Application:StoreAuthentication:SteamIdentityPrefix"] = "avalon-auth-dev",
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Application:Commerce:Enabled"] = "true",
+            ["Application:Commerce:PaymentEnvironment"] = "sandbox",
+            ["Application:Commerce:LicenseEnvironment"] = "development",
+            ["Application:StoreAuthentication:Environment"] = "development",
+            ["Application:StoreAuthentication:SteamIdentityPrefix"] = "avalon-auth-dev",
         });
         var config = builder.Configuration.GetSection("Application:Commerce").Get<CommerceConfiguration>() ?? new();
         var authentication = new StoreAuthenticationConfiguration { Environment = "development", SteamIdentityPrefix = "avalon-auth-dev" };
@@ -48,8 +52,16 @@ internal static class SandboxHost
         builder.Services.AddAuthentication("Fixture").AddScheme<AuthenticationSchemeOptions, FixtureAuthentication>("Fixture", _ => { });
         builder.Services.AddAuthorization();
         var accounts = new AccountRepository(factory);
-        var actor = await accounts.FindByUserNameAsync("COMMERCEBUYER") ?? await accounts.CreateAsync(new Account { Username = "COMMERCEBUYER", Email = "buyer@example.test", EmailVerifiedAt = clock.GetUtcNow().UtcDateTime,
-            Salt = [1], Verifier = [2], JoinDate = clock.GetUtcNow().UtcDateTime, AccessLevel = AccountAccessLevel.Player | AccountAccessLevel.Admin });
+        var actor = await accounts.FindByUserNameAsync("COMMERCEBUYER") ?? await accounts.CreateAsync(new Account
+        {
+            Username = "COMMERCEBUYER",
+            Email = "buyer@example.test",
+            EmailVerifiedAt = clock.GetUtcNow().UtcDateTime,
+            Salt = [1],
+            Verifier = [2],
+            JoinDate = clock.GetUtcNow().UtcDateTime,
+            AccessLevel = AccountAccessLevel.Player | AccountAccessLevel.Admin
+        });
         await using var app = builder.Build();
         var restart = false;
         app.UseMiddleware<ExceptionHandlerMiddleware>();

@@ -13,7 +13,11 @@ public class AccountPaginateFiltersShould
 {
     private static readonly Account Stored = new()
     {
-        Id = new AccountId(7), Username = "PLAYER", Email = "player@avalon.monster", Salt = [1], Verifier = [2],
+        Id = new AccountId(7),
+        Username = "PLAYER",
+        Email = "player@avalon.monster",
+        Salt = [1],
+        Verifier = [2],
         JoinDate = DateTime.UtcNow,
     };
 

@@ -95,14 +95,14 @@ public class AccessLevelsShould
     {
         const int all = 0b11_1111;
         for (var required = 0; required <= all; required++)
-        for (var actual = 0; actual <= all; actual++)
-        {
-            var r = (AccountAccessLevel)required;
-            var a = (AccountAccessLevel)actual;
-            Assert.True(
-                AccessLevels.ForWorld(r).Allows(a) == ((r & AccessLevels.WorldsEnterableBy(a)) != 0),
-                $"required={r}, actual={a}");
-        }
+            for (var actual = 0; actual <= all; actual++)
+            {
+                var r = (AccountAccessLevel)required;
+                var a = (AccountAccessLevel)actual;
+                Assert.True(
+                    AccessLevels.ForWorld(r).Allows(a) == ((r & AccessLevels.WorldsEnterableBy(a)) != 0),
+                    $"required={r}, actual={a}");
+            }
     }
 
     [Fact]

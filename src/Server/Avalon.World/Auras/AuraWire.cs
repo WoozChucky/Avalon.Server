@@ -13,8 +13,12 @@ public static class AuraWire
         {
             entries.Add(new AuraEntryDto
             {
-                AuraId = aura.Id.Value, InstanceKey = aura.Key, CasterGuid = aura.CasterGuid.RawValue, Stacks = aura.Stacks,
-                RemainingMs = UnitAuras.RemainingMs(aura, now), DurationMs = aura.DurationMs,
+                AuraId = aura.Id.Value,
+                InstanceKey = aura.Key,
+                CasterGuid = aura.CasterGuid.RawValue,
+                Stacks = aura.Stacks,
+                RemainingMs = UnitAuras.RemainingMs(aura, now),
+                DurationMs = aura.DurationMs,
             });
         }
 
@@ -30,8 +34,13 @@ public static class AuraWire
             AuraChange change = changes[i];
             entries.Add(new AuraEntryDto
             {
-                AuraId = change.AuraId.Value, InstanceKey = change.Key, CasterGuid = change.CasterGuid, Stacks = change.Stacks,
-                RemainingMs = change.RemainingMs, DurationMs = change.DurationMs, Action = (AuraUpdateAction)change.Kind,
+                AuraId = change.AuraId.Value,
+                InstanceKey = change.Key,
+                CasterGuid = change.CasterGuid,
+                Stacks = change.Stacks,
+                RemainingMs = change.RemainingMs,
+                DurationMs = change.DurationMs,
+                Action = (AuraUpdateAction)change.Kind,
             });
         }
 

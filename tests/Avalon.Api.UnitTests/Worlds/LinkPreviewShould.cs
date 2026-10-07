@@ -48,7 +48,9 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         AbilityColour = "#BC8A4E",
         RarityColours = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["Epic"] = "#C084FC", ["Rare"] = "#38BDF8", ["Legendary"] = "#FBBF24",
+            ["Epic"] = "#C084FC",
+            ["Rare"] = "#38BDF8",
+            ["Legendary"] = "#FBBF24",
         },
     };
 
@@ -62,32 +64,69 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
 
         Item(Open, new ItemTemplate
         {
-            Id = new ItemTemplateId(14), Name = "Barkplate Helm", Rarity = ItemRarity.Epic, Slot = ItemSlotType.Head,
-            SubClass = ItemSubClass.Helmet, RequiredLevel = 5,
-            StatType1 = StatType.Armor, StatValue1 = 8, StatType2 = StatType.Strength, StatValue2 = 3,
-            StatType3 = StatType.CritPct, StatValue3 = 2,
+            Id = new ItemTemplateId(14),
+            Name = "Barkplate Helm",
+            Rarity = ItemRarity.Epic,
+            Slot = ItemSlotType.Head,
+            SubClass = ItemSubClass.Helmet,
+            RequiredLevel = 5,
+            StatType1 = StatType.Armor,
+            StatValue1 = 8,
+            StatType2 = StatType.Strength,
+            StatValue2 = 3,
+            StatType3 = StatType.CritPct,
+            StatValue3 = 2,
         });
         Item(OtherOpen, new ItemTemplate { Id = new ItemTemplateId(14), Name = "Other World Helm", Rarity = ItemRarity.Rare });
         Item(Staff, new ItemTemplate { Id = new ItemTemplateId(14), Name = "Staff Helm" });
         Item(Open, new ItemTemplate { Id = new ItemTemplateId(15), Name = "Tricky <script>\"&", Rarity = ItemRarity.Common });
         Item(Open, new ItemTemplate
         {
-            Id = new ItemTemplateId(16), Name = "Wordy", Rarity = ItemRarity.Legendary,
-            StatType1 = StatType.Strength, StatValue1 = 1, StatType2 = StatType.Agility, StatValue2 = 1,
-            StatType3 = StatType.Intellect, StatValue3 = 1, StatType4 = StatType.Stamina, StatValue4 = 1,
-            StatType5 = StatType.AttackDamage, StatValue5 = 1, StatType6 = StatType.AbilityDamage, StatValue6 = 1,
-            StatType7 = StatType.AttackSpeed, StatValue7 = 1, StatType8 = StatType.MovementSpeed, StatValue8 = 1,
-            StatType9 = StatType.Health, StatValue9 = 1, StatType10 = StatType.Power, StatValue10 = 1,
-            DamageMin1 = 100000, DamageMax1 = 200000, DamageType1 = DamageType.Lightning,
-            DamageMin2 = 100000, DamageMax2 = 200000, DamageType2 = DamageType.Poison,
+            Id = new ItemTemplateId(16),
+            Name = "Wordy",
+            Rarity = ItemRarity.Legendary,
+            StatType1 = StatType.Strength,
+            StatValue1 = 1,
+            StatType2 = StatType.Agility,
+            StatValue2 = 1,
+            StatType3 = StatType.Intellect,
+            StatValue3 = 1,
+            StatType4 = StatType.Stamina,
+            StatValue4 = 1,
+            StatType5 = StatType.AttackDamage,
+            StatValue5 = 1,
+            StatType6 = StatType.AbilityDamage,
+            StatValue6 = 1,
+            StatType7 = StatType.AttackSpeed,
+            StatValue7 = 1,
+            StatType8 = StatType.MovementSpeed,
+            StatValue8 = 1,
+            StatType9 = StatType.Health,
+            StatValue9 = 1,
+            StatType10 = StatType.Power,
+            StatValue10 = 1,
+            DamageMin1 = 100000,
+            DamageMax1 = 200000,
+            DamageType1 = DamageType.Lightning,
+            DamageMin2 = 100000,
+            DamageMax2 = 200000,
+            DamageType2 = DamageType.Poison,
         });
 
         _abilities.FindByIdAsync(new AbilityId(210), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate
             {
-                Id = new AbilityId(210), Name = "Cleave", Cost = 30, CostPowerType = PowerType.Mana, CastTime = 2500,
-                Cooldown = 8000, AllowedClasses = [CharacterClass.Warrior], ScriptName = "ConeAbilityScript",
-                EffectValue = 10, ScalingCoefficient = 0.5f, Effects = SpellEffect.Damage,
+                Id = new AbilityId(210),
+                Name = "Cleave",
+                Cost = 30,
+                CostPowerType = PowerType.Mana,
+                CastTime = 2500,
+                Cooldown = 8000,
+                AllowedClasses = [CharacterClass.Warrior],
+                ScriptName = "ConeAbilityScript",
+                EffectValue = 10,
+                ScalingCoefficient = 0.5f,
+                Effects = SpellEffect.Damage,
             });
         _abilities.FindByIdAsync(new AbilityId(211), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate { Id = new AbilityId(211), Name = "Strike <b>&\"" });
@@ -128,8 +167,12 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntity
             {
-                Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = required,
-                Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+                Id = new WorldId(id),
+                Name = $"World{id}",
+                AccessLevelRequired = required,
+                Host = "h",
+                MinVersion = "0.0.1",
+                Version = "0.0.1",
             });
 
     private void Item(ushort world, ItemTemplate template) =>

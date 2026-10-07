@@ -143,21 +143,21 @@ public class WorldService : IWorldService
             w.MaintenanceDeadlineUtc);
         return new WorldDto
         {
-        Id = w.Id.Value,
-        Name = w.Name,
-        Type = (Avalon.Api.Contract.WorldType)w.Type,
-        AccessLevelRequired = (Avalon.Api.Contract.AccountAccessLevel)w.AccessLevelRequired,
-        Host = w.Host,
-        Port = w.Port,
-        MinVersion = w.MinVersion,
-        Version = w.Version,
-        Status = (Avalon.Api.Contract.WorldStatus)WorldReadiness.Resolve(state, ready, nowUtc),
-        Ready = ready,
-        CreatedAt = w.CreatedAt,
-        UpdatedAt = w.UpdatedAt,
-        OnlineCount = 0,
-        Configured = _databases.TryGet(w.Id, out _),
-        Available = _databases.IsAvailable(w.Id),
+            Id = w.Id.Value,
+            Name = w.Name,
+            Type = (Avalon.Api.Contract.WorldType)w.Type,
+            AccessLevelRequired = (Avalon.Api.Contract.AccountAccessLevel)w.AccessLevelRequired,
+            Host = w.Host,
+            Port = w.Port,
+            MinVersion = w.MinVersion,
+            Version = w.Version,
+            Status = (Avalon.Api.Contract.WorldStatus)WorldReadiness.Resolve(state, ready, nowUtc),
+            Ready = ready,
+            CreatedAt = w.CreatedAt,
+            UpdatedAt = w.UpdatedAt,
+            OnlineCount = 0,
+            Configured = _databases.TryGet(w.Id, out _),
+            Available = _databases.IsAvailable(w.Id),
         };
     }
 }

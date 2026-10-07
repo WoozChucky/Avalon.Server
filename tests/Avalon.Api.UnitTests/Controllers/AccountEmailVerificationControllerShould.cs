@@ -47,9 +47,15 @@ public sealed class AccountEmailVerificationControllerShould
     }
 
     private static AccountEmailVerificationController Controller(AccountEmailVerificationServiceShould.Fixture f, long id) =>
-        new(f.Service) { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext
+        new(f.Service)
         {
-            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id.ToString())], "test")),
-            Connection = { RemoteIpAddress = System.Net.IPAddress.Loopback },
-        } } };
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, id.ToString())], "test")),
+                    Connection = { RemoteIpAddress = System.Net.IPAddress.Loopback },
+                }
+            }
+        };
 }

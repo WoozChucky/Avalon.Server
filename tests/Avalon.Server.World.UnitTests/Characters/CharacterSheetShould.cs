@@ -139,16 +139,22 @@ public class CharacterSheetShould
 
         move.Execute(w.Connection, new CItemMovePacket
         {
-            RequestId = 1, FromContainer = (uint)InventoryType.Bag, FromSlot = 1,
-            ToContainer = (uint)InventoryType.Equipment, ToSlot = EquipmentSlots.Finger1,
+            RequestId = 1,
+            FromContainer = (uint)InventoryType.Bag,
+            FromSlot = 1,
+            ToContainer = (uint)InventoryType.Equipment,
+            ToSlot = EquipmentSlots.Finger1,
         });
         CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat.Formula);
         Assert.Empty(w.Read<SCharacterStatsPacket>(NetworkPacketType.SMSG_CHARACTER_STATS));
 
         move.Execute(w.Connection, new CItemMovePacket
         {
-            RequestId = 2, FromContainer = (uint)InventoryType.Bag, FromSlot = 0,
-            ToContainer = (uint)InventoryType.Equipment, ToSlot = EquipmentSlots.Chest,
+            RequestId = 2,
+            FromContainer = (uint)InventoryType.Bag,
+            FromSlot = 0,
+            ToContainer = (uint)InventoryType.Equipment,
+            ToSlot = EquipmentSlots.Chest,
         });
         CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat.Formula);
 

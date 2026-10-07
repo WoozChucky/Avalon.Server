@@ -62,8 +62,12 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         _authWorlds.FindByIdAsync(Arg.Is<WorldId>(w => w.Value == id), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new WorldEntity
             {
-                Id = new WorldId(id), Name = $"World{id}", AccessLevelRequired = AccountAccessLevel.Player,
-                Host = "h", MinVersion = "0.0.1", Version = "0.0.1",
+                Id = new WorldId(id),
+                Name = $"World{id}",
+                AccessLevelRequired = AccountAccessLevel.Player,
+                Host = "h",
+                MinVersion = "0.0.1",
+                Version = "0.0.1",
             });
 
     private Task<HttpResponseMessage> Get(string path, AccountAccessLevel level)

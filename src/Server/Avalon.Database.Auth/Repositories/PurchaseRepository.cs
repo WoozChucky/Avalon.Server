@@ -99,19 +99,40 @@ public sealed partial class PurchaseRepository(IDbContextFactory<AuthDbContext> 
             if (previous.Sequence == int.MaxValue) return new(PurchaseFailureCodes.NeedsReview);
         }
         var now = Now;
-        order ??= new PurchaseOrder { Id = Guid.NewGuid(), AccountId = account.Id, OriginalPurchaserAccountId = account.Id,
-            Product = reservation.Product, OfferId = reservation.OfferId, AmountMinor = reservation.AmountMinor, Currency = reservation.Currency,
-            Provider = reservation.Provider, ProviderAccountId = reservation.ProviderAccountId, PaymentEnvironment = reservation.PaymentEnvironment,
-            LicenseEnvironment = reservation.LicenseEnvironment, CreatedAt = now };
+        order ??= new PurchaseOrder
+        {
+            Id = Guid.NewGuid(),
+            AccountId = account.Id,
+            OriginalPurchaserAccountId = account.Id,
+            Product = reservation.Product,
+            OfferId = reservation.OfferId,
+            AmountMinor = reservation.AmountMinor,
+            Currency = reservation.Currency,
+            Provider = reservation.Provider,
+            ProviderAccountId = reservation.ProviderAccountId,
+            PaymentEnvironment = reservation.PaymentEnvironment,
+            LicenseEnvironment = reservation.LicenseEnvironment,
+            CreatedAt = now
+        };
         var returnUrl = reservation.PublicSiteOrigin.TrimEnd('/') + $"/account/purchases/{order.Id:D}";
-        var attempt = new PaymentAttempt { Id = Guid.NewGuid(), OrderId = order.Id, Sequence = (previous?.Sequence ?? 0) + 1, Provider = order.Provider,
-            ProviderAccountId = order.ProviderAccountId, Environment = order.PaymentEnvironment, OperationKey = Guid.NewGuid().ToString("N"),
+        var attempt = new PaymentAttempt
+        {
+            Id = Guid.NewGuid(),
+            OrderId = order.Id,
+            Sequence = (previous?.Sequence ?? 0) + 1,
+            Provider = order.Provider,
+            ProviderAccountId = order.ProviderAccountId,
+            Environment = order.PaymentEnvironment,
+            OperationKey = Guid.NewGuid().ToString("N"),
             ProviderPriceId = previous?.ProviderPriceId ?? reservation.ProviderPriceId,
             ProviderCatalogProductId = previous?.ProviderCatalogProductId ?? reservation.ProviderCatalogProductId,
             PaymentMethods = previous?.PaymentMethods ?? reservation.PaymentMethods,
             RequestedExpiresAt = DateTimeOffset.FromUnixTimeSeconds(new DateTimeOffset(reservation.RequestedExpiresAt).ToUnixTimeSeconds()).UtcDateTime,
             CheckoutEmail = account.Email,
-            SuccessUrl = returnUrl, CancelUrl = returnUrl + "?canceled=true", CreatedAt = now };
+            SuccessUrl = returnUrl,
+            CancelUrl = returnUrl + "?canceled=true",
+            CreatedAt = now
+        };
         if (previous is null) db.PurchaseOrders.Add(order);
         db.PaymentAttempts.Add(attempt);
         await db.SaveChangesAsync(ct);

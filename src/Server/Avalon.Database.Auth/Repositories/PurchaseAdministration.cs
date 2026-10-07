@@ -86,9 +86,20 @@ public sealed partial class PurchaseRepository
         }
         var known = await db.PaymentRefunds.AsNoTracking().Where(x => x.PaymentAttemptId == attempt.Id && x.State == PaymentRefundState.Succeeded).FirstOrDefaultAsync(ct);
         if (known is not null) { await transaction.CommitAsync(ct); return new(null, known); }
-        var refund = new PaymentRefund { Id = Guid.NewGuid(), PaymentAttemptId = attempt.Id, Provider = initial.Provider, ProviderAccountId = initial.ProviderAccountId,
-            Environment = initial.PaymentEnvironment, OperationKey = Guid.NewGuid().ToString("N"), RequestedBy = admin, Reason = reason,
-            AmountMinor = initial.AmountMinor, RequestedAt = Now, State = PaymentRefundState.Pending };
+        var refund = new PaymentRefund
+        {
+            Id = Guid.NewGuid(),
+            PaymentAttemptId = attempt.Id,
+            Provider = initial.Provider,
+            ProviderAccountId = initial.ProviderAccountId,
+            Environment = initial.PaymentEnvironment,
+            OperationKey = Guid.NewGuid().ToString("N"),
+            RequestedBy = admin,
+            Reason = reason,
+            AmountMinor = initial.AmountMinor,
+            RequestedAt = Now,
+            State = PaymentRefundState.Pending
+        };
         db.PaymentRefunds.Add(refund);
         await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
         return new(null, refund);
@@ -140,10 +151,22 @@ public sealed partial class PurchaseRepository
         var attempts = await db.PaymentAttempts.AsNoTracking().Where(x => x.OrderId == orderId).ToListAsync(ct);
         foreach (var attempt in attempts)
         {
-            db.PaymentEvents.Add(new PaymentEvent { Id = Guid.NewGuid(), Provider = attempt.Provider, ProviderAccountId = attempt.ProviderAccountId, Environment = attempt.Environment,
-                ExternalReference = Guid.NewGuid().ToString("N"), Type = "reconciliation-requested", ResourceKind = PaymentResourceKinds.Reconciliation,
-                ResourceReference = attempt.Id.ToString("N"), PaymentReference = attempt.PaymentReference,
-                OrderId = orderId, PaymentAttemptId = attempt.Id, CreatedAt = Now, NextAttemptAt = Now });
+            db.PaymentEvents.Add(new PaymentEvent
+            {
+                Id = Guid.NewGuid(),
+                Provider = attempt.Provider,
+                ProviderAccountId = attempt.ProviderAccountId,
+                Environment = attempt.Environment,
+                ExternalReference = Guid.NewGuid().ToString("N"),
+                Type = "reconciliation-requested",
+                ResourceKind = PaymentResourceKinds.Reconciliation,
+                ResourceReference = attempt.Id.ToString("N"),
+                PaymentReference = attempt.PaymentReference,
+                OrderId = orderId,
+                PaymentAttemptId = attempt.Id,
+                CreatedAt = Now,
+                NextAttemptAt = Now
+            });
         }
         await db.SaveChangesAsync(ct); return attempts.Count > 0;
     }

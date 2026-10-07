@@ -19,7 +19,8 @@ public sealed class GameContextRevocations(IReplicatedCache cache, ILogger<GameC
     public const string Channel = "world:game-context:revoke";
     public async Task PublishAsync(AccountId accountId, Guid contextId)
     {
-        try {
+        try
+        {
             await cache.PublishAsync(Channel, accountId.Value.ToString(CultureInfo.InvariantCulture) + "|" + contextId.ToString("N"));
             Notices.Add(1, new KeyValuePair<string, object?>("outcome", "published"));
         }

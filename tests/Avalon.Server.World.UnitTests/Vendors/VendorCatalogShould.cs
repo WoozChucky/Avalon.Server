@@ -164,8 +164,13 @@ public class VendorCatalogShould
         lowOverride.PriceOverride = Blade.SellPrice - 1;
         var cheap = new ItemTemplate
         {
-            Id = new ItemTemplateId(750), Name = "Cheap", Class = ItemClass.Junk, SubClass = ItemSubClass.JunkItem,
-            MaxStackSize = 1, BuyPrice = 3, SellPrice = 4,
+            Id = new ItemTemplateId(750),
+            Name = "Cheap",
+            Class = ItemClass.Junk,
+            SubClass = ItemSubClass.JunkItem,
+            MaxStackSize = 1,
+            BuyPrice = 3,
+            SellPrice = 4,
         };
         VendorStock lowBuyPrice = Row(2, 2, cheap);
         VendorStock atSellPrice = Row(3, 3, Blade);
@@ -189,8 +194,13 @@ public class VendorCatalogShould
     {
         var tusk = new ItemTemplate
         {
-            Id = new ItemTemplateId(751), Name = "Tusk", Class = ItemClass.Quest, SubClass = ItemSubClass.QuestItem,
-            MaxStackSize = 20, BuyPrice = 10, Flags = ItemTemplateFlags.QuestItem,
+            Id = new ItemTemplateId(751),
+            Name = "Tusk",
+            Class = ItemClass.Quest,
+            SubClass = ItemSubClass.QuestItem,
+            MaxStackSize = 20,
+            BuyPrice = 10,
+            Flags = ItemTemplateFlags.QuestItem,
         };
 
         VendorCatalog catalog = new([Row(1, 1, Tonic), Row(2, 2, tusk)], [.. Items, tusk], NullLoggerFactory.Instance);

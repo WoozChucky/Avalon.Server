@@ -19,16 +19,31 @@ public sealed class GameAdmissionClientShould
 
     private static JoinRedemptionReceipt Receipt(Guid connection, Guid redemption) => new()
     {
-        AccountId = "42", FencingToken = "7", GameSessionId = Guid.NewGuid().ToString("D"), GameContextId = Guid.NewGuid().ToString("D"),
-        ConnectionId = connection.ToString("D"), RedemptionId = redemption.ToString("D"), ServerId = "world-one", WorldId = 1,
-        CredentialsVersion = 3, SessionEpoch = "9"
+        AccountId = "42",
+        FencingToken = "7",
+        GameSessionId = Guid.NewGuid().ToString("D"),
+        GameContextId = Guid.NewGuid().ToString("D"),
+        ConnectionId = connection.ToString("D"),
+        RedemptionId = redemption.ToString("D"),
+        ServerId = "world-one",
+        WorldId = 1,
+        CredentialsVersion = 3,
+        SessionEpoch = "9"
     };
     private static SessionLeaseResponse Active(JoinRedemptionReceipt receipt) => new()
     {
-        State = "active", AccountId = receipt.AccountId, GameSessionId = receipt.GameSessionId, GameContextId = receipt.GameContextId,
-        FencingToken = receipt.FencingToken, ServerId = receipt.ServerId, WorldId = receipt.WorldId, AccessLevel = 1,
-        CredentialsVersion = receipt.CredentialsVersion, SessionEpoch = receipt.SessionEpoch,
-        LeaseUntil = DateTime.UtcNow.AddSeconds(44), AuthorizationUntil = DateTime.UtcNow.AddMinutes(5)
+        State = "active",
+        AccountId = receipt.AccountId,
+        GameSessionId = receipt.GameSessionId,
+        GameContextId = receipt.GameContextId,
+        FencingToken = receipt.FencingToken,
+        ServerId = receipt.ServerId,
+        WorldId = receipt.WorldId,
+        AccessLevel = 1,
+        CredentialsVersion = receipt.CredentialsVersion,
+        SessionEpoch = receipt.SessionEpoch,
+        LeaseUntil = DateTime.UtcNow.AddSeconds(44),
+        AuthorizationUntil = DateTime.UtcNow.AddMinutes(5)
     };
     [Fact]
     public async Task Retry_only_the_exact_redemption_and_never_admit_a_pending_receipt()
@@ -37,7 +52,8 @@ public sealed class GameAdmissionClientShould
         using var handler = new RecordingHandler((call, _) => call switch
         {
             1 => Json(JoinRedemptionReceipt.Failure("IN_PROGRESS"), HttpStatusCode.Conflict),
-            2 => Json(receipt), _ => Json(Active(receipt))
+            2 => Json(receipt),
+            _ => Json(Active(receipt))
         });
         using var http = new HttpClient(handler);
         var client = new GameAdmissionClient(http, Options(), TimeProvider.System);
@@ -57,8 +73,10 @@ public sealed class GameAdmissionClientShould
         var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); var receipt = Receipt(connection, redemption);
         receipt = mismatch switch
         {
-            "server" => receipt with { ServerId = "world-two" }, "connection" => receipt with { ConnectionId = Guid.NewGuid().ToString("D") },
-            "redemption" => receipt with { RedemptionId = Guid.NewGuid().ToString("D") }, _ => receipt with { WorldId = 2 }
+            "server" => receipt with { ServerId = "world-two" },
+            "connection" => receipt with { ConnectionId = Guid.NewGuid().ToString("D") },
+            "redemption" => receipt with { RedemptionId = Guid.NewGuid().ToString("D") },
+            _ => receipt with { WorldId = 2 }
         };
         using var handler = new RecordingHandler((_, _) => Json(receipt));
         using var http = new HttpClient(handler);

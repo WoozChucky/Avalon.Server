@@ -37,8 +37,12 @@ public class CharacterMovementSpeedShould
 
     private static readonly ItemTemplate SwiftBoots = new()
     {
-        Id = new ItemTemplateId(627_001), Name = "Swift Boots", Slot = ItemSlotType.Feet, MaxStackSize = 1,
-        StatType1 = StatType.MovementSpeed, StatValue1 = 10,
+        Id = new ItemTemplateId(627_001),
+        Name = "Swift Boots",
+        Slot = ItemSlotType.Feet,
+        MaxStackSize = 1,
+        StatType1 = StatType.MovementSpeed,
+        StatValue1 = 10,
     };
 
     private static DerivedCharacterStats Stats(float movementPct) =>

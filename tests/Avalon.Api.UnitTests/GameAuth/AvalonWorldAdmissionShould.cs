@@ -5,11 +5,13 @@ using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.GameAuth;
+
 public sealed class AvalonWorldAdmissionShould
 {
     private readonly GameApplicationAccessPolicy _policy = new(Options.Create(new StoreAuthenticationConfiguration
     {
-        SteamAppId = 2499460, SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] },
+        SteamAppId = 2499460,
+        SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] },
         AdditionalApplications = new() { ["test.base"] = new() { Provider = "test-store", ProviderProductId = "opaque" } },
     }));
     [Theory]
@@ -35,8 +37,16 @@ public sealed class AvalonWorldAdmissionShould
     public void Native_authority_window_does_not_require_a_store_identity_timestamp()
     {
         var now = DateTime.UtcNow;
-        var context = new GameContextRecord { AuthorizationValidUntil = now.AddMinutes(5), AbsoluteExpiresAt = now.AddHours(1),
-            ProtocolVersion = "1", Environment = "production", State = "authorized", CredentialDigest = "", RefreshDigest = "" };
+        var context = new GameContextRecord
+        {
+            AuthorizationValidUntil = now.AddMinutes(5),
+            AbsoluteExpiresAt = now.AddHours(1),
+            ProtocolVersion = "1",
+            Environment = "production",
+            State = "authorized",
+            CredentialDigest = "",
+            RefreshDigest = ""
+        };
         Assert.Equal(now.AddMinutes(5), GameContextAuthorizationWindow.Deadline(context));
         Assert.Equal(now.AddMinutes(1), GameContextAuthorizationWindow.Deadline(context with { IdentityValidUntil = now.AddMinutes(1) }));
         Assert.Null(GameContextAuthorizationWindow.Deadline(context with { AuthorizationValidUntil = null }));

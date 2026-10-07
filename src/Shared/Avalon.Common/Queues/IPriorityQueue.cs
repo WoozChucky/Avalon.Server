@@ -1,4 +1,4 @@
-﻿namespace Avalon.Common.Queues
+namespace Avalon.Common.Queues
 {
     /// <summary>
     /// The IPriorityQueue interface.  This is mainly here for purists, and in case I decide to add more implementations later.
@@ -29,12 +29,12 @@
         bool Contains(TItem node);
 
         /// <summary>
-        /// Removes a node from the queue.  The node does not need to be the head of the queue.  
+        /// Removes a node from the queue.  The node does not need to be the head of the queue.
         /// </summary>
         void Remove(TItem node);
 
         /// <summary>
-        /// Call this method to change the priority of a node.  
+        /// Call this method to change the priority of a node.
         /// </summary>
         void UpdatePriority(TItem node, TPriority priority);
 

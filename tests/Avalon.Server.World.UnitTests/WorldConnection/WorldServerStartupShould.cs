@@ -209,7 +209,7 @@ public class WorldServerStartupShould
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
             Options.Create(new WorldShutdownConfiguration
-                { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
+            { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
         var server = new TestWorldServer(_world, _port, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         _load.SetResult();
@@ -252,7 +252,7 @@ public class WorldServerStartupShould
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
             Options.Create(new WorldShutdownConfiguration
-                { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
+            { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
         var server = new TestWorldServer(_world, _port, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         _load.SetResult();
@@ -266,9 +266,11 @@ public class WorldServerStartupShould
         using (adminServer)
         {
             var player = new Avalon.World.WorldConnection(server, playerClient, NullLoggerFactory.Instance,
-                Substitute.For<IPacketReader>()) { AccountId = new Avalon.Common.ValueObjects.AccountId(42) };
+                Substitute.For<IPacketReader>())
+            { AccountId = new Avalon.Common.ValueObjects.AccountId(42) };
             var admin = new Avalon.World.WorldConnection(server, adminClient, NullLoggerFactory.Instance,
-                Substitute.For<IPacketReader>()) { AccountId = new Avalon.Common.ValueObjects.AccountId(43) };
+                Substitute.For<IPacketReader>())
+            { AccountId = new Avalon.Common.ValueObjects.AccountId(43) };
             ((IAccessLevelAssignable)admin).AssignAccessLevel(Avalon.Common.Accounts.AccountAccessLevel.Admin);
             server.Add(player);
             server.Add(admin);

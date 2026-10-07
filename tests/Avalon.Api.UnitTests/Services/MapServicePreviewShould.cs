@@ -48,12 +48,18 @@ public class MapServicePreviewShould
         var configs = Substitute.For<IProceduralMapConfigRepository>();
         configs.FindByTemplateIdAsync(mapId, Arg.Any<CancellationToken>()).Returns(new ProceduralMapConfig
         {
-            MapTemplateId = mapId, ChunkPoolId = poolId, SpawnTableId = new SpawnTableId(1),
-            MainPathMin = 2, MainPathMax = 2, HasBoss = true, BackPortalTargetMapId = 1,
+            MapTemplateId = mapId,
+            ChunkPoolId = poolId,
+            SpawnTableId = new SpawnTableId(1),
+            MainPathMin = 2,
+            MainPathMax = 2,
+            HasBoss = true,
+            BackPortalTargetMapId = 1,
         });
         var pool = new ChunkPool
         {
-            Id = poolId, Name = "forest_pool",
+            Id = poolId,
+            Name = "forest_pool",
             Memberships = [new ChunkPoolMembership { ChunkPoolId = poolId, ChunkTemplateId = entry.Id, Template = entry }],
         };
         var inputs = Substitute.For<IProceduralLayoutInputsResolver>();

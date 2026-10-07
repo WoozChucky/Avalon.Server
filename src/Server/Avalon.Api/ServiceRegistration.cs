@@ -69,8 +69,10 @@ public static class ServiceRegistration
         })
         .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
         {
-            AllowAutoRedirect = false, MaxConnectionsPerServer = 32,
-            ConnectTimeout = TimeSpan.FromSeconds(5), ActivityHeadersPropagator = null,
+            AllowAutoRedirect = false,
+            MaxConnectionsPerServer = 32,
+            ConnectTimeout = TimeSpan.FromSeconds(5),
+            ActivityHeadersPropagator = null,
         });
 #pragma warning restore EXTEXP0001
 

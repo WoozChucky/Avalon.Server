@@ -86,7 +86,11 @@ public class AbilityTemplateControllerShould
             .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
             .Returns(new AbilityTemplate
             {
-                Id = new AbilityId(1), Name = "Fireball", ScriptName = "fireball.cs", Cost = 5, CostPowerType = pool,
+                Id = new AbilityId(1),
+                Name = "Fireball",
+                ScriptName = "fireball.cs",
+                Cost = 5,
+                CostPowerType = pool,
             });
 
         var sut = MakeSut(User(7, AvalonRoles.Player));

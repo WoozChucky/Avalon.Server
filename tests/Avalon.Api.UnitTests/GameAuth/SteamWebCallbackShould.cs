@@ -38,8 +38,10 @@ public sealed class SteamWebCallbackShould
         using var server = new TestServer(new WebHostBuilder().ConfigureServices(services =>
         {
             services.AddSingleton<IConfiguration>(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-            { [SteamWebLinkOptions.Section + ":CallbackUrl"] = "https://api.example.test" + SteamWebLinkOptions.CallbackPath,
-              [SteamWebLinkOptions.Section + ":SiteUrl"] = "https://web.example.test" }).Build());
+            {
+                [SteamWebLinkOptions.Section + ":CallbackUrl"] = "https://api.example.test" + SteamWebLinkOptions.CallbackPath,
+                [SteamWebLinkOptions.Section + ":SiteUrl"] = "https://web.example.test"
+            }).Build());
             services.AddSingleton<TimeProvider>(clock); services.AddSingleton(crypto);
             services.AddSingleton<IGameContextStore>(memory); services.AddSingleton(accounts);
             services.AddAuthentication("AvalonSteamLinkUnused");
@@ -67,12 +69,15 @@ public sealed class SteamWebCallbackShould
         Assert.StartsWith("https://api.example.test" + SteamWebLinkOptions.CallbackPath + "?state=", returnTo);
         var callbackValues = new Dictionary<string, string?>
         {
-            ["openid.ns"] = "http://specs.openid.net/auth/2.0", ["openid.mode"] = "id_res",
+            ["openid.ns"] = "http://specs.openid.net/auth/2.0",
+            ["openid.mode"] = "id_res",
             ["openid.op_endpoint"] = SteamWebLinkOptions.ProviderEndpoint,
             ["openid.claimed_id"] = "https://steamcommunity.com/openid/id/76561198000000001",
             ["openid.identity"] = "https://steamcommunity.com/openid/id/76561198000000001",
-            ["openid.return_to"] = returnTo, ["openid.response_nonce"] = "2026-10-04T12:00:00Zunique",
-            ["openid.assoc_handle"] = "association", ["openid.sig"] = "provider-signature",
+            ["openid.return_to"] = returnTo,
+            ["openid.response_nonce"] = "2026-10-04T12:00:00Zunique",
+            ["openid.assoc_handle"] = "association",
+            ["openid.sig"] = "provider-signature",
             ["openid.signed"] = "op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle",
         };
         var callback = QueryHelpers.AddQueryString(returnTo, callbackValues);

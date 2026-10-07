@@ -409,13 +409,19 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         {
             before.SpawnTables.Add(new SpawnTable
             {
-                Id = new SpawnTableId(1), Name = "forest_creatures",
+                Id = new SpawnTableId(1),
+                Name = "forest_creatures",
                 Entries = [new SpawnTableEntry { Tag = "pack", CreatureId = new CreatureTemplateId(2), Weight = 1f, MinCount = 1, MaxCount = 2 }],
             });
             before.ProceduralMapConfigs.Add(new ProceduralMapConfig
             {
-                MapTemplateId = new MapTemplateId(2), ChunkPoolId = new ChunkPoolId(1), SpawnTableId = new SpawnTableId(1),
-                MainPathMin = 2, MainPathMax = 3, HasBoss = true, BackPortalTargetMapId = 1,
+                MapTemplateId = new MapTemplateId(2),
+                ChunkPoolId = new ChunkPoolId(1),
+                SpawnTableId = new SpawnTableId(1),
+                MainPathMin = 2,
+                MainPathMax = 3,
+                HasBoss = true,
+                BackPortalTargetMapId = 1,
             });
             await before.SaveChangesAsync();
         }

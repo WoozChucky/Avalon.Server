@@ -88,9 +88,9 @@ public class AuraScriptConstructibilityShould
             AuraScripts auraScripts = host.Services.GetRequiredService<AuraScripts>();
             host.Services.GetRequiredService<IScriptManager>().Load();
             Assert.Null(auraScripts.For(new Avalon.Domain.World.AuraTemplate
-                { Id = new Avalon.Common.ValueObjects.AuraId(1), ScriptName = nameof(WorldHungryAuraScript) }));
+            { Id = new Avalon.Common.ValueObjects.AuraId(1), ScriptName = nameof(WorldHungryAuraScript) }));
             Assert.IsType<RecordingAuraScript>(auraScripts.For(new Avalon.Domain.World.AuraTemplate
-                { Id = new Avalon.Common.ValueObjects.AuraId(2), ScriptName = nameof(RecordingAuraScript) }));
+            { Id = new Avalon.Common.ValueObjects.AuraId(2), ScriptName = nameof(RecordingAuraScript) }));
         }
         finally
         {

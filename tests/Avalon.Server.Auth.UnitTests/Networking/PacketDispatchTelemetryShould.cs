@@ -274,7 +274,8 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         public IDisposable BeginScope<TState>(TState state) where TState : notnull => throw new InvalidOperationException("scope broke");
         public bool IsEnabled(LogLevel logLevel) => true;
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) { }
+            Func<TState, Exception?, string> formatter)
+        { }
     }
 
     [Theory]
@@ -314,7 +315,8 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         public bool IsEnabled(LogLevel logLevel) => true;
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-            Func<TState, Exception?, string> formatter) { }
+            Func<TState, Exception?, string> formatter)
+        { }
 
         public sealed class Scope(object state) : IDisposable
         {

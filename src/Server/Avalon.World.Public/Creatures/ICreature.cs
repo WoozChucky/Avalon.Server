@@ -39,7 +39,7 @@ public interface ICreature : IUnit
     /// </summary>
     IReadOnlyList<PatrolPoint> PatrolPath { get; set; }
 
-    IUnit?   TauntedBy      { get; set; }
+    IUnit? TauntedBy { get; set; }
     DateTime TauntExpiresAt { get; set; }
 
     void LookAt(Vector3 target);

@@ -61,7 +61,7 @@ public static class ServiceCollectionExtensions
                 .SelectMany(x => x.ExportedTypes)
                 .Where(x =>
                     x.IsAssignableTo(typeof(IPacketHandlerNew)) &&
-                    x is {IsClass: true, IsAbstract: false, IsInterface: false})
+                    x is { IsClass: true, IsAbstract: false, IsInterface: false })
                 .OrderBy(x => x.FullName)
                 .ToArray();
             return ActivatorUtilities.CreateInstance<PacketManager>(provider, packetTypes, handlerTypes);

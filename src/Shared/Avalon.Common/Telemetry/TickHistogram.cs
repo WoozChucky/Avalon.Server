@@ -1,4 +1,4 @@
-﻿// Licensed to the Avalon MMORPG Game under one or more agreements.
+// Licensed to the Avalon MMORPG Game under one or more agreements.
 // Avalon MMORPG Game licenses this file to you under the MIT license.
 
 using System.Text;

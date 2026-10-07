@@ -146,9 +146,17 @@ public sealed class GameLicenseProviderContractShould
             Request = new(new AccountId(7), Application, kind == LicenseAuthorityKind.StoredGrant ? null : new("subject", Now, Now.AddMinutes(30)), null, null, Now);
             License = new()
             {
-                Id = Guid.NewGuid(), AccountId = Request.Account, Provider = provider, ProviderSubject = Request.Identity?.ProviderSubject,
-                Product = "avalon.base", Environment = "production", ProviderProductId = providerProduct, LicenseReference = "same-reference",
-                AuthorityKind = kind, GrantedAt = Now.AddDays(-1), AuthorityRevision = 1,
+                Id = Guid.NewGuid(),
+                AccountId = Request.Account,
+                Provider = provider,
+                ProviderSubject = Request.Identity?.ProviderSubject,
+                Product = "avalon.base",
+                Environment = "production",
+                ProviderProductId = providerProduct,
+                LicenseReference = "same-reference",
+                AuthorityKind = kind,
+                GrantedAt = Now.AddDays(-1),
+                AuthorityRevision = 1,
             };
             Licenses.FindAsync(License.Id, Arg.Any<CancellationToken>()).Returns(_ => License);
             Licenses.FindAsync(Request.Account, provider, "production", "same-reference", Arg.Any<CancellationToken>()).Returns(_ => License);

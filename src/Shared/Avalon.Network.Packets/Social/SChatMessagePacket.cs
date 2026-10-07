@@ -40,8 +40,13 @@ public class SChatMessagePacket : Packet
         => PacketSerializationHelper.Serialize(
             new SChatMessagePacket
             {
-                AccountId = accountId, CharacterId = characterId, CharacterName = characterName, Message = message,
-                DateTime = dateTime, Channel = channel, TargetName = targetName,
+                AccountId = accountId,
+                CharacterId = characterId,
+                CharacterName = characterName,
+                Message = message,
+                DateTime = dateTime,
+                Channel = channel,
+                TargetName = targetName,
                 CharacterClass = characterClass
             },
             PacketType, Flags, Protocol, encryptFunc);

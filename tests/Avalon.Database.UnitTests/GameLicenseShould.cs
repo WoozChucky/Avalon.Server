@@ -108,9 +108,16 @@ public sealed class GameLicenseShould
 
     private static GameLicense Grant(Avalon.Common.ValueObjects.AccountId account, string provider) => new()
     {
-        Id = Guid.NewGuid(), AccountId = account, Provider = provider, Environment = "production", Product = "avalon.base",
-        ProviderProductId = "base", LicenseReference = "proof-1", AuthorityKind = LicenseAuthorityKind.StoredGrant,
-        GrantedAt = Now.AddDays(-1), AuthorityRevision = 1,
+        Id = Guid.NewGuid(),
+        AccountId = account,
+        Provider = provider,
+        Environment = "production",
+        Product = "avalon.base",
+        ProviderProductId = "base",
+        LicenseReference = "proof-1",
+        AuthorityKind = LicenseAuthorityKind.StoredGrant,
+        GrantedAt = Now.AddDays(-1),
+        AuthorityRevision = 1,
     };
 
     [Theory]
@@ -140,9 +147,17 @@ public sealed class GameLicenseShould
         var account = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("AUDIT"));
         await new LicenseObservationRepository(db).RecordAsync(new LicenseObservation
         {
-            Id = Guid.NewGuid(), AccountId = account.Id, Provider = "steam", ProviderSubject = "subject",
-            Environment = "production", Product = "avalon.base", ProviderProductId = "base", OwnsProduct = true,
-            ObservedAt = Now, AuthorizedUntil = Now.AddMinutes(5), PolicyVersion = 1,
+            Id = Guid.NewGuid(),
+            AccountId = account.Id,
+            Provider = "steam",
+            ProviderSubject = "subject",
+            Environment = "production",
+            Product = "avalon.base",
+            ProviderProductId = "base",
+            OwnsProduct = true,
+            ObservedAt = Now,
+            AuthorizedUntil = Now.AddMinutes(5),
+            PolicyVersion = 1,
         });
         Assert.Null(await new GameLicenseRepository(db).FindActiveAsync(account.Id, "steam", "production", "avalon.base", "base", Now));
     }

@@ -26,9 +26,22 @@ public sealed class PaymentNotificationService(IPurchaseRepository purchases, Pa
         var attempt = await purchases.ResolveAttemptAsync(proof.Provider, proof.ProviderAccountId, proof.PaymentEnvironment, proof.OrderId, proof.AttemptId,
             proof.ResourceKind == PaymentResourceKinds.Checkout ? proof.ResourceReference : null, proof.PaymentReference, ct);
         var now = clock.GetUtcNow().UtcDateTime;
-        var row = new PaymentEvent { Id = Guid.NewGuid(), Provider = proof.Provider, ProviderAccountId = proof.ProviderAccountId, Environment = proof.PaymentEnvironment,
-            ExternalReference = proof.EventReference, Type = proof.Type, ResourceKind = proof.ResourceKind, ResourceReference = proof.ResourceReference,
-            PaymentReference = proof.PaymentReference, OrderId = attempt?.OrderId, PaymentAttemptId = attempt?.Id, CreatedAt = proof.CreatedAt, NextAttemptAt = now };
+        var row = new PaymentEvent
+        {
+            Id = Guid.NewGuid(),
+            Provider = proof.Provider,
+            ProviderAccountId = proof.ProviderAccountId,
+            Environment = proof.PaymentEnvironment,
+            ExternalReference = proof.EventReference,
+            Type = proof.Type,
+            ResourceKind = proof.ResourceKind,
+            ResourceReference = proof.ResourceReference,
+            PaymentReference = proof.PaymentReference,
+            OrderId = attempt?.OrderId,
+            PaymentAttemptId = attempt?.Id,
+            CreatedAt = proof.CreatedAt,
+            NextAttemptAt = now
+        };
         // False means the verified event was already durable. Database failures propagate; they are never acknowledged.
         await purchases.AcceptEventAsync(row, ct);
         return NotificationAcceptance.Accepted;

@@ -253,8 +253,12 @@ public class SimulatorParityShould
             random: new CombatRandom(new Random(Seed)));
         var row = new Avalon.Domain.Characters.Character
         {
-            Id = new Avalon.Common.ValueObjects.CharacterId(6760_161), AccountId = new Avalon.Common.ValueObjects.AccountId(1),
-            Name = "Tester6760161", Class = CharacterClass.Wizard, Level = 1, CreationDate = DateTime.UtcNow,
+            Id = new Avalon.Common.ValueObjects.CharacterId(6760_161),
+            AccountId = new Avalon.Common.ValueObjects.AccountId(1),
+            Name = "Tester6760161",
+            Class = CharacterClass.Wizard,
+            Level = 1,
+            CreationDate = DateTime.UtcNow,
         };
         MapInstanceClient real = Join(instance, new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), clock) { Data = row });
         real.Character.PowerType = PowerType.Mana;
@@ -295,19 +299,40 @@ public class SimulatorParityShould
     /// </summary>
     private static AuraTemplate TestBleed() => new()
     {
-        Id = new Avalon.Common.ValueObjects.AuraId(9901), Name = "Test Bleed", Icon = "bleed", Kind = AuraKind.Harmful,
-        DurationMs = 12000, TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 12f,
-        ScalingStat = ScalingStat.Attack, ScalingCoefficient = 0.25f, BaseDamageCoefficient = 0.5f,
-        Stacking = AuraStacking.Stack, MaxStacks = 3,
+        Id = new Avalon.Common.ValueObjects.AuraId(9901),
+        Name = "Test Bleed",
+        Icon = "bleed",
+        Kind = AuraKind.Harmful,
+        DurationMs = 12000,
+        TickIntervalMs = 3000,
+        PeriodicKind = AuraPeriodicKind.Damage,
+        PeriodicBase = 12f,
+        ScalingStat = ScalingStat.Attack,
+        ScalingCoefficient = 0.25f,
+        BaseDamageCoefficient = 0.5f,
+        Stacking = AuraStacking.Stack,
+        MaxStacks = 3,
     };
 
     private static AbilityTemplate TestRend(int powerGainPerHit = 0) => new()
     {
-        Id = new Avalon.Common.ValueObjects.AbilityId(9203), Name = "Test Rend", ScriptName = "ConeAbilityScript",
-        Shape = AbilityShape.Cone, AimMode = AbilityAimMode.Movement, Reach = 2.5f, ArcDegrees = 90f, Cooldown = 6000,
-        Effects = SpellEffect.Damage, EffectValue = 8, ScalingStat = ScalingStat.Attack, ScalingCoefficient = 0.2f,
-        BaseDamageCoefficient = 0.5f, AllowedClasses = [CharacterClass.Warrior],
-        AuraId = new Avalon.Common.ValueObjects.AuraId(9901), ThreatMultiplier = 1f, PowerGainPerHit = powerGainPerHit,
+        Id = new Avalon.Common.ValueObjects.AbilityId(9203),
+        Name = "Test Rend",
+        ScriptName = "ConeAbilityScript",
+        Shape = AbilityShape.Cone,
+        AimMode = AbilityAimMode.Movement,
+        Reach = 2.5f,
+        ArcDegrees = 90f,
+        Cooldown = 6000,
+        Effects = SpellEffect.Damage,
+        EffectValue = 8,
+        ScalingStat = ScalingStat.Attack,
+        ScalingCoefficient = 0.2f,
+        BaseDamageCoefficient = 0.5f,
+        AllowedClasses = [CharacterClass.Warrior],
+        AuraId = new Avalon.Common.ValueObjects.AuraId(9901),
+        ThreatMultiplier = 1f,
+        PowerGainPerHit = powerGainPerHit,
     };
 
     /// <summary>
@@ -379,9 +404,17 @@ public class SimulatorParityShould
 
         AuraTemplate poison = new()
         {
-            Id = new Avalon.Common.ValueObjects.AuraId(9902), Name = "Test Poison", Icon = "poison", Kind = AuraKind.Harmful,
-            DurationMs = 9000, TickIntervalMs = 3000, PeriodicKind = AuraPeriodicKind.Damage, PeriodicBase = 3.5f,
-            BaseDamageCoefficient = 1f, Stacking = AuraStacking.Refresh, MaxStacks = 1,
+            Id = new Avalon.Common.ValueObjects.AuraId(9902),
+            Name = "Test Poison",
+            Icon = "poison",
+            Kind = AuraKind.Harmful,
+            DurationMs = 9000,
+            TickIntervalMs = 3000,
+            PeriodicKind = AuraPeriodicKind.Damage,
+            PeriodicBase = 3.5f,
+            BaseDamageCoefficient = 1f,
+            Stacking = AuraStacking.Refresh,
+            MaxStacks = 1,
         };
         SeedTables seed = SeedSource.Load();
         AbilityTemplate gore = seed.AbilityTemplates.Single(a => a.Id.Value == 300);
@@ -506,8 +539,12 @@ public class SimulatorParityShould
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
         var row = new Avalon.Domain.Characters.Character
         {
-            Id = new Avalon.Common.ValueObjects.CharacterId(6760_173), AccountId = new Avalon.Common.ValueObjects.AccountId(1),
-            Name = "Tester6760173", Class = CharacterClass.Healer, Level = Level, CreationDate = DateTime.UtcNow,
+            Id = new Avalon.Common.ValueObjects.CharacterId(6760_173),
+            AccountId = new Avalon.Common.ValueObjects.AccountId(1),
+            Name = "Tester6760173",
+            Class = CharacterClass.Healer,
+            Level = Level,
+            CreationDate = DateTime.UtcNow,
         };
         MapInstanceClient real = Join(instance, new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), clock) { Data = row });
         real.Character.PowerType = PowerType.Mana;
@@ -557,8 +594,13 @@ public class SimulatorParityShould
         MapInstanceClient real = RealWarrior(instance, 6760_181, Row(200));
         AuraTemplate ward = new()
         {
-            Id = new Avalon.Common.ValueObjects.AuraId(9905), Name = "Test Ward", Icon = "ward", Kind = AuraKind.Helpful,
-            DurationMs = 30000, Stacking = AuraStacking.Refresh, MaxStacks = 1,
+            Id = new Avalon.Common.ValueObjects.AuraId(9905),
+            Name = "Test Ward",
+            Icon = "ward",
+            Kind = AuraKind.Helpful,
+            DurationMs = 30000,
+            Stacking = AuraStacking.Refresh,
+            MaxStacks = 1,
             Modifiers =
             [
                 new AuraStatModifier { AuraId = new Avalon.Common.ValueObjects.AuraId(9905), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f },

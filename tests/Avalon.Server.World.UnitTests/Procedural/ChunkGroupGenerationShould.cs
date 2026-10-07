@@ -51,9 +51,15 @@ public class ChunkGroupGenerationShould
 
     private static ProceduralMapConfig Config(int min, int max, bool boss) => new()
     {
-        MapTemplateId = new MapTemplateId(20), ChunkPoolId = new ChunkPoolId(1), SpawnTableId = new SpawnTableId(1),
-        MainPathMin = (ushort)min, MainPathMax = (ushort)max, BranchChance = 0.5f, BranchMaxDepth = 2,
-        HasBoss = boss, BackPortalTargetMapId = 1,
+        MapTemplateId = new MapTemplateId(20),
+        ChunkPoolId = new ChunkPoolId(1),
+        SpawnTableId = new SpawnTableId(1),
+        MainPathMin = (ushort)min,
+        MainPathMax = (ushort)max,
+        BranchChance = 0.5f,
+        BranchMaxDepth = 2,
+        HasBoss = boss,
+        BackPortalTargetMapId = 1,
     };
 
     private static ProceduralLayoutGenerator Generator() => new(NullLoggerFactory.Instance);

@@ -20,11 +20,22 @@ public sealed class CharacterConsolidationShould
     private async Task Seed(SqliteDatabase<CharacterDbContext> database)
     {
         await using var db = database.CreateDbContext();
-        for (uint id = 1; id <= 13; id++) db.Characters.Add(new CharacterRow {
-            Id = new CharacterId(id), AccountId = id <= 8 ? _source : _target, Name = "Transfer" + id,
-            CreationDate = _clock.GetUtcNow().UtcDateTime, Money = id });
-        db.ItemInstances.Add(new ItemInstance { Id = new ItemInstanceId(Guid.Parse("11111111-1111-1111-1111-111111111111")),
-            CharacterId = new CharacterId(1), TemplateId = new ItemTemplateId(1), Count = 3, UpdatedAt = _clock.GetUtcNow().UtcDateTime });
+        for (uint id = 1; id <= 13; id++) db.Characters.Add(new CharacterRow
+        {
+            Id = new CharacterId(id),
+            AccountId = id <= 8 ? _source : _target,
+            Name = "Transfer" + id,
+            CreationDate = _clock.GetUtcNow().UtcDateTime,
+            Money = id
+        });
+        db.ItemInstances.Add(new ItemInstance
+        {
+            Id = new ItemInstanceId(Guid.Parse("11111111-1111-1111-1111-111111111111")),
+            CharacterId = new CharacterId(1),
+            TemplateId = new ItemTemplateId(1),
+            Count = 3,
+            UpdatedAt = _clock.GetUtcNow().UtcDateTime
+        });
         db.CharacterQuests.Add(new CharacterQuest { CharacterId = new CharacterId(1), QuestId = 42, Stage = 2, AcceptedAt = _clock.GetUtcNow().UtcDateTime });
         await db.SaveChangesAsync();
     }

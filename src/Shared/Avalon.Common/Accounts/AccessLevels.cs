@@ -11,12 +11,12 @@ namespace Avalon.Common.Accounts;
 /// </remarks>
 public static class AccessLevels
 {
-    public const AccountAccessLevel Console    = AccountAccessLevel.Console;
-    public const AccountAccessLevel Admin      = AccountAccessLevel.Admin | Console;
+    public const AccountAccessLevel Console = AccountAccessLevel.Console;
+    public const AccountAccessLevel Admin = AccountAccessLevel.Admin | Console;
     public const AccountAccessLevel GameMaster = AccountAccessLevel.GameMaster | Admin;
     // Tournament and PTR are players with exactly the Player permission set. All they add is
     // access to their own worlds, which World.AccessLevelRequired gates, not this mask (#447).
-    public const AccountAccessLevel Player     =
+    public const AccountAccessLevel Player =
         AccountAccessLevel.Player | AccountAccessLevel.Tournament | AccountAccessLevel.PTR | GameMaster;
 
     /// <summary>

@@ -43,8 +43,13 @@ public class ProceduralChunkLayoutSourceShould
         var configs = Substitute.For<IProceduralMapConfigRepository>();
         configs.FindByTemplateIdAsync(mapId, Arg.Any<CancellationToken>()).Returns(new ProceduralMapConfig
         {
-            MapTemplateId = mapId, ChunkPoolId = poolId, SpawnTableId = new SpawnTableId(1),
-            MainPathMin = 2, MainPathMax = 2, HasBoss = true, BackPortalTargetMapId = 1,
+            MapTemplateId = mapId,
+            ChunkPoolId = poolId,
+            SpawnTableId = new SpawnTableId(1),
+            MainPathMin = 2,
+            MainPathMax = 2,
+            HasBoss = true,
+            BackPortalTargetMapId = 1,
         });
         IServiceScopeFactory scopes = new ServiceCollection().AddScoped(_ => configs).BuildServiceProvider()
             .GetRequiredService<IServiceScopeFactory>();

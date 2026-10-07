@@ -455,12 +455,21 @@ public sealed class CharacterSaverShould : IDisposable
         {
             await new ItemInstanceRepository(_db).CreateAsync(stored.Select(i => new ItemInstance
             {
-                Id = i.InstanceId, TemplateId = i.TemplateId, CharacterId = owner, Count = i.Count,
-                Durability = i.Durability, Charges = i.Charges, Flags = i.Flags, UpdatedAt = DateTime.UtcNow,
+                Id = i.InstanceId,
+                TemplateId = i.TemplateId,
+                CharacterId = owner,
+                Count = i.Count,
+                Durability = i.Durability,
+                Charges = i.Charges,
+                Flags = i.Flags,
+                UpdatedAt = DateTime.UtcNow,
             }).ToList());
             await new CharacterInventoryRepository(_db).CreateAsync(stored.Select(i => new CharacterInventory
             {
-                CharacterId = owner, Container = InventoryType.Bag, Slot = i.Slot, ItemId = i.InstanceId,
+                CharacterId = owner,
+                Container = InventoryType.Bag,
+                Slot = i.Slot,
+                ItemId = i.InstanceId,
             }).ToList());
         }
 

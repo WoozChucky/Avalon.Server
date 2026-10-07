@@ -14,8 +14,15 @@ public class AuraTemplateSchemaShould
 {
     private static AuraTemplate Fortified(uint id = 900) => new()
     {
-        Id = new AuraId(id), Name = "Fortified", Icon = "fortified", Kind = AuraKind.Helpful, DurationMs = 30000,
-        PeriodicKind = AuraPeriodicKind.None, ScalingStat = ScalingStat.Attack, Stacking = AuraStacking.Refresh, MaxStacks = 1,
+        Id = new AuraId(id),
+        Name = "Fortified",
+        Icon = "fortified",
+        Kind = AuraKind.Helpful,
+        DurationMs = 30000,
+        PeriodicKind = AuraPeriodicKind.None,
+        ScalingStat = ScalingStat.Attack,
+        Stacking = AuraStacking.Refresh,
+        MaxStacks = 1,
         Modifiers = [new AuraStatModifier { AuraId = new AuraId(id), Stat = AuraStat.Armor, Kind = AuraModifierKind.Percent, Value = 20f }],
     };
 

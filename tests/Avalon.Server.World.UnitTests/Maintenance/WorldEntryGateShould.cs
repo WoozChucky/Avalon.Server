@@ -27,8 +27,16 @@ public sealed class WorldEntryGateShould
             .Returns(new WorldMaintenanceState(enabled, 1,
                 deadlinePassed ? clock.Now.UtcDateTime : clock.Now.UtcDateTime.AddMinutes(10)));
         accounts.FindByIdAsync(new AccountId(7), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(new Account { Id = new AccountId(7), AccessLevel = access,
-                Username = "TEST", Salt = [], Verifier = [], Email = "a@b.com", JoinDate = DateTime.UtcNow });
+            .Returns(new Account
+            {
+                Id = new AccountId(7),
+                AccessLevel = access,
+                Username = "TEST",
+                Salt = [],
+                Verifier = [],
+                Email = "a@b.com",
+                JoinDate = DateTime.UtcNow
+            });
 
         var gate = new WorldEntryGate(new WorldId(1), maintenance, accounts, clock);
         WorldEntryDecision decision = await gate.CheckAsync(new AccountId(7), CancellationToken.None);
@@ -56,8 +64,16 @@ public sealed class WorldEntryGateShould
         maintenance.ReadAsync(new WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(false, 0, null));
         accounts.FindByIdAsync(new AccountId(7), Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(new Account { Id = new AccountId(7), AccessLevel = AccountAccessLevel.Player,
-                Username = "TEST", Salt = [], Verifier = [], Email = "a@b.com", JoinDate = clock.Now.UtcDateTime });
+            .Returns(new Account
+            {
+                Id = new AccountId(7),
+                AccessLevel = AccountAccessLevel.Player,
+                Username = "TEST",
+                Salt = [],
+                Verifier = [],
+                Email = "a@b.com",
+                JoinDate = clock.Now.UtcDateTime
+            });
         var gate = new WorldEntryGate(new WorldId(1), maintenance, accounts, clock);
 
         WorldEntryDecision decision = await gate.CheckAsync(new AccountId(7), CancellationToken.None);

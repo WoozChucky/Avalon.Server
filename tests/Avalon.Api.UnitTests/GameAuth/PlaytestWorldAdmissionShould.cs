@@ -174,7 +174,8 @@ public sealed class PlaytestWorldAdmissionShould
         public Account Account { get; }
         public StoreAuthenticationConfiguration Configuration { get; } = new()
         {
-            SteamAppId = 2499460, SteamPublisherKey = "test-only",
+            SteamAppId = 2499460,
+            SteamPublisherKey = "test-only",
             SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] },
         };
         private MemoryGameLicenses _licenses = null!;
@@ -202,9 +203,16 @@ public sealed class PlaytestWorldAdmissionShould
         {
             Account = new Account
             {
-                Id = new AccountId(7), Username = "PLAYER", Email = createAccount ? null : "player@example.test",
-                Salt = createAccount ? [] : [1], Verifier = createAccount ? [] : [2], IsStoreGenerated = createAccount,
-                JoinDate = DateTime.UnixEpoch, AccessLevel = AccountAccessLevel.Player, Status = AccountStatus.Active, SessionEpoch = 1,
+                Id = new AccountId(7),
+                Username = "PLAYER",
+                Email = createAccount ? null : "player@example.test",
+                Salt = createAccount ? [] : [1],
+                Verifier = createAccount ? [] : [2],
+                IsStoreGenerated = createAccount,
+                JoinDate = DateTime.UnixEpoch,
+                AccessLevel = AccountAccessLevel.Player,
+                Status = AccountStatus.Active,
+                SessionEpoch = 1,
             };
             var identity = new ExternalIdentity { Id = Guid.NewGuid(), AccountId = Account.Id, Provider = "steam", ProviderSubject = Subject };
             ExternalIdentity? linked = createAccount ? null : identity;
@@ -233,8 +241,13 @@ public sealed class PlaytestWorldAdmissionShould
 
             var world = new Avalon.Domain.Auth.World
             {
-                Id = new WorldId(3), Name = "PTR", AccessLevelRequired = AccountAccessLevel.PTR,
-                Host = "ptr.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0",
+                Id = new WorldId(3),
+                Name = "PTR",
+                AccessLevelRequired = AccountAccessLevel.PTR,
+                Host = "ptr.example.test",
+                Port = 21000,
+                MinVersion = "0.2.0",
+                Version = "0.2.0",
             };
             var worlds = Substitute.For<IWorldRepository>();
             worlds.FindByIdAsync(world.Id, false, Arg.Any<CancellationToken>()).Returns(world);
@@ -257,10 +270,19 @@ public sealed class PlaytestWorldAdmissionShould
                 if (reservation.ExpectedFence != (_head?.FencingToken ?? 0)) return null;
                 _head = new GameSession
                 {
-                    AccountId = reservation.AccountId, GameSessionId = reservation.GameSessionId, GameContextId = reservation.GameContextId,
-                    FencingToken = reservation.ExpectedFence + 1, ServerId = reservation.ServerId, WorldId = reservation.WorldId,
-                    Environment = reservation.Environment, CredentialsVersion = reservation.CredentialsVersion, SessionEpoch = reservation.SessionEpoch,
-                    State = GameSessionState.Pending, CreatedAt = Now, LeaseUntil = Now.AddSeconds(45), LicenseUntil = reservation.LicenseUntil,
+                    AccountId = reservation.AccountId,
+                    GameSessionId = reservation.GameSessionId,
+                    GameContextId = reservation.GameContextId,
+                    FencingToken = reservation.ExpectedFence + 1,
+                    ServerId = reservation.ServerId,
+                    WorldId = reservation.WorldId,
+                    Environment = reservation.Environment,
+                    CredentialsVersion = reservation.CredentialsVersion,
+                    SessionEpoch = reservation.SessionEpoch,
+                    State = GameSessionState.Pending,
+                    CreatedAt = Now,
+                    LeaseUntil = Now.AddSeconds(45),
+                    LicenseUntil = reservation.LicenseUntil,
                 };
                 return _head;
             });

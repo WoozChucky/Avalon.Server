@@ -22,8 +22,18 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
             options.Value.ResolveSteamApplication(steamAppId)!.Restricted ? "steam.playtest" : "steam.main";
         var attempt = new AuthAttemptRecord
         {
-            Id = Guid.NewGuid(), ClientRunId = runId, SteamAppId = steamAppId, ApplicationKey = application, ProviderChallenge = identity, Channel = channel, ProtocolVersion = protocol, ContextId = contextId,
-            LinkChallenge = challenge, CreatedAt = now, ExpiresAt = now.Add(GameAuthPolicy.AttemptLifetime), ExpectedSteamIdentity = identity,
+            Id = Guid.NewGuid(),
+            ClientRunId = runId,
+            SteamAppId = steamAppId,
+            ApplicationKey = application,
+            ProviderChallenge = identity,
+            Channel = channel,
+            ProtocolVersion = protocol,
+            ContextId = contextId,
+            LinkChallenge = challenge,
+            CreatedAt = now,
+            ExpiresAt = now.Add(GameAuthPolicy.AttemptLifetime),
+            ExpectedSteamIdentity = identity,
         };
         return await store.CompareExchangeAsync([new(Key(credential), null, GameAuthJson.Serialize(attempt), attempt.ExpiresAt)], cancellationToken)
             ? new(credential, identity, attempt.ExpiresAt) : null;
@@ -39,9 +49,17 @@ public sealed class AuthAttemptStore(IGameContextStore store, GameAuthCryptograp
         var credential = GameAuthCryptography.NewToken();
         var attempt = new AuthAttemptRecord
         {
-            Id = Guid.NewGuid(), ClientRunId = runId, SteamAppId = legacySteamAppId, ApplicationKey = application.Key,
-            Channel = application.Provider, ProtocolVersion = protocol, ContextId = contextId, LinkChallenge = challenge,
-            CreatedAt = now, ExpiresAt = now.Add(GameAuthPolicy.AttemptLifetime), ExpectedSteamIdentity = providerChallenge,
+            Id = Guid.NewGuid(),
+            ClientRunId = runId,
+            SteamAppId = legacySteamAppId,
+            ApplicationKey = application.Key,
+            Channel = application.Provider,
+            ProtocolVersion = protocol,
+            ContextId = contextId,
+            LinkChallenge = challenge,
+            CreatedAt = now,
+            ExpiresAt = now.Add(GameAuthPolicy.AttemptLifetime),
+            ExpectedSteamIdentity = providerChallenge,
             ProviderChallenge = providerChallenge,
         };
         return await store.CompareExchangeAsync([new(Key(credential), null, GameAuthJson.Serialize(attempt), attempt.ExpiresAt)], ct)

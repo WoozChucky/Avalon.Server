@@ -25,8 +25,11 @@ public sealed class GameServerAuthHandlerShould
     {
         var monitor = Substitute.For<IOptionsMonitor<AuthenticationSchemeOptions>>();
         monitor.Get(Arg.Any<string>()).Returns(new AuthenticationSchemeOptions());
-        var configuration = Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition
-        { ServerId = "world-1", WorldId = 1, TlsServerName = "localhost", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = configuredPin }] });
+        var configuration = Options.Create(new GameWorkloadConfiguration
+        {
+            Servers = [new GameServerDefinition
+        { ServerId = "world-1", WorldId = 1, TlsServerName = "localhost", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = configuredPin }]
+        });
         var handler = new GameServerAuthHandler(monitor, NullLoggerFactory.Instance, UrlEncoder.Default, configuration, TimeProvider.System);
         var context = new DefaultHttpContext();
         context.Request.Scheme = https ? "https" : "http";

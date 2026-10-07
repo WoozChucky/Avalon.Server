@@ -33,8 +33,12 @@ public class DeSpawnPlayerAsyncShould
 
         MapTemplate town = new()
         {
-            Id = new MapTemplateId(1), Name = "town", Description = "town",
-            DefaultSpawnX = 10, DefaultSpawnY = 20, DefaultSpawnZ = 30
+            Id = new MapTemplateId(1),
+            Name = "town",
+            Description = "town",
+            DefaultSpawnX = 10,
+            DefaultSpawnY = 20,
+            DefaultSpawnZ = 30
         };
 
         Avalon.World.World.ReviveForDeathLogout(charEntity, dbCharacter);

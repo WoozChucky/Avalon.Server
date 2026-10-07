@@ -218,7 +218,8 @@ public class SimulationShould
     public void Treat_a_null_filter_as_no_filter()
     {
         RunResult result = Simulation.Run(TestData.Seed(), TestData.Config(), Quick() with { Filter = null! }
-            with { RunsPerRow = 1 }, null, CancellationToken.None);
+            with
+        { RunsPerRow = 1 }, null, CancellationToken.None);
 
         Assert.Equal(RunStatus.Done, result.Status);
         Assert.Equal(TestData.Config().Scenarios.Classes.Length * 10 * 3 * 8, result.Rows.Count);

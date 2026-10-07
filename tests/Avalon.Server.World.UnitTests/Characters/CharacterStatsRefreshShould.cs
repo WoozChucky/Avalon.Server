@@ -13,14 +13,26 @@ public class CharacterStatsRefreshShould
 {
     private static readonly ClassLevelStat WarriorLevel1 = new()
     {
-        Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0,
-        Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+        Class = CharacterClass.Warrior,
+        Level = 1,
+        BaseHp = 20,
+        BaseMana = 0,
+        Stamina = 22,
+        Strength = 23,
+        Agility = 20,
+        Intellect = 20,
     };
 
     private static readonly ClassLevelStat WizardLevel1 = new()
     {
-        Class = CharacterClass.Wizard, Level = 1, BaseHp = 16, BaseMana = 20,
-        Stamina = 21, Strength = 20, Agility = 20, Intellect = 23,
+        Class = CharacterClass.Wizard,
+        Level = 1,
+        BaseHp = 16,
+        BaseMana = 20,
+        Stamina = 21,
+        Strength = 20,
+        Agility = 20,
+        Intellect = 23,
     };
 
     private static readonly ClassLevelStat[] Rows = [WarriorLevel1, WizardLevel1];
@@ -191,8 +203,14 @@ public class CharacterStatsRefreshShould
         character.Data!.Class = CharacterClass.Hunter;
         ClassLevelStat hunter = new()
         {
-            Class = CharacterClass.Hunter, Level = 1, BaseHp = 18, BaseMana = 10,
-            Stamina = 20, Strength = 21, Agility = 23, Intellect = 20,
+            Class = CharacterClass.Hunter,
+            Level = 1,
+            BaseHp = 18,
+            BaseMana = 10,
+            Stamina = 20,
+            Strength = 21,
+            Agility = 23,
+            Intellect = 20,
         };
 
         CharacterStatsRefresh.Apply(character, [hunter], TestCombat.Factors, EquipTemplates.Find, CurrentValues.Refill, TestCombat.Formula);

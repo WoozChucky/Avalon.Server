@@ -50,7 +50,8 @@ public readonly struct InboundPacketFrame
                     case 0: ReadVarint(span, ref pos); break;          // varint
                     case 1: pos += 8; break;                           // 64-bit
                     case 5: pos += 4; break;                           // 32-bit
-                    default: throw new InvalidDataException(
+                    default:
+                        throw new InvalidDataException(
                         $"Unsupported protobuf wire type {wireType} for field {fieldNumber} in NetworkPacket frame.");
                 }
                 continue;

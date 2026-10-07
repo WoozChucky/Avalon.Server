@@ -113,9 +113,17 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
     private static DateTime Min(params DateTime[] values) => values.Min();
     private static GameSessionLeaseReply Reply(GameSession head, Account root) => new()
     {
-        State = GameAuthStates.Active, AccountId = head.AccountId.Value.ToString(CultureInfo.InvariantCulture), GameSessionId = head.GameSessionId.ToString("D"),
-        GameContextId = head.GameContextId.ToString("D"), FencingToken = head.FencingToken.ToString(CultureInfo.InvariantCulture), ServerId = head.ServerId,
-        WorldId = head.WorldId, AccessLevel = (ushort)root.AccessLevel, CredentialsVersion = head.CredentialsVersion,
-        SessionEpoch = head.SessionEpoch.ToString(CultureInfo.InvariantCulture), LeaseUntil = head.LeaseUntil, AuthorizationUntil = head.LicenseUntil,
+        State = GameAuthStates.Active,
+        AccountId = head.AccountId.Value.ToString(CultureInfo.InvariantCulture),
+        GameSessionId = head.GameSessionId.ToString("D"),
+        GameContextId = head.GameContextId.ToString("D"),
+        FencingToken = head.FencingToken.ToString(CultureInfo.InvariantCulture),
+        ServerId = head.ServerId,
+        WorldId = head.WorldId,
+        AccessLevel = (ushort)root.AccessLevel,
+        CredentialsVersion = head.CredentialsVersion,
+        SessionEpoch = head.SessionEpoch.ToString(CultureInfo.InvariantCulture),
+        LeaseUntil = head.LeaseUntil,
+        AuthorizationUntil = head.LicenseUntil,
     };
 }

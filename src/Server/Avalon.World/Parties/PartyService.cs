@@ -405,7 +405,8 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         int delay = Config.PartyReturnRetrySeconds;
         _countdowns[characterId] = new PartyCountdown(pending.InstanceId, pending.Party,
-            time.GetUtcNow() + TimeSpan.FromSeconds(delay)) { NextMark = CountdownMarks.Length, Retries = attempt };
+            time.GetUtcNow() + TimeSpan.FromSeconds(delay))
+        { NextMark = CountdownMarks.Length, Retries = attempt };
         logger.LogWarning(failure,
             "Return to town of character {CharacterId} failed (attempt {Attempt} of {Attempts}); trying again in {Seconds} s",
             characterId, attempt, MaxReturnRetries + 1, delay);
@@ -485,7 +486,8 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             next++;
 
         _countdowns[characterId] = new PartyCountdown(character.InstanceId, party.Id,
-            time.GetUtcNow() + TimeSpan.FromSeconds(grace)) { NextMark = next };
+            time.GetUtcNow() + TimeSpan.FromSeconds(grace))
+        { NextMark = next };
         _returning.Remove(characterId);
 
         string why = reason switch

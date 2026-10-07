@@ -47,8 +47,16 @@ public sealed class LicenseRevocationShould
     }
     private static LicenseObservation Observation(AccountId account, bool owned, DateTime at, string appId = "2499460") => new()
     {
-        Id = Guid.NewGuid(), AccountId = account, Provider = "steam", ProviderSubject = "76561198000000001",
-        Environment = "production", Product = "avalon.base", ProviderProductId = appId, OwnsProduct = owned,
-        ObservedAt = at, AuthorizedUntil = owned ? at.AddMinutes(5) : at, PolicyVersion = 1
+        Id = Guid.NewGuid(),
+        AccountId = account,
+        Provider = "steam",
+        ProviderSubject = "76561198000000001",
+        Environment = "production",
+        Product = "avalon.base",
+        ProviderProductId = appId,
+        OwnsProduct = owned,
+        ObservedAt = at,
+        AuthorizedUntil = owned ? at.AddMinutes(5) : at,
+        PolicyVersion = 1
     };
 }

@@ -58,7 +58,7 @@ public sealed partial class GameAuthorizationService
             if (!await store.CompareExchangeAsync([new(key, raw, claimedRaw, consent.ProofExpiresAt)], cancellationToken)) continue;
             var operation = new IdentityLinkOperation(consent.OperationId, new AccountId(consent.AccountId), consent.Provider,
                 consent.ProviderSubject, consent.CredentialsVersion, consent.SessionEpoch, consent.ConfirmedMfaId)
-                { ProofExpiresAt = consent.ProofExpiresAt };
+            { ProofExpiresAt = consent.ProofExpiresAt };
             var result = await identities.LinkWithAuthorityAsync(operation, Now, cancellationToken);
             if (result.Status is not (IdentityLinkStatus.Linked or IdentityLinkStatus.AlreadyLinked) || result.Identity?.Id != operation.OperationId)
             {
@@ -91,12 +91,21 @@ public sealed partial class GameAuthorizationService
             var nextRefresh = GameAuthCryptography.NewToken();
             var next = context with
             {
-                AccountId = account.Id.Value, CredentialsVersion = account.CredentialsVersion, SessionEpoch = account.SessionEpoch,
+                AccountId = account.Id.Value,
+                CredentialsVersion = account.CredentialsVersion,
+                SessionEpoch = account.SessionEpoch,
                 State = license.Status == GameLicenseCheckStatus.Licensed && license.AuthorizedUntil > Now ? GameAuthStates.Authorized : GameAuthStates.PendingLicense,
                 AuthorizationValidUntil = license.Status == GameLicenseCheckStatus.Licensed ? license.AuthorizedUntil : null,
-                LicenseObservationId = license.ObservationId, LicenseId = license.LicenseId, LicenseRevision = license.Revision, PendingLinkId = null, LinkChallenge = null, LinkProofExpiresAt = null,
-                CredentialDigest = GameAuthCryptography.Digest(nextCredential), RefreshDigest = GameAuthCryptography.Digest(nextRefresh),
-                CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt), Generation = context.Generation + 1,
+                LicenseObservationId = license.ObservationId,
+                LicenseId = license.LicenseId,
+                LicenseRevision = license.Revision,
+                PendingLinkId = null,
+                LinkChallenge = null,
+                LinkProofExpiresAt = null,
+                CredentialDigest = GameAuthCryptography.Digest(nextCredential),
+                RefreshDigest = GameAuthCryptography.Digest(nextRefresh),
+                CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt),
+                Generation = context.Generation + 1,
             };
             var reply = Response(next, nextCredential, nextRefresh,
                 license.Status == GameLicenseCheckStatus.Unavailable ? GameAuthErrors.ProviderUnavailable : null);

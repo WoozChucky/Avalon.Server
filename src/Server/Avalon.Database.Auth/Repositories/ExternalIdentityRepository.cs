@@ -45,7 +45,11 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
         if (conflict is not null) return conflict;
         var identity = new ExternalIdentity
         {
-            Id = Guid.NewGuid(), AccountId = accountId, Provider = provider, ProviderSubject = subject, LinkedAt = now,
+            Id = Guid.NewGuid(),
+            AccountId = accountId,
+            Provider = provider,
+            ProviderSubject = subject,
+            LinkedAt = now,
         };
         db.ExternalIdentities.Add(identity);
         try
@@ -97,8 +101,11 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
         if (conflict is not null) return conflict;
         var identity = new ExternalIdentity
         {
-            Id = operation.OperationId, AccountId = operation.AccountId, Provider = operation.Provider,
-            ProviderSubject = operation.Subject, LinkedAt = now,
+            Id = operation.OperationId,
+            AccountId = operation.AccountId,
+            Provider = operation.Provider,
+            ProviderSubject = operation.Subject,
+            LinkedAt = now,
         };
         db.ExternalIdentities.Add(identity);
         try

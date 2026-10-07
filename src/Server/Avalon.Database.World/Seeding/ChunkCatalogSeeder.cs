@@ -24,7 +24,8 @@ public static class ChunkCatalogSeeder
     // camelCase only names the files' own properties in an error (a missing required field); reading ignores case.
     private static readonly JsonSerializerOptions Json = new()
     {
-        PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
     public static async Task<ChunkCatalogSeedResult> SeedAsync(WorldDbContext db, string mapsRoot,
@@ -556,7 +557,10 @@ public static class ChunkCatalogSeeder
             config.MinSetPieceStep = map.MinSetPieceStep ?? 0;
             config.DepthBands.AddRange((map.DepthBands ?? []).Select(b => new ProceduralDepthBand
             {
-                MinDepth = b.MinDepth, MaxDepth = b.MaxDepth, MinLevel = b.MinLevel, MaxLevel = b.MaxLevel,
+                MinDepth = b.MinDepth,
+                MaxDepth = b.MaxDepth,
+                MinLevel = b.MinLevel,
+                MaxLevel = b.MaxLevel,
             }));
         }
 

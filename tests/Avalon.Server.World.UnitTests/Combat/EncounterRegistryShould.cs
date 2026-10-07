@@ -21,7 +21,7 @@ public class EncounterRegistryShould
     {
         var reg = new EncounterRegistry(new CombatConfig());
         var enc = (Encounter)reg.CreateEncounter();
-        var u   = Substitute.For<IUnit>();
+        var u = Substitute.For<IUnit>();
         enc.AddHostile(u);
         Assert.Same(enc, reg.FindEncounterContaining(u));
     }
@@ -30,7 +30,7 @@ public class EncounterRegistryShould
     public void Should_return_null_when_no_encounter_contains_unit()
     {
         var reg = new EncounterRegistry(new CombatConfig());
-        var u   = Substitute.For<IUnit>();
+        var u = Substitute.For<IUnit>();
         Assert.Null(reg.FindEncounterContaining(u));
     }
 

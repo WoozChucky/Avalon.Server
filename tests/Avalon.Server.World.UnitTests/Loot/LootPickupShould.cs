@@ -39,15 +39,15 @@ public class LootPickupShould
 
     private void Drop(ItemTemplateId? item = null, uint count = 1, ulong gold = 0, uint? owner = 7,
         DateTime? freeForAllAt = null, Vector3? at = null) => _store.Add(new GroundLoot
-    {
-        Guid = DropGuid,
-        Position = at ?? new Vector3(1f, 0f, 1f),
-        ItemTemplateId = item,
-        Count = count,
-        Gold = gold,
-        OwnerCharacterId = owner,
-        FreeForAllAt = freeForAllAt ?? Now.AddSeconds(30),
-    });
+        {
+            Guid = DropGuid,
+            Position = at ?? new Vector3(1f, 0f, 1f),
+            ItemTemplateId = item,
+            Count = count,
+            Gold = gold,
+            OwnerCharacterId = owner,
+            FreeForAllAt = freeForAllAt ?? Now.AddSeconds(30),
+        });
 
     private LootPickupOutcome PickUp(CharacterEntity? picker = null, GroundLootStore? store = null) =>
         LootPickup.TryPickUp(picker ?? _picker, store ?? _store, DropGuid, Range, Now, Economy(), NullLogger.Instance);

@@ -26,8 +26,12 @@ public sealed class StoreAccountRegistration(IExternalIdentityRepository identit
         {
             // Internal account name, independent of an untrusted store display name. Stable across exact retries.
             Username = "S" + operationId.ToString("N")[..15].ToUpperInvariant(),
-            Email = null, Salt = [], Verifier = [], IsStoreGenerated = true,
-            JoinDate = clock.GetUtcNow().UtcDateTime, LastIp = source.ToString(),
+            Email = null,
+            Salt = [],
+            Verifier = [],
+            IsStoreGenerated = true,
+            JoinDate = clock.GetUtcNow().UtcDateTime,
+            LastIp = source.ToString(),
         };
         var operation = new StoreAccountCreationOperation(operationId, account, verifiedSubject, proofExpiresAt) { Provider = provider };
         var prior = await identities.FindAsync(provider, verifiedSubject, cancellationToken);

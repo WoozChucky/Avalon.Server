@@ -36,8 +36,12 @@ public sealed class AccountEmailVerificationServiceShould
     }
 
     [Theory]
-    [InlineData("account")] [InlineData("email")] [InlineData("credentials")]
-    [InlineData("expired")] [InlineData("replacement")] [InlineData("consolidation")]
+    [InlineData("account")]
+    [InlineData("email")]
+    [InlineData("credentials")]
+    [InlineData("expired")]
+    [InlineData("replacement")]
+    [InlineData("consolidation")]
     public async Task RefusesStaleOrCrossAccountProof(string condition)
     {
         using var f = await Fixture.Create();

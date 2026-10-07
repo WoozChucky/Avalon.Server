@@ -210,7 +210,7 @@ public class Creature : ICreature
 
     public IReadOnlyList<PatrolPoint> PatrolPath { get; set; } = [];
 
-    public IUnit?   TauntedBy      { get; set; }
+    public IUnit? TauntedBy { get; set; }
     public DateTime TauntExpiresAt { get; set; } = DateTime.MinValue;
 
     public ushort Level

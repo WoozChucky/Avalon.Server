@@ -204,7 +204,7 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
             ProxyHeader header = await ProxyProtocolV2.ReadAsync(raw, timeout.Token).ConfigureAwait(false);
             if (header.Source is not null)
                 RemoteEndPoint = header.Source.ToString();
-                ClientAddress = PacketTags.AddressOf(RemoteEndPoint);
+            ClientAddress = PacketTags.AddressOf(RemoteEndPoint);
             return true;
         }
         catch (ProxyHeaderNotSentException)

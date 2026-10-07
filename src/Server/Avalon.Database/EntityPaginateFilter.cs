@@ -13,7 +13,7 @@ public abstract class EntityPaginateFilter<TEntity> where TEntity : class
     [Range(1, 50)]
     public int PageSize { get; set; } = 10;
 
-    public string? SortBy  { get; set; }
+    public string? SortBy { get; set; }
 
     /// <summary>
     /// Return an EF-translatable predicate.

@@ -49,7 +49,7 @@ public sealed class AuthDbContextFactory : IDesignTimeDbContextFactory<AuthDbCon
         //    context reads opts.Value.Auth.ConnectionString internally.
         IOptions<DatabaseConfiguration> opts = Options.Create(new DatabaseConfiguration
         {
-            Auth = new DatabaseConnection {ConnectionString = authConn}
+            Auth = new DatabaseConnection { ConnectionString = authConn }
         });
 
         AuthDbContext ctx = new(loggerFactory, opts);

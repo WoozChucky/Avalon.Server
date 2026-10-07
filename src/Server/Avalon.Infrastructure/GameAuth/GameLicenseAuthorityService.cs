@@ -53,11 +53,17 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 if (!owns || provider.AuthorityKind == LicenseAuthorityKind.StoredGrant) return Unlicensed;
                 license = await licenses.RecordGrantAsync(new GameLicense
                 {
-                    Id = Guid.NewGuid(), AccountId = request.Account, Product = request.Application.Product,
-                    Provider = request.Application.Provider, Environment = request.Application.Environment,
-                    ProviderProductId = request.Application.ProviderProductId, ProviderSubject = request.Identity!.ProviderSubject,
-                    LicenseReference = evidence.LicenseReference, AuthorityKind = provider.AuthorityKind,
-                    GrantedAt = evidence.ObservedAt, ExpiresAt = evidence.ProviderExpiresAt,
+                    Id = Guid.NewGuid(),
+                    AccountId = request.Account,
+                    Product = request.Application.Product,
+                    Provider = request.Application.Provider,
+                    Environment = request.Application.Environment,
+                    ProviderProductId = request.Application.ProviderProductId,
+                    ProviderSubject = request.Identity!.ProviderSubject,
+                    LicenseReference = evidence.LicenseReference,
+                    AuthorityKind = provider.AuthorityKind,
+                    GrantedAt = evidence.ObservedAt,
+                    ExpiresAt = evidence.ProviderExpiresAt,
                 }, ct);
                 if (!Matches(license, request, provider.AuthorityKind)) return Unavailable;
             }
@@ -74,11 +80,22 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
             if (owns && !applied.Authorizes(request.Account, request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;
             var observation = new LicenseObservation
             {
-                Id = Guid.NewGuid(), LicenseId = applied.Id, AuthorityRevision = applied.AuthorityRevision,
-                AccountId = request.Account, Provider = request.Application.Provider, ProviderSubject = request.Identity?.ProviderSubject ?? string.Empty,
-                Environment = request.Application.Environment, Product = request.Application.Product, ProviderProductId = request.Application.ProviderProductId,
-                ProviderOwnerSubject = evidence.OwnerSubject, Permanent = evidence.Permanent, OwnsProduct = owns,
-                ObservedAt = evidence.ObservedAt, AuthorizedUntil = end, ProviderExpiresAt = evidence.ProviderExpiresAt, PolicyVersion = options.Value.PolicyVersion,
+                Id = Guid.NewGuid(),
+                LicenseId = applied.Id,
+                AuthorityRevision = applied.AuthorityRevision,
+                AccountId = request.Account,
+                Provider = request.Application.Provider,
+                ProviderSubject = request.Identity?.ProviderSubject ?? string.Empty,
+                Environment = request.Application.Environment,
+                Product = request.Application.Product,
+                ProviderProductId = request.Application.ProviderProductId,
+                ProviderOwnerSubject = evidence.OwnerSubject,
+                Permanent = evidence.Permanent,
+                OwnsProduct = owns,
+                ObservedAt = evidence.ObservedAt,
+                AuthorizedUntil = end,
+                ProviderExpiresAt = evidence.ProviderExpiresAt,
+                PolicyVersion = options.Value.PolicyVersion,
             };
             await observations.RecordAsync(observation, ct);
             return owns ? new(GameLicenseCheckStatus.Licensed, applied.Id, applied.AuthorityRevision, end, observation.Id)

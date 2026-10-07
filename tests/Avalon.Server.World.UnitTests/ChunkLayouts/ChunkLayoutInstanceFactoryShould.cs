@@ -119,7 +119,8 @@ public class ChunkLayoutInstanceFactoryShould
             MapTemplateId = template.Id,
             ChunkPoolId = new ChunkPoolId(1),
             SpawnTableId = new SpawnTableId(1),
-            MainPathMin = 1, MainPathMax = 1,
+            MainPathMin = 1,
+            MainPathMax = 1,
             BackPortalTargetMapId = 0,
         };
         var layout = MakeLayout(cfg) with { Seed = 1234 };

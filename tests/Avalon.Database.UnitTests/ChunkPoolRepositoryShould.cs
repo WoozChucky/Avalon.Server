@@ -28,7 +28,8 @@ public class ChunkPoolRepositoryShould
                 new ChunkTemplate { Id = new ChunkTemplateId(903), Name = "c", AssetKey = "c", GeometryFile = "c.obj" });
             write.ChunkPools.Add(new ChunkPool
             {
-                Id = new ChunkPoolId(90), Name = "test_pool",
+                Id = new ChunkPoolId(90),
+                Name = "test_pool",
                 Memberships = [new ChunkPoolMembership { ChunkPoolId = new ChunkPoolId(90), ChunkTemplateId = new ChunkTemplateId(901), Weight = 1f }],
                 Groups =
                 [

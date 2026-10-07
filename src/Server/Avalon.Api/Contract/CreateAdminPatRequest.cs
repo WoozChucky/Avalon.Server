@@ -1,4 +1,5 @@
 namespace Avalon.Api.Contract;
+
 public sealed class CreateAdminPatRequest
 {
     public long AccountId { get; set; }

@@ -271,7 +271,8 @@ public class ObjectStateWriterShould
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 6));
         creature.Metadata.Returns(new Avalon.Domain.World.CreatureTemplate
         {
-            Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3), Rarity = WorldRarity.Boss,
+            Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3),
+            Rarity = WorldRarity.Boss,
         });
 
         Assert.Null(ObjectStateWriter.From(creature, GameEntityFields.All).Rarity);

@@ -70,10 +70,19 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
         if (links.Count(i => i.AccountId == source.Id) != 1 || !links.Any(i => i.Id == identity.Id && i.AccountId == source.Id && i.ProviderSubject == request.ProviderSubject) ||
             links.Any(i => i.AccountId == target.Id && i.Provider == request.Provider)) return new(GameAuthErrors.IdentityConflict);
         if (request.ProofExpiresAt <= Now) return new(GameAuthErrors.ProofExpired);
-        var operation = new AccountConsolidation { Id = request.OperationId, SourceAccountId = source.Id, TargetAccountId = target.Id,
-            Provider = request.Provider, ProviderSubject = request.ProviderSubject, TargetCredentialsVersion = request.CredentialsVersion, TargetSessionEpoch = request.SessionEpoch,
-            ConfirmedMfaId = request.ConfirmedMfaId, AuthorizedAt = Now,
-            Worlds = request.Worlds.OrderBy(w => w.Value).Select(w => new AccountConsolidationWorld { ConsolidationId = request.OperationId, WorldId = w.Value }).ToList() };
+        var operation = new AccountConsolidation
+        {
+            Id = request.OperationId,
+            SourceAccountId = source.Id,
+            TargetAccountId = target.Id,
+            Provider = request.Provider,
+            ProviderSubject = request.ProviderSubject,
+            TargetCredentialsVersion = request.CredentialsVersion,
+            TargetSessionEpoch = request.SessionEpoch,
+            ConfirmedMfaId = request.ConfirmedMfaId,
+            AuthorizedAt = Now,
+            Worlds = request.Worlds.OrderBy(w => w.Value).Select(w => new AccountConsolidationWorld { ConsolidationId = request.OperationId, WorldId = w.Value }).ToList()
+        };
         db.AccountConsolidations.Add(operation);
         await db.AccountEmailVerifications.Where(v => v.AccountId == source.Id && v.InvalidatedAt == null && v.ConsumedAt == null)
             .ExecuteUpdateAsync(u => u.SetProperty(v => v.InvalidatedAt, (DateTime?)Now), cancellationToken);

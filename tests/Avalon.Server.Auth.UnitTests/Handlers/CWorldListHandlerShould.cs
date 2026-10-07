@@ -201,7 +201,7 @@ public class CWorldListHandlerShould
         _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(call => sent = call.Arg<NetworkPacket>());
 
         await _handler.ExecuteAsync(new AuthPacketContext<CWorldListPacket>
-            { Packet = new CWorldListPacket(), Connection = _connection });
+        { Packet = new CWorldListPacket(), Connection = _connection });
 
         using var stream = new MemoryStream(sent!.Payload);
         var statuses = Serializer.Deserialize<SWorldListPacket>(stream).Worlds!.ToDictionary(w => w.Id, w => w.Status);
@@ -225,7 +225,7 @@ public class CWorldListHandlerShould
         _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(call => sent = call.Arg<NetworkPacket>());
 
         await _handler.ExecuteAsync(new AuthPacketContext<CWorldListPacket>
-            { Packet = new CWorldListPacket(), Connection = _connection });
+        { Packet = new CWorldListPacket(), Connection = _connection });
 
         using var stream = new MemoryStream(sent!.Payload);
         Assert.Equal((short)WorldStatus.Online,

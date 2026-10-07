@@ -34,7 +34,7 @@ public sealed class RedisGameContextStore(IReplicatedCache cache, TimeProvider c
     public async Task<bool> CompareExchangeAsync(IReadOnlyList<GameAuthMutation> mutations, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (mutations.Count is < 1 or  > MaximumMutations || mutations.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count() != mutations.Count)
+        if (mutations.Count is < 1 or > MaximumMutations || mutations.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count() != mutations.Count)
             throw new ArgumentException("Invalid atomic game-auth write set.", nameof(mutations));
         var now = clock.GetUtcNow().UtcDateTime;
         var keys = new RedisKey[mutations.Count];
