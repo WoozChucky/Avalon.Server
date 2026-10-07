@@ -2,8 +2,8 @@
 
   <!--
     The shared API hosting's tests (#794, design section 11.1): authentication, the middlewares, the world database
-    plumbing, startup and the one pipeline. Some still run the monolith's composition (the exception mappers, the
-    login endpoints), until the services move into their own libraries.
+    plumbing, startup and the one pipeline. Some run the services' own composition on it (identity's and worlds'
+    exception mappers and registrations, the login endpoints).
   -->
 
   <PropertyGroup>
@@ -40,7 +40,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Avalon.Api.Testing\Avalon.Api.Testing.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>
-    <!-- The monolith, for the tests that run its composition, until its services move out (T3.1 to T3.4). -->
+    <!-- The host, for the tests that compose the services it runs (ApiServices.All) on the shared hosting. -->
     <ProjectReference Include="..\..\src\Server\Avalon.Api\Avalon.Api.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Database\Avalon.Database.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>

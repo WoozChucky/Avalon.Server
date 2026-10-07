@@ -9,8 +9,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AngleSharp" />
-    <PackageReference Include="AspNet.Security.OpenId.Steam" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
     <!-- Emits the OpenAPI document during build so the docs site and the dashboard's
          drift check can read the contract without running the API. Build-only: it
@@ -29,9 +27,6 @@
     <PackageReference Include="Serilog.Extensions.Logging"/>
     <PackageReference Include="Serilog.Sinks.Console"/>
     <PackageReference Include="StackExchange.Redis"/>
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt"/>
-    <PackageReference Include="BCrypt.Net-Next"/>
-    <PackageReference Include="WebPush"/>
   </ItemGroup>
 
   <ItemGroup>
@@ -55,6 +50,7 @@
     <ProjectReference Include="..\Avalon.Api.Contract\Avalon.Api.Contract.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Distribution\Avalon.Api.Distribution.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>
+    <ProjectReference Include="..\Avalon.Api.Identity\Avalon.Api.Identity.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Worlds\Avalon.Api.Worlds.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Character\Avalon.Database.Character.csproj"/>

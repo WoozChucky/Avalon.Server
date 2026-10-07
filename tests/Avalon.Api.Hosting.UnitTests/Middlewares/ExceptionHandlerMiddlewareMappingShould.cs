@@ -1,9 +1,9 @@
 using System.Data.Common;
 using System.Security.Authentication;
 using System.Text.Json;
-using Avalon.Api.Exceptions;
 using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Hosting.Middlewares;
+using Avalon.Api.Identity.Exceptions;
 using Avalon.Api.Testing;
 using Avalon.Api.Worlds.Exceptions;
 using Avalon.Domain.Auth;
@@ -27,7 +27,7 @@ public class ExceptionHandlerMiddlewareMappingShould
     private const string ServiceUnavailableDetail = "The service is temporarily unavailable. Try again shortly.";
 
     /// <summary>Identity's mappers and the worlds service's, whose exceptions these cases throw, in the host's order (#794).</summary>
-    private static readonly IReadOnlyList<IExceptionProblemMapper> s_mappers = [.. MonolithApi.ProblemMappers, new WorldsProblemMapper()];
+    private static readonly IReadOnlyList<IExceptionProblemMapper> s_mappers = [new IdentityProblemMapper(), new WorldsProblemMapper()];
 
     public static TheoryData<Exception, int, string, string, string, string?> Mappings => new()
     {
@@ -37,7 +37,7 @@ public class ExceptionHandlerMiddlewareMappingShould
         { new AccountInactiveException(AccountStatus.Deactivated), 403, "AccountInactiveException", "Account not active", "DEACTIVATED", null },
         { new AccountLockedException(), 429, "AccountLockedException", "Too many attempts", "LOCKED", null },
         { new EmailDeliveryException(), 503, "ServiceUnavailable", "Service unavailable", "Email could not be sent", null },
-        { new Avalon.Api.Services.Email.EmailVerificationUnavailableException(), 501, "NotImplemented", "Email delivery unavailable",
+        { new Avalon.Api.Identity.Services.Email.EmailVerificationUnavailableException(), 501, "NotImplemented", "Email delivery unavailable",
             "Email verification is unavailable until email delivery is configured.", null },
         { new CharacterOnlineException(), 409, "CharacterOnlineException", "Conflict", "Character is online; rename it while logged out.", null },
         { new BusinessException("Username already exists"), 400, "BusinessException", "Client error", "Username already exists", null },

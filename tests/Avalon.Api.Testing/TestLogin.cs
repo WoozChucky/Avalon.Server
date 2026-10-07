@@ -1,5 +1,5 @@
-using Avalon.Api.Config;
-using Avalon.Api.Services;
+using Avalon.Api.Identity.Config;
+using Avalon.Api.Identity.Services;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Login;

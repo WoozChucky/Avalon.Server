@@ -3,15 +3,15 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Claims;
 using System.Text;
-using Avalon.Api.Authentication;
-using Avalon.Api.Authentication.Jwt;
-using Avalon.Api.Config;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Authentication.AV;
 using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Hosting.Worlds;
-using Avalon.Api.Services;
+using Avalon.Api.Identity.Authentication;
+using Avalon.Api.Identity.Authentication.Jwt;
+using Avalon.Api.Identity.Config;
+using Avalon.Api.Identity.Services;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
@@ -35,9 +35,9 @@ namespace Avalon.Api.Testing;
 /// <summary>
 /// An in-memory API built as the API builds itself (#794): <see cref="AvalonApiHost.CreateBuilder(WebApplicationOptions, IReadOnlyList{IApiService}, Action{WebApplicationBuilder}?)"/>
 /// for the services it is given (every service the API runs, <see cref="ApiServices.All"/>, unless a test names
-/// others) and the one pipeline, <see cref="ApiPipeline"/>, on a test server. What the services reach outside the
-/// process is substituted by default: the account and personal access token repositories, the cache, and the account,
-/// refresh, MFA and token services.
+/// others), as <c>Application:Services</c> selects them, and the one pipeline, <see cref="ApiPipeline"/>, on a test
+/// server. What the services reach outside the process is substituted by default: the account and personal access
+/// token repositories, the cache, and the account, refresh, MFA and token services.
 /// Requests go over HTTP, so the bearer handler, its events, the policies and <see cref="AvalonAuthHandler"/> all run
 /// as they do in production. A few minimal endpoints stand in for "any endpoint behind policy X".
 /// </summary>
@@ -86,7 +86,7 @@ public sealed class ApiTestHost : IAsyncDisposable
         ["Database:Auth:ConnectionString"] = "Host=127.0.0.1;Port=1;Database=none",
         ["Application:Cache:Host"] = "127.0.0.1:1",
         ["Application:Templates:ReloadTimeout"] = "00:00:10",
-        // Sections the monolith registers as they are bound, as appsettings.json has them.
+        // Sections identity registers as they are bound, as appsettings.json has them.
         ["Application:Environment:Name"] = "Development",
         ["Application:Notification:Subject"] = "https://avalon.monster",
     };
@@ -130,10 +130,8 @@ public sealed class ApiTestHost : IAsyncDisposable
 
     private async Task InitializeAsync(IReadOnlyList<IApiService> services, ApiTestHostOptions options)
     {
-        // The probe comes first, so its middleware runs before any service's own.
-        IReadOnlyList<IApiService> running = options.ProbeRoutes ? [RouteProbe.Service, .. services] : services;
         WebApplicationBuilder builder = AvalonApiHost.CreateBuilder(
-            new WebApplicationOptions { EnvironmentName = Environments.Production }, running, b =>
+            new WebApplicationOptions { EnvironmentName = Environments.Production }, services, b =>
             {
                 b.WebHost.UseTestServer();
                 b.Configuration.AddInMemoryCollection(Settings);
@@ -155,7 +153,10 @@ public sealed class ApiTestHost : IAsyncDisposable
                 context.Connection.RemoteIpAddress ??= System.Net.IPAddress.Loopback;
             return next(context);
         });
-        _app.UseAvalonApi(running);
+        // The services the settings select, as the host runs them; the probe comes first, so its middleware runs before
+        // any service's own.
+        IReadOnlyList<IApiService> running = _app.Services.GetRequiredService<ApiServiceSelection>().Services;
+        _app.UseAvalonApi(options.ProbeRoutes ? [RouteProbe.Service, .. running] : running);
         MapStandIns(_app);
 
         await _app.StartAsync();

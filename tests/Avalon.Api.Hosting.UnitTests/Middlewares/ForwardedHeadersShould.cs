@@ -1,7 +1,7 @@
 using System.Net;
-using Avalon.Api.Config;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Middlewares;
+using Avalon.Api.Identity.Config;
 using Avalon.Api.Testing;
 using Avalon.Infrastructure.Login;
 using Microsoft.AspNetCore.Builder;

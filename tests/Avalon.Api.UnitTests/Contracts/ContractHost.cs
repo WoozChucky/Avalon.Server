@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
-using Avalon.Api.Config;
 using Avalon.Api.Hosting;
+using Avalon.Api.Identity;
+using Avalon.Api.Identity.Config;
 using Avalon.Api.Testing;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;

@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Text.Json;
 using Avalon.Api.Hosting.Middlewares;
+using Avalon.Api.Identity.Exceptions;
 using Avalon.Api.Testing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -66,8 +67,8 @@ public class ExceptionHandlerMiddlewareShould
     [Fact]
     public async Task Answer_an_email_that_could_not_be_sent_with_503()
     {
-        var middleware = new ExceptionHandlerMiddleware(_ => throw new Avalon.Api.Exceptions.EmailDeliveryException(),
-            NullLoggerFactory.Instance, MonolithApi.ProblemMappers);
+        var middleware = new ExceptionHandlerMiddleware(_ => throw new Avalon.Api.Identity.Exceptions.EmailDeliveryException(),
+            NullLoggerFactory.Instance, [new IdentityProblemMapper()]);
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
 

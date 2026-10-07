@@ -1,10 +1,10 @@
-using Avalon.Api.Authentication;
 using Avalon.Api.Commerce;
-using Avalon.Api.Config;
 using Avalon.Api.Distribution;
-using Avalon.Api.Exceptions;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Middlewares;
+using Avalon.Api.Identity.Authentication;
+using Avalon.Api.Identity.Config;
+using Avalon.Api.Identity.Exceptions;
 using Avalon.Api.Testing;
 using Avalon.Api.Worlds.Exceptions;
 using Avalon.Api.Worlds.Services;

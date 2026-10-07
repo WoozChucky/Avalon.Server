@@ -2,7 +2,7 @@ namespace Avalon.Common.Accounts;
 
 /// <summary>
 /// Which access levels may do something, as a mask. Mirrors the API's four authorization policies
-/// in Avalon.Api/ServiceRegistration.cs one for one, and AccessLevelsMatchPoliciesShould holds them
+/// (ApiAuthentication, in Avalon.Api.Hosting) one for one, and AccessLevelsMatchPoliciesShould holds them
 /// in step.
 /// </summary>
 /// <remarks>
