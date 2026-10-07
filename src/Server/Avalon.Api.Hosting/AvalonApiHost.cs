@@ -8,12 +8,14 @@ using Avalon.Hosting;
 using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using OpenTelemetry.Resources;
 
 namespace Avalon.Api.Hosting;
 
 /// <summary>
-/// The host every API process runs (#794, design section 3.1): one builder and one pipeline for the services it is
-/// given (<see cref="IApiService"/>), so each runs as it did when Avalon.Api was one service.
+/// The host every API process runs (#794, design section 3.1): one builder and one pipeline for those of the services
+/// it is given (<see cref="IApiService"/>) that <c>Application:Services</c> selects (<see cref="ApiServiceSelection"/>,
+/// all of them when it is unset), so each runs as it did when Avalon.Api was one service.
 /// </summary>
 public static class AvalonApiHost
 {
@@ -28,8 +30,9 @@ public static class AvalonApiHost
     public const string OpenApiGenerationOnlyVariable = "AVALON_OPENAPI_GENERATION_ONLY";
 
     /// <summary>
-    /// Builds the host for <paramref name="services"/>, runs its startup work and serves until the process is told to
-    /// stop.
+    /// Builds the host for those of <paramref name="services"/> that <c>Application:Services</c> names (every one when
+    /// it is unset, <see cref="ApiServiceSelection"/>), runs their startup work and serves until the process is told
+    /// to stop.
     /// </summary>
     public static async Task RunAsync(string[] args, params IApiService[] services)
     {
@@ -41,13 +44,16 @@ public static class AvalonApiHost
 
         WebApplication app = builder.Build();
 
-        app.UseAvalonApi(services);
+        ApiServiceSelection selection = app.Services.GetRequiredService<ApiServiceSelection>();
+        IReadOnlyList<IApiService> running = selection.Services;
+        app.UseAvalonApi(running);
 
         // The category Program.cs logged its startup lines under before the host moved here.
         ILogger logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Program");
+        logger.LogInformation("Running the API services {ApiServices}", selection.Names);
         ForwardedHeadersSetup.WarnIfNoProxyTrusted(logger,
             app.Configuration.GetSection(ForwardedHeadersSetup.Section).Get<ForwardedHeadersConfig>(), app.Environment);
-        foreach (IApiService service in services)
+        foreach (IApiService service in running)
             service.LogStartup(app.Services, logger);
 
         CancellationTokenSource cts = new();
@@ -62,10 +68,10 @@ public static class AvalonApiHost
         {
             await ApiStartup.ValidateAndMigrateAsync(app.Services, logger);
 
-            foreach (IApiService service in services)
+            foreach (IApiService service in running)
                 await service.StartAsync(app.Services, cts.Token);
 
-            if (ApiServiceNeeds.Union(services.Select(service => service.Needs)).Redis)
+            if (ApiServiceNeeds.Union(running.Select(service => service.Needs)).Redis)
             {
                 IReplicatedCache cache = app.Services.GetRequiredService<IReplicatedCache>();
                 await cache.ConnectAsync();
@@ -93,12 +99,13 @@ public static class AvalonApiHost
         CreateBuilder(new WebApplicationOptions { Args = args }, services, configure: null);
 
     /// <summary>
-    /// The builder for <paramref name="services"/>: the container settings every Avalon host builds with, the
-    /// configuration (<see cref="ApiConfiguration.Sources"/>), the services' own builder settings, the logging and
-    /// the service defaults, CORS, the controllers of the services' assemblies only, with camelCase JSON, the OpenAPI
-    /// document, the token validation, the shared hosting for the services' needs, and then each service's own
-    /// registrations. <paramref name="configure"/> runs first, on the bare builder: a test host's server, logging and
-    /// settings.
+    /// The builder for the services of <paramref name="services"/> that the configuration selects
+    /// (<see cref="ApiServiceSelection"/>, registered for the host to read): the container settings every Avalon host
+    /// builds with, the configuration (<see cref="ApiConfiguration.Sources"/>), the services' own builder settings, the
+    /// logging and the service defaults, with the services named on the telemetry's resource, CORS, the controllers of
+    /// the services' assemblies only, with camelCase JSON, the OpenAPI document, the token validation, the shared
+    /// hosting for the services' needs, and then each service's own registrations. <paramref name="configure"/> runs
+    /// first, on the bare builder: a test host's server, logging and settings.
     /// </summary>
     public static WebApplicationBuilder CreateBuilder(WebApplicationOptions options, IReadOnlyList<IApiService> services,
         Action<WebApplicationBuilder>? configure)
@@ -109,12 +116,18 @@ public static class AvalonApiHost
 
         IConfiguration configuration = ApiConfiguration.Sources(builder);
 
-        foreach (IApiService service in services)
+        var selection = ApiServiceSelection.From(configuration, services);
+        builder.Services.AddSingleton(selection);
+        IReadOnlyList<IApiService> running = selection.Services;
+
+        foreach (IApiService service in running)
             service.ConfigureBuilder(builder);
 
         builder.AddApiLoggingAndServiceDefaults(configuration);
+        builder.Services.AddOpenTelemetry().ConfigureResource(resource =>
+            resource.AddAttributes([new KeyValuePair<string, object>(ApiServiceSelection.ResourceAttribute, selection.Names)]));
 
-        var needs = ApiServiceNeeds.Union(services.Select(service => service.Needs));
+        var needs = ApiServiceNeeds.Union(running.Select(service => service.Needs));
         IServiceCollection collection = builder.Services;
         collection.Configure<CookiePolicyOptions>(cookies => { cookies.MinimumSameSitePolicy = SameSiteMode.None; });
         collection.AddCors();
@@ -133,7 +146,7 @@ public static class AvalonApiHost
             {
                 // The services' controllers and no others: not those of whatever assembly started the process.
                 parts.ApplicationParts.Clear();
-                foreach (Assembly assembly in services.Select(service => service.ControllerAssembly).Distinct())
+                foreach (Assembly assembly in running.Select(service => service.ControllerAssembly).Distinct())
                 {
                     foreach (ApplicationPart part in ApplicationPartFactory.GetApplicationPartFactory(assembly).GetApplicationParts(assembly))
                         parts.ApplicationParts.Add(part);
@@ -143,7 +156,7 @@ public static class AvalonApiHost
         collection.AddApiAuthentication(configuration.GetSection(TokenValidationConfig.Section).Get<TokenValidationConfig>());
         collection.AddApiHosting(needs, configuration.GetSection(ForwardedHeadersSetup.Section).Get<ForwardedHeadersConfig>());
 
-        foreach (IApiService service in services)
+        foreach (IApiService service in running)
             service.AddServices(builder);
 
         return builder;

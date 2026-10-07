@@ -35,9 +35,9 @@ namespace Avalon.Api.Testing;
 /// <summary>
 /// An in-memory API built as the API builds itself (#794): <see cref="AvalonApiHost.CreateBuilder(WebApplicationOptions, IReadOnlyList{IApiService}, Action{WebApplicationBuilder}?)"/>
 /// for the services it is given (every service the API runs, <see cref="ApiServices.All"/>, unless a test names
-/// others) and the one pipeline, <see cref="ApiPipeline"/>, on a test server. What the services reach outside the
-/// process is substituted by default: the account and personal access token repositories, the cache, and the account,
-/// refresh, MFA and token services.
+/// others), as <c>Application:Services</c> selects them, and the one pipeline, <see cref="ApiPipeline"/>, on a test
+/// server. What the services reach outside the process is substituted by default: the account and personal access
+/// token repositories, the cache, and the account, refresh, MFA and token services.
 /// Requests go over HTTP, so the bearer handler, its events, the policies and <see cref="AvalonAuthHandler"/> all run
 /// as they do in production. A few minimal endpoints stand in for "any endpoint behind policy X".
 /// </summary>
@@ -130,10 +130,8 @@ public sealed class ApiTestHost : IAsyncDisposable
 
     private async Task InitializeAsync(IReadOnlyList<IApiService> services, ApiTestHostOptions options)
     {
-        // The probe comes first, so its middleware runs before any service's own.
-        IReadOnlyList<IApiService> running = options.ProbeRoutes ? [RouteProbe.Service, .. services] : services;
         WebApplicationBuilder builder = AvalonApiHost.CreateBuilder(
-            new WebApplicationOptions { EnvironmentName = Environments.Production }, running, b =>
+            new WebApplicationOptions { EnvironmentName = Environments.Production }, services, b =>
             {
                 b.WebHost.UseTestServer();
                 b.Configuration.AddInMemoryCollection(Settings);
@@ -155,7 +153,10 @@ public sealed class ApiTestHost : IAsyncDisposable
                 context.Connection.RemoteIpAddress ??= System.Net.IPAddress.Loopback;
             return next(context);
         });
-        _app.UseAvalonApi(running);
+        // The services the settings select, as the host runs them; the probe comes first, so its middleware runs before
+        // any service's own.
+        IReadOnlyList<IApiService> running = _app.Services.GetRequiredService<ApiServiceSelection>().Services;
+        _app.UseAvalonApi(options.ProbeRoutes ? [RouteProbe.Service, .. running] : running);
         MapStandIns(_app);
 
         await _app.StartAsync();
