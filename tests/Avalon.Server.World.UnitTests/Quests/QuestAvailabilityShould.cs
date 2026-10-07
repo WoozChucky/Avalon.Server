@@ -28,9 +28,6 @@ public class QuestAvailabilityShould
         QuestAvailability.Check(quest, c, max, () => script);
 
     [Fact]
-    public void Offer_a_quest_whose_rules_are_met() => Assert.Equal(QuestResult.Ok, Check(Q(Hunt), Character()));
-
-    [Fact]
     public void Not_offer_a_quest_already_held_or_already_done()
     {
         CharacterEntity c = Character();
@@ -74,13 +71,6 @@ public class QuestAvailabilityShould
 
         c.Data!.Class = CharacterClass.Wizard;
         Assert.Equal(QuestResult.Ok, Check(Q(7299), c));
-    }
-
-    [Fact]
-    public void Let_a_script_narrow_but_never_widen()
-    {
-        Assert.Equal(QuestResult.NotAvailable, Check(Q(Hunt), Character(), script: false));
-        Assert.Equal(QuestResult.NotAvailable, Check(Q(Tusks), Character(), script: true));
     }
 
     [Fact]

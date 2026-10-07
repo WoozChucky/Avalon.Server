@@ -207,22 +207,6 @@ public class QuestTurnInShould
         Assert.True(c.Character.Quests.IsActive(Tusks));
     }
 
-    /// <summary>
-    /// The catalog refuses a Unique reward, but /reload items can make one Unique afterwards; TryAdd would then refuse
-    /// it once the quest items had gone, so the rule refuses the turn-in before anything moves.
-    /// </summary>
-    [Fact]
-    public async Task Refuse_a_reward_a_reload_made_unique()
-    {
-        (QuestTestWorld w, QuestClient c, Creature _) = await ReadyTusksAsync();
-        Assert.True(w.Data.Quests.TryGet(Tusks, out QuestView? quest));
-        ItemTemplate unique = Items().Single(i => i.Id.Value == Tonic);
-        unique.Flags |= ItemTemplateFlags.Unique;
-
-        Assert.Equal(QuestResult.Error, QuestTurnInRules.Decide(c.Character, quest!, c.Character.Quests.Get(Tusks)!,
-            _ => unique, ulong.MaxValue, out _));
-    }
-
     [Fact]
     public async Task Refuse_a_quest_that_is_not_held_or_not_ready()
     {

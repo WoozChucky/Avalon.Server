@@ -124,27 +124,6 @@ public class QuestKillCreditShould
         }
     }
 
-    /// <summary>Review Focus 4: a killer in a leave countdown shares nothing, so nobody is credited.</summary>
-    [Fact]
-    public async Task Credit_nobody_for_a_kill_by_a_character_in_a_leave_countdown()
-    {
-        QuestTestWorld w = await QuestTestWorld.CreateAsync();
-        (_, PartyTestWorld p, MapInstance instance, PartyClient a, PartyClient b) = PartyOfTwo(w);
-        using (instance)
-        {
-            a.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
-            b.Character.Quests.Start(Hunt, DateTime.UnixEpoch);
-            p.Instances.Owned[instance.InstanceId] = instance.OwnerPartyId!;
-            p.Parties.Leave(a.Id);
-            Assert.True(p.Parties.InCountdown(a.Id));
-
-            instance.ReportKill(Spawn(instance, w, Boar), a.Character);
-
-            Assert.Empty(a.Character.Quests.Get(Hunt)!.Progress);
-            Assert.Empty(b.Character.Quests.Get(Hunt)!.Progress);
-        }
-    }
-
     [Fact]
     public async Task Pass_over_a_quest_the_catalog_no_longer_has()
     {

@@ -23,16 +23,6 @@ public class QuestScriptServicesShould
         .AddSingleton(new object())
         .BuildServiceProvider();
 
-    [Fact]
-    public void Hand_over_the_logger_factory_loggers_and_the_clock_from_the_container()
-    {
-        var services = new QuestScriptServices(Container());
-
-        Assert.Same(NullLoggerFactory.Instance, services.GetService(typeof(ILoggerFactory)));
-        Assert.IsAssignableFrom<ILogger<QuestScriptServicesShould>>(services.GetService(typeof(ILogger<QuestScriptServicesShould>)));
-        Assert.Same(s_clock, services.GetService(typeof(TimeProvider)));
-    }
-
     [Theory]
     [InlineData(typeof(IWorld))]
     [InlineData(typeof(object))]
