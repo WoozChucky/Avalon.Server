@@ -69,6 +69,9 @@
 
   <ItemGroup>
     <Folder Include="Helm\"/>
+    <!-- The Web SDK makes every .json content. The chart's files (files/routes.json, #794) are read by the chart and the
+         tests, never by the API, so they stay out of the build and publish output. -->
+    <Content Remove="Helm\**"/>
   </ItemGroup>
 
   <PropertyGroup>

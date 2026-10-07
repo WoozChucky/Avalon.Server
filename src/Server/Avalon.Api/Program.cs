@@ -2,13 +2,11 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalon.Api;
 using Avalon.Api.Config;
-using Avalon.Api.Converters;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Api.Worlds;
 using Avalon.Hosting;
 using Avalon.Infrastructure;
-using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -47,46 +45,7 @@ IServiceCollection services = builder.Services;
             options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
         });
 
-    services.AddOpenApi(options =>
-    {
-        options.AddDocumentTransformer((document, context, arg3) =>
-        {
-            document.Info = new OpenApiInfo
-            {
-                Title = "Avalon.Api",
-                Version = "v1",
-                Description = "The official API for Avalon.",
-                Contact = new OpenApiContact { Name = "Avalon Project", Url = new Uri("https://avalon.monster") },
-                License = new OpenApiLicense { Name = "MIT", Url = new Uri("https://opensource.org/license/mit/") },
-                TermsOfService = new Uri("https://avalon.monster/terms")
-            };
-            return Task.CompletedTask;
-        });
-        options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
-        options.AddSchemaTransformer((schema, context, cancellationToken) =>
-        {
-            // The shared System.String reference drops per-property annotations. Keep this proof's
-            // bounded wire schema inline, without changing other string contracts.
-            if (context.JsonTypeInfo.Type == typeof(Avalon.Api.Contract.AccountEmailVerificationConfirmRequest))
-            {
-                schema.Properties!["token"] = new OpenApiSchema
-                {
-                    Type = JsonSchemaType.String,
-                    MinLength = 43,
-                    MaxLength = 43,
-                    Pattern = "^[A-Za-z0-9_-]{43}$",
-                };
-            }
-            // Preserve the CLR uint32 bounds, including nullable request selectors.
-            if (context.JsonTypeInfo.Type == typeof(uint) || context.JsonTypeInfo.Type == typeof(uint?))
-            {
-                schema.Minimum = "0";
-                schema.Maximum = "4294967295";
-            }
-            return Task.CompletedTask;
-        });
-        options.CreateSchemaReferenceId = type => type.Type.FullName!;
-    });
+    services.AddAvalonOpenApi();
     services.AddAuth(applicationConfig);
     services.AddInfrastructure(applicationConfig);
     // Application:Email (#510): no sender unless configured, and then email change is off (501).

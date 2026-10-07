@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "default": "identity",
+  "internal": ["/internal"],
+  "services": {
+    "identity": ["/account", "/mfa", "/pat", "/notification", "/client/auth", "/game"],
+    "worlds": ["/world", "/character", "/observability", "/public", "/balance"],
+    "commerce": ["/account/game-license", "/account/purchases", "/admin/purchases", "/payments/notifications"],
+    "distribution": ["/client/launcher", "/client/releases", "/client/changelog", "/client/channels"]
+  }
+}
