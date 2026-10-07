@@ -9,10 +9,11 @@ on:
       - 'mkdocs.yml'
       - 'CONTRIBUTING.md'
       - 'README.md'
-      # The API reference is generated from Avalon.Api, so a contract change has to
-      # republish the site. Without this the published document silently goes stale
-      # until someone happens to edit prose.
-      - 'src/Server/Avalon.Api/**'
+      # The API reference is generated from the API host, Avalon.Api, and the libraries it
+      # runs (the contract, the shared hosting and the four services, #794), so a change to
+      # any of them has to republish the site. Without this the published document silently
+      # goes stale until someone happens to edit prose.
+      - 'src/Server/Avalon.Api*/**'
       - 'src/Directory.Packages.props'
       - '.github/workflows/docs.yml'
   # A publish is worth being able to force: the path filter cannot know that a
@@ -65,8 +66,10 @@ jobs:
           # tells Program.cs to skip it.
           AVALON_OPENAPI_GENERATION_ONLY: 'true'
           # Generation is opt-in (see Avalon.Api.csproj) because it boots the host and
-          # trips the signing-key guard (#482). This key signs nothing and dies with
-          # the runner; generating it here avoids storing a secret that isn't secret.
+          # trips the signing-key guard (#482): every API service validates the HS256
+          # access tokens, so every process needs the key, this one too. This key signs
+          # nothing and dies with the runner; generating it here avoids storing a secret
+          # that isn't secret.
           Application__Authentication__IssuerSigningKey: ${{ github.run_id }}-${{ github.sha }}-openapi-generation-only
         run: |
           dotnet build src/Server/Avalon.Api -c Release -p:OpenApiGenerateDocuments=true

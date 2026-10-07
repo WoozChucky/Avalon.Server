@@ -1,16 +1,17 @@
 using Avalon.Api.Hosting.Routing;
 using Avalon.Api.Identity.Authentication;
-using Avalon.Api.UnitTests.Contracts;
-using Microsoft.AspNetCore.Http;
+using Avalon.Api.UnitTests.Hosting;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Routing;
 
 /// <summary>
-/// The route manifest (<c>Helm/avalon-api/files/routes.json</c>) gives every endpoint of today's api the service the
-/// split's design gives it (#794, design D2.3). The expected owner of each endpoint is written below, so a new endpoint
-/// fails here until someone decides which service owns it.
+/// Every endpoint of the API has one owner (#794, design D2.3), and three places agree on it: the table below, which
+/// decides it, so a new endpoint fails here until someone decides which service owns it; the service's process, run
+/// alone as a deployment runs it, which maps exactly the endpoints the table gives it, beside those every process
+/// maps; and the route manifest (<c>Helm/avalon-api/files/routes.json</c>), which sends each of them to that service.
 /// </summary>
 public sealed class RouteOwnershipShould
 {
@@ -21,18 +22,24 @@ public sealed class RouteOwnershipShould
     private const string Commerce = "commerce";
     private const string Distribution = "distribution";
 
-    /// <summary>Every endpoint, as "METHOD /template", and the service that owns it.</summary>
+    /// <summary>
+    /// What every process maps, whatever its services, as "METHOD /template": through the ingress these reach the
+    /// manifest's default service, identity (design D7.3).
+    /// </summary>
+    private static readonly HashSet<string> s_everyProcess = new(StringComparer.Ordinal)
+    {
+        "* /health",
+        "* /alive",
+        "GET /openapi/{documentName}.json",
+        "GET /scalar/{documentName?}",
+        "GET /scalar/scalar.js",
+        "GET /scalar/scalar.aspnetcore.js",
+        "GET /scalar/favicon.svg",
+    };
+
+    /// <summary>Every endpoint of a service, as "METHOD /template", and the service that owns it.</summary>
     private static readonly Dictionary<string, string> s_owners = new(StringComparer.Ordinal)
     {
-        // Every process serves these; through the ingress they reach identity, the default (design D7.3).
-        ["* /health"] = Identity,
-        ["* /alive"] = Identity,
-        ["GET /openapi/{documentName}.json"] = Identity,
-        ["GET /scalar/{documentName?}"] = Identity,
-        ["GET /scalar/scalar.js"] = Identity,
-        ["GET /scalar/scalar.aspnetcore.js"] = Identity,
-        ["GET /scalar/favicon.svg"] = Identity,
-
         // identity: accounts, credentials, MFA, personal access tokens, sessions, links, game sign-in and admission.
         ["GET /account"] = Identity,
         ["GET /account/{id:long}"] = Identity,
@@ -174,98 +181,65 @@ public sealed class RouteOwnershipShould
         "POST /internal/game/sessions/end",
     };
 
-    /// <summary>Paths the api answers that no endpoint covers, with their methods and owner.</summary>
-    private static readonly (string Path, string[] Methods, string Owner)[] s_uncovered =
+    /// <summary>Paths the API answers that no endpoint covers, and their owner.</summary>
+    private static readonly (string Path, string Owner)[] s_uncovered =
     [
         // The Steam OpenID callback: SteamOpenIdCallbackMiddleware answers it, ahead of every endpoint.
-        (SteamWebLinkOptions.CallbackPath, ["GET", "POST"], Identity),
+        (SteamWebLinkOptions.CallbackPath, Identity),
     ];
+
+    public static TheoryData<string> Services => new(ApiServices.All.Select(service => service.Name));
 
     private static RouteTable Routes() => RouteTable.Load(RepositoryRoot.PathOf(Manifest));
 
-    [Fact]
-    public async Task Decide_an_owner_for_every_endpoint_and_list_no_other()
+    [Theory]
+    [MemberData(nameof(Services))]
+    public async Task Map_the_endpoints_the_table_gives_the_service_and_route_each_to_it(string service)
     {
-        await using ContractHost host = await ContractHost.StartAsync();
-        var mapped = Endpoints(host).Select(endpoint => endpoint.Key).ToList();
+        RouteTable routes = Routes();
+        await using WebApplication process = ApiProcess.Build(ApiServices.All.Single(candidate => candidate.Name == service));
+        var mapped = Endpoints(process).ToList();
+        string[] owned = s_owners.Where(row => row.Value == service).Select(row => row.Key).ToArray();
 
-        string[] undecided = mapped.Except(s_owners.Keys, StringComparer.Ordinal).ToArray();
-        string[] unmapped = s_owners.Keys.Except(mapped, StringComparer.Ordinal).ToArray();
+        string[] undecided = mapped.Where(key => !s_owners.ContainsKey(key) && !s_everyProcess.Contains(key)).ToArray();
+        string[] others = mapped.Where(key => s_owners.TryGetValue(key, out string? owner) && owner != service)
+            .Select(key => $"{key} (the table gives it to {s_owners[key]})")
+            .ToArray();
+        string[] unmapped = owned.Concat(s_everyProcess).Except(mapped, StringComparer.Ordinal).ToArray();
+        string[] misrouted = owned
+            .Select(key => (Key: key, Path: PathOf(key)))
+            .Where(endpoint => routes.OwnerOf(endpoint.Path) != service || routes.IsInternal(endpoint.Path) != s_internal.Contains(endpoint.Key))
+            .Select(endpoint => $"{endpoint.Key} ({endpoint.Path}): the manifest sends it to {routes.OwnerOf(endpoint.Path)}"
+                + $" and calls it internal = {routes.IsInternal(endpoint.Path)}")
+            .ToArray();
 
         Assert.True(undecided.Length == 0,
-            "Decide which service owns each new endpoint (design D2.3) and add it to RouteOwnershipShould: "
-            + string.Join(", ", undecided));
-        Assert.True(unmapped.Length == 0, "RouteOwnershipShould lists endpoints the api no longer maps: " + string.Join(", ", unmapped));
+            "Decide which service owns each new endpoint (design D2.3) and add it to RouteOwnershipShould: " + string.Join(", ", undecided));
+        Assert.True(others.Length == 0, $"The {service} process maps endpoints of other services: " + string.Join(", ", others));
+        Assert.True(unmapped.Length == 0, $"RouteOwnershipShould lists endpoints the {service} process does not map: " + string.Join(", ", unmapped));
+        Assert.True(misrouted.Length == 0, string.Join(Environment.NewLine, misrouted));
         Assert.Equal(mapped.Count, mapped.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]
-    public async Task Give_every_endpoint_the_owner_the_design_gives_it()
+    public void Send_what_every_process_maps_and_the_paths_no_endpoint_covers_to_their_owner()
     {
-        await using ContractHost host = await ContractHost.StartAsync();
         RouteTable routes = Routes();
+        IEnumerable<(string Path, string Owner)> paths = s_everyProcess.Select(key => (PathOf(key), routes.DefaultService))
+            .Concat(s_uncovered);
 
-        string[] wrong = Endpoints(host)
-            .Where(endpoint => s_owners.ContainsKey(endpoint.Key))
-            .Select(endpoint => (endpoint.Key, endpoint.Path, Owner: routes.OwnerOf(endpoint.Path)))
-            .Where(endpoint => endpoint.Owner != s_owners[endpoint.Key])
-            .Select(endpoint => $"{endpoint.Key} ({endpoint.Path}) goes to {endpoint.Owner}, not {s_owners[endpoint.Key]}")
-            .ToArray();
-
-        Assert.True(wrong.Length == 0, string.Join(Environment.NewLine, wrong));
-    }
-
-    [Fact]
-    public async Task Reach_each_endpoint_by_the_path_it_is_checked_with()
-    {
-        await using ContractHost host = await ContractHost.StartAsync();
-
-        foreach (Mapped endpoint in Endpoints(host))
+        Assert.All(paths, path =>
         {
-            Endpoint? reached = await host.EndpointReachedAsync(endpoint.ProbeMethod, endpoint.Path);
-
-            Assert.True(reached is RouteEndpoint route && Describe(route) == endpoint,
-                $"{endpoint.ProbeMethod} {endpoint.Path} reaches {reached?.DisplayName ?? "nothing"}, not {endpoint.Key}");
-        }
+            Assert.Equal(path.Owner, routes.OwnerOf(path.Path));
+            Assert.False(routes.IsInternal(path.Path), path.Path);
+        });
     }
 
     [Fact]
-    public async Task Own_the_paths_no_endpoint_covers()
+    public void Leave_no_rule_dead()
     {
-        await using ContractHost host = await ContractHost.StartAsync();
         RouteTable routes = Routes();
-        var mapped = Endpoints(host).ToHashSet();
-
-        foreach ((string path, string[] methods, string owner) in s_uncovered)
-        {
-            Assert.Equal(owner, routes.OwnerOf(path));
-            Assert.False(routes.IsInternal(path), path);
-            foreach (string method in methods)
-            {
-                // Routing may still pick its own 405 endpoint for a method no endpoint here takes; only a mapped one covers it.
-                Endpoint? reached = await host.EndpointReachedAsync(method, path);
-                Assert.False(reached is RouteEndpoint route && mapped.Contains(Describe(route)),
-                    $"{method} {path} reaches {reached?.DisplayName}; list it with the endpoints instead");
-            }
-        }
-    }
-
-    [Fact]
-    public async Task Classify_the_internal_endpoints_internal_and_no_other()
-    {
-        await using ContractHost host = await ContractHost.StartAsync();
-        RouteTable routes = Routes();
-
-        Assert.All(Endpoints(host), endpoint => Assert.True(s_internal.Contains(endpoint.Key) == routes.IsInternal(endpoint.Path),
-            $"{endpoint.Key}: internal by the design = {s_internal.Contains(endpoint.Key)}, by the manifest = {routes.IsInternal(endpoint.Path)}"));
-    }
-
-    [Fact]
-    public async Task Leave_no_rule_dead()
-    {
-        await using ContractHost host = await ContractHost.StartAsync();
-        RouteTable routes = Routes();
-        var paths = Endpoints(host).Select(endpoint => endpoint.Path)
+        var paths = s_owners.Keys.Concat(s_everyProcess).Select(PathOf)
             .Concat(s_uncovered.Select(uncovered => uncovered.Path))
             .ToList();
 
@@ -289,31 +263,15 @@ public sealed class RouteOwnershipShould
         Assert.Equal([Identity, Worlds, Commerce, Distribution], routes.Services);
     }
 
-    [Fact]
-    public void Sample_each_route_parameter_constraint()
-    {
-        Assert.Equal("/world/1/character/1", RouteSamples.PathFor("world/{worldId:int}/character/{id}"));
-        Assert.Equal("/pat/admin/account/1", RouteSamples.PathFor("pat/admin/account/{accountId:long}"));
-        Assert.Equal("/admin/purchases/" + RouteSamples.Guid + "/refund", RouteSamples.PathFor("admin/purchases/{id:guid}/refund"));
-        Assert.Equal("/world/1/map-template/chunk-asset/a/b.obj", RouteSamples.PathFor("world/{worldId:int}/map-template/chunk-asset/{*filename}"));
-        Assert.Equal("/openapi/1.json", RouteSamples.PathFor("/openapi/{documentName}.json"));
-        Assert.Throws<InvalidOperationException>(() => RouteSamples.PathFor("x/{id:alpha}"));
-    }
+    /// <summary>The sample path of an endpoint written "METHOD /template".</summary>
+    private static string PathOf(string key) => RouteSamples.PathFor(key[(key.IndexOf(' ', StringComparison.Ordinal) + 1)..]);
 
-    private static IEnumerable<Mapped> Endpoints(ContractHost host) => host.Endpoints.OfType<RouteEndpoint>().Select(Describe);
-
-    /// <summary>
-    /// An endpoint by value, since minimal-API data sources build new endpoint objects each time they are read: its key,
-    /// "METHOD /template" ("*" for any method), its sample path, the method a probe sends, and its display name.
-    /// </summary>
-    private static Mapped Describe(RouteEndpoint endpoint)
-    {
-        IReadOnlyList<string>? methods = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods;
-        string method = methods is null || methods.Count == 0 ? "*" : string.Join(',', methods);
-        string template = "/" + endpoint.RoutePattern.RawText?.TrimStart('/');
-        return new Mapped(method + " " + template, RouteSamples.PathFor(endpoint.RoutePattern), methods?.FirstOrDefault() ?? "GET",
-            endpoint.DisplayName);
-    }
-
-    private sealed record Mapped(string Key, string Path, string ProbeMethod, string? DisplayName);
+    /// <summary>The endpoints <paramref name="process"/> maps, as "METHOD /template" ("*" for any method).</summary>
+    private static IEnumerable<string> Endpoints(WebApplication process) =>
+        ApiProcess.Endpoints(process).Select(endpoint =>
+        {
+            IReadOnlyList<string>? methods = endpoint.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods;
+            string method = methods is null || methods.Count == 0 ? "*" : string.Join(',', methods);
+            return method + " /" + endpoint.RoutePattern.RawText?.TrimStart('/');
+        });
 }

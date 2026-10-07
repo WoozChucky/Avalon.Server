@@ -22,7 +22,8 @@ namespace Avalon.Api.Hosting.UnitTests.Hosting;
 /// #543: the api's cache binding, <c>Application:Cache</c>, is validated at startup, so a missing
 /// host fails there, naming the setting, rather than on the first request that reaches Redis.
 /// Likewise Database:Auth and, in <see cref="ApiStartup"/>, Database:Worlds (#523).
-/// The api's own registrations are composed as in ApiHostGraphShould (Avalon.Api.UnitTests).
+/// The api's own registrations are composed as the host registers them: the shared hosting for the services' needs,
+/// then identity's and worlds'.
 /// </summary>
 public class ApiStartupValidationShould
 {

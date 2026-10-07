@@ -1,7 +1,7 @@
 using Avalon.Api.Hosting.Routing;
 using Xunit;
 
-namespace Avalon.Api.UnitTests.Routing;
+namespace Avalon.Api.Hosting.UnitTests.Routing;
 
 public sealed class RouteTableShould
 {
