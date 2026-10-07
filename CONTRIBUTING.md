@@ -160,7 +160,7 @@ Migrations are applied automatically when `Avalon.Api` starts — no separate ap
 
 ## Coding Conventions
 
-- **Framework:** .NET 10 / C#. Follow standard C# naming conventions.
+- **Framework:** .NET 10 / C#. Follow the coding standard in `docs/coding-standard.md`, which every build enforces.
 - **Value objects:** Wrap primitive IDs in `ValueObject<T>` (see `src/Shared/Avalon.Common`). Do not pass raw `int`/`long` IDs across layer boundaries.
 - **No raw strings for Redis keys:** all key patterns live in `CacheKeys` in `src/Server/Avalon.Infrastructure`.
 - **Public abstractions:** if a type is consumed by more than one project, it belongs in a `*.Public` or `*.Abstractions` project, not in the implementation project.
