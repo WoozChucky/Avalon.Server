@@ -157,12 +157,12 @@ catch (Exception ex)
     Console.Error.WriteLine($"Checker failed ({ex.GetType().Name}); no exception details were logged.");
     Environment.ExitCode = 1;
 }
-sealed class CheckFailureException(string message) : Exception(message);
-sealed class FixtureFactory(string connection) : IDbContextFactory<AuthDbContext>
+internal sealed class CheckFailureException(string message) : Exception(message);
+internal sealed class FixtureFactory(string connection) : IDbContextFactory<AuthDbContext>
 {
     public AuthDbContext CreateDbContext() => new(new DbContextOptionsBuilder<AuthDbContext>().UseNpgsql(connection).Options);
 }
-sealed class SmokeAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+internal sealed class SmokeAuthentication(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     protected override Task<AuthenticateResult> HandleAuthenticateAsync() => Task.FromResult(

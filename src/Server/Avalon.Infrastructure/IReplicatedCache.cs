@@ -93,7 +93,6 @@ public class ReplicatedCache : IReplicatedCache
 
     private ConnectionMultiplexer _redis = null!;
 
-
     public ReplicatedCache(ILoggerFactory loggerFactory, IOptions<CacheConfiguration> configuration)
     {
         _logger = loggerFactory.CreateLogger<ReplicatedCache>();

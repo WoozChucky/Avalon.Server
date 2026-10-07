@@ -729,7 +729,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     }
 
     private static readonly double s_usPerTick = 1_000_000.0 / Stopwatch.Frequency;
-    static double TicksToUs(long t) => t * s_usPerTick;
+    private static double TicksToUs(long t) => t * s_usPerTick;
 
     private bool NewConnection(IConnection connection) => true;
 

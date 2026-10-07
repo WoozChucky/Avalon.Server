@@ -545,7 +545,6 @@ public sealed class StablePriorityQueue<T> : IFixedSizePriorityQueue<T, float>
         node.QueueIndex = 0;
     }
 
-
     public IEnumerator<T> GetEnumerator()
     {
 #if NET_VERSION_4_5 // ArraySegment does not implement IEnumerable before 4.5

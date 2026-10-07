@@ -401,7 +401,6 @@ public static class CrowdBudgetHarness
         return builder.BuildAsync(TownLayout(), CancellationToken.None).GetAwaiter().GetResult();
     }
 
-
     private sealed class TownLibrary : IChunkLibrary
     {
         private static readonly Dictionary<int, string> Names = new()

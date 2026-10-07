@@ -477,7 +477,6 @@ public class MapInstanceLocomotionShould
             "the corpse was never removed, so it stays a ticked and broadcast entity forever");
     }
 
-
     /// <summary>
     /// The tick order the whole seam rests on: the locomotion must be ticked <em>after</em> the
     /// creature scripts, because the scripts choose destinations and the locomotion consumes them.

@@ -37,7 +37,6 @@ public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim a
 
     public abstract object State { get; set; }
 
-
     public abstract Vector3 Position { get; set; }
     public abstract Vector3 Velocity { get; set; }
     public abstract Vector3 Orientation { get; set; }

@@ -206,7 +206,6 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
         return new Vector3(current.x + num1 / num4 * maxDistanceDelta, current.y + num2 / num4 * maxDistanceDelta, current.z + num3 / num4 * maxDistanceDelta);
     }
 
-
     public static Vector3 SmoothDamp(
       Vector3 current,
       Vector3 target,
@@ -271,11 +270,11 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
             switch (index)
             {
                 case 0:
-                    return this.x;
+                    return x;
                 case 1:
-                    return this.y;
+                    return y;
                 case 2:
-                    return this.z;
+                    return z;
                 default:
                     throw new IndexOutOfRangeException("Invalid Vector3 index!");
             }
@@ -286,13 +285,13 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
             switch (index)
             {
                 case 0:
-                    this.x = value;
+                    x = value;
                     break;
                 case 1:
-                    this.y = value;
+                    y = value;
                     break;
                 case 2:
-                    this.z = value;
+                    z = value;
                     break;
                 default:
                     throw new IndexOutOfRangeException("Invalid Vector3 index!");
@@ -324,7 +323,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     {
         this.x = x;
         this.y = y;
-        this.z = 0.0f;
+        z = 0.0f;
     }
 
     /// <summary>
@@ -336,9 +335,9 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Set(float newX, float newY, float newZ)
     {
-        this.x = newX;
-        this.y = newY;
-        this.z = newZ;
+        x = newX;
+        y = newY;
+        z = newZ;
     }
 
     /// <summary>
@@ -359,9 +358,9 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Scale(Vector3 scale)
     {
-        this.x *= scale.x;
-        this.y *= scale.y;
-        this.z *= scale.z;
+        x *= scale.x;
+        y *= scale.y;
+        z *= scale.z;
     }
 
     /// <summary>
@@ -378,7 +377,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override int GetHashCode()
     {
-        return this.x.GetHashCode() ^ this.y.GetHashCode() << 2 ^ this.z.GetHashCode() >> 2;
+        return x.GetHashCode() ^ y.GetHashCode() << 2 ^ z.GetHashCode() >> 2;
     }
 
     /// <summary>
@@ -386,12 +385,12 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     /// </summary>
     /// <param name="other"></param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override bool Equals(object other) => other is Vector3 other1 && this.Equals(other1);
+    public override bool Equals(object other) => other is Vector3 other1 && Equals(other1);
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Equals(Vector3 other)
     {
-        return (double)this.x == (double)other.x && (double)this.y == (double)other.y && (double)this.z == (double)other.z;
+        return (double)x == (double)other.x && (double)y == (double)other.y && (double)z == (double)other.z;
     }
 
     /// <summary>
@@ -567,7 +566,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            return (float)Math.Sqrt((double)this.x * (double)this.x + (double)this.y * (double)this.y + (double)this.z * (double)this.z);
+            return (float)Math.Sqrt((double)x * (double)x + (double)y * (double)y + (double)z * (double)z);
         }
     }
 
@@ -585,7 +584,7 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         get
         {
-            return (float)((double)this.x * (double)this.x + (double)this.y * (double)this.y + (double)this.z * (double)this.z);
+            return (float)((double)x * (double)x + (double)y * (double)y + (double)z * (double)z);
         }
     }
 
@@ -765,14 +764,14 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     ///   <para>Returns a formatted string for this vector.</para>
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public override string ToString() => this.ToString((string)null, (IFormatProvider)null);
+    public override string ToString() => ToString((string)null, (IFormatProvider)null);
 
     /// <summary>
     ///   <para>Returns a formatted string for this vector.</para>
     /// </summary>
     /// <param name="format">A numeric format string.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public string ToString(string format) => this.ToString(format, (IFormatProvider)null);
+    public string ToString(string format) => ToString(format, (IFormatProvider)null);
 
     /// <summary>
     ///   <para>Returns a formatted string for this vector.</para>
@@ -786,6 +785,6 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
             format = "F2";
         if (formatProvider == null)
             formatProvider = (IFormatProvider)CultureInfo.InvariantCulture.NumberFormat;
-        return AvalonString.Format("({0}, {1}, {2})", (object)this.x.ToString(format, formatProvider), (object)this.y.ToString(format, formatProvider), (object)this.z.ToString(format, formatProvider));
+        return AvalonString.Format("({0}, {1}, {2})", (object)x.ToString(format, formatProvider), (object)y.ToString(format, formatProvider), (object)z.ToString(format, formatProvider));
     }
 }

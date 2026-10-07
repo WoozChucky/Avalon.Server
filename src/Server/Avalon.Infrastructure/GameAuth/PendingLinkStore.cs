@@ -23,7 +23,6 @@ public sealed record LinkProposalReply(string State, string? Error = null, strin
     public override string ToString() => $"Account link proposal: {State} (consent code redacted)";
 }
 
-
 internal sealed record LinkConsentRecord
 {
     public Guid OperationId { get; init; }

@@ -7,7 +7,6 @@ using Microsoft.Extensions.Options;
 
 namespace Avalon.Balance.Service.Runs;
 
-
 /// <summary>
 /// Holds every run the service knows about. One lock covers admission (count the queued and running records, add the
 /// new one), every state change and the sweep, so the limit holds however the requests race. The simulation itself

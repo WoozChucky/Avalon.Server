@@ -16,5 +16,4 @@ public interface IPacketDeserializer
     void RegisterCustomPacketDeserializer<T>(NetworkPacketType packetType, Func<byte[], Type, T> deserializer)
         where T : class;
 
-
 }

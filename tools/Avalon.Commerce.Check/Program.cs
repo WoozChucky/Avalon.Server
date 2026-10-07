@@ -159,8 +159,8 @@ static PurchaseReservation Reservation(AccountId account, DateTime now) => new(a
     "sandbox", "development", "https://example.test", "ignored@example.test", "fixture-product", "card", now.AddMinutes(30));
 static PaymentSnapshot Snapshot(Guid order, Guid attempt, string reference, DateTime now) => new("fixture", "merchant", "sandbox", order, attempt,
     "checkout-" + reference, "payment-" + reference, "fixture-price", "fixture-product", 1, 800, "eur", 150, 800, true, true, PaymentAttemptState.Paid, now.AddMinutes(30), [], []);
-sealed class CheckFailure(string message) : Exception(message);
-sealed class FixtureFactory(string connection) : IDbContextFactory<AuthDbContext>
+internal sealed class CheckFailure(string message) : Exception(message);
+internal sealed class FixtureFactory(string connection) : IDbContextFactory<AuthDbContext>
 {
     public AuthDbContext CreateDbContext() => new(new DbContextOptionsBuilder<AuthDbContext>().UseNpgsql(connection).Options);
 }

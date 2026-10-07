@@ -221,7 +221,6 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         Latency = latency;
     }
 
-
     public void UpdateSession()
     {
         ProcessQueue(_sessionFilterPredicate, dropStaleMapPackets: true);

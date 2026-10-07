@@ -19,7 +19,6 @@ public class SWorldListPacket : Packet
             PacketType, Flags, Protocol, encryptFunc);
 }
 
-
 [ProtoContract]
 public class WorldInfo
 {

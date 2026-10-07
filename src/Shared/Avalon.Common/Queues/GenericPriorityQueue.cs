@@ -558,7 +558,6 @@ public sealed class GenericPriorityQueue<TItem, TPriority> : IFixedSizePriorityQ
         node.QueueIndex = 0;
     }
 
-
     public IEnumerator<TItem> GetEnumerator()
     {
 #if NET_VERSION_4_5 // ArraySegment does not implement IEnumerable before 4.5

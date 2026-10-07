@@ -300,7 +300,6 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             }
         }
 
-
         return published;
     }
 

@@ -16,9 +16,9 @@ public interface IConnection
 {
     Guid Id { get; }
     Task? ExecuteTask { get; }
-    public string RemoteEndPoint { get; }
-    public IAvalonCryptoSession CryptoSession { get; }
-    public ICryptoManager ServerCrypto { get; }
+    string RemoteEndPoint { get; }
+    IAvalonCryptoSession CryptoSession { get; }
+    ICryptoManager ServerCrypto { get; }
 
     void Close(bool expected = true);
 
