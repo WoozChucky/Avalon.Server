@@ -1,5 +1,6 @@
-using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Api.Services;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;

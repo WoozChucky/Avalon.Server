@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
@@ -8,7 +9,7 @@ using Avalon.Server.Auth.UnitTests.Services;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
 using Xunit;
-using static Avalon.Api.UnitTests.Authentication.ApiAuthHost;
+using static Avalon.Api.Testing.ApiTestHost;
 
 namespace Avalon.Api.UnitTests.Authentication;
 
@@ -24,9 +25,9 @@ public sealed class RestMfaVerifyShould : IAsyncLifetime
     private const string RightCode = "123456";
 
     private readonly CounterCache _counters = new();
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
-    public async Task InitializeAsync() => _host = await ApiAuthHost.StartAsync(_counters.Cache);
+    public async Task InitializeAsync() => _host = await ApiTestHost.StartAsync(_counters.Cache);
 
     public async Task DisposeAsync() => await _host.DisposeAsync();
 

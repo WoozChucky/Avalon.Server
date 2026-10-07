@@ -1,4 +1,4 @@
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting.Worlds;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Options;

@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
-using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;

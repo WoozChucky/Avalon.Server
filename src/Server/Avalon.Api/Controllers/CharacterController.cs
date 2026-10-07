@@ -1,9 +1,10 @@
-using Avalon.Api.Authentication;
-using Avalon.Api.Authorization;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Authorization;
+using Avalon.Api.Hosting.Controllers;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
-using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Extensions;

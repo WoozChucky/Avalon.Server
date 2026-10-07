@@ -13,7 +13,6 @@
     <PackageReference Include="AspNet.Security.OpenId.Steam" />
     <PackageReference Include="AWSSDK.S3" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
     <!-- Emits the OpenAPI document during build so the docs site and the dashboard's
          drift check can read the contract without running the API. Build-only: it
          contributes nothing to the shipped output. -->
@@ -26,7 +25,6 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Otp.NET"/>
-    <PackageReference Include="Scalar.AspNetCore"/>
     <PackageReference Include="Serilog.AspNetCore"/>
     <PackageReference Include="Serilog.Enrichers.Thread"/>
     <PackageReference Include="Serilog.Extensions.Logging"/>
@@ -56,6 +54,7 @@
     <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
     <ProjectReference Include="..\Avalon.Api.Contract\Avalon.Api.Contract.csproj"/>
+    <ProjectReference Include="..\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>
     <ProjectReference Include="..\Avalon.Balance.Contract\Avalon.Balance.Contract.csproj"/>
     <ProjectReference Include="..\Avalon.Combat\Avalon.Combat.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
@@ -77,13 +76,13 @@
   <PropertyGroup>
     <!--
       Off by default, on purpose. The generator boots the host to read the document,
-      so it runs AddAuth and trips the signing-key guard (#482), and it does not load
+      so it runs AddApiAuthentication and trips the signing-key guard (#482), and it does not load
       user-secrets - leaving it on would fail every ordinary build and every existing
       CI job for want of a key that signs nothing.
 
       The generator also interrupts Main when the host STARTS, not when it is built, so
       the startup work after Build() - migrations, workers, the cache connection - runs
-      unless AVALON_OPENAPI_GENERATION_ONLY tells Program.cs to skip it.
+      unless AVALON_OPENAPI_GENERATION_ONLY tells the host (AvalonApiHost) to skip it.
 
       The docs workflow turns generation on and supplies both, as
       .github/workflows/docs.yml shows:

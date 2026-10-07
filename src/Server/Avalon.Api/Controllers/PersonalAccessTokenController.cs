@@ -1,7 +1,8 @@
 using System.Security.Claims;
-using Avalon.Api.Authentication;
-using Avalon.Api.Authorization;
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Authorization;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;

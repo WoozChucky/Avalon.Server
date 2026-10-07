@@ -4,6 +4,8 @@ using System.Text;
 using System.Text.Json;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
+using Avalon.Api.Hosting.Authentication.Jwt;
+using Avalon.Api.Testing;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
@@ -36,7 +38,7 @@ public class JwtSigningKeyShould
         if (signingKey is not null) settings[SettingName] = signingKey;
 
         IConfigurationRoot configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
-        ApplicationConfig applicationConfig = ApiConfiguration.Bind(configuration);
+        var applicationConfig = ApplicationConfig.Bind(configuration);
 
         var services = new ServiceCollection();
         services.AddAuth(applicationConfig);
@@ -187,11 +189,11 @@ public class JwtSigningKeyShould
     [Fact]
     public async Task Sign_tokens_that_validate_end_to_end_with_a_valid_key()
     {
-        await using ApiAuthHost host = await ApiAuthHost.StartAsync();
-        Account account = ApiAuthHost.MakeAccount();
+        await using ApiTestHost host = await ApiTestHost.StartAsync();
+        Account account = ApiTestHost.MakeAccount();
         host.AccountNowIs(account);
 
-        using HttpResponseMessage response = await host.GetAsync("/player", ApiAuthHost.Mint(account));
+        using HttpResponseMessage response = await host.GetAsync("/player", ApiTestHost.Mint(account));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
@@ -199,14 +201,14 @@ public class JwtSigningKeyShould
     [Fact]
     public async Task Reject_tokens_signed_with_a_different_key()
     {
-        await using ApiAuthHost host = await ApiAuthHost.StartAsync();
-        Account account = ApiAuthHost.MakeAccount();
+        await using ApiTestHost host = await ApiTestHost.StartAsync();
+        Account account = ApiTestHost.MakeAccount();
         host.AccountNowIs(account);
         var otherKey = new AuthenticationConfig
         {
             IssuerSigningKey = new string('x', 64),
-            Issuer = ApiAuthHost.AuthConfig.Issuer,
-            Audience = ApiAuthHost.AuthConfig.Audience,
+            Issuer = ApiTestHost.AuthConfig.Issuer,
+            Audience = ApiTestHost.AuthConfig.Audience,
             AccessTokenLifetimeMinutes = 15,
         };
         var otherSigner = new JwtUtils(otherKey, JwtSigningKey.Create(otherKey));

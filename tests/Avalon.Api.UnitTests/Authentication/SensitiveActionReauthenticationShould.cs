@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
@@ -10,7 +11,7 @@ using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using NSubstitute;
 using Xunit;
-using static Avalon.Api.UnitTests.Authentication.ApiAuthHost;
+using static Avalon.Api.Testing.ApiTestHost;
 
 namespace Avalon.Api.UnitTests.Authentication;
 
@@ -25,12 +26,12 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
 {
     private static readonly string s_password = TestPasswords.Valid;
 
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
     private Account _account = null!;
 
     public async Task InitializeAsync()
     {
-        _host = await ApiAuthHost.StartAsync();
+        _host = await ApiTestHost.StartAsync();
         _account = MakeAccount(AccountAccessLevel.Player | AccountAccessLevel.Admin);
         _account.Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(s_password, BCrypt.Net.BCrypt.GenerateSalt(4)));
         _host.AccountNowIs(_account);

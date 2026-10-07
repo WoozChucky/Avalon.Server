@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The API test support every API test project shares (#794, design section 11.1): ApiTestHost, the in-memory host
+    built as the API builds itself, and the fixtures (SQLite auth and world databases, the login policy as the API
+    composes it, test passwords). A library, not a test project.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" Version="10.0.12"/>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12"/>
+    <PackageReference Include="NSubstitute" Version="6.2.0"/>
+    <PackageReference Include="NSubstitute.Analyzers.CSharp" Version="1.0.17">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The Auth tests' Redis counter fake and stale-read repository: the REST login runs the same
+         budgets and the same writes (#478), so it is tested against the same fakes. They are internal. -->
+    <Compile Include="..\Avalon.Server.Auth.UnitTests\Services\CounterCache.cs" Link="Shared\CounterCache.cs"/>
+    <Compile Include="..\Avalon.Server.Auth.UnitTests\Services\StaleAccountRepository.cs" Link="Shared\StaleAccountRepository.cs"/>
+    <InternalsVisibleTo Include="Avalon.Api.UnitTests"/>
+    <InternalsVisibleTo Include="Avalon.Api.Hosting.UnitTests"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The host, for the monolith's service until each service moves into its own library (T3.1 to T3.4). -->
+    <ProjectReference Include="..\..\src\Server\Avalon.Api\Avalon.Api.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Api.Hosting\Avalon.Api.Hosting.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Database\Avalon.Database.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
+  </ItemGroup>
+
+</Project>

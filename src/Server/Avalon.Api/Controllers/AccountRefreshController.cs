@@ -1,10 +1,11 @@
 using System.Net;
-using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
@@ -79,7 +80,7 @@ public sealed class AccountRefreshController : BaseController
                 return Unauthorized();
             }
 
-            SetRefreshCookie(rotated.RawToken, rotated.ExpiresAt, _authConfig);
+            RefreshCookie.Set(Response, rotated.RawToken, rotated.ExpiresAt, _authConfig);
 
             return new RefreshResponse
             {

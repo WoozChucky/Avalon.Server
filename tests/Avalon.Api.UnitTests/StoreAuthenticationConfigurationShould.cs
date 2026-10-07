@@ -1,3 +1,4 @@
+using Avalon.Api.Testing;
 using Avalon.Configuration;
 using Xunit;
 

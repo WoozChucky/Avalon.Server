@@ -1,10 +1,10 @@
 using System.Reflection;
 using System.Security.Claims;
-using Avalon.Api.Authentication;
 using Avalon.Api.Config;
 using Avalon.Api.Controllers;
-using Avalon.Api.Services;
+using Avalon.Api.Hosting.Authentication;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -50,8 +50,9 @@ public class RemoveMfaAuthorizationShould
 
     private static async Task<(int Status, bool ReachedAction)> CallAsync(string role)
     {
-        IAccountService accounts = Substitute.For<IAccountService>();
-        accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        // The repository authorization reads the account through (#794).
+        IAccountRepository accounts = Substitute.For<IAccountRepository>();
+        accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new Account
             {
                 Id = new AccountId(CallerId),
@@ -66,7 +67,7 @@ public class RemoveMfaAuthorizationShould
         services.AddLogging();
         services.AddHttpContextAccessor();
         services.AddSingleton(accounts);
-        services.AddSingleton(Substitute.For<IPersonalAccessTokenService>());
+        services.AddSingleton(Substitute.For<IPersonalAccessTokenRepository>());
         services.AddAuth(new ApplicationConfig
         {
             Authentication = new AuthenticationConfig

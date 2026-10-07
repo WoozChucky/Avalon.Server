@@ -1,4 +1,5 @@
-using Avalon.Api.Authentication;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Authorization;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
 

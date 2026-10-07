@@ -1,6 +1,6 @@
 using Avalon.Api.Commerce;
 using Avalon.Api.Contract.Commerce;
-using Avalon.Api.UnitTests.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;

@@ -1,0 +1,70 @@
+using System.Globalization;
+using System.Security.Claims;
+using Avalon.Common.Accounts;
+using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+
+namespace Avalon.Api.Hosting.Authentication.Jwt;
+
+/// <summary>
+/// Runs once the bearer handler has validated a JWT's signature, issuer, audience and lifetime:
+/// reloads the account the token names and applies <see cref="AccountAccessCheck"/>, the same
+/// rule a personal access token gets. A refused account fails authentication (401); an admitted
+/// one has its role claims replaced by the token's roles masked by the account's current ones.
+/// A token whose <c>cver</c> claim is not the account's current credentials version (#495) is
+/// refused too. The account is read through <see cref="IAccountRepository"/>, which every API
+/// service has (#794).
+/// </summary>
+public static class JwtAccountRevalidation
+{
+    public static async Task OnTokenValidated(TokenValidatedContext context)
+    {
+        ClaimsPrincipal? principal = context.Principal;
+        string? subject = principal?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (principal is null || !long.TryParse(subject, NumberStyles.None, CultureInfo.InvariantCulture, out long id))
+        {
+            context.Fail("token names no account");
+            return;
+        }
+
+        IAccountRepository accounts = context.HttpContext.RequestServices.GetRequiredService<IAccountRepository>();
+        Account? account = await accounts.FindByIdAsync(new AccountId(id), track: false, context.HttpContext.RequestAborted);
+
+        if (!AccountAccessCheck.TryAdmit(account, AccountAccessCheck.RolesOf(principal),
+                out AccountAccessLevel roles, out string? refusal))
+        {
+            context.Fail(refusal);
+            return;
+        }
+
+        // A password change, an MFA reset or an admin's MFA removal ends every access token issued
+        // before it (#495), rather than leaving it its lifetime.
+        if (!CarriesCurrentCredentials(principal, account))
+        {
+            context.Fail("credentials changed");
+            return;
+        }
+
+        AccountAccessCheck.Remember(context.HttpContext, account);
+
+        var source = principal.Identity as ClaimsIdentity;
+        IEnumerable<Claim> claims = principal.Claims.Where(c => !string.Equals(c.Type, ClaimTypes.GroupSid, StringComparison.Ordinal))
+            .Concat(AccountAccessCheck.RoleClaims(roles));
+        var identity = new ClaimsIdentity(claims, source?.AuthenticationType ?? context.Scheme.Name,
+            source?.NameClaimType ?? ClaimTypes.Name, ClaimTypes.GroupSid);
+        context.Principal = new ClaimsPrincipal(identity);
+    }
+
+    /// <summary>
+    /// Whether the token's <c>cver</c> claim equals the account's credentials version. A token with
+    /// no such claim, or one that does not parse, is refused: every token this API mints has one.
+    /// </summary>
+    internal static bool CarriesCurrentCredentials(ClaimsPrincipal principal, Account account)
+    {
+        string? claim = principal.FindFirstValue(JwtClaims.CredentialsVersion);
+        return int.TryParse(claim, NumberStyles.None, CultureInfo.InvariantCulture, out int version)
+               && version == account.CredentialsVersion;
+    }
+}

@@ -1,6 +1,8 @@
-using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting;
+using Avalon.Api.Hosting.Authentication.Jwt;
+using Avalon.Api.Hosting.Config;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Hosting;
 using Avalon.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
@@ -39,6 +41,8 @@ public class ApiHostGraphShould
         services.AddSingleton(config.Cache);
         // AddAuth, which Program.cs calls first, registers the signing key JwtUtils takes (#482).
         services.AddSingleton(JwtSigningKey.Create(config.Authentication));
+        // The shared hosting the api's services run on, as the host registers it before them (#794).
+        services.AddApiHosting(MonolithApi.MonolithNeeds, config.ForwardedHeaders);
         services.AddInfrastructure(config);
 
         ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);
@@ -73,6 +77,8 @@ public class ApiHostGraphShould
         services.AddHttpContextAccessor();
         services.AddSingleton(config);
         services.AddSingleton(config.Authentication);
+        // The shared hosting the api's services run on, as the host registers it before them (#794).
+        services.AddApiHosting(MonolithApi.MonolithNeeds, config.ForwardedHeaders);
         services.AddInfrastructure(config);
 
         using ServiceProvider provider = services.BuildServiceProvider();
@@ -114,6 +120,8 @@ public class ApiHostGraphShould
         services.AddSingleton(config.Notification);
         services.AddSingleton(config.Cache);
         services.AddSingleton(JwtSigningKey.Create(config.Authentication));
+        // The shared hosting the api's services run on, as the host registers it before them (#794).
+        services.AddApiHosting(MonolithApi.MonolithNeeds, config.ForwardedHeaders);
         services.AddInfrastructure(config);
 
         using ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);

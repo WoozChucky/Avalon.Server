@@ -1,9 +1,9 @@
 using System.Security.Claims;
-using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
+using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Services;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -19,7 +19,7 @@ public class AccountCharactersControllerShould
     public async Task Ask_for_the_callers_characters_at_the_callers_level()
     {
         IAuthContext auth = Substitute.For<IAuthContext>();
-        auth.Account.Returns(ApiAuthHost.MakeAccount());
+        auth.Account.Returns(ApiTestHost.MakeAccount());
         IAccountCharactersService service = Substitute.For<IAccountCharactersService>();
         CharacterListDto expected = new();
         service.GetAsync(Arg.Any<AccountId>(), Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>()).Returns(expected);
@@ -32,7 +32,7 @@ public class AccountCharactersControllerShould
         CharacterListDto result = await sut.GetAll(CancellationToken.None);
 
         Assert.Same(expected, result);
-        await service.Received(1).GetAsync(Arg.Is<AccountId>(a => a.Value == ApiAuthHost.AccountIdValue),
+        await service.Received(1).GetAsync(Arg.Is<AccountId>(a => a.Value == ApiTestHost.AccountIdValue),
             AccountAccessLevel.Player, Arg.Any<CancellationToken>());
     }
 }

@@ -1,8 +1,8 @@
 using System.Reflection;
 using System.Text.Json;
-using Avalon.Api.Authentication;
 using Avalon.Api.Contract.Commerce;
 using Avalon.Api.Controllers;
+using Avalon.Api.Hosting.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Xunit;

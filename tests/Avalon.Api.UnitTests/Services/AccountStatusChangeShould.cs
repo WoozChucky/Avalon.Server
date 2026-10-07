@@ -1,5 +1,6 @@
 using Avalon.Api.Config;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;

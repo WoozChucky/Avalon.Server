@@ -2,9 +2,9 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using Avalon.Api.Controllers;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Previews;
-using Avalon.Api.UnitTests.Authentication;
-using Avalon.Api.Worlds;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World.Repositories;
@@ -40,7 +40,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         [Staff] = Substitute.For<IItemTemplateRepository>(),
     };
     private readonly IAbilityTemplateRepository _abilities = Substitute.For<IAbilityTemplateRepository>();
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
     private static PreviewConfiguration Previews() => new()
     {
@@ -134,8 +134,8 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         _host = await Start("https://avalon.example/", Previews());
     }
 
-    private Task<ApiAuthHost> Start(string? publicSite, PreviewConfiguration previews, ushort defaultWorld = Open) =>
-        ApiAuthHost.StartAsync(configure: services =>
+    private Task<ApiTestHost> Start(string? publicSite, PreviewConfiguration previews, ushort defaultWorld = Open) =>
+        ApiTestHost.StartAsync(configure: services =>
         {
             services.AddWorldDatabases(new WorldDatabases(new[] { Open, OtherOpen, Staff }
                 .Select(id => new ConfiguredWorld(new WorldId(id), $"Host=w{id}", $"Host=c{id}"))));
@@ -291,10 +291,10 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     [Fact]
     public async Task Serve_a_staff_world_privately_to_a_caller_who_may_enter_it()
     {
-        Account admin = ApiAuthHost.MakeAccount(AccountAccessLevel.Admin);
+        Account admin = ApiTestHost.MakeAccount(AccountAccessLevel.Admin);
         _host.AccountNowIs(admin);
 
-        HttpResponseMessage response = await _host.GetAsync($"/public/preview/item/14?world={Staff}", ApiAuthHost.Mint(admin));
+        HttpResponseMessage response = await _host.GetAsync($"/public/preview/item/14?world={Staff}", ApiTestHost.Mint(admin));
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("Staff Helm", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
@@ -340,7 +340,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     [Fact]
     public async Task Fall_back_to_the_first_readable_world_when_the_default_is_not_readable()
     {
-        await using ApiAuthHost host = await Start("https://avalon.example", Previews(), defaultWorld: Staff);
+        await using ApiTestHost host = await Start("https://avalon.example", Previews(), defaultWorld: Staff);
 
         string html = await host.Client.GetStringAsync("/public/preview/item/14");
 
@@ -350,7 +350,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     [Fact]
     public async Task Leave_og_url_out_and_link_relatively_when_no_public_site_is_configured()
     {
-        await using ApiAuthHost host = await Start(null, Previews());
+        await using ApiTestHost host = await Start(null, Previews());
 
         string html = await host.Client.GetStringAsync("/public/preview/item/14");
 
@@ -362,7 +362,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     [Fact]
     public async Task Link_relatively_with_the_explicit_world_when_no_public_site_is_configured()
     {
-        await using ApiAuthHost host = await Start("", Previews());
+        await using ApiTestHost host = await Start("", Previews());
 
         string html = await host.Client.GetStringAsync($"/public/preview/ability/210?world={OtherOpen}");
 
@@ -373,7 +373,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     [Fact]
     public async Task Name_an_absolute_og_url_when_a_public_site_is_configured()
     {
-        await using ApiAuthHost host = await Start("https://site.example/", Previews());
+        await using ApiTestHost host = await Start("https://site.example/", Previews());
 
         string html = await host.Client.GetStringAsync("/public/preview/item/14");
 
@@ -386,7 +386,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         PreviewConfiguration previews = Previews();
         previews.RarityColours["epic"] = "#112233";
         previews.AbilityColour = "#AABBCC";
-        await using ApiAuthHost host = await Start(null, previews);
+        await using ApiTestHost host = await Start(null, previews);
 
         Assert.Equal("#112233", Meta(await host.Client.GetStringAsync("/public/preview/item/14"), "theme-color"));
         Assert.Equal("#AABBCC", Meta(await host.Client.GetStringAsync("/public/preview/ability/210"), "theme-color"));
@@ -405,7 +405,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
         previews.RarityColours.Remove("Epic");
         if (colour is not null) previews.RarityColours["Epic"] = colour;
         previews.AbilityColour = colour;
-        await using ApiAuthHost host = await Start(null, previews);
+        await using ApiTestHost host = await Start(null, previews);
 
         HttpResponseMessage item = await host.Client.GetAsync("/public/preview/item/14");
         string itemHtml = await item.Content.ReadAsStringAsync();
@@ -421,7 +421,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     {
         PreviewConfiguration previews = Previews();
         previews.SiteName = "Realm <&>";
-        await using ApiAuthHost host = await Start(null, previews);
+        await using ApiTestHost host = await Start(null, previews);
 
         string html = await host.Client.GetStringAsync("/public/preview/item/14");
         HttpResponseMessage missing = await host.Client.GetAsync("/public/preview/item/99");
@@ -436,7 +436,7 @@ public sealed partial class LinkPreviewShould : IAsyncLifetime
     {
         PreviewConfiguration previews = Previews();
         previews.SiteName = null;
-        await using ApiAuthHost host = await Start(null, previews);
+        await using ApiTestHost host = await Start(null, previews);
 
         string html = await host.Client.GetStringAsync("/public/preview/item/14");
 

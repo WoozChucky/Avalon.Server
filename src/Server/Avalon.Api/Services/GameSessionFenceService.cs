@@ -1,5 +1,5 @@
 using System.Globalization;
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;

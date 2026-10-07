@@ -1,6 +1,6 @@
 using System.Net;
-using Avalon.Api.UnitTests.Authentication;
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Testing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -22,7 +22,7 @@ public sealed class WorldScopedEndpointsShould
 {
     private static async Task<List<RouteEndpoint>> ApiEndpoints()
     {
-        await using ApiAuthHost host = await ApiAuthHost.StartAsync();
+        await using ApiTestHost host = await ApiTestHost.StartAsync();
         return host.Endpoints.OfType<RouteEndpoint>().ToList();
     }
 

@@ -2,9 +2,9 @@ using System.Net;
 using System.Text;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
-using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Services;
-using Avalon.Api.UnitTests.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth;
@@ -44,13 +44,13 @@ public sealed class RoleChangeShould : IDisposable
 
     public void Dispose() => _database.Dispose();
 
-    /// <summary>The account <see cref="ApiAuthHost"/> authenticates, id 7, held by the real database.</summary>
+    /// <summary>The account <see cref="ApiTestHost"/> authenticates, id 7, held by the real database.</summary>
     private async Task<Account> AccountAsync(AccountAccessLevel level)
     {
         string salt = BCrypt.Net.BCrypt.GenerateSalt(4);
         return await _accounts.CreateAsync(new Account
         {
-            Id = new AccountId(ApiAuthHost.AccountIdValue),
+            Id = new AccountId(ApiTestHost.AccountIdValue),
             Username = "STAFFER",
             Email = "staffer@avalon.monster",
             Salt = Encoding.UTF8.GetBytes(salt),
@@ -82,8 +82,8 @@ public sealed class RoleChangeShould : IDisposable
     public async Task Refuse_the_old_access_token_after_a_demotion()
     {
         Account account = await AccountAsync(GameMaster);
-        string token = ApiAuthHost.Mint(account);
-        await using ApiAuthHost host = await ApiAuthHost.StartAsync();
+        string token = ApiTestHost.Mint(account);
+        await using ApiTestHost host = await ApiTestHost.StartAsync();
 
         await DemoteAsync(account.Id);
         host.AccountNowIs(await StoredAsync(account.Id));

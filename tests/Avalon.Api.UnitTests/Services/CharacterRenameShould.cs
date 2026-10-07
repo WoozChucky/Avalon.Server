@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;

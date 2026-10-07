@@ -1,4 +1,4 @@
-using Avalon.Api.Worlds;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;

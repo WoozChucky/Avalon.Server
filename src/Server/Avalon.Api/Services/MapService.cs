@@ -1,7 +1,7 @@
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
-using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Extensions;

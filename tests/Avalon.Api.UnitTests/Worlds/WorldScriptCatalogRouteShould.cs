@@ -2,9 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Templates;
-using Avalon.Api.UnitTests.Authentication;
-using Avalon.Api.Worlds;
+using Avalon.Api.Testing;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
@@ -36,7 +36,7 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
 
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IWorldRepository _authWorlds = Substitute.For<IWorldRepository>();
-    private ApiAuthHost _host = null!;
+    private ApiTestHost _host = null!;
 
     public async Task InitializeAsync()
     {
@@ -46,7 +46,7 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
         _cache.GetAsync(CacheKeys.WorldScriptCatalog(One))
             .Returns(ScriptCatalogJson.Serialize(new ScriptCatalogSnapshot(s_oneAi, s_oneAbility, s_oneQuest, s_oneItem, s_oneAura)));
 
-        _host = await ApiAuthHost.StartAsync(_cache, services =>
+        _host = await ApiTestHost.StartAsync(_cache, services =>
         {
             services.AddWorldDatabases(databases);
             services.AddSingleton(_authWorlds);
@@ -71,9 +71,9 @@ public sealed class WorldScriptCatalogRouteShould : IAsyncLifetime
 
     private Task<HttpResponseMessage> Get(string path, AccountAccessLevel level)
     {
-        Account account = ApiAuthHost.MakeAccount(level);
+        Account account = ApiTestHost.MakeAccount(level);
         _host.AccountNowIs(account);
-        return _host.GetAsync(path, ApiAuthHost.Mint(account));
+        return _host.GetAsync(path, ApiTestHost.Mint(account));
     }
 
     [Fact]

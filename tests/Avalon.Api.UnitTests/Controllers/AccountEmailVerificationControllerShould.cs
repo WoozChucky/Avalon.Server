@@ -1,9 +1,9 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
-using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
-using Avalon.Api.Exceptions;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.UnitTests.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;

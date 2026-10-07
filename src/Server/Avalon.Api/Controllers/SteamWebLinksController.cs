@@ -5,7 +5,8 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
-using Avalon.Api.Middlewares;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Api.Services;
 using Avalon.Common.GameAuth;
 using Avalon.Database.Auth.Repositories;
@@ -37,7 +38,7 @@ public sealed record SteamWebLinkConfirmation(Guid TransactionId, string Current
 
 [ApiController, Authorize(Policy = AvalonRoles.Player), Route("account/links/steam")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-[RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+[RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ClientAuthRateLimiting.Policy)]
 public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLinkReauthentication recent,
     AccountConsolidationService consolidation, IAccountConsolidationRepository operations,
     IExternalIdentityRepository identities, IAccountRepository accounts, IMfaSetupRepository mfaSetups, IAuthContext auth,

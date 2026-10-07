@@ -1,4 +1,5 @@
-using Avalon.Api.Authentication;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Balance.Contract;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +14,7 @@ namespace Avalon.Api.Balance;
 [ApiController]
 [Authorize(Policy = AvalonRoles.Admin)]
 [Route("balance")]
-public class BalanceController : Controllers.BaseController
+public class BalanceController : BaseController
 {
     private readonly IBalanceClient _client;
 

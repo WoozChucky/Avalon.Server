@@ -1,7 +1,7 @@
 using System.Security.Claims;
-using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
+using Avalon.Api.Hosting.Authentication;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.World.Repositories;
@@ -18,7 +18,7 @@ public class ItemTemplateControllerShould
     private readonly IItemTemplateRepository _repository = Substitute.For<IItemTemplateRepository>();
 
     private ItemTemplateController MakeSut(ClaimsPrincipal user) =>
-        new(_repository, Substitute.For<Avalon.Api.Worlds.ICurrentWorld>(),
+        new(_repository, Substitute.For<Avalon.Api.Hosting.Worlds.ICurrentWorld>(),
             Microsoft.Extensions.Options.Options.Create(new Avalon.Api.Templates.TemplateEditingOptions()))
         {
             ControllerContext = new ControllerContext

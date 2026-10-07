@@ -1,5 +1,6 @@
 using Avalon.Api.Config;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;

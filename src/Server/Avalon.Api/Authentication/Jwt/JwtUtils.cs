@@ -1,6 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Avalon.Api.Config;
+using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Authentication.Jwt;
+using Avalon.Api.Hosting.Config;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -20,7 +23,7 @@ public class JwtUtils : IJwtUtils
     /// The claim holding the account's credentials version when the token was minted (#495). The
     /// token is refused once the account's version has moved on.
     /// </summary>
-    public const string CredentialsVersionClaim = "cver";
+    public const string CredentialsVersionClaim = JwtClaims.CredentialsVersion;
     public const string LauncherFamilyClaim = "launcher_family";
 
     private readonly JwtSecurityTokenHandler _tokenHandler;
@@ -29,8 +32,8 @@ public class JwtUtils : IJwtUtils
 
     /// <param name="authenticationConfig">Issuer, audience and lifetime of the tokens.</param>
     /// <param name="signingKey">
-    /// The singleton <see cref="ServiceRegistration.AddAuth"/> registers from
-    /// <see cref="JwtSigningKey.Create(AuthenticationConfig?)"/>: the same instance the bearer handler
+    /// The singleton <see cref="ApiAuthentication.AddApiAuthentication"/> registers from
+    /// <see cref="JwtSigningKey.Create(TokenValidationConfig?)"/>: the same instance the bearer handler
     /// validates with.
     /// </param>
     public JwtUtils(AuthenticationConfig authenticationConfig, SymmetricSecurityKey signingKey)

@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
-using Avalon.Api.Middlewares;
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Avalon.Infrastructure.GameAuth;
@@ -15,7 +15,7 @@ namespace Avalon.Api.Controllers;
 
 [ApiController, AllowAnonymous, Route("client/auth")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-[RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ApiRateLimiting.ClientAuthPolicy)]
+[RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ClientAuthRateLimiting.Policy)]
 public sealed class GameAuthController(GameAuthorizationService authorization, ILogger<GameAuthController>? authLogger = null) : ControllerBase
 {
     [HttpPost("provider-attempts", Name = "CreateProviderGameAuthAttempt")]

@@ -1,4 +1,5 @@
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
