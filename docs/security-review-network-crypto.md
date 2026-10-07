@@ -1,5 +1,13 @@
 # Security Review — Network Transport & Session Crypto
 
+> **Dated review (2026-09-04).** The findings describe both ends as they were then and are kept as a record. Since
+> then: findings 3 to 6 are addressed by the session crypto v1 derivation ([crypto-v1-derivation.md](crypto-v1-derivation.md));
+> the World channel (finding 2) runs inside TLS 1.2 or 1.3 with the world server's certificate, the client pins the
+> world's leaf by the SHA-256 its join reply names, and world entry is a join ticket redeemed over mutual TLS rather
+> than a world key ([game server admission](steam-authentication-workloads.md)); the Unity client it read at
+> `C:\dev\3D` is retired, so finding 1 is a question for the C++ client (repository Avalon.Client). The QUIC
+> discussion and the line references (`WorldConnection.cs:169` among them) describe code that has since changed.
+
 **Date:** 2026-09-04
 **Scope:** Auth and World transport security, the ECDH handshake, and the AES-GCM session layer.
 **Repos read:** `Avalon.Server` (this repo) and the Unity client at `C:\dev\3D` — both ends matter here, and two of the findings are only visible when you read them together.

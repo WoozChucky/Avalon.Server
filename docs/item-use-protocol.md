@@ -8,7 +8,7 @@ worn in; any other item runs the item's script on the server (a potion, a scroll
 `schema/avalon.proto` (re-exported with `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]`
 numbers in it. What an item does when used is in the item catalog, `schema/items/item-catalog-v1.json`
 (`useScript`, `useCastTimeMs`, `useCooldownMs`, `useCooldownGroup`, `useValue`; described by
-`schema/items/item-schema-v1.json`). Server-side rules are described in `CLAUDE.md` under "Item use".
+`schema/items/item-schema-v1.json`). Server-side rules are described in [Item use (server design)](item-use.md).
 
 ## 1. Opcodes
 

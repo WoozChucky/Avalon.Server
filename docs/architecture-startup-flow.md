@@ -24,8 +24,10 @@ Bootstrap sequence for each server component.
 
 1. `AvalonHostBuilder.CreateHostAsync` — sets working directory, core services, JSON options
 2. `ConfigureOpenTelemetry`
-3. Register `HostedService` (`AuthServer` / `WorldServer`) + specialized services
-4. Migrate respective databases
+3. Register the hosted services (`AddHostedService`: `AuthServer`; `WorldServer`, `WorldMaintenanceReconciler`,
+   `WorldReadyHeartbeatService` and `PresenceSnapshotService`) + specialized services
+4. `AuthStartup.PrepareAsync` / `WorldStartup.PrepareAsync`: validate the options, migrate the server's databases (the
+   auth database; the world's World and Characters databases, then seed the map catalog)
 5. Connect Redis
 6. Run hosted loop. The Auth server opens its TCP port at host start (`ServerBase.StartAsync`). The
    World server opens it only at the end of `WorldServer.ExecuteAsync` (#665), once scripts and the

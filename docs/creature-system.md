@@ -4,7 +4,7 @@ This document describes a creature's life: its template and stats, how it is pla
 instance, the AI script it runs, how it fights and dies, and what happens to its corpse. Creatures
 do not respawn.
 
-The authoritative summary lives in the World Simulation section of [CLAUDE.md](../CLAUDE.md). This
+The authoritative summary lives in [World simulation](world-simulation.md). This
 document follows one creature through the code.
 
 ---
@@ -188,7 +188,7 @@ picks `Waypoint` (the default) or `Crowd`.
 `MeleeSlots` gives each attacker its own position on a ring around the target (`MeleeSlotCount`,
 default 6; `MeleeSlotRadius`, default 1.5 m). Attackers past the count stand off at attack range.
 
-See the World Simulation section of [CLAUDE.md](../CLAUDE.md) for the locomotion and melee-slot
+See [World simulation](world-simulation.md) for the locomotion and melee-slot
 contracts.
 
 ---
@@ -338,7 +338,7 @@ Who shares the kill is decided first, once, before step 1, while the creature is
 encounter (`PartyEligibility`): a killer in no party alone; in a party, every member in the same
 instance, alive or dead, who is in the creature's encounter or within `PartyEligibilityRange`
 (60 m) of the corpse on X/Z, the killer always, and never a character in a party leave countdown
-(a killer in one makes nobody eligible). CLAUDE.md's Parties section has the rules.
+(a killer in one makes nobody eligible). [Parties](parties.md) has the rules.
 
 ### Loot
 
@@ -351,7 +351,7 @@ such as a town, and for a party kill with nobody eligible, every drop is free fo
 around the corpse, kept in the instance's `GroundLootStore`, and broadcast with `SLootSpawnedPacket`.
 A loot failure is logged, and the kill still counts.
 
-CLAUDE.md's World Simulation section describes loot tables and pickup.
+[World simulation](world-simulation.md) describes loot tables and pickup (ground loot, #460).
 
 ### Experience and level-up
 
@@ -420,7 +420,7 @@ Creatures cast on the same aimed-skill pipeline as players (#163): see Abilities
 | Area | Test class |
 |---|---|
 | Stat derivation | `CreatureStatDeriverShould` |
-| Placement | `CreaturePlacementServiceShould` |
+| Placement | `AuthoredCreaturePlacementShould`, `ProceduralSpawnGroundShould`, `DepthBandPlacementShould`, `CreaturePlacementResilienceShould` |
 | Script construction | `AiScriptConstructibilityShould` |
 | Creature abilities and casts | `CreatureAbilitiesShould`, `CreatureCastShould` |
 | The attack hook and wind-ups | `CreatureAbilityAiShould`, `CreatureCombatScriptShould` |

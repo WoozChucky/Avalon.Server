@@ -282,7 +282,7 @@ nightly and registry workflows did not change. The chart's values that decide th
   admission port, where identity runs, only `networkPolicy.worldServers`. The chart refuses to enable it without the
   peers a port needs, since a rule with none would admit every source.
 
-The chart's `NOTES.txt` names the services a release runs, or, for a routes release, where each service's requests
+The chart's notes (`src/Server/Avalon.Api/Helm/avalon-api/templates/NOTES.txt`) name the services a release runs, or, for a routes release, where each service's requests
 go. `ci/test.sh` has a case for each mode (see [Guards](#guards)).
 
 ## Rollout

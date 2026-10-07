@@ -53,7 +53,7 @@ server is findings 1 and 2, and is not addressed here.
 A P-256 x-coordinate is a 256-bit number, so about one in 256 has a zero top byte. The minimal
 `BigInteger` encoding drops it and yields 31 bytes. Before this change that was the AES key
 directly, so the connection failed at its first sealed packet; it is still a divergence now,
-because HKDF over 31 bytes is a different key. `tests/.../SharedSecretShould.cs` measures the
+because HKDF over 31 bytes is a different key. `tests/Avalon.Shared.UnitTests/Cryptography/SharedSecretShould.cs` measures the
 rate at 17 in 5000. mbedTLS's `mbedtls_ecdh_calc_secret` already zero-pads to the curve size —
 a client must **not** strip those zeros.
 

@@ -10,7 +10,7 @@ browser, documentation), `tools/Avalon.Exporter -- quest-catalog` writes `schema
 (#714): every quest's id, enUS title, stages, objectives (id, type, target, count) and rewards. Game masters can
 also read whole quests over REST, `GET /world/{worldId}/quest-template` and `/{id}`. The wire schema is `schema/avalon.proto` (re-exported with
 `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]` numbers in it. Server-side rules are
-described in `CLAUDE.md` under "Quests".
+described in [Quests (server design)](quests.md).
 
 ## 1. Opcodes
 
@@ -44,7 +44,7 @@ them. A client must re-vendor the schema and delete any emitters for them.
 ## 2. Dialogue
 
 Quests ride on the NPC conversation (`CMSG_INTERACT`, `SMSG_DIALOGUE_NODE`, `CMSG_DIALOGUE_CHOOSE`,
-`SMSG_DIALOGUE_END`; the server rules are in `CLAUDE.md` under "Town NPCs are creatures").
+`SMSG_DIALOGUE_END`; the server rules are in [World simulation](world-simulation.md), under "Town NPCs are creatures").
 
 **Quest options.** When the server sends an NPC's **root** node (the node a conversation opens on), it puts
 the character's quest options for that NPC first, before the node's own authored options. Other nodes never

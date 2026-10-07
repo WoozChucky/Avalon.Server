@@ -15,7 +15,7 @@ Avalon has no single persistent open world. Players gather in shared town instan
 | Type    | Description |
 |---------|-------------|
 | `Town`  | Shared hub with a player cap (default 30). Multiple instances are created automatically when all existing ones are full. New players are always routed to the least-populated instance that still has room. |
-| `Normal`| Private instanced area, one per player, or one per party while the character is in a party (see `party-protocol.md` and CLAUDE.md's Parties section). A 15-minute expiry countdown starts when the last player leaves. Re-entering within that window returns the player to the same live instance. After expiry the instance is freed. |
+| `Normal`| Private instanced area, one per player, or one per party while the character is in a party (see [party protocol](party-protocol.md) and [parties](parties.md)). A 15-minute expiry countdown starts when the last player leaves. Re-entering within that window returns the player to the same live instance. After expiry the instance is freed. |
 
 Players move between maps via `CEnterMapPacket`; the server validates that the player is within range of a portal defined for that map pair.
 
@@ -44,16 +44,28 @@ public interface ISimulationContext
 {
     IReadOnlyDictionary<ObjectGuid, ICharacter> Characters { get; }
     IReadOnlyDictionary<ObjectGuid, ICreature>  Creatures  { get; }
+    ICombatService      CombatService { get; }
+    ICreatureLocomotion Locomotion    { get; }
+    IMeleeSlots         MeleeSlots    { get; }
+    IMapNavigator GetNavigatorForPosition(Vector3 position);
 
-    bool QueueSpell(ICharacter caster, IUnit? target, ISpell spell);
-    void RespawnCreature(ICreature creature);
+    bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability);
+    bool RunInstantAbility(IUnit caster, AbilityAim aim, IAbility ability);
+    void AddCreature(ICreature creature);
     void RemoveCreature(ICreature creature);
-    void BroadcastUnitHit(IUnit attacker, IUnit target, uint health, uint damage);
-    void BroadcastUniStartCast(IUnit caster, float castTime);
+
+    void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage);
+    void BroadcastAttackAnimation(IUnit attacker, IAbility? ability);
+    void BroadcastFinishCast(IUnit caster, IAbility ability);
+    void BroadcastInterruptedCast(IUnit caster, IAbility ability);
+    void BroadcastUnitDeath(IUnit unit, IUnit? killer);
+    void BroadcastUnitRevive(IUnit unit, Vector3 position, uint health);
 }
 ```
 
-`ISimulationContext` is the minimal contract used by creature AI scripts, the spell system, and `CreatureRespawner`. `MapInstance` is the sole simulation unit — there is no sub-map spatial division.
+`ISimulationContext` is the minimal contract creature AI scripts and the ability system use to reach their instance.
+`MapInstance` is the sole simulation unit — there is no sub-map spatial division. Creatures do not respawn: a corpse
+is removed after its `BodyRemoveTimer`.
 
 ### `IMapInstance`
 
@@ -61,23 +73,26 @@ public interface ISimulationContext
 // src/Server/Avalon.World.Public/Instances/IMapInstance.cs
 public interface IMapInstance : ISimulationContext
 {
-    Guid         InstanceId      { get; }
-    MapTemplateId TemplateId     { get; }
-    MapType       MapType        { get; }
-    uint?         OwnerCharacterId { get; }            // null for Town instances; per-character keying
-    IReadOnlyList<uint> AllowedCharacters { get; }     // stub for future group support
-    int           PlayerCount    { get; }
-    DateTime?     LastEmptyAt    { get; }              // null while any player is inside
+    Guid          InstanceId       { get; }
+    MapTemplateId TemplateId       { get; }
+    MapType       MapType          { get; }
+    int           Seed             { get; }
+    string        ConfigVersion    { get; }
+    uint?         OwnerCharacterId { get; }            // null for town and party instances
+    IReadOnlyList<uint> AllowedCharacters { get; }
+    int           PlayerCount      { get; }
+    DateTime?     LastEmptyAt      { get; }            // null while any player is inside
 
     bool IsExpired(TimeSpan expiry);
     bool CanAcceptPlayer(ushort maxPlayers);
 
     void AddCharacter(IWorldConnection connection);
     void RemoveCharacter(IWorldConnection connection);
-    void SpawnStartingEntities();
     void Update(TimeSpan deltaTime);
 }
 ```
+
+A party instance names its party in `MapInstance.OwnerPartyId`, World-side ([parties](parties.md)).
 
 ### `IInstanceRegistry`
 
@@ -95,11 +110,15 @@ public interface IInstanceRegistry
     Task<IMapInstance> GetOrCreateNormalInstanceAsync(uint characterId, MapTemplateId templateId);
 
     IMapInstance? GetInstanceById(Guid instanceId);
+    void RemoveInstance(Guid instanceId);
     void ProcessExpiredInstances(TimeSpan normalMapExpiry);
 }
 ```
 
-Both factory methods are async because `ChunkLayoutInstanceFactory.BuildAsync` runs the navmesh bake on a worker thread (`Task.Run`).
+Both factory methods are async because a build (layout reads, the navmesh bake, construction and creature placement)
+runs off the tick; the finished instance is published on the tick, and the task completes then (#639,
+[world simulation](world-simulation.md)). Party instances come from the World-side `IPartyInstanceRegistry`
+(`GetOrCreatePartyInstanceAsync`), which `InstanceRegistry` also implements.
 
 ---
 
@@ -111,26 +130,31 @@ Both factory methods are async because `ChunkLayoutInstanceFactory.BuildAsync` r
 
 | Field | Description |
 |---|---|
-| `Dictionary<ObjectGuid, ICharacter> _characters` | Active players |
-| `Dictionary<ObjectGuid, ICreature> _creatures` | Active creatures |
-| `ISpellQueueSystem _spellSystem` | Scoped to this instance |
-| `ICreatureRespawner _creatureRespawner` | Receives `ISimulationContext = this` |
+| `_characters`, `_creatures` | Active players and creatures, by `ObjectGuid` |
+| `_abilityCastSystem` | The instance's `InstanceAbilityCastSystem` (casts and projectiles) |
+| `_auras` | The instance's `AuraSystem` |
+| `_corpseRemover` | Removes corpses after their `BodyRemoveTimer`; creatures never respawn |
 | `MapNavigator _navigator` | Single combined navmesh for the whole instance, baked from the chunk layout |
 | `ChunkLayout Layout` | Authoritative layout (chunks, entry spawn, portals) sent to clients via `SChunkLayoutPacket` |
 
 ### Update Loop
 
+An instance nobody is in stands still: it drops its finished projectiles and pauses its auras, and nothing else runs.
+Otherwise, in this order:
+
 ```
-1. _creatureRespawner.Update(deltaTime)
-2. foreach character → connection.Update(MapSessionFilter) + character.Update(deltaTime)
-3. _spellSystem.Update(deltaTime, objectSpells)
-4. foreach creature → creature.Script?.Update(deltaTime)
-5. foreach character → CharacterGameState.Update(_creatures, _characters, objectSpells)
-6. foreach character → BroadcastStateTo(character)
+0. resume paused auras; rescale creature health when the party size changed;
+   send owed loot snapshots and PvP states to characters that just arrived
+1. _corpseRemover.Update(deltaTime); expired item-use summons leave
+2. foreach character → its in-map packets (MapSessionFilter) + character.Update(deltaTime)
+   then the vendor pass, once a shop has been opened here
+3. combat: the ability cast system, the aura pass, item cast bars, the combat service, threat broadcasts
+4. creature scripts, then the locomotion that executes what they decided
+5. snapshot dirty fields, then per character: visibility and the state broadcast
 ```
 
-`RemoveCharacter` sets `LastEmptyAt = DateTime.UtcNow` when the last player leaves.  
-`AddCharacter` clears `LastEmptyAt = null`.
+`RemoveCharacter` sets `LastEmptyAt` from the instance's `TimeProvider` when the last player leaves, and so does
+construction, so an instance nobody ever entered expires too. `AddCharacter` clears it.
 
 ---
 
@@ -143,7 +167,9 @@ Both factory methods are async because `ChunkLayoutInstanceFactory.BuildAsync` r
 `GetOrCreateTownInstanceAsync`:
 1. Filter active instances by `TemplateId` and `MapType == Town`
 2. Pick the one with the lowest `PlayerCount` that passes `CanAcceptPlayer(maxPlayers)`
-3. If none found (all full or none exist): build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId: null, ct)`, call `SpawnStartingEntities`, register it
+3. If a build of that map is already under way, return its task (#442)
+4. Otherwise: start a build off the tick, `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId: null, ct)`
+   (which places the town's authored creatures), and register the instance when it is published on the tick
 
 ### Normal Map Re-entry
 
@@ -181,7 +207,7 @@ hands every live instance to `InstanceTicker.Tick`, and finally frees expired no
   one busy instance, such as a crowded town, from the cost of many, which is the measurement #639 needs
   before ticking instances in parallel.
 
-Town instances are pre-created at startup via `World.LoadAsync` (iterates `MapTemplate`s with `MapType == Town` and calls `GetOrCreateTownInstanceAsync` for each). Normal map instances are spawned on demand by `EnterMapHandler` and `CharacterSelectHandler`.
+No instance is built at startup. A town's first instance is built the first time a character needs it (a select, a portal, a respawn or a return to town); a normal map's when a character takes a portal to it (`EnterMapHandler`) or an item teleports it there.
 
 ---
 
@@ -243,15 +269,17 @@ public class SMapTransitionPacket : Packet
        → too far: send NotNearPortal, return
 7.  Level check → send LevelTooLow / LevelTooHigh if out of range
 8.  Resolve target instance:
-       Town   → GetOrCreateTownInstance(targetMapId, maxPlayers)
-       Normal → GetOrCreateNormalInstance(characterId, targetMapId)
+       Town   → GetOrCreateTownInstanceAsync(targetMapId, maxPlayers)
+       Normal → in a party: GetOrCreatePartyInstanceAsync(partyId, targetMapId), then re-check the
+                party (MapNotFound) and the seats (InstanceFull) once it is built;
+                otherwise GetOrCreateNormalInstanceAsync(characterId, targetMapId)
 9.  world.TransferPlayer(connection, targetInstance):
        a. currentInstance.RemoveCharacter(connection)
        b. character.InstanceId = targetInstance.InstanceId
        c. targetInstance.AddCharacter(connection) — also resets connection.LastInputSeq = 0
 10. Send SMapTransitionPacket(Success, instanceId, spawnPosition, ...) followed by
     SChunkLayoutPacket for the new instance
-11. Enqueue DB update for character.Map + position
+11. Save the character (ICharacterSaver.Save: the row's map, instance and position)
 ```
 
 ---
@@ -298,8 +326,7 @@ Portals come from `ChunkLayout.Portals` populated at instance build time. See [M
 
 | Scenario | Expected Result |
 |---|---|
-| Server startup | At least one `MapInstance` (Town) created per town template |
-| Character select | Player spawns in correct town instance; `SCharacterSelectedPacket.MapInfo.InstanceId` is a real (non-random) Guid |
+| Character select | Player spawns in correct town instance; `SCharacterSelectedPacket.MapInfo.InstanceId` is that instance's id |
 | Portal enter (town → normal) | `CEnterMapPacket` near a portal creates a new normal instance; client receives `SMapTransitionPacket(Success)` |
 | Portal — too far | `NotNearPortal` result; no transfer |
 | Normal map re-entry | Leaving and re-entering within 15 min returns the same `InstanceId` |

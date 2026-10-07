@@ -6,7 +6,7 @@
 This is the client contract for parties: a party is two or more players who share a procedural (Normal) map
 instance, its kills, its loot and its experience. The wire schema is `schema/avalon.proto` (re-exported with
 `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]` numbers in it. Server-side rules are
-described in `CLAUDE.md` under "Parties".
+described in [Parties (server design)](parties.md).
 
 ## 1. Opcodes
 
@@ -176,7 +176,7 @@ plus a system line when refused):
 | `/leave` | Leave the party. |
 | `/kick <name>` | Remove a member (leader only). |
 | `/promote <name>` | Make a member the leader (leader only). |
-| `/partyxp even\|level` | Switch the experience mode (leader only). Anything else is answered with its usage. |
+| `/partyxp even` or `/partyxp level` | Switch the experience mode (leader only). Anything else is answered with its usage. |
 | `/p <message>` (`/party`) | Party chat. With no text: "Usage: /p <message>". Outside a party: "You are not in a party." |
 
 System lines the party produces (X is a character name):

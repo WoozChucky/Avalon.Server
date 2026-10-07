@@ -1,5 +1,12 @@
 # DbContext Lifetime
 
+> **Dated note (2026-09-16).** Written with the change to a context per call; its rule still holds. Since then several
+> of the sequences it lists became single transactions: refresh-token rotation (#495), a password change and an email
+> change confirmation, each with the token revocations (#483, #503), and character creation
+> (`ICharacterRepository.CreateForGameplayAsync`, one Character-database transaction under the account's gameplay
+> guard). Account rows are written by column (#484, #478): nothing in `src/` calls `IAccountRepository.UpdateAsync`
+> any more, so the call sites it counts are gone. The audit text below is kept as it was.
+
 A repository creates a `DbContext` per method call and never holds one.
 
 ## What was wrong
@@ -185,7 +192,7 @@ Counting the write surface is harder than it looks and no count here should be t
 measure. Roughly thirteen call sites are insert-shaped; the update-shaped surface is far larger —
 around twenty-five, of which `IAccountRepository.UpdateAsync` alone is about fourteen.
 
-Unrelated and pre-existing: `docs/map-generation.md:386` says the importer's `ReplaceForMapAsync`
+Unrelated and pre-existing: `docs/map-generation.md` (line 386 at the time) said the importer's `ReplaceForMapAsync`
 handles the upsert. It does not, and `ReplaceForMapAsync` has no caller in `src/`, `tools/` or
 `tests/` at all.
 

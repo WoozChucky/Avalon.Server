@@ -1,6 +1,6 @@
 # Development setup
 
-Every command for building, testing, running and publishing the servers, the EF Core design-time rules, the chunk generator, and the REST API signing key. [CLAUDE.md](../CLAUDE.md) keeps the short list.
+Every command for building, testing, running and publishing the servers, the EF Core design-time rules, the chunk generator, and the REST API signing key. `CLAUDE.md`, at the repository root, keeps the short list.
 
 ## Commands
 

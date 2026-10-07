@@ -47,7 +47,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 
 - **Server:** `C:\dev\Avalon.Server` — chunk catalog, ChunkGen, bake, DB, instance factory, wire packet
 - **Client:** `C:\dev\vulkan-multithreaded` — the C++ game client. It vendors the chunk geometry (`scripts/vendor-chunks.ps1`) and the navmesh and rotation vectors (`scripts/regen-proto.ps1`) and bakes its own navmesh from the vendored geometry, so a chunk change here is followed by a re-vendor there
-- **Chunk catalog:** `src/Server/Avalon.Server.World/Maps/` — the forest pieces and Glimmerdell's four squares are written by `tools/Avalon.ChunkGen`; a few other chunk files are committed as they are; the town layouts, pools, groups, spawn tables and procedural configs are edited by hand; the World server seeds the database from it on every start
+- **Chunk catalog:** `src/Server/Avalon.Server.World/Maps/` — the forest pieces and Glimmerdell's four squares are written by `tools/Avalon.ChunkGen`; a few other chunk files are committed as they are; the town layouts, pools, groups, spawn tables and procedural configs are edited by hand; the World server seeds the database from it on every start. A path in this page that starts with `Maps/` is under this directory.
 
 ## Where things live
 
@@ -493,8 +493,8 @@ so the client's reset input sequence is accepted.
 ## End-to-end trace (what happens when a player enters a town)
 
 1. **Client:** sends `CCharacterSelectedPacket`.
-2. **Server `CharacterSelectHandler`:** loads the `Character` from DB, looks up the `MapTemplate`, calls `InstanceRegistry.GetOrCreateTownInstanceAsync(templateId)`.
-3. **Server `InstanceRegistry`:** if a town instance exists with capacity, returns it; otherwise calls `CreateAndInitializeInstanceAsync` → `ChunkLayoutInstanceFactory.BuildAsync(template, ownerAccountId=null, ct)`.
+2. **Server `CharacterSelectHandler`:** loads the `Character` from DB, looks up the `MapTemplate` (walking a non-town map back to its town), calls `InstanceRegistry.GetOrCreateTownInstanceAsync(templateId, maxPlayers)`.
+3. **Server `InstanceRegistry`:** if a town instance of that map has room, returns the least populated; if a build of that map is already under way, returns its task; otherwise starts one off the tick (`StartBuild` → `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId: null, ct)`), which `World.PublishBuiltInstances` publishes on a later tick.
 4. **Server `ChunkLayoutInstanceFactory`:**
    - `_resolver.Resolve(template)` → `PredefinedChunkLayoutSource` (for Town).
    - `source.BuildAsync(template, ct)` → reads `MapChunkPlacement` rows via repository, validates, builds `ChunkLayout` with `Seed=0`, `Chunks[]`, `EntryChunk`, `EntrySpawnWorldPos` (transformed from `EntryLocalX/Y/Z`), `Portals[]` (from chunk `PortalSlots`), `CellSize`, `Config=null`.
