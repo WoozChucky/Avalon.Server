@@ -38,15 +38,10 @@ public class AccountReadHandlerShould
         return ctx.HasSucceeded;
     }
 
-    [Fact]
-    public async Task Succeed_WhenSelf() =>
-        Assert.True(await Run(User(7, AvalonRoles.Player), MakeAccount(7)));
-
-    [Fact]
-    public async Task Succeed_WhenGameMaster() =>
-        Assert.True(await Run(User(99, AvalonRoles.GameMaster), MakeAccount(7)));
-
-    [Fact]
-    public async Task Fail_WhenPlayerNotSelf() =>
-        Assert.False(await Run(User(99, AvalonRoles.Player), MakeAccount(7)));
+    [Theory]
+    [InlineData(7, AvalonRoles.Player, true)]
+    [InlineData(99, AvalonRoles.GameMaster, true)]
+    [InlineData(99, AvalonRoles.Player, false)]
+    public async Task Let_the_owner_and_game_masters_read(long caller, string role, bool allowed) =>
+        Assert.Equal(allowed, await Run(User(caller, role), MakeAccount(7)));
 }

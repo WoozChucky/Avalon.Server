@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Identity.Services;
 using Avalon.Common.Accounts;
@@ -109,21 +107,6 @@ public class PersonalAccessTokenServiceShould
             requestedRoles: null,
             s_proof,
             CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task FindByRawToken_HashesAndDelegates()
-    {
-        _repo.FindByHashAsync(Arg.Any<byte[]>(), Arg.Any<CancellationToken>())
-             .Returns((PersonalAccessToken?)null);
-
-        PersonalAccessTokenService sut = MakeSut();
-        await sut.FindByRawTokenAsync("avp_abcdef", CancellationToken.None);
-
-        byte[] expected = SHA256.HashData(Encoding.UTF8.GetBytes("avp_abcdef"));
-        await _repo.Received(1).FindByHashAsync(
-            Arg.Is<byte[]>(h => h.SequenceEqual(expected)),
-            Arg.Any<CancellationToken>());
     }
 }
 

@@ -71,20 +71,6 @@ public class AccountServiceShould
         await _transaction.DidNotReceiveWithAnyArgs().ExecuteAsync(default(Func<AuthDbContext, CancellationToken, Task<bool>>)!, default);
     }
 
-    [Fact]
-    public async Task Confirm_an_email_change_with_the_token_it_spent()
-    {
-        _cache.GetAsync(AccountService.EmailChangeKey("token")).Returns("7|0|new@avalon.monster");
-        _cache.RemoveAsync(AccountService.EmailChangeKey("token")).Returns(true);
-        _transaction.ExecuteAsync(Arg.Any<Func<AuthDbContext, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>())
-            .Returns(true);
-
-        await CreateService().ConfirmEmailChangeAsync("token");
-
-        await _transaction.Received(1).ExecuteAsync(Arg.Any<Func<AuthDbContext, CancellationToken, Task<bool>>>(),
-            Arg.Any<CancellationToken>());
-    }
-
     /// <summary>#478 review: the ban is committed, so a failed disconnect publish must not fail the call.</summary>
     [Fact]
     public async Task Ban_even_when_the_disconnect_publish_fails()

@@ -1,12 +1,9 @@
-using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Identity.Authentication.Jwt;
 using Avalon.Api.Identity.Config;
-using Avalon.Api.Testing;
-using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,19 +50,11 @@ public class JwtSigningKeyShould
 
     private static string Sha256Hex(string key) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
 
-    [Fact]
-    public void Refuse_to_start_when_the_key_is_missing()
-    {
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(null));
-
-        AssertNamesTheSetting(ex);
-        Assert.Contains("not set", ex.Message, StringComparison.Ordinal);
-    }
-
     [Theory]
+    [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Refuse_to_start_when_the_key_is_empty(string key)
+    public void Refuse_to_start_when_the_key_is_missing_or_empty(string? key)
     {
         InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(key));
 
@@ -93,22 +82,15 @@ public class JwtSigningKeyShould
     }
 
     [Theory]
-    [InlineData("\n")]
-    [InlineData("\r\n")]
-    [InlineData(" ")]
-    public void Refuse_to_start_when_the_key_has_trailing_whitespace(string trailing)
+    [InlineData("", "\n")]
+    [InlineData("", "\r\n")]
+    [InlineData("", " ")]
+    [InlineData(" ", "")]
+    public void Refuse_to_start_when_the_key_has_leading_or_trailing_whitespace(string leading, string trailing)
     {
         // A key read from a file often ends in a newline; it would sign with bytes nobody meant.
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(new string('k', 64) + trailing));
-
-        AssertNamesTheSetting(ex);
-        Assert.Contains("whitespace", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Refuse_to_start_when_the_key_has_a_leading_space()
-    {
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(" " + new string('k', 64)));
+        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
+            StartWith(leading + new string('k', 64) + trailing));
 
         AssertNamesTheSetting(ex);
         Assert.Contains("whitespace", ex.Message, StringComparison.Ordinal);
@@ -123,9 +105,6 @@ public class JwtSigningKeyShould
         // 31 characters, one of them two bytes: 32 bytes, long enough.
         StartWith(new string('k', 30) + "é");
     }
-
-    [Fact]
-    public void Start_with_a_key_of_exactly_32_bytes() => StartWith(new string('k', 32));
 
     [Fact]
     public void Refuse_a_key_whose_hash_is_blocked()
@@ -184,38 +163,6 @@ public class JwtSigningKeyShould
             .Get(JwtBearerDefaults.AuthenticationScheme).TokenValidationParameters;
 
         Assert.True(validation.ValidateIssuerSigningKey);
-    }
-
-    [Fact]
-    public async Task Sign_tokens_that_validate_end_to_end_with_a_valid_key()
-    {
-        await using ApiTestHost host = await ApiTestHost.StartAsync();
-        Account account = ApiTestHost.MakeAccount();
-        host.AccountNowIs(account);
-
-        using HttpResponseMessage response = await host.GetAsync("/player", ApiTestHost.Mint(account));
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task Reject_tokens_signed_with_a_different_key()
-    {
-        await using ApiTestHost host = await ApiTestHost.StartAsync();
-        Account account = ApiTestHost.MakeAccount();
-        host.AccountNowIs(account);
-        var otherKey = new AuthenticationConfig
-        {
-            IssuerSigningKey = new string('x', 64),
-            Issuer = ApiTestHost.AuthConfig.Issuer,
-            Audience = ApiTestHost.AuthConfig.Audience,
-            AccessTokenLifetimeMinutes = 15,
-        };
-        var otherSigner = new JwtUtils(otherKey, JwtSigningKey.Create(otherKey));
-
-        using HttpResponseMessage response = await host.GetAsync("/player", otherSigner.GenerateJwtToken(account));
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     [Fact]

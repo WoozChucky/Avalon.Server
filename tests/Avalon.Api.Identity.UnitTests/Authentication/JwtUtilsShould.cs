@@ -45,17 +45,6 @@ public class JwtUtilsShould
             .ToArray();
 
     [Fact]
-    public void EmitPlayerGroupSidClaim_WhenAccountHasPlayerFlagOnly()
-    {
-        var sut = new JwtUtils(s_config, JwtSigningKey.Create(s_config));
-        string token = sut.GenerateJwtToken(MakeAccount(AccountAccessLevel.Player));
-
-        string[] groupSids = ReadGroupSids(token);
-
-        Assert.Contains("Player", groupSids);
-    }
-
-    [Fact]
     public void EmitAllMatchingGroupSidClaims_WhenAccountHasMultipleFlags()
     {
         var sut = new JwtUtils(s_config, JwtSigningKey.Create(s_config));

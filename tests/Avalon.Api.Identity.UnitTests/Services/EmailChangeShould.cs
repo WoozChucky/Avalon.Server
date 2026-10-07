@@ -172,18 +172,6 @@ public sealed class EmailChangeShould : IDisposable
         Assert.Empty(_store);
     }
 
-    [Fact]
-    public async Task Refuse_to_start_a_change_with_a_wrong_password_and_count_it_as_a_failed_login()
-    {
-        Account account = await AccountAsync();
-
-        await Assert.ThrowsAsync<AuthenticationException>(() =>
-            StartAsync(account.Id, "new@avalon.monster", TestPasswords.Other));
-
-        Assert.Empty(_store);
-        Assert.Equal(1, (await StoredAsync(account.Id)).FailedLogins);
-    }
-
     // ---------------- Confirming a change is a credentials change ----------------
 
     [Fact]

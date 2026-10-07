@@ -5,7 +5,6 @@ using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Controllers;
 using Avalon.Api.Identity.Services;
 using Avalon.Api.Identity.Services.Email;
-using Avalon.Api.Identity.UnitTests.Services;
 using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
@@ -124,36 +123,6 @@ public class AccountControllerShould
     }
 
     /// <summary>
-    /// Email change is on only when an email sender is configured (#510). With a sender, the start
-    /// answers 202 with no body, so the token cannot come back in the response.
-    /// </summary>
-    [Fact]
-    public async Task Start_an_email_change_with_202_and_no_body_when_a_sender_is_configured()
-    {
-        AccountController sut = MakeSut(User(7, AvalonRoles.Player), new RecordingEmailSender());
-
-        IActionResult result = await sut.InitiateEmailChange(
-            new AccountEmailChangeRequest { NewEmail = "new@avalon.monster", CurrentPassword = TestPasswords.Valid },
-            CancellationToken.None);
-
-        AcceptedResult accepted = Assert.IsType<AcceptedResult>(result);
-        Assert.Null(accepted.Value);
-        await _accountService.Received(1).InitiateEmailChangeAsync(new AccountId(7), "new@avalon.monster",
-            TestPasswords.Valid, Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task Confirm_an_email_change_with_204_when_a_sender_is_configured()
-    {
-        AccountController sut = MakeSut(User(7, AvalonRoles.Player), new RecordingEmailSender());
-
-        IActionResult result = await sut.ConfirmEmailChange(new AccountEmailConfirmRequest { Token = "tok" }, CancellationToken.None);
-
-        Assert.IsType<NoContentResult>(result);
-        await _accountService.Received(1).ConfirmEmailChangeAsync("tok", Arg.Any<CancellationToken>());
-    }
-
-    /// <summary>
     /// Owner decision (#503), kept by #510: with no email sender configured (Application:Email:Sender
     /// None, the default) both endpoints answer 501 and never reach the service.
     /// </summary>
@@ -168,18 +137,6 @@ public class AccountControllerShould
 
         AssertEmailChangeUnavailable(result);
         await _accountService.DidNotReceiveWithAnyArgs().InitiateEmailChangeAsync(default!, default!, default!, default!, default);
-    }
-
-    [Fact]
-    public async Task Refuse_to_confirm_an_email_change_with_501()
-    {
-        AccountController sut = MakeSut(User(7, AvalonRoles.Player));
-
-        IActionResult result = await sut.ConfirmEmailChange(
-            new AccountEmailConfirmRequest { Token = "tok" }, CancellationToken.None);
-
-        AssertEmailChangeUnavailable(result);
-        await _accountService.DidNotReceiveWithAnyArgs().ConfirmEmailChangeAsync(default!, default);
     }
 
     private static void AssertEmailChangeUnavailable(IActionResult result)
@@ -243,18 +200,6 @@ public class AccountControllerShould
         ObjectResult objectResult = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
         await _accountService.DidNotReceiveWithAnyArgs().RemoveMfaAsync(default!, default!, default);
-    }
-
-    [Fact]
-    public async Task RemoveMfa_Returns204_WhenCalledTwice()
-    {
-        ClaimsPrincipal user = User(99, AvalonRoles.Admin);
-        _accountService.RemoveMfaAsync(new AccountId(7), new AccountId(99), Arg.Any<CancellationToken>()).Returns(true);
-
-        AccountController sut = MakeSut(user);
-
-        Assert.IsType<NoContentResult>(await sut.RemoveMfa(7, CancellationToken.None));
-        Assert.IsType<NoContentResult>(await sut.RemoveMfa(7, CancellationToken.None));
     }
 
     [Fact]

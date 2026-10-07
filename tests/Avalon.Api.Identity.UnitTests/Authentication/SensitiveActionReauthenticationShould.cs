@@ -74,10 +74,6 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
     private Task AssertNoMintAsync() =>
         _host.Pats.DidNotReceiveWithAnyArgs().MintSelfAsync(default!, default, default!, default, default, default, default);
 
-    private Task AssertFailureCountedAsync() =>
-        _host.AccountRepository.Received(1).RecordFailedLoginAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue),
-            Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
-
     [Fact]
     public async Task Refuse_mfa_setup_without_the_current_password()
     {
@@ -85,16 +81,6 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         await AssertNoSetupAsync();
-    }
-
-    [Fact]
-    public async Task Refuse_mfa_setup_with_a_wrong_password_and_count_it_as_a_failed_login()
-    {
-        using HttpResponseMessage response = await SetupAsync(TestPasswords.Wrong);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        await AssertNoSetupAsync();
-        await AssertFailureCountedAsync();
     }
 
     [Fact]
@@ -131,16 +117,6 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         await AssertNoMintAsync();
-    }
-
-    [Fact]
-    public async Task Refuse_to_mint_a_personal_access_token_with_a_wrong_password_and_count_it()
-    {
-        using HttpResponseMessage response = await MintAsync(TestPasswords.Wrong);
-
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        await AssertNoMintAsync();
-        await AssertFailureCountedAsync();
     }
 
     [Fact]

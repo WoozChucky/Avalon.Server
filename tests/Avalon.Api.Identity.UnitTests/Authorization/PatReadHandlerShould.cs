@@ -40,19 +40,11 @@ public class PatReadHandlerShould
         return ctx.HasSucceeded;
     }
 
-    [Fact]
-    public async Task Succeed_WhenCallerIsOwner() =>
-        Assert.True(await Run(User(7, AvalonRoles.Player), MakePat(7)));
-
-    [Fact]
-    public async Task Succeed_WhenCallerIsAdmin() =>
-        Assert.True(await Run(User(99, AvalonRoles.Admin), MakePat(7)));
-
-    [Fact]
-    public async Task Fail_WhenCallerIsGameMasterAndNotOwner() =>
-        Assert.False(await Run(User(99, AvalonRoles.GameMaster), MakePat(7)));
-
-    [Fact]
-    public async Task Fail_WhenCallerIsPlayerAndNotOwner() =>
-        Assert.False(await Run(User(99, AvalonRoles.Player), MakePat(7)));
+    [Theory]
+    [InlineData(7, AvalonRoles.Player, true)]
+    [InlineData(99, AvalonRoles.Admin, true)]
+    [InlineData(99, AvalonRoles.GameMaster, false)]
+    [InlineData(99, AvalonRoles.Player, false)]
+    public async Task Let_the_owner_and_admins_read(long caller, string role, bool allowed) =>
+        Assert.Equal(allowed, await Run(User(caller, role), MakePat(7)));
 }

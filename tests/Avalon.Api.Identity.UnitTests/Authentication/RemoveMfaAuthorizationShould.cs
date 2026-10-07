@@ -28,24 +28,16 @@ public class RemoveMfaAuthorizationShould
     private const long CallerId = 7;
 
     [Theory]
-    [InlineData(AvalonRoles.Player)]
-    [InlineData(AvalonRoles.GameMaster)]
-    public async Task Forbid_a_caller_below_admin(string role)
+    [InlineData(AvalonRoles.Player, false)]
+    [InlineData(AvalonRoles.GameMaster, false)]
+    [InlineData(AvalonRoles.Admin, true)]
+    [InlineData(AvalonRoles.Console, true)]
+    public async Task Let_only_an_admin_through(string role, bool allowed)
     {
         (int status, bool reachedAction) = await CallAsync(role);
 
-        Assert.Equal(StatusCodes.Status403Forbidden, status);
-        Assert.False(reachedAction);
-    }
-
-    [Theory]
-    [InlineData(AvalonRoles.Admin)]
-    [InlineData(AvalonRoles.Console)]
-    public async Task Let_an_admin_through(string role)
-    {
-        (_, bool reachedAction) = await CallAsync(role);
-
-        Assert.True(reachedAction);
+        Assert.Equal(allowed, reachedAction);
+        if (!allowed) Assert.Equal(StatusCodes.Status403Forbidden, status);
     }
 
     private static async Task<(int Status, bool ReachedAction)> CallAsync(string role)
