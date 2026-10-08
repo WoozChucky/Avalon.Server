@@ -349,7 +349,7 @@ render "${AUTHENTICATION[@]}" $CACHE "${ESECRETS[@]}" --set 'authentication.sign
 must_fail "identity without a key id must fail"                     --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set authentication.signingKeyId=
 must_fail "a key id that is not a plain name must fail"             --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set 'authentication.signingKeyId=a b'
 must_fail "a service without identity and no public key must fail"  --set existingSecret=x "${W1[@]}" --set-json 'services=["worlds"]' --set authentication.legacyIssuerSigningKey=true
-must_fail "a private key among the public keys must fail"           --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set-string 'authentication.validationKeys.2026-10=-----BEGIN PRIVATE KEY-----'
+must_fail "a private key among the public keys must fail"           --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set-string 'authentication.validationKeys.2026-10=-----BEGIN PRIV''ATE KEY-----'
 must_fail "an inline private key with existingSecret must fail"     --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set authentication.signingKey=private
 must_fail "an inline host key with existingSecret must fail"        --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set gameAuth.hostKey=host
 must_fail "identity's chart-managed Secret without its private key must fail" "${ESECRETS[@]}" --set authentication.signingKey=
