@@ -80,6 +80,14 @@ resources:
   limits:
     memory: 1Gi
 
+# Log levels (Serilog). The world server writes Information and above by default (#819); its per-hit
+# combat lines and the networking layer's per-packet lines are Debug. Empty keeps the default.
+# One of Verbose, Debug, Information, Warning, Error, Fatal.
+logging:
+  minimumLevel: ""
+  # Per logging category, e.g. {Avalon.World.Entities.CharacterEntity: Debug}.
+  overrides: {}
+
 # OpenTelemetry export (OTLP gRPC), e.g. http://otel-collector:4317.
 # Empty: nothing is exported.
 otel:

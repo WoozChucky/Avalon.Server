@@ -124,6 +124,18 @@ spec:
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: {{ join "," $attrs | quote }}
             {{- end }}
+            {{- $levels := list "Verbose" "Debug" "Information" "Warning" "Error" "Fatal" }}
+            {{- with .Values.logging.minimumLevel }}
+            {{- if not (has . $levels) }}{{ fail (printf "logging.minimumLevel must be one of %s, got %q" (join ", " $levels) .) }}{{ end }}
+            - name: Serilog__MinimumLevel__Default
+              value: {{ . | quote }}
+            {{- end }}
+            {{- range $category, $level := .Values.logging.overrides }}
+            {{- if not (has $level $levels) }}{{ fail (printf "logging.overrides.%s must be one of %s, got %q" $category (join ", " $levels) $level) }}{{ end }}
+            {{- if not (regexMatch "^[A-Za-z_][A-Za-z0-9_.]*$" $category) }}{{ fail (printf "logging.overrides key %q is not a logging category" $category) }}{{ end }}
+            - name: Serilog__MinimumLevel__Override__{{ $category }}
+              value: {{ $level | quote }}
+            {{- end }}
           volumeMounts:
             - name: admission-credentials
               mountPath: /run/avalon-auth
