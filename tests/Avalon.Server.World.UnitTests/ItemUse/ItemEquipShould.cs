@@ -119,4 +119,37 @@ public class ItemEquipShould
         { "a stack of gear", ItemUseResult.NotUsable },   // no stack is ever worn
         { "an off hand beside a worn two-hander", ItemUseResult.Blocked },
     };
+
+    /// <summary>A use of a worn item takes it off to the lowest free Bag slot, interrupting a cast just before it moves.</summary>
+    [Fact]
+    public void Unequip_to_the_lowest_free_bag_slot()
+    {
+        Bag(Item(0, Potion), Item(2, Potion));
+        InventoryItem sword = Item(EquipmentSlots.MainHand, Longsword);
+        Worn(sword);
+        int interrupts = 0;
+
+        Assert.Equal(ItemUseResult.Ok, Unequip(EquipmentSlots.MainHand, () => interrupts++));
+        Assert.Equal(sword.InstanceId, At(_character, InventoryType.Bag, 1).InstanceId);
+        Assert.False(_character.Container(InventoryType.Equipment).TryGet(EquipmentSlots.MainHand, out _));
+        Assert.Equal(1, interrupts);
+    }
+
+    /// <summary>A full Bag refuses before anything happens: the item stays worn and a running cast is left alone.</summary>
+    [Fact]
+    public void Refuse_an_unequip_with_TargetFull_and_move_nothing_when_the_bag_is_full()
+    {
+        Bag([.. Enumerable.Range(0, 30).Select(s => Item((ushort)s, Potion))]);
+        Worn(Item(EquipmentSlots.MainHand, Longsword));
+        int interrupts = 0;
+
+        Assert.Equal(ItemUseResult.TargetFull, Unequip(EquipmentSlots.MainHand, () => interrupts++));
+        Assert.Equal(Longsword.Id, At(_character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
+        Assert.False(_character.ClientChanges.HasChanges);
+        Assert.Equal(0, interrupts);
+    }
+
+    private ItemUseResult Unequip(ushort equipmentSlot, Action beforeApply) =>
+        ItemEquip.Unequip(_character, InventoryFor(_character, EquipTemplates.Find), EquipTemplates.Find, equipmentSlot,
+            beforeApply);
 }
