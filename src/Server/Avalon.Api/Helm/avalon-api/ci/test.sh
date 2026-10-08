@@ -402,4 +402,24 @@ awk '/^    - from:/ { rule++ } /app: world/ { peer = rule } /port: 9443/ { port 
 ! grep -q "kind: NetworkPolicy" <<<"$mono"                               || { echo "the NetworkPolicy must be off by default"; exit 1; }
 must_fail "a policy with no world servers must fail where identity runs" "${HOMELAB[@]}" --set-json 'services=["identity"]' "${POLICY[@]}"
 must_fail "a policy with no ingress controller must fail"                "${HOMELAB[@]}" --set-json 'services=["worlds"]' --set networkPolicy.enabled=true
+# Redis users per service (#803): cache.username signs a release in as its own ACL user, and with
+# existingSecret cache.passwordKey names the key its password is read from, so the default user's
+# cache-password stays in place until the switch. Left out, nothing changes (the homelab pin above).
+! grep -q "Application__Cache__Username" <<<"$mono"                     || { echo "cache.username must not render unset"; exit 1; }
+for service in identity worlds commerce; do
+  acl=$(render "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json "services=[\"$service\"]" \
+    --set cache.username="api-$service" --set cache.passwordKey="redis-api-$service-password")
+  grep -A1 "name: Application__Cache__Username" <<<"$acl" | grep -q "value: \"api-$service\"" || { echo "$service must sign in as its user"; exit 1; }
+  grep -A5 "name: Application__Cache__Password" <<<"$acl" | grep -q "key: \"redis-api-$service-password\"" || { echo "$service must read its user's password key"; exit 1; }
+  ! grep -A5 "name: Application__Cache__Password" <<<"$acl" | grep -q "optional:" || { echo "a named password key must be required"; exit 1; }
+done
+service=distribution
+dist=$(render "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-json "services=[\"$service\"]" \
+  --set cache.username="api-$service" --set cache.passwordKey="redis-api-$service-password")
+! grep -q "Application__Cache__" <<<"$dist"                             || { echo "distribution reads no cache settings"; exit 1; }
+must_fail "a password key without existingSecret must fail"            "${SIGNING[@]}" "${AUTH[@]}" "${CS1[@]}" --set cache.passwordKey=redis-x
+must_fail "a password key with a slash must fail"                       --set existingSecret=x "${W1[@]}" --set cache.passwordKey=bad/key
+must_fail "a password key reusing the auth key must fail"               --set existingSecret=x "${W1[@]}" --set cache.passwordKey=database-auth-connection-string
+must_fail "a world key reusing the password key must fail"              --set existingSecret=x --set worlds.1.worldKey=redis-x --set worlds.1.charactersKey=c --set cache.passwordKey=redis-x
+must_fail "a user name with a space must fail"                          --set existingSecret=x "${W1[@]}" --set 'cache.username=api identity'
 echo "avalon-api chart OK"

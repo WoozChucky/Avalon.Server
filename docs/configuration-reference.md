@@ -137,7 +137,8 @@ Section in `appsettings.json`: `"Cache"` (auth and world servers), `"Application
 | Key        | Type   | Description                           |
 |------------|--------|---------------------------------------|
 | `Host`     | string | Redis endpoint, e.g. `"localhost:6379"` |
-| `Password` | string | Redis AUTH password                   |
+| `Username` | string | Redis ACL user (#803). Left out, the connection signs in as the default user with `Password` alone |
+| `Password` | string | Redis AUTH password (of `Username`, or of the default user) |
 
 ```json
 "Cache": {
@@ -147,7 +148,12 @@ Section in `appsettings.json`: `"Cache"` (auth and world servers), `"Application
 ```
 
 **Validation rules:**
-- `Host`: required, checked at startup. `Password` is optional.
+- `Host`: required, checked at startup. `Username` and `Password` are optional.
+
+With a `Username` the connection leaves out the client's own probes of the server (`CLUSTER`, `CONFIG`, `INFO` and the
+tie-breaker key), which a restricted user may not run, and refuses admin commands; the auth and world servers name no
+user and sign in as the default user. The users each REST API service signs in as are in
+[Redis users per API service](redis-cache-keys.md#redis-users-per-api-service).
 
 ---
 
@@ -291,7 +297,7 @@ of it; `appsettings.json` keeps every service's non-secret defaults.
 | `Database:Auth:ConnectionString` | yes | yes | yes | yes |
 | `Database:Worlds:<id>:Characters:ConnectionString` | yes | yes | | |
 | `Database:Worlds:<id>:World:ConnectionString` | | yes | | |
-| `Application:Cache:{Host,Password}` | yes | yes | yes | |
+| `Application:Cache:{Host,Username,Password}` | yes | yes | yes | |
 | `Application:Authentication:{ValidationKeys,Issuer,Audience,ValidateIssuer,ValidateAudience,ClockSkewInMinutes}` (token validation) | yes | yes | yes | yes |
 | `Application:Authentication:{SigningKey,SigningKeyId}` and `Application:GameAuth:HostKey` (any other process refuses to start with `SigningKey` set) | yes | | | |
 | The rest of `Application:Authentication` (token lifetimes, the refresh cookie, the login, registration and email-change limits) | yes | | | |
