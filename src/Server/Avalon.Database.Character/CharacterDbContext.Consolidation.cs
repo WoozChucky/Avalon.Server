@@ -13,8 +13,14 @@ public partial class CharacterDbContext
     // Set only after CharacterSaveRepository has locked and validated all of its session guards.
     internal bool ValidatedGameplaySave { get; set; }
 
+    /// <summary>
+    /// Refused (#824): a save goes through the gameplay-write fence, its transaction and its query, which are asynchronous,
+    /// and running them here would block a thread on them. Nothing saves this context synchronously; this override exists
+    /// so that nothing can skip the fence by doing so. Use <see cref="SaveChangesAsync(bool, CancellationToken)" />.
+    /// </summary>
     public override int SaveChanges(bool acceptAllChangesOnSuccess) =>
-        SaveChangesAsync(acceptAllChangesOnSuccess, CancellationToken.None).ConfigureAwait(false).GetAwaiter().GetResult();
+        throw new NotSupportedException(
+            $"{nameof(CharacterDbContext)} saves only asynchronously, through the gameplay-write fence: call {nameof(SaveChangesAsync)}.");
 
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
