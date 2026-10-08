@@ -16,6 +16,7 @@ namespace Avalon.World.Testing.Scenarios;
 /// </summary>
 public static class TownNavmesh
 {
+    private static readonly Lazy<string> s_repositoryRoot = new(LocateRepositoryRoot);
     private static readonly Lazy<string> s_contentRoot = new(LocateContentRoot);
     private static readonly Lazy<DtNavMesh> s_shared = new(Bake);
 
@@ -23,9 +24,14 @@ public static class TownNavmesh
     public static DtNavMesh Shared => s_shared.Value;
 
     /// <summary>
-    /// The repository's <c>Maps</c> directory (<c>src/Server/Avalon.Server.World/Maps</c>), found by walking up from
-    /// the test's base directory to the directory holding <c>Avalon.sln</c>. Read in place: nothing changes the
-    /// process directory.
+    /// The repository root: the directory holding <c>Avalon.sln</c>, found by walking up from the test's base
+    /// directory. Nothing changes the process directory.
+    /// </summary>
+    public static string RepositoryRoot => s_repositoryRoot.Value;
+
+    /// <summary>
+    /// The repository's <c>Maps</c> directory (<c>src/Server/Avalon.Server.World/Maps</c>) under
+    /// <see cref="RepositoryRoot" />, read in place.
     /// </summary>
     public static string ContentRoot => s_contentRoot.Value;
 
@@ -56,16 +62,18 @@ public static class TownNavmesh
         return new ChunkLayout(0, [sw, se, nw, ne], sw, null, [], EntrySpawn, 30f, null);
     }
 
-    private static string LocateContentRoot()
+    private static string LocateRepositoryRoot()
     {
         string? dir = AppContext.BaseDirectory;
         while (dir is not null && !File.Exists(Path.Combine(dir, "Avalon.sln")))
             dir = Path.GetDirectoryName(dir);
 
-        if (dir is null)
-            throw new DirectoryNotFoundException($"No directory above {AppContext.BaseDirectory} holds Avalon.sln");
+        return dir ?? throw new DirectoryNotFoundException($"No directory above {AppContext.BaseDirectory} holds Avalon.sln");
+    }
 
-        string maps = Path.Combine(dir, "src", "Server", "Avalon.Server.World", "Maps");
+    private static string LocateContentRoot()
+    {
+        string maps = Path.Combine(RepositoryRoot, "src", "Server", "Avalon.Server.World", "Maps");
         if (!Directory.Exists(Path.Combine(maps, "Chunks")))
             throw new DirectoryNotFoundException($"The town's chunk objs are not under {maps}");
 
