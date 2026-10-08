@@ -43,9 +43,9 @@ public static class TownNavmesh
 
     /// <summary>
     /// The centre of the walking scenarios' loop: the open square of the south-east chunk, where a
-    /// <see cref="LoopWalker.Radius" /> circle stays a metre clear of every wall (the only such centre on a half-metre
-    /// scan of the town), so no walker is ever pressed into one. Around the entry spawn the circle would cross a
-    /// building and a wall, where a walker stops for good.
+    /// <see cref="LoopWalker.Radius" /> circle stays a metre clear of every wall (on a half-metre scan of the town only
+    /// this centre and its neighbour at 45.5, 10 qualify), so no walker is ever pressed into one. Around the entry spawn
+    /// the circle would cross a building and a wall, where a walker stops for good.
     /// </summary>
     public static Vector3 LoopCentre => new(45f, 0f, 10f);
 
