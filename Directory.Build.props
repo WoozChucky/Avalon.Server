@@ -19,8 +19,8 @@
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
 
-  <!-- CI fails on any warning. GitHub Actions sets CI=true; local builds show the same warnings without failing. -->
-  <PropertyGroup Condition="'$(CI)' == 'true'">
+  <!-- Every build fails on any warning, locally as in CI: the repository has none, and keeps none. -->
+  <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 

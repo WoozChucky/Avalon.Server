@@ -1,5 +1,5 @@
 <Project>
-  <!-- The repository-wide code standard (EnforceCodeStyleInBuild, documentation file, warnings as errors in CI). -->
+  <!-- The repository-wide code standard (EnforceCodeStyleInBuild, documentation file, warnings as errors). -->
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
   <PropertyGroup>
@@ -11,16 +11,6 @@
     <SignAssembly>true</SignAssembly>
     <PublicSign>true</PublicSign>
     <LangVersion>latest</LangVersion>
-  </PropertyGroup>
-
-  <!--
-    CI enforces CancellationToken hygiene as errors. GitHub Actions auto-sets CI=true;
-    so do most other providers (GitLab, Azure Pipelines, Travis, CircleCI). Local dev
-    builds see the same rules as warnings (see .editorconfig) so they are visible but
-    non-blocking.
-  -->
-  <PropertyGroup Condition="'$(CI)' == 'true'">
-    <WarningsAsErrors>$(WarningsAsErrors);MA0032;MA0040;MA0045</WarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
