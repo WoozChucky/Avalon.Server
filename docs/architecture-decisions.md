@@ -169,9 +169,9 @@ goes through OpenTelemetry.
 
 ## ADR-006 — Splitting the REST API into services
 
-**Status:** Implemented in code (#794); not yet deployed apart. Production runs all four services in the one
-`avalon-api` deployment until the rollout (#802). ES256 access tokens (#801) and the hardening questions (#803) are
-tracked on their own.
+**Status:** Implemented (#794) and deployed apart (#802, 2026-10-08): one release per service behind the
+`avalon-api-routes` IngressRoute. ES256 access tokens (#801) and the per-service hardening (#803: Redis ACL users,
+NetworkPolicies) shipped with it.
 
 ### Context
 

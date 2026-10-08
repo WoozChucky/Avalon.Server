@@ -5,13 +5,13 @@ The REST API is one binary that runs as up to four services (#794): `identity`, 
 (`Application:Services`), so one process can run all four, as `Avalon.Api` did before the split, or a deployment can
 run one service per process, each with only its own settings, secrets, database access, routes and rate limiter.
 
-!!! warning "Production still runs one process"
-    The code, the chart and the tests support the split, but production has not moved: the homelab still runs every
-    service in the one `avalon-api` deployment. That release names no `services`, so the chart renders it exactly as
-    before the split and the process runs all four. Deploying the services apart is the rollout tracked in #802 (see
-    [Rollout](#rollout)). Access tokens are ES256 (#801): only identity holds the private key that mints them, and
-    the other services hold the public keys alone. Database roles, Redis users and network policies per
-    service are the hardening questions of #803.
+!!! note "Production runs the services apart"
+    Since the rollout (#802, 2026-10-08) the homelab runs one release per service: `avalon-api` runs identity, beside
+    `avalon-api-worlds`, `avalon-api-commerce` and `avalon-api-distribution`, and the `avalon-api-routes` release
+    sends each request to its service (see [Rollout](#rollout)). Access tokens are ES256 (#801): only identity holds
+    the private key that mints them, and the other services hold the public keys alone. Each release has its own
+    Secret and database connection strings; identity, worlds and commerce sign in to Redis as their own ACL users,
+    and NetworkPolicies admit only the peers each port needs (#803).
 
 ## The services
 
@@ -292,7 +292,7 @@ nightly and registry workflows did not change. The chart's values that decide th
   and a minute more before the liveness probe takes over. A release with identity has neither.
 - **`routes`**: the routes mode above (`enabled`, `hosts`, `pathPrefix` default `/api`, `middlewares`, `backends`,
   `overrides`).
-- **`networkPolicy`** (off by default, for #803): on, the API port admits only `networkPolicy.ingressController` (and
+- **`networkPolicy`** (off by default, on in the homelab, #803): on, the API port admits only `networkPolicy.ingressController` (and
   `networkPolicy.publicSite` where worlds runs, for the link-preview bots the public site forwards), and the game
   admission port, where identity runs, only `networkPolicy.worldServers`. The chart refuses to enable it without the
   peers a port needs, since a rule with none would admit every source.
@@ -302,7 +302,9 @@ go. `ci/test.sh` has a case for each mode (see [Guards](#guards)).
 
 ## Rollout
 
-The rollout is #802, and none of it has happened. The plan, from the design of #794:
+The rollout was #802, completed on 2026-10-08 in the steps below (from the design of #794); production now runs the
+state step 6 describes, with the other services' keys gone from `avalon-api`'s Secret and the ingresses' `/api` paths
+removed. The steps stay here as the way back:
 
 1. **Signing first** (#801, in the code): identity signs with an ES256 private key, the other services hold the public
    keys, and one release accepted both algorithms, so no session was lost; the release after it refuses HS256.
@@ -321,10 +323,9 @@ The rollout is #802, and none of it has happened. The plan, from the design of #
 6. **Shrink**: `avalon-api` runs `services: [identity]`, at a quiet time, since it restarts the process that renews
    game sessions; later the other services' keys leave its Secret and the ingresses lose their `/api` paths.
 
-Until the shrink every step is undone by reverting one values change, and deleting the routes release sends all of
-`/api` back to `avalon-api`, which still runs every service. After it, a service comes back by adding it to
-`avalon-api`'s `services` and pointing its backend at `avalon-api`. Release names and steps are the plan's; the
-homelab repository holds the values.
+With the shrink done, a service moves back into `avalon-api` by adding it to that release's `services`, putting its
+Secret keys back in `avalon-api`'s Secret and pointing its `routes.backends` entry at `avalon-api`. The homelab
+repository holds the values.
 
 ## Local development
 
