@@ -22,8 +22,17 @@ public class PacketManager : IPacketManager
 {
     private readonly Dictionary<NetworkPacketType, PacketInfo> _infos = new();
 
-    public PacketManager(ILoggerFactory loggerFactory, IEnumerable<Type> packetTypes, Type[]? packetHandlerTypes = null)
+    /// <param name="loggerFactory">The logger factory.</param>
+    /// <param name="packetTypes">The packet types this server receives.</param>
+    /// <param name="packetHandlerTypes">The <see cref="IPacketHandlerNew" /> handlers this manager dispatches to.</param>
+    /// <param name="otherLayers">
+    /// Handler layers that dispatch their packets themselves (<see cref="IPacketHandlerLayer" />). A packet one of them
+    /// handles gets no info here, exactly like an unhandled one, but is not reported as lacking a handler.
+    /// </param>
+    public PacketManager(ILoggerFactory loggerFactory, IEnumerable<Type> packetTypes, Type[]? packetHandlerTypes = null,
+        IEnumerable<IPacketHandlerLayer>? otherLayers = null)
     {
+        HashSet<NetworkPacketType> handledElsewhere = otherLayers?.SelectMany(layer => layer.PacketTypes).ToHashSet() ?? [];
         ILogger<PacketManager> logger = loggerFactory.CreateLogger<PacketManager>();
         const BindingFlags Flags = BindingFlags.Public | BindingFlags.Static;
         foreach (Type packetType in packetTypes)
@@ -49,7 +58,15 @@ public class PacketManager : IPacketManager
 
             if (packetHandlerType == null)
             {
-                logger.LogWarning("Packet {PacketType} does not have a handler", packetType);
+                if (handledElsewhere.Contains(networkPacketType))
+                {
+                    logger.LogDebug("Packet {PacketType} is handled by another handler layer", packetType);
+                }
+                else
+                {
+                    logger.LogWarning("Packet {PacketType} does not have a handler", packetType);
+                }
+
                 continue;
             }
 
