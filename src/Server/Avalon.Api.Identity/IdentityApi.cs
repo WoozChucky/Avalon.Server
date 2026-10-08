@@ -5,6 +5,7 @@ using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Identity.Authentication;
 using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Exceptions;
+using Avalon.Api.Identity.Services;
 using Avalon.Api.Identity.Services.Email;
 using Avalon.Infrastructure.Login;
 
@@ -74,4 +75,8 @@ public sealed class IdentityApi : IApiService
             (services.GetRequiredService<ApplicationConfig>().Email ?? new EmailConfig()).Sender,
             services.GetService<IEmailSender>() is null ? "off (501)" : "on");
     }
+
+    /// <summary>In Development only, the seeded admin's license (<see cref="DevelopmentLicenseGrant"/>); nothing elsewhere.</summary>
+    public Task StartAsync(IServiceProvider services, CancellationToken cancellationToken) =>
+        ActivatorUtilities.CreateInstance<DevelopmentLicenseGrant>(services).EnsureAsync(cancellationToken);
 }
