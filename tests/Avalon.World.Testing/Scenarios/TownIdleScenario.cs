@@ -43,4 +43,10 @@ public sealed class TownIdleScenario : IScenario
 
         return world;
     }
+
+    public void Verify(ScenarioWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        world.RequireEveryPresent(Name);
+    }
 }

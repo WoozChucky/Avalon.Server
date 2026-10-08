@@ -47,6 +47,10 @@ public sealed class ScenarioWorld : IDisposable
 
     private static readonly DateTimeOffset s_start = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
 
+    // How far a walker must have moved between MarkProgress and a check: well above float noise, well below the
+    // 20 m it walks in five windows.
+    private const float MinimumWalk = 0.5f;
+
     private readonly ScenarioWorldHost _world;
     private readonly ServiceProvider _services;
     private readonly List<MapTemplate> _templates = [];
@@ -58,6 +62,11 @@ public sealed class ScenarioWorld : IDisposable
     private readonly List<ScenarioConnection> _connections = [];
     private readonly List<MapInstance> _instances = [];
     private uint _nextOwner = 1;
+
+    // Every connection's progress at the last MarkProgress, by its index in _connections.
+    private int[] _markedSent = [];
+    private uint[] _markedInputSeq = [];
+    private Vector3[] _markedPosition = [];
 
     /// <param name="configuration">The game settings; the defaults when omitted (waypoint locomotion, as the shipped appsettings).</param>
     /// <param name="seed">Seeds every combat roll.</param>
@@ -90,6 +99,9 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>How many instances the registry holds.</summary>
     public int Instances => _instances.Count;
+
+    /// <summary>Every instance the scenario built, in the order it built them.</summary>
+    public IReadOnlyList<MapInstance> Maps => _instances;
 
     /// <summary>
     /// One world tick: every instance, through the registry's live list as <c>World.Update</c> takes it, then every
@@ -170,6 +182,100 @@ public sealed class ScenarioWorld : IDisposable
         instance.AddCharacter(connection);
         _connections.Add(connection);
         return connection;
+    }
+
+    /// <summary>
+    /// Records every connection's packets sent, last input and position, for <see cref="RequireEverySent" /> and
+    /// <see cref="RequireEveryWalked" /> to compare with later. Outside any measured tick: it allocates its arrays.
+    /// </summary>
+    public void MarkProgress()
+    {
+        int count = _connections.Count;
+        _markedSent = new int[count];
+        _markedInputSeq = new uint[count];
+        _markedPosition = new Vector3[count];
+        for (int i = 0; i < count; i++)
+        {
+            ScenarioConnection connection = _connections[i];
+            _markedSent[i] = connection.Sent;
+            _markedInputSeq[i] = connection.LastInputSeq;
+            _markedPosition[i] = connection.Character!.Position;
+        }
+    }
+
+    /// <summary>
+    /// Throws unless every player is still in the instances and has been sent something since joining (the others, as
+    /// it entered). A check that holds for a world where nothing changes, so nothing is sent from tick to tick.
+    /// </summary>
+    public void RequireEveryPresent(string scenario)
+    {
+        int present = 0;
+        foreach (MapInstance instance in _instances)
+            present += instance.PlayerCount;
+
+        if (present != _connections.Count)
+        {
+            throw new InvalidOperationException(
+                $"{scenario}: {present} of {_connections.Count} players are still in the instances. A scenario that " +
+                "loses players measures cheaper than it is and would pass the allocation gate as an improvement.");
+        }
+
+        for (int i = 0; i < _connections.Count; i++)
+        {
+            if (_connections[i].Sent == 0)
+                throw new InvalidOperationException($"{scenario}: player {i} was never sent a packet; its send path is not reached.");
+        }
+    }
+
+    /// <summary>Throws unless every connection has been sent a packet since <see cref="MarkProgress" />.</summary>
+    public void RequireEverySent(string scenario)
+    {
+        RequireMarked(scenario);
+        for (int i = 0; i < _connections.Count; i++)
+        {
+            if (_connections[i].Sent <= _markedSent[i])
+            {
+                throw new InvalidOperationException(
+                    $"{scenario}: player {i} was sent no packet during the measured windows. A scenario that stops " +
+                    "sending measures cheaper than it is and would pass the allocation gate as an improvement.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Throws unless every connection's input sequence has advanced by at least <paramref name="inputs" /> and its
+    /// character has moved since <see cref="MarkProgress" />.
+    /// </summary>
+    public void RequireEveryWalked(string scenario, uint inputs)
+    {
+        RequireMarked(scenario);
+        for (int i = 0; i < _connections.Count; i++)
+        {
+            ScenarioConnection connection = _connections[i];
+            uint advanced = connection.LastInputSeq - _markedInputSeq[i];
+            if (advanced < inputs)
+            {
+                throw new InvalidOperationException(
+                    $"{scenario}: player {i}'s input advanced by {advanced} during the measured windows, " +
+                    $"expected at least {inputs}. Its input is no longer handled, so the scenario measures less " +
+                    "than it claims and would pass the allocation gate as an improvement.");
+            }
+
+            Vector3 position = connection.Character!.Position;
+            if (Vector3.Distance(position, _markedPosition[i]) < MinimumWalk)
+            {
+                throw new InvalidOperationException(
+                    $"{scenario}: player {i} did not move during the measured windows (still at " +
+                    $"{position.x:F2}, {position.z:F2}). A walker stuck in a wall measures less than walking does " +
+                    "and would pass the allocation gate as an improvement.");
+            }
+        }
+    }
+
+    private void RequireMarked(string scenario)
+    {
+        if (_markedSent.Length != _connections.Count)
+            throw new InvalidOperationException($"{scenario}: the scenario's progress was not marked before its windows");
     }
 
     public void Dispose()

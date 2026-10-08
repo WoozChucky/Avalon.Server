@@ -4,9 +4,10 @@ namespace Avalon.World.Testing.Scenarios;
 
 /// <summary>
 /// Runs a scenario and measures it: a wall-clock warm-up, then <see cref="Windows" /> windows of
-/// <see cref="WindowTicks" /> ticks whose least tick-thread allocation is the gated figure, then an optional timing
-/// and GC phase. The loops only record, into arrays allocated before them, so the measurement adds nothing to what
-/// it measures; sorting, percentiles and the report come after.
+/// <see cref="WindowTicks" /> ticks whose least tick-thread allocation is the gated figure, checked afterwards by
+/// <see cref="IScenario.Verify" /> to have done the scenario's work, then an optional timing and GC phase. The loops
+/// only record, into arrays allocated before them, so the measurement adds nothing to what it measures; sorting,
+/// percentiles and the report come after.
 /// </summary>
 public static class ScenarioMeasurement
 {
@@ -36,11 +37,17 @@ public static class ScenarioMeasurement
 
         WarmUp(world, warmup);
 
+        // Before the collection, so what the mark allocates is long gone from the windows' point of view.
+        world.MarkProgress();
+
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
 
         MeasureWindows(world, windowBytes);
+
+        // Outside the measured region: a scenario that stopped walking or fighting would read as cheaper.
+        scenario.Verify(world);
 
         TimingPhase timing = measureTicks > 0 ? MeasureTicks(world, tickBytes, tickDurations) : default;
 

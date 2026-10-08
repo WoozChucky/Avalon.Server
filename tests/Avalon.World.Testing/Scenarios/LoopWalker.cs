@@ -19,6 +19,9 @@ public sealed class LoopWalker
     /// <summary>The loop's radius.</summary>
     public const float Radius = 8f;
 
+    /// <summary>The inputs a walker sends over the measured windows: one per tick.</summary>
+    public const uint MeasuredInputs = ScenarioMeasurement.Windows * ScenarioMeasurement.WindowTicks;
+
     private readonly PlayerInputHandler _handler;
     private readonly Vector3 _centre;
     private readonly CPlayerInputPacket _packet = new();

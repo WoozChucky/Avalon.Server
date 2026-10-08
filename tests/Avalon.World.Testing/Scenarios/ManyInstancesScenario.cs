@@ -49,4 +49,12 @@ public sealed class ManyInstancesScenario : IScenario
 
         return world;
     }
+
+    public void Verify(ScenarioWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        world.RequireEveryPresent(Name);
+        world.RequireEverySent(Name);
+        world.RequireEveryWalked(Name, LoopWalker.MeasuredInputs);
+    }
 }

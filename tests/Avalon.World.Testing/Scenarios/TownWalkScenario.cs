@@ -7,6 +7,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Maps.Navigation;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,6 +31,11 @@ public sealed class TownWalkScenario : IScenario
 {
     private const int CreatureCount = 10;
     private const int CreatureSeed = 425;
+    private const uint FirstCreatureId = 10_000;
+
+    // How far (X/Z) a wolf may be from the player it fights when checked. A wolf keeping station stays close to a player
+    // walking at 4 m/s (at most 1.9 m over 20,000 ticks, measured); one that stopped chasing falls far behind.
+    private const float EngagedDistance = 4f;
 
     public string Name => "town-walk";
 
@@ -69,7 +75,7 @@ public sealed class TownWalkScenario : IScenario
         {
             var creature = new Creature
             {
-                Guid = new ObjectGuid(ObjectType.Creature, (uint)(10_000 + i)),
+                Guid = new ObjectGuid(ObjectType.Creature, FirstCreatureId + (uint)i),
                 TemplateId = template.Id,
                 Metadata = template,
                 Name = template.Name,
@@ -90,6 +96,45 @@ public sealed class TownWalkScenario : IScenario
         }
 
         return world;
+    }
+
+    /// <summary>
+    /// Every player sent to and walking, and every wolf still fighting the player it was set on, close behind it: a
+    /// wolf that went home or stopped chasing no longer paths, and the scenario would measure cheaper than it is.
+    /// </summary>
+    public void Verify(ScenarioWorld world)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        world.RequireEveryPresent(Name);
+        world.RequireEverySent(Name);
+        world.RequireEveryWalked(Name, LoopWalker.MeasuredInputs);
+
+        MapInstance town = world.Maps[0];
+        if (town.Creatures.Count != CreatureCount)
+            throw new InvalidOperationException($"{Name}: the town holds {town.Creatures.Count} creatures, expected {CreatureCount}");
+
+        foreach (ICreature creature in town.Creatures.Values)
+        {
+            if (creature.Script is not CreatureCombatScript { State: CreatureCombatScript.CombatState.Combat })
+            {
+                throw new InvalidOperationException(
+                    $"{Name}: creature {creature.Guid.Id} is no longer in combat ({(creature.Script as CreatureCombatScript)?.State}). " +
+                    "A wolf that stopped fighting no longer chases, and the scenario would pass the allocation gate as an improvement.");
+            }
+
+            int engaged = (int)(creature.Guid.Id - FirstCreatureId) % Players;
+            Vector3 player = world.Connections[engaged].Character!.Position;
+            float dx = creature.Position.x - player.x;
+            float dz = creature.Position.z - player.z;
+            float distance = MathF.Sqrt(dx * dx + dz * dz);
+            if (distance > EngagedDistance)
+            {
+                throw new InvalidOperationException(
+                    $"{Name}: creature {creature.Guid.Id} is {distance:F1} m from player {engaged}, the one it fights " +
+                    $"(at most {EngagedDistance} m expected). A wolf that stopped chasing no longer paths, and the " +
+                    "scenario would pass the allocation gate as an improvement.");
+            }
+        }
     }
 
     /// <summary>
