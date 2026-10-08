@@ -43,10 +43,10 @@ public static class ApiStartup
             CancellationToken.None);
         if (worlds is not null)
         {
-            await migrator.CheckWorldsAsync(worlds, services.GetRequiredService<IWorldDbContextFactory>(),
-                CancellationToken.None);
+            IWorldDbContextFactory contexts = services.GetRequiredService<IWorldDbContextFactory>();
+            await migrator.CheckWorldsAsync(worlds, contexts, CancellationToken.None);
             if (worlds.All.Any(world => world.Status == WorldDatabaseStatus.Unavailable))
-                services.GetService<WorldDatabaseRecheck>()?.Watch(worlds);
+                services.GetService<WorldDatabaseRecheck>()?.Watch(worlds, contexts);
         }
     }
 }
