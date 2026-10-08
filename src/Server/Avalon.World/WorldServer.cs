@@ -276,7 +276,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _tickDuration = WorldHistograms.Microseconds(meter, "world.tick.duration",
             "Duration of a world tick in microseconds");
         _deadlineOvershoot = WorldHistograms.Microseconds(meter, "world.tick.deadline_overshoot",
-            "How much the tick loop overshot its deadline (positive) or woke early (negative), in microseconds");
+            "How much the tick loop overshot its deadline (positive) or woke early (negative), in microseconds",
+            WorldHistograms.OvershootMicroseconds);
         _worldUpdateDuration = WorldHistograms.Microseconds(meter, "world.update.duration",
             "Duration of the world update phase of the tick loop in microseconds");
         _sessionUpdateDuration = WorldHistograms.Microseconds(meter, "world.session_update.duration",
