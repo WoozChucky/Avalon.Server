@@ -8,7 +8,7 @@ namespace Avalon.Api.Hosting.UnitTests.Middlewares;
 
 /// <summary>
 /// Every request is logged with its method, path and query, except the query of a path a service hides (#794): a
-/// callback whose query carries a provider's assertion.
+/// callback whose query carries a provider's assertion; and a health probe is logged only when it fails.
 /// </summary>
 public sealed class RequestLoggingShould
 {
@@ -34,12 +34,27 @@ public sealed class RequestLoggingShould
         Assert.StartsWith("HTTP GET /other?page=2 responded 204 in ", shown, StringComparison.Ordinal);
     }
 
-    private static async Task<string> LogAsync(string path, string query, RequestLoggingOptions options)
+    [Theory]
+    [InlineData("/health", StatusCodes.Status200OK, false)]
+    [InlineData("/alive", StatusCodes.Status200OK, false)]
+    [InlineData("/health", StatusCodes.Status503ServiceUnavailable, true)]
+    [InlineData("/healthy", StatusCodes.Status200OK, true)]
+    public async Task Log_a_health_probe_only_when_it_fails(string path, int status, bool logged)
+    {
+        List<string> lines = await LinesAsync(path, "", new RequestLoggingOptions(), status);
+
+        Assert.Equal(logged, lines.Count == 1);
+    }
+
+    private static async Task<string> LogAsync(string path, string query, RequestLoggingOptions options) =>
+        Assert.Single(await LinesAsync(path, query, options, StatusCodes.Status204NoContent));
+
+    private static async Task<List<string>> LinesAsync(string path, string query, RequestLoggingOptions options, int status)
     {
         var logs = new CapturingLoggerFactory();
         var middleware = new RequestLoggingMiddleware(context =>
         {
-            context.Response.StatusCode = StatusCodes.Status204NoContent;
+            context.Response.StatusCode = status;
             return Task.CompletedTask;
         }, logs, Options.Create(options));
         var context = new DefaultHttpContext();
@@ -49,7 +64,7 @@ public sealed class RequestLoggingShould
 
         await middleware.InvokeAsync(context);
 
-        return Assert.Single(logs.Lines);
+        return logs.Lines;
     }
 
     private sealed class CapturingLoggerFactory : ILoggerFactory, ILogger

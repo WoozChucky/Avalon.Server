@@ -753,7 +753,25 @@ Application__Authentication__SigningKey=<from-vault>
 Every host builds its Serilog logger in `AddCustomLogging` at a minimum of Debug, then reads
 `Serilog` from configuration. `AddSerilog` passes every level through to Serilog, so Serilog's
 minimum decides what is written, whatever `Logging:LogLevel` says. The API and the auth server
-keep the Debug minimum.
+keep the Debug minimum, without the lines that only repeat:
+
+- The API's `appsettings.json` raises to Warning `Microsoft.Extensions.Http` and `System.Net.Http.HttpClient` (the
+  `HttpClient` factory's handler cleanup, a pair every ten seconds once a named client's handler has expired, and the
+  per-request lines of every outgoing request), `Microsoft.AspNetCore.Hosting.Diagnostics` and
+  `Microsoft.AspNetCore.Routing` (the framework's own lines for each request, which `RequestLoggingMiddleware`'s one
+  line already covers) and `Microsoft.Extensions.Diagnostics.HealthChecks` (each probe's check run), and to
+  Information `Microsoft.AspNetCore.Server.Kestrel` (each connection's open and close) and
+  `Microsoft.AspNetCore.Authentication` (a request without a token; a token that fails validation stays an
+  Information line). `RequestLoggingMiddleware` leaves out a health probe (`/health`, `/alive`) that answered 200; one
+  that failed is logged like any request.
+- The auth and world servers log a TCP connection that closed without sending a byte, which is what a load
+  balancer's or the kubelet's TCP probe does every few seconds, at Trace, below their Debug minimum (#528): its
+  disconnect, and on a proxy-protocol listener the dropped connection from the trusted proxy.
+- The balance service has no Serilog; its `appsettings.json` sets `Logging:LogLevel` to Information with
+  `Microsoft.AspNetCore` at Warning, so its probes write nothing.
+
+Any of these categories can be lowered again through the environment, for example
+`Serilog__MinimumLevel__Override__Microsoft.AspNetCore.Routing=Debug`.
 
 The world server runs at **Information** (#819): its `appsettings.json` sets
 `Serilog:MinimumLevel:Default` to `Information`, so its Debug lines are not written. They include the
