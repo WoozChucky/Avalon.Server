@@ -136,7 +136,8 @@ commerce with checkout enabled (the commerce registration post-configures `Datab
    `Database.CanConnectAsync` where the process reads it, and its Characters database where the process reads it and
    the World database answered (or was not read). A world that cannot be reached, or whose check throws, is marked
    `Unavailable` and logged at Error with its id (and the exception's type, when one was thrown). Every world's status
-   is then logged at Information.
+   is then logged at Information. When a world is unavailable, `ApiStartup` hands the worlds to `WorldDatabaseRecheck`
+   (below).
 
 `Database:Worlds` is deliberately not an options validation: OpenAPI generation starts the host with no world
 configured (`AVALON_OPENAPI_GENERATION_ONLY=true`) and skips `ApiStartup`, and `WorldDatabases` is built only when
@@ -144,13 +145,20 @@ first resolved, so generating the document needs no world.
 
 What follows from it:
 
-- **The status is fixed for the life of the process.** There is no retry: an unavailable world answers 503 until the
-  API restarts, even once its databases come back. A world whose databases fail later is not marked; its requests
+- **An unavailable world is checked again until it answers.** `WorldDatabaseRecheck`, a hosted service of every
+  process that reads a world database, runs only when the startup check left a world unavailable. It waits 5 seconds,
+  then checks each unavailable world's databases the same way (`ApiDatabaseMigrator.RecheckUnavailableAsync`), and
+  marks available each that answers, logging it at Information ("World 1 is available"); a world still unreachable
+  is logged at Debug only. Each wait is twice the last, at most a minute, until every world is available or the host
+  stops. It runs off every request path: a request only reads the status, which the recheck writes.
+- **Available is final for the life of the process.** A world whose databases fail later is not marked; its requests
   fail as database errors, which the exception middleware answers as 503 (`DbException`), and it stays `Available`.
 - **Each unreachable world adds the driver's connect timeout to startup.**
 - **A database that does not exist yet counts as unreachable.** On a fresh install the world server creates its
   databases at its first start; an API started before that (the Aspire AppHost starts the API first, and the auth and
-  world servers wait for it) answers 503 for that world until it is restarted.
+  world servers wait for it) answers 503 for that world until the recheck finds them, within about a minute of their
+  creation. The check is reachability only, as at startup: a world whose databases exist but are still being
+  migrated counts as available.
 
 ## Routes
 

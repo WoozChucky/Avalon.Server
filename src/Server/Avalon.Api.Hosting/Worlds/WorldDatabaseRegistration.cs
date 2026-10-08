@@ -23,6 +23,9 @@ public static class WorldDatabaseRegistration
     {
         services.AddSingleton(sp => new WorldDatabases(WorldDatabaseSettings.Parse(sp.GetRequiredService<IConfiguration>(), parts)));
         services.AddSingleton<IWorldDatabases>(sp => sp.GetRequiredService<WorldDatabases>());
+        // Rechecks a world the startup check found unavailable; idle unless ApiStartup hands it one.
+        services.AddSingleton<WorldDatabaseRecheck>();
+        services.AddHostedService(sp => sp.GetRequiredService<WorldDatabaseRecheck>());
         return services.AddWorldContexts();
     }
 

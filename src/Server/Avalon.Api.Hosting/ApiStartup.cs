@@ -38,13 +38,15 @@ public static class ApiStartup
         // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
         // Auth first: a failure stops the api. Then each world under Database:Worlds is checked, not
         // migrated (each world server migrates its own): one that can't be reached is logged and
-        // answers 503 until the next restart, and the others serve (#523).
+        // answers 503 until the recheck reaches its databases, and the others serve (#523).
         await gate.PassAsync(scope.ServiceProvider.GetRequiredService<IDbContextFactory<AuthDbContext>>(), migrator,
             CancellationToken.None);
         if (worlds is not null)
         {
-            await migrator.CheckWorldsAsync(worlds, services.GetRequiredService<IWorldDbContextFactory>(),
-                CancellationToken.None);
+            IWorldDbContextFactory contexts = services.GetRequiredService<IWorldDbContextFactory>();
+            await migrator.CheckWorldsAsync(worlds, contexts, CancellationToken.None);
+            if (worlds.All.Any(world => world.Status == WorldDatabaseStatus.Unavailable))
+                services.GetService<WorldDatabaseRecheck>()?.Watch(worlds, contexts);
         }
     }
 }

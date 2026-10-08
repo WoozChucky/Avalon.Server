@@ -19,8 +19,9 @@ Bootstrap sequence for each server component.
    `Application:Authentication:IssuerSigningKey`, is still set, #801); then, unless `AVALON_OPENAPI_GENERATION_ONLY` is
    set, `ApiStartup` (the options, `Database:Worlds`, the services' checks, identity's game-auth host key among them,
    the auth schema, migrated by identity and awaited by any other process, and the reachability of the world databases
-   the process reads), each service's `StartAsync`, and the Redis connection when a service needs it
-4. Run; commerce's reconciliation worker is a hosted service
+   the process reads, handing any unreachable one to `WorldDatabaseRecheck`), each service's `StartAsync` (identity's
+   grants the seeded `ADMIN` a license, in Development only), and the Redis connection when a service needs it
+4. Run; commerce's reconciliation worker and `WorldDatabaseRecheck` are hosted services
 
 ## Auth Server & World Server
 
@@ -28,8 +29,11 @@ Bootstrap sequence for each server component.
 2. `ConfigureOpenTelemetry`
 3. Register the hosted services (`AddHostedService`: `AuthServer`; `WorldServer`, `WorldMaintenanceReconciler`,
    `WorldReadyHeartbeatService` and `PresenceSnapshotService`) + specialized services
-4. `AuthStartup.PrepareAsync` / `WorldStartup.PrepareAsync`: validate the options, migrate the server's databases (the
-   auth database; the world's World and Characters databases, then seed the map catalog)
+4. `AuthStartup.PrepareAsync` / `WorldStartup.PrepareAsync`: validate the options (the world's among them: its TLS
+   certificate, `Hosting:Security`, and its admission settings, `World:Admission`), migrate the server's databases (the
+   auth database; the world's World and Characters databases, then seed the map catalog). The world server reads the
+   auth database (its world row, maintenance) but never migrates it: the API's identity service or the auth server
+   must have migrated it first, which is why the Aspire AppHost starts the world only once the API is healthy
 5. Connect Redis
 6. Run hosted loop. The Auth server opens its TCP port at host start (`ServerBase.StartAsync`). The
    World server opens it only at the end of `WorldServer.ExecuteAsync` (#665), once scripts and the

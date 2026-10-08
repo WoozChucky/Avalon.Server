@@ -25,18 +25,25 @@ Thank you for your interest in contributing. This document covers how to set up 
 
 ## Almost Zero-Config Dev Environment
 
-Almost everything a local run needs is committed. The one exception is the REST API's JWT signing key: you
-set it once per machine (step 4 of [Local Setup](#local-setup)). Specifically:
+Almost everything a local run needs is committed. What is not, because a committed copy would be a working credential
+for anyone, is made on your machine by one command (the Aspire AppHost, or `tools/Avalon.LocalDev setup` for a plain
+`dotnet run`; step 4 of [Local Setup](#local-setup)). Specifically:
 
 - **`appsettings.json` files** contain hardcoded local-dev credentials (Postgres password `123`, Redis password
   `123`, etc.). These are development-only defaults, safe to use locally, and deliberately
-  committed so contributors can run the project immediately.
-- **The REST API's JWT signing key is the one exception.** A committed key lets anyone forge a token for any
-  account, so none is committed and `Avalon.Api` refuses to start without one (#482). It lives in your
-  machine's `dotnet user-secrets` store, outside the repository.
+  committed so contributors can run the project immediately. The API's `appsettings.Development.json` adds world 1's
+  local databases and placeholder store settings (Steam's test app id 480 and a dummy publisher key).
 - **`certs/cert-tcp.pfx`** is a pre-generated self-signed TLS certificate (password `avalon`) used by the Auth
   TCP server. It is committed for the same reason — so no manual cert generation is needed.
 - **`docker-compose.yml`** uses matching credentials so the infra spins up in sync with the app config.
+- **Not committed, made locally:** the REST API's signing keys (a committed key lets anyone forge a token for any
+  account, so `Avalon.Api` refuses to start without one, #482), and the world's three private TLS certificates (the
+  world server's own, its client certificate for the API's game workload listener, and that listener's), with each
+  side's pin of the other. The AppHost makes them on every run; `setup` makes them once into the gitignored
+  `certificates/local/` and writes them to the API's and the world server's `dotnet user-secrets`, outside the
+  repository.
+- **A license:** entering a world needs one, and only a purchase writes one, so in Development the API grants it to
+  the seeded `ADMIN` account (password `123`) at startup.
 
 > None of these values are intended for production. For any real deployment, override all secrets via environment
 > variables or a secrets manager.
@@ -45,19 +52,19 @@ set it once per machine (step 4 of [Local Setup](#local-setup)). Specifically:
 
 ## Local Setup
 
+The full path, from clone to the game client in a world, with what each step sets up and what to do when one fails,
+is [Development setup: from clone to client in world](docs/development-setup.md#from-clone-to-client-in-world).
+
 1. **Clone with submodules** (the `vendor/DotRecast` navmesh library is a git submodule):
    ```bash
    git clone --recurse-submodules https://github.com/<org>/Avalon.Server.git
    cd Avalon.Server
    ```
 
-2. **Start infrastructure** (Redis + PostgreSQL):
+2. **Trust the ASP.NET Core development certificate**, once per machine. The API serves https with it, and the game
+   client talks to the API only over https:
    ```bash
-   docker compose up -d
-   ```
-   Optionally include Redis Insight:
-   ```bash
-   docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d
+   dotnet dev-certs https --trust
    ```
 
 3. **Restore and build:**
@@ -66,40 +73,33 @@ set it once per machine (step 4 of [Local Setup](#local-setup)). Specifically:
    dotnet build --no-restore
    ```
 
-4. **Set the REST API signing keys** (once per machine, #801). `Avalon.Api` needs an ES256 key pair, which
-   signs and checks access tokens, and a game-auth host key, and none is committed. The Aspire AppHost
-   (`src/Server/Avalon`) makes its own; for a plain `dotnet run`, run these from the repository root to store
-   them in your user-secrets.
-
-   bash (needs `openssl`, which Git Bash, macOS and most Linux distributions include):
+4. **Run everything**, in one command with the Aspire AppHost (it starts Redis and Postgres as containers on 6379
+   and 5432, so stop the docker compose ones first, and makes every key and certificate on each run):
    ```bash
-   openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt -out jwt-es256.pem
-   dotnet user-secrets set "Application:Authentication:SigningKey" "$(cat jwt-es256.pem)" --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:Authentication:SigningKeyId" "dev" --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:Authentication:ValidationKeys:dev" "$(openssl pkey -in jwt-es256.pem -pubout -outform DER | base64 -w0)" --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:GameAuth:HostKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
-   rm jwt-es256.pem
+   dotnet run --project src/Server/Avalon
    ```
-   PowerShell 7 (no `openssl` needed):
-   ```powershell
-   $k = [Security.Cryptography.ECDsa]::Create([Security.Cryptography.ECCurve+NamedCurves]::nistP256)
-   dotnet user-secrets set "Application:Authentication:SigningKey" ([Convert]::ToBase64String($k.ExportPkcs8PrivateKey())) --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:Authentication:SigningKeyId" "dev" --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:Authentication:ValidationKeys:dev" ([Convert]::ToBase64String($k.ExportSubjectPublicKeyInfo())) --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:GameAuth:HostKey" ([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))) --project src/Server/Avalon.Api
-   ```
-   If you skip this, `Avalon.Api` exits at startup with `System.InvalidOperationException:
-   Application:Authentication:SigningKey is not set`, followed by what it needs. Only the API needs the keys;
-   the Auth and World servers start without them. See [docs/development-setup.md](docs/development-setup.md#rest-api-signing-key).
-
-5. **Run the servers** (separate terminals):
+   or by hand, in separate terminals, the API first (it migrates the auth database, which the world server reads but
+   never migrates). `setup` runs once, and again whenever you want new certificates:
    ```bash
+   docker compose up -d redis postgres
+   dotnet run --project tools/Avalon.LocalDev -- setup
    dotnet run --project src/Server/Avalon.Api
    dotnet run --project src/Server/Avalon.Server.Auth
    dotnet run --project src/Server/Avalon.Server.World
    ```
+   Optionally include Redis Insight: `docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d`.
+   Without `setup`, `Avalon.Api` exits at startup with `System.InvalidOperationException:
+   Application:Authentication:SigningKey is not set`, and the world server with "A world TLS certificate is
+   required". The keys can also be set by hand: see
+   [docs/development-setup.md](docs/development-setup.md#rest-api-signing-key).
 
-6. **API docs** are served at `https://localhost:<port>/scalar`.
+5. **Check it, and start the client:**
+   ```bash
+   dotnet run --project tools/Avalon.LocalDev -- check     # the client's REST chain up to a join ticket, for ADMIN/123
+   dotnet run --project tools/Avalon.LocalDev -- login --launch <the client's build>/runtime.exe
+   ```
+
+6. **API docs** (Scalar) are served in Development at `http://localhost:5210/scalar`.
 
 ---
 
@@ -114,7 +114,7 @@ set it once per machine (step 4 of [Local Setup](#local-setup)). Specifically:
 | Shared libraries | `src/Shared/` | Domain, networking, config, metrics |
 | Database projects | `src/Server/Avalon.Database.*` | EF Core contexts + migrations |
 | Infrastructure | `src/Server/Avalon.Infrastructure` | Redis wrapper, MFA, cache keys |
-| Tools | `tools/` | Migration CLI, benchmarks |
+| Tools | `tools/` | Benchmarks, exporters, map generation, local runs (`Avalon.LocalDev`) |
 | Tests | `tests/` | Unit tests per component |
 
 For a full architectural walkthrough see `README.md` and the documents under `docs/`.
@@ -164,7 +164,8 @@ dotnet ef migrations add <Name> \
 Replace `Auth` / `AuthDbContext` with `Character` / `CharacterDbContext` or `World` / `WorldDbContext` as needed.
 Convenience `add-migration.ps1` scripts in each `Avalon.Database.*` project wrap this command.
 
-Migrations are applied automatically when `Avalon.Api` starts — no separate apply step is needed in development.
+Migrations are applied automatically, with no separate apply step in development: the auth database's when `Avalon.Api`
+(or the auth server) starts, each world's World and Characters databases' when its world server starts.
 
 ---
 
@@ -176,7 +177,7 @@ Migrations are applied automatically when `Avalon.Api` starts — no separate ap
 - **Public abstractions:** if a type is consumed by more than one project, it belongs in a `*.Public` or `*.Abstractions` project, not in the implementation project.
 - **No direct cross-context DB access:** each `DbContext` (`Auth`, `Character`, `World`) is owned by its server. Cross-context data exchange goes through Redis or a service interface.
 - **Comments:** only where the logic is non-obvious. Avoid restating what the code already says.
-- **Security:** never embed credentials, keys, or connection strings in source. Use `appsettings.Development.json` (gitignored) or environment variables.
+- **Security:** never embed credentials, keys, or connection strings in source. Use `dotnet user-secrets` or environment variables.
 
 ---
 

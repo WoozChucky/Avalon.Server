@@ -1,10 +1,13 @@
 namespace Avalon.Api.Hosting.Worlds;
 
-/// <summary>Whether a configured world's databases migrated at startup (#523).</summary>
+/// <summary>Whether a configured world's databases could be reached (#523).</summary>
 public enum WorldDatabaseStatus
 {
     Available,
 
-    /// <summary>Its migration failed at startup. It answers 503 until the next restart.</summary>
+    /// <summary>
+    /// Its databases could not be reached at startup. It answers 503 until <see cref="WorldDatabaseRecheck"/> reaches
+    /// them.
+    /// </summary>
     Unavailable,
 }

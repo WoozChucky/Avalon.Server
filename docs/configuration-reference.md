@@ -316,6 +316,14 @@ service's values only into a release that runs it, and a chart-managed Secret ho
 ([API services](api-services.md#deploying-with-the-chart)); its `ci/test.sh` checks that a release of each service
 alone renders exactly the settings of that service's column the chart sets.
 
+**Local runs.** Identity refuses to start without `Application:StoreAuthentication:SteamAppId` and
+`SteamPublisherKey`, in every environment; the API's `appsettings.Development.json` holds placeholders (Steam's test
+app id 480 and a dummy publisher key), which only a Steam sign-in would use. A local world also needs
+`Application:GameWorkloads:Servers`, the named Kestrel endpoints (`Public`, `PublicHttp` and `GameInternal` with its
+certificate) and, on the world server, `Hosting:Security` and `World:Admission`: the Aspire AppHost passes them as
+environment variables, and `tools/Avalon.LocalDev setup` writes them to the user-secrets of the API and of the world
+server ([Development setup](development-setup.md#from-clone-to-client-in-world)).
+
 ---
 
 ## REST API Worlds
@@ -342,7 +350,7 @@ The API serves any number of worlds, one per `Worlds` row in the auth database (
 
 **Startup refuses to run**, in a process that reads a world database, naming the setting (never its value), when there is no world, a world id is not a positive integer up to 65535 written without leading zeros or sign, a world lacks a string the process reads, or a string is blank. The check runs right after the other startup validations (see [Startup Validation](#startup-validation)), before any database call. It is not an options validation, so OpenAPI generation, which skips that startup work, needs no world configured.
 
-**At startup** a process running identity migrates the auth database (a failure stops it), and any other waits for it ([REST API Services](#rest-api-services)). Then each process checks the world databases it reads, without migrating them: each world server migrates its own. A world that cannot be reached is logged with its id and the exception type and answers 503 until the next restart; the other worlds serve. There is no retry. Every unreachable world adds the driver's connect timeout to startup.
+**At startup** a process running identity migrates the auth database (a failure stops it), and any other waits for it ([REST API Services](#rest-api-services)). Then each process checks the world databases it reads, without migrating them: each world server migrates its own. A world that cannot be reached is logged with its id and the exception type and answers 503, while the other worlds serve, until a recheck in the background reaches its databases (after 5 seconds, then at doubling intervals of at most a minute; [Multi-world API](api-worlds.md#startup-and-availability)). Every unreachable world adds the driver's connect timeout to startup.
 
 **Routes:** world content and characters are under `/world/{worldId}/...`. A world this API is not configured for, or that the caller may not enter, answers 404 (the same 404 either way); an unavailable world answers 503. `GET /character` lists the caller's characters on every world, with `unavailableWorlds`; `GET /world` says for each world whether it is `configured` and `available`. The anonymous `/public/...` routes are `GET /public/world`, `GET /public/world/{worldId}/item/{id}` and `GET /public/world/{worldId}/ability/{id}`: they serve only worlds every player may enter unless the caller is signed in and may enter more, the list omits unavailable worlds, and any other world answers the same 404 (503 when its databases failed). Character ids are unique only within one world, so a consumer keys a character by `(worldId, id)`. The Redis presence keys name the world too (`presence:world:{worldId}:character:{id}`, #556), and one character's presence is `GET /world/{worldId}/observability/character/{id}`, under the same 404/503 world check; `GET /observability/online` and `GET /observability/instance/{instanceId}` stay cross-world.
 

@@ -110,7 +110,29 @@ public class ApiDatabaseMigratorShould
         Assert.Equal(WorldDatabaseStatus.Unavailable, worlds.All[0].Status);
         Assert.Equal(WorldDatabaseStatus.Available, worlds.All[1].Status);
         Assert.Contains(_log.Entries, e => e.Level == LogLevel.Error
-                                           && e.Text == "World 1 is unavailable until the next restart: its databases cannot be reached");
+                                           && e.Text == "World 1 is unavailable until its databases can be reached: they cannot be reached now");
+    }
+
+    /// <summary>
+    /// A fresh install: the world server creates its databases after the api started, and the recheck makes the world
+    /// available without a restart. Until then the world stays unavailable and the recheck says one remains.
+    /// </summary>
+    [Fact]
+    public async Task Make_an_unavailable_world_available_once_a_recheck_reaches_its_databases()
+    {
+        WorldDatabases worlds = Worlds();
+        string? missing = "DataSource=world-2";
+        var migrator = new ApiDatabaseMigrator(_log, (_, _) => Task.CompletedTask,
+            (context, _) => Task.FromResult(context.Database.GetConnectionString() != missing));
+        await migrator.MigrateAsync(AuthContexts(), worlds, new UnopenedWorlds(), CancellationToken.None);
+
+        Assert.True(await migrator.RecheckUnavailableAsync(worlds, new UnopenedWorlds(), CancellationToken.None));
+        Assert.False(worlds.IsAvailable(new WorldId(2)));
+
+        missing = null;
+
+        Assert.False(await migrator.RecheckUnavailableAsync(worlds, new UnopenedWorlds(), CancellationToken.None));
+        Assert.All(worlds.All, w => Assert.Equal(WorldDatabaseStatus.Available, w.Status));
     }
 
     [Fact]

@@ -108,9 +108,12 @@ the controllers.
    URLs), still before any database call.
 4. The auth schema (see below).
 5. Each configured world's databases, only the parts the process reads, checked for reachability: a world that does
-   not answer is unavailable until the next restart ([Multi-world API](api-worlds.md#startup-and-availability)).
+   not answer is unavailable until a recheck in the background reaches it ([Multi-world API](api-worlds.md#startup-and-availability)).
 
-Then each service's `StartAsync` (none needs one yet), then the Redis connection when a service needs Redis. With
+Then each service's `StartAsync` (only identity has one: in Development, and only there, it grants the seeded `ADMIN`
+account the base game's license, `DevelopmentLicenseGrant`; see
+[Development setup](development-setup.md#from-clone-to-client-in-world)), then the Redis connection when a service
+needs Redis. With
 `AVALON_OPENAPI_GENERATION_ONLY=true` (the docs build only) all of this is skipped and the process can describe the
 API but not serve it.
 

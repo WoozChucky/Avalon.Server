@@ -8,6 +8,7 @@
 | `Avalon.Balance` | the balance simulator's command line ([balance](balance.md)) |
 | `Avalon.Benchmarking` | BenchmarkDotNet harnesses ([benchmarks](benchmarks.md)) |
 | `Avalon.ChunkGen` | generates the forest pieces and the town squares into the chunk catalog ([map generation](map-generation.md)) |
+| `Avalon.LocalDev` | local runs ([development setup](development-setup.md#from-clone-to-client-in-world)): `setup` makes the world's three local TLS certificates and writes the API's and the world server's user-secrets for them; `login` signs in over the REST API and hands the game client its game ticket; `check` walks the client's REST chain up to a join ticket |
 | `Avalon.Exporter`, `Avalon.Exporter.Emitters` | exports every artifact the client vendors, one subcommand per artifact |
 | `api-smoke` | `smoke.sh`, a read-only smoke check of the deployed API (below) |
 | `release` | `channel-version.sh` (dev, nightly and release version numbers) and `registry_cleanup.py` (prunes old dev and nightly images from the container registry), with their tests; run by the CI, nightly, release and registry-cleanup workflows |
