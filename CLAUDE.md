@@ -5,11 +5,10 @@ Guidance for agents working in this repository. Avalon is an MMORPG server: a TC
 ## Commands
 
 ```bash
-# Restore, build, test. Build with CI=true before pushing: with CI=true every warning is an error
-# (Directory.Build.props), and local builds only show them.
+# Restore, build, test. Every build treats a warning as an error (Directory.Build.props), locally as in CI.
 dotnet restore
-CI=true dotnet build --no-restore
-CI=true dotnet test --no-build
+dotnet build --no-restore
+dotnet test --no-build
 
 # One test project, or one class or method
 dotnet test tests/Avalon.Server.World.UnitTests

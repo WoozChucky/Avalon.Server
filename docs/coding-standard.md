@@ -124,10 +124,10 @@ and keep game-server hot paths (the tick, packet handling, replication) free of 
   (well-formed XML, `<param>` names, resolvable `cref`s); a member or parameter without documentation is fine (CS1591
   and CS1573 are off). The file is not published, and the OpenAPI package's XML-comment generator is taken out of the
   build so the comments do not reach the OpenAPI document `Avalon.Api` serves.
-- When `CI` is `true` (GitHub Actions sets it) the same file turns on `TreatWarningsAsErrors`, so any warning, code
-  style or compiler or analyzer, fails the build. Locally the warnings are only warnings.
+- The same file turns on `TreatWarningsAsErrors` for every build, local and CI alike, so any warning, code style or
+  compiler or analyzer, fails the build. The repository has none, and a change brings none in.
 - Meziantou.Analyzer runs on `src/` (`src/Directory.Build.props` adds it). Its CancellationToken rules (MA0032, MA0040,
-  MA0045) are errors in CI as before. Its opinion and design rules (file names, collection abstractions,
+  MA0045) fail the build like any other warning. Its opinion and design rules (file names, collection abstractions,
   `string.Equals`, method length and the like) are off in `.editorconfig`: they are not part of this standard. Its
   correctness rules stay on and, like any other warning, fail the CI build (#793): an explicit comparer or culture
   wherever strings are compared, sorted, hashed, formatted or parsed (MA0002, MA0011, MA0074; ordinal and the
@@ -139,7 +139,7 @@ and keep game-server hot paths (the tick, packet handling, replication) free of 
 
 ## Fixing violations locally
 
-Build to see them (`dotnet build`, or `CI=true dotnet build` to see the build CI runs). Most fix themselves:
+Build to see them (`dotnet build`: the build CI runs). Most fix themselves:
 
 ```bash
 # Formatting, final newlines, byte-order marks and using order
