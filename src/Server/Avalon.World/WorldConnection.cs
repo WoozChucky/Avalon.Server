@@ -352,7 +352,6 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     {
         // DeSpawnPlayer mutates MapInstance dictionaries — defer to the tick thread.
         (Server as WorldServer)!.EnqueueDisconnect(this);
-        await (Server as WorldServer)!.ClearInWorldFlagAsync(AccountId);
         await Server.RemoveConnection(this);
     }
 

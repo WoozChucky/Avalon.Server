@@ -162,26 +162,8 @@ Type? GetSpellScript(string scriptName, SpecializationPath? path = null)
 
 ## ADR-005 — `FakeMetricsManager` Dispose
 
-**Status:** Planned (trivial)
-
-`FakeMetricsManager` holds no resources. The `Dispose(bool disposing)` method should be completed with an idempotency guard:
-
-```csharp
-private bool _disposed;
-
-protected virtual void Dispose(bool disposing)
-{
-    if (_disposed) return;
-    // No managed or unmanaged resources to release.
-    _disposed = true;
-}
-
-public void Dispose()
-{
-    Dispose(true);
-    GC.SuppressFinalize(this);
-}
-```
+**Status:** Withdrawn. `FakeMetricsManager`, with the rest of `Avalon.Metrics`, was removed as unused (#823); telemetry
+goes through OpenTelemetry.
 
 ---
 

@@ -106,17 +106,6 @@ public sealed class AccountEmailVerificationShould
         Assert.Single(results, x => x);
     }
 
-    [Fact]
-    public async Task OrdinaryEmailReplacementClearsVerification()
-    {
-        using var db = SqliteDatabase.Auth();
-        Account account = StoreAuthenticationModelShould.Account("CHANGE"); account.EmailVerifiedAt = s_now;
-        account = await new AccountRepository(db).CreateAsync(account);
-        await using AuthDbContext context = db.CreateDbContext();
-        Assert.Equal(1, await AccountRepository.SetEmailAsync(context, account.Id, "new@example.test", 0));
-        Assert.Null((await new AccountRepository(db).FindByIdAsync(account.Id))!.EmailVerifiedAt);
-    }
-
     private static Task<EmailVerificationIssueResult> Issue(AccountEmailVerificationRepository repo, Account account,
         DateTime? now = null, string? hash = null) => repo.IssueAsync(account.Id, account.Email!, account.CredentialsVersion,
             hash ?? s_digest, now ?? s_now, (now ?? s_now).AddMinutes(30), TimeSpan.FromSeconds(60), default);

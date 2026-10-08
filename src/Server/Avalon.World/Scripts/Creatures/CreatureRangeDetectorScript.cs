@@ -3,7 +3,6 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
-using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
 
@@ -24,14 +23,12 @@ public class CreatureRangeDetectorScript : AiScript
 
     public event CharacterDetectedEventHandler? CharacterDetected;
 
-    private readonly ILogger<CreatureRangeDetectorScript> _logger;
     private readonly float _aggroRange;
     private const float SearchInterval = 1.0f;
     private float _searchTimer = 0.0f;
 
-    public CreatureRangeDetectorScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context, float aggroRange) : base(creature, context)
+    public CreatureRangeDetectorScript(ICreature creature, ISimulationContext context, float aggroRange) : base(creature, context)
     {
-        _logger = loggerFactory.CreateLogger<CreatureRangeDetectorScript>();
         _aggroRange = aggroRange;
     }
 

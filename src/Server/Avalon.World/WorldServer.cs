@@ -194,7 +194,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     public bool IsListening => _isListening;
     public long CompletedTicks => Interlocked.Read(ref _completedTicks);
 
-    private ObservableGauge<double> _tickRate;
     private Histogram<double> _tickDuration;
     private Histogram<double> _deadlineOvershoot;
     private Histogram<double> _worldUpdateDuration;
@@ -271,7 +270,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                 packetType);
         }
 
-        _tickRate = DiagnosticsConfig.World.Meter.CreateObservableGauge(
+        // The meter holds the gauge; nothing here needs it again.
+        DiagnosticsConfig.World.Meter.CreateObservableGauge(
             "world.tick.rate", () => _ticksPerSecond, "tps", "World tick rate per second");
 
         _tickDuration = DiagnosticsConfig.World.Meter.CreateHistogram<double>("world.tick.duration", "us",
@@ -736,13 +736,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private bool NewConnection(IConnection connection) => true;
 
     internal void EnqueueDisconnect(WorldConnection connection) => _pendingDisconnects.Enqueue(connection);
-
-    public async Task ClearInWorldFlagAsync(AccountId? accountId)
-    {
-        if (accountId is null)
-            return;
-        await _cache.RemoveAsync($"account:{accountId}:inWorld");
-    }
 
     protected override object GetContextPacket(IConnection connection, object? packet, Type packetType)
     {

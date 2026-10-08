@@ -22,7 +22,7 @@ public class AggroDefendScript : AiScript, IReturningHome
 
     public AggroDefendScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
         TimeProvider? time = null)
-        : this(loggerFactory, creature, context, new CreatureCombatScript(loggerFactory, creature, context, time))
+        : this(creature, context, new CreatureCombatScript(loggerFactory, creature, context, time))
     {
     }
 
@@ -30,13 +30,12 @@ public class AggroDefendScript : AiScript, IReturningHome
     /// Aggro detection chained to <paramref name="combat" />, a creature type's own combat script (#163), which
     /// must be built for this same creature and context.
     /// </summary>
-    protected AggroDefendScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
-        CreatureCombatScript combat)
+    protected AggroDefendScript(ICreature creature, ISimulationContext context, CreatureCombatScript combat)
         : base(creature, context)
     {
         float aggroRange = creature.Metadata.DetectionRange > 0f ? creature.Metadata.DetectionRange : DefaultAggroRange;
 
-        var detector = new CreatureRangeDetectorScript(loggerFactory, creature, context, aggroRange);
+        var detector = new CreatureRangeDetectorScript(creature, context, aggroRange);
         detector.CharacterDetected += OnCharacterEnteredRange;
         _detector = detector;
 

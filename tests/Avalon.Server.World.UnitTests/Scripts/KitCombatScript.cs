@@ -74,7 +74,7 @@ internal sealed class KitCombatScript : CreatureCombatScript
 /// <summary>Aggro detection chained to a <see cref="KitCombatScript" />.</summary>
 [ChainedScript]
 internal sealed class KitAggroDefendScript(ICreature creature, ISimulationContext context)
-    : AggroDefendScript(NullLoggerFactory.Instance, creature, context, new KitCombatScript(creature, context));
+    : AggroDefendScript(creature, context, new KitCombatScript(creature, context));
 
 /// <summary>A patrol whose fights use a <see cref="KitCombatScript" />.</summary>
 [ChainedScript]

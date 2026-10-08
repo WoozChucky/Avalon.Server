@@ -89,26 +89,6 @@ public class SimplePriorityQueue<TItem, TPriority> : IPriorityQueue<TItem, TPrio
     }
 
     /// <summary>
-    /// Adds an item to the Node-cache to allow for many methods to be O(1) or O(log n)
-    /// </summary>
-    private void AddToNodeCache(SimpleNode node)
-    {
-        if (node.Data == null)
-        {
-            _nullNodesCache.Add(node);
-            return;
-        }
-
-        IList<SimpleNode> nodes;
-        if (!_itemToNodesCache.TryGetValue(node.Data, out nodes))
-        {
-            nodes = new List<SimpleNode>();
-            _itemToNodesCache[node.Data] = nodes;
-        }
-        nodes.Add(node);
-    }
-
-    /// <summary>
     /// Removes an item to the Node-cache to allow for many methods to be O(1) or O(log n) (assuming no duplicates)
     /// </summary>
     private void RemoveFromNodeCache(SimpleNode node)
@@ -214,7 +194,7 @@ public class SimplePriorityQueue<TItem, TPriority> : IPriorityQueue<TItem, TPrio
     }
 
     /// <summary>
-    /// Enqueue the item with the given priority, without calling lock(_queue) or AddToNodeCache(node)
+    /// Enqueue the item with the given priority, without calling lock(_queue) or adding the node to the node cache
     /// </summary>
     /// <param name="item"></param>
     /// <param name="priority"></param>

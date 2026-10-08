@@ -49,10 +49,6 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
         CancellationToken cancellationToken = default) =>
         inner.TryRecordLoginAsync(id, lastIp, now, sessionId, cancellationToken);
 
-    public Task<bool> TryRecordTicketLoginAsync(AccountId id, int credentialsVersion, string lastIp, DateTime now, Guid sessionId,
-        CancellationToken cancellationToken = default) =>
-        inner.TryRecordTicketLoginAsync(id, credentialsVersion, lastIp, now, sessionId, cancellationToken);
-
     public Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
         CancellationToken cancellationToken = default) =>
         inner.TryRecordApiLoginAsync(id, lastIp, now, cancellationToken);
@@ -73,9 +69,6 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
 
     public Task MarkAllOfflineAsync(CancellationToken cancellationToken = default) =>
         inner.MarkAllOfflineAsync(cancellationToken);
-
-    public Task SetSessionKeyAsync(AccountId id, byte[] sessionKey, CancellationToken cancellationToken = default) =>
-        inner.SetSessionKeyAsync(id, sessionKey, cancellationToken);
 
     public Task<PagedResult<Account>> PaginateAsync(EntityPaginateFilter<Account> filter, bool track = false,
         CancellationToken cancellationToken = default) => inner.PaginateAsync(filter, track, cancellationToken);

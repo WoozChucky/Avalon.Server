@@ -15,7 +15,7 @@ namespace Avalon.World.Scripts.Creatures.Forest;
 /// <remarks>Rotation: Ravenous Claw when ready and in reach; else Bite. The numbers are the ability rows; the rotation is this code.</remarks>
 public sealed class GreyFenWolfScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
     TimeProvider? time = null, IWorld? world = null)
-    : AggroDefendScript(loggerFactory, creature, context,
+    : AggroDefendScript(creature, context,
         new GreyFenWolfScript.GreyFenWolfCombat(loggerFactory, creature, context, time, world))
 {
     /// <summary>Its basic: a 1.8 m cone.</summary>

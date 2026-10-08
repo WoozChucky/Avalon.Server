@@ -63,7 +63,7 @@ public class IgnoreDeletedCharacterShould
         IWorldServer server = Substitute.For<IWorldServer>();
         server.Connections.Returns([aren.Connection, tom.Connection, pending, deleter]);
 
-        new CharacterDeletetHandler(NullLogger<CharacterDeletetHandler>.Instance, characters, server)
+        new CharacterDeleteHandler(NullLogger<CharacterDeleteHandler>.Instance, characters, server)
             .Execute(deleter, new CCharacterDeletePacket { CharacterId = 2 });
 
         Assert.NotNull(deleteTask);

@@ -30,10 +30,6 @@ public interface IAccountRepository : IRepository<Account, AccountId>
     Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Records a ticket login under the same lock guard without clearing password failures.</summary>
-    Task<bool> TryRecordTicketLoginAsync(AccountId id, int credentialsVersion, string lastIp, DateTime now, Guid sessionId,
-        CancellationToken cancellationToken = default);
-
     /// <summary>
     /// The REST API's <see cref="TryRecordLoginAsync"/> (#478): the same write, on the same
     /// condition, minus <c>Online</c>, which is the game client's session flag and not the API's.
@@ -63,8 +59,6 @@ public interface IAccountRepository : IRepository<Account, AccountId>
     /// </summary>
     Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Stores the account's world session key, and writes nothing else.</summary>
-    Task SetSessionKeyAsync(AccountId id, byte[] sessionKey, CancellationToken cancellationToken = default);
 }
 
 /// <summary>The account's failed-login count and lock state after a failure was recorded.</summary>
@@ -147,25 +141,6 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
         return updated == 1;
     }
 
-    public async Task<bool> TryRecordTicketLoginAsync(AccountId id, int credentialsVersion, string lastIp, DateTime now,
-        Guid sessionId,
-        CancellationToken cancellationToken = default)
-    {
-        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
-        int updated = await context.Accounts
-            .Where(a => a.Id == id && !a.Online && a.CredentialsVersion == credentialsVersion &&
-                a.Status == AccountStatus.Active && (a.AccessLevel & AccessLevels.Player) != 0 &&
-                (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(a => a.Online, true)
-                .SetProperty(a => a.OnlineSessionId, (Guid?)sessionId)
-                .SetProperty(a => a.LastIp, lastIp)
-                .SetProperty(a => a.LastLogin, now)
-                .SetProperty(a => a.Locked, false)
-                .SetProperty(a => a.LockedUntil, (DateTime?)null), cancellationToken);
-        return updated == 1;
-    }
-
     public async Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
         CancellationToken cancellationToken = default)
     {
@@ -198,27 +173,6 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .Where(a => a.Id == id)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.AccessLevel, accessLevel)
-                .SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1), cancellationToken);
-    }
-
-    /// <summary>
-    /// Sets the email and raises <c>CredentialsVersion</c> by one (#503), in one statement, on a
-    /// context the caller owns, and writes nothing else. <paramref name="email"/> must already be
-    /// normalised (<see cref="AccountEmail.Normalise"/>): the unique index and the check constraint
-    /// are on the stored form. A compare-and-set, like <see cref="SetPasswordAsync"/>: it writes only
-    /// while the account is still at <paramref name="expectedVersion"/>, the version the current
-    /// password was checked at when the change was started, so a password change, an MFA reset or
-    /// a role change since then voids it. Returns the rows written: 0 when no account has
-    /// <paramref name="id"/> or its version has moved.
-    /// </summary>
-    public static Task<int> SetEmailAsync(AuthDbContext context, AccountId id, string email, int expectedVersion,
-        CancellationToken cancellationToken = default)
-    {
-        return context.Accounts
-            .Where(a => a.Id == id && a.CredentialsVersion == expectedVersion)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(a => a.Email, email)
-                .SetProperty(a => a.EmailVerifiedAt, (DateTime?)null)
                 .SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1), cancellationToken);
     }
 
@@ -322,15 +276,6 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .Where(a => a.Online)
             .Select(a => new OnlineSession(a.Id, a.OnlineSessionId))
             .ToListAsync(cancellationToken);
-    }
-
-    public async Task SetSessionKeyAsync(AccountId id, byte[] sessionKey, CancellationToken cancellationToken = default)
-    {
-        await using AuthDbContext context = await CreateContextAsync(cancellationToken);
-
-        await context.Accounts
-            .Where(a => a.Id == id)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.SessionKey, sessionKey), cancellationToken);
     }
 
     /// <summary>

@@ -53,7 +53,6 @@ Shared libraries:
 | `src/Shared/Avalon.Domain` | Rich domain model (Auth, Accounts, Devices, Worlds, etc.) |
 | `src/Shared/Avalon.Configuration` | Strongly typed configuration objects |
 | `src/Shared/Avalon.Network.*` | Custom packet protocol, attributes, base handlers, contracts |
-| `src/Shared/Avalon.Metrics` | OpenTelemetry integration points |
 
 Tooling & Tests:
 
