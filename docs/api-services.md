@@ -235,10 +235,7 @@ and Scalar at `/scalar`, describing only the services the process runs, are serv
 `Application:ApiDocs:Enabled` turns them on (#803, `ApiDocs`), so production serves none; the chart never sets it. The
 published document ([API reference](api-reference.md)) does not depend on them: the docs build generates it from a
 process that runs all four (`AVALON_OPENAPI_GENERATION_ONLY`), so it is the whole contract, the one the
-Avalon.Dashboard client is generated from (locally, from `http://localhost:5210/openapi/v1.json` in Development). Until
-the rollout ends, `ContractGoldenShould` compares the document of a host with every service's controllers and the docs
-turned on with the one published before the split (`tests/Avalon.Api.UnitTests/Contracts/openapi.pre-split.json`) and
-fails on any difference: a deliberate contract change made meanwhile has to update the golden with it.
+Avalon.Dashboard client is generated from (locally, from `http://localhost:5210/openapi/v1.json` in Development).
 
 ## Configuration per service
 
@@ -371,8 +368,6 @@ BASE=http://127.0.0.1:18080 tools/api-smoke/smoke.sh   # after kubectl port-forw
 3. A path that falls under no rule of its service (a new first segment for a service other than identity, say) needs a
    rule in `files/routes.json`, written in the manifest's form, and a smoke request in `requests.tsv` whose path that
    rule decides (`SmokeCoverageShould`). The routes release renders the rule with the next chart.
-4. Until the rollout ends, `ContractGoldenShould` fails on any change to the document: update
-   `openapi.pre-split.json` with a deliberate contract change.
 
 ## Adding a service
 
@@ -402,7 +397,6 @@ BASE=http://127.0.0.1:18080 tools/api-smoke/smoke.sh   # after kubectl port-forw
 | `ApiHostGraphShould` | `Avalon.Api.UnitTests` | A service's real host, run alone, does not build under the container validation, maps another service's controllers, or cannot build one of its own |
 | `ApiServiceBoundariesShould` | `Avalon.Api.UnitTests` | A service library references another, directly or through a project, or Hosting or the contract references a service |
 | `MonolithCompositionShould` | `Avalon.Api.UnitTests` | The all-in-one process differs from `Avalon.Api` before the split: its exception mappers, the game servers' rate-limit partition, the Steam callback's query kept out of the request log, the startup checks, the store settings bound once, the auth schema owned, the middleware order |
-| `ContractGoldenShould` | `Avalon.Api.UnitTests` | The all-in-one document differs from the one published before the split (removed after the rollout) |
 | `ApiServiceSelectionShould`, `PipelineOrderShould`, `AuthSchemaGateShould`, `WorldDatabasePartsShould`, `RouteTableShould`, `OpenApiOrderShould` | `Avalon.Api.Hosting.UnitTests` | The selection rules, the pipeline order, the schema gate, the world parts a process reads, the manifest reader, or the ordinal order of a document's paths, tags and schemas change |
 | `InternalEndpointsShould` | `Avalon.Api.Identity.UnitTests` | `/internal/game/*` answers on a port other than the workload listener's |
 | `ci/test.sh` | the chart | The homelab values render differently from before the split with the ES256 keys (#801) in place of the HS256 key, identity's private key or game-auth host key is not required, a removed HS256 value renders, a service alone renders a setting or Secret key that is not its own, the routes release's rules, priorities or refusals change, or the NetworkPolicy renders without its peers |
