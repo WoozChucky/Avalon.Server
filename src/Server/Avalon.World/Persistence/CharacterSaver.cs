@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
@@ -62,8 +65,27 @@ public interface ICharacterSaver
 /// <see cref="CharacterId" />, not per entity: a relog builds a new entity for the same character,
 /// and its saves must still queue behind the old entity's despawn save.
 /// </summary>
-public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<CharacterSaver> logger) : ICharacterSaver
+/// <param name="meter">Where the save duration is recorded; the world server's meter when omitted.</param>
+public sealed class CharacterSaver(
+    ICharacterSaveRepository repository,
+    ILogger<CharacterSaver> logger,
+    Meter? meter = null) : ICharacterSaver
 {
+    private static readonly double[] s_saveBuckets = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
+
+    private static readonly KeyValuePair<string, object?> s_committed = new("outcome", "committed");
+    private static readonly KeyValuePair<string, object?> s_failed = new("outcome", "failed");
+    private static readonly KeyValuePair<string, object?> s_periodic = new("kind", "periodic");
+    private static readonly KeyValuePair<string, object?> s_despawn = new("kind", "despawn");
+
+    /// <summary>
+    /// One save batch, from the moment it stops waiting behind the character's previous save until
+    /// it committed or failed: the despawn row preparation and the repository write, not the queue.
+    /// </summary>
+    private readonly Histogram<double> _duration = (meter ?? DiagnosticsConfig.World.Meter).CreateHistogram<double>(
+        "world.character.save.duration", "ms", "Time one save batch took to write, by outcome and kind", tags: null,
+        advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = s_saveBuckets });
+
     private readonly Lock _gate = new();
 
     /// <summary>The latest save queued for each character with one still unfinished. Guarded by <see cref="_gate" />.</summary>
@@ -80,7 +102,7 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
 
         EnsureOneBatchPerCharacter(snapshots);
 
-        Task<bool> write = Enqueue(snapshots, prepareRow: null, CancellationToken.None);
+        Task<bool> write = Enqueue(snapshots, prepareRow: null, despawn: false, CancellationToken.None);
 
         for (int i = 0; i < characters.Count; i++)
         {
@@ -100,7 +122,7 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
         CharacterEntity character,
         Func<Character, CancellationToken, Task>? prepareRow,
         CancellationToken cancellationToken) =>
-        Enqueue([CharacterSaveSnapshot.Take(character)], prepareRow, cancellationToken);
+        Enqueue([CharacterSaveSnapshot.Take(character)], prepareRow, despawn: true, cancellationToken);
 
     public Task WhenIdle(CharacterId id)
     {
@@ -162,6 +184,7 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
     private Task<bool> Enqueue(
         CharacterSaveSnapshot[] snapshots,
         Func<Character, CancellationToken, Task>? prepareRow,
+        bool despawn,
         CancellationToken cancellationToken)
     {
         Task<bool> write;
@@ -184,7 +207,7 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
             // Off the tick thread from the first line: the snapshot is all the tick owes a save. The
             // token goes to the write, not to Task.Run, so a cancelled save still comes back false
             // instead of cancelled, and whatever is queued behind it still runs.
-            write = Task.Run(() => WriteAfterAsync(after, snapshots, prepareRow, cancellationToken), CancellationToken.None);
+            write = Task.Run(() => WriteAfterAsync(after, snapshots, prepareRow, despawn, cancellationToken), CancellationToken.None);
 
             foreach (CharacterSaveSnapshot snapshot in snapshots)
                 _latest[snapshot.CharacterId] = write;
@@ -216,11 +239,14 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
         Task previous,
         CharacterSaveSnapshot[] snapshots,
         Func<Character, CancellationToken, Task>? prepareRow,
+        bool despawn,
         CancellationToken cancellationToken)
     {
         // Only orders: a save never faults, it comes back false.
         await previous.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
+        // Timed from here, so the wait behind the previous save is not counted.
+        long started = Stopwatch.GetTimestamp();
         try
         {
             // The copies only: the snapshot owns them, and the live row stays with the tick.
@@ -231,14 +257,22 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
             }
 
             await repository.WriteAsync(snapshots.Select(s => s.Batch).ToList(), cancellationToken).ConfigureAwait(false);
+            Record(started, committed: true, despawn);
             return true;
         }
         catch (Exception e)
         {
+            Record(started, committed: false, despawn);
             logger.LogError(e,
                 "Saving character(s) {CharacterIds} failed; their changes stay pending and the next save retries them",
                 string.Join(", ", snapshots.Select(s => s.CharacterId.Value)));
             return false;
         }
     }
+
+    private void Record(long started, bool committed, bool despawn) =>
+        _duration.Record(
+            Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+            committed ? s_committed : s_failed,
+            despawn ? s_despawn : s_periodic);
 }
