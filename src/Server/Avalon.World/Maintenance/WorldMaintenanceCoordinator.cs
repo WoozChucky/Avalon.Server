@@ -198,10 +198,15 @@ public sealed class WorldMaintenanceCoordinator(
     /// </summary>
     private void AdvanceRestart(DateTime nowUtc, IReadOnlyList<IWorldConnection> connections)
     {
+        // The tick that takes the drain judges no early end: its connections were read at the top of the tick, maybe
+        // before the stop offered the drain, and so maybe before a connection registered just ahead of the stop (#828).
+        // Every later tick reads them after the offer.
+        bool takenThisTick = false;
         if (Interlocked.Exchange(ref _restartOffered, null) is { } offered)
         {
             _restart = offered;
             _restartCountdown.Start();
+            takenThisTick = true;
         }
 
         if (_restart is not { } restart || restart.Ended.Task.IsCompleted) return;
@@ -225,7 +230,7 @@ public sealed class WorldMaintenanceCoordinator(
 
             EndRestart(restart, "its deadline passed");
         }
-        else if (!connections.Any(static connection =>
+        else if (!takenThisTick && !connections.Any(static connection =>
                      IsNonAdminPlayer(connection) && connection.IsConnected && !connection.IsClosing))
         {
             EndRestart(restart, "no non-admin player is left");

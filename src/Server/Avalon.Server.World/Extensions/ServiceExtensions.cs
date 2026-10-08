@@ -102,7 +102,8 @@ public static class ServiceExtensions
             sp.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId,
             sp.GetRequiredService<IWorldMaintenanceRepository>(),
             sp.GetRequiredService<IAccountRepository>(),
-            sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<WorldEntryGate>>()));
         services.AddSingleton(sp => new WorldMaintenanceCoordinator(
             sp.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId,
             sp.GetRequiredService<IWorldMaintenanceRepository>(),

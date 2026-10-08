@@ -1,8 +1,10 @@
 using System.Reflection;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Hosting;
-using Avalon.Network.Packets.Abstractions;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.Extensions;
@@ -18,6 +20,7 @@ using Avalon.World.Public.Combat;
 using Avalon.World.Pvp;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NSubstitute;
@@ -204,50 +207,91 @@ public class WorldHostGraphShould
         }
     }
 
-    /// <summary>One row per in-map handler that takes more than an IWorld: each is built from the container.</summary>
-    [Theory]
-    [InlineData(NetworkPacketType.CMSG_CAST_ABILITY, typeof(CastAbilityHandler))]
-    [InlineData(NetworkPacketType.CMSG_LOOT_PICKUP, typeof(LootPickupHandler))]
-    [InlineData(NetworkPacketType.CMSG_ITEM_MOVE, typeof(ItemMoveHandler))]
-    [InlineData(NetworkPacketType.CMSG_ITEM_DESTROY, typeof(ItemDestroyHandler))]
-    [InlineData(NetworkPacketType.CMSG_ITEM_USE, typeof(ItemUseHandler))]
-    [InlineData(NetworkPacketType.CMSG_VENDOR_BUY, typeof(VendorBuyHandler))]
-    [InlineData(NetworkPacketType.CMSG_VENDOR_SELL, typeof(VendorSellHandler))]
-    [InlineData(NetworkPacketType.CMSG_VENDOR_BUYBACK, typeof(VendorBuybackHandler))]
-    [InlineData(NetworkPacketType.CMSG_PVP_TOGGLE, typeof(PvpToggleHandler))]
-    [InlineData(NetworkPacketType.CMSG_AURA_CANCEL, typeof(AuraCancelHandler))]
-    [InlineData(NetworkPacketType.CMSG_CHAT_MESSAGE, typeof(ChatMessageHandler))]
-    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE, typeof(PartyInviteHandler))]
-    [InlineData(NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE, typeof(PartyInviteResponseHandler))]
-    [InlineData(NetworkPacketType.CMSG_PARTY_LEAVE, typeof(PartyLeaveHandler))]
-    [InlineData(NetworkPacketType.CMSG_PARTY_KICK, typeof(PartyKickHandler))]
-    [InlineData(NetworkPacketType.CMSG_PARTY_PROMOTE, typeof(PartyPromoteHandler))]
-    [InlineData(NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE, typeof(PartyExperienceModeHandler))]
-    [InlineData(NetworkPacketType.CMSG_QUEST_ACCEPT, typeof(QuestAcceptHandler))]
-    [InlineData(NetworkPacketType.CMSG_QUEST_TURN_IN, typeof(QuestTurnInHandler))]
-    [InlineData(NetworkPacketType.CMSG_QUEST_ABANDON, typeof(QuestAbandonHandler))]
-    [InlineData(NetworkPacketType.CMSG_ENTER_MAP, typeof(EnterMapHandler))]
-    [InlineData(NetworkPacketType.CMSG_INTERACT, typeof(InteractHandler))]
-    [InlineData(NetworkPacketType.CMSG_DIALOGUE_CHOOSE, typeof(DialogueChooseHandler))]
-    public async Task Find_And_Build_The_Handler_The_Way_WorldServer_Does(NetworkPacketType opcode, Type expected)
+    /// <summary>
+    /// Every packet handler is built by reflection, so a constructor that needs something the container lacks fails only
+    /// at run time (#822): a core handler stops the world's start, a server handler fails the first time its packet
+    /// arrives. Each is built here from the production container exactly as the server builds it: every
+    /// <see cref="PacketHandlerAttribute" /> type in Avalon.World as the WorldServer constructor does (handing it the
+    /// world server when its constructor names one), and every <see cref="IPacketHandlerNew" /> type in
+    /// Avalon.Server.World as <c>ServerBase</c> does per packet (a factory with no runtime arguments, over a scope).
+    /// </summary>
+    [Fact]
+    public async Task Build_every_packet_handler_from_the_production_container()
     {
         string workingDirectory = Directory.GetCurrentDirectory();
+        // The admission handler's client loads its workload certificate when it is built, as a deployment mounts it.
+        string workloadCertificate = Path.Combine(Path.GetTempPath(), $"avalon-workload-{Guid.NewGuid():N}.pfx");
         try
         {
+            using (var key = RSA.Create(2048))
+            {
+                var request = new CertificateRequest("CN=world-one", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                using X509Certificate2 certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1),
+                    DateTimeOffset.UtcNow.AddMinutes(10));
+                await File.WriteAllBytesAsync(workloadCertificate, certificate.Export(X509ContentType.Pfx));
+            }
+
             HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
-            builder.Services.AddWorldServices();
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["World:Admission:ApiUrl"] = "https://internal.avalon.example/",
+                ["World:Admission:ServerId"] = "world-one",
+                ["World:Admission:ClientCertificatePath"] = workloadCertificate,
+                ["World:Admission:ApiCertificateSha256"] = new string('A', 64)
+            });
+            builder.Services
+                .AddWorldServices()
+                .AddSingleton<WorldServer>()
+                .AddSingleton<IWorldServer>(provider => provider.GetRequiredService<WorldServer>());
             using IHost host = builder.Build();
 
-            // The same scan as the WorldServer constructor.
-            Type handlerType = Assert.Single(typeof(WorldServer).Assembly.GetTypes(),
-                t => t.GetCustomAttribute<PacketHandlerAttribute>()?.PacketType == opcode);
-            Assert.Equal(expected, handlerType);
+            Type[] coreHandlers = typeof(WorldServer).Assembly.GetTypes()
+                .Where(t => t.GetCustomAttribute<PacketHandlerAttribute>() != null).ToArray();
+            Type[] serverHandlers = typeof(Avalon.Server.World.Handlers.WorldHandshakeHandler).Assembly.ExportedTypes
+                .Where(t => t.IsAssignableTo(typeof(IPacketHandlerNew)) && t is { IsClass: true, IsAbstract: false })
+                .ToArray();
+            Assert.NotEmpty(coreHandlers);
+            Assert.NotEmpty(serverHandlers);
 
-            Assert.IsType(expected, ActivatorUtilities.CreateInstance(host.Services, handlerType));
+            IWorldServer worldServer = Substitute.For<IWorldServer>();
+            var failures = new List<string>();
+            foreach (Type handlerType in coreHandlers)
+            {
+                bool needsWorldServer = handlerType.GetConstructors()
+                    .Any(c => c.GetParameters().Any(p => p.ParameterType == typeof(IWorldServer)));
+                Build(handlerType, () => needsWorldServer
+                    ? ActivatorUtilities.CreateInstance(host.Services, handlerType, worldServer)
+                    : ActivatorUtilities.CreateInstance(host.Services, handlerType));
+            }
+
+            foreach (Type handlerType in serverHandlers)
+            {
+                ObjectFactory factory = ActivatorUtilities.CreateFactory(handlerType, []);
+                Build(handlerType, () =>
+                {
+                    using IServiceScope scope = host.Services.CreateScope();
+                    return factory(scope.ServiceProvider, null);
+                });
+            }
+
+            Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
+
+            void Build(Type handlerType, Func<object> create)
+            {
+                try
+                {
+                    Assert.IsType(handlerType, create());
+                }
+                catch (Exception e)
+                {
+                    failures.Add($"{handlerType.FullName}: {e.Message}");
+                }
+            }
         }
         finally
         {
             Directory.SetCurrentDirectory(workingDirectory);
+            File.Delete(workloadCertificate);
         }
     }
 
