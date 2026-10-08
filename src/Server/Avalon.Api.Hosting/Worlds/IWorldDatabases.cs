@@ -12,8 +12,8 @@ public interface IWorldDatabases
     bool TryGet(WorldId world, [NotNullWhen(true)] out ConfiguredWorld? configured);
 
     /// <summary>
-    /// The world is configured and its databases migrated at startup. The one test of "this api can
-    /// serve that world"; false for a world it was not given.
+    /// The world is configured and its databases were reached, at startup or by the recheck since. The
+    /// one test of "this api can serve that world"; false for a world it was not given.
     /// </summary>
     bool IsAvailable(WorldId world);
 }

@@ -10,6 +10,9 @@ namespace Avalon.Api.Hosting.Worlds;
 /// </summary>
 public sealed class ConfiguredWorld
 {
+    // Written by the startup check, then only by the recheck (WorldDatabaseRecheck); read by every request.
+    private volatile WorldDatabaseStatus _status = WorldDatabaseStatus.Available;
+
     public ConfiguredWorld(WorldId id, string? worldConnectionString, string? charactersConnectionString)
     {
         Id = id;
@@ -21,10 +24,15 @@ public sealed class ConfiguredWorld
     public string? WorldConnectionString { get; }
     public string? CharactersConnectionString { get; }
 
-    /// <summary>Available until startup migration says otherwise; written only before the api serves.</summary>
-    public WorldDatabaseStatus Status { get; private set; } = WorldDatabaseStatus.Available;
+    /// <summary>
+    /// Available unless the startup check could not reach its databases; such a world is available again once the
+    /// recheck reaches them, and is never marked unavailable after that.
+    /// </summary>
+    public WorldDatabaseStatus Status => _status;
 
-    internal void MarkUnavailable() => Status = WorldDatabaseStatus.Unavailable;
+    internal void MarkUnavailable() => _status = WorldDatabaseStatus.Unavailable;
+
+    internal void MarkAvailable() => _status = WorldDatabaseStatus.Available;
 
     /// <summary>The id and status only: never the connection strings.</summary>
     public override string ToString() => $"World {Id.Value} ({Status})";

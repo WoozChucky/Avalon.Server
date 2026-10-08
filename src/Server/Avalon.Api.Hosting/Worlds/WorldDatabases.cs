@@ -22,8 +22,9 @@ public sealed class WorldDatabases : IWorldDatabases
         TryGet(world, out ConfiguredWorld? configured) && configured.Status == WorldDatabaseStatus.Available;
 
     /// <summary>
-    /// Startup only: the world's migration failed, so it answers 503 until the next restart. Only a
-    /// configured world can fail its migration, so any other id is a programming error.
+    /// Startup only: the world's databases could not be reached, so it answers 503 until
+    /// <see cref="WorldDatabaseRecheck"/> reaches them. Only a configured world is checked, so any
+    /// other id is a programming error.
     /// </summary>
     public void MarkUnavailable(WorldId world)
     {
