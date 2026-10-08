@@ -45,8 +45,8 @@ over REST and one over TCP spend one budget ([REST API authentication](api-authe
 
 Each API service can sign in as its own Redis ACL user (#803), limited to the keys, channels and commands above
 (`Application:Cache:Username`, chart value `cache.username`; see
-[Cache Configuration](configuration-reference.md#cache-configuration-cacheconfiguration)). The auth server, the world
-servers and the balance service sign in as the default user, with full access. The users the homelab declares:
+[Cache Configuration](configuration-reference.md#cache-configuration-cacheconfiguration)). The auth server and the world
+servers sign in as the default user, with full access; the balance service uses no Redis. The users the homelab declares:
 
 | User | Keys | Channels | Commands |
 |---|---|---|---|

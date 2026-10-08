@@ -26,16 +26,27 @@ dotnet test tests/Avalon.Api.Distribution.UnitTests
 # Run a specific test class or method
 dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAuthHandlerShould"
 
-# Start infrastructure (Redis + Postgres)
-docker compose up -d redis postgres
+# A local run, from clone to client in world: see "From clone to client in world" below. Once per machine:
+dotnet dev-certs https --trust
 
-# Run individual servers. The API runs all four of its services on http://localhost:5210 unless
-# Application:Services names some (docs/api-services.md), e.g. one alone (without identity it must not hold the
-# private signing key, so blank the user-secret; see "REST API signing key" below):
+# Everything at once (Aspire AppHost): containers, keys, certificates and every server, in order
+dotnet run --project src/Server/Avalon
+
+# Or by hand. Infrastructure (Redis + Postgres), then once the local settings (signing keys, the world's TLS
+# certificates, user-secrets for the API and the world server), then the servers, the API first
+docker compose up -d redis postgres
+dotnet run --project tools/Avalon.LocalDev -- setup
+# The API runs all four of its services, on https://localhost:7166 and http://localhost:5210 once setup has run,
+# unless Application:Services names some (docs/api-services.md), e.g. one alone (without identity it must not hold
+# the private signing key, so blank the user-secret; see "REST API signing key" below):
 #   dotnet run --project src/Server/Avalon.Api -- --Application:Services:0=worlds --Application:Authentication:SigningKey=
 dotnet run --project src/Server/Avalon.Api
 dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
+
+# A game ticket for the client (ADMIN/123 by default), or the client's REST chain up to a join ticket
+dotnet run --project tools/Avalon.LocalDev -- login --launch <path to the client's runtime.exe>
+dotnet run --project tools/Avalon.LocalDev -- check
 
 # Read-only smoke check of a deployed API, every route group (the script's header lists its options; its expected
 # statuses are a configured deployment's, so a local API without a build store or worlds 2 and 3 fails some lines)
@@ -132,7 +143,7 @@ Set-Content -NoNewline jwt-es256.pem $k.ExportPkcs8PrivateKeyPem()
 [Convert]::ToBase64String($k.ExportSubjectPublicKeyInfo())
 ```
 
-**Local runs.** The Aspire AppHost (`src/Server/Avalon`) needs no user-secret: it makes a key pair on every run (a token from an earlier run is refused, and the client refreshes) and keeps a generated game-auth host key in its own user-secrets. A plain `dotnet run --project src/Server/Avalon.Api` (Development loads user-secrets) needs the keys once per machine, from the repository root:
+**Local runs.** The Aspire AppHost (`src/Server/Avalon`) needs no user-secret of yours: it makes a key pair on every run (a token from an earlier run is refused, and the client refreshes) and keeps a generated game-auth host key in its own user-secrets. A plain `dotnet run --project src/Server/Avalon.Api` (Development loads user-secrets) needs the keys once per machine. `dotnet run --project tools/Avalon.LocalDev -- setup` makes them, under the key id `dev`, when the API's user-secrets hold none, with the rest of a local run's settings ([From clone to client in world](#from-clone-to-client-in-world)); by hand, from the repository root:
 
 ```bash
 # bash: the private key, its key id, its public key and a game-auth host key
@@ -179,3 +190,88 @@ helm install ... --set-file authentication.signingKey=./jwt-es256.pem --set-file
 **Rotating the signing key** signs nobody out: (1) make a new key pair and add its public key to `ValidationKeys`, under a new key id, in every process (the chart's `authentication.validationKeys`, shared by every release), and deploy; (2) give identity the new `SigningKey` and `SigningKeyId`, and deploy; (3) after 16 minutes, the token lifetime and its clock skew, remove the old public key everywhere and deploy. With a chart-managed Secret, `helm upgrade` restarts the pods (a checksum annotation); with `existingSecret` the chart cannot see a change to the Secret, so run `kubectl rollout restart deployment/<release>-avalon-api` (the chart's fullname) for every release whose keys changed. Swapping the key without those steps refuses every token signed with the old one: clients get a 401 and refresh, since refresh tokens are database rows. Changing `GameAuth:HostKey` voids the game-auth records in flight, which live minutes: pick a quiet moment.
 
 `docker-compose.yml` runs only Redis and Postgres, so it needs no key. EF design-time commands (`dotnet ef migrations ...` with `--startup-project src/Server/Avalon.Api`) need no key either: they build each context through its `IDesignTimeDbContextFactory` and never run the API host's registrations. Tests never read one: `ApiTestHost` (`tests/Avalon.Api.Testing`) and the other API tests make their own keys in code.
+
+## From clone to client in world
+
+The one path from a fresh clone to a character in the world on this machine. Nothing in it is a production setting: every key and certificate it makes is a throwaway, and the license it grants exists only in Development.
+
+**What a local world needs, and why.** The game client signs in over the REST API, which it reaches only over https, and enters a world over TLS with a ticket the API issues ([game admission](steam-authentication-workloads.md)). So beyond Redis, Postgres and the API's signing keys ([above](#rest-api-signing-key)), a local run needs:
+
+- the API's https endpoint, served with the ASP.NET Core development certificate, which the machine must trust: the client checks the API's certificate against the machine's trust store;
+- three private TLS leaves for `localhost`, each self-signed (`LocalCertificates`, `src/Server/Avalon/LocalCertificates.cs`): the world server's own (`Hosting:Security`), which the client pins from the join reply; the world's client leaf on the API's game workload listener (`World:Admission:ClientCertificatePath`, client authentication); and that listener's (`Kestrel:Endpoints:GameInternal`, server authentication), which the world pins (`World:Admission:ApiCertificateSha256`);
+- the API's assignment of world 1 to that world server (`Application:GameWorkloads:Servers`: server id `world-1`, TLS name `localhost`, the world leaf's and the client leaf's SHA-256), and named Kestrel endpoints: the workload listener on `https://localhost:9443` and, since named endpoints replace the launch profile's URL, the public ones on `https://localhost:7166` and `http://localhost:5210`;
+- the store settings identity requires to start: `appsettings.Development.json` holds placeholders (Steam's test app id 480 and a dummy publisher key), unused unless a client signs in through Steam;
+- a license: admission needs an active `avalon.base` stored grant, and only a purchase writes one, so in Development identity grants the seeded `ADMIN` account one at startup (`DevelopmentLicenseGrant`, once, in the configured store environment, logged when it grants). No other environment runs it.
+
+`ADMIN` (password `123`, access level Player, GameMaster and Admin) is the one account that can enter world 1, the Development world, which only an Admin may enter. Any other account needs both that access level and a license.
+
+**Once per machine.** The .NET 10 SDK, Docker, a clone with its submodule (`git clone --recurse-submodules`), and the development certificate, trusted:
+
+```bash
+dotnet dev-certs https --trust
+```
+
+### One command: the Aspire AppHost
+
+```bash
+dotnet run --project src/Server/Avalon
+```
+
+It starts Redis (`--requirepass 123`) and Postgres (password `123`) as persistent containers on 6379 and 5432 (stop the docker compose ones first: they bind the same ports), makes the signing keys and the three leaves afresh on every run (into `avalon-apphost` in the temp folder), and passes every setting above to the API and the world server as environment variables. The API comes first; the auth server (21000) and the world server (21001) wait until it is healthy, which it is only once it has migrated the auth database: the world reads that database and never migrates it. On a fresh Postgres the API starts before the world's databases exist, so world 1 is unavailable at first; the world server creates them, and the API finds them on its own within about a minute (`WorldDatabaseRecheck`, [Multi-world API](api-worlds.md#startup-and-availability)). The console prints the dashboard's URL. Certificates made per run cost nothing: the client receives the world's pin in each join reply.
+
+### By hand: `dotnet run`
+
+```bash
+docker compose up -d redis postgres
+dotnet run --project tools/Avalon.LocalDev -- setup   # once; run again to renew the certificates
+dotnet run --project src/Server/Avalon.Api            # first: it migrates the auth database
+dotnet run --project src/Server/Avalon.Server.Auth
+dotnet run --project src/Server/Avalon.Server.World
+```
+
+`setup` makes the three leaves into `certificates/local/` (git ignores `certificates/`), each sealed with a random password, and writes to the user-secrets of the API (`src/Server/Avalon.Api`) and of the world server (`src/Server/Avalon.Server.World`, which has a `UserSecretsId` and a Development launch profile for this) every setting above: for the API, its three Kestrel endpoints, the workload assignment of world 1, and its signing keys and game-auth host key when it has none yet; for the world, `Hosting:Security` and `World:Admission`. It keeps any other secret, and the API's existing keys. Development loads user-secrets, so restart the API and the world server after it. It also says when the development certificate is missing or not trusted. Start the world server after the API, or wait: an API that started first finds world 1 once the world server has created its databases, as above.
+
+### Sign in and start the client
+
+The client has no username and password screen: it redeems a game ticket that the launcher hands it on standard input. `tools/Avalon.LocalDev` stands in for the launcher, over the same REST chain: `/account/authenticate`, then `/client/auth/code` with a PKCE challenge and the password again, `/client/auth/token`, and `/client/auth/game-ticket`. The ticket is good for one use, within 60 seconds.
+
+```bash
+# Walk the client's chain up to a join ticket, and print the worlds the account may enter (nothing secret)
+dotnet run --project tools/Avalon.LocalDev -- check
+
+# Start the client with a fresh ticket on its standard input (--channel avalon, AVALON_GAME_TICKET_STDIN=1)
+dotnet run --project tools/Avalon.LocalDev -- login --launch <the client's build>/runtime.exe
+
+# Or pipe it yourself: login writes the ticket alone, one line, to standard output
+dotnet run --project tools/Avalon.LocalDev -- login | AVALON_GAME_TICKET_STDIN=1 ./runtime.exe --channel avalon
+```
+
+```powershell
+$env:AVALON_GAME_TICKET_STDIN = "1"
+dotnet run --project tools/Avalon.LocalDev -- login | .\runtime.exe --channel avalon
+```
+
+The account is `ADMIN` unless `--user` names another; the password comes from `--password`, then `AVALON_DEV_PASSWORD`, then a prompt. `--api` names another API origin (default `https://localhost:7166`), and `check --world <id>` the world to ask a join ticket for. Each run opens a new launcher session for the account. An account with MFA on is refused: the tool answers no code.
+
+**The client's configuration.** The client reads its servers from `netconfig.local.json` in its project folder (`devproject/`) when that file exists, ahead of the committed `netconfig.json`; the local file is ignored by the client's git. For a local run:
+
+```json
+{ "host": "127.0.0.1", "port": 21000,
+  "pinSha256": "cf549bcd524330caa3888af69641322f3c1f3c523d4d2768521c891bf2e85d23",
+  "apiUrl": "https://localhost:7166",
+  "websiteUrl": "https://localhost:5173" }
+```
+
+`host`, `port` and `pinSha256` name the auth server: the pin is the SHA-256 of the SubjectPublicKeyInfo of the committed development certificate `certs/cert-tcp.pfx`. `apiUrl` is the API's https origin (an origin, or one with the path `/api`); `websiteUrl` the website the client opens for account pages, https as well (Avalon.Dashboard's local server). The world needs no entry: its address, TLS name and pin come in each join reply.
+
+**When it does not work:**
+
+| Symptom | Cause |
+|---|---|
+| The API exits naming `Application:StoreAuthentication` | It is not running in Development, so `appsettings.Development.json` is not loaded: use the launch profile (`dotnet run`) or set `ASPNETCORE_ENVIRONMENT=Development` |
+| The API exits: no server certificate, the default developer certificate could not be found | `dotnet dev-certs https --trust` |
+| The world server exits: "A world TLS certificate is required", or "World admission requires ..." | `setup` has not run, or the world server is not running in Development (its launch profile) |
+| `check` or the client cannot reach the API, or the TLS check fails | The API is not up, or the development certificate is not trusted |
+| `check`: game context `pending_license` | The account holds no license: only `ADMIN` is granted one, and only in Development |
+| `check`: "No world is listed" | The world server is not running or not ready yet (it reports ready once it listens), the API has not found world 1's databases yet (its log says "World 1 is available"), or the account may not enter world 1 |
+| The client stops at the world with a pin mismatch | The API and the world server run with leaves from different `setup` runs: restart both |

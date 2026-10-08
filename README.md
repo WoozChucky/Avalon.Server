@@ -59,6 +59,7 @@ Tooling & Tests:
 | Project | Role |
 |---|---|
 | `tools/Avalon.Benchmarking` | Micro-benchmarks for performance-sensitive components |
+| `tools/Avalon.LocalDev` | Local runs: the world's local TLS certificates and user-secrets (`setup`), a game ticket for the client (`login`), the client's REST chain to a join ticket (`check`) |
 | `tests/Avalon.Shared.UnitTests` | Unit tests for shared libraries |
 | `tests/Avalon.Server.Auth.UnitTests` | Unit tests for authentication server components |
 | `tests/Avalon.Server.World.UnitTests` | Unit tests for world server and simulation logic |
@@ -105,56 +106,57 @@ Serilog for structured logging; OpenTelemetry instrumentation covers HTTP, EF Co
 
 ## Running Locally
 
-Prerequisites: .NET 10 SDK, Docker (for infra services).
+Prerequisites: .NET 10 SDK, Docker, and a clone with its submodule (`git clone --recurse-submodules`). The whole
+path, from a fresh clone to the game client in a world, with what each step sets up and what to do when one fails, is
+in [Development setup: from clone to client in world](docs/development-setup.md#from-clone-to-client-in-world). In
+short:
 
-1. Start infra (Redis + PostgreSQL):
+1. Once per machine, trust the ASP.NET Core development certificate. The API serves https with it, and the game
+   client talks to the API only over https, trusting what the machine trusts:
    ```bash
-   docker compose up -d
+   dotnet dev-certs https --trust
    ```
-   Optionally add Redis Insight for a GUI over Redis:
+2. Start everything, either with the Aspire AppHost, in one command (it runs Redis and Postgres as containers on 6379
+   and 5432, so stop the docker compose ones first):
    ```bash
-   docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d
+   dotnet run --project src/Server/Avalon
    ```
-2. Give the API its signing keys, once per machine (#801). None is committed, and the API refuses to start
-   without them: an ES256 key pair that signs and checks access tokens, and a game-auth host key. The Aspire
-   AppHost (`src/Server/Avalon`) makes its own and needs nothing. For a plain `dotnet run`, store them in your
-   user-secrets from the repository root:
-   ```powershell
-   # PowerShell 7 (no openssl needed; bash with openssl: see docs/development-setup.md)
-   $k = [Security.Cryptography.ECDsa]::Create([Security.Cryptography.ECCurve+NamedCurves]::nistP256)
-   dotnet user-secrets set "Application:Authentication:SigningKey" ([Convert]::ToBase64String($k.ExportPkcs8PrivateKey())) --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:Authentication:SigningKeyId" "dev" --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:Authentication:ValidationKeys:dev" ([Convert]::ToBase64String($k.ExportSubjectPublicKeyInfo())) --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:GameAuth:HostKey" ([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))) --project src/Server/Avalon.Api
-   ```
-   Outside Development, set the environment variables (`Application__Authentication__SigningKey` and the
-   others) instead. The Helm chart reads the private keys from a Kubernetes Secret: name one you manage with
-   `--set existingSecret=<name>`, or pass them from files (see the chart's `values.yaml` and
-   [docs/development-setup.md](docs/development-setup.md#rest-api-signing-key), which also covers rotation).
-
-   Optional: email change (`POST /account/email/change`) answers 501 until the API has an email sender
-   (`Application:Email:Sender`, default `None`). In Development you can turn on the pickup sender, which
-   writes each email as an `.eml` file into `Application:Email:PickupDirectory` (default: an `avalon-mail`
-   folder under your local application data folder, readable only by you on Linux and macOS) instead of sending it. The API refuses it in any other
-   environment. See [REST API Email](docs/configuration-reference.md#rest-api-email).
+   or by hand. `setup` makes, once, what nothing commits: the API's signing keys, the world's three local TLS
+   certificates (into the gitignored `certificates/local/`) and the API's and the world server's user-secrets for them:
    ```bash
-   dotnet user-secrets set "Application:Email:Sender" "Pickup" --project src/Server/Avalon.Api
-   dotnet user-secrets set "Application:Email:From" "noreply@avalon.monster" --project src/Server/Avalon.Api
-   ```
-3. Run the API — migrations are applied automatically on startup:
-   ```bash
-   dotnet run --project src/Server/Avalon.Api
-   ```
-   The API reaches every world listed under `Database:Worlds` in its configuration; see [Configuration Reference](docs/configuration-reference.md#rest-api-worlds).
-4. Run Auth Server:
-   ```bash
+   docker compose up -d redis postgres
+   dotnet run --project tools/Avalon.LocalDev -- setup
+   dotnet run --project src/Server/Avalon.Api            # first: it migrates the auth database
    dotnet run --project src/Server/Avalon.Server.Auth
-   ```
-5. Run World Server:
-   ```bash
    dotnet run --project src/Server/Avalon.Server.World
    ```
-6. Open API docs: `https://localhost:<port>/scalar` (Scalar UI) or `/openapi/v1.json`
+   Optionally add Redis Insight for a GUI over Redis: `docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d`.
+3. Sign in as the seeded `ADMIN` account (password `123`), the one account that may enter world 1, the Development
+   world; in Development the API grants it the license admission needs. `check` walks the client's REST chain up to a
+   join ticket and prints the worlds; `login` hands the client a game ticket:
+   ```bash
+   dotnet run --project tools/Avalon.LocalDev -- check
+   dotnet run --project tools/Avalon.LocalDev -- login --launch <the client's build>/runtime.exe
+   ```
+   The client's `netconfig.local.json` for a local run is in the same document.
+
+The API answers on `https://localhost:7166` and `http://localhost:5210`; in Development (or with
+`Application:ApiDocs:Enabled`) its Scalar UI is at `http://localhost:5210/scalar` and the raw schema at
+`/openapi/v1.json`. It reaches every world listed under `Database:Worlds`; see
+[Configuration Reference](docs/configuration-reference.md#rest-api-worlds).
+
+Optional: email change (`POST /account/email/change`) answers 501 until the API has an email sender
+(`Application:Email:Sender`, default `None`). In Development you can turn on the pickup sender, which writes each
+email as an `.eml` file into `Application:Email:PickupDirectory` (default: an `avalon-mail` folder under your local
+application data folder, readable only by you on Linux and macOS) instead of sending it. The API refuses it in any
+other environment. See [REST API Email](docs/configuration-reference.md#rest-api-email).
+```bash
+dotnet user-secrets set "Application:Email:Sender" "Pickup" --project src/Server/Avalon.Api
+dotnet user-secrets set "Application:Email:From" "noreply@avalon.monster" --project src/Server/Avalon.Api
+```
+
+Outside Development, the API's keys come from environment variables, and the Helm chart reads them from a Kubernetes
+Secret ([REST API signing key](docs/development-setup.md#rest-api-signing-key), which also covers rotation).
 
 ## Migrations Workflow
 

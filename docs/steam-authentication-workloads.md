@@ -79,6 +79,8 @@ Example structure (replace every placeholder through deployment configuration):
 }
 ```
 
+A local run gets every one of these settings, with throwaway self-signed leaves for `localhost`, from the Aspire AppHost or from `tools/Avalon.LocalDev setup` ([Development setup](development-setup.md#from-clone-to-client-in-world)).
+
 Use a secret configuration provider for certificate passwords. Certificate pins and server assignments are a startup snapshot; deploy new assignments and restart the API process that runs identity for rotation. An empty workload assignment grants no world allocation or internal authentication. It is not a bypass or an optional authentication mode.
 
 The internal endpoint ignores player/launcher JWTs and server IDs in headers or request bodies. Its authentication policy is separate from account role authorization. The pinned leaf is the deployment trust anchor, so private leaves can be used without installing a machine-wide trust root. TLS verifies private-key possession; the API also verifies pin, validity and EKU on every request.

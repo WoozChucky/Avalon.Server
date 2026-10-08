@@ -15,12 +15,17 @@ CI=true dotnet test --no-build
 dotnet test tests/Avalon.Server.World.UnitTests
 dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAuthHandlerShould"
 
-# Infrastructure (Redis + Postgres; compose password 123), then the servers
+# A local run, clone to client in world (docs/development-setup.md#from-clone-to-client-in-world).
+dotnet dev-certs https --trust                      # once per machine: the API serves https with it
+dotnet run --project src/Server/Avalon             # Aspire AppHost: containers, keys, certificates, every server
+# ... or by hand: infrastructure (compose password 123), local settings once, then the servers, the API first
 docker compose up -d redis postgres
-dotnet run --project src/Server/Avalon.Api          # all four API services; needs its signing keys, see below
+dotnet run --project tools/Avalon.LocalDev -- setup # signing keys, the world's TLS certificates, user-secrets
+dotnet run --project src/Server/Avalon.Api          # all four API services; https://localhost:7166, http://localhost:5210
 dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
-dotnet run --project src/Server/Avalon             # Aspire AppHost: everything at once
+dotnet run --project tools/Avalon.LocalDev -- check # ADMIN/123 through the client's REST chain to a join ticket
+dotnet run --project tools/Avalon.LocalDev -- login # a game ticket for the client (--launch <runtime.exe>)
 
 # Benchmarks (game-server performance work needs numbers from here)
 dotnet run -c Release --project tools/Avalon.Benchmarking
@@ -42,7 +47,7 @@ Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_on
   --startup-project src/Server/Avalon.Api --context WorldDbContext
 ```
 
-Target framework: .NET 10 (`global.json`). The long notes — every EF design-time rule, seed-migration ordering, ChunkGen details, publish commands, and setting the REST API's signing keys (#801: identity's ES256 private key `Application:Authentication:SigningKey` with its `SigningKeyId`, which no other service may hold; the public keys every service checks tokens with, `ValidationKeys`; the game-auth host key `Application:GameAuth:HostKey`; never committed: user-secrets, or the AppHost's own, locally, a Kubernetes Secret in Helm) — are in [docs/development-setup.md](docs/development-setup.md).
+Target framework: .NET 10 (`global.json`). The long notes — the local run (the world's three local TLS certificates, the Development-only license of the seeded `ADMIN`, the client's `netconfig.local.json`), every EF design-time rule, seed-migration ordering, ChunkGen details, publish commands, and setting the REST API's signing keys (#801: identity's ES256 private key `Application:Authentication:SigningKey` with its `SigningKeyId`, which no other service may hold; the public keys every service checks tokens with, `ValidationKeys`; the game-auth host key `Application:GameAuth:HostKey`; never committed: user-secrets, or the AppHost's own, locally, a Kubernetes Secret in Helm) — are in [docs/development-setup.md](docs/development-setup.md).
 
 ## Architecture
 
@@ -64,7 +69,7 @@ Target framework: .NET 10 (`global.json`). The long notes — every EF design-ti
 | Balance | `src/Server/Avalon.Balance.Core`, `.Balance.Data`, `.Balance.Contract`, `.Balance.Service` | Simulator library (Core references Combat and Domain only, `BalanceCoreAssemblyShould`), seed reader, DTOs, in-cluster service |
 | Aspire | `src/Server/Avalon`, `src/Server/Avalon.ServiceDefaults` | Local AppHost and shared service defaults |
 | Shared | `src/Shared/Avalon.Common`, `.Configuration`, `.Domain`, `.Metrics`, `.Network.Packets`, `.Network.Packets.Abstractions` | `ValueObject<T>` and utilities, options classes, the domain model, OpenTelemetry, packet contracts (protobuf-net) |
-| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking`, `api-smoke` (read-only API smoke check), `release` (CI version and registry scripts) ([docs/tooling.md](docs/tooling.md)) |
+| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking`, `Avalon.LocalDev` (local run: certificates and user-secrets, game tickets), `api-smoke` (read-only API smoke check), `release` (CI version and registry scripts) ([docs/tooling.md](docs/tooling.md)) |
 | Vendored | `vendor/DotRecast` | Navmesh (Recast/Detour); not ours to restyle |
 
 `src/Server/Avalon.PluginFramework` is an empty placeholder project.
