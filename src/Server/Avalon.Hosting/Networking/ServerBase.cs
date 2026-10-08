@@ -33,7 +33,15 @@ public class PacketHandlerCache
 
 public abstract class ServerBase<T> : BackgroundService, IServerBase where T : IConnection
 {
+    /// <summary>The configured port (<c>Hosting:Port</c>); 0 asks the OS for a free one, which <see cref="BoundEndPoint" /> reports.</summary>
     public ushort Port { get; }
+
+    /// <summary>
+    /// The endpoint the listener bound, with the real port when <see cref="Port" /> is 0 (#841); null until
+    /// <see cref="StartListening" /> has bound it, and kept once the server stops.
+    /// </summary>
+    public IPEndPoint? BoundEndPoint => Volatile.Read(ref _boundEndPoint);
+
     public int SendBufferCapacity { get; }
     public ProxyProtocolPolicy ProxyProtocol { get; }
 
@@ -67,6 +75,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     private readonly Lock _acceptGate = new();
     private Task? _acceptLoop;
     private Task? _stopping;
+    private IPEndPoint? _boundEndPoint;
 
     protected ServerBase(IPacketManager packetManager, ILogger logger,
         IServiceProvider serviceProvider, IOptions<HostingConfiguration> hostingOptions,
@@ -357,8 +366,9 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             if (_acceptLoop is not null || _acceptStopping.IsCancellationRequested)
                 return;
 
-            _logger.LogInformation("Start listening for connections...");
             Listener.Start();
+            Volatile.Write(ref _boundEndPoint, (IPEndPoint)Listener.LocalEndpoint);
+            _logger.LogInformation("Listening for connections on {EndPoint}", _boundEndPoint);
             _acceptLoop = AcceptLoopAsync(_acceptStopping.Token, _connectionsStopping);
         }
     }

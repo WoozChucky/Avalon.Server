@@ -101,7 +101,7 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 | Key                     | Type   | Default  | Description                                             |
 |-------------------------|--------|----------|---------------------------------------------------------|
 | `Host`                  | string | `"0.0.0.0"` | Bind address                                         |
-| `Port`                  | int    | `21000`  | TCP listen port                                         |
+| `Port`                  | int    | `21000`  | TCP listen port (the auth server's `appsettings.json` sets 21000, the world server's 21001; unset is 0). 0 binds a free port, which `ServerBase.BoundEndPoint` and the "Listening for connections on" log report (#841); tests use it |
 | `PacketReaderBufferSize`| int    | `4096`   | Internal read-buffer size in bytes for `PacketReader`   |
 | `SendBufferCapacity`    | int    | `100`    | Packets one connection's outbox holds while waiting to be sent; when it is full, the oldest queued packet is dropped to take the new one |
 | `TcpKeepAliveTimeSeconds` | int | `60` | TCP keepalive on every accepted socket (#571): idle seconds before the first probe |

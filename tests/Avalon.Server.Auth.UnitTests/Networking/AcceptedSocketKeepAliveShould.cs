@@ -145,7 +145,8 @@ public class AcceptedSocketKeepAliveShould
     private static async Task<TcpClient> AcceptOneAsync(HostingConfiguration configuration)
     {
         configuration.Host = "127.0.0.1";
-        configuration.Port = GetFreePort();
+        // The server binds a free port itself and reports it (#841).
+        configuration.Port = 0;
 
         var accepted = new Accepted();
         await using ServiceProvider services = new ServiceCollection().AddSingleton(accepted).BuildServiceProvider();
@@ -154,21 +155,12 @@ public class AcceptedSocketKeepAliveShould
         try
         {
             using var client = new TcpClient();
-            await client.ConnectAsync(IPAddress.Loopback, configuration.Port);
+            await client.ConnectAsync(IPAddress.Loopback, server.BoundEndPoint!.Port);
             return await accepted.Client.Task.WaitAsync(TimeSpan.FromSeconds(5));
         }
         finally
         {
             await server.StopAsync(CancellationToken.None);
         }
-    }
-
-    private static ushort GetFreePort()
-    {
-        var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
-        return (ushort)port;
     }
 }

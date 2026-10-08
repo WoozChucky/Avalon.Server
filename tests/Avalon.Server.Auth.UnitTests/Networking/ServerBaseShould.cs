@@ -65,20 +65,19 @@ public class ServerBaseShould
     // ── Helper ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Asks the OS for a free ephemeral port so tests never conflict.
+    /// Port 0: the server binds a free port itself and reports it (#841). A port reserved here and released
+    /// before the server bound it could be taken by another test process in between.
     /// </summary>
-    private static ushort GetFreePort()
-    {
-        var tmp = new TcpListener(IPAddress.Loopback, 0);
-        tmp.Start();
-        int port = ((IPEndPoint)tmp.LocalEndpoint).Port;
-        tmp.Stop();
-        return (ushort)port;
-    }
+    private static IOptions<HostingConfiguration> AnyFreePort() =>
+        Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 });
 
-    private static TestServerBase CreateServer(ushort port)
+    /// <summary>The port the server bound; valid once it has started listening.</summary>
+    private static int BoundPort<T>(ServerBase<T> server) where T : IConnection =>
+        Assert.IsType<IPEndPoint>(server.BoundEndPoint).Port;
+
+    private static TestServerBase CreateServer()
     {
-        IOptions<HostingConfiguration> opts = Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = port });
+        IOptions<HostingConfiguration> opts = AnyFreePort();
         return new TestServerBase(Substitute.For<IPacketManager>(), opts);
     }
 
@@ -92,10 +91,10 @@ public class ServerBaseShould
     [Fact]
     public async Task ReleaseListeningPort_AfterStopAsync()
     {
-        ushort port = GetFreePort();
-        TestServerBase server = CreateServer(port);
+        TestServerBase server = CreateServer();
 
         await server.StartAsync(CancellationToken.None);
+        int port = BoundPort(server);
         await server.StopAsync(CancellationToken.None);
 
         // If the listener socket was properly closed, we can bind the same port again.
@@ -287,15 +286,13 @@ public class ServerBaseShould
         }
     }
 
-    private static (ProbeServer Server, ServiceProvider Services, ushort Port) CreateProbeServer(AcceptProbe probe,
+    private static (ProbeServer Server, ServiceProvider Services) CreateProbeServer(AcceptProbe probe,
         Microsoft.Extensions.Logging.ILogger? logger = null, PacketDispatchTelemetry? telemetry = null,
         bool realDelays = false)
     {
-        ushort port = GetFreePort();
         ServiceProvider services = new ServiceCollection().AddSingleton(probe).BuildServiceProvider();
-        IOptions<HostingConfiguration> opts = Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = port });
-        return (new ProbeServer(services, opts, logger: logger, telemetry: telemetry) { RealDelays = realDelays },
-            services, port);
+        return (new ProbeServer(services, AnyFreePort(), logger: logger, telemetry: telemetry) { RealDelays = realDelays },
+            services);
     }
 
     /// <summary>
@@ -308,12 +305,12 @@ public class ServerBaseShould
         using var watchdog = new EscapeWatchdog();
         using var gate = new ManualResetEventSlim(false);
         var probe = new AcceptProbe { Gate = gate };
-        (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe);
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe);
         await using ServiceProvider _ = services;
 
         await server.StartAsync(CancellationToken.None);
         using var client = new TcpClient();
-        await client.ConnectAsync(IPAddress.Loopback, port);
+        await client.ConnectAsync(IPAddress.Loopback, BoundPort(server));
         await probe.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         // The stop begins while the accepted client is still being set up, and the setup then finishes.
@@ -334,13 +331,13 @@ public class ServerBaseShould
         for (int cycle = 0; cycle < 100; cycle++)
         {
             var probe = new AcceptProbe();
-            (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe);
+            (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe);
             await using ServiceProvider _ = services;
 
             await server.StartAsync(CancellationToken.None);
             using var client = new TcpClient();
             // The stop races the accept: it lands before, during or after it.
-            Task connecting = client.ConnectAsync(IPAddress.Loopback, port);
+            Task connecting = client.ConnectAsync(IPAddress.Loopback, BoundPort(server));
             await server.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
             await Record.ExceptionAsync(() => connecting);
         }
@@ -353,7 +350,7 @@ public class ServerBaseShould
     public async Task Keep_accepting_one_client_after_another()
     {
         var probe = new AcceptProbe();
-        (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe);
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe);
         await using ServiceProvider _ = services;
         await server.StartAsync(CancellationToken.None);
 
@@ -364,7 +361,7 @@ public class ServerBaseShould
             {
                 var client = new TcpClient();
                 clients.Add(client);
-                await client.ConnectAsync(IPAddress.Loopback, port);
+                await client.ConnectAsync(IPAddress.Loopback, BoundPort(server));
                 int expected = i;
                 await WaitUntilAsync(() => probe.Started == expected);
             }
@@ -385,7 +382,7 @@ public class ServerBaseShould
     public async Task Accept_nothing_once_stopped_even_when_asked_to_listen_again()
     {
         var probe = new AcceptProbe();
-        (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe);
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe);
         await using ServiceProvider _ = services;
         await server.StartAsync(CancellationToken.None);
         await server.StopAsync(CancellationToken.None);
@@ -393,8 +390,11 @@ public class ServerBaseShould
         // A late StartListening (say from a derived ExecuteAsync) must not reopen the port.
         server.Listen();
 
+        // A reopened listener would bind a new port (the server is configured with 0) and report it. The
+        // port reported now is the one the stop released, which another process may already have taken,
+        // so a refusal is not required: only that this server accepted nothing.
         using var client = new TcpClient();
-        await Assert.ThrowsAsync<SocketException>(() => client.ConnectAsync(IPAddress.Loopback, port));
+        await Record.ExceptionAsync(() => client.ConnectAsync(IPAddress.Loopback, BoundPort(server)));
         await Task.Delay(TimeSpan.FromMilliseconds(100));
         Assert.Equal(0, probe.Constructed);
     }
@@ -448,10 +448,8 @@ public class ServerBaseShould
                 return true;
             });
         var logger = new CapturingLogger();
-        ushort port = GetFreePort();
         await using ServiceProvider services = new ServiceCollection().AddSingleton(packetProbe).BuildServiceProvider();
-        var server = new ProbeServer(services,
-            Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = port }), packets, logger);
+        var server = new ProbeServer(services, AnyFreePort(), packets, logger);
         IConnection connection = Substitute.For<IConnection>();
         var header = new NetworkPacketHeader { Type = NetworkPacketType.CMSG_PONG };
 
@@ -483,11 +481,11 @@ public class ServerBaseShould
     private static SocketException SocketError(System.Net.Sockets.SocketError error) => new((int)error);
 
     /// <summary>Connects one client and waits until the server has started a connection for it.</summary>
-    private static async Task<TcpClient> ConnectServedAsync(AcceptProbe probe, ushort port)
+    private static async Task<TcpClient> ConnectServedAsync(ProbeServer server, AcceptProbe probe)
     {
         int before = probe.Started;
         var client = new TcpClient();
-        await client.ConnectAsync(IPAddress.Loopback, port);
+        await client.ConnectAsync(IPAddress.Loopback, BoundPort(server));
         await WaitUntilAsync(() => probe.Started > before);
         return client;
     }
@@ -496,14 +494,14 @@ public class ServerBaseShould
     public async Task Accept_the_next_client_after_an_accept_failure()
     {
         var probe = new AcceptProbe();
-        (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe);
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe);
         await using ServiceProvider _ = services;
         server.AcceptFailures.Enqueue(SocketError(System.Net.Sockets.SocketError.TooManyOpenSockets));
 
         await server.StartAsync(CancellationToken.None);
         try
         {
-            using TcpClient client = await ConnectServedAsync(probe, port);
+            using TcpClient client = await ConnectServedAsync(server, probe);
             Assert.Equal(1, probe.Constructed);
         }
         finally
@@ -517,7 +515,7 @@ public class ServerBaseShould
     {
         var logger = new CapturingLogger();
         var probe = new AcceptProbe();
-        (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe, logger);
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe, logger);
         await using ServiceProvider _ = services;
         for (int i = 0; i < 9; i++)
             server.AcceptFailures.Enqueue(SocketError(System.Net.Sockets.SocketError.TooManyOpenSockets));
@@ -525,15 +523,15 @@ public class ServerBaseShould
         await server.StartAsync(CancellationToken.None);
         try
         {
-            using TcpClient first = await ConnectServedAsync(probe, port);
+            using TcpClient first = await ConnectServedAsync(server, probe);
             Assert.Equal([100, 200, 400, 800, 1600, 3200, 5000, 5000, 5000],
                 server.Delays.Select(d => (int)d.TotalMilliseconds));
 
             // A success resets the backoff: the loop is already waiting on the next real accept, so the
             // failure queued now is thrown by the accept after the second client's.
             server.AcceptFailures.Enqueue(SocketError(System.Net.Sockets.SocketError.NoBufferSpaceAvailable));
-            using TcpClient second = await ConnectServedAsync(probe, port);
-            using TcpClient third = await ConnectServedAsync(probe, port);
+            using TcpClient second = await ConnectServedAsync(server, probe);
+            using TcpClient third = await ConnectServedAsync(server, probe);
             Assert.Equal(100, (int)server.Delays.Last().TotalMilliseconds);
 
             // Inside one rate-limit window the first failure is warned about at once, and those after it
@@ -556,14 +554,14 @@ public class ServerBaseShould
     public async Task Retry_a_peer_reset_at_once_without_backing_off()
     {
         var probe = new AcceptProbe();
-        (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe);
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe);
         await using ServiceProvider _ = services;
         server.AcceptFailures.Enqueue(SocketError(System.Net.Sockets.SocketError.ConnectionReset));
 
         await server.StartAsync(CancellationToken.None);
         try
         {
-            using TcpClient client = await ConnectServedAsync(probe, port);
+            using TcpClient client = await ConnectServedAsync(server, probe);
             Assert.Empty(server.Delays);
         }
         finally
@@ -576,7 +574,7 @@ public class ServerBaseShould
     public async Task End_the_loop_promptly_when_stopped_during_a_backoff()
     {
         var probe = new AcceptProbe();
-        (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe, realDelays: true);
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe, realDelays: true);
         await using ServiceProvider _ = services;
         // Seven failures reach the 5 s cap; the stop lands inside one of the long waits.
         for (int i = 0; i < 7; i++)
@@ -596,7 +594,7 @@ public class ServerBaseShould
     public async Task Keep_accepting_after_a_peer_resets_at_once()
     {
         var probe = new AcceptProbe();
-        (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe);
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe);
         await using ServiceProvider _ = services;
         await server.StartAsync(CancellationToken.None);
         try
@@ -605,12 +603,12 @@ public class ServerBaseShould
             {
                 // A zero linger closes with a reset instead of a FIN.
                 var resetting = new TcpClient { LingerState = new LingerOption(true, 0) };
-                await resetting.ConnectAsync(IPAddress.Loopback, port);
+                await resetting.ConnectAsync(IPAddress.Loopback, BoundPort(server));
                 resetting.Close();
             }
 
             using var client = new TcpClient();
-            await client.ConnectAsync(IPAddress.Loopback, port);
+            await client.ConnectAsync(IPAddress.Loopback, BoundPort(server));
             int clientPort = ((IPEndPoint)client.Client.LocalEndPoint!).Port;
             await WaitUntilAsync(() => probe.PeerPorts.Contains(clientPort));
         }
@@ -646,7 +644,7 @@ public class ServerBaseShould
         listener.Start();
 
         var probe = new AcceptProbe();
-        (ProbeServer server, ServiceProvider services, ushort port) =
+        (ProbeServer server, ServiceProvider services) =
             CreateProbeServer(probe, telemetry: new PacketDispatchTelemetry(source, meter));
         await using ServiceProvider _ = services;
         server.AcceptFailures.Enqueue(SocketError(System.Net.Sockets.SocketError.TooManyOpenSockets));
@@ -655,7 +653,7 @@ public class ServerBaseShould
         await server.StartAsync(CancellationToken.None);
         try
         {
-            using TcpClient client = await ConnectServedAsync(probe, port);
+            using TcpClient client = await ConnectServedAsync(server, probe);
             Assert.Equal([(1L, "TooManyOpenSockets"), (1L, "ConnectionReset")], counted);
         }
         finally
@@ -669,12 +667,12 @@ public class ServerBaseShould
     {
         var logger = new CapturingLogger();
         var probe = new AcceptProbe { ThrowOnStart = true };
-        (ProbeServer server, ServiceProvider services, ushort port) = CreateProbeServer(probe, logger);
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe, logger);
         await using ServiceProvider _ = services;
         await server.StartAsync(CancellationToken.None);
         try
         {
-            using TcpClient client = await ConnectServedAsync(probe, port);
+            using TcpClient client = await ConnectServedAsync(server, probe);
             await WaitUntilAsync(() => logger.Count(Microsoft.Extensions.Logging.LogLevel.Error) == 1);
             Assert.Equal(0, server.ConnectionCount);
         }
@@ -688,8 +686,8 @@ public class ServerBaseShould
     public async Task Stop_twice_without_throwing()
     {
         var probe = new AcceptProbe();
-        (ProbeServer server, ServiceProvider services, ushort _) = CreateProbeServer(probe);
-        await using ServiceProvider __ = services;
+        (ProbeServer server, ServiceProvider services) = CreateProbeServer(probe);
+        await using ServiceProvider _ = services;
         await server.StartAsync(CancellationToken.None);
         await server.StopAsync(CancellationToken.None);
 
