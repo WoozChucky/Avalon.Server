@@ -145,15 +145,23 @@ public class ServerBaseShould
         public void OnStarted() => Interlocked.Increment(ref _started);
     }
 
+    /// <summary>
+    /// Owns its accepted socket and closes it when closed, as a real connection does. The accept loop
+    /// holds only the client it accepted last, so once any other connection reaches the port, a socket
+    /// dropped here is left to its finalizer, which closes it with a reset: on Linux that reset can
+    /// reach the test's client before its ConnectAsync completes, failing it with "Connection reset by peer".
+    /// </summary>
     private sealed class ProbeConnection : BackgroundService, IConnection
     {
         private readonly AcceptProbe _probe;
+        private readonly TcpClient _client;
 
         // ReSharper disable once UnusedParameter.Local — required by ActivatorUtilities
         public ProbeConnection(TcpClient client, IServerBase _, AcceptProbe probe)
         {
             Id = Guid.NewGuid();
             _probe = probe;
+            _client = client;
             probe.OnConstructed(client);
         }
 
@@ -162,8 +170,14 @@ public class ServerBaseShould
         public string RemoteEndPoint => "probe";
         public IAvalonCryptoSession CryptoSession => null!;
         public ICryptoManager ServerCrypto => null!;
-        public void Close(bool expected = true) { }
-        public Task CloseAsync(bool expected = true) => Task.CompletedTask;
+        public void Close(bool expected = true) => _client.Dispose();
+
+        public Task CloseAsync(bool expected = true)
+        {
+            Close(expected);
+            return Task.CompletedTask;
+        }
+
         public void Send(NetworkPacket packet) { }
 
         public new Task StartAsync(CancellationToken token = default)
@@ -216,8 +230,15 @@ public class ServerBaseShould
         /// <summary>Runs inside OnStoppingAsync, where a shutdown notifies and closes its connections.</summary>
         public Func<Task>? OnStopping { get; set; }
 
-        protected override Task OnStoppingAsync(CancellationToken stoppingToken) =>
-            OnStopping?.Invoke() ?? Task.CompletedTask;
+        /// <summary>Closes every connection, as the real servers' shutdowns do, so no test leaves a socket to its finalizer.</summary>
+        protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
+        {
+            foreach (ProbeConnection connection in TypedConnections)
+                await connection.CloseAsync();
+
+            if (OnStopping is not null)
+                await OnStopping();
+        }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.Delay(Timeout.Infinite, stoppingToken);
     }
