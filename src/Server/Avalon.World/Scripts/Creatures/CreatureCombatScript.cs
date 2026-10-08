@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Abilities.Targeting;
+using Avalon.World.Combat;
 using Avalon.World.Creatures;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -245,7 +246,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
             // Health is a uint: a hit of at least what is left kills, rather than wrapping (#588).
             if (damage >= Creature.CurrentHealth)
             {
-                _logger.LogInformation("{Name} has died", Creature.Name);
+                CombatLog.Died(_logger, Creature.Name);
                 uint taken = Creature.CurrentHealth;
                 Creature.CurrentHealth = 0;
                 _dead = true;

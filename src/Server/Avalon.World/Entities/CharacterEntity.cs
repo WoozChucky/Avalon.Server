@@ -7,6 +7,7 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
+using Avalon.World.Combat;
 using Avalon.World.Configuration;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
@@ -462,8 +463,7 @@ public partial class CharacterEntity : ICharacter
     {
         if (IsDead) return; // corpse — no further state changes or broadcast
 
-        _logger.LogInformation("{Name} has been hit by unit {Attacker} for {Damage} damage", Name, attacker.Guid,
-            damage);
+        CombatLog.CharacterHit(_logger, Name, attacker.Guid, damage);
         TakeDamage(damage);
     }
 
@@ -485,7 +485,7 @@ public partial class CharacterEntity : ICharacter
 
         if (damage >= CurrentHealth)
         {
-            _logger.LogInformation("{Name} has died", Name);
+            CombatLog.Died(_logger, Name);
             CurrentHealth = 0;
             IsDead = true;
         }

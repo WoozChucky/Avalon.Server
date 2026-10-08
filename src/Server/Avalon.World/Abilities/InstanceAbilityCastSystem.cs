@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
@@ -91,8 +92,7 @@ public class InstanceAbilityCastSystem(
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
-            _logger.LogInformation("QueueAbility reject {Cost} ability={AbilityId} powerType={PowerType}",
-                cost, ability.AbilityId, caster.PowerType);
+            CombatLog.QueuedCastRefused(_logger, cost, ability.AbilityId, caster.PowerType);
             return false;
         }
 
@@ -141,8 +141,7 @@ public class InstanceAbilityCastSystem(
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
         {
-            _logger.LogInformation("RunInstant reject {Cost} ability={AbilityId} powerType={PowerType}",
-                cost, ability.AbilityId, caster.PowerType);
+            CombatLog.InstantCastRefused(_logger, cost, ability.AbilityId, caster.PowerType);
             return false;
         }
 
@@ -211,8 +210,7 @@ public class InstanceAbilityCastSystem(
             // and a push must not cancel, and re-queue, its wind-up every tick.
             if (cast.Caster is not ICreature && cast.CastStartPosition != cast.Caster.Position)
             {
-                _logger.LogInformation("Cast interrupted by movement ability={AbilityId} caster={CharId}",
-                    ability.AbilityId, cast.Caster.Guid);
+                CombatLog.CastInterruptedByMovement(_logger, ability.AbilityId, cast.Caster.Guid);
                 ResetCast(ability);
                 _interrupts.Add((cast.Caster, ability, cast.CastId));
                 _dequeued.Add(cast);
@@ -327,8 +325,7 @@ public class InstanceAbilityCastSystem(
         // Sent once every cast is already cleared, so a failing send cannot leave one stuck.
         foreach (AbilityInstance cast in cancelled)
         {
-            _logger.LogInformation("Cast cancelled as its caster left ability={AbilityId} caster={CharId}",
-                cast.Ability.AbilityId, caster.Guid);
+            CombatLog.CastCancelledCasterLeft(_logger, cast.Ability.AbilityId, caster.Guid);
             arena.BroadcastInterruptedCast(caster, cast.Ability, cast.CastId);
         }
     }
@@ -338,8 +335,7 @@ public class InstanceAbilityCastSystem(
         int dropped = _activeAbilities.RemoveAll(a => ReferenceEquals(a.Caster, caster));
         if (dropped > 0)
         {
-            _logger.LogInformation("Dropped {Count} active scripts as their caster left caster={CharId}",
-                dropped, caster.Guid);
+            CombatLog.ScriptsDroppedCasterLeft(_logger, dropped, caster.Guid);
         }
     }
 
