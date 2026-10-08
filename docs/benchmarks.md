@@ -965,12 +965,25 @@ writes to a stream that only counts bytes. So the per-packet encryption cost, an
 issue #850 replaces that cipher, and the [session cipher results](#session-cipher--benchmark-results) above show what
 it costs per call. Three things differ from production, all on the cost side only:
 
-- The counting stream stands in for production's `SslStream`, so the TLS record layer is **not** in the numbers.
+- The counting stream stands in for production's `SslStream`, so the TLS record layer is **not** in the numbers. The
+  counting stream also completes every write at once, so the outbox's flush finishes synchronously on the tick thread;
+  over `SslStream` a write usually does not, and production may allocate an async state-machine box per flush there.
 - Scenario connections share key material. The point is the cost of sealing, not the secrecy of the result.
-- The `DiagnosticsConfig` counters are skipped. They allocate nothing while no listener is attached.
+- The `DiagnosticsConfig` counters (bytes, packets sent and dropped) are skipped, so their cost is **excluded** from the
+  numbers. They allocate nothing while no listener is attached, but production attaches an OpenTelemetry listener.
 
 Not modelled at all: the session pass (the first of the tick's two passes), the readiness barrier, the flushers,
-pings, persistence and saves, and combat. Combat is the next scenario to add (`dungeon-combat`).
+pings, persistence and saves, and combat. Combat is the next scenario to add (`dungeon-combat`). Of `World.Update`
+itself, the scenario tick runs the registry's publication of finished builds (`InstanceRegistry.PublishFinished`) and
+the instance pass, and leaves out:
+
+- `Time.Update`, the content and script hot reloads, and the parties tick.
+- `InstanceRegistry.ProcessExpiredInstances`, the last step. Its walk of the registry allocates a 72 B enumerator per
+  tick in an unoptimized (Debug) build and, measured, nothing in Release, so it would add nothing to the committed
+  figure and would fail `town-idle`'s gate (4,320 B per window over a 9,600 B baseline) in every local Debug run.
+- The map pass's dispatch wrapper: `WorldConnection.ProcessQueue` and `PacketDispatchTelemetry.Begin`. `LoopWalker`
+  calls `PlayerInputHandler` directly, so the queue, the per-packet session filter and the dispatch telemetry are not
+  in the numbers.
 
 ### How a scenario is measured
 
@@ -980,6 +993,11 @@ pings, persistence and saves, and combat. Combat is the next scenario to add (`d
   the runner), so the JIT's tiering, first-use caches and pools have settled.
 - **Gated figure.** `bytesPerWindow` is the **minimum** of five consecutive windows after the warm-up. The minimum
   ignores a window that a one-off allocation (a pool growing, a late tier-up) happened to land in.
+- **Checked.** After the windows, outside the measured region, each scenario checks that it still did its work
+  (`IScenario.Verify`): every player still in its instance; in the walking scenarios every player sent packets and
+  its input advanced by one per tick (300) with a change of position; in `town-walk` every wolf still in combat within
+  4 m of the player it fights. A scenario that stopped walking or fighting would allocate less and pass the gate as an
+  improvement, so a failed check throws instead, failing the gate and stopping the runner.
 - **Two levels.** `town-walk` and `many-instances` alternate between two window levels from one window to the next;
   the minimum lands on the lower one, and that lower level is the committed figure.
 - **Timing.** After the windows the runner times `--measure-ticks` ticks (default 3600, one minute at 60 Hz) and
@@ -1018,6 +1036,13 @@ with the committed figure:
 - **Fail** when the current figure is more than 5% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 5% and more than 256 B under.
+- **Detection floor.** The 5% band is relative, so in the moving scenarios it is wide in absolute terms. With the
+  committed figures below, the gate fails only on a rise of about **8 B per tick** in `town-idle` (the 256 B floor is
+  below 5% of its 9,600 B, so 5% decides), **166 B per player per tick** in `town-walk` (298 KB per window), and
+  **104 B per player per tick** in `many-instances` (about 207 B per instance per tick, 3.1 MB per window). A smaller
+  regression, such as one new 64 B object per walking player per tick, passes. The floors shrink as the per-packet
+  cipher cost falls (#850) and the ratchet lowers the baseline; a follow-up may tighten the tolerance once CI's Linux
+  figures are known.
 - **Ratchet.** The committed file goes down only by an explicit commit. When a change makes a scenario cheaper,
   regenerate and commit the lower figure, so the gain cannot be lost again unnoticed. When an increase is intended,
   regenerating is also the fix, and the JSON diff shows the reviewer what it costs.
@@ -1029,7 +1054,7 @@ dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write
 ```
 
 The baseline is generated in Release and CI builds Release, so CI's run of the gate is the one that decides. A local
-`dotnet test` builds Debug and reads up to about 3% higher (`many-instances` +3.09%, `town-walk` +1.93%), so locally
+`dotnet test` builds Debug and reads up to about 3% higher (`many-instances` +3.08%, `town-walk` +1.91%), so locally
 the gate has less headroom: under 2% on `many-instances`. The gate runs in a non-parallel xUnit collection, so no other
 test in the World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in
 parallel processes under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds
@@ -1037,13 +1062,14 @@ about 18 s to the World suite.
 
 ### Results — first baseline (2026-10-08)
 
-Allocations, from `perf/scenario-allocations.json` (commit `e80677e0`, Release). "Fails from" is the first figure the
-gate fails on; "Notice at" the highest figure that prints the improvement notice.
+Allocations, from `perf/scenario-allocations.json` (commit `9dec695b`, Release; regenerated when the scenario tick
+gained the registry's `PublishFinished`, which moved no figure beyond run-to-run noise). "Fails from" is the first
+figure the gate fails on; "Notice at" the highest figure that prints the improvement notice.
 
 | Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at |
 |---|---:|---:|---:|---:|---:|---:|
 | `town-idle` | 30 | 9,600 | 160 | 5.33 | 10,081 | 9,119 |
-| `town-walk` | 30 | 5,964,240 | 99,404 | 3,313.47 | 6,262,453 | 5,666,027 |
+| `town-walk` | 30 | 5,964,720 | 99,412 | 3,313.73 | 6,262,957 | 5,666,483 |
 | `many-instances` | 500 | 62,226,368 | 1,037,106 | 2,074.21 | 65,337,687 | 59,115,049 |
 
 Timing and GC, from the runner's first Release run (2026-10-08, commit `799fc830`; 12th Gen Intel Core i9-12900K,
