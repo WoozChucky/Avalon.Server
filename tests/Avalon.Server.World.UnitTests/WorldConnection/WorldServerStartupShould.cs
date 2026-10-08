@@ -33,7 +33,6 @@ public class WorldServerStartupShould
 {
     private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(5);
 
-    private readonly int _port = FreePort();
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly TaskCompletionSource _load = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -48,15 +47,15 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Refuse_connections_until_the_world_has_loaded()
     {
-        var server = new TestWorldServer(_world, _port);
+        var server = new TestWorldServer(_world);
         await server.StartAsync(CancellationToken.None);
         try
         {
-            Assert.False(await AcceptsAsync(), "a client was accepted while the world was still loading");
+            Assert.False(await AcceptsAsync(server), "a client was accepted while the world was still loading");
 
             _load.SetResult();
 
-            await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+            await UntilAsync(() => AcceptsAsync(server), "the port did not open once the world had loaded");
         }
         finally
         {
@@ -76,12 +75,12 @@ public class WorldServerStartupShould
                 onReload = call.ArgAt<Action<StackExchange.Redis.RedisChannel, StackExchange.Redis.RedisValue>>(1);
                 return Task.CompletedTask;
             });
-        var server = new TestWorldServer(_world, _port, cache);
+        var server = new TestWorldServer(_world, cache);
         await server.StartAsync(CancellationToken.None);
         try
         {
             _load.SetResult();
-            await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+            await UntilAsync(() => AcceptsAsync(server), "the port did not open once the world had loaded");
 
             Assert.NotNull(onReload);
         }
@@ -98,12 +97,12 @@ public class WorldServerStartupShould
         IReplicatedCache cache = Substitute.For<IReplicatedCache>();
         IScriptManager scripts = Substitute.For<IScriptManager>();
         IScriptHotReloader hotReloader = Substitute.For<IScriptHotReloader>();
-        var server = new TestWorldServer(_world, _port, cache, scripts, hotReloader);
+        var server = new TestWorldServer(_world, cache, scripts, hotReloader);
         await server.StartAsync(CancellationToken.None);
         try
         {
             _load.SetResult();
-            await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+            await UntilAsync(() => AcceptsAsync(server), "the port did not open once the world had loaded");
             await UntilAsync(() => Task.FromResult(CatalogWrites(cache) == 1), "the catalog was not published after load");
             scripts.Received(1).Load();
 
@@ -126,14 +125,14 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Never_open_the_port_when_the_world_fails_to_load()
     {
-        var server = new TestWorldServer(_world, _port);
+        var server = new TestWorldServer(_world);
         await server.StartAsync(CancellationToken.None);
         try
         {
             _load.SetException(new InvalidOperationException("simulated load failure"));
 
             await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(s_limit));
-            Assert.False(await AcceptsAsync(), "a client was accepted after the world failed to load");
+            Assert.False(await AcceptsAsync(server), "a client was accepted after the world failed to load");
         }
         finally
         {
@@ -152,18 +151,18 @@ public class WorldServerStartupShould
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
             Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
-        var server = new TestWorldServer(_world, _port, maintenance: coordinator);
+        var server = new TestWorldServer(_world, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         try
         {
             _load.SetResult();
             await UntilAsync(() => Task.FromResult(repository.ReceivedCalls().Any()), "the maintenance state was not read");
-            Assert.False(await AcceptsAsync(), "a client was accepted before the maintenance state was loaded");
+            Assert.False(await AcceptsAsync(server), "a client was accepted before the maintenance state was loaded");
 
             var state = new WorldMaintenanceState(true, 4, DateTime.UtcNow.AddMinutes(-1));
             read.SetResult(state);
 
-            await UntilAsync(AcceptsAsync, "the port did not open once the maintenance state was loaded");
+            await UntilAsync(() => AcceptsAsync(server), "the port did not open once the maintenance state was loaded");
             Assert.Equal(state, coordinator.CurrentState);
         }
         finally
@@ -181,14 +180,14 @@ public class WorldServerStartupShould
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
             Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
-        var server = new TestWorldServer(_world, _port, maintenance: coordinator);
+        var server = new TestWorldServer(_world, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         try
         {
             _load.SetResult();
 
             await Assert.ThrowsAsync<InvalidOperationException>(() => server.ExecuteTask!.WaitAsync(s_limit));
-            Assert.False(await AcceptsAsync(), "a client was accepted without a maintenance state");
+            Assert.False(await AcceptsAsync(server), "a client was accepted without a maintenance state");
         }
         finally
         {
@@ -211,10 +210,10 @@ public class WorldServerStartupShould
             Substitute.For<ICharacterSaver>(), TimeProvider.System, log,
             Options.Create(new WorldShutdownConfiguration
             { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
-        var server = new TestWorldServer(_world, _port, maintenance: coordinator);
+        var server = new TestWorldServer(_world, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         _load.SetResult();
-        await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+        await UntilAsync(() => AcceptsAsync(server), "the port did not open once the world had loaded");
 
         (TcpClient clientSide, TcpClient serverSide) = LoopbackPair();
         using (clientSide)
@@ -261,10 +260,10 @@ public class WorldServerStartupShould
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
             Options.Create(new WorldShutdownConfiguration
             { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
-        var server = new TestWorldServer(_world, _port, maintenance: coordinator);
+        var server = new TestWorldServer(_world, maintenance: coordinator);
         await server.StartAsync(CancellationToken.None);
         _load.SetResult();
-        await UntilAsync(AcceptsAsync, "the port did not open once the world had loaded");
+        await UntilAsync(() => AcceptsAsync(server), "the port did not open once the world had loaded");
 
         (TcpClient playerClient, TcpClient playerServer) = LoopbackPair();
         (TcpClient adminClient, TcpClient adminServer) = LoopbackPair();
@@ -298,14 +297,14 @@ public class WorldServerStartupShould
     [Fact]
     public async Task Keep_the_port_shut_when_stopped_during_the_load()
     {
-        var server = new TestWorldServer(_world, _port);
+        var server = new TestWorldServer(_world);
         await server.StartAsync(CancellationToken.None);
 
         Task stopping = server.StopAsync(CancellationToken.None);
         _load.SetResult();
         await stopping.WaitAsync(s_limit);
 
-        Assert.False(await AcceptsAsync(), "the port opened after the server had been stopped");
+        Assert.False(await AcceptsAsync(server), "the port opened after the server had been stopped");
     }
 
     private int WorldUpdates() => _world.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IWorld.Update));
@@ -314,13 +313,19 @@ public class WorldServerStartupShould
         c.GetMethodInfo().Name == nameof(ILogger.Log) &&
         c.GetArguments()[2]?.ToString()?.Contains(text, StringComparison.Ordinal) == true);
 
-    /// <summary>Whether a client can connect to the server's port right now.</summary>
-    private async Task<bool> AcceptsAsync()
+    /// <summary>
+    /// Whether a client can connect to the server right now. The server binds port 0 and reports the port it
+    /// got (#841), so before it has listened there is no port to reach: none was reserved for it to take later.
+    /// </summary>
+    private static async Task<bool> AcceptsAsync(TestWorldServer server)
     {
+        if (server.BoundEndPoint is not { } bound)
+            return false;
+
         using var client = new TcpClient();
         try
         {
-            await client.ConnectAsync(IPAddress.Loopback, _port).WaitAsync(s_limit);
+            await client.ConnectAsync(IPAddress.Loopback, bound.Port).WaitAsync(s_limit);
             return true;
         }
         catch (SocketException)
@@ -350,22 +355,13 @@ public class WorldServerStartupShould
         return (clientSide, serverSide);
     }
 
-    private static int FreePort()
-    {
-        var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
-        return port;
-    }
-
-    private sealed class TestWorldServer(IWorld world, int port, IReplicatedCache? cache = null,
+    private sealed class TestWorldServer(IWorld world, IReplicatedCache? cache = null,
         IScriptManager? scripts = null, IScriptHotReloader? hotReloader = null,
         WorldMaintenanceCoordinator? maintenance = null) : WorldServer(
         Substitute.For<IPacketManager>(),
         NullLoggerFactory.Instance,
         new AnyServiceProvider(scripts ??= Substitute.For<IScriptManager>(), cache ??= Substitute.For<IReplicatedCache>()),
-        Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = (ushort)port }),
+        Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 }),
         world,
         scripts,
         cache,
