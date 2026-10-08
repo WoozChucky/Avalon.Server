@@ -74,4 +74,15 @@ grep -A5 'name: World__Admission__ApiCertificateSha256' <<<"$out" | grep -q 'nam
 grep -A5 'name: World__Admission__ApiCertificateSha256' <<<"$out" | grep -q 'key: "api-tls-sha256"' || { echo "API certificate pin must use its Secret key"; exit 1; }
 grep -A4 'name: Hosting__Security__CertificatePassword' <<<"$out" | grep -q 'name: "test-world-transport"' || { echo "world TLS must use its transport Secret"; exit 1; }
 
+# Log levels (#834): unset renders nothing, a level and per-category overrides render Serilog settings, bad ones fail.
+! grep -q "Serilog__" <<<"$off"                                                                     || { echo "log level env rendered without a value"; exit 1; }
+lg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set logging.minimumLevel=Debug --set 'logging.overrides.Avalon\.World\.Entities\.CharacterEntity=Warning')
+grep -A1 "name: Serilog__MinimumLevel__Default" <<<"$lg" | grep -q '"Debug"'                        || { echo "minimum level must render"; exit 1; }
+grep -A1 "name: Serilog__MinimumLevel__Override__Avalon.World.Entities.CharacterEntity" <<<"$lg" | grep -q '"Warning"' || { echo "category override must render"; exit 1; }
+for bad in "logging.minimumLevel=Loud" "logging.overrides.Avalon=Loud"; do
+  if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set "$bad" >/dev/null 2>&1; then
+    echo "rendering with $bad must fail"; exit 1
+  fi
+done
+
 echo "avalon-world chart OK"

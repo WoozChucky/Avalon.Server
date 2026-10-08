@@ -752,11 +752,11 @@ lines again, lower the minimum through the environment:
 Serilog__MinimumLevel__Default=Debug
 ```
 
-The world chart has no value for it, so on Kubernetes set it on the StatefulSet
-(`kubectl set env statefulset/<fullname> Serilog__MinimumLevel__Default=Debug`, the chart's fullname), which the
-next `helm upgrade` undoes. One category can be lowered alone with
-`Serilog:MinimumLevel:Override:<category>` (for the combat lines, `Avalon.World.Entities.CharacterEntity`,
-`Avalon.World.Abilities.InstanceAbilityCastSystem` and `Avalon.World.Scripts.Creatures.CreatureCombatScript`).
+On Kubernetes, set it through the world chart (#834): `logging.minimumLevel` (one of Verbose, Debug, Information,
+Warning, Error, Fatal; empty keeps the default) and `logging.overrides`, a map from logging category to level that
+renders `Serilog__MinimumLevel__Override__<category>`. One category can be lowered alone that way (for the combat
+lines, `Avalon.World.Entities.CharacterEntity`, `Avalon.World.Abilities.InstanceAbilityCastSystem` and
+`Avalon.World.Scripts.Creatures.CreatureCombatScript`). The chart refuses an unknown level.
 
 ---
 
