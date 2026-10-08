@@ -28,7 +28,7 @@ public static class CharacterReadinessBarrier
             return;
         }
 
-        Task<WorldEntryDecision> check = gate.CheckOffTick(connection.AccountId);
+        Task<WorldEntryDecision> check = gate.CheckOffTick(connection.AccountId, logger);
         s_pendingChecks.Add(connection, check);
         connection.EnqueueContinuation(check, decision =>
         {

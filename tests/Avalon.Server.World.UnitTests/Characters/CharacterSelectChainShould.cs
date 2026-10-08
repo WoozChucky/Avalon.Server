@@ -505,6 +505,27 @@ public class CharacterSelectChainShould : IDisposable
         Assert.Equal(2, gate.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IWorldEntryGate.CheckAsync)));
     }
 
+    [Fact]
+    public async Task Answer_a_select_whose_entry_check_the_saturated_work_queue_refused()
+    {
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(s_theAccount, Arg.Any<CancellationToken>()).Returns(new WorldEntryDecision(true, DateTime.MaxValue));
+        CharacterSelectHandler select = BuildSelectHandler(entryGate: gate, databaseWork: new SaturatedDatabaseWork());
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
+        await WaitUntilAsync(() => _connection.IsClosing || StepOnce());
+
+        Assert.False(_connection.SelectInProgress);
+        Assert.Null(_connection.PendingSpawn);
+        await gate.DidNotReceiveWithAnyArgs().CheckAsync(default!, default);
+    }
+
+    /// <summary>The handler's work queue with every slot taken: it refuses each operation, as <see cref="WorldDatabaseWork" /> does.</summary>
+    private sealed class SaturatedDatabaseWork : IWorldDatabaseWork
+    {
+        public Task<T> Run<T>(Func<Task<T>> operation) => Task.FromException<T>(new WorldWorkUnavailableException());
+    }
+
     /// <summary>
     /// Polls for work that finishes on the thread pool, not on a timer, bounded by
     /// <see cref="s_patience" /> only so a broken chain fails instead of hanging.
@@ -520,7 +541,8 @@ public class CharacterSelectChainShould : IDisposable
     }
 
     private CharacterSelectHandler BuildSelectHandler(ICharacterSaver? saver = null, TimeSpan? saveWaitLimit = null,
-        IWorldServer? worldServer = null, IAccountRepository? accounts = null, IWorldEntryGate? entryGate = null)
+        IWorldServer? worldServer = null, IAccountRepository? accounts = null, IWorldEntryGate? entryGate = null,
+        IWorldDatabaseWork? databaseWork = null)
     {
         var row = new Character
         {
@@ -585,7 +607,7 @@ public class CharacterSelectChainShould : IDisposable
             worldServer ?? Substitute.For<IWorldServer>(),
             _clock,
             entryGate: entryGate,
-            databaseWork: InlineDatabaseWork.Instance)
+            databaseWork: databaseWork ?? InlineDatabaseWork.Instance)
         {
             SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
         };

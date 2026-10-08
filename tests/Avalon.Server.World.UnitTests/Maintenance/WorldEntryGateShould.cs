@@ -4,7 +4,11 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Maintenance;
+using Avalon.World.Persistence;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using NSubstitute.Core;
 
 namespace Avalon.Server.World.UnitTests.Maintenance;
 
@@ -46,13 +50,40 @@ public sealed class WorldEntryGateShould
     }
 
     [Fact]
-    public async Task Refuse_when_state_is_unreadable()
+    public async Task Refuse_when_state_is_unreadable_and_log_why_by_type_once_per_interval()
     {
         IWorldMaintenanceRepository maintenance = Substitute.For<IWorldMaintenanceRepository>();
         maintenance.ReadAsync(Arg.Any<WorldId>(), Arg.Any<CancellationToken>())
-            .Returns<Task<WorldMaintenanceState?>>(_ => throw new InvalidOperationException("offline"));
-        var gate = new WorldEntryGate(new WorldId(1), maintenance, Substitute.For<IAccountRepository>());
+            .Returns<Task<WorldMaintenanceState?>>(_ => throw new InvalidOperationException("offline at db.internal"));
+        ILogger<WorldEntryGate> logger = Substitute.For<ILogger<WorldEntryGate>>();
+        var gate = new WorldEntryGate(new WorldId(1), maintenance, Substitute.For<IAccountRepository>(),
+            new FixedTimeProvider(DateTimeOffset.UnixEpoch), logger);
+
         Assert.False((await gate.CheckAsync(new AccountId(7), CancellationToken.None)).Allowed);
+        Assert.False((await gate.CheckAsync(new AccountId(7), CancellationToken.None)).Allowed);
+
+        ICall logged = Assert.Single(logger.ReceivedCalls(), c => c.GetMethodInfo().Name == nameof(ILogger.Log));
+        Assert.Equal(LogLevel.Error, logged.GetArguments()[0]);
+        string message = logged.GetArguments()[2]!.ToString()!;
+        Assert.Contains(nameof(InvalidOperationException), message, StringComparison.Ordinal);
+        Assert.DoesNotContain("db.internal", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Answer_a_check_the_saturated_work_queue_refused_as_a_refusal_not_a_fault()
+    {
+        IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(new WorldEntryDecision(true, DateTime.MaxValue));
+        var saturated = new WorldDatabaseWork(maximumConcurrency: 1, maximumOutstanding: 1);
+        var blocker = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<int> holding = saturated.Run(() => blocker.Task);
+
+        Task<WorldEntryDecision> check = gate.CheckOffTick(new AccountId(7), NullLogger.Instance, saturated);
+
+        Assert.True(check.IsCompletedSuccessfully);
+        Assert.False((await check).Allowed);
+        blocker.SetResult(0);
+        await holding;
     }
 
     [Fact]
