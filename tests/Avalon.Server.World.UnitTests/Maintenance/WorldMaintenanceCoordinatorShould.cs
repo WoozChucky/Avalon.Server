@@ -229,7 +229,6 @@ public sealed class WorldMaintenanceCoordinatorShould
     }
 
     /// <summary>
-    /// With persisted maintenance already past its cutoff only Admins are left, so the drain ends on its first tick.
     /// The restart is never written or published, and a persisted state applied during it neither replaces it nor is
     /// replaced by it.
     /// </summary>
@@ -257,16 +256,23 @@ public sealed class WorldMaintenanceCoordinatorShould
             call.GetMethodInfo().Name == nameof(IWorldMaintenanceRepository.TransitionAsync));
     }
 
+    /// <summary>
+    /// With persisted maintenance already past its cutoff only Admins are left, so the drain ends on the tick after the
+    /// one that takes it. That tick judges no early end: its connections may have been read before the stop offered the
+    /// drain, so before a connection registered just ahead of the stop (#828).
+    /// </summary>
     [Fact]
-    public async Task End_the_restart_drain_at_once_when_maintenance_left_only_Admins()
+    public async Task End_the_restart_drain_on_the_next_tick_when_maintenance_left_only_Admins()
     {
         WorldMaintenanceCoordinator coordinator = Coordinator(TimeSpan.FromMinutes(5));
         IWorldConnection admin = Connection(AccountAccessLevel.Admin);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 1, s_start.AddMinutes(-1)));
 
         Task drain = coordinator.DrainForRestartAsync(CancellationToken.None);
-        coordinator.Advance(s_start, [admin]);
+        coordinator.Advance(s_start, []);
+        Assert.False(drain.IsCompleted, "the tick that took the drain judged it on connections read before the offer");
 
+        coordinator.Advance(s_start, [admin]);
         await drain.WaitAsync(TimeSpan.FromSeconds(5));
     }
 

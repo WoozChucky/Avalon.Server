@@ -206,8 +206,9 @@ public class WorldServerStartupShould
         IWorldMaintenanceRepository repository = Substitute.For<IWorldMaintenanceRepository>();
         repository.ReadAsync(new Avalon.Domain.Auth.WorldId(1), Arg.Any<CancellationToken>())
             .Returns(new WorldMaintenanceState(false, 1, null));
+        ILogger<WorldMaintenanceCoordinator> log = Substitute.For<ILogger<WorldMaintenanceCoordinator>>();
         var coordinator = new WorldMaintenanceCoordinator(new Avalon.Domain.Auth.WorldId(1), repository,
-            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, log,
             Options.Create(new WorldShutdownConfiguration
             { DrainTime = TimeSpan.FromMinutes(1), SaveMargin = TimeSpan.FromMinutes(1) }));
         var server = new TestWorldServer(_world, _port, maintenance: coordinator);
@@ -227,7 +228,14 @@ public class WorldServerStartupShould
             server.Add(player);
 
             Task stopping = server.StopAsync(CancellationToken.None);
-            await Task.Delay(200); // whatever the stop had left to do, it has had time to do it
+            // The drain is offered, then a tick takes it, and the tick after that one reads the connections after the
+            // offer. Ticks are counted by the world update each one makes after judging the drain: two of them since the
+            // offer have judged it with the player in it.
+            await UntilAsync(() => Task.FromResult(Logged(log, "draining players")), "the stop did not offer a restart drain");
+            int offeredAt = WorldUpdates();
+            await UntilAsync(() => Task.FromResult(WorldUpdates() >= offeredAt + 2 || Logged(log, "restart drain ended")),
+                "the tick stopped");
+            Assert.False(Logged(log, "restart drain ended"), "the drain ended with a non-Admin player still connected");
             Assert.False(stopping.IsCompleted, "the stop did not wait for the restart drain");
 
             // Only the tick ends the drain this early: the stop's own wait runs to the deadline, a minute away.
@@ -299,6 +307,12 @@ public class WorldServerStartupShould
 
         Assert.False(await AcceptsAsync(), "the port opened after the server had been stopped");
     }
+
+    private int WorldUpdates() => _world.ReceivedCalls().Count(c => c.GetMethodInfo().Name == nameof(IWorld.Update));
+
+    private static bool Logged(ILogger logger, string text) => logger.ReceivedCalls().Any(c =>
+        c.GetMethodInfo().Name == nameof(ILogger.Log) &&
+        c.GetArguments()[2]?.ToString()?.Contains(text, StringComparison.Ordinal) == true);
 
     /// <summary>Whether a client can connect to the server's port right now.</summary>
     private async Task<bool> AcceptsAsync()
