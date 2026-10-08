@@ -105,3 +105,6 @@ TestResults/
 
 # Balance simulator output (tools/Avalon.Balance); already matched by out/, named for clarity
 balance/out/
+
+# Local scenario runs (tools/Avalon.Scenarios --write-baseline perf/local/<host>.json)
+perf/local/

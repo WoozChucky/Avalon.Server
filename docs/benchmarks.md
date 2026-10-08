@@ -2,6 +2,9 @@
 
 Benchmarks live in `tools/Avalon.Benchmarking/` and are run with BenchmarkDotNet.
 
+Whole-tick numbers (tick-thread allocations per tick, tick times and GC for fixed world scenarios) come from the
+scenario runner instead, and the allocations are gated in CI: see [Scenario baseline](#scenario-baseline) at the end.
+
 ```bash
 # Run all benchmarks
 dotnet run -c Release --project tools/Avalon.Benchmarking
@@ -926,3 +929,173 @@ Windows 11, 12th Gen Intel Core i9-12900K, .NET 10.0.12, BenchmarkDotNet 0.15.8,
 - **The tick runs a few guarded calls every tick** (the party tick, the member-status flush, the
   publish and the expiry pass) and more only on rare requests (transfers, spawns, party requests,
   ignores), so at 60 Hz the guard costs well under a microsecond a second.
+
+---
+
+## Scenario baseline
+
+The BenchmarkDotNet suites above measure one call site at a time. The scenario baseline measures whole ticks: a world
+server built in process over the real `InstanceRegistry`, instances, input handler, replication and send path, with
+scenario players connected, ticked the way the server ticks. It answers two questions a micro-benchmark cannot: how
+much the tick thread allocates per tick under a given load, and how long the tick takes. The allocation figure is
+gated in CI; the timings and GC figures are reported and never gated.
+
+The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `tools/Avalon.Scenarios`
+([tooling](tooling.md#the-scenario-runner)), and the gate in
+`tests/Avalon.Server.World.UnitTests/Performance/ScenarioAllocationsShould.cs`.
+
+### What each scenario models
+
+| Scenario | Instances | Players | What runs every tick |
+|---|---:|---:|---|
+| `town-idle` | 1 town | 30 | Players standing on a grid of points checked against the town's navmesh. Nothing moves, so this is the floor: what a tick costs when there is nothing to do. |
+| `town-walk` | 1 town | 30 | Players walking an 8 m circle centred at (45, 10), the south-east chunk's open square. Each player's input goes through the real `PlayerInputHandler` (one input packet per player, reused every tick), and each player is sent the real `SPlayerStateAckPacket` through the real cipher every tick. Ten engaged "Bench Wolf" creatures (seed 425) share the instance. |
+| `many-instances` | 250 normal maps | 500 | Two walking players in each of 250 normal-map instances, every instance created through the real `InstanceRegistry.GetOrCreateNormalInstanceAsync`. It measures many small instances rather than one crowd. |
+
+No scenario was reduced in size: `many-instances` takes about 7 s for its warm-up and windows.
+
+The walking circle is not centred on the entry spawn (15, 15), where the crowd-budget tests stand their players: an
+8 m circle there crosses a building and a wall, and a walker pressed into one stops for good. A half-metre scan of the
+town found two adjacent centres whose circle stays a metre clear of every wall, (45, 10) and (45.5, 10).
+
+### The send path is real
+
+Every scenario player has a real `AvalonCryptoSession` (BouncyCastle AES-GCM) and a real `TickDrivenOutbox`, which
+writes to a stream that only counts bytes. So the per-packet encryption cost, and its allocations, are in the numbers;
+issue #850 replaces that cipher, and the [session cipher results](#session-cipher--benchmark-results) above show what
+it costs per call. Three things differ from production, all on the cost side only:
+
+- The counting stream stands in for production's `SslStream`, so the TLS record layer is **not** in the numbers. The
+  counting stream also completes every write at once, so the outbox's flush finishes synchronously on the tick thread;
+  over `SslStream` a write usually does not, and production may allocate an async state-machine box per flush there.
+- Scenario connections share key material. The point is the cost of sealing, not the secrecy of the result.
+- The `DiagnosticsConfig` counters (bytes, packets sent and dropped) are skipped, so their cost is **excluded** from the
+  numbers. They allocate nothing while no listener is attached, but production attaches an OpenTelemetry listener.
+
+Not modelled at all: the session pass (the first of the tick's two passes), the readiness barrier, the flushers,
+pings, persistence and saves, and combat. Combat is the next scenario to add (`dungeon-combat`). Of `World.Update`
+itself, the scenario tick runs the registry's publication of finished builds (`InstanceRegistry.PublishFinished`) and
+the instance pass, and leaves out:
+
+- `Time.Update`, the content and script hot reloads, and the parties tick.
+- `InstanceRegistry.ProcessExpiredInstances`, the last step. Its walk of the registry allocates a 72 B enumerator per
+  tick in an unoptimized (Debug) build and, measured, nothing in Release, so it would add nothing to the committed
+  figure and would fail `town-idle`'s gate (4,320 B per window over a 9,600 B baseline) in every local Debug run.
+- The map pass's dispatch wrapper: `WorldConnection.ProcessQueue` and `PacketDispatchTelemetry.Begin`. `LoopWalker`
+  calls `PlayerInputHandler` directly, so the queue, the per-packet session filter and the dispatch telemetry are not
+  in the numbers.
+
+### How a scenario is measured
+
+- **Window.** 60 ticks, one second of game time at 60 Hz. Allocations are read with
+  `GC.GetAllocatedBytesForCurrentThread` on the tick thread, so work on other threads does not count.
+- **Warm-up.** The scenario first ticks for a wall-clock warm-up (5 s in the gate; `--warmup-seconds`, default 10, in
+  the runner), so the JIT's tiering, first-use caches and pools have settled.
+- **Gated figure.** `bytesPerWindow` is the **minimum** of five consecutive windows after the warm-up. The minimum
+  ignores a window that a one-off allocation (a pool growing, a late tier-up) happened to land in.
+- **Checked.** After the windows, outside the measured region, each scenario checks that it still did its work
+  (`IScenario.Verify`): every player still in its instance; in the walking scenarios every player sent packets and
+  its input advanced by one per tick (300) with a change of position; in `town-walk` every wolf still in combat within
+  4 m of the player it fights. A scenario that stopped walking or fighting would allocate less and pass the gate as an
+  improvement, so a failed check throws instead, failing the gate and stopping the runner.
+- **Two levels.** `town-walk` and `many-instances` alternate between two window levels from one window to the next;
+  the minimum lands on the lower one, and that lower level is the committed figure.
+- **Timing.** After the windows the runner times `--measure-ticks` ticks (default 3600, one minute at 60 Hz) and
+  reports the tick-time distribution, the share of ticks over the 16.7 ms budget, and the collections and GC pause
+  time of that phase. The gate skips this phase.
+
+### Running it and reading the table
+
+```bash
+# Every scenario, keeping the run as this machine's baseline (perf/local/ is ignored by git)
+dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-baseline perf/local/$(hostname).json
+
+# A later run against it: current, baseline and change per figure; never fails
+dotnet run -c Release --project tools/Avalon.Scenarios -- --baseline perf/local/$(hostname).json
+
+# One scenario, a shorter warm-up
+dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario town-walk --warmup-seconds 5
+```
+
+Options: `--scenario <name>|all` (default `all`), `--warmup-seconds` (default 10), `--measure-ticks` (default 3600;
+0 skips timing), `--json <file>`, `--baseline <file>`, `--write-baseline <file>`, `--write-allocations <file>`. The
+runner uses Server GC with concurrent collection, the world server's own settings, and warns when built in Debug.
+
+The table has one row per scenario: `bytes/window` (the gated figure), `B/player/tick` (that figure over 60 ticks and
+the player count), tick ms mean, p95, p99 and max, `% > 16.7 ms`, gen0, gen1 and gen2 collections, and GC pause in ms
+and as a share of the timed phase. Only `bytes/window` is gated. Everything else depends on the machine and its load,
+and compares only against a baseline taken on the same machine.
+
+### The allocation gate
+
+`perf/scenario-allocations.json` is the committed baseline: per scenario its `bytesPerWindow` (and, for reading,
+`bytesPerPlayerPerTick`), with the commit and date it was generated at. `perf/local/` holds per-machine runner
+baselines and is never committed. `ScenarioAllocationsShould` runs every scenario and compares its `bytesPerWindow`
+with the committed figure:
+
+- **Fail** when the current figure is more than 5% **and** more than 256 B over the committed one. The 256 B floor
+  keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
+- **Improvement notice** (test output, not a failure) when it is more than 5% and more than 256 B under.
+- **Detection floor.** The 5% band is relative, so in the moving scenarios it is wide in absolute terms. With the
+  committed figures below, the gate fails only on a rise of about **8 B per tick** in `town-idle` (the 256 B floor is
+  below 5% of its 9,600 B, so 5% decides), **166 B per player per tick** in `town-walk` (298 KB per window), and
+  **104 B per player per tick** in `many-instances` (about 207 B per instance per tick, 3.1 MB per window). A smaller
+  regression, such as one new 64 B object per walking player per tick, passes. The floors shrink as the per-packet
+  cipher cost falls (#850) and the ratchet lowers the baseline; a follow-up may tighten the tolerance once CI's Linux
+  figures are known.
+- **Ratchet.** The committed file goes down only by an explicit commit. When a change makes a scenario cheaper,
+  regenerate and commit the lower figure, so the gain cannot be lost again unnoticed. When an increase is intended,
+  regenerating is also the fix, and the JSON diff shows the reviewer what it costs.
+
+Regenerate (every scenario, in Release; the runner refuses `--write-allocations` for a subset):
+
+```bash
+dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json
+```
+
+The baseline is generated in Release and CI builds Release, so CI's run of the gate is the one that decides. A local
+`dotnet test` builds Debug and reads up to about 3% higher (`many-instances` +3.08%, `town-walk` +1.91%), so locally
+the gate has less headroom: under 2% on `many-instances`. The gate runs in a non-parallel xUnit collection, so no other
+test in the World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in
+parallel processes under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds
+about 18 s to the World suite.
+
+### Results — first baseline (2026-10-08)
+
+Allocations, from `perf/scenario-allocations.json` (commit `9dec695b`, Release; regenerated when the scenario tick
+gained the registry's `PublishFinished`, which moved no figure beyond run-to-run noise). "Fails from" is the first
+figure the gate fails on; "Notice at" the highest figure that prints the improvement notice.
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at |
+|---|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 9,600 | 160 | 5.33 | 10,081 | 9,119 |
+| `town-walk` | 30 | 5,964,720 | 99,412 | 3,313.73 | 6,262,957 | 5,666,483 |
+| `many-instances` | 500 | 62,226,368 | 1,037,106 | 2,074.21 | 65,337,687 | 59,115,049 |
+
+Timing and GC, from the runner's first Release run (2026-10-08, commit `799fc830`; 12th Gen Intel Core i9-12900K,
+16 cores / 24 logical processors, 64 GB, Windows 11 Pro, .NET 10.0.12, Server GC, latency mode Interactive; 10 s
+warm-up, 3600 timed ticks). Its allocation figures were within 0.01% of the committed ones.
+
+| Scenario | Tick ms mean | p95 | p99 | max | % > 16.7 ms | gen0 | gen1 | gen2 | GC pause ms | GC pause % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 0.037 | 0.065 | 0.082 | 0.273 | 0.00 | 0 | 0 | 0 | 0.00 | 0.00 |
+| `town-walk` | 0.220 | 0.702 | 1.052 | 4.385 | 0.00 | 116 | 0 | 0 | 24.57 | 3.09 |
+| `many-instances` | 2.564 | 4.399 | 5.766 | 7.713 | 0.00 | 225 | 2 | 2 | 150.57 | 1.63 |
+
+### Key observations
+
+- **An idle tick still allocates 160 B, every tick.** `town-idle` has nothing to do, yet each tick copies
+  `InstanceRegistry.ActiveInstances` and `InstanceTicker` walks the copy through a boxed enumerator (issue #851).
+  It is small, but it is a fixed cost of every tick, and the floor the other scenarios stand on.
+- **Walking costs kilobytes per player per tick, and most of it is encryption.** About 3.3 KB per player per tick in
+  `town-walk` and 2.1 KB in `many-instances`, dominated by the per-packet BouncyCastle encrypt (1.7–4.6 KB per call in
+  the session cipher results above) of the state acknowledgement each walker is sent every tick. Issue #850 is the
+  fix; this baseline is how its gain will be measured and then locked in.
+- **The allocation rate shows up as GC.** `town-walk` allocates about 6 MB per 60-tick window on the tick thread and
+  ran 116 gen0 collections in its timed minute, 3.1% of the time in GC pauses; `many-instances` allocates about 62 MB
+  per window, with 225 gen0, 2 gen1 and 2 gen2 collections. No tick went over the 16.7 ms budget, but the worst ticks
+  (4.4 ms and 7.7 ms) sit well above the p99, as a few ticks absorbing a GC pause would.
+- **Tick time follows the walking players, not the instance count.** `many-instances` holds about 17 times the
+  players of `town-walk` in 250 times the instances, and its mean tick is about 12 times longer: a little less per
+  player (`town-walk` also runs ten creatures), so at this scale the instance count adds no cost that stands out. Its p95 of 4.4 ms is about a quarter of the tick
+  budget for 500 walking players, before saves, combat or the session pass.

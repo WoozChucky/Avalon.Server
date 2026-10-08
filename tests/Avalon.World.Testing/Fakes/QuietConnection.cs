@@ -8,14 +8,14 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
 
-namespace Avalon.Server.World.UnitTests;
+namespace Avalon.World.Testing.Fakes;
 
 /// <summary>
 /// A connection that only counts what it is sent, and holds the character, dialogue and target a tick
 /// reads, with no packets of its own to process. Allocation-free, so the tick paths it serves can be
 /// pinned at zero bytes. Everything else throws.
 /// </summary>
-internal sealed class QuietConnection(CharacterEntity character) : IWorldConnection
+public sealed class QuietConnection(CharacterEntity character) : IWorldConnection
 {
     public int Sent { get; private set; }
 

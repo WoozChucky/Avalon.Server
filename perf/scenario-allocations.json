@@ -1,0 +1,18 @@
+{
+  "commit": "9dec695b",
+  "date": "2026-10-08",
+  "scenarios": {
+    "many-instances": {
+      "bytesPerWindow": 62226368,
+      "bytesPerPlayerPerTick": 2074.2122666666664
+    },
+    "town-idle": {
+      "bytesPerWindow": 9600,
+      "bytesPerPlayerPerTick": 5.333333333333333
+    },
+    "town-walk": {
+      "bytesPerWindow": 5964720,
+      "bytesPerPlayerPerTick": 3313.733333333333
+    }
+  }
+}

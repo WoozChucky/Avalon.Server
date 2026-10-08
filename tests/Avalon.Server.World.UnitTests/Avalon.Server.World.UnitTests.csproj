@@ -41,6 +41,7 @@
     <ProjectReference Include="..\..\src\Server\Avalon.Balance.Core\Avalon.Balance.Core.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Balance.Data\Avalon.Balance.Data.csproj"/>
     <ProjectReference Include="..\..\tools\Avalon.ChunkGen\Avalon.ChunkGen.csproj"/>
+    <ProjectReference Include="..\Avalon.World.Testing\Avalon.World.Testing.csproj"/>
   </ItemGroup>
 
 </Project>
