@@ -330,8 +330,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     protected override IOutbox OnCreateOutbox() =>
         new TickDrivenOutbox(Id, _logger, Server.SendBufferCapacity,
 #pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
-            onFault: () => Close(false));
+            onFault: () => Close(false),
 #pragma warning restore MA0045
+            dropped: DiagnosticsConfig.World.PacketsDropped);
 
     public void FlushOutbox() => _outbox?.Flush();
 
