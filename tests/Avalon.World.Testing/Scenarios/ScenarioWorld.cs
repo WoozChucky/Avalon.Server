@@ -82,6 +82,9 @@ public sealed class ScenarioWorld : IDisposable
     /// <summary>The world's clock: every instance, character and timer here reads it, and <see cref="Tick" /> advances it.</summary>
     public FakeTimeProvider Clock { get; }
 
+    /// <summary>The world the instances belong to, as a packet handler is given it: its registry is the real one here.</summary>
+    public IWorld Host => _world;
+
     /// <summary>Every player's connection, in the order they joined.</summary>
     public IReadOnlyList<ScenarioConnection> Connections => _connections;
 

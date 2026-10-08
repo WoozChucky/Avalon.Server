@@ -36,6 +36,14 @@ public static class TownNavmesh
     public static Vector3 EntrySpawn => new(15f, 0f, 15f);
 
     /// <summary>
+    /// The centre of the walking scenarios' loop: the open square of the south-east chunk, where a
+    /// <see cref="LoopWalker.Radius" /> circle stays a metre clear of every wall (the only such centre on a half-metre
+    /// scan of the town), so no walker is ever pressed into one. Around the entry spawn the circle would cross a
+    /// building and a wall, where a walker stops for good.
+    /// </summary>
+    public static Vector3 LoopCentre => new(45f, 0f, 10f);
+
+    /// <summary>
     /// <c>Maps/TownLayouts/1.json</c> as <c>PredefinedChunkLayoutSource</c> builds it: four chunks at rotation 0 on a
     /// 30 m grid, the south-west one the entry. The town's forward portal is left out: no scenario walks through it.
     /// </summary>
