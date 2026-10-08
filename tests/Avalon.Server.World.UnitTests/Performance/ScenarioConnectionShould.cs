@@ -32,4 +32,12 @@ public class ScenarioConnectionShould
         Assert.True(sealedConnection.BytesWritten >= plainConnection.BytesWritten + NonceSize + TagSize,
             $"sealed {sealedConnection.BytesWritten} bytes, plain {plainConnection.BytesWritten}");
     }
+
+    [Fact]
+    public void Tick_the_idle_town_and_send_state_to_its_players()
+    {
+        using ScenarioWorld world = new TownIdleScenario().Build();
+        for (int i = 0; i < 30; i++) world.Tick(); // > one 0.1 s broadcast
+        Assert.All(world.Connections, c => Assert.True(c.BytesWritten > 0));
+    }
 }
