@@ -9,12 +9,7 @@ public static class MappingExtensions
     {
         Id = account.Id,
         Username = account.Username,
-        // AccountDto.Email carries the account's email as it is, null for a Steam-only account, but stays declared
-        // non-nullable: declaring it nullable changes the published OpenAPI document, which ContractGoldenShould
-        // holds unchanged until the split is done (#794).
-#pragma warning disable CS8601
         Email = account.Email,
-#pragma warning restore CS8601
         EmailVerifiedAt = account.EmailVerifiedAt,
         JoinDate = account.JoinDate,
         LastIp = account.LastIp,
