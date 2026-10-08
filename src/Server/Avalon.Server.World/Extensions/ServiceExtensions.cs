@@ -6,6 +6,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Extensions;
 using Avalon.Database.Extensions;
 using Avalon.Database.World.Extensions;
+using Avalon.Hosting.Networking;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Infrastructure.WorldMaintenance;
 using Avalon.World;
@@ -60,6 +61,8 @@ public static class ServiceExtensions
                 throw new InvalidOperationException("A current workload client certificate with a private key is required.");
             return new WorkloadHttpHandler(certificate, admission.ApiCertificateSha256, sp.GetRequiredService<TimeProvider>());
         }).RemoveAllLoggers();
+        // The game layer's packets, which WorldServer dispatches itself, so PacketManager does not warn about them.
+        services.AddSingleton<IPacketHandlerLayer, GamePacketHandlerLayer>();
         services.AddSingleton<IGameAdmissionClient>(sp => new GameAdmissionClient(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("AvalonGameWorkload"),
             sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value, sp.GetRequiredService<TimeProvider>()));

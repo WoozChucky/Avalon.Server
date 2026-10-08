@@ -62,7 +62,10 @@ public static class ServiceCollectionExtensions
                     x is { IsClass: true, IsAbstract: false, IsInterface: false })
                 .OrderBy(x => x.FullName, StringComparer.Ordinal)
                 .ToArray();
-            return ActivatorUtilities.CreateInstance<PacketManager>(provider, packetTypes, handlerTypes);
+            // Layers that dispatch their own packets (the World's game layer), so their packets are not reported as
+            // lacking a handler; none on the auth server.
+            IPacketHandlerLayer[] otherLayers = provider.GetServices<IPacketHandlerLayer>().ToArray();
+            return new PacketManager(provider.GetRequiredService<ILoggerFactory>(), packetTypes, handlerTypes, otherLayers);
         });
         services.AddSingleton<IPacketReader, PacketReader>(provider =>
         {

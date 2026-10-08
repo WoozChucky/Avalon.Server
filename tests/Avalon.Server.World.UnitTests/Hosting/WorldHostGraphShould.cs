@@ -5,6 +5,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.Extensions;
@@ -200,6 +201,50 @@ public class WorldHostGraphShould
 
             using IHost host = builder.Build();
             Assert.Same(host.Services.GetRequiredService<PartyService>(), host.Services.GetRequiredService<PartyService>());
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+
+    /// <summary>
+    /// The World has two handler layers: the connection layer, which <see cref="PacketManager" /> maps and
+    /// <c>ServerBase</c> dispatches, and the game layer, which the WorldServer finds by attribute. Every packet the
+    /// World receives must be served by exactly one of them, as the production container wires them: a packet neither
+    /// serves is dropped at run time, and one both serve would run twice. This is also what keeps the startup warning
+    /// for a packet without a handler true.
+    /// </summary>
+    [Fact]
+    public async Task Serve_every_world_packet_by_exactly_one_handler_layer()
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services
+                .AddWorldServices()
+                .AddSingleton<WorldServer>()
+                .AddSingleton<IWorldServer>(provider => provider.GetRequiredService<WorldServer>());
+            using IHost host = builder.Build();
+
+            IPacketManager packetManager = host.Services.GetRequiredService<IPacketManager>();
+            var gameLayer = host.Services.GetServices<IPacketHandlerLayer>()
+                .SelectMany(layer => layer.PacketTypes).ToHashSet();
+            NetworkPacketType[] worldPackets = typeof(Avalon.Network.Packets.Packet).Assembly.GetExportedTypes()
+                .Select(type => type.GetCustomAttribute<PacketAttribute>())
+                .Where(attribute => attribute?.HandleOn == ComponentType.World)
+                .Select(attribute => attribute!.Type)
+                .ToArray();
+            Assert.NotEmpty(worldPackets);
+
+            string[] failures = worldPackets
+                .Select(type => (Type: type,
+                    Layers: (packetManager.TryGetPacketInfo(type, out _) ? 1 : 0) + (gameLayer.Contains(type) ? 1 : 0)))
+                .Where(packet => packet.Layers != 1)
+                .Select(packet => $"{packet.Type}: served by {packet.Layers} handler layers")
+                .ToArray();
+            Assert.True(failures.Length == 0, string.Join(Environment.NewLine, failures));
         }
         finally
         {

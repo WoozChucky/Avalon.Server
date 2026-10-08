@@ -252,9 +252,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>();
 
-        var packetHandlers = typeof(WorldServer).Assembly.GetTypes()
-            .Where(x => x.GetCustomAttribute<PacketHandlerAttribute>() != null)
-            .ToDictionary(x => x.GetCustomAttribute<PacketHandlerAttribute>()!.PacketType, x => x);
+        Dictionary<NetworkPacketType, Type> packetHandlers = GamePacketHandlerLayer.Discover();
 
         foreach ((NetworkPacketType packetType, Type handlerType) in packetHandlers)
         {
