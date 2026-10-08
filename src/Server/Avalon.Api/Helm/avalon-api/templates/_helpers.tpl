@@ -372,6 +372,8 @@ are checked, and a release whose services read no world database ignores worlds.
 {{- fail "worlds lists no world: the API needs at least one, keyed by its id in the auth Worlds table. Give worlds.<id>.world.connectionString and worlds.<id>.characters.connectionString (--set-file), or with existingSecret the keys worlds.<id>.worldKey and worlds.<id>.charactersKey." }}
 {{- end }}
 {{- $used := dict "jwt-signing-private-key" "authentication.signingKey" "game-auth-host-key" "gameAuth.hostKey" "database-auth-connection-string" "database.auth.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" }}
+{{- $cacheKey := include "avalon-api.cachePasswordKey" $root }}
+{{- if ne $cacheKey "cache-password" }}{{ $_ := set $used $cacheKey "cache.passwordKey" }}{{ end }}
 {{- range $id, $entry := $root.Values.worlds }}
 {{- if not (and (regexMatch "^[1-9][0-9]{0,4}$" $id) (le (atoi $id) 65535)) }}
 {{- fail (printf "worlds.%s: a world id is a positive integer up to 65535 with no leading zeros, the id of the world's row in the auth Worlds table." $id) }}
@@ -403,6 +405,39 @@ are checked, and a release whose services read no world database ignores worlds.
 {{- end }}
 {{- end }}
 {{- end }}
+{{- /*
+The key of the release's Secret the Redis password is read from (#803): cache.passwordKey, trimmed, or
+cache-password when it is left out.
+*/}}
+{{- define "avalon-api.cachePasswordKey" -}}
+{{- .Values.cache.passwordKey | default "" | toString | trim | default "cache-password" }}
+{{- end }}
+
+{{- /*
+Redis sign-in (#803), checked only where a service reads Application:Cache. cache.username is a Redis
+ACL user name, no whitespace. A cache.passwordKey other than cache-password names a key of a Secret you
+manage, so it needs existingSecret, and it must be a valid key name that no other setting reads.
+*/}}
+{{- define "avalon-api.validateCache" -}}
+{{- $username := .Values.cache.username | default "" | toString }}
+{{- if and $username (not (regexMatch "^[^[:space:]]+$" $username)) }}
+{{- fail (printf "cache.username is %q: a Redis user name has no whitespace." $username) }}
+{{- end }}
+{{- $key := include "avalon-api.cachePasswordKey" . }}
+{{- if ne $key "cache-password" }}
+{{- if not .Values.existingSecret }}
+{{- fail "cache.passwordKey names a key of a Secret you manage, so it needs existingSecret: without it the chart creates the Secret and keeps the password under cache-password." }}
+{{- end }}
+{{- if not (regexMatch "^[-._a-zA-Z0-9]+$" $key) }}
+{{- fail (printf "cache.passwordKey is %q: a Secret key is letters, digits, '-', '_' and '.' only." $key) }}
+{{- end }}
+{{- $used := dict "jwt-signing-private-key" "authentication.signingKey" "game-auth-host-key" "gameAuth.hostKey" "database-auth-connection-string" "database.auth.connectionString" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" "balance-shared-secret" "balance.sharedSecret" }}
+{{- if hasKey $used $key }}
+{{- fail (printf "cache.passwordKey is %q, the key %s already reads: two settings on one key would read the same value." $key (get $used $key)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{- define "avalon-api.validateEmail" -}}
 {{- $email := .Values.email -}}
 {{- if not (has $email.sender (list "None" "Resend")) -}}

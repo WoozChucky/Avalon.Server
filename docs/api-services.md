@@ -282,6 +282,11 @@ nightly and registry workflows did not change. The chart's values that decide th
     | commerce | `database-auth-connection-string`, `cache-password`; plus the Stripe keys in the Secret `commerce.existingSecret` names |
     | distribution | `database-auth-connection-string`, `distribution-secret-key` |
 
+- **Redis user per service (#803)**: `cache.username` signs a release in as its own Redis ACL user
+  ([Redis users per API service](redis-cache-keys.md#redis-users-per-api-service)); left out, it signs in as the
+  default user. With `existingSecret`, `cache.passwordKey` names the key holding that user's password (default
+  `cache-password`), so a release can switch to its user while the default user's password stays under
+  `cache-password` until the switch is done. A named key is required, not optional.
 - **`startup.authSchemaWaitSeconds`** (default 300): a release without identity renders it as
   `Application__Startup__AuthSchemaWaitSeconds`, with a `startupProbe` on `/alive` (every 5 s) that allows that wait
   and a minute more before the liveness probe takes over. A release with identity has neither.

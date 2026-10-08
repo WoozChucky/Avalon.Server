@@ -97,7 +97,9 @@ public class ReplicatedCache : IReplicatedCache
     {
         _logger = loggerFactory.CreateLogger<ReplicatedCache>();
         _configuration = string.IsNullOrWhiteSpace(configuration.Value.Host) ? throw new Exception("Invalid IOptions<CacheConfiguration>!") : configuration.Value;
-        _logger.LogInformation("ReplicatedCache initialized with configuration: {@Configuration}", _configuration);
+        // Host and user only: the configuration holds the password (#803).
+        _logger.LogInformation("ReplicatedCache initialized for {Host} as {User}", _configuration.Host,
+            string.IsNullOrWhiteSpace(_configuration.Username) ? "the default user" : _configuration.Username);
     }
 
     public IDatabase Database => _redis.GetDatabase();
@@ -114,15 +116,32 @@ public class ReplicatedCache : IReplicatedCache
     /// <summary>
     /// The connection's options. IncludeDetailInExceptions is off: by default StackExchange.Redis
     /// puts the command and the key name into its exception messages, those exceptions are logged,
-    /// and a key may carry a secret (#535).
+    /// and a key may carry a secret (#535). Without a username the connection signs in as the default
+    /// user, by the password alone. With one it signs in as that ACL user (#803), which may run only
+    /// the commands its service uses: the client's own probes of the server (CLUSTER, CONFIG, INFO and
+    /// the tie-breaker key) are left out, so the server's ACL log records only real refusals.
     /// </summary>
-    public static ConfigurationOptions ConnectionOptions(CacheConfiguration configuration) => new()
+    public static ConfigurationOptions ConnectionOptions(CacheConfiguration configuration)
     {
-        EndPoints = new EndPointCollection() { configuration.Host },
-        AllowAdmin = true,
-        Password = configuration.Password,
-        IncludeDetailInExceptions = false,
-    };
+        var options = new ConfigurationOptions
+        {
+            EndPoints = new EndPointCollection() { configuration.Host },
+            AllowAdmin = true,
+            Password = configuration.Password,
+            IncludeDetailInExceptions = false,
+        };
+
+        if (!string.IsNullOrWhiteSpace(configuration.Username))
+        {
+            options.User = configuration.Username;
+            options.AllowAdmin = false;
+            options.TieBreaker = string.Empty;
+            options.CommandMap = CommandMap.Create(
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "CLUSTER", "CONFIG", "INFO" }, available: false);
+        }
+
+        return options;
+    }
 
     public async Task DisconnectAsync()
     {

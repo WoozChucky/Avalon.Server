@@ -3,8 +3,8 @@
 # (secretKeyRef), never as plain values in the pod spec. Either:
 #  - name a Secret you manage in existingSecret (preferred: the values never pass through Helm). It
 #    needs the keys database-auth-connection-string, jwt-signing-private-key and game-auth-host-key
-#    (where identity runs), one pair per world (worlds.<id>, below), plus cache-password,
-#    notification-private-key, distribution-secret-key and balance-shared-secret if used. Leave every
+#    (where identity runs), one pair per world (worlds.<id>, below), plus cache-password (or the key
+#    cache.passwordKey names), notification-private-key, distribution-secret-key and balance-shared-secret if used. Leave every
 #    secret value below empty: the chart refuses to render with existingSecret set and a value
 #    given, rather than ignore it. The chart cannot see a change to your Secret, so after rotating
 #    a key in it restart the pods yourself:
@@ -103,9 +103,16 @@ worlds: {}
 #    charactersKey: ""
 
 # cache.host is required (host:port of Redis); the chart refuses to render without it.
+# cache.username (#803) is the Redis ACL user the release signs in as (Application:Cache:Username);
+# left out, it signs in as the default user with the password alone. The password is the Secret's
+# cache-password, or, with existingSecret, the key cache.passwordKey names: a release switching to its
+# own user can read that user's password from a new key, so the default user's password under
+# cache-password stays in place until the switch is done.
 cache:
   host:
+  username: ""
   password:
+  passwordKey: ""
 
 # Access tokens (#801) are ES256 only. Identity signs them with an EC P-256 private key no other
 # service holds, under a key id; every service checks them with the public keys listed here by key id,

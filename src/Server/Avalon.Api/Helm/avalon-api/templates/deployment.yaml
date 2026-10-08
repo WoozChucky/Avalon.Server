@@ -20,6 +20,10 @@ settings and Secret keys of its own services. A routes release renders no pod.
 {{- if $commerce }}
 {{- include "avalon-api.validateCommerce" . }}
 {{- end }}
+{{- if $cache }}
+{{- include "avalon-api.validateCache" . }}
+{{- end }}
+{{- $cacheKey := include "avalon-api.cachePasswordKey" . }}
 {{- $steamAppId := 0 }}
 {{- if $identity }}
 {{- $configuredSteamAppId := required "storeAuthentication.steamAppId is required" .Values.storeAuthentication.steamAppId }}
@@ -229,8 +233,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" . }}
+                  {{- if eq $cacheKey "cache-password" }}
                   key: cache-password
                   optional: true
+                  {{- else }}
+                  key: {{ $cacheKey | quote }}
+                  {{- end }}
             {{- end }}
             {{- if $identity }}
             - name: Application__Notification__PrivateKey
@@ -294,6 +302,10 @@ spec:
             {{- if $cache }}
             - name: Application__Cache__Host
               value: {{ required "cache.host is required: host:port of Redis" .Values.cache.host | quote }}
+            {{- with .Values.cache.username }}
+            - name: Application__Cache__Username
+              value: {{ . | toString | quote }}
+            {{- end }}
             {{- end }}
             {{- if $identity }}
             - name: Application__Notification__Subject

@@ -33,13 +33,31 @@ process uses all of them.
 
 | Service | Keys it reads and writes | Channels |
 |---|---|---|
-| identity | the login and registration budgets (`auth:source:{source}:failedLogins`, `auth:username:{sha256}:failedLogins`, `auth:source:{source}:accountsCreated`), MFA state (`auth:account:{accountId}:mfa`, `auth:mfa:hash:{sha256}`), email change (`auth:emailChange:{sha256}`, `auth:account:{accountId}:emailChangePending`, `auth:account:{accountId}:emailChangeSends`, `auth:email:{sha256}:emailChangeSends`), the email-verification send budgets (`email-verification:*`), launcher codes (`auth:launcherCode:{hash}`), game tickets (`auth:gameTicket:{hash}`, `auth:gameTicketIssue:{familyId}`), the game-auth records (`game-auth:{environment}:*`); reads `world:{worldId}:ready` | publishes `world:accounts:disconnect` and `world:game-context:revoke` |
+| identity | the login and registration budgets (`auth:source:{source}:failedLogins`, `auth:username:{sha256}:failedLogins`, `auth:source:{source}:accountsCreated`), MFA state (`auth:account:{accountId}:mfa`, `auth:mfa:hash:{sha256}`), email change (`auth:emailChange:{sha256}`, `auth:account:{accountId}:emailChangePending`, `auth:account:{accountId}:emailChangeSends`, `auth:email:{sha256}:emailChangeSends`), the email-verification send budgets (`email-verification:*`), launcher codes (`auth:launcherCode:{hash}`), game tickets (`auth:gameTicket:{hash}`, `auth:gameTicketIssue:{familyId}`), the game-auth records (`game-auth:{environment}:*`), the Steam web link's transactions and nonces (`steam-web:transaction:{id}`, `steam-web:nonce:{sha256}`); reads `world:{worldId}:ready` | publishes `world:accounts:disconnect` and `world:game-context:revoke` |
 | worlds | reads `world:{worldId}:ready`, `world:{worldId}:presence`, `presence:world:{worldId}:character:{characterId}` and `world:{worldId}:scripts` | publishes `world:{worldId}:maintenance` and `world:{worldId}:reload`; subscribes to `world:{worldId}:reload:result` |
 | commerce | the checkout budget (`commerce:{environment}:checkout:*`) | none |
 | distribution | none: it runs without `Application:Cache` and holds no Redis password | none |
 
 The login budgets and the MFA keys are shared with the TCP auth server, which runs the same login policy, so a guess
 over REST and one over TCP spend one budget ([REST API authentication](api-authentication.md)).
+
+### Redis users per API service
+
+Each API service can sign in as its own Redis ACL user (#803), limited to the keys, channels and commands above
+(`Application:Cache:Username`, chart value `cache.username`; see
+[Cache Configuration](configuration-reference.md#cache-configuration-cacheconfiguration)). The auth server, the world
+servers and the balance service sign in as the default user, with full access. The users the homelab declares:
+
+| User | Keys | Channels | Commands |
+|---|---|---|---|
+| `api-identity` | read and write `auth:source:*`, `auth:username:*`, `auth:account:*`, `auth:mfa:hash:*`, `auth:emailChange:*`, `auth:email:*`, `auth:launcherCode:*`, `auth:gameTicket:*`, `auth:gameTicketIssue:*`, `email-verification:*`, `game-auth:*`, `steam-web:*`; read `world:*:ready` | `world:accounts:disconnect`, `world:game-context:revoke` | `get set setex psetex getdel del unlink exists expire pexpire incr decr hget hset hmset hincrby multi exec discard eval evalsha script\|load publish` |
+| `api-worlds` | read `world:*:ready`, `world:*:presence`, `world:*:scripts`, `presence:world:*` | `world:*:maintenance`, `world:*:reload`, `world:*:reload:result` | `get publish subscribe unsubscribe` |
+| `api-commerce` | read and write `commerce:*` | none | `eval evalsha script\|load exists get incr expire set` |
+
+Every user also has the connection commands the client runs (`hello auth ping echo select client|setname
+client|setinfo client|id`) and nothing else: no `KEYS`, `SCAN`, `INFO`, `CONFIG`, `FLUSH*` or `ACL`. The commands the
+services' Lua scripts call are checked against the same rules. A key, channel or command added to a service needs its
+user's rules widened in the same change, or the service gets `NOPERM`.
 
 ---
 
