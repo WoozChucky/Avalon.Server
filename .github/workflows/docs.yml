@@ -63,14 +63,9 @@ jobs:
           # The generator invokes Program.Main and interrupts it once the host starts, so
           # the startup work after Build() - migrations, workers, the cache connection -
           # would run against a Postgres and a Redis this runner does not have. This
-          # tells Program.cs to skip it.
+          # tells Program.cs to skip it, and the host makes its own throwaway signing key
+          # in memory (#801), so the build needs no key.
           AVALON_OPENAPI_GENERATION_ONLY: 'true'
-          # Generation is opt-in (see Avalon.Api.csproj) because it boots the host and
-          # trips the signing-key guard (#482): every API service validates the HS256
-          # access tokens, so every process needs the key, this one too. This key signs
-          # nothing and dies with the runner; generating it here avoids storing a secret
-          # that isn't secret.
-          Application__Authentication__IssuerSigningKey: ${{ github.run_id }}-${{ github.sha }}-openapi-generation-only
         run: |
           dotnet build src/Server/Avalon.Api -c Release -p:OpenApiGenerateDocuments=true
           mkdir -p docs/api

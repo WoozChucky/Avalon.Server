@@ -4,15 +4,16 @@ namespace Avalon.Api.Hosting;
 
 /// <summary>
 /// What an API service needs from the shared hosting (#794, design sections 2.2 and 3.1): Redis, the world databases
-/// it reads, its part in the auth schema, and whether its routes are world routes (<c>/world/{worldId}/...</c>,
-/// selected by <see cref="WorldRouteMiddleware"/>). A process provides the union of its services' needs.
+/// it reads, its part in the auth schema, whether its routes are world routes (<c>/world/{worldId}/...</c>,
+/// selected by <see cref="WorldRouteMiddleware"/>), and whether it signs access tokens, the one need that lets a process
+/// hold the private signing key (#801). A process provides the union of its services' needs.
 /// </summary>
 public sealed record ApiServiceNeeds(bool Redis, WorldDatabaseParts WorldDatabases, AuthSchemaRole AuthSchema,
-    bool WorldRoutes)
+    bool WorldRoutes, bool SignsTokens = false)
 {
     /// <summary>
-    /// What a process running all of <paramref name="needs"/> provides: Redis and world routes when any needs them,
-    /// every world database any reads, and the auth schema's owner role when any owns it.
+    /// What a process running all of <paramref name="needs"/> provides: Redis, world routes and the signing key when any
+    /// needs them, every world database any reads, and the auth schema's owner role when any owns it.
     /// </summary>
     public static ApiServiceNeeds Union(IEnumerable<ApiServiceNeeds> needs)
     {
@@ -25,7 +26,8 @@ public sealed record ApiServiceNeeds(bool Redis, WorldDatabaseParts WorldDatabas
                 union.AuthSchema == AuthSchemaRole.Owner || need.AuthSchema == AuthSchemaRole.Owner
                     ? AuthSchemaRole.Owner
                     : AuthSchemaRole.Reader,
-                union.WorldRoutes || need.WorldRoutes);
+                union.WorldRoutes || need.WorldRoutes,
+                union.SignsTokens || need.SignsTokens);
         }
 
         return union;

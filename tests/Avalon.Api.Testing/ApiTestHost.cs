@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Authentication;
@@ -56,11 +57,29 @@ public sealed class ApiTestHost : IAsyncDisposable
 
     /// <summary>An endpoint under the launcher sign-in rate-limit policy (#591).</summary>
     public const string ClientAuthLimitedPath = "/client-auth-limited";
-    public const string SigningKey = "test-signing-key-test-signing-key-test-signing-key-0123456789-abcdef";
+
+    /// <summary>The key id identity signs the test hosts' tokens under (#801).</summary>
+    public const string SigningKeyId = "test";
+
+    /// <summary>
+    /// The HS256 key of the tokens signed before #801, for the tests of their transition; and the game-auth host key,
+    /// which holds the same kind of value.
+    /// </summary>
+    public const string LegacySigningKey = "test-signing-key-test-signing-key-test-signing-key-0123456789-abcdef";
+
+    // Made for each test run, never committed: the ES256 key pair identity signs the test hosts' tokens with.
+    private static readonly ECDsa s_signingKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+
+    /// <summary>Identity's private key, PKCS#8 PEM.</summary>
+    public static string SigningKey { get; } = s_signingKey.ExportPkcs8PrivateKeyPem();
+
+    /// <summary>Its public key, as every service lists it: the base64 of its SubjectPublicKeyInfo.</summary>
+    public static string PublicKey { get; } = Convert.ToBase64String(s_signingKey.ExportSubjectPublicKeyInfo());
 
     public static readonly AuthenticationConfig AuthConfig = new()
     {
-        IssuerSigningKey = SigningKey,
+        SigningKey = SigningKey,
+        SigningKeyId = SigningKeyId,
         Issuer = "Avalon Authentication System",
         ValidateIssuer = true,
         Audience = "https://api.avalon.monster",
@@ -69,14 +88,18 @@ public sealed class ApiTestHost : IAsyncDisposable
         AccessTokenLifetimeMinutes = 15,
     };
 
+    /// <summary>The keys identity holds with <see cref="AuthConfig"/>.</summary>
+    public static JwtKeys Keys { get; } = JwtKeys.Create(AuthConfig, signsTokens: true);
+
     /// <summary>
-    /// The settings every test host starts with: the token validation's (<see cref="AuthConfig"/>), and what the
-    /// shared hosting checks when it starts. The auth database and the cache they name are never reached: their
-    /// clients are substituted.
+    /// The settings every test host starts with: the token validation's (<see cref="AuthConfig"/>, the public key
+    /// alone), and what the shared hosting checks when it starts. The auth database and the cache they name are never
+    /// reached: their clients are substituted. A host whose services sign tokens gets <see cref="SigningSettings"/> too
+    /// (<see cref="SettingsFor"/>).
     /// </summary>
     public static IReadOnlyDictionary<string, string?> Settings { get; } = new Dictionary<string, string?>(StringComparer.Ordinal)
     {
-        ["Application:Authentication:IssuerSigningKey"] = AuthConfig.IssuerSigningKey,
+        [$"Application:Authentication:ValidationKeys:{SigningKeyId}"] = PublicKey,
         ["Application:Authentication:Issuer"] = AuthConfig.Issuer,
         ["Application:Authentication:ValidateIssuer"] = "true",
         ["Application:Authentication:Audience"] = AuthConfig.Audience,
@@ -90,6 +113,49 @@ public sealed class ApiTestHost : IAsyncDisposable
         ["Application:Environment:Name"] = "Development",
         ["Application:Notification:Subject"] = "https://avalon.monster",
     };
+
+    /// <summary>
+    /// What only a process that signs tokens holds, as a deployment gives identity alone (#801): the private key, its key
+    /// id, and the game-auth host key.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string?> SigningSettings { get; } = new Dictionary<string, string?>(StringComparer.Ordinal)
+    {
+        ["Application:Authentication:SigningKey"] = SigningKey,
+        ["Application:Authentication:SigningKeyId"] = SigningKeyId,
+        ["Application:GameAuth:HostKey"] = LegacySigningKey,
+    };
+
+    /// <summary>
+    /// <see cref="Settings"/>, with <see cref="SigningSettings"/> when the services <paramref name="extra"/> selects from
+    /// <paramref name="services"/> (<c>Application:Services</c>, all of them when it names none) include one that signs
+    /// tokens, then <paramref name="extra"/> over both, a null value removing its key.
+    /// </summary>
+    public static Dictionary<string, string?> SettingsFor(IReadOnlyList<IApiService> services,
+        IReadOnlyDictionary<string, string?>? extra = null)
+    {
+        IReadOnlyDictionary<string, string?> given = extra ?? new Dictionary<string, string?>();
+        var settings = new Dictionary<string, string?>(Settings, StringComparer.Ordinal);
+        IConfiguration selecting = new ConfigurationBuilder().AddInMemoryCollection(given).Build();
+        if (ApiServiceSelection.From(selecting, services).Services.Any(service => service.Needs.SignsTokens))
+        {
+            foreach ((string key, string? value) in SigningSettings)
+                settings[key] = value;
+        }
+
+        foreach ((string key, string? value) in given)
+        {
+            if (value is null)
+                settings.Remove(key);
+            else
+                settings[key] = value;
+        }
+
+        return settings;
+    }
+
+    /// <summary>What signs as the tokens of before #801 were signed: HS256 with <see cref="LegacySigningKey"/>, no key id.</summary>
+    public static SigningCredentials LegacySigning(string algorithm = SecurityAlgorithms.HmacSha256) =>
+        new(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(LegacySigningKey)), algorithm);
 
     public IAccountService Accounts { get; } = Substitute.For<IAccountService>();
     public IAccountRepository AccountRepository { get; } = Substitute.For<IAccountRepository>();
@@ -134,9 +200,7 @@ public sealed class ApiTestHost : IAsyncDisposable
             new WebApplicationOptions { EnvironmentName = Environments.Production }, services, b =>
             {
                 b.WebHost.UseTestServer();
-                b.Configuration.AddInMemoryCollection(Settings);
-                if (options.Settings is not null)
-                    b.Configuration.AddInMemoryCollection(options.Settings);
+                b.Configuration.AddInMemoryCollection(SettingsFor(services, options.Settings));
             });
         builder.Logging.ClearProviders();
         AddSubstitutes(builder.Services);
@@ -241,14 +305,15 @@ public sealed class ApiTestHost : IAsyncDisposable
     public void PatIs(string token, PersonalAccessToken? pat) =>
         PatRepository.FindByHashAsync(TokenHash(token), Arg.Any<CancellationToken>()).Returns(pat);
 
-    public static string Mint(Account account) => new JwtUtils(AuthConfig, JwtSigningKey.Create(AuthConfig)).GenerateJwtToken(account);
+    /// <summary>The access token identity mints for <paramref name="account"/>: ES256 under <see cref="SigningKeyId"/>.</summary>
+    public static string Mint(Account account) => new JwtUtils(AuthConfig, Keys).GenerateJwtToken(account);
 
     /// <summary>
-    /// The claims JwtUtils writes for a Player, with the lifetime, subject and algorithm the test
-    /// chooses. A null subject leaves the name-identifier claim out.
+    /// The claims JwtUtils writes for a Player, with the lifetime, subject and signature the test
+    /// chooses (identity's, <see cref="Keys"/>, by default). A null subject leaves the name-identifier claim out.
     /// </summary>
     public static string MintCustom(DateTime notBefore, DateTime expires, string? subject = "7",
-        string algorithm = SecurityAlgorithms.HmacSha256Signature, string? credentialsVersion = "0")
+        SigningCredentials? signing = null, string? credentialsVersion = "0")
     {
         var claims = new List<Claim>
         {
@@ -260,7 +325,6 @@ public sealed class ApiTestHost : IAsyncDisposable
         if (subject is not null) claims.Add(new Claim(ClaimTypes.NameIdentifier, subject));
 
         var handler = new JwtSecurityTokenHandler();
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SigningKey));
         return handler.WriteToken(handler.CreateToken(new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),
@@ -269,12 +333,12 @@ public sealed class ApiTestHost : IAsyncDisposable
             Expires = expires,
             Issuer = AuthConfig.Issuer,
             Audience = AuthConfig.Audience,
-            SigningCredentials = new SigningCredentials(key, algorithm),
+            SigningCredentials = signing ?? Keys.Signing!,
         }));
     }
 
-    public static string MintLive(string? subject = "7", string algorithm = SecurityAlgorithms.HmacSha256Signature) =>
-        MintCustom(DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddMinutes(10), subject, algorithm);
+    public static string MintLive(string? subject = "7", SigningCredentials? signing = null) =>
+        MintCustom(DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddMinutes(10), subject, signing);
 
     public async Task<HttpResponseMessage> GetAsync(string path, string token)
     {

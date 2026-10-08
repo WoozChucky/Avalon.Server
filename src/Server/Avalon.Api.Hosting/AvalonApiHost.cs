@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Middlewares;
 using Avalon.Hosting;
@@ -29,6 +30,10 @@ public static class AvalonApiHost
     /// </summary>
     public const string OpenApiGenerationOnlyVariable = "AVALON_OPENAPI_GENERATION_ONLY";
 
+    /// <summary>Whether <see cref="OpenApiGenerationOnlyVariable"/> is <c>true</c> in this process.</summary>
+    public static bool IsOpenApiGenerationOnly => string.Equals(
+        Environment.GetEnvironmentVariable(OpenApiGenerationOnlyVariable), "true", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Builds the host for those of <paramref name="services"/> that <c>Application:Services</c> names (every one when
     /// it is unset, <see cref="ApiServiceSelection"/>), runs their startup work and serves until the process is told
@@ -38,9 +43,7 @@ public static class AvalonApiHost
     {
         WebApplicationBuilder builder = CreateBuilder(args, services);
 
-        bool openApiGenerationOnly = string.Equals(
-            Environment.GetEnvironmentVariable(OpenApiGenerationOnlyVariable), "true",
-            StringComparison.OrdinalIgnoreCase);
+        bool openApiGenerationOnly = IsOpenApiGenerationOnly;
 
         WebApplication app = builder.Build();
 
@@ -51,6 +54,10 @@ public static class AvalonApiHost
         // The category Program.cs logged its startup lines under before the host moved here.
         ILogger logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Program");
         logger.LogInformation("Running the API services {ApiServices}", selection.Names);
+        JwtKeys keys = app.Services.GetRequiredService<JwtKeys>();
+        logger.LogInformation(
+            "Access tokens are accepted signed with ES256 under the key ids {KeyIds}, and with HS256 {Hs256}",
+            string.Join(",", keys.KeyIds), keys.Legacy is null ? "never" : $"while {JwtSigningKey.SettingName} is set");
         ForwardedHeadersSetup.WarnIfNoProxyTrusted(logger,
             app.Configuration.GetSection(ForwardedHeadersSetup.Section).Get<ForwardedHeadersConfig>(), app.Environment);
         foreach (IApiService service in running)
@@ -153,7 +160,11 @@ public static class AvalonApiHost
                 }
             });
         collection.AddAvalonOpenApi();
-        collection.AddApiAuthentication(configuration.GetSection(TokenValidationConfig.Section).Get<TokenValidationConfig>());
+        // Only a process running a service that signs access tokens (identity) may hold the private key (#801); one that
+        // only generates the OpenAPI document needs no key at all.
+        TokenValidationConfig? tokens = configuration.GetSection(TokenValidationConfig.Section).Get<TokenValidationConfig>();
+        collection.AddApiAuthentication(tokens,
+            IsOpenApiGenerationOnly ? JwtKeys.Ephemeral() : JwtKeys.Create(tokens, needs.SignsTokens));
         collection.AddApiHosting(needs, configuration.GetSection(ForwardedHeadersSetup.Section).Get<ForwardedHeadersConfig>());
 
         foreach (IApiService service in running)

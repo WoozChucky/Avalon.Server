@@ -14,14 +14,14 @@ namespace Avalon.Api.UnitTests;
 /// </summary>
 public sealed class ApiConfigurationShould : IDisposable
 {
-    private const string Key = "Application:Authentication:IssuerSigningKey";
+    private const string Key = "Application:Authentication:SigningKey";
     private readonly string _contentRoot = Path.Combine(Path.GetTempPath(), "avalon-api-config-" + Guid.NewGuid().ToString("N"));
 
     public ApiConfigurationShould()
     {
         Directory.CreateDirectory(_contentRoot);
         File.WriteAllText(Path.Combine(_contentRoot, "appsettings.json"),
-            """{ "Application": { "Authentication": { "IssuerSigningKey": "from-appsettings-json" } } }""");
+            """{ "Application": { "Authentication": { "SigningKey": "from-appsettings-json" } } }""");
     }
 
     public void Dispose() => Directory.Delete(_contentRoot, recursive: true);
@@ -35,7 +35,7 @@ public sealed class ApiConfigurationShould : IDisposable
     });
 
     private static string? SigningKeyFrom(WebApplicationBuilder builder) =>
-        ApplicationConfig.Bind(ApiConfiguration.Sources(builder)).Authentication?.IssuerSigningKey;
+        ApplicationConfig.Bind(ApiConfiguration.Sources(builder)).Authentication?.SigningKey;
 
     [Fact]
     public void Read_appsettings_json_when_nothing_overrides_it() =>

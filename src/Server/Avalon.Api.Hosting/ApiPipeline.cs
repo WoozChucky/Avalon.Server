@@ -1,6 +1,5 @@
 using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Hosting.Worlds;
-using Scalar.AspNetCore;
 
 namespace Avalon.Api.Hosting;
 
@@ -9,7 +8,8 @@ namespace Avalon.Api.Hosting;
 /// PipelineOrderShould pins it: the developer exception page (Development), exception handling, request logging,
 /// forwarded headers, routing, CORS, the services' hooks before authentication, authentication, the services' hooks
 /// after authentication, the rate limiter, the world routes (when a service declares them), authorization; and the
-/// endpoints: <c>/health</c>, <c>/alive</c>, the OpenAPI document, Scalar and the controllers.
+/// endpoints: <c>/health</c>, <c>/alive</c>, the OpenAPI document and Scalar where they are served (<see cref="ApiDocs"/>),
+/// and the controllers.
 /// </summary>
 public static class ApiPipeline
 {
@@ -52,13 +52,9 @@ public static class ApiPipeline
         // other peer is ignored and logged, rate-limited.
         app.UseAvalonForwardedHeaders();
 
-        endpoints.MapOpenApi();
-        endpoints.MapScalarApiReference(options =>
-        {
-            options.WithTitle("Avalon.Api");
-            options.WithTheme(ScalarTheme.BluePlanet);
-            options.HideSidebar();
-        });
+        // In Development, or where Application:ApiDocs:Enabled turns them on; never by default in production (#803).
+        if (ApiDocs.AreServed(environment, app.ApplicationServices.GetRequiredService<IConfiguration>()))
+            ApiDocs.Map(endpoints);
 
         app.UseRouting();
 

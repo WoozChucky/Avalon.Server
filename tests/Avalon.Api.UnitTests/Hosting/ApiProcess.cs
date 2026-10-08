@@ -14,22 +14,21 @@ namespace Avalon.Api.UnitTests.Hosting;
 /// <summary>
 /// An API process as a deployment configures it (#794): the host's builder for every service the API has
 /// (<see cref="ApiServices.All"/>) with <c>Application:Services</c> naming the one it runs (all four when none is named),
-/// the settings every process shares (<see cref="ApiTestHost.Settings"/>), a world whose databases are the ones its
+/// the settings every process shares (<see cref="ApiTestHost.Settings"/>), identity's signing key where it runs identity
+/// (<see cref="ApiTestHost.SigningSettings"/>), a world whose databases are the ones its
 /// services read, and the one pipeline, on a test server. Unlike <see cref="ApiTestHost"/> it substitutes nothing the
 /// caller does not, so what a process lacks stays missing. Built, not started.
 /// </summary>
 internal static class ApiProcess
 {
     public static WebApplication Build(IApiService? service, Action<IServiceCollection>? configure = null,
-        IReadOnlyDictionary<string, string?>? settings = null)
+        IReadOnlyDictionary<string, string?>? settings = null, string? environment = null)
     {
         WebApplicationBuilder builder = AvalonApiHost.CreateBuilder(
-            new WebApplicationOptions { EnvironmentName = Environments.Production }, ApiServices.All, b =>
+            new WebApplicationOptions { EnvironmentName = environment ?? Environments.Production }, ApiServices.All, b =>
             {
                 b.WebHost.UseTestServer();
-                b.Configuration.AddInMemoryCollection(SettingsFor(service));
-                if (settings is not null)
-                    b.Configuration.AddInMemoryCollection(settings);
+                b.Configuration.AddInMemoryCollection(SettingsFor(service, settings));
             });
         builder.Logging.ClearProviders();
         configure?.Invoke(builder.Services);
@@ -43,17 +42,23 @@ internal static class ApiProcess
     public static IEnumerable<RouteEndpoint> Endpoints(WebApplication process) =>
         ((IEndpointRouteBuilder)process).DataSources.SelectMany(source => source.Endpoints).OfType<RouteEndpoint>();
 
-    private static Dictionary<string, string?> SettingsFor(IApiService? service)
+    /// <summary>
+    /// The shared settings, the signing key only where the process runs identity (#801), the selection of
+    /// <paramref name="service"/>, its world, then <paramref name="extra"/> over them all.
+    /// </summary>
+    private static Dictionary<string, string?> SettingsFor(IApiService? service, IReadOnlyDictionary<string, string?>? extra)
     {
-        var settings = new Dictionary<string, string?>(ApiTestHost.Settings, StringComparer.Ordinal);
+        var given = new Dictionary<string, string?>(StringComparer.Ordinal);
         if (service is not null)
-            settings[ApiServiceSelection.Setting + ":0"] = service.Name;
+            given[ApiServiceSelection.Setting + ":0"] = service.Name;
 
         WorldDatabaseParts parts = service?.Needs.WorldDatabases ?? WorldDatabaseParts.Both;
         if (parts.HasFlag(WorldDatabaseParts.World))
-            settings["Database:Worlds:1:World:ConnectionString"] = "Host=w1";
+            given["Database:Worlds:1:World:ConnectionString"] = "Host=w1";
         if (parts.HasFlag(WorldDatabaseParts.Characters))
-            settings["Database:Worlds:1:Characters:ConnectionString"] = "Host=c1";
-        return settings;
+            given["Database:Worlds:1:Characters:ConnectionString"] = "Host=c1";
+        foreach ((string key, string? value) in extra ?? new Dictionary<string, string?>())
+            given[key] = value;
+        return ApiTestHost.SettingsFor(ApiServices.All, given);
     }
 }

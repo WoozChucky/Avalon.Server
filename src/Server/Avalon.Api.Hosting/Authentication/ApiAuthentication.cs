@@ -21,16 +21,16 @@ namespace Avalon.Api.Hosting.Authentication;
 public static class ApiAuthentication
 {
     /// <summary>
-    /// Registers the signing key, the two schemes, the policies and <see cref="AvalonAuthHandler"/>. The key is checked
-    /// here, eagerly, so a missing or weak one stops startup naming the setting instead of surfacing on the first
-    /// request (#482); the one instance is registered, so the service that mints tokens signs with the key they are
-    /// validated with.
+    /// Registers the token keys, the two schemes, the policies and <see cref="AvalonAuthHandler"/>. The caller builds the
+    /// keys eagerly (<see cref="JwtKeys.Create"/>), so a missing or unusable one stops startup naming the setting instead
+    /// of surfacing on the first request (#482, #801); the one instance is registered, so the service that mints tokens
+    /// signs with the key they are validated with.
     /// </summary>
-    public static AuthenticationBuilder AddApiAuthentication(this IServiceCollection services, TokenValidationConfig? config)
+    public static AuthenticationBuilder AddApiAuthentication(this IServiceCollection services, TokenValidationConfig? config,
+        JwtKeys keys)
     {
-        SymmetricSecurityKey signingKey = JwtSigningKey.Create(config);
-        services.AddSingleton(signingKey);
-        AuthenticationBuilder authentication = AddAuthenticationSchemes(services, config!, signingKey);
+        services.AddSingleton(keys);
+        AuthenticationBuilder authentication = AddAuthenticationSchemes(services, config ?? new TokenValidationConfig(), keys);
         AddAuthorizationPolicies(services);
         services.AddScoped<IAuthContext, AuthContext>();
         services.AddScoped<IAuthorizationHandler, AvalonAuthHandler>();
@@ -38,7 +38,7 @@ public static class ApiAuthentication
     }
 
     private static AuthenticationBuilder AddAuthenticationSchemes(IServiceCollection services, TokenValidationConfig config,
-        SymmetricSecurityKey signingKey) =>
+        JwtKeys keys) =>
         services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -55,7 +55,7 @@ public static class ApiAuthentication
                     OnTokenValidated = JwtAccountRevalidation.OnTokenValidated,
                 };
 
-                x.TokenValidationParameters = BuildTokenValidationParameters(config, signingKey);
+                x.TokenValidationParameters = BuildTokenValidationParameters(config, keys);
 
                 x.Validate(JwtBearerDefaults.AuthenticationScheme);
             })
@@ -86,13 +86,13 @@ public static class ApiAuthentication
         return Task.CompletedTask;
     }
 
-    private static TokenValidationParameters BuildTokenValidationParameters(TokenValidationConfig config,
-        SymmetricSecurityKey signingKey) =>
+    private static TokenValidationParameters BuildTokenValidationParameters(TokenValidationConfig config, JwtKeys keys) =>
         new()
         {
             ValidIssuer = config.Issuer,
             ValidateIssuer = config.ValidateIssuer,
-            IssuerSigningKey = signingKey,
+            // The key the token's header names, of the kind its algorithm needs, and no other (#801).
+            IssuerSigningKeyResolver = (_, token, keyId, _) => keys.Resolve(token, keyId),
             // Not configurable: a token is only as good as the key that signed it.
             ValidateIssuerSigningKey = true,
             ValidAudience = config.Audience,
@@ -102,8 +102,8 @@ public static class ApiAuthentication
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(config.ClockSkewInMinutes),
             RoleClaimType = ClaimTypes.GroupSid,
-            // Tokens are signed with HMAC-SHA256 only; nothing else is accepted.
-            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+            // ES256, and HS256 only while the key of the tokens signed before #801 is set; nothing else.
+            ValidAlgorithms = keys.Algorithms,
         };
 
     private static void AddAuthorizationPolicies(IServiceCollection services)

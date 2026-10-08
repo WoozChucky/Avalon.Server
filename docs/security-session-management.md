@@ -237,22 +237,30 @@ ban or a lock written between the read and the write survives.
 
 ### JWT Signing Key
 
-The JWTs are signed and validated with an HMAC-SHA256 key, `Application:Authentication:IssuerSigningKey`.
-No key is committed (#482). In development it comes from `dotnet user-secrets`; everywhere else it comes
-from the environment variable `Application__Authentication__IssuerSigningKey`, which the Helm chart fills
-from a Kubernetes Secret rather than a plain value in the pod spec.
+The access JWTs are signed with ES256 (#801): identity signs them with an EC P-256 private key,
+`Application:Authentication:SigningKey`, under a key id, `SigningKeyId`; every API service checks them with the public
+key their key id names, `Application:Authentication:ValidationKeys:<key id>`, so a service without identity cannot
+mint one. No private key is committed (#482). In development they come from `dotnet user-secrets` (or the Aspire
+AppHost, which makes a key pair per run); everywhere else from the environment (`Application__Authentication__SigningKey`
+and the others), which the Helm chart fills from a Kubernetes Secret rather than a plain value in the pod spec, the
+private key only where identity runs.
 
-`JwtSigningKey.Create` runs when `AddApiAuthentication` registers the token validation, in every API process, so
-the API refuses to start, with an error naming the setting, when the key is:
-- missing;
-- padded with leading or trailing whitespace, such as a key file's newline;
-- under 32 bytes in UTF-8;
-- the value that used to be committed to `appsettings.json`, which is public.
+`JwtKeys.Create` runs while every API process is built, so the API refuses to start, with an error naming the
+setting, when:
+- a process running identity has no private key, one that does not parse, one on another curve than P-256, or no key id;
+- a process that does not run identity holds the private key;
+- a public key does not parse, holds a private key, or is listed under identity's key id without being its own;
+- a process has no key to validate with.
 
-The key never appears in logs. Changing it invalidates every access token already issued; clients get a 401
-and refresh. Setup commands: [Development setup](development-setup.md#rest-api-signing-key).
+A token is checked only against a key of the kind its algorithm needs (`JwtKeys.Resolve`): a token naming an unknown
+key id, an HMAC keyed with a public key, or one with no signature finds none. For the release that moves to ES256, the
+HS256 key of before, `Application:Authentication:IssuerSigningKey`, is still accepted while it is set, for the tokens
+signed with it, which name no key id; it keeps its rules: no leading or trailing whitespace, at least 32 bytes in UTF-8,
+and not the value once committed to `appsettings.json`, which is public. The next release refuses HS256.
 
----
+No key appears in logs. A rotation lists the new public key everywhere before identity signs with it, so no token is
+refused; swapping the key without that refuses the tokens signed with the old one, and clients get a 401 and refresh.
+Setup and rotation: [Development setup](development-setup.md#rest-api-signing-key).
 
 ## Test Coverage
 

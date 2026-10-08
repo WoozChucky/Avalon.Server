@@ -129,6 +129,58 @@ to a Secret is accepted.
 {{- end -}}
 
 {{/*
+"true" once any of the ES256 values is set (#801): identity then signs access tokens with the
+private key in the Secret (jwt-signing-private-key) under authentication.signingKeyId, every service
+checks them with authentication.validationKeys, and the HS256 key (jwt-signing-key) reaches the pods
+only with authentication.legacyIssuerSigningKey. With none of them set, the release renders the HS256
+key as it did before #801, which an API of #801 or later refuses to start with: identity needs its
+private key.
+*/}}
+{{- define "avalon-api.es256" -}}
+{{- $auth := .Values.authentication | default dict }}
+{{- if or $auth.signingKeyId $auth.validationKeys $auth.legacyIssuerSigningKey $auth.signingKey (.Values.gameAuth | default dict).hostKey }}
+{{- "true" }}
+{{- end }}
+{{- end }}
+
+{{/*
+The ES256 values (#801), called with (list <root> <identity>): a boolean legacy flag; key ids the API
+accepts (at most 64 letters, digits, '.', '_' and '-'), each listed with a public key, never a
+private one (validationKeys are plain values); identity's key id where identity runs, and at least
+one public key where it does not, since such a process can check a token with nothing else.
+*/}}
+{{- define "avalon-api.validateSigning" -}}
+{{- $root := index . 0 }}
+{{- $identity := index . 1 }}
+{{- $auth := $root.Values.authentication | default dict }}
+{{- if not (kindIs "bool" ($auth.legacyIssuerSigningKey | default false)) }}
+{{- fail "authentication.legacyIssuerSigningKey is true or false." }}
+{{- end }}
+{{- $validation := $auth.validationKeys | default dict }}
+{{- if not (kindIs "map" $validation) }}
+{{- fail "authentication.validationKeys maps each key id to the base64 of a public key (its SubjectPublicKeyInfo)." }}
+{{- end }}
+{{- range $kid, $key := $validation }}
+{{- if not (regexMatch "^[A-Za-z0-9._-]{1,64}$" $kid) }}
+{{- fail (printf "authentication.validationKeys.%s: a key id is at most 64 letters, digits, '.', '_' and '-'." $kid) }}
+{{- end }}
+{{- if contains "PRIVATE KEY" ($key | toString) }}
+{{- fail (printf "authentication.validationKeys.%s holds a private key. List only the public key: these are plain values, and the private key stays in the Secret, for identity alone." $kid) }}
+{{- end }}
+{{- if not ($key | toString | trim) }}
+{{- fail (printf "authentication.validationKeys.%s is empty: give the base64 of the public key (its SubjectPublicKeyInfo)." $kid) }}
+{{- end }}
+{{- end }}
+{{- if $identity }}
+{{- if not (regexMatch "^[A-Za-z0-9._-]{1,64}$" ($auth.signingKeyId | default "" | toString)) }}
+{{- fail "authentication.signingKeyId is required where identity runs: the key id identity signs access tokens under (at most 64 letters, digits, '.', '_' and '-'), e.g. 2026-10." }}
+{{- end }}
+{{- else if not $validation }}
+{{- fail "authentication.validationKeys is required where identity does not run: identity's public key, under its key id (authentication.signingKeyId), is all such a process checks access tokens with." }}
+{{- end }}
+{{- end }}
+
+{{/*
 The service that owns a path by the route manifest (design D2.3): the service of the longest rule
 the path is or lies under, else the manifest's default. Called with (list <manifest> <path>), the
 path in the manifest's normalised form.
@@ -329,7 +381,7 @@ are checked, and a release whose services read no world database ignores worlds.
 {{- if not $root.Values.worlds }}
 {{- fail "worlds lists no world: the API needs at least one, keyed by its id in the auth Worlds table. Give worlds.<id>.world.connectionString and worlds.<id>.characters.connectionString (--set-file), or with existingSecret the keys worlds.<id>.worldKey and worlds.<id>.charactersKey." }}
 {{- end }}
-{{- $used := dict "jwt-signing-key" "authentication.issuerSigningKey" "database-auth-connection-string" "database.auth.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" }}
+{{- $used := dict "jwt-signing-key" "authentication.issuerSigningKey" "jwt-signing-private-key" "authentication.signingKey" "game-auth-host-key" "gameAuth.hostKey" "database-auth-connection-string" "database.auth.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" }}
 {{- range $id, $entry := $root.Values.worlds }}
 {{- if not (and (regexMatch "^[1-9][0-9]{0,4}$" $id) (le (atoi $id) 65535)) }}
 {{- fail (printf "worlds.%s: a world id is a positive integer up to 65535 with no leading zeros, the id of the world's row in the auth Worlds table." $id) }}

@@ -1,3 +1,4 @@
+using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Routing;
 using Avalon.Api.Identity.Authentication;
 using Avalon.Api.UnitTests.Hosting;
@@ -30,6 +31,14 @@ public sealed class RouteOwnershipShould
     {
         "* /health",
         "* /alive",
+    };
+
+    /// <summary>
+    /// The API docs, which every process maps only in Development or where <see cref="ApiDocs.EnabledSetting"/> turns
+    /// them on (#803), and which reach identity through the ingress like <see cref="s_everyProcess"/>.
+    /// </summary>
+    private static readonly HashSet<string> s_apiDocs = new(StringComparer.Ordinal)
+    {
         "GET /openapi/{documentName}.json",
         "GET /scalar/{documentName?}",
         "GET /scalar/scalar.js",
@@ -221,11 +230,29 @@ public sealed class RouteOwnershipShould
         Assert.Equal(mapped.Count, mapped.Distinct(StringComparer.Ordinal).Count());
     }
 
+    /// <summary>
+    /// The API docs are off in production unless their setting turns them on, and on in Development (#803): a process
+    /// maps all of them or none, whatever its services.
+    /// </summary>
+    [Theory]
+    [InlineData("Production", null, false)]
+    [InlineData("Production", "false", false)]
+    [InlineData("Production", "true", true)]
+    [InlineData("Development", null, true)]
+    public async Task Map_the_api_docs_only_in_development_or_where_turned_on(string environment, string? enabled, bool mapped)
+    {
+        await using WebApplication process = ApiProcess.Build(service: null, environment: environment,
+            settings: new Dictionary<string, string?>(StringComparer.Ordinal) { [ApiDocs.EnabledSetting] = enabled });
+
+        string[] expected = mapped ? [.. s_apiDocs.Order(StringComparer.Ordinal)] : [];
+        Assert.Equal(expected, Endpoints(process).Where(s_apiDocs.Contains).Order(StringComparer.Ordinal));
+    }
+
     [Fact]
     public void Send_what_every_process_maps_and_the_paths_no_endpoint_covers_to_their_owner()
     {
         RouteTable routes = Routes();
-        IEnumerable<(string Path, string Owner)> paths = s_everyProcess.Select(key => (PathOf(key), routes.DefaultService))
+        IEnumerable<(string Path, string Owner)> paths = s_everyProcess.Concat(s_apiDocs).Select(key => (PathOf(key), routes.DefaultService))
             .Concat(s_uncovered);
 
         Assert.All(paths, path =>
@@ -239,7 +266,7 @@ public sealed class RouteOwnershipShould
     public void Leave_no_rule_dead()
     {
         RouteTable routes = Routes();
-        var paths = s_owners.Keys.Concat(s_everyProcess).Select(PathOf)
+        var paths = s_owners.Keys.Concat(s_everyProcess).Concat(s_apiDocs).Select(PathOf)
             .Concat(s_uncovered.Select(uncovered => uncovered.Path))
             .ToList();
 

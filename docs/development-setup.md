@@ -30,8 +30,9 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
 docker compose up -d redis postgres
 
 # Run individual servers. The API runs all four of its services on http://localhost:5210 unless
-# Application:Services names some (docs/api-services.md), e.g. one alone:
-#   Application__Services__0=worlds dotnet run --project src/Server/Avalon.Api
+# Application:Services names some (docs/api-services.md), e.g. one alone (without identity it must not hold the
+# private signing key, so blank the user-secret; see "REST API signing key" below):
+#   dotnet run --project src/Server/Avalon.Api -- --Application:Services:0=worlds --Application:Authentication:SigningKey=
 dotnet run --project src/Server/Avalon.Api
 dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
@@ -105,29 +106,77 @@ Target framework: **.NET 10**. Docker compose credentials default to password `1
 
 ### REST API signing key
 
-`Avalon.Api` will not start without a JWT signing key, and none is committed (#482). Every API process needs it, whichever services it runs ([API services](api-services.md)): identity signs access tokens with it and every service validates them with it, until #801 moves the signing to an ES256 key pair. The setting is `Application:Authentication:IssuerSigningKey` (environment variable `Application__Authentication__IssuerSigningKey`). `JwtSigningKey.Create` refuses a key that is missing, has leading or trailing whitespace, is under 32 bytes in UTF-8, or is on `JwtSigningKey.BlockedKeyHashes` (the SHA-256 of the one that used to sit in `appsettings.json`, public now), and the error names the setting. `AddApiAuthentication` (`Avalon.Api.Hosting`) registers the resulting `SymmetricSecurityKey` as a singleton, which identity's `JwtUtils` signs with and every service's bearer handler validates with; identity's game-auth cryptography derives its keys from it too. The services are one project, so one user-secret serves every process. Set it once per machine:
+`Avalon.Api` will not start without its signing keys, and none is committed (#482, #801). Access tokens are ES256: identity signs them with an EC P-256 private key under a key id, and every API service checks them with the public key that key id names, so only a process that runs identity can mint one ([API services](api-services.md)).
+
+| Setting | Read by | What it holds |
+|---|---|---|
+| `Application:Authentication:SigningKey` | identity only | The EC P-256 private key, PKCS#8, as PEM or as the base64 of its DER. A process that does not run identity refuses to start while it is set (an empty value counts as unset) |
+| `Application:Authentication:SigningKeyId` | identity | The key id written into each token's header, for example `2026-10`: at most 64 letters, digits, `.`, `_` and `-` |
+| `Application:Authentication:ValidationKeys:<key id>` | every service | A public key, the base64 of its DER SubjectPublicKeyInfo (or PEM). Public, not secret. Identity knows its own key without it; a process without identity refuses to start with none |
+| `Application:GameAuth:HostKey` | identity | The key identity's game-auth cryptography (proofs, replay receipts, the Steam OpenID state) derives its keys from: a random value of at least 32 bytes. Give it the value `IssuerSigningKey` held, from which those keys were derived before #801, so what was protected with them stays readable |
+| `Application:Authentication:IssuerSigningKey` | every service, for one release | The HS256 key of before #801. While it is set, an HS256 token it signed, naming no key id, is still accepted, so the tokens issued before the move to ES256 run out their 15 minutes and nobody is signed out; an unset `GameAuth:HostKey` falls back to it, with a startup warning. The next release refuses HS256 |
+
+`JwtKeys.Create` (`Avalon.Api.Hosting`) builds the keys while the host is built and stops startup, naming the setting, for a missing or unparsable private key, a key on another curve than P-256, a missing or malformed key id, a public key that does not parse or holds a private key, a public key listed under identity's key id that is not its own, and a process with no key to validate with. The HS256 key and the game-auth host key keep the rules of #482 (`JwtSigningKey.SecretBytes`): no leading or trailing whitespace, at least 32 bytes in UTF-8, and not on `JwtSigningKey.BlockedKeyHashes` (the SHA-256 of the key that used to sit in `appsettings.json`, public now). A process started with `AVALON_OPENAPI_GENERATION_ONLY=true` (the docs build) makes a throwaway key in memory and needs none.
+
+Make a key pair, the private key as a PKCS#8 PEM file and the public key as the base64 `ValidationKeys` takes:
 
 ```bash
-# Local runs (dotnet run, or the Aspire AppHost in src/Server/Avalon): Development loads user-secrets.
-# Each line generates a key and stores it; run one from the repo root.
-dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api   # bash
-$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api   # PowerShell 5.1 or 7
-
-# Containers and every non-Development host: the environment. Keep the key out of shell history:
-# put it in a file (api.env is gitignored) holding the line Application__Authentication__IssuerSigningKey=<key> ...
-docker run --env-file ./api.env ...
-# ... or name the variable without a value, so docker passes it through from the current environment.
-docker run -e Application__Authentication__IssuerSigningKey ...
-
-# Helm: the chart reads every secret through a Kubernetes Secret (secretKeyRef), never a plain env value.
-# Either name a Secret you manage (preferred; keys listed in values.yaml; leave the chart's own secret
-# values empty, or it refuses to render) ...
-helm install ... --set existingSecret=avalon-api-secrets
-# ... or let the chart create it, passing the key from a file (a trailing newline is trimmed).
-# Without one of the two, the chart refuses to render.
-helm install ... --set-file authentication.issuerSigningKey=./jwt.key
+# bash (openssl)
+openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt -out jwt-es256.pem
+openssl pkey -in jwt-es256.pem -pubout -outform DER | base64 -w0
 ```
 
-Rotating the key: with a chart-managed Secret, `helm upgrade` with the new file restarts the pods (a checksum annotation). With `existingSecret`, the chart cannot see the change, so after updating the Secret run `kubectl rollout restart deployment/<release>-avalon-api` (the chart's fullname; the chart renders a Deployment). Once the services run in releases of their own, every release that runs one holds the key: restart each, so they validate with the key identity signs with.
+```powershell
+# PowerShell 7
+$k = [Security.Cryptography.ECDsa]::Create([Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+Set-Content -NoNewline jwt-es256.pem $k.ExportPkcs8PrivateKeyPem()
+[Convert]::ToBase64String($k.ExportSubjectPublicKeyInfo())
+```
 
-`docker-compose.yml` runs only Redis and Postgres, so it needs no key. EF design-time commands (`dotnet ef migrations ...` with `--startup-project src/Server/Avalon.Api`) need no key either: they build each context through its `IDesignTimeDbContextFactory` and never run the API host's registrations. Tests never read one: `ApiTestHost` (`tests/Avalon.Api.Testing`) and the other API tests make their own key in code. Changing the key invalidates every access token already issued; clients get a 401 and refresh.
+**Local runs.** The Aspire AppHost (`src/Server/Avalon`) needs no user-secret: it makes a key pair on every run (a token from an earlier run is refused, and the client refreshes) and keeps a generated game-auth host key in its own user-secrets. A plain `dotnet run --project src/Server/Avalon.Api` (Development loads user-secrets) needs the keys once per machine, from the repository root:
+
+```bash
+# bash: the private key, its key id, its public key and a game-auth host key
+openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt -out jwt-es256.pem
+dotnet user-secrets set "Application:Authentication:SigningKey" "$(cat jwt-es256.pem)" --project src/Server/Avalon.Api
+dotnet user-secrets set "Application:Authentication:SigningKeyId" "dev" --project src/Server/Avalon.Api
+dotnet user-secrets set "Application:Authentication:ValidationKeys:dev" "$(openssl pkey -in jwt-es256.pem -pubout -outform DER | base64 -w0)" --project src/Server/Avalon.Api
+dotnet user-secrets set "Application:GameAuth:HostKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
+rm jwt-es256.pem
+```
+
+```powershell
+# PowerShell 7: the same
+$k = [Security.Cryptography.ECDsa]::Create([Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+dotnet user-secrets set "Application:Authentication:SigningKey" ([Convert]::ToBase64String($k.ExportPkcs8PrivateKey())) --project src/Server/Avalon.Api
+dotnet user-secrets set "Application:Authentication:SigningKeyId" "dev" --project src/Server/Avalon.Api
+dotnet user-secrets set "Application:Authentication:ValidationKeys:dev" ([Convert]::ToBase64String($k.ExportSubjectPublicKeyInfo())) --project src/Server/Avalon.Api
+dotnet user-secrets set "Application:GameAuth:HostKey" ([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))) --project src/Server/Avalon.Api
+```
+
+A machine that holds `Application:Authentication:IssuerSigningKey` from before #801 can give `Application:GameAuth:HostKey` that value and remove `IssuerSigningKey` once HS256 is refused. The services are one project, so these user-secrets serve every process; one that runs without identity must not hold the private key, so blank it on its command line: `dotnet run --project src/Server/Avalon.Api -- --Application:Services:0=worlds --Application:Authentication:SigningKey=`.
+
+```bash
+# Containers and every non-Development host: the environment. Keep the keys out of shell history: put them in a
+# file (api.env is gitignored) holding Application__Authentication__SigningKey=<the private key as the base64 of
+# its DER, one line: openssl pkcs8 -topk8 -nocrypt -in jwt-es256.pem -outform DER | base64 -w0>,
+# Application__Authentication__SigningKeyId=<key id> and Application__GameAuth__HostKey=<key> ...
+docker run --env-file ./api.env ...
+# ... or name the variables without a value, so docker passes them through from the current environment.
+docker run -e Application__Authentication__SigningKey -e Application__GameAuth__HostKey ...
+
+# Helm: the chart reads every secret through a Kubernetes Secret (secretKeyRef), never a plain env value, and the
+# key id and the public keys as plain values. Either name a Secret you manage (preferred; it holds
+# jwt-signing-private-key and game-auth-host-key, see values.yaml; leave the chart's own secret values empty, or
+# it refuses to render) ...
+helm install ... --set existingSecret=avalon-api-secrets --set authentication.signingKeyId=2026-10 \
+  --set-string 'authentication.validationKeys.2026-10=<public key>'
+# ... or let the chart create it, passing the keys from files (a trailing newline is trimmed).
+helm install ... --set-file authentication.signingKey=./jwt-es256.pem --set-file gameAuth.hostKey=./host.key ...
+# For the release that moves to ES256, authentication.legacyIssuerSigningKey=true also renders the HS256 key
+# (jwt-signing-key) as Application__Authentication__IssuerSigningKey; leave it off afterwards.
+```
+
+**Rotating the signing key** signs nobody out: (1) make a new key pair and add its public key to `ValidationKeys`, under a new key id, in every process (the chart's `authentication.validationKeys`, shared by every release), and deploy; (2) give identity the new `SigningKey` and `SigningKeyId`, and deploy; (3) after 16 minutes, the token lifetime and its clock skew, remove the old public key everywhere and deploy. With a chart-managed Secret, `helm upgrade` restarts the pods (a checksum annotation); with `existingSecret` the chart cannot see a change to the Secret, so run `kubectl rollout restart deployment/<release>-avalon-api` (the chart's fullname) for every release whose keys changed. Swapping the key without those steps refuses every token signed with the old one: clients get a 401 and refresh, since refresh tokens are database rows. Changing `GameAuth:HostKey` voids the game-auth records in flight, which live minutes: pick a quiet moment.
+
+`docker-compose.yml` runs only Redis and Postgres, so it needs no key. EF design-time commands (`dotnet ef migrations ...` with `--startup-project src/Server/Avalon.Api`) need no key either: they build each context through its `IDesignTimeDbContextFactory` and never run the API host's registrations. Tests never read one: `ApiTestHost` (`tests/Avalon.Api.Testing`) and the other API tests make their own keys in code.

@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <!-- Holds Application:Authentication:IssuerSigningKey in development; never committed (#482). -->
+    <!-- Holds the signing keys (Application:Authentication:SigningKey, Application:GameAuth:HostKey) in development; never committed (#482, #801). -->
     <UserSecretsId>5c959363-ba65-4b68-9e09-73549b17023b</UserSecretsId>
   </PropertyGroup>
 
@@ -69,20 +69,19 @@
 
   <PropertyGroup>
     <!--
-      Off by default, on purpose. The generator boots the host to read the document,
-      so it runs AddApiAuthentication and trips the signing-key guard (#482), and it does not load
-      user-secrets - leaving it on would fail every ordinary build and every existing
-      CI job for want of a key that signs nothing.
+      Off by default, on purpose. The generator boots the host to read the document, and
+      without AVALON_OPENAPI_GENERATION_ONLY the host is a real API process: it needs its
+      signing keys (#482, #801), which the generator does not load from user-secrets, so
+      leaving it on would fail every ordinary build and every existing CI job.
 
       The generator also interrupts Main when the host STARTS, not when it is built, so
       the startup work after Build() - migrations, workers, the cache connection - runs
-      unless AVALON_OPENAPI_GENERATION_ONLY tells the host (AvalonApiHost) to skip it.
+      unless AVALON_OPENAPI_GENERATION_ONLY tells the host (AvalonApiHost) to skip it. With
+      it the host also makes a throwaway signing key in memory, so no key is needed.
 
-      The docs workflow turns generation on and supplies both, as
-      .github/workflows/docs.yml shows:
+      The docs workflow turns generation on, as .github/workflows/docs.yml shows:
 
         AVALON_OPENAPI_GENERATION_ONLY=true
-        Application__Authentication__IssuerSigningKey=<anything>
         dotnet build src/Server/Avalon.Api -c Release -p:OpenApiGenerateDocuments=true
     -->
     <OpenApiGenerateDocuments Condition="'$(OpenApiGenerateDocuments)' == ''">false</OpenApiGenerateDocuments>

@@ -29,11 +29,12 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
 | `RegenConfiguration`        | `Avalon.World.Configuration`       | `Regen` | World | `ValidateOnStart` |
 | `WorldShutdownConfiguration` | `Avalon.World.Configuration`     | `World:Shutdown` | World | `ValidateOnStart` (both required; `DrainTime` 0 to 1 h, `SaveMargin` 21 s to 1 h). See [World Shutdown Drain](#world-shutdown-drain) |
-| `TokenValidationConfig`     | `Avalon.Api.Hosting.Config`        | `Application:Authentication`: `IssuerSigningKey`, `Issuer`, `Audience`, `ValidateIssuer`, `ValidateAudience`, `ClockSkewInMinutes` | API (every service) | By hand in `AddApiAuthentication`: the signing key (`JwtSigningKey.Create`) |
+| `TokenValidationConfig`     | `Avalon.Api.Hosting.Config`        | `Application:Authentication`: `SigningKey`, `SigningKeyId`, `ValidationKeys`, `IssuerSigningKey`, `Issuer`, `Audience`, `ValidateIssuer`, `ValidateAudience`, `ClockSkewInMinutes` | API (every service) | By hand while the host is built: the token keys (`JwtKeys.Create`, see [REST API JWT Signing Key](#rest-api-jwt-signing-key)) |
 | `ApplicationConfig`         | `Avalon.Api.Identity.Config`       | `Application` | API (identity) | Not as a whole; its sections below |
 | `AuthenticationConfig`      | `Avalon.Api.Identity.Config`       | `Application:Authentication`, all of it (it extends `TokenValidationConfig`) | API (identity) | By hand in `AddIdentity` (`IdentityServiceRegistration`): the login limits (`LoginLimitsValidation.Validate`), the account-creation cap and the email-change send caps |
 | `ForwardedHeadersConfig`    | `Avalon.Api.Hosting.Config`        | `Application:ForwardedHeaders` | API (every service) | By hand in `AddApiHosting` (`ForwardedHeadersSetup.BuildOptions`) |
 | `EmailConfig`               | `Avalon.Api.Identity.Config`       | `Application:Email` | API (identity) | By hand in `AddEmail` |
+| `GameAuthConfig`            | `Avalon.Api.Identity.Config`       | `Application:GameAuth`: `HostKey` | API (identity) | Before the api serves (`IdentityStartupCheck`, `GameAuthHostKey`), see [REST API JWT Signing Key](#rest-api-jwt-signing-key) |
 | `RateLimitingConfig`        | `Avalon.Api.Hosting.Config`        | `Application:RateLimiting`, as `IOptions<RateLimitingConfig>` only | API (every service) | `ValidateOnStart` (each limit at least 1) |
 | `MapAssetConfig`            | `Avalon.Api.Worlds.Config`         | `Application:MapAssets`, as `IOptions<MapAssetConfig>` | API (worlds) | Not validated |
 | `NotificationConfig`        | `Avalon.Api.Identity.Config`       | `Application:Notification` | API (identity) | Not validated |
@@ -291,14 +292,15 @@ of it; `appsettings.json` keeps every service's non-secret defaults.
 | `Database:Worlds:<id>:Characters:ConnectionString` | yes | yes | | |
 | `Database:Worlds:<id>:World:ConnectionString` | | yes | | |
 | `Application:Cache:{Host,Password}` | yes | yes | yes | |
-| `Application:Authentication:{IssuerSigningKey,Issuer,Audience,ValidateIssuer,ValidateAudience,ClockSkewInMinutes}` (token validation) | yes | yes | yes | yes |
+| `Application:Authentication:{ValidationKeys,IssuerSigningKey,Issuer,Audience,ValidateIssuer,ValidateAudience,ClockSkewInMinutes}` (token validation) | yes | yes | yes | yes |
+| `Application:Authentication:{SigningKey,SigningKeyId}` and `Application:GameAuth:HostKey` (any other process refuses to start with `SigningKey` set) | yes | | | |
 | The rest of `Application:Authentication` (token lifetimes, the refresh cookie, the login, registration and email-change limits) | yes | | | |
 | `Application:StoreAuthentication:*`, `Application:SteamWebLink:*`, `Application:GameWorkloads:*`, `Kestrel:Endpoints:GameInternal:*`, `Application:Email:*`, `Application:Notification:*` | yes | | | |
 | `Application:StoreAuthentication:{Environment,SteamIdentityPrefix}` | yes | | yes | |
 | `Application:Templates:*`, `Application:MapAssets:*`, `Application:PublicWorldId`, `Application:PublicSiteUrl`, `Application:Previews:*`, `Application:Balance:*` | | yes | | |
 | `Application:Commerce:*` | | | yes | |
 | `Application:Distribution:*` | | | | yes |
-| `Application:ForwardedHeaders:*`, `Application:RateLimiting:{Enabled,AnonymousPermitsPerMinute,AuthenticatedPermitsPerMinute}` | yes | yes | yes | yes |
+| `Application:ForwardedHeaders:*`, `Application:RateLimiting:{Enabled,AnonymousPermitsPerMinute,AuthenticatedPermitsPerMinute}`, `Application:ApiDocs:Enabled` | yes | yes | yes | yes |
 | `Application:RateLimiting:{ClientAuthPermitsPerMinute,WorkloadPermitsPerMinute}` | yes | | | |
 | `Application:Startup:AuthSchemaWaitSeconds` | | yes | yes | yes |
 
@@ -392,31 +394,58 @@ The host's stop timeout is `DrainTime + SaveMargin` (30 s with the shipped value
 
 ## REST API JWT Signing Key
 
-Section: `Application:Authentication`, read by every API service (**never committed to source control**, #482)
+Sections: `Application:Authentication` and `Application:GameAuth` (**the private keys are never committed to source
+control**, #482). Access tokens are ES256 since #801: identity signs them with its private key under a key id, and
+every API service checks them with the public key that key id names, so no other service can mint one.
 
-| Key                | Type   | Default      | Description                                                    |
-|--------------------|--------|--------------|----------------------------------------------------------------|
-| `IssuerSigningKey` | string | _(required)_ | HMAC-SHA256 key: identity signs the API's access JWTs with it, and every API service validates them with it |
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `Application:Authentication:SigningKey` | string | _(required by identity)_ | The EC P-256 private key identity signs with, PKCS#8, as PEM or as the base64 of its DER. A process that does not run identity refuses to start while it is set (an empty value counts as unset) |
+| `Application:Authentication:SigningKeyId` | string | _(required by identity)_ | The key id (`kid`) written into each token's header, e.g. `2026-10`: at most 64 letters, digits, `.`, `_` and `-` |
+| `Application:Authentication:ValidationKeys:<key id>` | string | _(none)_ | A public key, the base64 of its DER SubjectPublicKeyInfo (or PEM); not secret. Every service checks a token against the key its key id names. A process that signs accepts its own key without it listed (a listed key under its key id must be its own); any other refuses to start with none |
+| `Application:Authentication:IssuerSigningKey` | string | _(none)_ | The HS256 key of before #801, for the release that moves to ES256: while it is set, an HS256 token it signed, naming no key id, is accepted too, so the tokens issued before the move run out their lifetime. The next release refuses HS256 |
+| `Application:GameAuth:HostKey` | string | _(required by identity)_ | The key identity's game-auth cryptography (proofs, replay receipts, the Steam OpenID state) derives its keys from, at least 32 bytes: the value `IssuerSigningKey` held, from which they were derived before #801, so what was protected with them stays readable. For the release that moves to ES256, an unset host key falls back to `IssuerSigningKey`, with a startup warning |
 
-`JwtSigningKey.Create` runs when `AddApiAuthentication` (`Avalon.Api.Hosting`) registers the token validation, in
-every API process whatever its services, so a process refuses to start, naming the setting, when the key is missing,
-has leading or trailing whitespace, is shorter than 32 bytes in UTF-8, or is the value once committed to
-`appsettings.json` (public now). The key is deliberately absent from `appsettings.json`. Since a key that validates
-HS256 tokens can also sign them, any process holding it could mint a token; #801 replaces it with an ES256 key pair
-whose private half only identity holds.
+`JwtKeys.Create` runs while the host is built (`AvalonApiHost.CreateBuilder`), in every API process whatever its
+services, and stops startup, naming the setting, for a missing or unparsable private key, a key on another curve than
+P-256, a missing or malformed key id, a public key that does not parse or holds a private key, a public key listed
+under identity's key id that is not its own, a private key in a process that does not sign, and a process with no key
+to validate with. The HS256 key, when set, and the game-auth host key are refused (`JwtSigningKey.SecretBytes`) when
+they have leading or trailing whitespace, are shorter than 32 bytes in UTF-8, or are the value once committed to
+`appsettings.json` (public now); the host key is checked before the api serves (`IdentityStartupCheck`), so the docs
+build needs none. A token is checked only against a key of the kind its algorithm needs (`JwtKeys.Resolve`):
+`ValidAlgorithms` is ES256, plus HS256 while `IssuerSigningKey` is set, and an HS256 token naming a key id, an HMAC
+keyed with a public key, or a token naming an unknown key id finds no key. The process logs at startup the key ids it
+accepts and whether it accepts HS256. A process with `AVALON_OPENAPI_GENERATION_ONLY=true` makes a throwaway key in
+memory. The keys are deliberately absent from `appsettings.json`.
 
 ```bash
-# Development: user-secrets (the Avalon.Api project has a UserSecretsId)
-dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
+# Development: user-secrets (the Avalon.Api project has a UserSecretsId); see docs/development-setup.md
+dotnet user-secrets set "Application:Authentication:SigningKey" "$(cat jwt-es256.pem)" --project src/Server/Avalon.Api
 
-# Everywhere else: environment variable
-Application__Authentication__IssuerSigningKey=<random value, at least 32 bytes>
+# Everywhere else: environment variables
+Application__Authentication__SigningKey=<the private key, PEM or the base64 of its DER>
+Application__Authentication__SigningKeyId=2026-10
+Application__Authentication__ValidationKeys__2026-10=<the base64 of the public key>
+Application__GameAuth__HostKey=<random value, at least 32 bytes>
 ```
 
-The Helm chart passes it, with the other secrets, through a Kubernetes Secret (`secretKeyRef`): either one
-you manage, named by `existingSecret`, or one the chart creates from `--set-file
-authentication.issuerSigningKey=<file>`. It refuses to render with neither. The `ValidateIssuerKey` setting
-is gone: the signing key is always validated.
+The Helm chart passes the private key and the host key, with the other secrets, through a Kubernetes Secret
+(`secretKeyRef`), and only where identity runs: either one you manage, named by `existingSecret`, with the keys
+`jwt-signing-private-key` and `game-auth-host-key` (optional), or one the chart creates from
+`--set-file authentication.signingKey=<file>` and `--set-file gameAuth.hostKey=<file>`. The key id and the public keys
+are plain values (`authentication.signingKeyId`, `authentication.validationKeys.<key id>`). For the release that moves
+to ES256, `authentication.legacyIssuerSigningKey: true` also renders the HS256 key (`jwt-signing-key`) as
+`IssuerSigningKey` in every service. A release given none of these values renders only the HS256 key, as before #801,
+which this API refuses to start with. Key generation and rotation: [Development setup](development-setup.md#rest-api-signing-key).
+
+---
+
+## REST API Docs
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `Application:ApiDocs:Enabled` | bool | `false` | Serves the OpenAPI document (`/openapi/v1.json`) and Scalar (`/scalar`) outside Development (#803). In Development they are always served; elsewhere only with this on. The Helm chart never sets it. The published document comes from the docs build (`AVALON_OPENAPI_GENERATION_ONLY`), which does not depend on it |
 
 ---
 
@@ -699,7 +728,7 @@ Use `appsettings.{Environment}.json` (e.g. `appsettings.Production.json`) to ove
 # Environment variable override syntax (.NET):
 Application__MinClientVersion=1.5.0
 Application__MaxFailedLoginAttempts=10
-Application__Authentication__IssuerSigningKey=<from-vault>
+Application__Authentication__SigningKey=<from-vault>
 ```
 
 ---
@@ -767,8 +796,8 @@ a process whose services need Redis and validated at startup like the servers' `
 bound only as `IOptions<RateLimitingConfig>` and validated the same way (see
 [REST API Rate Limiting](#rest-api-rate-limiting)), and the worlds service's `Application:Templates` and commerce's
 `Application:Commerce`, validated the same way. The rest are checked by hand while the host is built: in every
-process `Application:Services` (`ApiServiceSelection`), the signing key (`JwtSigningKey.Create` in
-`AddApiAuthentication`, see [REST API JWT Signing Key](#rest-api-jwt-signing-key)) and the forwarded-headers entries
+process `Application:Services` (`ApiServiceSelection`), the token keys (`JwtKeys.Create` in
+`AvalonApiHost.CreateBuilder`, see [REST API JWT Signing Key](#rest-api-jwt-signing-key)) and the forwarded-headers entries
 (`ForwardedHeadersSetup.BuildOptions` in `AddApiHosting`); in identity the login limits
 (`LoginLimitsValidation.Validate`), the account-creation cap, the email-change send caps and the email sender
 (`AddIdentity`, `AddEmail`); in worlds the public site URL (`PublicSiteSettings.Create`). Each check throws

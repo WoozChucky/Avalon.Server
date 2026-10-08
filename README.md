@@ -74,7 +74,7 @@ Tooling & Tests:
 
 ### OpenAPI & Scalar UI
 
-The API exposes an interactive Scalar UI at `/scalar` and raw schema at `/openapi/v1.json`, built on `Microsoft.AspNetCore.OpenApi`. A custom schema transformer produces clean scalar definitions for value object types. See → [ValueObject — OpenAPI Integration](docs/valueobject-openapi.md)
+In Development (or with `Application:ApiDocs:Enabled`; production serves neither, #803) the API exposes an interactive Scalar UI at `/scalar` and raw schema at `/openapi/v1.json`, built on `Microsoft.AspNetCore.OpenApi`. A custom schema transformer produces clean scalar definitions for value object types. See → [ValueObject — OpenAPI Integration](docs/valueobject-openapi.md)
 
 ### Authentication & Security
 
@@ -116,21 +116,22 @@ Prerequisites: .NET 10 SDK, Docker (for infra services).
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d
    ```
-2. Give the API a JWT signing key, once per machine. None is committed, and the API refuses to start
-   without one of at least 32 bytes. From the repository root, each of these generates a key and stores it
-   in your user-secrets:
-   ```bash
-   # bash (needs openssl)
-   dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
-   ```
+2. Give the API its signing keys, once per machine (#801). None is committed, and the API refuses to start
+   without them: an ES256 key pair that signs and checks access tokens, and a game-auth host key. The Aspire
+   AppHost (`src/Server/Avalon`) makes its own and needs nothing. For a plain `dotnet run`, store them in your
+   user-secrets from the repository root:
    ```powershell
-   # Windows PowerShell 5.1 or PowerShell 7 (no openssl needed)
-   $b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api
+   # PowerShell 7 (no openssl needed; bash with openssl: see docs/development-setup.md)
+   $k = [Security.Cryptography.ECDsa]::Create([Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+   dotnet user-secrets set "Application:Authentication:SigningKey" ([Convert]::ToBase64String($k.ExportPkcs8PrivateKey())) --project src/Server/Avalon.Api
+   dotnet user-secrets set "Application:Authentication:SigningKeyId" "dev" --project src/Server/Avalon.Api
+   dotnet user-secrets set "Application:Authentication:ValidationKeys:dev" ([Convert]::ToBase64String($k.ExportSubjectPublicKeyInfo())) --project src/Server/Avalon.Api
+   dotnet user-secrets set "Application:GameAuth:HostKey" ([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))) --project src/Server/Avalon.Api
    ```
-   Outside Development, set the environment variable `Application__Authentication__IssuerSigningKey`
-   instead. The Helm chart reads it from a Kubernetes Secret: name one you manage with
-   `--set existingSecret=<name>`, or pass the key from a file with
-   `--set-file authentication.issuerSigningKey=<file>` (see the chart's `values.yaml`).
+   Outside Development, set the environment variables (`Application__Authentication__SigningKey` and the
+   others) instead. The Helm chart reads the private keys from a Kubernetes Secret: name one you manage with
+   `--set existingSecret=<name>`, or pass them from files (see the chart's `values.yaml` and
+   [docs/development-setup.md](docs/development-setup.md#rest-api-signing-key), which also covers rotation).
 
    Optional: email change (`POST /account/email/change`) answers 501 until the API has an email sender
    (`Application:Email:Sender`, default `None`). In Development you can turn on the pickup sender, which

@@ -17,7 +17,7 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
 
 # Infrastructure (Redis + Postgres; compose password 123), then the servers
 docker compose up -d redis postgres
-dotnet run --project src/Server/Avalon.Api          # all four API services; needs a JWT signing key, see below
+dotnet run --project src/Server/Avalon.Api          # all four API services; needs its signing keys, see below
 dotnet run --project src/Server/Avalon.Server.Auth
 dotnet run --project src/Server/Avalon.Server.World
 dotnet run --project src/Server/Avalon             # Aspire AppHost: everything at once
@@ -42,13 +42,13 @@ Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_on
   --startup-project src/Server/Avalon.Api --context WorldDbContext
 ```
 
-Target framework: .NET 10 (`global.json`). The long notes — every EF design-time rule, seed-migration ordering, ChunkGen details, publish commands, and setting the REST API's JWT signing key (`Application:Authentication:IssuerSigningKey`, required, at least 32 bytes, never committed; user-secrets locally, a Kubernetes Secret in Helm) — are in [docs/development-setup.md](docs/development-setup.md).
+Target framework: .NET 10 (`global.json`). The long notes — every EF design-time rule, seed-migration ordering, ChunkGen details, publish commands, and setting the REST API's signing keys (#801: identity's ES256 private key `Application:Authentication:SigningKey` with its `SigningKeyId`, which no other service may hold; the public keys every service checks tokens with, `ValidationKeys`; the game-auth host key `Application:GameAuth:HostKey`; never committed: user-secrets, or the AppHost's own, locally, a Kubernetes Secret in Helm) — are in [docs/development-setup.md](docs/development-setup.md).
 
 ## Architecture
 
 | Component | Project | Role |
 |---|---|---|
-| REST API host | `src/Server/Avalon.Api` | Runs the API services `Application:Services` names, all four in one process when unset (production until #802); the `avalon-api` chart and its route manifest (`files/routes.json`); OpenAPI with Scalar at `/scalar`; the EF design-time startup project ([docs/api-services.md](docs/api-services.md)) |
+| REST API host | `src/Server/Avalon.Api` | Runs the API services `Application:Services` names, all four in one process when unset (production until #802); the `avalon-api` chart and its route manifest (`files/routes.json`); OpenAPI with Scalar at `/scalar` (served in Development, or with `Application:ApiDocs:Enabled`, #803); the EF design-time startup project ([docs/api-services.md](docs/api-services.md)) |
 | API services | `src/Server/Avalon.Api.Identity`, `.Worlds`, `.Commerce`, `.Distribution` | identity (accounts, MFA, tokens, client auth, game admission; migrates the auth schema), worlds (world content, characters, public tooltips), commerce (checkout, payments), distribution (launcher, releases, channels); none references another (`ApiServiceBoundariesShould`) |
 | API shared | `src/Server/Avalon.Api.Hosting`, `src/Server/Avalon.Api.Contract` | The host builder, pipeline, startup, token validation, rate limiting and world database plumbing every service runs on; the REST contract (DTOs) |
 | Auth server | `src/Server/Avalon.Server.Auth` | TCP login (password, then MFA), MFA management, the world list; world entry is the REST game admission (join and reconnect tickets), not the auth server |
