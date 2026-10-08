@@ -20,6 +20,10 @@ catch (CommandLineException error)
 Console.Error.WriteLine("A Debug build: its timings and allocations are not the server's; run with -c Release.");
 #endif
 
+// Read before anything is written, so a --baseline that is also this run's --json or --write-baseline holds the
+// earlier run, not this one.
+ScenarioReport[]? baseline = options.Baseline is null ? null : ReadBaseline(options.Baseline);
+
 var reports = new List<ScenarioReport>(options.Scenarios.Count);
 foreach (IScenario scenario in options.Scenarios)
 {
@@ -46,8 +50,8 @@ catch (Exception error) when (error is IOException or UnauthorizedAccessExceptio
 }
 
 // A comparison informs; it never fails the run.
-if (options.Baseline is not null)
-    CompareWithBaseline(options.Baseline, reports);
+if (options.Baseline is not null && baseline is not null)
+    CompareWithBaseline(options.Baseline, baseline, reports);
 
 return 0;
 
@@ -103,20 +107,26 @@ static void WriteAllocations(string path, IReadOnlyList<ScenarioReport> reports)
     Console.Error.WriteLine($"Wrote {path}");
 }
 
-static void CompareWithBaseline(string path, IReadOnlyList<ScenarioReport> reports)
+// The earlier reports, without the null entries a hand-edited file may hold; null, with a message, when the file
+// cannot be read as reports at all. A comparison informs, so nothing here fails the run.
+static ScenarioReport[]? ReadBaseline(string path)
 {
-    ScenarioReport[] baseline;
     try
     {
         using FileStream stream = File.OpenRead(path);
-        baseline = JsonSerializer.Deserialize<ScenarioReport[]>(stream, ScenarioReport.JsonOptions) ?? [];
+        ScenarioReport?[] reports = JsonSerializer.Deserialize<ScenarioReport?[]>(stream, ScenarioReport.JsonOptions) ?? [];
+        return Array.FindAll(reports, r => r is not null)!;
     }
-    catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException
+                                      or NotSupportedException or ArgumentException)
     {
-        Console.Error.WriteLine($"No comparison: {path} could not be read as a scenario report ({error.Message})");
-        return;
+        Console.Error.WriteLine($"No comparison: {path} could not be read as scenario reports ({error.Message})");
+        return null;
     }
+}
 
+static void CompareWithBaseline(string path, ScenarioReport[] baseline, IReadOnlyList<ScenarioReport> reports)
+{
     foreach (ScenarioReport current in reports)
     {
         Console.WriteLine();
@@ -127,20 +137,26 @@ static void CompareWithBaseline(string path, IReadOnlyList<ScenarioReport> repor
             continue;
         }
 
-        Console.WriteLine($"{current.Scenario} against {path} (commit {before.Runtime.Commit ?? "unknown"})");
-        if (before.Runtime.ServerGc != current.Runtime.ServerGc
-            || before.Runtime.ProcessorCount != current.Runtime.ProcessorCount
-            || !string.Equals(before.Runtime.Runtime, current.Runtime.Runtime, StringComparison.Ordinal))
+        // A hand-made or older file may have no runtime: compared all the same, and said so.
+        RuntimeStamp? then = before.Runtime;
+        Console.WriteLine($"{current.Scenario} against {path} (commit {then?.Commit ?? "unknown"})");
+        if (then is null)
+        {
+            Console.WriteLine("  measured on an unknown setup: the baseline names no runtime");
+        }
+        else if (then.ServerGc != current.Runtime.ServerGc
+                 || then.ProcessorCount != current.Runtime.ProcessorCount
+                 || !string.Equals(then.Runtime, current.Runtime.Runtime, StringComparison.Ordinal))
         {
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"  measured on another setup: {before.Runtime.Runtime}, server GC {before.Runtime.ServerGc}, {before.Runtime.ProcessorCount} processors"));
+                $"  measured on another setup: {then.Runtime}, server GC {then.ServerGc}, {then.ProcessorCount} processors"));
         }
 
         var rows = new List<string[]> { new[] { "metric", "current", "baseline", "change" } };
         foreach (Metric metric in Metric.All)
         {
-            double now = metric.Read(current), then = metric.Read(before);
-            rows.Add([metric.Name, Fixed(now, metric.Decimals), Fixed(then, metric.Decimals), Change(now, then)]);
+            double now = metric.Read(current), earlier = metric.Read(before);
+            rows.Add([metric.Name, Fixed(now, metric.Decimals), Fixed(earlier, metric.Decimals), Change(now, earlier)]);
         }
 
         PrintTable(rows);
@@ -197,7 +213,7 @@ static int Usage()
           --json <file>               writes the reports, a JSON array
           --write-baseline <file>     the same, meant as a baseline for --baseline (perf/local/ is ignored by git)
           --baseline <file>           compares with an earlier --json or --write-baseline file: current, baseline, change
-          --write-allocations <file>  writes the allocation baseline (perf/scenario-allocations.json) from this run
+          --write-allocations <file>  writes the allocation baseline (perf/scenario-allocations.json); needs every scenario
         """);
     return 2;
 }
@@ -233,7 +249,13 @@ internal sealed record CommandLine(
             }
         }
 
-        return new(Pick(scenario), warmupSeconds, measureTicks, json, baseline, writeBaseline, writeAllocations);
+        IReadOnlyList<IScenario> scenarios = Pick(scenario);
+
+        // The allocation baseline holds every scenario; a partial run would drop the others from it.
+        if (writeAllocations is not null && scenarios.Count != Avalon.World.Testing.Scenarios.Scenarios.All.Count)
+            throw new CommandLineException("--write-allocations needs every scenario: run it with --scenario all (the default).");
+
+        return new(scenarios, warmupSeconds, measureTicks, json, baseline, writeBaseline, writeAllocations);
     }
 
     private static IReadOnlyList<IScenario> Pick(string name)
