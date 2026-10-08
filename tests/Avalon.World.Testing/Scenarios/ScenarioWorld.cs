@@ -104,13 +104,23 @@ public sealed class ScenarioWorld : IDisposable
     public IReadOnlyList<MapInstance> Maps => _instances;
 
     /// <summary>
-    /// One world tick: every instance, through the registry's live list as <c>World.Update</c> takes it, then every
-    /// connection's outbox, as <c>WorldServer</c> flushes them after the world update; then the clock moves on a tick.
-    /// The ticker contains an instance's throw, as it does in production; here it ends the scenario instead, since a
-    /// tick cut short would be measured as a cheap one.
+    /// One world tick, in <c>World.Update</c>'s order for the registry: the builds finished since the last tick
+    /// published, then every instance through the registry's live list; then every connection's outbox, as
+    /// <c>WorldServer</c> flushes them after the world update; then the clock moves on a tick. The ticker contains an
+    /// instance's throw, as it does in production; here it ends the scenario instead, since a tick cut short would be
+    /// measured as a cheap one.
     /// </summary>
+    /// <remarks>
+    /// Left out: <c>World.Update</c>'s last step, <c>InstanceRegistry.ProcessExpiredInstances</c>. Its walk of the
+    /// registry's dictionary allocates an enumerator (72 B) per tick in an unoptimized build and, measured, nothing in
+    /// an optimized one, where the JIT does away with the enumerator's heap allocation. So it would add nothing to the
+    /// committed (Release) figure and 4,320 B per window to a Debug run, failing <c>town-idle</c>'s gate in every local
+    /// Debug <c>dotnet test</c>.
+    /// </remarks>
     public void Tick()
     {
+        _registry.PublishFinished();
+
         _ticker.Tick(_registry.ActiveInstances, Dt);
         if (_failures.First is { } failure)
             throw new InvalidOperationException("An instance threw during a scenario tick", failure);
