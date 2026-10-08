@@ -1,17 +1,16 @@
 using Avalon.Domain.World;
-using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Instances;
 
-namespace Avalon.Server.World.UnitTests;
+namespace Avalon.World.Testing.Fakes;
 
 /// <summary>
 /// Only what building an instance and ticking it read. Hand-written rather than substituted, because a
 /// substitute allocates on every call it records, so the tick paths it serves can be pinned at zero bytes.
 /// </summary>
-internal sealed class QuietWorld(StaticData data) : IWorld
+public sealed class QuietWorld(StaticData data) : IWorld
 {
     public StaticData Data { get; } = data;
     public GameConfiguration Configuration { get; } = new();

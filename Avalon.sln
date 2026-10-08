@@ -168,6 +168,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Api.Identity.UnitTes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.LocalDev", "tools\Avalon.LocalDev\Avalon.LocalDev.csproj", "{23B544D9-539C-4A28-8C03-AFD0F59EB694}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.World.Testing", "tests\Avalon.World.Testing\Avalon.World.Testing.csproj", "{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -934,6 +936,18 @@ Global
 		{23B544D9-539C-4A28-8C03-AFD0F59EB694}.Release|x64.Build.0 = Release|Any CPU
 		{23B544D9-539C-4A28-8C03-AFD0F59EB694}.Release|x86.ActiveCfg = Release|Any CPU
 		{23B544D9-539C-4A28-8C03-AFD0F59EB694}.Release|x86.Build.0 = Release|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Debug|x64.Build.0 = Debug|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Debug|x86.Build.0 = Debug|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Release|x64.ActiveCfg = Release|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Release|x64.Build.0 = Release|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Release|x86.ActiveCfg = Release|Any CPU
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1004,6 +1018,7 @@ Global
 		{5409F9C3-F557-4E47-B869-89A2C28A660F} = {487F1AE2-1995-411B-8080-6434ACA40E86}
 		{D5979DC0-8049-415C-AA6D-52CBD3F05D77} = {659A24EA-5C28-4F62-A67A-5E1564EFA7C3}
 		{23B544D9-539C-4A28-8C03-AFD0F59EB694} = {F506D206-DC04-4EAC-BD00-ABA6A073E757}
+		{ACB1FE36-A9EF-456F-BAE1-89D54CC9B904} = {659A24EA-5C28-4F62-A67A-5E1564EFA7C3}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}

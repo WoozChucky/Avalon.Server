@@ -1,12 +1,12 @@
 using Avalon.Common.Cryptography;
 
-namespace Avalon.Server.World.UnitTests;
+namespace Avalon.World.Testing.Fakes;
 
 /// <summary>
 /// Test double for IAvalonCryptoSession. Encrypt is a pass-through (returns plaintext as-is).
 /// NSubstitute cannot proxy ReadOnlySpan&lt;byte&gt; parameters; use this concrete fake instead.
 /// </summary>
-internal sealed class FakeAvalonCryptoSession : IAvalonCryptoSession
+public sealed class FakeAvalonCryptoSession : IAvalonCryptoSession
 {
     public void Initialize(byte[] otherEndPublicKeyBytes) { }
     public byte[] GetPublicKey() => Array.Empty<byte>();
