@@ -5,6 +5,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <!-- Holds the local certificates' settings (Hosting:Security, World:Admission) in Development, written by
+         tools/Avalon.LocalDev; never committed. -->
+    <UserSecretsId>e3462419-22a6-4dd0-ad1f-efea637e9059</UserSecretsId>
 
     <ApplicationIcon>App.ico</ApplicationIcon>
 
