@@ -37,7 +37,7 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
         }
 
         SaveMarks marks = character.SaveState.TakeMarks();
-        DateTime now = DateTime.UtcNow;
+        DateTime now = character.Clock.GetUtcNow().UtcDateTime;
 
         Dictionary<ItemInstanceId, InventoryItem> held = [];
         foreach (InventoryType container in s_containers)

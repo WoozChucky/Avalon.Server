@@ -33,7 +33,7 @@ public partial class WorldConnection
         BindGameplayAuthority(lease.Authority);
         AssignAccessLevel(lease.AccessLevel);
         AccountId = lease.Authority.AccountId;
-        _lastHeartbeatTicks = TimeProvider.System.GetTimestamp();
+        _lastHeartbeatTicks = _time.GetTimestamp();
     }
 
     public bool AcceptProtocol()
@@ -48,7 +48,7 @@ public partial class WorldConnection
     {
         if (GameSessionLease is not { } lease)
         {
-            if (_tlsAuthenticated && TimeProvider.System.GetElapsedTime(_transportReadyTicks) >= GameAuthPolicy.AdmissionTimeout) Close(false);
+            if (_tlsAuthenticated && _time.GetElapsedTime(_transportReadyTicks) >= GameAuthPolicy.AdmissionTimeout) Close(false);
             return;
         }
         if (_gameplayDrain is not null || IsClosing) return;
@@ -75,9 +75,9 @@ public partial class WorldConnection
             Close(false);
             return;
         }
-        if (_heartbeat is null && (TimeProvider.System.GetElapsedTime(_lastHeartbeatTicks) >= GameAuthPolicy.HeartbeatInterval || Interlocked.Exchange(ref _revalidateGameplayLease, 0) != 0))
+        if (_heartbeat is null && (_time.GetElapsedTime(_lastHeartbeatTicks) >= GameAuthPolicy.HeartbeatInterval || Interlocked.Exchange(ref _revalidateGameplayLease, 0) != 0))
         {
-            _lastHeartbeatTicks = TimeProvider.System.GetTimestamp();
+            _lastHeartbeatTicks = _time.GetTimestamp();
             _heartbeat = WorldDatabaseWork.Admission.Run(() => ((WorldServer)Server).AdmissionClient.HeartbeatAsync(lease, CancellationToken.None));
         }
     }

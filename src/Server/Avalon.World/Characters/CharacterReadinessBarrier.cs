@@ -107,7 +107,7 @@ public static class CharacterReadinessBarrier
     ///     a connected player outside the world. Also spawns, without waiting, one whose client
     ///     reported in before the spawn was armed (<see cref="IWorldConnection.LoadReportedEarly" />).
     /// </summary>
-    /// <param name="nowTicks"><c>DateTime.UtcNow.Ticks</c>.</param>
+    /// <param name="nowTicks">The UTC ticks of the world's <see cref="TimeProvider" />.</param>
     public static void ReleaseExpired(IEnumerable<IWorldConnection> connections, IWorld world,
         long nowTicks, TimeSpan timeout, ILogger logger, IWorldEntryGate? gate = null,
         WorldMaintenanceCoordinator? maintenance = null, TimeProvider? clock = null)
@@ -181,7 +181,7 @@ public static class CharacterReadinessBarrier
     ///     late step can fault, the client already has SMSG_CHARACTER_SELECTED and its chunk layout
     ///     and is loading the map, so there is no earlier state for it to return to.
     /// </remarks>
-    /// <param name="nowTicks"><c>DateTime.UtcNow.Ticks</c>.</param>
+    /// <param name="nowTicks">The UTC ticks of the world's <see cref="TimeProvider" />.</param>
     public static void CancelExpiredSelects(IEnumerable<IWorldConnection> connections,
         long nowTicks, TimeSpan timeout, ILogger logger)
     {

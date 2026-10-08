@@ -35,13 +35,17 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private long _lastClientTicks;
     private long _lastServerTicks;
+
+    // The world's clock (#820): the time-sync pings, packet arrival stamps, and the admission and heartbeat timings.
+    private readonly TimeProvider _time;
     private volatile bool _maintenanceBlocked;
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
-        IPacketReader packetReader)
+        IPacketReader packetReader, TimeProvider? time = null)
         : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
     {
         _server = server;
+        _time = time ?? TimeProvider.System;
         _receiveQueue = new ConcurrentQueue<WorldPacket>();
         _worldSessionFilter = new WorldSessionFilter(this);
         _worldMapFilter = new MapSessionFilter(this);
@@ -191,7 +195,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     public void SendTimeSyncPing()
     {
-        _lastServerTicks = DateTime.UtcNow.Ticks;
+        _lastServerTicks = _time.GetUtcNow().UtcTicks;
         Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, TimeSyncOffset));
     }
 
@@ -343,7 +347,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     {
         WorldTlsTransport transport = ((WorldServer)Server).TlsTransport;
         SslStream stream = await GameAuth.WorldTlsTransport.AuthenticateAsync(new NetworkStream(client.Client, true), transport.Certificate);
-        _transportReadyTicks = TimeProvider.System.GetTimestamp();
+        _transportReadyTicks = _time.GetTimestamp();
         _tlsAuthenticated = true;
         return new PacketStream(stream);
     }
@@ -365,7 +369,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         if (!IsGameplayAuthorized) return ValueTask.CompletedTask;
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
-            _receiveQueue.Enqueue(new WorldPacket(header.Type, payload, DateTime.UtcNow.Ticks));
+            _receiveQueue.Enqueue(new WorldPacket(header.Type, payload, _time.GetUtcNow().UtcTicks));
             return ValueTask.CompletedTask;
         }
         return new ValueTask(Server.CallListener(this, header, payload));

@@ -627,7 +627,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // After the session pass, so a load report that arrived this tick releases its own barrier
         // rather than being beaten to it, and before the world update, so a character released here
         // is simulated on the tick that released it.
-        long barrierNowTicks = DateTime.UtcNow.Ticks;
+        long barrierNowTicks = _time.GetUtcNow().UtcTicks;
         var barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
 
         CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger,

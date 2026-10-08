@@ -11,5 +11,5 @@ namespace Avalon.World.Public.Characters;
 ///     so nothing on the tick can see it.
 /// </param>
 /// <param name="Instance">The instance the character will be spawned into.</param>
-/// <param name="SinceTicks"><c>DateTime.UtcNow.Ticks</c> at the moment the spawn became pending.</param>
+/// <param name="SinceTicks">The world clock's UTC ticks (<see cref="System.TimeProvider" />) at the moment the spawn became pending.</param>
 public sealed record PendingSpawn(ICharacter Character, IMapInstance Instance, long SinceTicks);
