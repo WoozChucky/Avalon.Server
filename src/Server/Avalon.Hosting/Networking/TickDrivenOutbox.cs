@@ -1,5 +1,7 @@
+using System.Diagnostics.Metrics;
 using System.Net.Sockets;
 using System.Threading.Channels;
+using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
@@ -43,8 +45,13 @@ public sealed class TickDrivenOutbox : IOutbox
     /// The two budgets are settable so a test can bound itself against the value it passed in
     /// rather than against a wall clock it does not control. Production leaves them alone.
     /// </remarks>
+    /// <param name="dropped">
+    /// Counts the packets a full outbox evicts, oldest first, tagged by packet type. Only those
+    /// capacity evictions are counted: an <see cref="Enqueue"/> refused because the outbox is
+    /// closed is not a drop.
+    /// </param>
     public TickDrivenOutbox(Guid connectionId, ILogger logger, int capacity, Action onFault,
-        TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null)
+        TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null, Counter<long>? dropped = null)
     {
         _connectionId = connectionId;
         _logger = logger;
@@ -56,7 +63,8 @@ public sealed class TickDrivenOutbox : IOutbox
             FullMode = BoundedChannelFullMode.DropOldest,
             SingleReader = true,
             SingleWriter = false
-        });
+        }, dropped is null ? null : packet => dropped.Add(1,
+            new KeyValuePair<string, object?>("avalon.packet.type", PacketDispatchTelemetry.NameOf(packet.Header.Type))));
     }
 
     public void Connect(PacketStream stream) => _stream = stream;

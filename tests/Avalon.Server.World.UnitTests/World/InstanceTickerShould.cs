@@ -4,6 +4,7 @@ using Avalon.World.Instances;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.World;
@@ -147,6 +148,30 @@ public class InstanceTickerShould : IDisposable
 
         Assert.Empty(_measurements);
         Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public void Bucket_instance_update_durations_past_one_frame_up_to_a_one_second_stall()
+    {
+        using var meter = new Meter($"test-{Guid.NewGuid()}");
+        Histogram<double>? published = null;
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (instrument, _) =>
+            {
+                if (instrument.Meter == meter && instrument.Name == "world.instance.update.duration")
+                    published = (Histogram<double>)instrument;
+            },
+        };
+        listener.Start();
+
+        _ = new InstanceTicker(NullLogger.Instance, meter);
+
+        IReadOnlyList<double>? buckets = published?.Advice?.HistogramBucketBoundaries;
+        Assert.NotNull(buckets);
+        Assert.Contains(16667d, buckets);          // one frame at 60 Hz is a bucket edge
+        Assert.Contains(25000d, buckets);          // a 20 ms tick lands in 16667-25000, not in +Inf
+        Assert.Equal(1_000_000d, buckets[^1]);     // a 1 s stall is still below +Inf
     }
 
     private sealed class ManualClock(DateTimeOffset start) : TimeProvider

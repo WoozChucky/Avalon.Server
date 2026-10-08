@@ -272,13 +272,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         DiagnosticsConfig.World.Meter.CreateObservableGauge(
             "world.tick.rate", () => _ticksPerSecond, "tps", "World tick rate per second");
 
-        _tickDuration = DiagnosticsConfig.World.Meter.CreateHistogram<double>("world.tick.duration", "us",
-                "Duration of a world tick in microseconds");
-        _deadlineOvershoot = DiagnosticsConfig.World.Meter.CreateHistogram<double>("world.tick.deadline_overshoot", "us",
-            "How much the tick loop overshot its deadline (positive) or woke early (negative), in microseconds");
-        _worldUpdateDuration = DiagnosticsConfig.World.Meter.CreateHistogram<double>("world.update.duration", "us",
+        Meter meter = DiagnosticsConfig.World.Meter;
+        _tickDuration = WorldHistograms.Microseconds(meter, "world.tick.duration",
+            "Duration of a world tick in microseconds");
+        _deadlineOvershoot = WorldHistograms.Microseconds(meter, "world.tick.deadline_overshoot",
+            "How much the tick loop overshot its deadline (positive) or woke early (negative), in microseconds",
+            WorldHistograms.OvershootMicroseconds);
+        _worldUpdateDuration = WorldHistograms.Microseconds(meter, "world.update.duration",
             "Duration of the world update phase of the tick loop in microseconds");
-        _sessionUpdateDuration = DiagnosticsConfig.World.Meter.CreateHistogram<double>("world.session_update.duration", "us",
+        _sessionUpdateDuration = WorldHistograms.Microseconds(meter, "world.session_update.duration",
             "Duration of the session update phase of the tick loop in microseconds");
 
         WorldGauges.Register(DiagnosticsConfig.World.Meter, () => Connections, () => _world.InstanceRegistry);

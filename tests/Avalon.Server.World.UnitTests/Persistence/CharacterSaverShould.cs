@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using Avalon.Combat;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -400,10 +401,62 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Equal(260, (await StoredRowAsync(7)).Health);
     }
 
+    /// <summary>
+    /// One duration per save batch, tagged with whether it committed and which kind of save it was.
+    /// A despawn save whose row preparation throws is a failed despawn save.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, "committed", "periodic")]
+    [InlineData(true, false, "failed", "periodic")]
+    [InlineData(false, true, "failed", "despawn")]
+    public async Task Record_one_save_duration_per_batch_with_its_outcome(bool fail, bool despawnThrows, string outcome, string kind)
+    {
+        using var meter = new Meter($"test-{Guid.NewGuid()}");
+        List<Dictionary<string, object?>> measurements = [];
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (i, l) =>
+            {
+                if (i.Meter == meter && i.Name == "world.character.save.duration")
+                    l.EnableMeasurementEvents(i);
+            },
+        };
+        listener.SetMeasurementEventCallback<double>((_, value, tags, _) =>
+        {
+            Assert.True(value >= 0);
+            Dictionary<string, object?> copy = [];
+            foreach (KeyValuePair<string, object?> tag in tags)
+                copy[tag.Key] = tag.Value;
+            lock (measurements)
+                measurements.Add(copy);
+        });
+        listener.Start();
+
+        CharacterEntity character = await SeedAsync(7);
+        ICharacterSaveRepository repository = Repository();
+        if (fail)
+        {
+            repository = Substitute.For<ICharacterSaveRepository>();
+            repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromException(new InvalidOperationException("boom")));
+        }
+
+        CharacterSaver saver = Saver(repository, meter);
+
+        bool saved = despawnThrows
+            ? await saver.SaveOnDespawnAsync(character, (_, _) => throw new InvalidOperationException("prepare"), CancellationToken.None).WaitAsync(s_limit)
+            : await saver.Save(_connection, character).WaitAsync(s_limit);
+        Assert.Equal(outcome == "committed", saved);
+
+        Dictionary<string, object?> tags = Assert.Single(measurements);
+        Assert.Equal(outcome, tags["outcome"]);
+        Assert.Equal(kind, tags["kind"]);
+    }
+
     private CharacterSaveRepository Repository() => new(new DbTransactionRunner<CharacterDbContext>(_db));
 
-    private CharacterSaver Saver(ICharacterSaveRepository? repository = null) =>
-        new(repository ?? Repository(), NullLogger<CharacterSaver>.Instance);
+    private CharacterSaver Saver(ICharacterSaveRepository? repository = null, Meter? meter = null) =>
+        new(repository ?? Repository(), NullLogger<CharacterSaver>.Instance, meter);
 
     /// <summary>
     /// The tick's continuation drain: WorldConnection runs a callback once its task has completed,

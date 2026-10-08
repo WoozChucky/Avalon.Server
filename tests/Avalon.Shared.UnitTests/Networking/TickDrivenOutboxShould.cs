@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
@@ -154,20 +155,42 @@ public class TickDrivenOutboxShould
     }
 
     [Fact]
-    public void Enqueue_WhenAtCapacity_DropsOldestAndDoesNotThrow()
+    public async Task Enqueue_WhenAtCapacity_DropsOldestAndDoesNotThrow()
     {
-        (PacketStream? stream, MemoryStream _) = MakeSyncStream();
-        var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 2,
-            onFault: () => { });
+        using var meter = new Meter($"test-{Guid.NewGuid()}");
+        Counter<long> dropped = meter.CreateCounter<long>("network.out.dropped");
+        List<(long Value, object? Type)> seen = [];
+        using var listener = new MeterListener
+        {
+            InstrumentPublished = (instrument, l) => { if (instrument.Meter == meter) l.EnableMeasurementEvents(instrument); },
+        };
+        listener.SetMeasurementEventCallback<long>((_, value, tags, _) =>
+        {
+            object? type = null;
+            foreach (KeyValuePair<string, object?> tag in tags)
+                if (tag.Key == "avalon.packet.type") type = tag.Value;
+            seen.Add((value, type));
+        });
+        listener.Start();
+
+        (PacketStream stream, MemoryStream _) = MakeSyncStream();
+        var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 2, onFault: () => { },
+            dropped: dropped);
         outbox.Connect(stream);
 
-        // Fill to capacity without flushing
         outbox.Enqueue(MakePacket());
         outbox.Enqueue(MakePacket());
-        outbox.Enqueue(MakePacket()); // DropOldest — no exception
+        Assert.Empty(seen);
+        outbox.Enqueue(MakePacket()); // DropOldest: the first packet goes
 
-        // Still functional
-        outbox.Flush();
+        (long value, object? type) = Assert.Single(seen);
+        Assert.Equal(1, value);
+        Assert.Equal(nameof(NetworkPacketType.SMSG_PING), type);
+        outbox.Flush(); // still functional
+
+        await outbox.DisposeAsync();
+        outbox.Enqueue(MakePacket()); // refused: the outbox is closed, not full
+        Assert.Single(seen);          // still only the one capacity drop
     }
 
     /// <summary>

@@ -3,6 +3,7 @@ using System.Diagnostics.Metrics;
 using System.Runtime.CompilerServices;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Telemetry;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Instances;
@@ -38,7 +39,7 @@ public sealed class InstanceTicker
     {
         _logger = logger;
         _time = time ?? TimeProvider.System;
-        _duration = meter.CreateHistogram<double>("world.instance.update.duration", "us",
+        _duration = WorldHistograms.Microseconds(meter, "world.instance.update.duration",
             "Duration of one instance's update in microseconds, by map type");
         _failures = meter.CreateCounter<long>("world.instance.update.failures", "{failures}",
             "Instance updates that threw, by map type");

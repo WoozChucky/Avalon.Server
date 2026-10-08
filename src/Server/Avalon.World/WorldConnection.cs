@@ -29,6 +29,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private readonly ConcurrentQueue<WorldPacket> _receiveQueue;
 
+    /// <summary>Packets received and not yet dispatched; read by the receive-queue gauge off the tick.</summary>
+    internal int ReceiveQueueDepth => _receiveQueue.Count;
+
     private readonly IWorldServer _server;
 
     private CharacterEntity? _characterEntity;
@@ -330,8 +333,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     protected override IOutbox OnCreateOutbox() =>
         new TickDrivenOutbox(Id, _logger, Server.SendBufferCapacity,
 #pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
-            onFault: () => Close(false));
+            onFault: () => Close(false),
 #pragma warning restore MA0045
+            dropped: DiagnosticsConfig.World.PacketsDropped);
 
     public void FlushOutbox() => _outbox?.Flush();
 
