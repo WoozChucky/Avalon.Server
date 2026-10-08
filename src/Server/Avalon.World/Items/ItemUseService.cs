@@ -17,8 +17,10 @@ namespace Avalon.World.Items;
 /// <summary>
 /// One CMSG_ITEM_USE, on the tick, answered with exactly one SMSG_ITEM_USE_RESULT: at once, or when its cast ends.
 /// In order: dead (before anything else, so no script hook, teleport or quest start ever runs for a dead user); the
-/// slot (Bag only); the template; gear is equipped (ItemEquip, then the stats refresh a drag-to-equip runs; an equip
-/// that passed its checks ends the item cast running, answered Interrupted, just before it moves anything) and nothing
+/// slot (Bag or Equipment); a worn item is taken off to the lowest free Bag slot (ItemEquip.Unequip: TargetFull when
+/// there is none; asked before the template, so an item whose template is gone comes off too) and nothing else is asked;
+/// the template; gear is equipped (ItemEquip, then the stats refresh a drag-to-equip runs; an equip or unequip that
+/// passed its checks ends the item cast running, answered Interrupted, just before it moves anything) and nothing
 /// else is asked; otherwise a script is needed, then an ability cast refuses (AlreadyCasting), then the item's and its
 /// group's cooldown, then the script found and built and the user's instance (InternalError), then the script's
 /// CanUse. A use that passed all of them ends the item cast running, which is answered Interrupted, then runs OnUse at
@@ -65,8 +67,18 @@ public sealed class ItemUseService(
         if (character.IsDead)
             return ItemUseAnswer.Of(ItemUseResult.Dead);
 
-        if (!SlotRef.TryParse(container, slot, out SlotRef at) || at.Container != InventoryType.Bag
-            || !InventoryMove.IsUsable(character, at)
+        if (!SlotRef.TryParse(container, slot, out SlotRef at) || !InventoryMove.IsUsable(character, at))
+            return ItemUseAnswer.Of(ItemUseResult.NotFound);
+
+        // A worn item is taken off before any template is looked up, so one whose template a reload removed still can be.
+        if (at.Container == InventoryType.Equipment)
+        {
+            return character.Container(InventoryType.Equipment).TryGet(at.Slot, out _)
+                ? Unequip(character, at.Slot)
+                : ItemUseAnswer.Of(ItemUseResult.NotFound);
+        }
+
+        if (at.Container != InventoryType.Bag
             || !character.Container(InventoryType.Bag).TryGet(at.Slot, out InventoryItem item))
         {
             return ItemUseAnswer.Of(ItemUseResult.NotFound);
@@ -92,6 +104,19 @@ public sealed class ItemUseService(
         if (equipped == ItemUseResult.Ok)
             CharacterStatsRefresh.AfterGearChange(character, tools.World.Data, logger);
         return ItemUseAnswer.Of(equipped);
+    }
+
+    /// <summary>
+    /// Takes a worn item off to the lowest free Bag slot. As an equip does, one that passed its checks ends the item cast
+    /// running (answered Interrupted) just before it moves anything, and a refused one (TargetFull) leaves the cast alone.
+    /// </summary>
+    private ItemUseAnswer Unequip(CharacterEntity character, ushort equipmentSlot)
+    {
+        ItemUseResult unequipped = ItemEquip.Unequip(character, tools.Economy.InventoryOf(character), FindTemplate,
+            equipmentSlot, () => HostOf(character)?.ItemUses.Interrupt(character.Guid));
+        if (unequipped == ItemUseResult.Ok)
+            CharacterStatsRefresh.AfterGearChange(character, tools.World.Data, logger);
+        return ItemUseAnswer.Of(unequipped);
     }
 
     private ItemUseAnswer? BeginScript(IWorldConnection connection, CharacterEntity character, uint requestId,

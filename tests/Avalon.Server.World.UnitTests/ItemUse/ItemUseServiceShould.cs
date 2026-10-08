@@ -47,7 +47,9 @@ public class ItemUseServiceShould : IAsyncLifetime
     [Theory]
     [InlineData((uint)InventoryType.Bag, 3u)]     // empty
     [InlineData((uint)InventoryType.Bag, 400u)]   // out of range
-    [InlineData((uint)InventoryType.Bank, 0u)]    // not the Bag: only Bag items are used
+    [InlineData((uint)InventoryType.Bank, 0u)]    // the Bank: only Bag and Equipment items are used
+    [InlineData((uint)InventoryType.Equipment, 0u)]   // an empty equipment slot
+    [InlineData((uint)InventoryType.Equipment, 11u)]  // a reserved equipment slot
     [InlineData(9u, 0u)]                          // no such container
     public void Answer_NotFound_for_a_slot_that_holds_nothing_usable(uint container, uint slot)
     {
@@ -369,6 +371,31 @@ public class ItemUseServiceShould : IAsyncLifetime
         Assert.Equal(EquipTemplates.Greatsword.Id, At(_w.Character, InventoryType.Equipment, EquipmentSlots.MainHand).TemplateId);
         Assert.False(_w.Character.Container(InventoryType.Equipment).TryGet(EquipmentSlots.OffHand, out _));
         Assert.Equal(EquipTemplates.Buckler.Id, At(_w.Character, InventoryType.Bag, 0).TemplateId);
+    }
+
+    /// <summary>
+    /// A use of a worn item takes it off to the lowest free Bag slot, as a drag does: it ends the running item cast,
+    /// refreshes the stats, and takes off an item whose template a reload removed.
+    /// </summary>
+    [Fact]
+    public void Unequip_gear_through_the_same_request_ending_the_cast_and_refreshing_the_stats()
+    {
+        _w.Bag(Item(0, Scroll, count: 2), Item(1, EquipTemplates.Longsword));
+        _w.Character.Container(InventoryType.Equipment).Load([Item(EquipmentSlots.Head, EquipTemplates.Ghost)]);
+        _w.Use(41, 1);
+        _w.Use(42, 0);
+
+        _w.Use(43, EquipmentSlots.MainHand, (uint)InventoryType.Equipment);
+        _w.Use(44, EquipmentSlots.Head, (uint)InventoryType.Equipment);
+
+        Assert.Equal(
+            [(41u, ItemUseResult.Ok), (42u, ItemUseResult.Interrupted), (43u, ItemUseResult.Ok), (44u, ItemUseResult.Ok)],
+            _w.Results().Select(r => (r.RequestId, r.Result)));
+        Assert.Equal(EquipTemplates.Longsword.Id, At(_w.Character, InventoryType.Bag, 1).TemplateId);
+        Assert.Equal(EquipTemplates.Ghost.Id, At(_w.Character, InventoryType.Bag, 2).TemplateId);
+        Assert.Empty(_w.Character.Container(InventoryType.Equipment).Items);
+        Assert.Equal(WarriorLevel1.Strength, _w.Character.Stats!.Value.Strength);
+        Assert.False(_w.Instance.ItemUses.IsCasting(_w.Character.Guid));
     }
 
     /// <summary>Leaving the instance mid-cast ends the bar and answers the use Interrupted, spending nothing.</summary>

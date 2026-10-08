@@ -3,8 +3,9 @@
 > **Audience:** client developers and LLMs handed the client codebase.
 > **Status:** item use, V1. Amended in place when the item use protocol changes.
 
-This is the client contract for using an item: a right-click on a Bag slot. Gear is equipped into the slot it is
-worn in; any other item runs the item's script on the server (a potion, a scroll). The wire schema is
+This is the client contract for using an item: a right-click on a Bag slot or on a worn item. Gear in the Bag is
+equipped into the slot it is worn in; any other Bag item runs the item's script on the server (a potion, a scroll); a
+worn item is taken off to the lowest free Bag slot. The wire schema is
 `schema/avalon.proto` (re-exported with `tools/Avalon.Exporter`); field numbers below are the `[ProtoMember]`
 numbers in it. What an item does when used is in the item catalog, `schema/items/item-catalog-v1.json`
 (`useScript`, `useCastTimeMs`, `useCooldownMs`, `useCooldownGroup`, `useValue`; described by
@@ -21,13 +22,13 @@ Both are encrypted, over TCP. The request is accepted only while the character i
 
 ## 2. The request
 
-`CItemUsePacket`, sent on a right-click on a Bag slot:
+`CItemUsePacket`, sent on a right-click on a Bag slot or an Equipment slot:
 
 | Field | Proto # | Type | Notes |
 |---|---|---|---|
 | `RequestId` | 1 | `uint32` | Chosen by the client; echoed in the answer, so the client can pair answers with requests. |
-| `Container` | 2 | `uint32` | The `InventoryType` number of the slot: `1`, the Bag. Anything else is answered `NotFound`. |
-| `Slot` | 3 | `uint32` | The Bag slot. |
+| `Container` | 2 | `uint32` | The `InventoryType` number of the slot: `1`, the Bag (use or equip), or `0`, Equipment (take off). Anything else is answered `NotFound`. |
+| `Slot` | 3 | `uint32` | The Bag slot, or the Equipment slot (0 Head to 10 OffHand; 11-13 are reserved and answered `NotFound`). |
 
 Send one per click. Do not pre-gate on cooldowns, casts or health: the server checks everything and answers every
 request.
@@ -43,7 +44,7 @@ Every request is answered with **exactly one** `SItemUseResultPacket`, to the re
 | `CooldownMs` | 3 | `uint32` | Only on `OnCooldown`: the milliseconds left, rounded up so it is at least 1. 0 otherwise. |
 | `Message` | 4 | `string` | Only on `Refused`: the line to show the player. Absent otherwise. |
 
-**When it comes.** An equip and an instant use are answered at once. A use with a cast time is answered once, when
+**When it comes.** An equip, a take-off and an instant use are answered at once. A use with a cast time is answered once, when
 its cast ends: `Ok` when it completed, `Interrupted` when it ended early, `Refused` when the item's own check
 refused at completion, `InternalError` when something failed. Meanwhile its `SMSG_UNIT_START_CAST` (section 6) is the
 acknowledgement. A connection with no character gets no answer at all.
@@ -53,8 +54,8 @@ acknowledgement. A connection with no character gets no answer at all.
 | Value | Name | Meaning |
 |---|---|---|
 | 0 | `Unknown` | What a payload without the field decodes as. Never sent. |
-| 1 | `Ok` | Equipped, or the item's effect ran. The change itself arrives separately (section 5). |
-| 2 | `NotFound` | Not a Bag slot, a slot out of range, or an empty slot. |
+| 1 | `Ok` | Equipped, taken off, or the item's effect ran. The change itself arrives separately (section 5). |
+| 2 | `NotFound` | Neither a Bag nor an Equipment slot, a slot out of range or reserved, or an empty slot. |
 | 3 | `NotUsable` | The item can be neither worn nor used (no script), its template is gone, or it is a stack of gear. |
 | 4 | `Dead` | The character is dead. Nothing happened. |
 | 5 | `OnCooldown` | The item's cooldown, or its group's, is running; `CooldownMs` is the time left. |
@@ -64,7 +65,7 @@ acknowledgement. A connection with no character gets no answer at all.
 | 9 | `WrongEquipSlot` | The gear does not fit the slot it would go to. |
 | 10 | `LevelTooLow` | The gear's required level is above the character's. |
 | 11 | `WrongClass` | The gear is not for the character's class. |
-| 12 | `TargetFull` | A two-handed weapon: the worn off-hand item has no free Bag slot to go to. |
+| 12 | `TargetFull` | No free Bag slot: for a worn item being taken off, or for the off-hand item a two-handed weapon would move out. |
 | 13 | `Blocked` | A two-handed weapon and an off-hand item would both be worn. |
 | 14 | `Interrupted` | The cast ended early (section 6). Nothing was spent and no cooldown started. |
 | 15 | `Refused` | The item refused this use; `Message` says why. Show it. |
@@ -73,16 +74,19 @@ acknowledgement. A connection with no character gets no answer at all.
 ## 4. The checks, in order
 
 1. **Dead**: `Dead`, before anything else.
-2. **The slot**: a Bag slot in range that holds an item, else `NotFound`.
-3. **The template**: an item whose template is gone is `NotUsable`.
-4. **Gear** (an item whose template `slot` is one that is worn) is equipped (section 5), and nothing else below is
+2. **The slot**: a Bag or Equipment slot in range, not reserved, that holds an item, else `NotFound`.
+3. **A worn item** (Container 0) is taken off (section 5), and nothing else below is asked: no template, cooldown or
+   cast check, so an item whose template is gone can still be taken off. A take-off that passes its checks first
+   ends a running item cast bar, which is answered `Interrupted`; a full Bag (`TargetFull`) leaves the bar running.
+4. **The template**: an item whose template is gone is `NotUsable`.
+5. **Gear** (an item whose template `slot` is one that is worn) is equipped (section 5), and nothing else below is
    asked: no cooldown, no cast check. An equip that passes its checks first ends a running item cast bar, which is
    answered `Interrupted`; a refused equip leaves the bar running.
-5. **A script** (`useScript` in the item catalog): none is `NotUsable`.
-6. **An ability cast in progress**: `AlreadyCasting`.
-7. **Cooldowns**: the item's own and its group's (`OnCooldown`, with the longer of the two as `CooldownMs`).
-8. **The script cannot be found or built, or the character's instance cannot be found**: `InternalError`.
-9. **The item's own check**: a refusal is `Refused` with its line in `Message`.
+6. **A script** (`useScript` in the item catalog): none is `NotUsable`.
+7. **An ability cast in progress**: `AlreadyCasting`.
+8. **Cooldowns**: the item's own and its group's (`OnCooldown`, with the longer of the two as `CooldownMs`).
+9. **The script cannot be found or built, or the character's instance cannot be found**: `InternalError`.
+10. **The item's own check**: a refusal is `Refused` with its line in `Message`.
 
 **Cooldowns.** An item rests for `useCooldownMs` after a use succeeds; items with the same `useCooldownGroup`
 share one rest (using one starts it for all of them). A refused, interrupted or failed use starts none. Cooldowns
@@ -100,9 +104,15 @@ moves (the clicked slot does not count as free). Equipping refreshes the charact
 cast bar first: that use is answered `Interrupted`, then the equip `Ok`. A refused equip (`LevelTooLow`,
 `WrongClass`, ...) changes nothing, the bar included.
 
+**A worn item** (Container 0) is taken off exactly as dragging it to a Bag slot would be: it goes to the lowest free
+Bag slot, and with none free it is `TargetFull` and nothing moves. Taking off is always allowed otherwise: either
+hand (a two-handed weapon or an off-hand item needs nothing special), in combat (only `Dead` refuses), and an item
+whose template is gone. It refreshes the character's stats as a drag does, and, like an equip, a take-off that
+passes its checks ends a running item cast bar first: that use is answered `Interrupted`, then the take-off `Ok`.
+
 **Any other item** runs its script. An item with no script is `NotUsable`.
 
-**Where the change shows.** Every item change (an equip, a swap, a potion drunk) arrives in that tick's
+**Where the change shows.** Every item change (an equip, a swap, a take-off, a potion drunk) arrives in that tick's
 `SMSG_INVENTORY_UPDATE`, like any inventory change. Health restored arrives through state replication and as an
 `SMSG_UNIT_HEALED` (healer and target the user, no `AbilityId`, `Result` None); power restored arrives through
 state replication.
@@ -121,9 +131,11 @@ All three go to every client near the caster. Draw a plain bar with the item's n
 `CastId` comes from the same per-instance sequence as ability casts, so key and clear the bar by `Caster` and
 `CastId` as for an ability (`docs/client-combat-protocol-migration.md`).
 
-**What interrupts it:** the character moving, dying or leaving the instance; using another item (gear included);
+**What interrupts it:** the character moving, dying or leaving the instance; using another item (gear included, and
+taking a worn item off);
 casting an ability the server accepts. Using another item interrupts only once that use has passed its checks, so a
-click on an item on cooldown, or on gear the character cannot wear, leaves the bar running. Taking damage does not interrupt it. When the
+click on an item on cooldown, on gear the character cannot wear, or on a worn item with the Bag full, leaves the bar
+running. Taking damage does not interrupt it. When the
 bar ends, the same item must still be in the same Bag slot: one moved out of it, or sold or destroyed whole,
 meanwhile ends it as `Interrupted` (a stack that only lost part of its count is still the same item). The item's own check is asked again at the end and can still refuse (`Refused`). An interrupted use
 spends nothing and starts no cooldown.

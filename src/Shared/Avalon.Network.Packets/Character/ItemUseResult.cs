@@ -6,10 +6,10 @@ public enum ItemUseResult : byte
     /// <summary>What a payload without the field decodes as. Never sent.</summary>
     Unknown = 0,
 
-    /// <summary>Equipped, or the script ran. The change itself arrives in the tick's SInventoryUpdatePacket.</summary>
+    /// <summary>Equipped, taken off, or the script ran. The change itself arrives in the tick's SInventoryUpdatePacket.</summary>
     Ok = 1,
 
-    /// <summary>The slot is empty, out of range, or not in the Bag.</summary>
+    /// <summary>The slot is empty, out of range, reserved, or in neither the Bag nor Equipment.</summary>
     NotFound = 2,
 
     /// <summary>The item cannot be worn and names no script, its template is gone, or it is a stack of gear.</summary>
@@ -33,15 +33,15 @@ public enum ItemUseResult : byte
     LevelTooLow = 10,
     WrongClass = 11,
 
-    /// <summary>A two-hander's off-hand item has no free Bag slot to go to.</summary>
+    /// <summary>A two-hander's off-hand item, or a worn item being taken off, has no free Bag slot to go to.</summary>
     TargetFull = 12,
 
     /// <summary>A two-handed weapon and an off-hand item would both be worn.</summary>
     Blocked = 13,
 
     /// <summary>
-    /// The cast ended early: the character moved, died, left, used another item, equipped gear or cast an ability, or
-    /// the item left its slot.
+    /// The cast ended early: the character moved, died, left, used another item, equipped or took off gear or cast an
+    /// ability, or the item left its slot.
     /// </summary>
     Interrupted = 14,
 
