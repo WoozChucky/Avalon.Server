@@ -29,6 +29,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private readonly ConcurrentQueue<WorldPacket> _receiveQueue;
 
+    /// <summary>Packets received and not yet dispatched; read by the receive-queue gauge off the tick.</summary>
+    internal int ReceiveQueueDepth => _receiveQueue.Count;
+
     private readonly IWorldServer _server;
 
     private CharacterEntity? _characterEntity;
