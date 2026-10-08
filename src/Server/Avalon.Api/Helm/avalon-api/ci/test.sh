@@ -8,13 +8,15 @@ export MSYS_NO_PATHCONV=1
 # Supply mandatory authentication settings for renders and unrelated refusal checks.
 AUTHENTICATION=(--values ci/authentication-values.yaml)
 KEY=$(printf 'k%.0s' $(seq 1 64))
+# Identity's keys a chart-managed Secret needs (#801): its private key and the game-auth host key.
+SIGNING=(--set authentication.signingKey=private --set gameAuth.hostKey="$KEY")
 CACHE="--set cache.host=redis:6379"
 # The auth string a chart-managed Secret needs (#564).
 AUTH=(--set database.auth.connectionString=a1)
 # One world whose strings live in a Secret the operator manages, under keys the values name (#523).
 W1=(--set worlds.1.worldKey=world-one --set worlds.1.charactersKey=characters-one)
 
-helm lint . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" \
+helm lint . "${AUTHENTICATION[@]}" $CACHE "${SIGNING[@]}" "${AUTH[@]}" \
   --set worlds.1.world.connectionString=w1 --set worlds.1.characters.connectionString=c1
 
 out=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}")
@@ -43,7 +45,7 @@ grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$out" | g
 ! grep -Eq "name: Database__(World|Characters)__ConnectionString" <<<"$out"                                  || { echo "the single world pair must be gone"; exit 1; }
 
 # Several worlds, chart-managed Secret, default keys.
-many=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" \
+many=$(helm template t . "${AUTHENTICATION[@]}" $CACHE "${SIGNING[@]}" "${AUTH[@]}" \
   --set worlds.1.world.connectionString=w1 --set worlds.1.characters.connectionString=c1 \
   --set worlds.3.world.connectionString=w3 --set worlds.3.characters.connectionString=c3)
 for id in 1 3; do
@@ -61,7 +63,7 @@ must_fail "world id 0 must fail"                      --set existingSecret=x --s
 must_fail "a non-numeric world id must fail"          --set existingSecret=x --set worlds.abc.worldKey=a --set worlds.abc.charactersKey=b
 must_fail "a leading zero must fail"                  --set existingSecret=x --set worlds.01.worldKey=a --set worlds.01.charactersKey=b
 must_fail "a world id above 65535 must fail"          --set existingSecret=x --set worlds.70000.worldKey=a --set worlds.70000.charactersKey=b
-must_fail "half a pair must fail"                     --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" --set worlds.1.world.connectionString=w1
+must_fail "half a pair must fail"                     "${SIGNING[@]}" "${AUTH[@]}" --set worlds.1.world.connectionString=w1
 must_fail "existingSecret + inline world string must fail" --set existingSecret=x --set worlds.1.world.connectionString=leak
 must_fail "the old single pair must fail"             --set existingSecret=x "${W1[@]}" --set database.world.connectionString=old
 msg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x 2>&1 || true)
@@ -69,9 +71,9 @@ grep -q "worlds lists no world" <<<"$msg"                              || { echo
 
 # Secret key names (#523): the chart-managed Secret names its own keys, and no two settings may read one key.
 CS1=(--set worlds.1.world.connectionString=w1 --set worlds.1.characters.connectionString=c1)
-must_fail "worldKey without existingSecret must fail"      --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set worlds.1.worldKey=custom
-must_fail "charactersKey without existingSecret must fail" --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set worlds.1.charactersKey=custom
-for own in jwt-signing-key database-auth-connection-string cache-password notification-private-key distribution-secret-key; do
+must_fail "worldKey without existingSecret must fail"      "${SIGNING[@]}" "${AUTH[@]}" "${CS1[@]}" --set worlds.1.worldKey=custom
+must_fail "charactersKey without existingSecret must fail" "${SIGNING[@]}" "${AUTH[@]}" "${CS1[@]}" --set worlds.1.charactersKey=custom
+for own in jwt-signing-private-key game-auth-host-key database-auth-connection-string cache-password notification-private-key distribution-secret-key; do
   must_fail "a world key reusing $own must fail"          --set existingSecret=x --set worlds.1.worldKey="$own" --set worlds.1.charactersKey=characters-one
 done
 must_fail "worldKey == charactersKey must fail"            --set existingSecret=x --set worlds.1.worldKey=same --set worlds.1.charactersKey=same
@@ -79,8 +81,8 @@ must_fail "two worlds sharing a key must fail"             --set existingSecret=
 must_fail "a key reusing another world's default must fail" --set existingSecret=x --set worlds.1.worldKey= --set worlds.2.worldKey=database-world-1-connection-string --set worlds.2.charactersKey=characters-two
 must_fail "a key with a slash must fail"                   --set existingSecret=x --set worlds.1.worldKey=bad/key --set worlds.1.charactersKey=characters-one
 must_fail "a key with a space must fail"                   --set existingSecret=x --set 'worlds.1.worldKey=bad key' --set worlds.1.charactersKey=characters-one
-msg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set worlds.1.worldKey=jwt-signing-key --set worlds.1.charactersKey=characters-one 2>&1 || true)
-grep -q "authentication.issuerSigningKey" <<<"$msg"                    || { echo "the key collision must name what already reads the key"; exit 1; }
+msg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set worlds.1.worldKey=jwt-signing-private-key --set worlds.1.charactersKey=characters-one 2>&1 || true)
+grep -q "authentication.signingKey" <<<"$msg"                          || { echo "the key collision must name what already reads the key"; exit 1; }
 blank=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set 'worlds.1.worldKey=  ' --set worlds.1.charactersKey=' characters-one ')
 grep -A4 "name: Database__Worlds__1__World__ConnectionString" <<<"$blank" | grep -q 'key: "database-world-1-connection-string"' || { echo "a blank worldKey must mean the default key"; exit 1; }
 grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$blank" | grep -q 'key: "characters-one"$'            || { echo "a key must be trimmed"; exit 1; }
@@ -91,16 +93,16 @@ grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$num" | g
 
 # The auth string (#564): required and trimmed with the chart-managed Secret, like the others;
 # with existingSecret only its key is referenced, so no inline string is needed ($out above).
-must_fail "a chart-managed Secret without the auth string must fail" --set authentication.issuerSigningKey="$KEY" "${CS1[@]}"
-must_fail "a whitespace-only auth string must fail"                  --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" --set 'database.auth.connectionString=  '
-msg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" 2>&1 || true)
+must_fail "a chart-managed Secret without the auth string must fail" "${SIGNING[@]}" "${CS1[@]}"
+must_fail "a whitespace-only auth string must fail"                  "${SIGNING[@]}" "${CS1[@]}" --set 'database.auth.connectionString=  '
+msg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE "${SIGNING[@]}" "${CS1[@]}" 2>&1 || true)
 grep -q "database.auth.connectionString is required" <<<"$msg"         || { echo "the missing auth string refusal must name the value"; exit 1; }
-auth=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" --set 'database.auth.connectionString= a1 ')
+auth=$(helm template t . "${AUTHENTICATION[@]}" $CACHE "${SIGNING[@]}" "${CS1[@]}" --set 'database.auth.connectionString= a1 ')
 grep -q 'database-auth-connection-string: "a1"$' <<<"$auth"            || { echo "the auth string must reach the Secret, trimmed"; exit 1; }
 grep -A4 "name: Database__Auth__ConnectionString" <<<"$out" | grep -q "key: database-auth-connection-string" || { echo "existingSecret must reference the auth key"; exit 1; }
 
 # A changed world string restarts the pods: the checksum annotation follows the chart-managed Secret.
-sum() { helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "$@" | grep "checksum/secret:"; }
+sum() { helm template t . "${AUTHENTICATION[@]}" $CACHE "${SIGNING[@]}" "${AUTH[@]}" "$@" | grep "checksum/secret:"; }
 a=$(sum "${CS1[@]}"); b=$(sum --set worlds.1.world.connectionString=w1-rotated --set worlds.1.characters.connectionString=c1)
 [ -n "$a" ] && [ "$a" != "$b" ]                                        || { echo "a changed world string must change the checksum"; exit 1; }
 
@@ -151,7 +153,7 @@ grep -A5 "name: Application__Balance__SharedSecret" <<<"$out" | grep -q "optiona
 bal=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set balance.url=http://balance-avalon-balance:8080)
 grep -A1 "name: Application__Balance__Url" <<<"$bal" | grep -q '"http://balance-avalon-balance:8080"' || { echo "balance url missing"; exit 1; }
 must_fail "existingSecret + inline balance.sharedSecret must fail" --set existingSecret=x "${W1[@]}" --set balance.sharedSecret=leak
-balsec=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set balance.sharedSecret=s3cret)
+balsec=$(helm template t . "${AUTHENTICATION[@]}" $CACHE "${SIGNING[@]}" "${AUTH[@]}" "${CS1[@]}" --set balance.sharedSecret=s3cret)
 grep -q 'balance-shared-secret: "s3cret"' <<<"$balsec"                                         || { echo "balance secret must reach the chart-managed Secret"; exit 1; }
 # Live template editing: the editable worlds (indexed env) and the reload timeout render only when set.
 ! grep -q "Application__Templates__" <<<"$out"                                                 || { echo "templates env rendered without a value"; exit 1; }
@@ -243,11 +245,13 @@ HOMELAB=(--values ci/homelab-values.yaml)
 render() { helm template t . "$@" | tr -d '\r'; }
 EXPECTED=$(tr -d '\r' < ci/homelab-render.txt)
 
-# The release homelab runs today names no services: it must render exactly what it rendered before the
-# split (ci/homelab-render.txt, taken from the chart before #794), one process running all four
-# services, with no Application__Services and no startup probe. Naming all four changes nothing else.
+# The release homelab runs names no services: it must render exactly what it rendered before the split
+# (ci/homelab-render.txt, taken from the chart before #794), one process running all four services, with
+# no Application__Services and no startup probe; but with the access-token keys of #801 in place of the
+# HS256 key (jwt-signing-key): identity's private key, key id and game-auth host key, each required, and
+# every service's public keys. Naming all four changes nothing else.
 mono=$(render "${HOMELAB[@]}")
-diff <(shape <<<"$mono") <(echo "$EXPECTED")                      || { echo "the release without services must render what it rendered before the split"; exit 1; }
+diff <(shape <<<"$mono") <(echo "$EXPECTED")                      || { echo "the release without services must render what it rendered before the split, with the ES256 keys"; exit 1; }
 four=$(render "${HOMELAB[@]}" --set-json 'services=["identity","worlds","commerce","distribution"]')
 diff <(shape <<<"$mono") <(shape <<<"$four" | grep -v '^env Application__Services__') \
                                                                       || { echo "naming all four services must render the same process"; exit 1; }
@@ -298,67 +302,41 @@ each_service_alone() {
 }
 each_service_alone "$EXPECTED" "${HOMELAB[@]}"
 
-# ES256 (#801). The release that moves access tokens to ES256 renders what the homelab release rendered,
-# plus identity's private key, key id and game-auth host key (optional: the API falls back to the HS256
-# key for that release) and every service's public keys; the HS256 key stays while legacyIssuerSigningKey
-# is on, and goes when it is off. Each service alone reads its part: the private key and the host key
-# only where identity runs.
-ES256=(--values ci/es256-values.yaml)
-es256=$(render "${HOMELAB[@]}" "${ES256[@]}")
-added=(
-  'env Application__Authentication__SigningKey <- avalon-api/jwt-signing-private-key'
-  'env Application__Authentication__SigningKeyId="2026-10"'
-  'env Application__Authentication__ValidationKeys__2026-10="MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcNiZzBqacm/Ab3jkvqpj2CrbM6swvAqefzjRdR42P7jfnItCIn+d8Ib+b6aRJPAXeVhCD3wgNrQjgj7P8knbrg=="'
-  'env Application__GameAuth__HostKey <- avalon-api/game-auth-host-key'
-  'env Application__GameAuth__HostKey optional'
-)
-diff <(shape <<<"$es256") <(printf '%s\n' "$EXPECTED" "${added[@]}" | LC_ALL=C sort) \
-                                                                      || { echo "the ES256 release must add identity's key and the public keys to the homelab render"; exit 1; }
-each_service_alone "$(shape <<<"$es256")" "${HOMELAB[@]}" "${ES256[@]}"
-diff <(shape <<<"$es256" | grep -v '^env Application__Authentication__IssuerSigningKey ') \
-     <(render "${HOMELAB[@]}" "${ES256[@]}" --set authentication.legacyIssuerSigningKey=false | shape) \
-                                                                      || { echo "legacyIssuerSigningKey off must leave out the HS256 key alone"; exit 1; }
-# A chart-managed Secret holds only the keys of the release's services (design D9.3).
-SECRETS=(--set authentication.issuerSigningKey="$KEY" "${AUTH[@]}" "${CS1[@]}" --set cache.password=p --set notification.privateKey=n
+# Access tokens (#801) are ES256 only. A chart-managed Secret holds only the keys of the release's services
+# (design D9.3): identity's private key and game-auth host key in identity's alone, both required there.
+SECRETS=("${SIGNING[@]}" "${AUTH[@]}" "${CS1[@]}" --set cache.password=p --set notification.privateKey=n
          --set distribution.secretAccessKey=d --set balance.sharedSecret=b)
-for expect in "identity:cache-password database-auth-connection-string database-characters-1-connection-string jwt-signing-key notification-private-key" \
-              "worlds:balance-shared-secret cache-password database-auth-connection-string database-characters-1-connection-string database-world-1-connection-string jwt-signing-key" \
-              "commerce:cache-password database-auth-connection-string jwt-signing-key" \
-              "distribution:database-auth-connection-string distribution-secret-key jwt-signing-key"; do
+for expect in "identity:cache-password database-auth-connection-string database-characters-1-connection-string game-auth-host-key jwt-signing-private-key notification-private-key" \
+              "worlds:balance-shared-secret cache-password database-auth-connection-string database-characters-1-connection-string database-world-1-connection-string" \
+              "commerce:cache-password database-auth-connection-string" \
+              "distribution:database-auth-connection-string distribution-secret-key"; do
   service=${expect%%:*}
   keys=$(render "${AUTHENTICATION[@]}" $CACHE "${SECRETS[@]}" --set-json "services=[\"$service\"]" --show-only templates/secret.yaml \
     | awk '/^stringData:/{f=1; next} f && /^  [a-z]/{sub(/:.*/, ""); print $1}' | LC_ALL=C sort | tr '\n' ' ')
   [ "$keys" = "${expect#*:} " ] || { echo "$service's Secret must hold only its keys, not: $keys"; exit 1; }
 done
-# With the ES256 values (#801) identity's Secret also holds its private key and the game-auth host key, which no
-# other service's holds; the HS256 key stays only with legacyIssuerSigningKey.
-ESECRETS=("${SECRETS[@]}" "${ES256[@]}" --set authentication.signingKey=private --set gameAuth.hostKey=host)
-for expect in "identity:true:cache-password database-auth-connection-string database-characters-1-connection-string game-auth-host-key jwt-signing-key jwt-signing-private-key notification-private-key" \
-              "identity:false:cache-password database-auth-connection-string database-characters-1-connection-string game-auth-host-key jwt-signing-private-key notification-private-key" \
-              "commerce:true:cache-password database-auth-connection-string jwt-signing-key" \
-              "commerce:false:cache-password database-auth-connection-string"; do
-  IFS=: read -r service legacy wanted <<<"$expect"
-  issuer=(); [ "$legacy" = true ] || issuer=(--set authentication.issuerSigningKey=)
-  keys=$(render "${AUTHENTICATION[@]}" $CACHE "${ESECRETS[@]}" "${issuer[@]}" --set authentication.legacyIssuerSigningKey="$legacy" \
-      --set-json "services=[\"$service\"]" --show-only templates/secret.yaml \
-    | awk '/^stringData:/{f=1; next} f && /^  [a-z]/{sub(/:.*/, ""); print $1}' | LC_ALL=C sort | tr '\n' ' ')
-  [ "$keys" = "$wanted " ] || { echo "$service's ES256 Secret (legacy $legacy) must hold only its keys, not: $keys"; exit 1; }
-done
-render "${AUTHENTICATION[@]}" $CACHE "${ESECRETS[@]}" --set 'authentication.signingKey= private ' --show-only templates/secret.yaml \
+render "${AUTHENTICATION[@]}" $CACHE "${SECRETS[@]}" --set 'authentication.signingKey= private ' --show-only templates/secret.yaml \
   | grep -q 'jwt-signing-private-key: "private"$'                     || { echo "the private key must reach the Secret, trimmed"; exit 1; }
-must_fail "identity without a key id must fail"                     --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set authentication.signingKeyId=
-must_fail "a key id that is not a plain name must fail"             --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set 'authentication.signingKeyId=a b'
-must_fail "a service without identity and no public key must fail"  --set existingSecret=x "${W1[@]}" --set-json 'services=["worlds"]' --set authentication.legacyIssuerSigningKey=true
-must_fail "a private key among the public keys must fail"           --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set-string 'authentication.validationKeys.2026-10=-----BEGIN PRIV''ATE KEY-----'
-must_fail "an inline private key with existingSecret must fail"     --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set authentication.signingKey=private
-must_fail "an inline host key with existingSecret must fail"        --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set gameAuth.hostKey=host
-must_fail "identity's chart-managed Secret without its private key must fail" "${ESECRETS[@]}" --set authentication.signingKey=
-must_fail "the HS256 key without legacyIssuerSigningKey must fail"  "${ESECRETS[@]}" --set authentication.legacyIssuerSigningKey=false
-must_fail "no host key and no HS256 key to fall back to must fail"  "${ESECRETS[@]}" --set authentication.legacyIssuerSigningKey=false --set authentication.issuerSigningKey= --set gameAuth.hostKey=
-must_fail "a legacy flag that is not a boolean must fail"           --set existingSecret=x "${W1[@]}" "${ES256[@]}" --set-string authentication.legacyIssuerSigningKey=yes
+must_fail "identity without a key id must fail"                     --set existingSecret=x "${W1[@]}" --set authentication.signingKeyId=
+must_fail "a key id that is not a plain name must fail"             --set existingSecret=x "${W1[@]}" --set 'authentication.signingKeyId=a b'
+must_fail "a service without identity and no public key must fail"  --set existingSecret=x "${W1[@]}" --set-json 'services=["worlds"]' --set authentication.validationKeys=null
+must_fail "a private key among the public keys must fail"           --set existingSecret=x "${W1[@]}" --set-string 'authentication.validationKeys.test=-----BEGIN PRIV''ATE KEY-----'
+must_fail "an inline private key with existingSecret must fail"     --set existingSecret=x "${W1[@]}" --set authentication.signingKey=private
+must_fail "an inline host key with existingSecret must fail"        --set existingSecret=x "${W1[@]}" --set gameAuth.hostKey=host
+must_fail "identity's chart-managed Secret without its private key must fail"         "${SECRETS[@]}" --set authentication.signingKey=
+must_fail "identity's chart-managed Secret without the game-auth host key must fail"  "${SECRETS[@]}" --set gameAuth.hostKey=
+# The HS256 values are gone. The homelab release still carrying legacyIssuerSigningKey, whatever its value,
+# refuses to render, saying to remove it and the Secret's old key; so does the HS256 key itself.
+for flag in true false; do
+  msg=$(helm template t . "${HOMELAB[@]}" --set authentication.legacyIssuerSigningKey=$flag 2>&1 || true)
+  grep -q "remove the old key jwt-signing-key from the Secret" <<<"$msg" || { echo "legacyIssuerSigningKey=$flag must refuse to render, saying to remove it and the Secret's old key"; exit 1; }
+done
+msg=$(helm template t . "${AUTHENTICATION[@]}" $CACHE "${SECRETS[@]}" --set authentication.issuerSigningKey="$KEY" 2>&1 || true)
+grep -q "authentication.issuerSigningKey, the HS256 key, was removed" <<<"$msg" || { echo "the HS256 key must refuse to render"; exit 1; }
 # A service's values are required only where it runs: distribution starts from the auth string and the
-# signing key alone, with no world, cache, store or game admission values.
-helm template t . --set existingSecret=x --set-json 'services=["distribution"]' >/dev/null || { echo "distribution alone must not need other services' values"; exit 1; }
+# public keys alone, with no world, cache, store or game admission values.
+helm template t . --set existingSecret=x --set-json 'services=["distribution"]' --set-string 'authentication.validationKeys.test=public' >/dev/null \
+                                                                      || { echo "distribution alone must not need other services' values"; exit 1; }
 must_fail "an empty services list outside a routes release must fail" --set existingSecret=x "${W1[@]}" --set-json 'services=[]'
 must_fail "an unknown service must fail"                              --set existingSecret=x "${W1[@]}" --set-json 'services=["billing"]'
 
@@ -405,8 +383,10 @@ diff <(echo "$table") - <<'EOF' || { echo "routes must follow the manifest (desi
 EOF
 helm lint . --quiet "${ROUTES[@]}" >/dev/null || { echo "helm lint failed for the routes release"; exit 1; }
 # An override that would send another service's paths, or an internal one, somewhere else refuses to
-# render; so does turning routes on in a release that runs services, which would remove its pods.
+# render; so does turning routes on in a release that runs services, which would remove its pods; and so
+# does the removed legacyIssuerSigningKey (#801), refused in every mode.
 must_fail_routes() { local why=$1; shift; if helm template t . "${ROUTES[@]}" "$@" >/dev/null 2>&1; then echo "$why"; exit 1; fi; }
+must_fail_routes "the removed legacyIssuerSigningKey must fail in a routes release too" --set authentication.legacyIssuerSigningKey=true
 must_fail_routes "an override of a path another service owns must fail" --set-json 'routes.overrides=[{"path":"/account/purchases","service":"identity","backend":"x"}]'
 must_fail_routes "an override over another service's rules must fail"  --set-json 'routes.overrides=[{"path":"/account","service":"identity","backend":"x"}]'
 must_fail_routes "an override of an internal path must fail"           --set-json 'routes.overrides=[{"path":"/internal/game","service":"identity","backend":"x"}]'

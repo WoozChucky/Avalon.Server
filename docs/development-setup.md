@@ -106,17 +106,16 @@ Target framework: **.NET 10**. Docker compose credentials default to password `1
 
 ### REST API signing key
 
-`Avalon.Api` will not start without its signing keys, and none is committed (#482, #801). Access tokens are ES256: identity signs them with an EC P-256 private key under a key id, and every API service checks them with the public key that key id names, so only a process that runs identity can mint one ([API services](api-services.md)).
+`Avalon.Api` will not start without its signing keys, and none is committed (#482, #801). Access tokens are ES256 only: identity signs them with an EC P-256 private key under a key id, and every API service checks them with the public key that key id names, so only a process that runs identity can mint one ([API services](api-services.md)). HS256, which every token before #801 was signed with, is refused whatever is configured; its old key, `Application:Authentication:IssuerSigningKey`, is ignored, and a process that still has it logs one warning at startup naming it.
 
 | Setting | Read by | What it holds |
 |---|---|---|
 | `Application:Authentication:SigningKey` | identity only | The EC P-256 private key, PKCS#8, as PEM or as the base64 of its DER. A process that does not run identity refuses to start while it is set (an empty value counts as unset) |
 | `Application:Authentication:SigningKeyId` | identity | The key id written into each token's header, for example `2026-10`: at most 64 letters, digits, `.`, `_` and `-` |
 | `Application:Authentication:ValidationKeys:<key id>` | every service | A public key, the base64 of its DER SubjectPublicKeyInfo (or PEM). Public, not secret. Identity knows its own key without it; a process without identity refuses to start with none |
-| `Application:GameAuth:HostKey` | identity | The key identity's game-auth cryptography (proofs, replay receipts, the Steam OpenID state) derives its keys from: a random value of at least 32 bytes. Give it the value `IssuerSigningKey` held, from which those keys were derived before #801, so what was protected with them stays readable |
-| `Application:Authentication:IssuerSigningKey` | every service, for one release | The HS256 key of before #801. While it is set, an HS256 token it signed, naming no key id, is still accepted, so the tokens issued before the move to ES256 run out their 15 minutes and nobody is signed out; an unset `GameAuth:HostKey` falls back to it, with a startup warning. The next release refuses HS256 |
+| `Application:GameAuth:HostKey` | identity | The key identity's game-auth cryptography (proofs, replay receipts, the Steam OpenID state) derives its keys from: a random value of at least 32 bytes. Identity refuses to start without it. A deployment from before #801 gives it the value of its old HS256 key (`Application:Authentication:IssuerSigningKey`), from which those keys were derived then, so what was protected with them stays readable |
 
-`JwtKeys.Create` (`Avalon.Api.Hosting`) builds the keys while the host is built and stops startup, naming the setting, for a missing or unparsable private key, a key on another curve than P-256, a missing or malformed key id, a public key that does not parse or holds a private key, a public key listed under identity's key id that is not its own, and a process with no key to validate with. The HS256 key and the game-auth host key keep the rules of #482 (`JwtSigningKey.SecretBytes`): no leading or trailing whitespace, at least 32 bytes in UTF-8, and not on `JwtSigningKey.BlockedKeyHashes` (the SHA-256 of the key that used to sit in `appsettings.json`, public now). A process started with `AVALON_OPENAPI_GENERATION_ONLY=true` (the docs build) makes a throwaway key in memory and needs none.
+`JwtKeys.Create` (`Avalon.Api.Hosting`) builds the keys while the host is built and stops startup, naming the setting, for a missing or unparsable private key, a key on another curve than P-256, a missing or malformed key id, a public key that does not parse or holds a private key, a public key listed under identity's key id that is not its own, and a process with no key to validate with. The game-auth host key keeps the rules of #482 (`GameAuthHostKey.From`, checked before identity serves): set, no leading or trailing whitespace, at least 32 bytes in UTF-8, and not on `GameAuthHostKey.BlockedKeyHashes` (the SHA-256 of the HS256 key that used to sit in `appsettings.json`, public now). A process started with `AVALON_OPENAPI_GENERATION_ONLY=true` (the docs build) makes a throwaway key in memory and needs none.
 
 Make a key pair, the private key as a PKCS#8 PEM file and the public key as the base64 `ValidationKeys` takes:
 
@@ -154,7 +153,7 @@ dotnet user-secrets set "Application:Authentication:ValidationKeys:dev" ([Conver
 dotnet user-secrets set "Application:GameAuth:HostKey" ([Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))) --project src/Server/Avalon.Api
 ```
 
-A machine that holds `Application:Authentication:IssuerSigningKey` from before #801 can give `Application:GameAuth:HostKey` that value and remove `IssuerSigningKey` once HS256 is refused. The services are one project, so these user-secrets serve every process; one that runs without identity must not hold the private key, so blank it on its command line: `dotnet run --project src/Server/Avalon.Api -- --Application:Services:0=worlds --Application:Authentication:SigningKey=`.
+A machine that still holds `Application:Authentication:IssuerSigningKey` from before #801 can give `Application:GameAuth:HostKey` that value and remove `IssuerSigningKey`, which nothing reads. The services are one project, so these user-secrets serve every process; one that runs without identity must not hold the private key, so blank it on its command line: `dotnet run --project src/Server/Avalon.Api -- --Application:Services:0=worlds --Application:Authentication:SigningKey=`.
 
 ```bash
 # Containers and every non-Development host: the environment. Keep the keys out of shell history: put them in a
@@ -173,8 +172,8 @@ helm install ... --set existingSecret=avalon-api-secrets --set authentication.si
   --set-string 'authentication.validationKeys.2026-10=<public key>'
 # ... or let the chart create it, passing the keys from files (a trailing newline is trimmed).
 helm install ... --set-file authentication.signingKey=./jwt-es256.pem --set-file gameAuth.hostKey=./host.key ...
-# For the release that moves to ES256, authentication.legacyIssuerSigningKey=true also renders the HS256 key
-# (jwt-signing-key) as Application__Authentication__IssuerSigningKey; leave it off afterwards.
+# The chart renders no HS256 key, and refuses the removed authentication.legacyIssuerSigningKey and
+# authentication.issuerSigningKey values, naming what to remove.
 ```
 
 **Rotating the signing key** signs nobody out: (1) make a new key pair and add its public key to `ValidationKeys`, under a new key id, in every process (the chart's `authentication.validationKeys`, shared by every release), and deploy; (2) give identity the new `SigningKey` and `SigningKeyId`, and deploy; (3) after 16 minutes, the token lifetime and its clock skew, remove the old public key everywhere and deploy. With a chart-managed Secret, `helm upgrade` restarts the pods (a checksum annotation); with `existingSecret` the chart cannot see a change to the Secret, so run `kubectl rollout restart deployment/<release>-avalon-api` (the chart's fullname) for every release whose keys changed. Swapping the key without those steps refuses every token signed with the old one: clients get a 401 and refresh, since refresh tokens are database rows. Changing `GameAuth:HostKey` voids the game-auth records in flight, which live minutes: pick a quiet moment.

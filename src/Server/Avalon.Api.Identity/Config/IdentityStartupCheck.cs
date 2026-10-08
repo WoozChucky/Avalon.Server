@@ -1,5 +1,4 @@
 using Avalon.Api.Hosting;
-using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Identity.Authentication;
 using Avalon.Configuration;
 using Microsoft.Extensions.Options;
@@ -11,7 +10,7 @@ namespace Avalon.Api.Identity.Config;
 /// checked before the api serves rather than as options validations: OpenAPI generation needs none of them (#794 keeps
 /// that order: after the options and Database:Worlds, before any database call).
 /// </summary>
-public sealed class IdentityStartupCheck(ILogger<IdentityStartupCheck> logger) : IApiStartupCheck
+public sealed class IdentityStartupCheck : IApiStartupCheck
 {
     public void Check(IServiceProvider services)
     {
@@ -19,12 +18,7 @@ public sealed class IdentityStartupCheck(ILogger<IdentityStartupCheck> logger) :
 
         services.GetRequiredService<IOptions<SteamWebLinkOptions>>().Value.Validate();
 
-        if (services.GetRequiredService<GameAuthHostKey>().FromIssuerSigningKey)
-        {
-            logger.LogWarning(
-                "{HostKeySetting} is not set, so the game-auth cryptography derives its keys from {IssuerSigningKeySetting}, " +
-                "as it did before #801. Set the host key to that same value: a later release stops falling back.",
-                GameAuthConfig.HostKeySetting, JwtSigningKey.SettingName);
-        }
+        // Built here, so a missing or unusable host key stops identity, naming the setting, before it serves (#801).
+        _ = services.GetRequiredService<GameAuthHostKey>();
     }
 }

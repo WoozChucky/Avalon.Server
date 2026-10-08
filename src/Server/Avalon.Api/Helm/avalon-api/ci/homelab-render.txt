@@ -1,5 +1,7 @@
 env ASPNETCORE_ENVIRONMENT="Production"
-env Application__Authentication__IssuerSigningKey <- avalon-api/jwt-signing-key
+env Application__Authentication__SigningKey <- avalon-api/jwt-signing-private-key
+env Application__Authentication__SigningKeyId="2026-10"
+env Application__Authentication__ValidationKeys__2026-10="MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcNiZzBqacm/Ab3jkvqpj2CrbM6swvAqefzjRdR42P7jfnItCIn+d8Ib+b6aRJPAXeVhCD3wgNrQjgj7P8knbrg=="
 env Application__Balance__SharedSecret <- avalon-api/balance-shared-secret
 env Application__Balance__SharedSecret optional
 env Application__Balance__Url="http://avalon-balance.avalon.svc:8080"
@@ -40,6 +42,7 @@ env Application__Email__VerificationCooldownSeconds="60"
 env Application__Email__VerificationSiteOrigin="https://avalon.example.test"
 env Application__ForwardedHeaders__ForwardLimit="2"
 env Application__ForwardedHeaders__KnownNetworks__0="10.42.0.0/16"
+env Application__GameAuth__HostKey <- avalon-api/game-auth-host-key
 env Application__GameWorkloads__Servers__0__ClientCertificateSha256 <- "test-workload-bindings"/"world-dev-client-sha256"
 env Application__GameWorkloads__Servers__0__ServerId="world-dev"
 env Application__GameWorkloads__Servers__0__TlsCertificateSha256 <- "test-workload-bindings"/"world-dev-tls-sha256"

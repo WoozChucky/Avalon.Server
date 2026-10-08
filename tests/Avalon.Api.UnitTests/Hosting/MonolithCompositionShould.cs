@@ -41,7 +41,7 @@ public sealed class MonolithCompositionShould : IAsyncDisposable
                 {
                     ["Application:Authentication:SigningKey"] = ApiTestHost.SigningKey,
                     ["Application:Authentication:SigningKeyId"] = ApiTestHost.SigningKeyId,
-                    ["Application:GameAuth:HostKey"] = ApiTestHost.LegacySigningKey,
+                    ["Application:GameAuth:HostKey"] = ApiTestHost.HostKey,
                     ["Database:Worlds:1:World:ConnectionString"] = "Host=w1",
                     ["Database:Worlds:1:Characters:ConnectionString"] = "Host=c1",
                     // Identity's store settings, with a playtest that admits world 3 alone.

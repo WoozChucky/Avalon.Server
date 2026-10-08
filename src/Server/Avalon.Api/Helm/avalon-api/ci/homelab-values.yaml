@@ -1,7 +1,14 @@
-# Rendering only: the shape of the values the homelab release passes today (apps/avalon/api.yml),
-# with test names and identifiers, no credentials. ci/test.sh renders it with no services (the one
+# Rendering only: the shape of the values the homelab release passes (apps/avalon/api.yml), with
+# test names and identifiers, no credentials. ci/test.sh renders it with no services (the one
 # process the homelab runs) and with each service alone.
 existingSecret: avalon-api
+# The access tokens' keys (#801): identity's key id and the public key every service checks tokens
+# with, made for this file (its private key was thrown away). The private key and the game-auth host
+# key are in the Secret, as jwt-signing-private-key and game-auth-host-key.
+authentication:
+  signingKeyId: "2026-10"
+  validationKeys:
+    "2026-10": MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcNiZzBqacm/Ab3jkvqpj2CrbM6swvAqefzjRdR42P7jfnItCIn+d8Ib+b6aRJPAXeVhCD3wgNrQjgj7P8knbrg==
 worlds:
   "1": {}
   "2": {}

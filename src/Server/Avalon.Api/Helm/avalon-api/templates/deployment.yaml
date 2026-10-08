@@ -11,11 +11,8 @@ settings and Secret keys of its own services. A routes release renders no pod.
 {{- $distribution := has "distribution" $services }}
 {{- $cache := or $identity $worlds $commerce }}
 {{- $parts := include "avalon-api.worldParts" $services | fromJsonArray }}
-{{- $es256 := eq (include "avalon-api.es256" .) "true" }}
 {{- include "avalon-api.refuseSecretValues" . }}
-{{- if $es256 }}
 {{- include "avalon-api.validateSigning" (list . $identity) }}
-{{- end }}
 {{- include "avalon-api.validateWorlds" (list . $parts) }}
 {{- if $identity }}
 {{- include "avalon-api.validateEmail" . }}
@@ -274,8 +271,7 @@ spec:
                   key: distribution-secret-key
             {{- end }}
             {{- end }}
-            {{- if $es256 }}
-            {{- /* ES256 (#801): only identity holds the private key and the game-auth host key; every service checks tokens with the public keys. */}}
+            {{- /* Access tokens are ES256 only (#801): only identity holds the private key and the game-auth host key, both required; every service checks tokens with the public keys. */}}
             {{- if $identity }}
             - name: Application__Authentication__SigningKey
               valueFrom:
@@ -289,27 +285,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" . }}
                   key: game-auth-host-key
-                  optional: true
             {{- end }}
             {{- range $kid, $key := .Values.authentication.validationKeys }}
             - name: Application__Authentication__ValidationKeys__{{ $kid }}
               value: {{ $key | toString | trim | quote }}
-            {{- end }}
-            {{- if .Values.authentication.legacyIssuerSigningKey }}
-            {{- /* For the one release that still accepts the HS256 tokens of before #801, and the game-auth host key's fallback. */}}
-            - name: Application__Authentication__IssuerSigningKey
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "avalon-api.secretName" . }}
-                  key: jwt-signing-key
-            {{- end }}
-            {{- else }}
-            {{- /* No ES256 values: the HS256 key, as before #801 (avalon-api.es256). */}}
-            - name: Application__Authentication__IssuerSigningKey
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "avalon-api.secretName" . }}
-                  key: jwt-signing-key
             {{- end }}
             # Not secret.
             {{- if $cache }}

@@ -1,4 +1,10 @@
 # Rendering-only test configuration: no real credentials or deployed resources.
+# The access tokens' key id and the public key every service checks them with (#801), made for these
+# tests; its private key was thrown away.
+authentication:
+  signingKeyId: test
+  validationKeys:
+    test: MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEcNiZzBqacm/Ab3jkvqpj2CrbM6swvAqefzjRdR42P7jfnItCIn+d8Ib+b6aRJPAXeVhCD3wgNrQjgj7P8knbrg==
 storeAuthentication:
   steamAppId: 123456
   existingSecret: test-steam-credentials

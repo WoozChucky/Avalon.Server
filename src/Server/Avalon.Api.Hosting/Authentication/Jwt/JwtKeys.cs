@@ -9,10 +9,10 @@ namespace Avalon.Api.Hosting.Authentication.Jwt;
 /// The keys of the API's access tokens (#801, design D4.2). Identity signs them with ES256, under a key id, with a
 /// private key no other service holds (<see cref="TokenValidationConfig.SigningKey"/>,
 /// <see cref="TokenValidationConfig.SigningKeyId"/>). Every service checks a token against the public key its key id
-/// names (<see cref="TokenValidationConfig.ValidationKeys"/>; a process that signs knows its own). While
-/// <see cref="TokenValidationConfig.IssuerSigningKey"/> is set, an HS256 token signed with it and naming no key id, as
-/// every token before #801 was, is accepted too, so those tokens run out their lifetime and nobody is signed out. Built
-/// once, eagerly, so a key that cannot be used stops startup, naming its setting.
+/// names (<see cref="TokenValidationConfig.ValidationKeys"/>; a process that signs knows its own), with ES256 and
+/// nothing else: HS256, which every token before #801 was signed with, is refused whatever is configured
+/// (<see cref="TokenValidationConfig.IssuerSigningKeySetting"/> is ignored). Built once, eagerly, so a key that cannot be
+/// used stops startup, naming its setting.
 /// </summary>
 public sealed class JwtKeys
 {
@@ -27,25 +27,17 @@ public sealed class JwtKeys
 
     private readonly IReadOnlyDictionary<string, SecurityKey> _validation;
 
-    private JwtKeys(SigningCredentials? signing, IReadOnlyDictionary<string, SecurityKey> validation,
-        SymmetricSecurityKey? legacy)
+    private JwtKeys(SigningCredentials? signing, IReadOnlyDictionary<string, SecurityKey> validation)
     {
         Signing = signing;
         _validation = validation;
-        Legacy = legacy;
-        Algorithms = legacy is null
-            ? [SecurityAlgorithms.EcdsaSha256]
-            : [SecurityAlgorithms.EcdsaSha256, SecurityAlgorithms.HmacSha256];
     }
+
+    /// <summary>The one algorithm an access token may be signed with.</summary>
+    public static IReadOnlyList<string> Algorithms { get; } = [SecurityAlgorithms.EcdsaSha256];
 
     /// <summary>What identity signs with: its private key, under its key id, with ES256. Null in a process that does not sign.</summary>
     public SigningCredentials? Signing { get; }
-
-    /// <summary>The HS256 key whose tokens are still accepted, or null.</summary>
-    public SymmetricSecurityKey? Legacy { get; }
-
-    /// <summary>The algorithms a token may be signed with: ES256, and HS256 while <see cref="Legacy"/> is set.</summary>
-    public IReadOnlyList<string> Algorithms { get; }
 
     /// <summary>The key ids a token may name.</summary>
     public IEnumerable<string> KeyIds => _validation.Keys;
@@ -54,8 +46,7 @@ public sealed class JwtKeys
     /// The keys <paramref name="config"/> configures, for a process that signs tokens when <paramref name="signsTokens"/>
     /// (one that runs identity) and for one that only validates them otherwise. Stops startup, naming the setting, when a
     /// process that does not sign holds the private key, when a process that signs has no usable private key or key id,
-    /// when a public key does not parse or a key id is not a plain name, when a process has no key to validate with, and
-    /// when the HS256 key is set but unusable (<see cref="JwtSigningKey.SecretBytes"/>).
+    /// when a public key does not parse or a key id is not a plain name, and when a process has no key to validate with.
     /// </summary>
     public static JwtKeys Create(TokenValidationConfig? config, bool signsTokens)
     {
@@ -110,7 +101,7 @@ public sealed class JwtKeys
                 $"({SigningKeyIdSetting}). {HowToSet}");
         }
 
-        return new JwtKeys(signing, validation, JwtSigningKey.Create(config));
+        return new JwtKeys(signing, validation);
     }
 
     /// <summary>
@@ -127,31 +118,22 @@ public sealed class JwtKeys
             new Dictionary<string, SecurityKey>(StringComparer.Ordinal)
             {
                 [EphemeralKeyId] = new ECDsaSecurityKey(publicKey) { KeyId = EphemeralKeyId },
-            },
-            legacy: null);
+            });
     }
 
     /// <summary>
-    /// The keys <paramref name="token"/> may have been signed with: for ES256 the public key its key id names; for HS256,
-    /// while <see cref="Legacy"/> is set and only for a token that names no key id, the HS256 key; nothing for any other
-    /// token. So a token signed with one kind of key is never checked against the other kind: an HMAC keyed with a public
-    /// key's bytes, or a token whose header names no algorithm at all, finds no key.
+    /// The key <paramref name="token"/> may have been signed with: for an ES256 token, the public key its key id names;
+    /// for any other token, HS256 included, nothing. So a token is never checked against a key of another kind: an HMAC
+    /// keyed with a public key's bytes, an HS256 token as they were signed before #801, or a token whose header names no
+    /// algorithm at all, finds no key.
     /// </summary>
     public IEnumerable<SecurityKey> Resolve(SecurityToken token, string? keyId)
     {
         string? algorithm = (token as JsonWebToken)?.Alg;
-        if (string.Equals(algorithm, SecurityAlgorithms.EcdsaSha256, StringComparison.Ordinal))
-        {
-            return keyId is not null && _validation.TryGetValue(keyId, out SecurityKey? key) ? [key] : [];
-        }
-
-        if (Legacy is not null && string.Equals(algorithm, SecurityAlgorithms.HmacSha256, StringComparison.Ordinal)
-            && string.IsNullOrEmpty(keyId))
-        {
-            return [Legacy];
-        }
-
-        return [];
+        return string.Equals(algorithm, SecurityAlgorithms.EcdsaSha256, StringComparison.Ordinal)
+               && keyId is not null && _validation.TryGetValue(keyId, out SecurityKey? key)
+            ? [key]
+            : [];
     }
 
     /// <summary>
