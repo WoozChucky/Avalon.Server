@@ -9,6 +9,7 @@
 | `Avalon.Benchmarking` | BenchmarkDotNet harnesses ([benchmarks](benchmarks.md)) |
 | `Avalon.ChunkGen` | generates the forest pieces and the town squares into the chunk catalog ([map generation](map-generation.md)) |
 | `Avalon.LocalDev` | local runs ([development setup](development-setup.md#from-clone-to-client-in-world)): `setup` makes the world's three local TLS certificates and writes the API's and the world server's user-secrets for them; `login` signs in over the REST API and hands the game client its game ticket; `check` walks the client's REST chain up to a join ticket |
+| `Avalon.Scenarios` | the scenario runner (below): runs the world server's fixed scenarios in process and reports tick-thread allocations, tick times and GC |
 | `Avalon.Exporter`, `Avalon.Exporter.Emitters` | exports every artifact the client vendors, one subcommand per artifact |
 | `api-smoke` | `smoke.sh`, a read-only smoke check of the deployed API (below) |
 | `release` | `channel-version.sh` (dev, nightly and release version numbers) and `registry_cleanup.py` (prunes old dev and nightly images from the container registry), with their tests; run by the CI, nightly, release and registry-cleanup workflows |
@@ -95,3 +96,18 @@ BASE=http://127.0.0.1:18080 AVALON_SMOKE_PAT=avp_... AVALON_SMOKE_GROUPS=worlds,
 
 It follows no redirect and prints each request's group, method, path and status, never a response body or the token.
 It exits 0 when every status is one its line expects, 1 when one is not (000: no answer), and 2 on bad input.
+
+## The scenario runner
+
+`tools/Avalon.Scenarios` runs the world server's fixed scenarios (`town-idle`, `town-walk`, `many-instances`, from
+`tests/Avalon.World.Testing`) in process, with the server's GC settings, and prints one row per scenario: the
+tick-thread bytes of one 60-tick window (the least of five), bytes per player per tick, tick times (mean, p95, p99,
+max), the share of ticks over the 60 Hz budget, and the timed phase's collections and GC pauses. Run it in Release;
+`--write-baseline perf/local/<host>.json` keeps a run (`perf/local/` is ignored by git), `--baseline <file>` prints
+current, baseline and change per figure against such a run and never fails, and `--write-allocations <file>` writes
+the committed allocation baseline from this run. Timings are machine-specific and only compare on one machine.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-baseline perf/local/$(hostname).json
+dotnet run -c Release --project tools/Avalon.Scenarios -- --baseline perf/local/$(hostname).json
+```
