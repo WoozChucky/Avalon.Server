@@ -117,8 +117,9 @@ list: worlds reads both, identity only the characters database, commerce and dis
 {{- end }}
 
 {{/*
-Values that would put a provider credential through Helm, refused in every mode: only a reference
-to a Secret is accepted.
+Values refused in every mode: those that would put a provider credential through Helm, where only a
+reference to a Secret is accepted; and the HS256 values #801 removed, since the API refuses HS256
+access tokens whatever is configured and nothing reads them any more.
 */}}
 {{- define "avalon-api.refuseSecretValues" -}}
 {{- if hasKey (.Values.email | default dict) "resendApiKey" -}}
@@ -126,36 +127,25 @@ to a Secret is accepted.
 {{- end -}}
 {{- if hasKey (.Values.commerce | default dict) "apiKey" -}}{{- fail "commerce.apiKey is forbidden; use an existing Secret reference" -}}{{- end -}}
 {{- if hasKey (.Values.commerce | default dict) "webhookSecret" -}}{{- fail "commerce.webhookSecret is forbidden; use an existing Secret reference" -}}{{- end -}}
+{{- $auth := .Values.authentication | default dict -}}
+{{- if hasKey $auth "legacyIssuerSigningKey" -}}
+{{- fail "authentication.legacyIssuerSigningKey was removed (#801): access tokens are ES256 only and the API refuses HS256, so nothing reads the HS256 key any more. Remove the value, and remove the old key jwt-signing-key from the Secret (existingSecret): its value lives on as game-auth-host-key." -}}
+{{- end -}}
+{{- if $auth.issuerSigningKey -}}
+{{- fail "authentication.issuerSigningKey, the HS256 key, was removed (#801): access tokens are ES256 only and the API refuses HS256. Remove it, and pass its value as gameAuth.hostKey, the game-auth host key." -}}
+{{- end -}}
 {{- end -}}
 
 {{/*
-"true" once any of the ES256 values is set (#801): identity then signs access tokens with the
-private key in the Secret (jwt-signing-private-key) under authentication.signingKeyId, every service
-checks them with authentication.validationKeys, and the HS256 key (jwt-signing-key) reaches the pods
-only with authentication.legacyIssuerSigningKey. With none of them set, the release renders the HS256
-key as it did before #801, which an API of #801 or later refuses to start with: identity needs its
-private key.
-*/}}
-{{- define "avalon-api.es256" -}}
-{{- $auth := .Values.authentication | default dict }}
-{{- if or $auth.signingKeyId $auth.validationKeys $auth.legacyIssuerSigningKey $auth.signingKey (.Values.gameAuth | default dict).hostKey }}
-{{- "true" }}
-{{- end }}
-{{- end }}
-
-{{/*
-The ES256 values (#801), called with (list <root> <identity>): a boolean legacy flag; key ids the API
-accepts (at most 64 letters, digits, '.', '_' and '-'), each listed with a public key, never a
-private one (validationKeys are plain values); identity's key id where identity runs, and at least
-one public key where it does not, since such a process can check a token with nothing else.
+The access tokens' keys (#801), called with (list <root> <identity>): key ids the API accepts (at
+most 64 letters, digits, '.', '_' and '-'), each listed with a public key, never a private one
+(validationKeys are plain values); identity's key id where identity runs, and at least one public
+key where it does not, since such a process can check a token with nothing else.
 */}}
 {{- define "avalon-api.validateSigning" -}}
 {{- $root := index . 0 }}
 {{- $identity := index . 1 }}
 {{- $auth := $root.Values.authentication | default dict }}
-{{- if not (kindIs "bool" ($auth.legacyIssuerSigningKey | default false)) }}
-{{- fail "authentication.legacyIssuerSigningKey is true or false." }}
-{{- end }}
 {{- $validation := $auth.validationKeys | default dict }}
 {{- if not (kindIs "map" $validation) }}
 {{- fail "authentication.validationKeys maps each key id to the base64 of a public key (its SubjectPublicKeyInfo)." }}
@@ -381,7 +371,7 @@ are checked, and a release whose services read no world database ignores worlds.
 {{- if not $root.Values.worlds }}
 {{- fail "worlds lists no world: the API needs at least one, keyed by its id in the auth Worlds table. Give worlds.<id>.world.connectionString and worlds.<id>.characters.connectionString (--set-file), or with existingSecret the keys worlds.<id>.worldKey and worlds.<id>.charactersKey." }}
 {{- end }}
-{{- $used := dict "jwt-signing-key" "authentication.issuerSigningKey" "jwt-signing-private-key" "authentication.signingKey" "game-auth-host-key" "gameAuth.hostKey" "database-auth-connection-string" "database.auth.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" }}
+{{- $used := dict "jwt-signing-private-key" "authentication.signingKey" "game-auth-host-key" "gameAuth.hostKey" "database-auth-connection-string" "database.auth.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" }}
 {{- range $id, $entry := $root.Values.worlds }}
 {{- if not (and (regexMatch "^[1-9][0-9]{0,4}$" $id) (le (atoi $id) 65535)) }}
 {{- fail (printf "worlds.%s: a world id is a positive integer up to 65535 with no leading zeros, the id of the world's row in the auth Worlds table." $id) }}

@@ -3,7 +3,6 @@ using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Text;
 using Avalon.Api.Hosting;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Authentication.AV;
@@ -62,10 +61,10 @@ public sealed class ApiTestHost : IAsyncDisposable
     public const string SigningKeyId = "test";
 
     /// <summary>
-    /// The HS256 key of the tokens signed before #801, for the tests of their transition; and the game-auth host key,
-    /// which holds the same kind of value.
+    /// The game-auth host key identity holds in the test hosts (#801). A deployment from before #801 gives it the value of
+    /// the HS256 key its access tokens were signed with then, so the tests forge HS256 tokens with it too.
     /// </summary>
-    public const string LegacySigningKey = "test-signing-key-test-signing-key-test-signing-key-0123456789-abcdef";
+    public const string HostKey = "test-signing-key-test-signing-key-test-signing-key-0123456789-abcdef";
 
     // Made for each test run, never committed: the ES256 key pair identity signs the test hosts' tokens with.
     private static readonly ECDsa s_signingKey = ECDsa.Create(ECCurve.NamedCurves.nistP256);
@@ -122,7 +121,7 @@ public sealed class ApiTestHost : IAsyncDisposable
     {
         ["Application:Authentication:SigningKey"] = SigningKey,
         ["Application:Authentication:SigningKeyId"] = SigningKeyId,
-        ["Application:GameAuth:HostKey"] = LegacySigningKey,
+        ["Application:GameAuth:HostKey"] = HostKey,
     };
 
     /// <summary>
@@ -152,10 +151,6 @@ public sealed class ApiTestHost : IAsyncDisposable
 
         return settings;
     }
-
-    /// <summary>What signs as the tokens of before #801 were signed: HS256 with <see cref="LegacySigningKey"/>, no key id.</summary>
-    public static SigningCredentials LegacySigning(string algorithm = SecurityAlgorithms.HmacSha256) =>
-        new(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(LegacySigningKey)), algorithm);
 
     public IAccountService Accounts { get; } = Substitute.For<IAccountService>();
     public IAccountRepository AccountRepository { get; } = Substitute.For<IAccountRepository>();

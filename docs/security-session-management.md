@@ -141,7 +141,7 @@ Every API service accepts two credentials, which only identity issues ([API serv
 [REST API authentication](api-authentication.md) has the full rules.
 
 - **Access JWT:** sent as `Authorization: Bearer <jwt>` or in the `AVToken` cookie. `JwtUtils` mints it at
-  login, MFA verify and refresh. The bearer handler checks the signature (HS256 only), issuer, audience and
+  login, MFA verify and refresh. The bearer handler checks the signature (ES256 only), issuer, audience and
   lifetime (`AccessTokenLifetimeMinutes`, default 15, plus `ClockSkewInMinutes`). An expired JWT gets a
   401, and the client renews it with `POST /account/refresh`.
 - **Personal access token (PAT):** sent as `Authorization: Avalon avp_...`. `AvalonAuthenticationHandler`
@@ -237,7 +237,7 @@ ban or a lock written between the read and the write survives.
 
 ### JWT Signing Key
 
-The access JWTs are signed with ES256 (#801): identity signs them with an EC P-256 private key,
+The access JWTs are signed with ES256 only (#801): identity signs them with an EC P-256 private key,
 `Application:Authentication:SigningKey`, under a key id, `SigningKeyId`; every API service checks them with the public
 key their key id names, `Application:Authentication:ValidationKeys:<key id>`, so a service without identity cannot
 mint one. No private key is committed (#482). In development they come from `dotnet user-secrets` (or the Aspire
@@ -252,11 +252,13 @@ setting, when:
 - a public key does not parse, holds a private key, or is listed under identity's key id without being its own;
 - a process has no key to validate with.
 
-A token is checked only against a key of the kind its algorithm needs (`JwtKeys.Resolve`): a token naming an unknown
-key id, an HMAC keyed with a public key, or one with no signature finds none. For the release that moves to ES256, the
-HS256 key of before, `Application:Authentication:IssuerSigningKey`, is still accepted while it is set, for the tokens
-signed with it, which name no key id; it keeps its rules: no leading or trailing whitespace, at least 32 bytes in UTF-8,
-and not the value once committed to `appsettings.json`, which is public. The next release refuses HS256.
+A token is checked only against the public key its key id names, and only when it is ES256 (`JwtKeys.Resolve`): an
+HS256 token, a token naming an unknown key id, an HMAC keyed with a public key, or one with no signature finds none.
+HS256 is refused whatever is configured: the HS256 key of before #801, `Application:Authentication:IssuerSigningKey`,
+is ignored, and a process that still has it logs one warning at startup naming it. Identity's game-auth host key,
+`Application:GameAuth:HostKey` (in a deployment from before #801, that key's value), is required: identity refuses to
+start without it, or when it has leading or trailing whitespace, is under 32 bytes in UTF-8, or is the value once
+committed to `appsettings.json`, which is public.
 
 No key appears in logs. A rotation lists the new public key everywhere before identity signs with it, so no token is
 refused; swapping the key without that refuses the tokens signed with the old one, and clients get a 401 and refresh.

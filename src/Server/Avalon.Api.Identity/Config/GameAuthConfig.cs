@@ -9,9 +9,9 @@ public sealed class GameAuthConfig
     public const string HostKeySetting = "Application:GameAuth:HostKey";
 
     /// <summary>
-    /// A random secret of at least 32 bytes, never committed. It holds the value the HS256 signing key
-    /// (<c>Application:Authentication:IssuerSigningKey</c>) held, from which these keys were derived before #801, so what
-    /// was protected with them stays readable.
+    /// A random secret of at least 32 bytes, never committed, required where identity runs. A deployment from before #801
+    /// gives it the value its HS256 signing key (<c>Application:Authentication:IssuerSigningKey</c>, ignored since) held,
+    /// from which these keys were derived then, so what was protected with them stays readable.
     /// </summary>
     public string HostKey { get; set; } = string.Empty;
 }

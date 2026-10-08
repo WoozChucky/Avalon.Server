@@ -1,11 +1,10 @@
-# Secrets: the connection strings, cache.password, notification.privateKey and the signing keys
-# (authentication.signingKey, gameAuth.hostKey, authentication.issuerSigningKey) reach the pod
-# through a Kubernetes Secret (secretKeyRef), never as plain values in the pod spec. Either:
+# Secrets: the connection strings, cache.password, notification.privateKey and identity's keys
+# (authentication.signingKey, gameAuth.hostKey) reach the pod through a Kubernetes Secret
+# (secretKeyRef), never as plain values in the pod spec. Either:
 #  - name a Secret you manage in existingSecret (preferred: the values never pass through Helm). It
-#    needs the keys database-auth-connection-string, jwt-signing-private-key (where identity runs),
-#    one pair per world (worlds.<id>, below), plus game-auth-host-key, jwt-signing-key (with
-#    authentication.legacyIssuerSigningKey), cache-password, notification-private-key,
-#    distribution-secret-key and balance-shared-secret if used. Leave every
+#    needs the keys database-auth-connection-string, jwt-signing-private-key and game-auth-host-key
+#    (where identity runs), one pair per world (worlds.<id>, below), plus cache-password,
+#    notification-private-key, distribution-secret-key and balance-shared-secret if used. Leave every
 #    secret value below empty: the chart refuses to render with existingSecret set and a value
 #    given, rather than ignore it. The chart cannot see a change to your Secret, so after rotating
 #    a key in it restart the pods yourself:
@@ -15,9 +14,8 @@
 #    Pass them from files, not the command line, so they stay out of shell history:
 #    --set-file authentication.signingKey=./jwt-es256.pem (a trailing newline is trimmed).
 # A release that names its services (services, below) reads only their keys (#794):
-#  - every service: database-auth-connection-string, and jwt-signing-key only with
-#    authentication.legacyIssuerSigningKey (#801: the services check access tokens with the public
-#    keys in authentication.validationKeys, which are plain values);
+#  - every service: database-auth-connection-string (#801: the services check access tokens with
+#    the public keys in authentication.validationKeys, which are plain values);
 #  - identity: jwt-signing-private-key, game-auth-host-key, each world's characters key,
 #    cache-password, notification-private-key;
 #  - worlds: each world's world and characters keys, cache-password, balance-shared-secret;
@@ -109,12 +107,11 @@ cache:
   host:
   password:
 
-# Access tokens (#801). Identity signs them with ES256, with an EC P-256 private key no other service
-# holds, under a key id; every service checks them with the public keys listed here by key id. See
-# docs/development-setup.md ("REST API signing key") for making a key pair and rotating it.
-# Setting any of signingKeyId, validationKeys, legacyIssuerSigningKey, signingKey or gameAuth.hostKey
-# renders the ES256 keys. With none of them set the chart renders the HS256 key alone, as it did
-# before #801, and the API refuses to start: identity needs its private key.
+# Access tokens (#801) are ES256 only. Identity signs them with an EC P-256 private key no other
+# service holds, under a key id; every service checks them with the public keys listed here by key id,
+# and refuses HS256, which they were signed with before. See docs/development-setup.md ("REST API
+# signing key") for making a key pair and rotating it. The HS256 values are gone, and the chart refuses
+# them: authentication.legacyIssuerSigningKey and authentication.issuerSigningKey.
 authentication:
   # The key id identity writes into its tokens, e.g. "2026-10" (at most 64 letters, digits, '.', '_'
   # and '-'). Required where identity runs.
@@ -127,21 +124,12 @@ authentication:
   # secret, so plain values, e.g. {"2026-10": MFkwEwYH...}. Required where identity does not run;
   # identity knows its own key without it. During a rotation list the old and the new key.
   validationKeys: {}
-  # true for the one release that moves access tokens to ES256: also renders the HS256 key
-  # (jwt-signing-key) as Application__Authentication__IssuerSigningKey, so the HS256 tokens issued
-  # before it are accepted until they expire (15 minutes) and the game-auth key can fall back to it.
-  legacyIssuerSigningKey: false
-  # The HS256 key, a random value of at least 32 bytes, read only with legacyIssuerSigningKey (or with
-  # none of the ES256 values set). Without existingSecret pass it with
-  # --set-file authentication.issuerSigningKey=./jwt.key; with it, the Secret's jwt-signing-key holds it.
-  issuerSigningKey:
 
 # The key identity's game-auth cryptography (proofs, replay receipts, the Steam OpenID state) derives
-# its keys from (#801): the value of the HS256 key (jwt-signing-key), so what was protected with it
-# stays readable. Without existingSecret pass it with --set-file gameAuth.hostKey=./jwt.key; with it,
-# the Secret's game-auth-host-key holds it. Rendered only where identity runs. For the release that
-# moves to ES256 it may be left out while legacyIssuerSigningKey is on: the API then falls back to the
-# HS256 key and warns at startup.
+# its keys from (#801), a random value of at least 32 bytes: in a deployment from before #801, the
+# value of the HS256 key (the Secret's old jwt-signing-key), so what was protected with it stays
+# readable. Required where identity runs, and rendered only there: without existingSecret pass it with
+# --set-file gameAuth.hostKey=./host.key; with it, the Secret's game-auth-host-key holds it.
 gameAuth:
   hostKey:
 

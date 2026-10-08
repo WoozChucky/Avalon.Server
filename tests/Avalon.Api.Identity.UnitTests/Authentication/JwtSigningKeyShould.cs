@@ -1,8 +1,6 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using Avalon.Api.Hosting;
-using Avalon.Api.Hosting.Authentication.Jwt;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Identity.Config;
 using Avalon.Api.Testing;
@@ -22,15 +20,12 @@ namespace Avalon.Api.Identity.UnitTests.Authentication;
 /// <summary>
 /// The keys that sign and validate the api's access tokens come from configuration that is not committed (#482), and
 /// only identity holds the private one (#801). Startup refuses a key it cannot use, a private key in a process that does
-/// not sign, and a process with no key to validate with, naming the setting to set; the HS256 key of before #801 keeps
-/// its rules while it is set. Every key here is made in code; nothing depends on a machine secret.
+/// not sign, and a process with no key to validate with, naming the setting to set. Every key here is made in code;
+/// nothing depends on a machine secret.
 /// </summary>
 public class JwtSigningKeyShould
 {
-    private const string SettingName = "Application:Authentication:IssuerSigningKey";
-    private const string EnvironmentVariableName = "Application__Authentication__IssuerSigningKey";
-
-    private static IServiceCollection StartWith(string? issuerSigningKey)
+    private static IServiceCollection StartWithTheKeys()
     {
         var settings = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
@@ -41,7 +36,6 @@ public class JwtSigningKeyShould
             ["Application:Authentication:ValidateIssuer"] = "true",
             ["Application:Authentication:ValidateAudience"] = "true",
         };
-        if (issuerSigningKey is not null) settings[SettingName] = issuerSigningKey;
 
         IConfigurationRoot configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         var applicationConfig = ApplicationConfig.Bind(configuration);
@@ -50,14 +44,6 @@ public class JwtSigningKeyShould
         services.AddAuth(applicationConfig);
         return services;
     }
-
-    private static void AssertNamesTheSetting(Exception ex)
-    {
-        Assert.Contains(SettingName, ex.Message, StringComparison.Ordinal);
-        Assert.Contains(EnvironmentVariableName, ex.Message, StringComparison.Ordinal);
-    }
-
-    private static string Sha256Hex(string key) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
 
     /// <summary>
     /// Each refusal of the token keys, in a process running <paramref name="service"/> alone with
@@ -110,75 +96,9 @@ public class JwtSigningKeyShould
     }
 
     [Fact]
-    public void Refuse_to_start_when_the_key_is_under_32_bytes()
-    {
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() => StartWith(new string('k', 31)));
-
-        AssertNamesTheSetting(ex);
-        Assert.Contains("31 bytes", ex.Message, StringComparison.Ordinal);
-        Assert.Contains("at least 32", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Theory]
-    [InlineData("", "\n")]
-    [InlineData("", "\r\n")]
-    [InlineData("", " ")]
-    [InlineData(" ", "")]
-    public void Refuse_to_start_when_the_key_has_leading_or_trailing_whitespace(string leading, string trailing)
-    {
-        // A key read from a file often ends in a newline; it would sign with bytes nobody meant.
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
-            StartWith(leading + new string('k', 64) + trailing));
-
-        AssertNamesTheSetting(ex);
-        Assert.Contains("whitespace", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Count_bytes_not_characters()
-    {
-        // 16 characters, 32 bytes in UTF-8: long enough.
-        StartWith(new string('é', 16));
-
-        // 31 characters, one of them two bytes: 32 bytes, long enough.
-        StartWith(new string('k', 30) + "é");
-    }
-
-    [Fact]
-    public void Refuse_a_key_whose_hash_is_blocked()
-    {
-        const string MadeUpPublicKey = "made-up-public-key-made-up-public-key-0123456789";
-        var config = new AuthenticationConfig { IssuerSigningKey = MadeUpPublicKey };
-
-        InvalidOperationException ex = Assert.Throws<InvalidOperationException>(() =>
-            JwtSigningKey.Create(config, [Sha256Hex(MadeUpPublicKey)]));
-
-        AssertNamesTheSetting(ex);
-        Assert.Contains("public", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Accept_a_key_whose_hash_is_not_blocked()
-    {
-        var config = new AuthenticationConfig { IssuerSigningKey = new string('k', 64) };
-
-        SymmetricSecurityKey? key = JwtSigningKey.Create(config, [Sha256Hex(new string('j', 64))]);
-
-        Assert.Equal(Encoding.UTF8.GetBytes(new string('k', 64)), key?.Key);
-    }
-
-    [Fact]
-    public void Block_the_formerly_committed_key_in_production()
-    {
-        // The value itself is not in the tree; its hash is. An empty list would block nothing.
-        Assert.NotEmpty(JwtSigningKey.BlockedKeyHashes);
-        Assert.All(JwtSigningKey.BlockedKeyHashes, hash => Assert.Matches("^[0-9a-f]{64}$", hash));
-    }
-
-    [Fact]
     public void Always_validate_the_issuer_signing_key()
     {
-        using ServiceProvider provider = StartWith(new string('k', 64)).AddLogging().BuildServiceProvider();
+        using ServiceProvider provider = StartWithTheKeys().AddLogging().BuildServiceProvider();
 
         TokenValidationParameters validation = provider.GetRequiredService<IOptionsMonitor<JwtBearerOptions>>()
             .Get(JwtBearerDefaults.AuthenticationScheme).TokenValidationParameters;
@@ -201,7 +121,6 @@ public class JwtSigningKeyShould
             foreach (string[] secret in new[]
                      {
                          new[] { "Authentication", nameof(TokenValidationConfig.SigningKey) },
-                         new[] { "Authentication", nameof(TokenValidationConfig.IssuerSigningKey) },
                          new[] { "GameAuth", nameof(GameAuthConfig.HostKey) },
                      })
             {

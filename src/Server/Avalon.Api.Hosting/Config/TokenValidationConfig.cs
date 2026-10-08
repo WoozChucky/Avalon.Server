@@ -28,10 +28,10 @@ public class TokenValidationConfig
     public Dictionary<string, string> ValidationKeys { get; set; } = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// The HS256 key access tokens were signed with before #801. While it is set, the HS256 tokens it signed are still
-    /// accepted, so those issued before the move to ES256 run out their lifetime.
+    /// The setting of the HS256 key access tokens were signed with before #801. Nothing reads its value: HS256 is refused
+    /// whatever is configured. A process that still has it set warns once at startup, naming it, so it can be removed.
     /// </summary>
-    public string IssuerSigningKey { get; set; } = string.Empty;
+    public const string IssuerSigningKeySetting = Section + ":IssuerSigningKey";
 
     public string Issuer { get; set; } = string.Empty;
     public bool ValidateIssuer { get; set; }

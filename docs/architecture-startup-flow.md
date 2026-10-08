@@ -15,10 +15,11 @@ Bootstrap sequence for each server component.
    document), the shared hosting for the services' needs, then each service's own registrations
 2. Build, then the one pipeline (`ApiPipeline`) and its endpoints: `/health`, `/alive`, `/openapi/v1.json` and Scalar
    at `/scalar` (in Development, or with `Application:ApiDocs:Enabled`, #803), the controllers
-3. Log the services it runs; then, unless `AVALON_OPENAPI_GENERATION_ONLY` is set, `ApiStartup` (the options,
-   `Database:Worlds`, the services' checks, the auth schema, migrated by identity and awaited by any other process, and
-   the reachability of the world databases the process reads), each service's `StartAsync`, and the Redis connection
-   when a service needs it
+3. Log the services it runs and the key ids it accepts tokens under (with a warning while the ignored HS256 key,
+   `Application:Authentication:IssuerSigningKey`, is still set, #801); then, unless `AVALON_OPENAPI_GENERATION_ONLY` is
+   set, `ApiStartup` (the options, `Database:Worlds`, the services' checks, identity's game-auth host key among them,
+   the auth schema, migrated by identity and awaited by any other process, and the reachability of the world databases
+   the process reads), each service's `StartAsync`, and the Redis connection when a service needs it
 4. Run; commerce's reconciliation worker is a hosted service
 
 ## Auth Server & World Server

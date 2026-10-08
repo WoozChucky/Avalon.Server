@@ -4,7 +4,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Avalon.Api.Hosting.Authentication;
-using Avalon.Api.Hosting.Authentication.Jwt;
+using Avalon.Api.Hosting.Config;
 using Avalon.Api.Identity.Authentication.Jwt;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
@@ -155,51 +155,40 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
     }
 
     /// <summary>
-    /// The tokens issued before #801 are HS256, signed with the key that is now the legacy one and naming no key id: they
-    /// are accepted while that key is configured, so nobody is signed out by the move to ES256, and refused once it is not.
+    /// A token is accepted only when it is ES256 and the public key its key id names checks it (#801). HS256 is refused
+    /// even with the key the tokens of before #801 were signed with still configured, both as the ignored
+    /// <c>Application:Authentication:IssuerSigningKey</c> and as the game-auth host key, which a deployment from before
+    /// #801 gives that key's value: a token signed as those were (HS256 with that key, naming no key id), one naming a key
+    /// id, another HMAC algorithm, a key id no service lists, another private key under the listed key id, an HMAC keyed
+    /// with the public key (its bytes under its key id, or its text with none), and a token with no signature are all
+    /// refused.
     /// </summary>
     [Theory]
-    [InlineData(true, HttpStatusCode.OK)]
-    [InlineData(false, HttpStatusCode.Unauthorized)]
-    public async Task Accept_an_HS256_token_only_while_its_key_is_configured(bool configured, HttpStatusCode expected)
-    {
-        await using ApiTestHost host = configured ? await StartWithLegacyKeyAsync() : await ApiTestHost.StartAsync();
-        host.AccountNowIs(MakeAccount());
-
-        using HttpResponseMessage response = await host.GetAsync("/player", MintLive(signing: LegacySigning()));
-
-        Assert.Equal(expected, response.StatusCode);
-    }
-
-    /// <summary>
-    /// A token is checked only against a key it may have been signed with (#801), here with the HS256 key still
-    /// configured, as in the release that moves to ES256, so HS256 itself is allowed: a key id no service lists, another
-    /// private key under the listed key id, an HMAC keyed with the public key (its bytes under its key id, or its text
-    /// with none), an HS256 token naming a key id, another HMAC algorithm, and a token with no signature are all refused.
-    /// </summary>
-    [Theory]
+    [InlineData("HS256 with the old key, naming no key id, as before #801")]
+    [InlineData("HS256 with the old key, naming a key id")]
+    [InlineData("HS512 with the old key")]
     [InlineData("a key id no service lists")]
     [InlineData("another private key under the listed key id")]
     [InlineData("an HMAC keyed with the public key's bytes, under its key id")]
     [InlineData("an HMAC keyed with the public key's PEM text, with no key id")]
-    [InlineData("HS256 with the HS256 key, naming a key id")]
-    [InlineData("HS512 with the HS256 key")]
     [InlineData("alg none")]
-    public async Task Refuse_a_token_no_configured_key_signed(string forgery)
+    public async Task Refuse_a_token_no_listed_key_signed_with_ES256(string forgery)
     {
-        await using ApiTestHost host = await StartWithLegacyKeyAsync();
+        await using ApiTestHost host = await StartWithTheOldKeyAsync();
         host.AccountNowIs(MakeAccount());
         using var another = ECDsa.Create(ECCurve.NamedCurves.nistP256);
         byte[] publicKey = Convert.FromBase64String(PublicKey);
+        byte[] oldKey = Encoding.UTF8.GetBytes(HostKey);
         string token = forgery switch
         {
+            "HS256 with the old key, naming no key id, as before #801" => MintLive(signing: Hmac(oldKey, null)),
+            "HS256 with the old key, naming a key id" => MintLive(signing: Hmac(oldKey, SigningKeyId)),
+            "HS512 with the old key" => MintLive(signing: Hmac(oldKey, null, SecurityAlgorithms.HmacSha512)),
             "a key id no service lists" => MintLive(signing: Es256(another, "unknown")),
             "another private key under the listed key id" => MintLive(signing: Es256(another, SigningKeyId)),
             "an HMAC keyed with the public key's bytes, under its key id" => MintLive(signing: Hmac(publicKey, SigningKeyId)),
             "an HMAC keyed with the public key's PEM text, with no key id" =>
                 MintLive(signing: Hmac(Encoding.ASCII.GetBytes(PemEncoding.Write("PUBLIC KEY", publicKey)), null)),
-            "HS256 with the HS256 key, naming a key id" => MintLive(signing: Hmac(Encoding.UTF8.GetBytes(LegacySigningKey), SigningKeyId)),
-            "HS512 with the HS256 key" => MintLive(signing: LegacySigning(SecurityAlgorithms.HmacSha512)),
             "alg none" => Unsigned(MintLive()),
             _ => throw new ArgumentOutOfRangeException(nameof(forgery), forgery, null),
         };
@@ -338,18 +327,24 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    /// <summary>A host that still accepts the HS256 tokens of before #801, as the release that moves to ES256 does.</summary>
-    private static Task<ApiTestHost> StartWithLegacyKeyAsync() => ApiTestHost.StartAsync(ApiServices.All,
+    /// <summary>
+    /// A host given the HS256 key of before #801 as it was given then, <c>Application:Authentication:IssuerSigningKey</c>,
+    /// beside the game-auth host key that holds the same value (<see cref="ApiTestHost.HostKey"/>).
+    /// </summary>
+    private static Task<ApiTestHost> StartWithTheOldKeyAsync() => ApiTestHost.StartAsync(ApiServices.All,
         new ApiTestHostOptions
         {
-            Settings = new Dictionary<string, string?>(StringComparer.Ordinal) { [JwtSigningKey.SettingName] = LegacySigningKey },
+            Settings = new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                [TokenValidationConfig.IssuerSigningKeySetting] = HostKey,
+            },
         });
 
     private static SigningCredentials Es256(ECDsa key, string keyId) =>
         new(new ECDsaSecurityKey(key) { KeyId = keyId }, SecurityAlgorithms.EcdsaSha256);
 
-    private static SigningCredentials Hmac(byte[] key, string? keyId) =>
-        new(new SymmetricSecurityKey(key) { KeyId = keyId }, SecurityAlgorithms.HmacSha256);
+    private static SigningCredentials Hmac(byte[] key, string? keyId, string algorithm = SecurityAlgorithms.HmacSha256) =>
+        new(new SymmetricSecurityKey(key) { KeyId = keyId }, algorithm);
 
     /// <summary><paramref name="token"/>'s claims under a header that names no algorithm, with no signature.</summary>
     private static string Unsigned(string token) =>

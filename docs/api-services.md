@@ -136,12 +136,11 @@ each world server migrates its own.
 - **Only identity can sign (#801).** Access tokens are ES256: identity signs them with a private key under a key id
   (`Application:Authentication:SigningKey`, `SigningKeyId`), and every service checks them with the public keys it is
   given by key id (`Application:Authentication:ValidationKeys`), which are not secret. A process that does not run
-  identity refuses to start while it holds the private key, and one with no public key refuses too. For the release
-  that moves to ES256, the HS256 key (`IssuerSigningKey`) is still accepted while it is set, so the tokens issued
-  before run out; the next release refuses HS256 ([REST API authentication](api-authentication.md)).
+  identity refuses to start while it holds the private key, and one with no public key refuses too. HS256 is refused
+  whatever is configured ([REST API authentication](api-authentication.md)).
 - **Identity's own keys**: the game-auth cryptography (proofs, replay receipts, the Steam OpenID state) derives its
-  keys from `Application:GameAuth:HostKey`, read by identity alone, which holds the value the HS256 key held, so what
-  was protected before stays readable; for the release that moves to ES256 it falls back to the HS256 key.
+  keys from `Application:GameAuth:HostKey`, read by identity alone, which refuses to start without it. It holds the
+  value the HS256 key of before #801 held, so what was protected before stays readable.
 - **Rate limits are per process.** The request rate limiter is in memory, so each process counts the requests it
   serves: a caller spreading requests over services gets one budget per process. The budgets that matter for
   security (logins, MFA codes, registration, email sends, checkout) are in Redis and shared by every process.
@@ -260,7 +259,8 @@ nightly and registry workflows did not change. The chart's values that decide th
 
 - **`services`** (left out by default): the services the release runs, rendered as `Application__Services__<n>`.
   Left out, nothing is rendered and the process runs all four, which is how the homelab release renders today:
-  `ci/test.sh` pins that its values render exactly what the chart rendered before #794 (`ci/homelab-render.txt`).
+  `ci/test.sh` pins that its values render exactly what the chart rendered before #794, with the ES256 keys of #801 in
+  place of the HS256 key (`ci/homelab-render.txt`).
   An empty list is accepted only in routes mode; an unknown name, or one listed twice, refuses to render.
 - **Values per service**: a service's values reach the pod only when the release runs it, so a release per service
   holds only its own settings and Secret references. Identity's are `authentication.signingKeyId` and the Secret
@@ -271,19 +271,19 @@ nightly and registry workflows did not change. The chart's values that decide th
   `distribution`. `storeAuthentication.environment` and `steamIdentityPrefix` reach identity and commerce, `cache`
   every service but distribution, and the world connection strings the services that read them (characters for
   identity and worlds, world for worlds). Every release reads `existingSecret`, `database.auth`,
-  `authentication.validationKeys` (the public keys, plain values), `authentication.legacyIssuerSigningKey` (with it,
-  the HS256 key), `forwardedHeaders`, the other `rateLimiting` values, `otel`, `environment` and `resources`. A
-  release given none of the ES256 values renders the HS256 key alone, as before #801, which the API refuses to start
-  with ([REST API signing key](development-setup.md#rest-api-signing-key)).
-- **Secret keys per service**, in a chart-managed Secret or the one `existingSecret` names (`jwt-signing-key`, the HS256
-  key, only with `authentication.legacyIssuerSigningKey`):
+  `authentication.validationKeys` (the public keys, plain values, required where identity does not run),
+  `forwardedHeaders`, the other `rateLimiting` values, `otel`, `environment` and `resources`. The chart renders no
+  HS256 key and refuses the removed `authentication.legacyIssuerSigningKey` and `authentication.issuerSigningKey`
+  ([REST API signing key](development-setup.md#rest-api-signing-key)).
+- **Secret keys per service**, in a chart-managed Secret or the one `existingSecret` names (none holds the old
+  `jwt-signing-key` any more):
 
     | Service | Keys |
     |---|---|
-    | identity | `database-auth-connection-string`, `jwt-signing-private-key`, `game-auth-host-key`, `jwt-signing-key`, `cache-password`, `notification-private-key`, `database-characters-<id>-connection-string` per world; plus the Secrets `storeAuthentication`, `gameAdmission` and (with Resend) `email` name |
-    | worlds | `database-auth-connection-string`, `jwt-signing-key`, `cache-password`, `balance-shared-secret`, `database-world-<id>-connection-string` and `database-characters-<id>-connection-string` per world |
-    | commerce | `database-auth-connection-string`, `jwt-signing-key`, `cache-password`; plus the Stripe keys in the Secret `commerce.existingSecret` names |
-    | distribution | `database-auth-connection-string`, `jwt-signing-key`, `distribution-secret-key` |
+    | identity | `database-auth-connection-string`, `jwt-signing-private-key`, `game-auth-host-key`, `cache-password`, `notification-private-key`, `database-characters-<id>-connection-string` per world; plus the Secrets `storeAuthentication`, `gameAdmission` and (with Resend) `email` name |
+    | worlds | `database-auth-connection-string`, `cache-password`, `balance-shared-secret`, `database-world-<id>-connection-string` and `database-characters-<id>-connection-string` per world |
+    | commerce | `database-auth-connection-string`, `cache-password`; plus the Stripe keys in the Secret `commerce.existingSecret` names |
+    | distribution | `database-auth-connection-string`, `distribution-secret-key` |
 
 - **`startup.authSchemaWaitSeconds`** (default 300): a release without identity renders it as
   `Application__Startup__AuthSchemaWaitSeconds`, with a `startupProbe` on `/alive` (every 5 s) that allows that wait
@@ -303,8 +303,7 @@ go. `ci/test.sh` has a case for each mode (see [Guards](#guards)).
 The rollout is #802, and none of it has happened. The plan, from the design of #794:
 
 1. **Signing first** (#801, in the code): identity signs with an ES256 private key, the other services hold the public
-   keys, and one release accepts both algorithms (`authentication.legacyIssuerSigningKey`), so no session is lost; the
-   next refuses HS256.
+   keys, and one release accepted both algorithms, so no session was lost; the release after it refuses HS256.
 2. **The split-capable release**: `avalon-api` keeps running all four services, now naming them in `services`, and
    behaves as before.
 3. **Routes in place**: a routes release (`avalon-api-routes`) takes over `/api` with every backend still
@@ -406,4 +405,4 @@ BASE=http://127.0.0.1:18080 tools/api-smoke/smoke.sh   # after kubectl port-forw
 | `ContractGoldenShould` | `Avalon.Api.UnitTests` | The all-in-one document differs from the one published before the split (removed after the rollout) |
 | `ApiServiceSelectionShould`, `PipelineOrderShould`, `AuthSchemaGateShould`, `WorldDatabasePartsShould`, `RouteTableShould`, `OpenApiOrderShould` | `Avalon.Api.Hosting.UnitTests` | The selection rules, the pipeline order, the schema gate, the world parts a process reads, the manifest reader, or the ordinal order of a document's paths, tags and schemas change |
 | `InternalEndpointsShould` | `Avalon.Api.Identity.UnitTests` | `/internal/game/*` answers on a port other than the workload listener's |
-| `ci/test.sh` | the chart | The homelab values render differently from before the split, the ES256 values (#801) add anything but identity's keys and the public keys, a service alone renders a setting or Secret key that is not its own, the routes release's rules, priorities or refusals change, or the NetworkPolicy renders without its peers |
+| `ci/test.sh` | the chart | The homelab values render differently from before the split with the ES256 keys (#801) in place of the HS256 key, identity's private key or game-auth host key is not required, a removed HS256 value renders, a service alone renders a setting or Secret key that is not its own, the routes release's rules, priorities or refusals change, or the NetworkPolicy renders without its peers |

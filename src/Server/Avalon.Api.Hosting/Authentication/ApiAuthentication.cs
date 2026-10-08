@@ -91,7 +91,7 @@ public static class ApiAuthentication
         {
             ValidIssuer = config.Issuer,
             ValidateIssuer = config.ValidateIssuer,
-            // The key the token's header names, of the kind its algorithm needs, and no other (#801).
+            // The public key the token's header names, for an ES256 token, and no other (#801).
             IssuerSigningKeyResolver = (_, token, keyId, _) => keys.Resolve(token, keyId),
             // Not configurable: a token is only as good as the key that signed it.
             ValidateIssuerSigningKey = true,
@@ -102,8 +102,8 @@ public static class ApiAuthentication
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(config.ClockSkewInMinutes),
             RoleClaimType = ClaimTypes.GroupSid,
-            // ES256, and HS256 only while the key of the tokens signed before #801 is set; nothing else.
-            ValidAlgorithms = keys.Algorithms,
+            // ES256 and nothing else: HS256, which the tokens of before #801 were signed with, is refused (#801).
+            ValidAlgorithms = JwtKeys.Algorithms,
         };
 
     private static void AddAuthorizationPolicies(IServiceCollection services)

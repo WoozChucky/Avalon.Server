@@ -26,13 +26,19 @@ namespace Avalon.Api.Hosting.UnitTests.Hosting;
 /// </summary>
 public class ApiStartupValidationShould
 {
-    [Fact]
-    public async Task Refuse_missing_store_secret_before_any_database_call()
+    /// <summary>
+    /// Identity refuses to start without a secret it needs, naming its setting, before any database call: the store's
+    /// publisher key, and the game-auth host key, which nothing stands in for since #801.
+    /// </summary>
+    [Theory]
+    [InlineData("Application:StoreAuthentication:SteamPublisherKey", typeof(OptionsValidationException), "Application:StoreAuthentication")]
+    [InlineData("Application:GameAuth:HostKey", typeof(InvalidOperationException), "Application:GameAuth:HostKey is not set")]
+    public async Task Refuse_a_missing_identity_secret_before_any_database_call(string setting, Type refusal, string named)
     {
-        await using ServiceProvider provider = Build("localhost:6379", ("Application:StoreAuthentication:SteamPublisherKey", null));
-        OptionsValidationException refused = await Assert.ThrowsAsync<OptionsValidationException>(
+        await using ServiceProvider provider = Build("localhost:6379", (setting, null));
+        Exception refused = await Assert.ThrowsAsync(refusal,
             () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
-        Assert.Contains("Application:StoreAuthentication", refused.Message, StringComparison.Ordinal);
+        Assert.Contains(named, refused.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("private-test-publisher-key", refused.Message, StringComparison.Ordinal);
     }
 
@@ -182,17 +188,10 @@ public class ApiStartupValidationShould
     private static ServiceProvider Build(string? cacheHost, Action<IServiceCollection>? configure,
         params (string Key, string? Value)[] overrides)
     {
-        ApplicationConfig config = new()
-        {
-            Environment = new EnvironmentConfig(),
-            Authentication = ApiTestHost.AuthConfig,
-            GameAuth = new GameAuthConfig { HostKey = ApiTestHost.LegacySigningKey },
-            Notification = new NotificationConfig(),
-            Cache = new CacheConfiguration(),
-        };
         var settings = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Database:Auth:ConnectionString"] = Unreachable,
+            [GameAuthConfig.HostKeySetting] = ApiTestHost.HostKey,
             ["Application:StoreAuthentication:SteamPublisherKey"] = "private-test-publisher-key",
             ["Application:StoreAuthentication:SteamAppId"] = StoreAuthenticationTestData.SteamAppId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["Application:SteamWebLink:CallbackUrl"] = "https://api.example.test/account/links/steam/callback",
@@ -208,9 +207,19 @@ public class ApiStartupValidationShould
         if (cacheHost is not null)
             settings["Application:Cache:Host"] = cacheHost;
 
+        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
+        ApplicationConfig config = new()
+        {
+            Environment = new EnvironmentConfig(),
+            Authentication = ApiTestHost.AuthConfig,
+            // Identity's own section, bound from the settings as the host binds it.
+            GameAuth = configuration.GetSection("Application:GameAuth").Get<GameAuthConfig>(),
+            Notification = new NotificationConfig(),
+            Cache = new CacheConfiguration(),
+        };
+
         ServiceCollection services = new();
         services.AddLogging();
-        IConfiguration configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         services.AddSingleton(configuration);
         services.AddHttpContextAccessor();
         services.AddSingleton(config);

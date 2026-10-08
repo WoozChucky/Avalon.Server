@@ -55,9 +55,15 @@ public static class AvalonApiHost
         ILogger logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Program");
         logger.LogInformation("Running the API services {ApiServices}", selection.Names);
         JwtKeys keys = app.Services.GetRequiredService<JwtKeys>();
-        logger.LogInformation(
-            "Access tokens are accepted signed with ES256 under the key ids {KeyIds}, and with HS256 {Hs256}",
-            string.Join(",", keys.KeyIds), keys.Legacy is null ? "never" : $"while {JwtSigningKey.SettingName} is set");
+        logger.LogInformation("Access tokens are accepted signed with ES256 under the key ids {KeyIds}",
+            string.Join(",", keys.KeyIds));
+        if (!string.IsNullOrEmpty(app.Configuration[TokenValidationConfig.IssuerSigningKeySetting]))
+        {
+            logger.LogWarning(
+                "{IssuerSigningKeySetting} is set but ignored: access tokens are ES256 only since #801, and HS256 tokens " +
+                "are refused whatever is configured. Remove it from this process's configuration.",
+                TokenValidationConfig.IssuerSigningKeySetting);
+        }
         ForwardedHeadersSetup.WarnIfNoProxyTrusted(logger,
             app.Configuration.GetSection(ForwardedHeadersSetup.Section).Get<ForwardedHeadersConfig>(), app.Environment);
         foreach (IApiService service in running)
