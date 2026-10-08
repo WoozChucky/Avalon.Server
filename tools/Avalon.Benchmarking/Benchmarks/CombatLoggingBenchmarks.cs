@@ -18,14 +18,16 @@ namespace Avalon.Benchmarking.Benchmarks;
 
 /// <summary>
 /// The cost of the combat path's per-hit log line (#819): one hit through <see cref="CombatService" /> on a living
-/// character, whose <c>OnHit</c> writes "{Name} has been hit by unit {Attacker} for {Damage} damage", with the line
-/// written as today and with it filtered out; then the line alone, written, and at Debug under today's minimum and
-/// under an Information minimum, through the extension method and through a generated <see cref="LoggerMessage" />.
+/// character, whose <c>OnHit</c> writes "{Name} has been hit by unit {Attacker} for {Damage} damage" at Debug, with
+/// the line written (a Debug minimum, as every host but the world server runs, and what every hit cost before #819,
+/// when the line was Information and the world server ran at Debug) and with the world server's Information minimum;
+/// then the line alone, written, and at Debug under an Information minimum through the extension method and through
+/// a generated <see cref="LoggerMessage" />.
 /// </summary>
 /// <remarks>
-/// The pipeline is the world server's (<c>AddCustomLogging</c>): Serilog at Debug, with the same enrichers and output
-/// template, behind Microsoft.Extensions.Logging, where <c>AddSerilog</c> lets every level through to Serilog, so
-/// Serilog's minimum is the one that counts. The console sink is replaced by one that renders each event with that
+/// The pipeline is <c>AddCustomLogging</c>'s: Serilog with the same enrichers and output template, behind
+/// Microsoft.Extensions.Logging, where <c>AddSerilog</c> lets every level through to Serilog, so Serilog's minimum is
+/// the one that counts. The console sink is replaced by one that renders each event with that
 /// template into a reused buffer and drops it, so the "written" numbers stop before any console I/O and are a lower
 /// bound on what a written line costs the tick.
 /// </remarks>
@@ -41,24 +43,21 @@ public partial class CombatLoggingBenchmarks
     private CharacterEntity _attacker = null!;
     private CharacterEntity _logged = null!;
     private CharacterEntity _quiet = null!;
-    private ILogger _today = null!;
+    private ILogger _debug = null!;
     private ILogger _information = null!;
 
     [GlobalSetup]
     public void Setup()
     {
-        ILoggerFactory today = Loggers(LogEventLevel.Debug);
+        ILoggerFactory debug = Loggers(LogEventLevel.Debug);
         ILoggerFactory information = Loggers(LogEventLevel.Information);
-        // The hit's line is written at Information, so a Warning minimum stands in for that line at Debug under an
-        // Information minimum: the same extension-method call, refused by the same check.
-        ILoggerFactory warning = Loggers(LogEventLevel.Warning);
 
         var config = new CombatConfig();
         _combat = new CombatService(config, new EncounterRegistry(config));
-        _attacker = Character(1, today);
-        _logged = Character(2, today);
-        _quiet = Character(3, warning);
-        _today = today.CreateLogger<CombatLoggingBenchmarks>();
+        _attacker = Character(1, debug);
+        _logged = Character(2, debug);
+        _quiet = Character(3, information);
+        _debug = debug.CreateLogger<CombatLoggingBenchmarks>();
         _information = information.CreateLogger<CombatLoggingBenchmarks>();
 
         _combat.ApplyDamage(_attacker, _logged, 1);
@@ -115,20 +114,16 @@ public partial class CombatLoggingBenchmarks
         if (target.CurrentHealth < Health / 2) target.CurrentHealth = Health;
     }
 
-    /// <summary>A hit whose line is written, as every hit on a character is today.</summary>
+    /// <summary>A hit whose line is written: every hit on a character before #819.</summary>
     [Benchmark(Baseline = true)]
     public void Hit_line_written() => Hit(_logged);
 
-    /// <summary>The same hit with its line refused by the minimum level.</summary>
+    /// <summary>The same hit at the world server's Information minimum, where its Debug line is off.</summary>
     [Benchmark]
-    public void Hit_line_filtered() => Hit(_quiet);
+    public void Hit_world_server_information() => Hit(_quiet);
 
     [Benchmark]
-    public void Line_information_written() => _today.LogInformation(Line, "Bench2", 1UL, 1u);
-
-    /// <summary>The line moved to Debug with nothing else changed: the world server's minimum is Debug.</summary>
-    [Benchmark]
-    public void Line_debug_today() => _today.LogDebug(Line, "Bench2", 1UL, 1u);
+    public void Line_written() => _debug.LogDebug(Line, "Bench2", 1UL, 1u);
 
     [Benchmark]
     public void Line_debug_extension_information_minimum() => _information.LogDebug(Line, "Bench2", 1UL, 1u);

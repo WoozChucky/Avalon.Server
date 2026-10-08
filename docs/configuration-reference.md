@@ -734,6 +734,32 @@ Application__Authentication__SigningKey=<from-vault>
 
 ---
 
+## Log Levels
+
+Every host builds its Serilog logger in `AddCustomLogging` at a minimum of Debug, then reads
+`Serilog` from configuration. `AddSerilog` passes every level through to Serilog, so Serilog's
+minimum decides what is written, whatever `Logging:LogLevel` says. The API and the auth server
+keep the Debug minimum.
+
+The world server runs at **Information** (#819): its `appsettings.json` sets
+`Serilog:MinimumLevel:Default` to `Information`, so its Debug lines are not written. They include the
+combat path's routine lines, which run on the tick many times a second in a busy instance: every hit
+on a character, every character and creature death, and every cast refused for its cost, interrupted
+by movement or dropped because its caster left. Warnings and errors are unchanged. To see the Debug
+lines again, lower the minimum through the environment:
+
+```bash
+Serilog__MinimumLevel__Default=Debug
+```
+
+The world chart has no value for it, so on Kubernetes set it on the StatefulSet
+(`kubectl set env statefulset/<fullname> Serilog__MinimumLevel__Default=Debug`, the chart's fullname), which the
+next `helm upgrade` undoes. One category can be lowered alone with
+`Serilog:MinimumLevel:Override:<category>` (for the combat lines, `Avalon.World.Entities.CharacterEntity`,
+`Avalon.World.Abilities.InstanceAbilityCastSystem` and `Avalon.World.Scripts.Creatures.CreatureCombatScript`).
+
+---
+
 ## Database Logging
 
 Two rules hold in the API, the auth server and the world server (#558):
