@@ -64,7 +64,7 @@ public sealed class TickDrivenOutbox : IOutbox
             SingleReader = true,
             SingleWriter = false
         }, dropped is null ? null : packet => dropped.Add(1,
-            new KeyValuePair<string, object?>("avalon_packet_type", PacketDispatchTelemetry.NameOf(packet.Header.Type))));
+            new KeyValuePair<string, object?>("avalon.packet.type", PacketDispatchTelemetry.NameOf(packet.Header.Type))));
     }
 
     public void Connect(PacketStream stream) => _stream = stream;

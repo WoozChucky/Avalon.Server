@@ -168,7 +168,7 @@ public class TickDrivenOutboxShould
         {
             object? type = null;
             foreach (KeyValuePair<string, object?> tag in tags)
-                if (tag.Key == "avalon_packet_type") type = tag.Value;
+                if (tag.Key == "avalon.packet.type") type = tag.Value;
             seen.Add((value, type));
         });
         listener.Start();
