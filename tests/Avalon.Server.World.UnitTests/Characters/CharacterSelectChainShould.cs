@@ -201,7 +201,7 @@ public class CharacterSelectChainShould : IDisposable
         Assert.Null(_connection.Character);
         Assert.Null(_connection.PendingSpawn);
 
-        new CharacterDeletetHandler(NullLogger<CharacterDeletetHandler>.Instance, _characters)
+        new CharacterDeleteHandler(NullLogger<CharacterDeleteHandler>.Instance, _characters)
             .Execute(_connection, new CCharacterDeletePacket { CharacterId = s_theCharacter });
         Step(2);
 

@@ -4,7 +4,8 @@ public class AccountDto
 {
     public long Id { get; set; }
     public string Username { get; set; }
-    public string Email { get; set; }
+    /// <summary>The account's email, null for a Steam-only account until it adds recovery credentials.</summary>
+    public string? Email { get; set; }
     public DateTime? EmailVerifiedAt { get; set; }
     public DateTime JoinDate { get; set; }
     public string LastIp { get; set; }

@@ -5,8 +5,7 @@ namespace Avalon.Api.Hosting;
 
 /// <summary>
 /// The OpenAPI document the API serves at <c>/openapi/v1.json</c> and the docs build publishes. The host registers
-/// it (<see cref="AvalonApiHost"/>), and so does ContractGoldenShould, which holds the served document to the one
-/// published before the API split (#794).
+/// it (<see cref="AvalonApiHost"/>).
 /// </summary>
 public static class OpenApiSetup
 {

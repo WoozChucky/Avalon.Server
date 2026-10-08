@@ -47,7 +47,7 @@ public class PacketStream(Stream stream) : Stream
                 if (lenResult is null)
                 {
                     // Need more bytes for the varint. Refill or yield break on EOF/error.
-                    if (!await RefillAsync(buffer, dataStart, dataEnd, refilled => dataEnd = refilled, token).ConfigureAwait(false))
+                    if (!await RefillAsync(buffer, dataEnd, refilled => dataEnd = refilled, token).ConfigureAwait(false))
                         yield break;
 
                     // Compact if we filled the tail.
@@ -78,7 +78,7 @@ public class PacketStream(Stream stream) : Stream
                 // 3) Read until we have the full frame in the buffer.
                 while (dataEnd - dataStart < frameTotal)
                 {
-                    if (!await RefillAsync(buffer, dataStart, dataEnd, refilled => dataEnd = refilled, token).ConfigureAwait(false))
+                    if (!await RefillAsync(buffer, dataEnd, refilled => dataEnd = refilled, token).ConfigureAwait(false))
                         yield break;
 
                     if (dataEnd == buffer.Length && dataStart > 0)
@@ -107,7 +107,7 @@ public class PacketStream(Stream stream) : Stream
         }
     }
 
-    private async ValueTask<bool> RefillAsync(byte[] buffer, int dataStart, int dataEnd,
+    private async ValueTask<bool> RefillAsync(byte[] buffer, int dataEnd,
         Action<int> setDataEnd, CancellationToken token)
     {
         int free = buffer.Length - dataEnd;

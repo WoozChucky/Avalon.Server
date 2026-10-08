@@ -24,6 +24,4 @@ time there is no address to report.
 
 That URL is stable, and it is what the `Avalon.Dashboard` repository's client
 generator checks itself against. A push to `main` that touches the API host or any of
-its libraries (`src/Server/Avalon.Api*/**`) republishes it, as one to the docs does. Until the split
-is rolled out, `ContractGoldenShould` fails on any difference from the document
-published before the split (`tests/Avalon.Api.UnitTests/Contracts/openapi.pre-split.json`).
+its libraries (`src/Server/Avalon.Api*/**`) republishes it, as one to the docs does.

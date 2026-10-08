@@ -9,8 +9,8 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Handlers;
 
 [PacketHandler(NetworkPacketType.CMSG_CHARACTER_DELETE)]
-public class CharacterDeletetHandler(
-    ILogger<CharacterDeletetHandler> logger,
+public class CharacterDeleteHandler(
+    ILogger<CharacterDeleteHandler> logger,
     ICharacterRepository characterRepository,
     IWorldServer? worldServer = null) : WorldPacketHandler<CCharacterDeletePacket>
 {

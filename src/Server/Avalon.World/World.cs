@@ -148,6 +148,7 @@ public class World : IWorld
             dialogueRepository, lootTableRepository, loggerFactory, vendorStockRepository, combatDataRepository,
             questRepository, serviceProvider.GetService<IScriptManager>(), auraTemplateRepository);
 
+        Time = new GameTime(serviceProvider.GetService<TimeProvider>());
         _instanceTicker = new InstanceTicker(_logger, DiagnosticsConfig.World.Meter,
             serviceProvider.GetService<TimeProvider>());
         _partyTickErrors = new ThrottledErrorLog(_logger, serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System,
@@ -164,7 +165,7 @@ public class World : IWorld
     public string CurrentVersion => _world?.Version ?? throw new InvalidOperationException("World not loaded.");
     public GameConfiguration Configuration => _configuration.Value;
 
-    public GameTime Time { get; } = new();
+    public GameTime Time { get; }
     public IInstanceRegistry InstanceRegistry { get; private set; } = null!;
     public IPartyInstanceRegistry PartyInstances { get; private set; } = null!;
     public IReadOnlyList<MapTemplate> MapTemplates => _mapManager.Templates;
@@ -470,8 +471,10 @@ public class World : IWorld
         }
 
         dbCharacter.Online = false;
-        dbCharacter.LevelTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
-        dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
+        // EnteredWorld was stamped from the same clock (CharacterSelectHandler).
+        ulong played = (ulong)(entity.Clock.GetUtcNow().UtcDateTime - entity.EnteredWorld).TotalSeconds;
+        dbCharacter.LevelTime += played;
+        dbCharacter.TotalTime += played;
         // Memory is authoritative (spec #459 D3): the row, the money and every dirty item and slot
         // go in one transaction, queued behind any save of this character still in flight.
         return characterSaver.SaveOnDespawnAsync(entity, prepareRow, CancellationToken.None);

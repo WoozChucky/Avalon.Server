@@ -15,7 +15,7 @@ namespace Avalon.World.Scripts.Creatures.Forest;
 /// <remarks>Rotation: Bramble Nova, then Thornspray, each when ready and in reach; else Bramble Lash. The numbers are the ability rows; the rotation is this code.</remarks>
 public sealed class MotherBrambleScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
     TimeProvider? time = null, IWorld? world = null)
-    : AggroDefendScript(loggerFactory, creature, context,
+    : AggroDefendScript(creature, context,
         new MotherBrambleScript.MotherBrambleCombat(loggerFactory, creature, context, time, world))
 {
     /// <summary>Its basic: a 2.5 m cone.</summary>

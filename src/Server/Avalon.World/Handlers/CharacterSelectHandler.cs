@@ -81,6 +81,29 @@ public class CharacterSelectHandler(
     /// </summary>
     public TimeSpan SaveWaitLimit { get; init; } = TimeSpan.FromSeconds(5);
 
+    // Every time this handler stamps (the select's start, the pending spawn's, EnteredWorld) is read from the world's
+    // clock, the one the tick's readiness barrier compares them with (#820).
+    private TimeProvider Clock => time ?? TimeProvider.System;
+
+    // The last select identity handed out, process-wide: see NextSelectId.
+    private static long s_lastSelectId;
+
+    /// <summary>
+    /// The select's identity and start: <paramref name="nowTicks" />, or one tick past the last identity handed out
+    /// when that is not later. A test clock can stand still between two selects, and a select that reused a cancelled
+    /// one's identity would let the cancelled chain carry on (see OwnsSelect).
+    /// </summary>
+    private static long NextSelectId(long nowTicks)
+    {
+        long last, next;
+        do
+        {
+            last = Volatile.Read(ref s_lastSelectId);
+            next = Math.Max(nowTicks, last + 1);
+        } while (Interlocked.CompareExchange(ref s_lastSelectId, next, last) != last);
+        return next;
+    }
+
     public override void Execute(IWorldConnection connection, CCharacterSelectedPacket packet)
     {
         using Activity? activity =
@@ -146,7 +169,7 @@ public class CharacterSelectHandler(
         {
             _entryCheckInFlight.Remove(connection);
             if (!connection.IsConnected || connection.IsClosing) return;
-            if (!decision.IsValidAt((time ?? TimeProvider.System).GetUtcNow().UtcDateTime))
+            if (!decision.IsValidAt(Clock.GetUtcNow().UtcDateTime))
             {
 #pragma warning disable MA0045 // tick continuation cannot await; the close finishes on its own
                 GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
@@ -173,7 +196,7 @@ public class CharacterSelectHandler(
 
         // The select's identity. Every step of the chain checks it before doing anything, so a
         // select that is cancelled or kicked stops at its next step (see OwnsSelect).
-        long select = DateTime.UtcNow.Ticks;
+        long select = NextSelectId(Clock.GetUtcNow().UtcTicks);
         connection.BeginSelect(select);
 
         Step(connection, select,
@@ -351,7 +374,7 @@ public class CharacterSelectHandler(
         {
             // Timed on the container's clock (the system clock in production), so a test can end the
             // wait by moving its clock rather than racing a real timer.
-            await idle.WaitAsync(SaveWaitLimit, time ?? TimeProvider.System, CancellationToken.None)
+            await idle.WaitAsync(SaveWaitLimit, Clock, CancellationToken.None)
                 .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
             if (!idle.IsCompleted)
@@ -423,7 +446,7 @@ public class CharacterSelectHandler(
             Position = new Vector3(character.X, character.Y, character.Z),
             Velocity = Vector3.zero,
             Orientation = new Vector3(0, character.Rotation, 0),
-            EnteredWorld = DateTime.UtcNow,
+            EnteredWorld = Clock.GetUtcNow().UtcDateTime,
             RequiredExperience = requiredExperience
         };
 
@@ -806,7 +829,7 @@ public class CharacterSelectHandler(
         // lookup landing after this sets it on the pending character itself.
         entity.Quests.Locale = connection.Locale;
         RecountCollect(entity);
-        connection.SetPendingSpawn(entity, instance, DateTime.UtcNow.Ticks);
+        connection.SetPendingSpawn(entity, instance, Clock.GetUtcNow().UtcTicks);
 
         logger.LogInformation(
             "Character {CharacterName} selected for account {AccountId}; awaiting the client's load report",

@@ -72,6 +72,20 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     [Fact]
+    public void Time_the_barrier_on_the_container_clock()
+    {
+        // Pending since now by the wall clock, an hour past the barrier by the container's (#820).
+        var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(DateTimeOffset.UtcNow.AddHours(1));
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(clock: clock);
+        IMapInstance instance = Substitute.For<IMapInstance>();
+        connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance, DateTime.UtcNow.Ticks);
+
+        server.Tick();
+
+        world.Received(1).SpawnInInstance(connection, instance);
+    }
+
+    [Fact]
     public async Task Timeout_release_checks_maintenance_once_and_never_spawns_a_refused_character()
     {
         IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();

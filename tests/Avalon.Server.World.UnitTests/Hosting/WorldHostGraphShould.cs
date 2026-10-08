@@ -130,7 +130,7 @@ public class WorldHostGraphShould
                     typeof(CharacterSelectHandler), Substitute.For<IWorldServer>())));
             // The delete takes a deleted character off the loaded lists through the world server's connections, which
             // WorldServer hands only to a handler whose constructor names IWorldServer.
-            Assert.Contains(typeof(CharacterDeletetHandler).GetConstructors(),
+            Assert.Contains(typeof(CharacterDeleteHandler).GetConstructors(),
                 c => c.GetParameters().Any(p => p.ParameterType == typeof(IWorldServer)));
 
             // The tick-thread assertion (#639). Every holder takes it optionally and would otherwise check nothing, so only

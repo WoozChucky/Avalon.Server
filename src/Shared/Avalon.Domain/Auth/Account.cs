@@ -79,11 +79,12 @@ public class Account : IDbEntity<AccountId>
     public AccountStatus Status { get; set; } = AccountStatus.Active;
 
     /// <summary>
-    /// A counter raised by one, in the transaction that makes the change, by every password change,
-    /// owner MFA reset and admin MFA removal (#495). Everything issued on the strength of the
-    /// credentials (an access token's <c>cver</c> claim, a refresh token, an MFA hash, a
-    /// re-authentication, a TCP login and its world key) carries the value read from the same row
-    /// that proved them, and is refused once it no longer equals this.
+    /// A counter raised by one, in the transaction that makes the change, by every credentials change:
+    /// a password, role or email change, an owner MFA reset, an admin MFA removal (#495, #503, #504).
+    /// Everything issued on the strength of the credentials (an access token's <c>cver</c> claim, a
+    /// refresh token, an MFA hash, a re-authentication, a launcher code, a game session and its join
+    /// ticket) carries the value read from the same row that proved them, and is refused once it no
+    /// longer equals this.
     /// </summary>
     public int CredentialsVersion { get; set; }
 

@@ -16,7 +16,7 @@ namespace Avalon.World.Scripts.Creatures.Forest;
 /// <remarks>Rotation: Venom Spit whenever ready and in reach; else Blight Spit while Sting cannot reach; else Sting. The numbers are the ability rows; the rotation is this code.</remarks>
 public sealed class BlightflySwarmlingScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
     TimeProvider? time = null, IWorld? world = null)
-    : AggroDefendScript(loggerFactory, creature, context,
+    : AggroDefendScript(creature, context,
         new BlightflySwarmlingScript.BlightflySwarmlingCombat(loggerFactory, creature, context, time, world))
 {
     /// <summary>Its basic: a 1.5 m cone.</summary>

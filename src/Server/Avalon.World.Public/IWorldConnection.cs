@@ -42,7 +42,7 @@ public interface IWorldConnection : IConnection
     bool SelectInProgress { get; }
 
     /// <summary>
-    ///     When the in-flight select began, as <c>DateTime.UtcNow.Ticks</c>, or 0 when none is.
+    ///     When the in-flight select began, as the UTC ticks of the world's <see cref="TimeProvider" />, or 0 when none is.
     ///     Taken from the caller rather than read from a clock here, the same way
     ///     <see cref="SetPendingSpawn" /> takes its <c>sinceTicks</c>, so the tick loop can decide a
     ///     select has stalled and a test can decide it without waiting.
@@ -72,7 +72,7 @@ public interface IWorldConnection : IConnection
 
     /// <summary>
     ///     Marks a select as under way. <paramref name="nowTicks" /> is
-    ///     <c>DateTime.UtcNow.Ticks</c> and starts the window a stalled select is cancelled after.
+    ///     the UTC ticks of the world's <see cref="TimeProvider" /> and starts the window a stalled select is cancelled after.
     /// </summary>
     void BeginSelect(long nowTicks);
 
@@ -98,7 +98,7 @@ public interface IWorldConnection : IConnection
     /// <summary>
     ///     Holds a built character out of its instance. Clears <see cref="SelectInProgress" />:
     ///     the pending spawn supersedes it. <paramref name="sinceTicks" /> is
-    ///     <c>DateTime.UtcNow.Ticks</c> and starts the readiness barrier.
+    ///     the UTC ticks of the world's <see cref="TimeProvider" /> and starts the readiness barrier.
     /// </summary>
     void SetPendingSpawn(ICharacter character, IMapInstance instance, long sinceTicks);
 

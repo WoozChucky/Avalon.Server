@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Avalon.World;
 
 /// <summary>
@@ -14,13 +12,23 @@ namespace Avalon.World;
 /// </remarks>
 public sealed class GameTime
 {
-    private readonly Stopwatch _sinceLastUpdate = Stopwatch.StartNew();
+    private readonly TimeProvider _time;
+    private long _lastUpdate;
+
+    /// <param name="time">The world's clock; the system clock when none is given (#820).</param>
+    public GameTime(TimeProvider? time = null)
+    {
+        _time = time ?? TimeProvider.System;
+        _lastUpdate = _time.GetTimestamp();
+        StartTime = _time.GetUtcNow().UtcDateTime;
+        CurrentTime = StartTime;
+    }
 
     /// <summary>When this world's clock started.</summary>
-    public DateTime StartTime { get; } = DateTime.UtcNow;
+    public DateTime StartTime { get; }
 
-    /// <summary>Wall-clock time as of the last tick.</summary>
-    public DateTime CurrentTime { get; private set; } = DateTime.UtcNow;
+    /// <summary>The world clock's time as of the last tick.</summary>
+    public DateTime CurrentTime { get; private set; }
 
     /// <summary>How long this world has been running, as of the last tick.</summary>
     public TimeSpan Uptime => CurrentTime - StartTime;
@@ -29,16 +37,16 @@ public sealed class GameTime
     public TimeSpan ElapsedSinceStart { get; private set; } = TimeSpan.Zero;
 
     /// <summary>
-    /// Wall-clock time stamped at the last tick. <see cref="DateTime.MinValue" /> until the first
+    /// The world clock's time stamped at the last tick. <see cref="DateTime.MinValue" /> until the first
     /// one, which distinguishes "never ticked" from "ticked at the epoch".
     /// </summary>
     public DateTime SystemTime { get; private set; } = DateTime.MinValue;
 
     /// <summary>
-    /// How long since the last tick, from a monotonic source — not affected by the system clock
-    /// being adjusted underneath the process.
+    /// How long since the last tick, from the clock's monotonic timestamp — not affected by the system
+    /// clock being adjusted underneath the process.
     /// </summary>
-    public TimeSpan SinceLastUpdate => _sinceLastUpdate.Elapsed;
+    public TimeSpan SinceLastUpdate => _time.GetElapsedTime(_lastUpdate);
 
     /// <summary>Length of the last tick. Zero before the first one.</summary>
     public TimeSpan DeltaTime { get; private set; } = TimeSpan.Zero;
@@ -46,12 +54,12 @@ public sealed class GameTime
     /// <summary>Advances the clock. Called once per tick by <see cref="World.Update" />.</summary>
     public void Update(TimeSpan deltaTime)
     {
-        DateTime now = DateTime.UtcNow;
+        DateTime now = _time.GetUtcNow().UtcDateTime;
 
         DeltaTime = deltaTime;
         CurrentTime = now;
         ElapsedSinceStart = now - StartTime;
         SystemTime = now;
-        _sinceLastUpdate.Restart();
+        _lastUpdate = _time.GetTimestamp();
     }
 }

@@ -149,7 +149,7 @@ public class HandlerGuardsShould
                     .Execute(connection, new CCharacterCreatePacket());
                 break;
             case NetworkPacketType.CMSG_CHARACTER_DELETE:
-                new CharacterDeletetHandler(NullLogger<CharacterDeletetHandler>.Instance, characters)
+                new CharacterDeleteHandler(NullLogger<CharacterDeleteHandler>.Instance, characters)
                     .Execute(connection, new CCharacterDeletePacket());
                 break;
             case NetworkPacketType.CMSG_CHARACTER_SELECTED:

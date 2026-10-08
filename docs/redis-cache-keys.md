@@ -199,8 +199,7 @@ them; `CacheKeys` no longer names any of them.
 - `world:{worldId}:keys:{base64}`: the one-time world entry token the auth server wrote at world select and the world
   server spent at the key exchange.
 - `account:{accountId}:inWorld`: the `SETNX` mutex that refused a second world select as a duplicate session for
-  five minutes. Nothing sets it; the World server still deletes the literal key when a connection closes
-  (`WorldServer.ClearInWorldFlagAsync`).
+  five minutes. Nothing sets or deletes it any more.
 - `world:{worldId}:select`: a world-select notification that nothing ever subscribed to.
 
 ---

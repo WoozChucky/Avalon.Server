@@ -15,7 +15,7 @@ namespace Avalon.World.Scripts.Creatures.Forest;
 /// <remarks>Rotation: Earthsplitter, then Thorn Volley, each when ready and in reach; else Tusk Gore. The numbers are the ability rows; the rotation is this code.</remarks>
 public sealed class OldTuskrootScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
     TimeProvider? time = null, IWorld? world = null)
-    : AggroDefendScript(loggerFactory, creature, context,
+    : AggroDefendScript(creature, context,
         new OldTuskrootScript.OldTuskrootCombat(loggerFactory, creature, context, time, world))
 {
     /// <summary>Its basic: a 2 m cone.</summary>

@@ -107,30 +107,6 @@ public class ItemTemplate : IDbEntity<ItemTemplateId>
 
     /// <summary>The script's own number: for RestoreHealth and RestorePower, the percentage of the maximum restored.</summary>
     public uint? UseValue { get; set; }
-
-    // For future use
-    private void ValidateSubClass()
-    {
-        if (!IsValidSubClassForClass(Class, SubClass))
-        {
-            throw new ArgumentException($"Invalid subclass {SubClass} for class {Class}");
-        }
-    }
-
-    // For future use
-    private bool IsValidSubClassForClass(ItemClass itemClass, ItemSubClass itemSubClass)
-    {
-        return itemClass switch
-        {
-            ItemClass.Consumable => itemSubClass is ItemSubClass.Potion or ItemSubClass.Food or ItemSubClass.Scroll,
-            ItemClass.Weapon => itemSubClass is ItemSubClass.OneHanded or ItemSubClass.TwoHanded or ItemSubClass.Ranged,
-            ItemClass.Armor => itemSubClass is ItemSubClass.Shield or ItemSubClass.Helmet or ItemSubClass.Chest or ItemSubClass.Legs or ItemSubClass.Boots or ItemSubClass.Gloves or ItemSubClass.Amulet or ItemSubClass.Ring,
-            ItemClass.Quest => itemSubClass == ItemSubClass.QuestItem,
-            ItemClass.Crafting => itemSubClass == ItemSubClass.CraftingMaterial,
-            ItemClass.Junk => itemSubClass == ItemSubClass.JunkItem,
-            _ => false,
-        };
-    }
 }
 
 public enum StatType
