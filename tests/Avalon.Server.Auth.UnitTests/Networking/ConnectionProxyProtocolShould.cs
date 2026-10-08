@@ -155,7 +155,7 @@ public class ConnectionProxyProtocolShould
 
             Assert.False(connection.StreamRequested.Task.IsCompleted);
             Assert.Equal(0, logger.Count(LogLevel.Warning));
-            Assert.Equal(1, logger.Entries.Count(e => e.Level == LogLevel.Debug && e.Message.Contains("trusted proxy", StringComparison.Ordinal)));
+            Assert.Equal(1, logger.Entries.Count(e => e.Level == LogLevel.Trace && e.Message.Contains("trusted proxy", StringComparison.Ordinal)));
             listener.Stop();
         }
     }

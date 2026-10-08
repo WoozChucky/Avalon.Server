@@ -31,15 +31,24 @@ public class RequestLoggingMiddleware
         {
             stopwatch.Stop();
 
-            _logger.LogInformation("HTTP {Method} {Path}{Query} responded {StatusCode} in {Elapsed:0.0000} ms",
-                httpContext.Request.Method,
-                httpContext.Request.Path,
-                _options.HidesQueryOf(httpContext.Request.Path) ? QueryString.Empty : httpContext.Request.QueryString,
-                httpContext.Response.StatusCode,
-                stopwatch.Elapsed.TotalMilliseconds
-            );
+            // A healthy probe answer is not logged: Kubernetes asks /health and /alive every few seconds. One that
+            // fails is, like any other request.
+            if (!(IsProbe(httpContext.Request.Path) && httpContext.Response.StatusCode == StatusCodes.Status200OK))
+            {
+                _logger.LogInformation("HTTP {Method} {Path}{Query} responded {StatusCode} in {Elapsed:0.0000} ms",
+                    httpContext.Request.Method,
+                    httpContext.Request.Path,
+                    _options.HidesQueryOf(httpContext.Request.Path) ? QueryString.Empty : httpContext.Request.QueryString,
+                    httpContext.Response.StatusCode,
+                    stopwatch.Elapsed.TotalMilliseconds
+                );
+            }
         }
     }
+
+    /// <summary>The health probes' paths, <c>/health</c> and <c>/alive</c> (<c>MapDefaultEndpoints</c>).</summary>
+    public static bool IsProbe(PathString path) =>
+        path.Equals("/health", StringComparison.OrdinalIgnoreCase) || path.Equals("/alive", StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>

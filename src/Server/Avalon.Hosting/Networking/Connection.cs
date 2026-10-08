@@ -96,9 +96,12 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
 
     public void Close(bool expected = true) => _ = CloseAsync(expected);
 
-    /// <summary>Probes connect and send nothing (#528): their disconnects are Debug.</summary>
+    /// <summary>
+    /// Probes connect and send nothing (#528): their disconnects are Trace, below the servers' Debug minimum, since a
+    /// load balancer or kubelet probe connects every few seconds.
+    /// </summary>
     public static LogLevel DisconnectLogLevel(int packetsReceived) =>
-        packetsReceived > 0 ? LogLevel.Information : LogLevel.Debug;
+        packetsReceived > 0 ? LogLevel.Information : LogLevel.Trace;
 
     public Task CloseAsync(bool expected = true)
     {
@@ -201,8 +204,9 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
         }
         catch (ProxyHeaderNotSentException)
         {
-            // Connected and closed without a byte: a health check or a port scan, not a bad proxy (#528).
-            _logger.LogDebug("Dropped connection from trusted proxy {Peer}: closed before sending anything", peer);
+            // Connected and closed without a byte: a health check or a port scan, not a bad proxy (#528). Trace, like the
+            // disconnect that follows: a probe every few seconds would otherwise fill the Debug log.
+            _logger.LogTrace("Dropped connection from trusted proxy {Peer}: closed before sending anything", peer);
             return false;
         }
         catch (Exception e) when (e is InvalidDataException or EndOfStreamException or IOException
