@@ -24,7 +24,9 @@ namespace Avalon.World.Testing.Scenarios;
 /// <see cref="Send"/> mirrors <c>WorldConnection.Send</c> and the <c>Connection</c> base it calls, without the
 /// telemetry counters (<c>DiagnosticsConfig.World.BytesSent</c>, <c>PacketsSent</c>, <c>PacketsDropped</c>).
 /// The counting stream completes every write synchronously, so the outbox's write continuation runs inline on
-/// the thread that flushed, as it does in production over a write that completes at once.
+/// the thread that flushed, as it does in production over a write that completes at once. That stream stands in
+/// for production's <c>SslStream</c>, so baselines exclude the TLS record layer, and the session keys are identical
+/// across scenario connections (they share one key pair per end), which is fit for cost measurement only.
 /// </remarks>
 public sealed class ScenarioConnection : IWorldConnection
 {

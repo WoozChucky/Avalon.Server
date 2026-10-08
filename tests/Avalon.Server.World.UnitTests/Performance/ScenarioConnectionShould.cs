@@ -1,22 +1,35 @@
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Server.World.UnitTests.Inventory;
-using Avalon.World.Entities;
 using Avalon.World.Testing.Scenarios;
 
 namespace Avalon.Server.World.UnitTests.Performance;
 
 public class ScenarioConnectionShould
 {
+    // What AES-GCM sealing adds to a payload: the 12-byte nonce in front, the 16-byte tag behind.
+    private const int NonceSize = 12;
+    private const int TagSize = 16;
+
+    private static NetworkPacket Ack(EncryptFunc encrypt) => SPlayerStateAckPacket.Create(1, 2f, 3f, 4f, 0f, 0f, 90, encrypt);
+
     [Fact]
     public void Encrypt_frame_and_write_what_it_sends()
     {
-        CharacterEntity character = TestCharacters.New(650_001);
-        var connection = new ScenarioConnection(character);
+        var sealedConnection = new ScenarioConnection(TestCharacters.New(650_001));
+        var plainConnection = new ScenarioConnection(TestCharacters.New(650_002));
 
-        connection.Send(SPlayerStateAckPacket.Create(1, 2f, 3f, 4f, 0f, 0f, 90, connection.CryptoSession.Encrypt));
-        Assert.Equal(0, connection.BytesWritten); // queued, not written
-        connection.FlushOutbox();
+        sealedConnection.Send(Ack(sealedConnection.CryptoSession.Encrypt));
+        plainConnection.Send(Ack(plaintext => plaintext.ToArray()));
+        Assert.Equal(0, sealedConnection.BytesWritten); // queued, not written
 
-        Assert.True(connection.BytesWritten > 0); // encrypted and framed bytes reached the stream
+        sealedConnection.FlushOutbox();
+        plainConnection.FlushOutbox();
+
+        // The same packet framed both ways: only a real seal adds the nonce and the tag.
+        Assert.True(plainConnection.BytesWritten > 0);
+        Assert.True(sealedConnection.BytesWritten >= plainConnection.BytesWritten + NonceSize + TagSize,
+            $"sealed {sealedConnection.BytesWritten} bytes, plain {plainConnection.BytesWritten}");
     }
 }
