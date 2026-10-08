@@ -276,7 +276,7 @@ The slot count is bounded by the ring's circumference. At radius `1.5` there are
 ## REST API Services
 
 The REST API is one binary that runs the API services `Application:Services` names (#794,
-[API services](api-services.md)). Production still runs all four in one process until the rollout (#802).
+[API services](api-services.md)). Production runs each service in its own release (#802).
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|

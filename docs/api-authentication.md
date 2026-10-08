@@ -2,7 +2,7 @@
 
 How the REST API authenticates callers (access JWTs and personal access tokens), revalidates accounts on every request, rotates refresh tokens, rate limits, and handles credential changes. It runs the same login policy as the TCP auth server ([Auth server](auth-server.md)).
 
-The API runs as four services from one binary (#794, [API services](api-services.md)). Only identity (`Avalon.Api.Identity`) issues credentials: login, MFA, refresh, launcher sign-in, personal access tokens, registration, and every credentials change below. Every service validates a credential itself, with the shared code in `Avalon.Api.Hosting/Authentication` (the bearer handler and its revalidation, the personal access token scheme, the policies), against the one auth database, and never asks another service; production still runs all four in one process until #802.
+The API runs as four services from one binary (#794, [API services](api-services.md)). Only identity (`Avalon.Api.Identity`) issues credentials: login, MFA, refresh, launcher sign-in, personal access tokens, registration, and every credentials change below. Every service validates a credential itself, with the shared code in `Avalon.Api.Hosting/Authentication` (the bearer handler and its revalidation, the personal access token scheme, the policies), against the one auth database, and never asks another service; production runs each service in its own release (#802).
 
 ## REST API Auth
 
