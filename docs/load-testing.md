@@ -65,8 +65,9 @@ Everything here has to be in place, or the run fails early or measures the wrong
    needs the Admin (or Console) role, and MFA has to be off on it: the tool does not answer an MFA challenge. The API
    checks the password again on every create and delete, so a wrong one counts as a failed login.
 7. **A Release build.** The bot PC's CPU is one of the limits, and a Debug build spends more of it per bot. Run the
-   tool with `-c Release`, as every example below does. The input driver sleeps on a high-resolution waitable timer
-   on Windows 10 1803 and later; elsewhere it uses `Thread.Sleep` and spins through the last millisecond of each step.
+   tool with `-c Release`, as every example below does. The input driver sleeps towards each 60 Hz step on a
+   high-resolution waitable timer on Windows 10 1803 and later, and with `Thread.Sleep` where that timer is missing
+   (older Windows, Linux, macOS); on every system it yields the thread through the last millisecond of each step.
 8. **Asthoria is quiet.** See [Cautions](#cautions): check its player count first.
 
 ## Commands
@@ -150,7 +151,7 @@ This is the capacity run, described under [The ramp](#the-ramp).
 | `--mix SHARES` | `idle=60,walker=30,churner=10` | Behaviour weights: `name=weight` pairs of `idle`, `walker`, `churner`, each at most once, weights 0 to 1000, at least one above 0; a behaviour left out has weight 0 |
 | `--start N` | `50` | The first step's bots, 1 to 5,000 (cut to `--max`) |
 | `--step N` | `50` | Bots added each step, 1 to 5,000 |
-| `--hold T` | `90s` | How long each step holds: `90s`, `2m` or plain seconds, 50 s to 1 h. The first 30 s settle; the rest, at most its last 60 s, is judged |
+| `--hold T` | `90s` | How long each step holds: `90s`, `2m` or plain seconds, 50 s to 1 h. The judged window is its last 60 s (the whole hold less 30 s when shorter than 90 s); everything before it settles: 30 s, longer when the hold exceeds 90 s |
 | `--max N` | the run's size | The most bots, 1 to the run's size |
 | `--limit name=value` | the [defaults](#the-limits) | Overrides one limit, in its unit; repeat for more |
 | `--dial HOST` | the join reply's host | As for `check` |
@@ -177,8 +178,9 @@ are kept. How each run id is handled, and what a 409 means, is under [Run files]
 
 ## Run files
 
-A run file is kept per provision in `%LOCALAPPDATA%\Avalon.LoadTest\runs\<RunId>.json` (on Linux and macOS,
-`~/.local/share/Avalon.LoadTest/runs`, readable by its owner only). `<RunId>` is the first run's id, and it is the
+A run file is kept per provision in `%LOCALAPPDATA%\Avalon.LoadTest\runs\<RunId>.json` (on Linux
+`~/.local/share/Avalon.LoadTest/runs`, on macOS `~/Library/Application Support/Avalon.LoadTest/runs`; readable by its
+owner only there). `<RunId>` is the first run's id, and it is the
 handle `--run` takes. Without `--run`, a command uses the only file there. With none it says to provision first, and
 with several it lists them.
 
@@ -208,9 +210,13 @@ the same id since.
   repair or remove that file and run cleanup again. Deleting an id that holds no accounts answers 0 and is harmless.
 - Each deleted run prints its count. An account that gained something a run never gives (another license, a
   purchase, an email, a role beyond `Player | PTR`, ...) is kept and named.
-- **409**: a bot of the run still holds a live game session, or a world's characters database is unavailable. Stop
-  the ramp, wait about a minute (a closed session's lease runs out), and run cleanup again. A 409 right after a ramp
-  usually means its stop was cut short (a second Ctrl+C) or the world had not drained: see [Stopping](#stopping).
+- **409**: the API refused the delete, and the tool prints its reason. Nothing was deleted when a bot of the run
+  still plays (a live game session, or a live gameplay fence in a world, whose lease has not run out) or a world's
+  characters database is unavailable. A 409 also comes when a bot entered a game while the delete ran: the run's
+  characters are already gone, its accounts not, and running cleanup again once the bots are stopped finishes it.
+  Stop the ramp, wait about a minute (a closed session's lease runs out), and run cleanup again. A 409 right after a
+  ramp usually means its stop was cut short (a second Ctrl+C) or the world had not drained: see
+  [Stopping](#stopping).
 - **500**: a delete that deadlocked with a bot still entering. Nothing was half-done; stop the bots and repeat.
 - The run file is deleted only when every run was deleted. Otherwise it is kept and cleanup can be run again; it is
   safe to repeat.
@@ -281,8 +287,9 @@ a takeover. A churn that fails is counted, and the bot closes its connection and
 2. It signs in `--start` bots (at most `--sign-in-concurrency` at once). If a sign-in fails, that account is passed
    over for the next one.
 3. It enters them, 32 at a time, each with its behaviour from the mix.
-4. It holds the step for `--hold`. The first 30 seconds settle and are not judged. The rest (its last 60 seconds at
-   most) is the judged window. While the step holds, the next step's bots sign in.
+4. It holds the step for `--hold`. The judged window is the hold's last 60 seconds (the hold less 30 seconds, for a
+   hold under 90 seconds); everything before it settles and is not judged: 30 seconds, longer when the hold exceeds
+   90 seconds. While the step holds, the next step's bots sign in.
 5. 15 seconds after the hold ends, so the world's last 10-second export has landed, it reads Prometheus for the
    window that ended with the hold. Then it judges the step: the [limits](#the-limits) and the
    [decision rule](#the-decision-rule) say whether it moves to the next step, holds the same count again, or stops.
@@ -295,8 +302,9 @@ about 105 seconds, roughly 35 minutes, plus any re-holds.
 count live bots. A live bot may be between a churn and its next entry. The report adds two cross-checks: the bots in
 the world at the hold's end, and the world's own players online less the count before the ramp.
 
-**Running out.** If a step cannot be filled (the run's accounts ran out, or no further bot could sign in), the ramp
-stops as `stopped`, with the reason and the last passing count.
+**Running out.** The ramp stops only when it cannot add a single bot to a step (the run's accounts ran out, or no
+further bot could sign in): it stops as `stopped`, with the reason and the last passing count. A step it can fill only
+in part is held, and judged, at the live count it reached.
 
 ## The limits
 
@@ -342,6 +350,7 @@ Then:
 |---|---|
 | pass | The next step. If this was the re-hold of a breached step, the step is recorded as a **blip** and the ramp continues. If the step held `--max` bots, the ramp stops: **no limit reached** up to that count |
 | breach, with no re-hold pending | **Re-hold**: the same count is held and judged again |
+| unknown, with no re-hold pending | **Re-hold**, as for a breach: an unknown step stops the ramp only when the next one is unknown too |
 | breach, right after a breach | **Stop**. The capacity is the live bots of the last passing step (0 if none passed). "Failed first" lists the breaches of this confirming step. If any of them is `gen-cpu` or `gen-lag`, the result is instead **bot PC saturated: capacity ≥ N** |
 | unknown, right after an unknown | **Stop, unknown**, with the last passing count (if any) as a lower bound |
 | breach after an unknown, or unknown after a breach | Re-hold again. The earlier verdict is neither confirmed nor cleared, and the newer one is now the one pending |
@@ -395,8 +404,8 @@ to wait before cleanup. A cleanup then may get a 409 until the leases run out, a
 
 ## The report
 
-Each ramp writes two files with the same data to `%LOCALAPPDATA%\Avalon.LoadTest\reports\` (on Linux and macOS,
-`~/.local/share/Avalon.LoadTest/reports`): `<yyyyMMdd-HHmmss>-<RunId>.md` to read and `.json` with the same data
+Each ramp writes two files with the same data to `%LOCALAPPDATA%\Avalon.LoadTest\reports\` (on Linux
+`~/.local/share/Avalon.LoadTest/reports`, on macOS `~/Library/Application Support/Avalon.LoadTest/reports`): `<yyyyMMdd-HHmmss>-<RunId>.md` to read and `.json` with the same data
 for tools, named from the ramp's start time in local time. A name that already exists gets `-2`, `-3`, and so on;
 no report is ever overwritten, except the ramp's own early save. Reports are never written to the repository and hold
 no secret (no password, ticket or credential).
