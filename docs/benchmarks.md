@@ -1095,11 +1095,10 @@ with the committed figure:
 - **Improvement notice** (test output, not a failure) when it is more than 5% and more than 256 B under.
 - **Detection floor.** The 5% band is relative, so in the moving scenarios it is wide in absolute terms. With the
   committed figures below, the gate fails only on a rise of about **8 B per tick** in `town-idle` (the 256 B floor is
-  below 5% of its 9,600 B, so 5% decides), **166 B per player per tick** in `town-walk` (298 KB per window), and
-  **104 B per player per tick** in `many-instances` (about 207 B per instance per tick, 3.1 MB per window). A smaller
-  regression, such as one new 64 B object per walking player per tick, passes. The floors shrink as the per-packet
-  cipher cost falls (#850) and the ratchet lowers the baseline; a follow-up may tighten the tolerance once CI's Linux
-  figures are known.
+  below 5% of its 9,600 B, so 5% decides), **41 B per player per tick** in `town-walk` (73 KB per window), and
+  **20 B per player per tick** in `many-instances` (about 40 B per instance per tick, 605 KB per window). One new
+  64 B object per walking player per tick now fails it; before #850 lowered the baseline (166 and 104 B per player per
+  tick) it passed. A follow-up may tighten the tolerance once CI's Linux figures are known.
 - **Ratchet.** The committed file goes down only by an explicit commit. When a change makes a scenario cheaper,
   regenerate and commit the lower figure, so the gain cannot be lost again unnoticed. When an increase is intended,
   regenerating is also the fix, and the JSON diff shows the reviewer what it costs.
@@ -1111,17 +1110,49 @@ dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write
 ```
 
 The baseline is generated in Release and CI builds Release, so CI's run of the gate is the one that decides. A local
-`dotnet test` builds Debug and reads up to about 3% higher (`many-instances` +3.08%, `town-walk` +1.91%), so locally
-the gate has less headroom: under 2% on `many-instances`. The gate runs in a non-parallel xUnit collection, so no other
+`dotnet test` builds Debug and reads higher by a fixed amount: about 64 B per walking player per tick (1.92 MB per
+window in `many-instances`, 115 KB in `town-walk`), one object that the Release JIT allocates on the stack and an
+unoptimized build cannot. Running the Release runner with `DOTNET_JitObjectStackAllocation=0` reproduces the Debug
+figure (`town-walk` 1,580,400 B against Debug's 1,579,888 B). Before #850 that was +3.08% and +1.91%, inside the 5%
+band; against the lowered baseline it is +15.9% (`many-instances`) and +7.8% (`town-walk`), so **the gate fails in a
+local Debug run** and passes in Release (`dotnet test -c Release`). The gate runs in a non-parallel xUnit collection, so no other
 test in the World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in
 parallel processes under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds
 about 18 s to the World suite.
 
+### Results — after the platform cipher (#850, 2026-10-09)
+
+Allocations, from `perf/scenario-allocations.json` (generated on `c18f8cd7` with #850 applied, Release). "Fails
+from" is the first figure the gate fails on; "Notice at" the highest figure that prints the improvement notice.
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at | Before #850 | Change |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 9,600 | 160 | 5.33 | 10,081 | 9,119 | 9,600 | 0 |
+| `town-walk` | 30 | 1,464,952 | 24,416 | 813.86 | 1,538,200 | 1,391,704 | 5,964,720 | −75.4% |
+| `many-instances` | 500 | 12,098,368 | 201,639 | 403.28 | 12,703,287 | 11,493,449 | 62,226,368 | −80.6% |
+
+Timing and GC, from the same run (2026-10-09; the same machine as the first baseline: i9-12900K, Windows 11 Pro,
+.NET 10.0.12, Server GC; 10 s warm-up, 3600 timed ticks):
+
+| Scenario | Tick ms mean | p95 | p99 | max | % > 16.7 ms | gen0 | gen1 | gen2 | GC pause ms | GC pause % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 0.033 | 0.059 | 0.076 | 0.175 | 0.00 | 0 | 0 | 0 | 0.00 | 0.00 |
+| `town-walk` | 0.182 | 0.479 | 0.858 | 2.900 | 0.00 | 7 | 0 | 0 | 2.52 | 0.38 |
+| `many-instances` | 2.099 | 3.533 | 4.456 | 11.257 | 0.00 | 234 | 0 | 0 | 58.12 | 0.77 |
+
+- **The cipher was three quarters of what a walking player allocated.** `town-walk` falls from 3.3 KB to 814 B per
+  player per tick and `many-instances` from 2.1 KB to 403 B; `town-idle`, which sends nothing, is unchanged. What is
+  left per walker is the state acknowledgement itself (its serialization and the sealed `byte[]`) and the input path.
+- **GC follows.** `town-walk` ran 7 gen0 collections in its timed minute against 116, and spent 0.38% of the time in
+  GC pauses against 3.09%; `many-instances` 0.77% against 1.63%, with no gen1 or gen2 collection. Its gen0 count is
+  about the same (234 against 225) at a fifth of the allocation, which was not investigated. The mean and p95
+  tick fell (`town-walk` 0.220 → 0.182 ms mean, `many-instances` 2.564 → 2.099 ms); the max is one tick per run and
+  moves between runs (`many-instances` 11.3 ms here against 7.7 ms), so it is not read as a change.
+
 ### Results — first baseline (2026-10-08)
 
-Allocations, from `perf/scenario-allocations.json` (commit `9dec695b`, Release; regenerated when the scenario tick
-gained the registry's `PublishFinished`, which moved no figure beyond run-to-run noise). "Fails from" is the first
-figure the gate fails on; "Notice at" the highest figure that prints the improvement notice.
+Allocations, from `perf/scenario-allocations.json` at the time (commit `9dec695b`, Release; regenerated when the
+scenario tick gained the registry's `PublishFinished`, which moved no figure beyond run-to-run noise), before #850.
 
 | Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at |
 |---|---:|---:|---:|---:|---:|---:|
@@ -1146,8 +1177,8 @@ warm-up, 3600 timed ticks). Its allocation figures were within 0.01% of the comm
   It is small, but it is a fixed cost of every tick, and the floor the other scenarios stand on.
 - **Walking costs kilobytes per player per tick, and most of it is encryption.** About 3.3 KB per player per tick in
   `town-walk` and 2.1 KB in `many-instances`, dominated by the per-packet BouncyCastle encrypt (1.7–4.6 KB per call in
-  the session cipher results above) of the state acknowledgement each walker is sent every tick. Issue #850 is the
-  fix; this baseline is how its gain will be measured and then locked in.
+  the session cipher results above) of the state acknowledgement each walker is sent every tick. Issue #850 was the
+  fix, measured in the results above it.
 - **The allocation rate shows up as GC.** `town-walk` allocates about 6 MB per 60-tick window on the tick thread and
   ran 116 gen0 collections in its timed minute, 3.1% of the time in GC pauses; `many-instances` allocates about 62 MB
   per window, with 225 gen0, 2 gen1 and 2 gen2 collections. No tick went over the 16.7 ms budget, but the worst ticks
