@@ -13,8 +13,8 @@ namespace Avalon.LoadTest.Api;
 /// <summary>
 /// The REST calls a bot and the run commands make: the launcher's sign-in chain to a game context (as
 /// <c>tools/Avalon.LocalDev</c> walks it), join tickets, context refresh and logout, and the admin load-test account
-/// endpoints. Writes nothing to the console and never logs a context out on its own: a bot's context must outlive
-/// each call. Every failure is an <see cref="ApiException"/> naming its step; a cancellation stays an
+/// endpoints. Writes nothing to the console and never logs out a context it hands back: a bot's context must outlive
+/// each call (a sign-in signs out only a context it made but does not hand back). Every failure is an <see cref="ApiException"/> naming its step; a cancellation stays an
 /// <see cref="OperationCanceledException"/>. Thread-safe: one client serves every bot.
 /// </summary>
 public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
@@ -36,6 +36,15 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <summary>A refresh attempt's own timeout: three attempts and their waits stay inside the server's 30 s receipt.</summary>
     private static readonly TimeSpan s_refreshAttemptTimeout = TimeSpan.FromSeconds(8);
 
+    /// <summary>
+    /// A redeem attempt's own timeout: the redeem is seen through whatever the caller's token does, so three attempts
+    /// and their waits (about 32 s) bound it as the client's one 30 s call did.
+    /// </summary>
+    private static readonly TimeSpan s_redeemAttemptTimeout = TimeSpan.FromSeconds(10);
+
+    /// <summary>The sign-out of a context a sign-in made but does not hand back, on its own clock.</summary>
+    private static readonly TimeSpan s_logoutTimeout = TimeSpan.FromSeconds(5);
+
     // No redirect is followed: a 307 or 308 would send a body holding a password or a credential on to another place.
     private readonly HttpClient _http = new(new SocketsHttpHandler
     {
@@ -50,7 +59,10 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <summary>
     /// Signs <paramref name="username"/> in as the launcher and the game client do: authenticate, a PKCE launcher code
     /// with the password again, the launcher token, a game ticket, a provider attempt and the handoff redemption. Two
-    /// password checks (BCrypt) on the API per call: sign a bot in once and refresh its context after.
+    /// password checks (BCrypt) on the API per call: sign a bot in once and refresh its context after. The redeem, which
+    /// creates the context, is seen through once sent, <paramref name="ct"/> cancelled or not: a reply dropped there would
+    /// leave a context live for 5 minutes that nobody can sign out. A context it made but does not hand back (not
+    /// authorized, or a reply lacking what a bot needs) is signed out before the failure is thrown.
     /// </summary>
     public async Task<GameContext> SignInAsync(string username, string password, CancellationToken ct)
     {
@@ -73,18 +85,43 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
             clientRunId = Guid.NewGuid(),
             linkChallenge = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32)),
         }, null, idempotencyKey: null, ct);
-        JsonNode redeemed = await SendAsync("redeem", HttpMethod.Post, "client/auth/handoffs/redeem", new
+        var redeem = new
         {
             attemptCredential = Required(attempt, "attemptCredential", "provider-attempt"),
             handoffTicket = Required(ticket, "ticket", "game-ticket"),
-        }, null, idempotencyKey: Guid.NewGuid(), ct);
+        };
 
-        RequireAuthorized(redeemed, "redeem");
-        return new GameContext(
-            Required(redeemed, "gameContextCredential", "redeem"),
-            Required(redeemed, "gameContextRefreshToken", "redeem"),
-            RequiredTime(redeemed, "contextExpiresAt", "redeem"),
-            RequiredTime(redeemed, "authorizationValidUntil", "redeem"));
+        // Not sent once cancelled; once sent, not cancelled. No reply in time, a transport failure or a 5xx is asked
+        // again under the same key, which the server answers with what the first did (409 IN_PROGRESS while it works).
+        ct.ThrowIfCancellationRequested();
+        JsonNode redeemed = await SendWithRetriesAsync("redeem", "client/auth/handoffs/redeem", Guid.NewGuid(), () => redeem,
+            GameAuthErrors.InProgress, s_redeemAttemptTimeout, CancellationToken.None);
+
+        string? made = Text(redeemed, "gameContextCredential");
+        try
+        {
+            RequireAuthorized(redeemed, "redeem");
+            return new GameContext(
+                Required(redeemed, "gameContextCredential", "redeem"),
+                Required(redeemed, "gameContextRefreshToken", "redeem"),
+                RequiredTime(redeemed, "contextExpiresAt", "redeem"),
+                RequiredTime(redeemed, "authorizationValidUntil", "redeem"));
+        }
+        catch (ApiException) when (made is not null)
+        {
+            // A context made but not handed back (not authorized, or the reply lacks what a bot needs) is signed out.
+            using var limit = new CancellationTokenSource(s_logoutTimeout);
+            try
+            {
+                await LogoutCredentialAsync(made, limit.Token);
+            }
+            catch (Exception error) when (error is ApiException || (error is OperationCanceledException && limit.IsCancellationRequested))
+            {
+                // Best effort: the failure rethrown is the caller's; the context expires within 5 minutes.
+            }
+
+            throw;
+        }
     }
 
     /// <summary>
@@ -138,7 +175,9 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <c>IN_PROGRESS</c> (the server lost the race to rotate the token; a retry of the same key either rotates it or
     /// is answered with what an earlier attempt of the key did). A 401 means the context cannot be refreshed again
     /// (<c>CONTEXT_REVOKED</c>, <c>INVALID_REFRESH</c>, <c>REFRESH_REUSE</c>): sign in afresh. So does a reply that is
-    /// not authorized (<see cref="ApiException.State"/> set): the context is no longer one the world admits.
+    /// not authorized (<see cref="ApiException.State"/> set): the context is no longer one the world admits. The server
+    /// rotated it all the same, so a reply's credential is kept in <paramref name="context"/> before any failure is
+    /// thrown: a sign-out of the context then reaches it.
     /// </summary>
     public async Task RefreshAsync(GameContext context, CancellationToken ct)
     {
@@ -147,22 +186,31 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         var body = new { gameContextRefreshToken = spent.RefreshToken };
         JsonNode reply = await SendWithRetriesAsync(Step, "client/auth/game-context/refresh", spent.RefreshKey, () => body,
             GameAuthErrors.InProgress, s_refreshAttemptTimeout, ct);
-        RequireAuthorized(reply, Step);
-        string credential = Required(reply, "gameContextCredential", Step);
-        string refreshToken = Required(reply, "gameContextRefreshToken", Step);
-        DateTimeOffset contextExpiresAt = RequiredTime(reply, "contextExpiresAt", Step);
-        DateTimeOffset authorizationValidUntil = RequiredTime(reply, "authorizationValidUntil", Step);
+        // A credential in the reply is the one the server holds now, whatever else the reply says: kept before anything
+        // is refused, so a sign-out of the context reaches it.
+        if (Text(reply, "gameContextCredential") is { } credential)
+        {
+            context.Rotate(spent, credential, Text(reply, "gameContextRefreshToken") ?? spent.RefreshToken,
+                Time(reply, "contextExpiresAt") ?? spent.ContextExpiresAt,
+                Time(reply, "authorizationValidUntil") ?? spent.AuthorizationValidUntil);
+        }
 
-        context.Rotate(spent, credential, refreshToken, contextExpiresAt, authorizationValidUntil);
+        RequireAuthorized(reply, Step);
+        _ = Required(reply, "gameContextCredential", Step);
+        _ = Required(reply, "gameContextRefreshToken", Step);
+        _ = RequiredTime(reply, "contextExpiresAt", Step);
+        _ = RequiredTime(reply, "authorizationValidUntil", Step);
     }
 
     /// <summary>Signs the game context out; a context already gone (401, 404) counts as signed out.</summary>
-    public async Task LogoutAsync(GameContext context, CancellationToken ct)
+    public Task LogoutAsync(GameContext context, CancellationToken ct) => LogoutCredentialAsync(context.Credential, ct);
+
+    private async Task LogoutCredentialAsync(string credential, CancellationToken ct)
     {
         try
         {
             await SendAsync("logout", HttpMethod.Post, "client/auth/game-context/logout",
-                new { gameContextCredential = context.Credential }, null, idempotencyKey: null, ct, allowEmpty: true);
+                new { gameContextCredential = credential }, null, idempotencyKey: null, ct, allowEmpty: true);
         }
         catch (ApiException error) when (error.Status is 401 or 404)
         {
@@ -334,18 +382,31 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         }
     }
 
+    private static bool IsAuthorized(JsonNode reply) =>
+        string.Equals(reply["state"]?.ToString(), "authorized", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>A reply whose <c>state</c> is not <c>authorized</c> is an <see cref="ApiException"/> carrying that state.</summary>
     private static void RequireAuthorized(JsonNode reply, string step)
     {
+        if (IsAuthorized(reply)) return;
+
         string state = reply["state"]?.ToString() ?? "no state";
-        if (!state.Equals("authorized", StringComparison.OrdinalIgnoreCase))
-            throw new ApiException(step, 200, reply["error"] is { } error ? $"{state}: {error}" : state) { State = state };
+        throw new ApiException(step, 200, reply["error"] is { } error ? $"{state}: {error}" : state) { State = state };
     }
 
     private static string Required(JsonNode reply, string property, string step) =>
-        reply[property] is JsonValue value && value.TryGetValue(out string? text) && text.Length > 0
-            ? text
-            : throw new ApiException(step, 200, $"the reply has no {property}{WithError(reply)}");
+        Text(reply, property) ?? throw new ApiException(step, 200, $"the reply has no {property}{WithError(reply)}");
+
+    /// <summary>A non-empty string property of a reply, or null.</summary>
+    private static string? Text(JsonNode reply, string property) =>
+        reply[property] is JsonValue value && value.TryGetValue(out string? text) && text.Length > 0 ? text : null;
+
+    /// <summary>A time property of a reply, or null when it is missing or not a time.</summary>
+    private static DateTimeOffset? Time(JsonNode reply, string property) =>
+        Text(reply, property) is { } text && DateTimeOffset.TryParse(text, CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTimeOffset time)
+            ? time
+            : null;
 
     /// <summary>A 2xx reply's own <c>error</c>, for the message of a reply missing what was expected.</summary>
     private static string WithError(JsonNode reply) => reply["error"] is { } error ? $", error {error}" : "";

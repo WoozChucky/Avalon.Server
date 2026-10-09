@@ -248,6 +248,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         await signInsAgain.CancelAsync();
         await refresher.SigningInAgain.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         await LeaveAllAsync();
+        // The pass running now is seen through, and contexts whose refresh got no answer refreshed again, before the
+        // refresher completes: a context the server rotated after its bot's sign-out is signed out there.
         await refreshes.CancelAsync();
         await background.CancelAsync();
         await Task.WhenAll(driving, refreshing).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
