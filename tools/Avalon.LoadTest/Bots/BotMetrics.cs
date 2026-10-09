@@ -49,19 +49,29 @@ public sealed class BotMetrics
         if (_pending.TryGetValue(bot, out PendingRing? ring)) ring.Clear();
     }
 
-    /// <summary>A bot began an attempt to reach the world (an entry, or a change of character).</summary>
-    public void EntryAttempt() => Interlocked.Increment(ref Volatile.Read(ref _window).EntryAttempts);
-
-    /// <summary>An attempt reached the world, <paramref name="ticketToFirstAck"/> after its join ticket was issued.</summary>
+    /// <summary>
+    /// An attempt to reach the world (an entry, or a change of character) reached it, <paramref name="ticketToFirstAck"/>
+    /// after its join ticket was issued. An attempt is counted with its outcome, in the window the outcome lands in, so
+    /// one that ends neither way (cancelled) counts nowhere and failures ÷ attempts is never diluted.
+    /// </summary>
     public void EntrySucceeded(TimeSpan ticketToFirstAck)
     {
         Window window = Volatile.Read(ref _window);
+        Interlocked.Increment(ref window.EntryAttempts);
         Interlocked.Increment(ref window.EntrySuccesses);
         window.Entries.Add(ticketToFirstAck.TotalMilliseconds);
     }
 
-    /// <summary>An attempt failed; <paramref name="kind"/> names the step and what went wrong (<c>join:ACTIVE_GAME_SESSION</c>, <c>spawn:timeout</c>, ...).</summary>
-    public void EntryFailed(string kind) => Volatile.Read(ref _window).EntryFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
+    /// <summary>
+    /// An attempt to reach the world failed, counted as an attempt too; <paramref name="kind"/> names the step and what
+    /// went wrong (<c>join:ACTIVE_GAME_SESSION</c>, <c>spawn:timeout</c>, ...).
+    /// </summary>
+    public void EntryFailed(string kind)
+    {
+        Window window = Volatile.Read(ref _window);
+        Interlocked.Increment(ref window.EntryAttempts);
+        window.EntryFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
+    }
 
     /// <summary>A sign-in or a context refresh failed; <paramref name="kind"/> names the REST step.</summary>
     public void SignInFailed(string kind) => Interlocked.Increment(ref Volatile.Read(ref _window).SignInFailures);
@@ -195,6 +205,7 @@ public sealed class BotMetrics
 /// entry attempts, entry failures by kind, sign-in failures and unexpected disconnects; leave failures by kind and
 /// sign-out failures (<see cref="LeaveFailures"/>, <see cref="SignOutFailures"/>).
 /// </summary>
+/// <param name="EntryAttempts">Attempts that ended in the window, succeeded or failed (a cancelled one is not counted).</param>
 public sealed record StepClientValues(
     double AckP50, double AckP95, double AckP99, int EntryAttempts, IReadOnlyDictionary<string, int> EntryFailures,
     int SignInFailures, int Disconnects)

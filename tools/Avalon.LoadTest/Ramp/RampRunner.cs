@@ -319,8 +319,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     }
 
     /// <summary>
-    /// The limits' values for a step: the server's, the bots' (admission = entry failures ÷ entry attempts, 0 with no
-    /// attempt) and the bot PC's.
+    /// The limits' values for a step: the server's, the bots' (admission = entry failures ÷ entry attempts, both counted
+    /// when an attempt ends, so a cancelled one counts in neither; 0 with no attempt) and the bot PC's.
     /// </summary>
     public static IReadOnlyDictionary<LimitName, double?> Values(ServerValues server, StepClientValues client, double generatorCpu,
         double generatorLagP95Ms)

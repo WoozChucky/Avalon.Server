@@ -227,8 +227,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     {
         if (Context is null) throw new InvalidOperationException($"Bot {index} is not signed in.");
 
-        // A bot that gives up (SignInAgainAsync) stops entering at once, as on a cancel, and nothing is counted; for a
-        // caller whose own token was not cancelled, that is a failed step of its own.
+        // A bot that gives up (SignInAgainAsync) stops entering at once, as on a cancel, and no entry is counted: its
+        // re-sign-in failure, identity's side, is already counted once as a sign-in failure, and admission judges the
+        // world. For a caller whose own token was not cancelled, that is a failed step of its own (sign-in:gave-up).
         using var entry = CancellationTokenSource.CreateLinkedTokenSource(ct, _gaveUp.Token);
         try
         {
@@ -244,7 +245,6 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     {
         for (int attempt = 0; ; attempt++)
         {
-            metrics.EntryAttempt();
             try
             {
                 await EnterOnceAsync(takeover || attempt > 0, ct);
@@ -280,13 +280,13 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>
     /// Change Character on the same connection: leave, wait for the logout save (<c>Left</c>), then list, select, load
-    /// and the first input answered. Counted as an entry attempt, its entry time from the leave to the first ack; a
-    /// failure is thrown as a <see cref="BotStepException"/> and leaves the connection to the caller.
+    /// and the first input answered. Counted as an entry attempt when it ends (a cancelled one is not), its entry time
+    /// from the leave to the first ack; a failure is thrown as a <see cref="BotStepException"/> and leaves the connection
+    /// to the caller.
     /// </summary>
     public async Task ChangeCharacterAsync(CancellationToken ct)
     {
         WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} is not in the world.");
-        metrics.EntryAttempt();
         long start = Stopwatch.GetTimestamp();
         try
         {
