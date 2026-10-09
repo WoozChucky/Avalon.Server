@@ -94,8 +94,8 @@ public static class ReportWriter
         md.AppendLine(Invariant($"# Load-test ramp: world {run.WorldId}, run {run.RunId}"));
         md.AppendLine();
         md.AppendLine(Invariant($"- Date: {result.Started.ToLocalTime():yyyy-MM-dd HH:mm zzz} to {result.Ended.ToLocalTime():HH:mm zzz}"));
-        md.AppendLine(result.ServerVersionChanged
-            ? $"- World {run.WorldId} server version: changed during the ramp: {result.ServerVersion} → {result.ServerVersionAtEnd}"
+        md.AppendLine(result.ServerChange is { } change
+            ? $"- World {run.WorldId} server version: {change}"
             : $"- World {run.WorldId} server version: {result.ServerVersion ?? result.ServerVersionAtEnd ?? "unknown"}");
         md.AppendLine(Invariant($"- Run: {run.RunId} ({run.Bots.Count} bots) through {run.Api}"));
         md.AppendLine($"- Mix: {options.Mix}");
@@ -173,9 +173,9 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Notes");
         md.AppendLine();
-        if (result.ServerVersionChanged)
+        if (result.ServerChange is { } serverChange)
         {
-            md.AppendLine($"- The world's version changed during the ramp ({result.ServerVersion} → {result.ServerVersionAtEnd}): the world restarted during the ramp, so this run does not stand. Run again.");
+            md.AppendLine($"- World server {serverChange}: the world restarted during the ramp, so this run does not stand. Run again.");
         }
 
         StepRecord[] blips = [.. result.Steps.Where(step => step.Decision.Blip)];
@@ -229,6 +229,8 @@ public static class ReportWriter
             World = run.WorldId,
             ServerVersion = result.ServerVersion,
             result.ServerVersionAtEnd,
+            result.ServerPod,
+            result.ServerPodAtEnd,
             RunId = run.RunId,
             RunBots = run.Bots.Count,
             Api = run.Api.ToString(),
@@ -259,6 +261,7 @@ public static class ReportWriter
             Notes = new
             {
                 result.ServerVersionChanged,
+                result.ServerRestarted,
                 Blips = result.Steps.Where(step => step.Decision.Blip).Select(step => step.Index),
                 DropsMayBeGenerator = result.Steps.Where(step => step.Decision.DropsMayBeGenerator).Select(step => step.Index),
                 result.SignIns,

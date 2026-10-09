@@ -31,6 +31,12 @@ public sealed record ServerValues(
     double? TickP99Ms, double? Tps, double Drops, double? ReceiveBacklogMax, double? WorkingSetFraction, double? WorkingSetMb,
     double? Gen2PerMin, double? GcPauseFraction, double? SaveP95Ms, double? Instances);
 
+/// <summary>
+/// A world server process as Prometheus's <c>target_info</c> names it: its version and its pod's uid (null when the
+/// series carries none). A different pod uid is a restarted world, whatever its version.
+/// </summary>
+public sealed record ServerIdentity(string Version, string? PodUid);
+
 /// <summary>Prometheus could not answer a query the run needs.</summary>
 public sealed class PrometheusException(string message) : Exception(message);
 
@@ -117,12 +123,12 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
     }
 
     /// <summary>
-    /// The world server's version now (<c>target_info</c>'s <c>service_version</c>); null when Prometheus has none. A
-    /// restarted world leaves the old process's series in the query's 5-minute lookback beside the new one, so the
-    /// version is the series with the newest sample's; several versions sharing that sample time are all named
+    /// The world server now: <c>target_info</c>'s <c>service_version</c> and <c>k8s_pod_uid</c>; null when Prometheus has
+    /// no version. A restarted world leaves the old process's series in the query's 5-minute lookback beside the new
+    /// one, so both come from the series with the newest sample; several series sharing that sample time are all named
     /// (<c>0.18.7-dev.663, 0.18.7-dev.664</c>) rather than one guessed.
     /// </summary>
-    public async Task<string?> ServerVersionAsync(CancellationToken ct)
+    public async Task<ServerIdentity?> ServerAsync(CancellationToken ct)
     {
         JsonArray results;
         try
@@ -137,6 +143,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
         double newest = double.NegativeInfinity;
         var versions = new SortedSet<string>(StringComparer.Ordinal);
+        var pods = new SortedSet<string>(StringComparer.Ordinal);
         foreach (JsonNode? result in results)
         {
             if (result is not JsonObject { } series || series["metric"] is not JsonObject metric ||
@@ -152,12 +159,16 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             {
                 newest = sampled;
                 versions.Clear();
+                pods.Clear();
             }
 
             versions.Add(version);
+            if (metric["k8s_pod_uid"]?.ToString() is { Length: > 0 } pod) pods.Add(pod);
         }
 
-        return versions.Count == 0 ? null : string.Join(", ", versions);
+        return versions.Count == 0
+            ? null
+            : new ServerIdentity(string.Join(", ", versions), pods.Count == 0 ? null : string.Join(", ", pods));
     }
 
     /// <summary>The world's players online now.</summary>

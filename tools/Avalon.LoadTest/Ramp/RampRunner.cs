@@ -77,9 +77,32 @@ public sealed record RampResult(
     /// </summary>
     public string? ServerVersionAtEnd { get; init; }
 
+    /// <summary>The world server's pod uid read before the ramp started; null when Prometheus had none.</summary>
+    public string? ServerPod { get; init; }
+
+    /// <summary>The world server's pod uid read when the ramp ended; null when Prometheus had none.</summary>
+    public string? ServerPodAtEnd { get; init; }
+
     /// <summary>Whether the world's version read at the ramp's end differs from the one read before it (both known).</summary>
-    public bool ServerVersionChanged =>
-        ServerVersion is not null && ServerVersionAtEnd is not null && !string.Equals(ServerVersion, ServerVersionAtEnd, StringComparison.Ordinal);
+    public bool ServerVersionChanged => Differ(ServerVersion, ServerVersionAtEnd);
+
+    /// <summary>
+    /// Whether the world's pod read at the ramp's end differs from the one read before it (both known): the world
+    /// restarted during the ramp, whatever its version, and the run does not stand.
+    /// </summary>
+    public bool ServerRestarted => Differ(ServerPod, ServerPodAtEnd);
+
+    /// <summary>
+    /// What changed in the world server during the ramp: <c>world restarted during the ramp (A → B; pod x → y)</c> when
+    /// the pod changed, <c>changed during the ramp: A → B</c> when only the versions could be compared; null when
+    /// nothing did.
+    /// </summary>
+    public string? ServerChange => ServerRestarted
+        ? $"world restarted during the ramp ({(ServerVersionChanged ? $"{ServerVersion} → {ServerVersionAtEnd}" : ServerVersion ?? ServerVersionAtEnd ?? "version unknown")}; pod {ServerPod} → {ServerPodAtEnd})"
+        : ServerVersionChanged ? $"changed during the ramp: {ServerVersion} → {ServerVersionAtEnd}" : null;
+
+    private static bool Differ(string? start, string? end) =>
+        start is not null && end is not null && !string.Equals(start, end, StringComparison.Ordinal);
 
     /// <summary>Failed sign-outs of game contexts over the ramp, its stop sequence's included.</summary>
     public int SignOutFailures { get; init; }
@@ -202,7 +225,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
 
         Console.WriteLine(Invariant(
             $"The bot PC's clock is {ClockOffsetText(clockOffset)} Prometheus's; query times are corrected by it."));
-        string? version = await prometheus.ServerVersionAsync(ct);
+        ServerIdentity? server = await prometheus.ServerAsync(ct);
+        string? version = server?.Version;
         int playersBefore = await prometheus.PlayersOnlineAsync(ct);
         Console.WriteLine(Invariant(
             $"World {run.WorldId} ({version ?? "version unknown"}), {playersBefore} players online before the ramp."));
@@ -286,17 +310,13 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         }
 
         // Read again before the stop sequence, without the ramp's token (a Ctrl+C has cancelled it; the client's own
-        // timeout bounds the read): a world restarted on another version during the ramp invalidates the run.
-        string? versionAtEnd = await prometheus.ServerVersionAsync(CancellationToken.None);
-        if (version is not null && versionAtEnd is not null && !string.Equals(version, versionAtEnd, StringComparison.Ordinal))
-        {
-            Console.Error.WriteLine(Invariant(
-                $"World {run.WorldId}'s version changed during the ramp: {version} → {versionAtEnd}. The world restarted; this run does not stand."));
-        }
-
+        // timeout bounds the read): a world restarted during the ramp, on any version, invalidates the run.
+        ServerIdentity? serverAtEnd = await prometheus.ServerAsync(CancellationToken.None);
         var partial = new RampResult(outcome, capacity, failedFirst, steps, version, SignInRate(), started, DateTimeOffset.UtcNow)
         {
-            ServerVersionAtEnd = versionAtEnd,
+            ServerVersionAtEnd = serverAtEnd?.Version,
+            ServerPod = server?.PodUid,
+            ServerPodAtEnd = serverAtEnd?.PodUid,
             StopReason = stopReason,
             SignIns = _signIns,
             SignInFailures = new Dictionary<string, int>(signInFailures, StringComparer.Ordinal),
@@ -304,6 +324,9 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             WorldDrained = null,
             ClockOffset = clockOffset,
         };
+        if (partial.ServerChange is { } change)
+            Console.Error.WriteLine($"World {run.WorldId} server: {change}. This run does not stand.");
+
         try
         {
             outcomeKnown?.Invoke(partial);
