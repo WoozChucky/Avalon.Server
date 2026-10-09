@@ -76,6 +76,15 @@ public class RampDeciderShould
 
         var drops = new RampDecider(Limits.Defaults, 500);
         Assert.True(drops.Decide(Sample(50, drops: 3, genCpu: 0.7)).DropsMayBeGenerator);
+
+        // A drops value that is not a number cannot be judged on, unlike a missing one (no drops): the step is unknown.
+        var nanDrops = new RampDecider(Limits.Defaults, 500);
+        Assert.Equal(RampAction.Rehold, nanDrops.Decide(Sample(50, drops: double.PositiveInfinity)).Action);
+        Assert.Equal(RampOutcome.Unknown, nanDrops.Decide(Sample(50, drops: double.NaN)).Outcome);
+
+        // The limits the decider judges on refuse an unknown name, a negative value and a fraction above 1.
+        foreach (string refused in new[] { "tick-p98=20", "tick-p99=-1", "memory=1.5" })
+            Assert.Throws<CommandLineException>(() => Limits.WithOverrides([refused]));
     }
 
     private static StepSample Sample(int bots, double? tickP99 = 5, double genCpu = 0.2, double drops = 0)

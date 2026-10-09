@@ -41,7 +41,10 @@ public static class Limits
     /// The defaults with each <c>name=value</c> override applied; the value is in the default's unit (<c>tick-p99=20</c>
     /// is 20 ms, <c>memory=0.9</c> is 90 %).
     /// </summary>
-    /// <exception cref="CommandLineException">An override names no limit or its value is not a finite number.</exception>
+    /// <exception cref="CommandLineException">
+    /// An override is refused when it is not <c>name=value</c>, its name is not a limit's, its value is not a finite
+    /// number, its value is negative, or a fraction limit's value is outside 0 to 1.
+    /// </exception>
     public static IReadOnlyList<Limit> WithOverrides(IEnumerable<string> overrides)
     {
         Limit[] limits = [.. Defaults];
