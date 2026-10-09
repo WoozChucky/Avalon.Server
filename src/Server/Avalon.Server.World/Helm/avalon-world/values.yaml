@@ -97,3 +97,7 @@ otel:
   # Extra resource attributes, e.g. {deployment.environment: production}.
   # avalon.world.id is always set, from server.game.worldId (a value set here is ignored).
   resourceAttributes: {}
+  # How often metrics are exported, in milliseconds (OTEL_METRIC_EXPORT_INTERVAL), a positive
+  # integer. Empty: the SDK default, 60000. A load-test world sets 10000 so a load-test step
+  # gets 10 s samples (docs/load-testing.md).
+  metricExportIntervalMs: ""

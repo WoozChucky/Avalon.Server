@@ -50,6 +50,15 @@ grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$bare" | grep -q '"avalon.world.id
 ! grep -q "OTEL_" <<<"$off"                                                                                   || { echo "otel env rendered without an endpoint"; exit 1; }
 dup=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.game.worldId=2 --set otel.endpoint=http://c:4317 --set 'otel.resourceAttributes.avalon\.world\.id=9' --set 'otel.resourceAttributes.deployment\.environment=production')
 grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$dup" | grep -q '"avalon.world.id=2,deployment.environment=production"' || { echo "avalon.world.id must come from server.game.worldId, once"; exit 1; }
+# Metric export interval: unset leaves the SDK default (60 s); a value renders as milliseconds; a non-positive or non-integer one fails.
+! grep -q "OTEL_METRIC_EXPORT_INTERVAL" <<<"$ot"                                                              || { echo "metric export interval rendered when unset"; exit 1; }
+mi=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set otel.endpoint=http://c:4317 --set otel.metricExportIntervalMs=10000)
+grep -A1 "name: OTEL_METRIC_EXPORT_INTERVAL" <<<"$mi" | grep -q '"10000"'                                      || { echo "metric export interval must render"; exit 1; }
+for bad in "otel.metricExportIntervalMs=0" "otel.metricExportIntervalMs=-1" "otel.metricExportIntervalMs=1.5" "otel.metricExportIntervalMs=10s"; do
+  if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set otel.endpoint=http://c:4317 --set "$bad" >/dev/null 2>&1; then
+    echo "rendering with $bad must fail"; exit 1
+  fi
+done
 sd=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set shutdown.drainSeconds=300 --set shutdown.saveMarginSeconds=90)
 grep -A1 "name: World__Shutdown__DrainTime" <<<"$sd" | grep -q '"0.00:05:00"'                  || { echo "drain must render as a TimeSpan"; exit 1; }
 grep -A1 "name: World__Shutdown__SaveMargin" <<<"$sd" | grep -q '"0.00:01:30"'                 || { echo "save margin must render as a TimeSpan"; exit 1; }

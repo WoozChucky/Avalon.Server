@@ -123,6 +123,14 @@ spec:
             {{- end }}
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: {{ join "," $attrs | quote }}
+            {{- $interval := $.Values.otel.metricExportIntervalMs }}
+            {{- if and (kindIs "float64" $interval) (eq $interval (floor $interval)) }}{{ $interval = int64 $interval }}{{ end }}
+            {{- $interval = ternary "" (toString $interval) (kindIs "invalid" $interval) }}
+            {{- if ne $interval "" }}
+            {{- if not (regexMatch "^[1-9][0-9]*$" $interval) }}{{ fail (printf "otel.metricExportIntervalMs must be a positive integer (milliseconds), got %q" $interval) }}{{ end }}
+            - name: OTEL_METRIC_EXPORT_INTERVAL
+              value: {{ $interval | quote }}
+            {{- end }}
             {{- end }}
             {{- $levels := list "Verbose" "Debug" "Information" "Warning" "Error" "Fatal" }}
             {{- with .Values.logging.minimumLevel }}
