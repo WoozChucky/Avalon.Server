@@ -56,13 +56,14 @@ public sealed class GameLicenseShould
         Account account = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("REVOKE"));
         var repo = new GameLicenseRepository(db);
         GameLicense grant = await repo.RecordGrantAsync(Grant(account.Id, "avalon"), default);
-        GameLicense? revoked = await repo.ApplyDecisionAsync(grant.Id, grant.AuthorityRevision,
-            new LicenseAuthorityDecision(false, s_now, s_now), default);
+        GameLicense? revoked = (await repo.ApplyDecisionAsync(grant.Id, grant.AuthorityRevision,
+            new LicenseAuthorityDecision(false, s_now, s_now), default)).License;
         Assert.NotNull(revoked);
         Assert.Equal(2, revoked.AuthorityRevision);
         Assert.False(revoked.Authorizes(account.Id, "avalon.base", "production", s_now));
-        Assert.Null(await repo.ApplyDecisionAsync(grant.Id, 1, new(true, s_now.AddSeconds(1), s_now.AddMinutes(5)), default));
-        Assert.Null(await repo.ApplyDecisionAsync(grant.Id, 2, new(true, s_now.AddSeconds(1), s_now.AddMinutes(5), reestablish: true), default));
+        // A decision for a revision another decision moved is a lost race; reviving a revoked stored grant is a refusal.
+        Assert.Equal(LicenseDecisionResult.Conflict, await repo.ApplyDecisionAsync(grant.Id, 1, new(true, s_now.AddSeconds(1), s_now.AddMinutes(5)), default));
+        Assert.Equal(LicenseDecisionResult.Refused, await repo.ApplyDecisionAsync(grant.Id, 2, new(true, s_now.AddSeconds(1), s_now.AddMinutes(5), reestablish: true), default));
     }
 
     [Fact]
@@ -73,12 +74,12 @@ public sealed class GameLicenseShould
         var repo = new GameLicenseRepository(db);
         GameLicense grant = Grant(account.Id, "test-store"); grant.AuthorityKind = LicenseAuthorityKind.VerifiedOwnership;
         await repo.RecordGrantAsync(grant, default);
-        Assert.NotNull(await repo.ApplyDecisionAsync(grant.Id, 1, new(false, s_now, s_now), default));
-        Assert.Null(await repo.ApplyDecisionAsync(grant.Id, 2, new(true, s_now.AddSeconds(-1), s_now.AddMinutes(5).AddSeconds(-1), reestablish: true), default));
-        GameLicense? renewed = await repo.ApplyDecisionAsync(grant.Id, 2, new(true, s_now.AddSeconds(1), s_now.AddMinutes(5), reestablish: true), default);
+        Assert.NotNull((await repo.ApplyDecisionAsync(grant.Id, 1, new(false, s_now, s_now), default)).License);
+        Assert.Null((await repo.ApplyDecisionAsync(grant.Id, 2, new(true, s_now.AddSeconds(-1), s_now.AddMinutes(5).AddSeconds(-1), reestablish: true), default)).License);
+        GameLicense? renewed = (await repo.ApplyDecisionAsync(grant.Id, 2, new(true, s_now.AddSeconds(1), s_now.AddMinutes(5), reestablish: true), default)).License;
         Assert.NotNull(renewed); Assert.Equal(3, renewed.AuthorityRevision);
         Assert.Null(renewed.RevokedAt);
-        Assert.NotNull(await repo.ApplyDecisionAsync(grant.Id, 3, new(true, s_now.AddSeconds(2), s_now.AddMinutes(5)), default));
+        Assert.NotNull((await repo.ApplyDecisionAsync(grant.Id, 3, new(true, s_now.AddSeconds(2), s_now.AddMinutes(5)), default)).License);
         Assert.Equal(3, (await repo.FindAsync(grant.Id, default))!.AuthorityRevision);
     }
 
@@ -94,8 +95,8 @@ public sealed class GameLicenseShould
         await repo.RecordGrantAsync(grant);
 
         DateTime providerExpiry = grant.GrantedAt.AddDays(-1);
-        GameLicense? revoked = await repo.ApplyDecisionAsync(grant.Id, 1,
-            new(false, s_now, providerExpiry, providerExpiresAt: providerExpiry));
+        GameLicense? revoked = (await repo.ApplyDecisionAsync(grant.Id, 1,
+            new(false, s_now, providerExpiry, providerExpiresAt: providerExpiry))).License;
 
         Assert.NotNull(revoked);
         Assert.Equal(2, revoked.AuthorityRevision);

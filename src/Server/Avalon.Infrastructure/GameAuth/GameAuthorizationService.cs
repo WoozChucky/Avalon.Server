@@ -7,6 +7,8 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameTickets;
 using Avalon.Infrastructure.StoreAuth;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Infrastructure.GameAuth;
@@ -14,8 +16,11 @@ namespace Avalon.Infrastructure.GameAuth;
 public sealed partial class GameAuthorizationService(IGameContextStore store, AuthAttemptStore attempts, GameAuthCryptography crypto,
     IAccountRepository accounts, IRefreshTokenRepository refreshTokens, IExternalIdentityRepository identities,
     GameProviderRegistry providers, GameLicenseAuthorityService licenseAuthority,
-    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, IGameAccountRegistration? registration = null, IGameContextRevocations? revocations = null)
+    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, IGameAccountRegistration? registration = null, IGameContextRevocations? revocations = null,
+    ILogger<GameAuthorizationService>? logger = null)
 {
+    private readonly ILogger _logger = logger ?? NullLogger<GameAuthorizationService>.Instance;
+
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     private string Key(string kind, string id) => CacheKeys.GameAuth(options.Value.Environment, kind, id);
     private string ContextKey(Guid id) => Key("context", id.ToString("N"));
@@ -59,17 +64,23 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
 
     public async Task<GameContextRecord?> GetContextAsync(string credential, bool requireLicense, CancellationToken cancellationToken)
     {
+        GameContextRecord? context = await CredentialContextAsync(credential, cancellationToken);
+        if (context is null || !await IsCurrentAsync(context, cancellationToken)) return null;
+        return requireLicense && !await HasCurrentLicenseAsync(context, cancellationToken) ? null : context;
+    }
+
+    /// <summary>
+    /// The context <paramref name="credential"/> is the current credential of, checked on Redis alone (token kind, not
+    /// spent, generation, digest, credential expiry), with no database read and no standing of the account or license.
+    /// </summary>
+    private async Task<GameContextRecord?> CredentialContextAsync(string credential, CancellationToken cancellationToken)
+    {
         if (!GameAuthCryptography.IsToken(credential)) return null;
         GameAuthTokenRecord? token = GameAuthJson.Deserialize<GameAuthTokenRecord>(await store.ReadAsync(TokenKey(credential), cancellationToken));
         if (token is null || token.Kind != GameAuthTokenKinds.Credential || token.Spent) return null;
         GameContextRecord? context = GameAuthJson.Deserialize<GameContextRecord>(await store.ReadAsync(ContextKey(token.ContextId), cancellationToken));
-        if (context is null || context.Generation != token.Generation || context.CredentialDigest != GameAuthCryptography.Digest(credential) ||
-            context.CredentialExpiresAt <= Now || !await IsCurrentAsync(context, cancellationToken))
-        {
-            return null;
-        }
-
-        return requireLicense && !await HasCurrentLicenseAsync(context, cancellationToken) ? null : context;
+        return context is null || context.Generation != token.Generation || context.CredentialDigest != GameAuthCryptography.Digest(credential) ||
+            context.CredentialExpiresAt <= Now ? null : context;
     }
 
     public async Task<GameContextRecord?> GetContextByIdAsync(Guid id, bool requireLicense, CancellationToken cancellationToken)
@@ -79,16 +90,59 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             (!requireLicense || await HasCurrentLicenseAsync(context, cancellationToken)) ? context : null;
     }
 
+    /// <summary>
+    /// <see cref="GetContextByIdAsync"/>, telling a database outage apart (<see cref="GameContextStanding.Unavailable"/>),
+    /// so a caller answers it as unavailable rather than as a refusal (#862).
+    /// </summary>
+    public async Task<GameContextStanding> GetContextStandingByIdAsync(Guid id, bool requireLicense, CancellationToken cancellationToken)
+    {
+        GameContextRecord? context = GameAuthJson.Deserialize<GameContextRecord>(await store.ReadAsync(ContextKey(id), cancellationToken));
+        if (context is null) return default;
+        bool? current = await CurrentStandingAsync(context, true, cancellationToken);
+        if (current is null) return new(null, true);
+        if (current == false) return default;
+        if (!requireLicense) return new(context, false);
+        bool? licensed = await LicenseStandingAsync(context, cancellationToken);
+        return licensed is null ? new(null, true) : new(licensed.Value ? context : null, false);
+    }
+
     private bool HasLicense(GameContextRecord context) => context.State == GameAuthStates.Authorized && context.AccountId is not null &&
         context.LicenseId is not null && context.LicenseRevision > 0 && context.AuthorizationValidUntil > Now && context.AbsoluteExpiresAt > Now &&
         (providers.License(context.Provider ?? string.Empty)?.AuthorityKind == LicenseAuthorityKind.StoredGrant ||
          (context.ProviderSubject is not null && context.IdentityValidUntil > Now));
 
-    private async Task<bool> HasCurrentLicenseAsync(GameContextRecord context, CancellationToken ct) => HasLicense(context) &&
-        options.Value.ResolveApplication(context.ApplicationKey) is { } application && await licenseAuthority.ValidateAsync(
-            context.LicenseId!.Value, context.LicenseRevision!.Value, new AccountId(context.AccountId!.Value), application, Now, ct);
+    private async Task<bool> HasCurrentLicenseAsync(GameContextRecord context, CancellationToken ct) =>
+        await LicenseStandingAsync(context, ct) == true;
 
-    private async Task<bool> IsCurrentAsync(GameContextRecord context, CancellationToken cancellationToken)
+    /// <summary>Whether the context's license is current; null when the license could not be read.</summary>
+    private async Task<bool?> LicenseStandingAsync(GameContextRecord context, CancellationToken ct) =>
+        !HasLicense(context) || options.Value.ResolveApplication(context.ApplicationKey) is not { } application ? false :
+            await licenseAuthority.CheckCurrentAsync(context.LicenseId!.Value, context.LicenseRevision!.Value,
+                new AccountId(context.AccountId!.Value), application, Now, ct);
+
+    private async Task<bool> IsCurrentAsync(GameContextRecord context, CancellationToken cancellationToken) =>
+        await CurrentStandingAsync(context, false, cancellationToken) == true;
+
+    /// <summary>
+    /// Whether the context is current. A license binding that could not be read is null. With
+    /// <paramref name="tolerateOutage"/>, so is a read of the account, its store link or its launcher family that failed
+    /// with a database outage (<see cref="DatabaseOutage"/>): the refresh answers an outage as unavailable, never as
+    /// revoked (#862). Any other failure, and every failure without it, throws as it always has.
+    /// </summary>
+    private async Task<bool?> CurrentStandingAsync(GameContextRecord context, bool tolerateOutage, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ReadStandingAsync(context, cancellationToken);
+        }
+        catch (Exception error) when (tolerateOutage && !cancellationToken.IsCancellationRequested && DatabaseOutage.Is(error))
+        {
+            _logger.LogWarning(error, "Game context {ContextId} could not be checked: database outage", context.Id);
+            return null;
+        }
+    }
+
+    private async Task<bool?> ReadStandingAsync(GameContextRecord context, CancellationToken cancellationToken)
     {
         GameApplicationSelection? application = options.Value.ResolveApplication(context.ApplicationKey);
         if (application is null || context.Provider != application.Provider || context.Environment != options.Value.Environment || context.Audience != GameAuthPolicy.ContextAudience ||
@@ -114,10 +168,10 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             return false;
         }
 
-        if (context.LicenseId is { } licenseId && !await licenseAuthority.ValidateBindingAsync(licenseId,
-            context.LicenseRevision!.Value, account.Id, application, context.ProviderSubject, cancellationToken))
+        if (context.LicenseId is { } licenseId && await licenseAuthority.ValidateBindingAsync(licenseId,
+            context.LicenseRevision!.Value, account.Id, application, context.ProviderSubject, cancellationToken) is not true and var bound)
         {
-            return false;
+            return bound;
         }
 
         return context.LauncherFamilyId is not { } family ||
@@ -134,33 +188,41 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         (Claim? claim, GameAuthReply? prior) = await ClaimAsync(attemptCredential, binding, requestId, ticket, cancellationToken);
         if (prior is not null) return prior;
         if (claim is null) return GameAuthReply.Failure(GameAuthErrors.InvalidAttempt);
-        GameApplicationSelection? application = options.Value.ResolveApplication(claim.Record.ApplicationKey);
-        if (application?.Provider != StoreProviders.Avalon || application.Key != "avalon.base" || claim.Record.ContextId is not null ||
-            !RedisGameTicketStore.TryParseValue(claim.Record.HandoffGrant, true, out GameTicketGrant? grant))
+        try
         {
-            return await FinishErrorAsync(claim, GameAuthErrors.InvalidHandoff, cancellationToken);
-        }
+            GameApplicationSelection? application = options.Value.ResolveApplication(claim.Record.ApplicationKey);
+            if (application?.Provider != StoreProviders.Avalon || application.Key != "avalon.base" || claim.Record.ContextId is not null ||
+                !RedisGameTicketStore.TryParseValue(claim.Record.HandoffGrant, true, out GameTicketGrant? grant))
+            {
+                return await FinishErrorAsync(claim, GameAuthErrors.InvalidHandoff, cancellationToken);
+            }
 
-        Account? account = await accounts.FindByIdAsync(grant!.AccountId, false, cancellationToken);
-        if (!Eligible(account, grant.AccountId.Value) || grant.Environment != options.Value.Environment ||
-            account!.CredentialsVersion != grant.CredentialsVersion || account.SessionEpoch != grant.SessionEpoch ||
-            !await refreshTokens.IsLiveLauncherFamilyAsync(grant.AccountId, grant.FamilyId, Now, cancellationToken))
-        {
-            return await FinishErrorAsync(claim, GameAuthErrors.InvalidHandoff, cancellationToken);
-        }
+            Account? account = await accounts.FindByIdAsync(grant!.AccountId, false, cancellationToken);
+            if (!Eligible(account, grant.AccountId.Value) || grant.Environment != options.Value.Environment ||
+                account!.CredentialsVersion != grant.CredentialsVersion || account.SessionEpoch != grant.SessionEpoch ||
+                !await refreshTokens.IsLiveLauncherFamilyAsync(grant.AccountId, grant.FamilyId, Now, cancellationToken))
+            {
+                return await FinishErrorAsync(claim, GameAuthErrors.InvalidHandoff, cancellationToken);
+            }
 
-        GameContextRecord context = NewContext(claim.Record) with
+            GameContextRecord context = NewContext(claim.Record) with
+            {
+                State = GameAuthStates.PendingLicense,
+                AccountId = account.Id.Value,
+                CredentialsVersion = account.CredentialsVersion,
+                SessionEpoch = account.SessionEpoch,
+                LauncherFamilyId = grant.FamilyId,
+            };
+            GameLicenseAuthorityResult license = await licenseAuthority.VerifyAsync(new(account.Id, application, null, null, null, Now), cancellationToken);
+            context = WithAuthority(context, license);
+            return await FinishContextAsync(claim, context, null, null, cancellationToken,
+                license.Status == GameLicenseCheckStatus.Unavailable ? GameAuthErrors.ProviderUnavailable : null);
+        }
+        catch (Exception)
         {
-            State = GameAuthStates.PendingLicense,
-            AccountId = account.Id.Value,
-            CredentialsVersion = account.CredentialsVersion,
-            SessionEpoch = account.SessionEpoch,
-            LauncherFamilyId = grant.FamilyId,
-        };
-        GameLicenseAuthorityResult license = await licenseAuthority.VerifyAsync(new(account.Id, application, null, null, null, Now), cancellationToken);
-        context = WithAuthority(context, license);
-        return await FinishContextAsync(claim, context, null, null, cancellationToken,
-            license.Status == GameLicenseCheckStatus.Unavailable ? GameAuthErrors.ProviderUnavailable : null);
+            await ReleaseClaimAsync(claim, CancellationToken.None);
+            throw;
+        }
     }
 
     public Task<GameAuthReply> AuthenticateSteamAsync(string attemptCredential, string ticketHex, Guid requestId,
@@ -180,121 +242,144 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         (Claim? claim, GameAuthReply? prior) = await ClaimAsync(attemptCredential, binding, requestId, null, cancellationToken);
         if (prior is not null) return prior;
         if (claim is null) return GameAuthReply.Failure(GameAuthErrors.InvalidAttempt);
-        GameApplicationSelection? application = options.Value.ResolveApplication(claim.Record.ApplicationKey);
-        if (application is null || application.Provider != provider || claim.Record.ProviderChallenge is null)
-            return await FinishErrorAsync(claim, GameAuthErrors.InvalidAttempt, cancellationToken);
-        GameContextRecord? existing = null;
-        if (claim.Record.ContextId is { } contextId)
+        try
         {
-            existing = await GetContextByIdAsync(contextId, false, cancellationToken);
-            if (existing is null || (existing.ApplicationKey != application.Key &&
-                !(existing.LauncherFamilyId is not null && !application.Restricted)))
+            GameApplicationSelection? application = options.Value.ResolveApplication(claim.Record.ApplicationKey);
+            if (application is null || application.Provider != provider || claim.Record.ProviderChallenge is null)
+                return await FinishErrorAsync(claim, GameAuthErrors.InvalidAttempt, cancellationToken);
+            GameContextRecord? existing = null;
+            if (claim.Record.ContextId is { } contextId)
             {
-                return await FinishErrorAsync(claim, GameAuthErrors.ContextRevoked, cancellationToken);
-            }
-        }
-        GameIdentityProofResult proof = await identityProvider.VerifyAsync(new(application, claim.Record.ProviderChallenge, proofValue), cancellationToken);
-        if (proof.Status == GameIdentityProofStatus.Unavailable)
-        {
-            await store.CompareExchangeAsync([new(claim.Key, claim.Raw,
-                GameAuthJson.Serialize(claim.Record with { WorkerUntil = Now }), claim.Record.ExpiresAt)], cancellationToken);
-            return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
-        }
-        if (proof.Status != GameIdentityProofStatus.Verified || proof.Identity is not { } identity ||
-            string.IsNullOrWhiteSpace(identity.ProviderSubject) || identity.ProviderSubject.Length > 128 ||
-            identity.VerifiedAt.Kind != DateTimeKind.Utc || identity.ValidUntil.Kind != DateTimeKind.Utc ||
-            identity.VerifiedAt > Now || identity.ValidUntil <= Now || identity.ValidUntil > identity.VerifiedAt.Add(GameAuthPolicy.IdentityLifetime))
-        {
-            return await FinishErrorAsync(claim, GameAuthErrors.InvalidProof, cancellationToken);
-        }
+                GameContextStanding standing = await GetContextStandingByIdAsync(contextId, false, cancellationToken);
+                if (standing.Unavailable)
+                {
+                    // An outage is not a revocation: no receipt is stored, and the attempt can be retried at once.
+                    await ReleaseClaimAsync(claim, cancellationToken);
+                    return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
+                }
 
-        ExternalIdentity? linked = await identities.FindAsync(provider, identity.ProviderSubject, cancellationToken);
-        if (linked is not null && existing?.AccountId is { } expected && linked.AccountId.Value != expected)
-            return await FinishErrorAsync(claim, GameAuthErrors.AccountMismatch, cancellationToken, proofDigest);
-        bool sameSource = existing?.ApplicationKey == application.Key && existing.ProviderSubject == identity.ProviderSubject;
-        GameContextRecord context = (sameSource ? existing! : NewContext(claim.Record) with
-        {
-            AccountId = existing?.AccountId,
-            CredentialsVersion = existing?.CredentialsVersion ?? 0,
-            SessionEpoch = existing?.SessionEpoch ?? 0,
-            LauncherFamilyId = existing?.LauncherFamilyId,
-        }) with
-        {
-            ApplicationKey = application.Key,
-            Provider = provider,
-            ProviderSubject = identity.ProviderSubject,
-            IdentityVerifiedAt = identity.VerifiedAt,
-            IdentityValidUntil = identity.ValidUntil,
-            LicenseId = sameSource ? existing!.LicenseId : null,
-            LicenseRevision = sameSource ? existing!.LicenseRevision : null,
-            AuthorizationValidUntil = sameSource ? existing!.AuthorizationValidUntil : null,
-        };
-        if (linked is null && existing?.AccountId is not null)
-        {
-            context = context with
+                existing = standing.Context;
+                if (existing is null || (existing.ApplicationKey != application.Key &&
+                    !(existing.LauncherFamilyId is not null && !application.Restricted)))
+                {
+                    return await FinishErrorAsync(claim, GameAuthErrors.ContextRevoked, cancellationToken);
+                }
+            }
+            GameIdentityProofResult proof = await identityProvider.VerifyAsync(new(application, claim.Record.ProviderChallenge, proofValue), cancellationToken);
+            if (proof.Status == GameIdentityProofStatus.Unavailable)
             {
-                State = GameAuthStates.PendingLink,
-                PendingLinkId = Guid.NewGuid(),
-                LinkChallenge = claim.Record.LinkChallenge,
-                LinkProofExpiresAt = Earlier(claim.Record.CreatedAt.Add(GameAuthPolicy.LinkProofLifetime), identity.ValidUntil),
-                AuthorizationValidUntil = null,
-                LicenseId = null,
-                LicenseRevision = null,
+                await ReleaseClaimAsync(claim, cancellationToken);
+                return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
+            }
+            if (proof.Status != GameIdentityProofStatus.Verified || proof.Identity is not { } identity ||
+                string.IsNullOrWhiteSpace(identity.ProviderSubject) || identity.ProviderSubject.Length > 128 ||
+                identity.VerifiedAt.Kind != DateTimeKind.Utc || identity.ValidUntil.Kind != DateTimeKind.Utc ||
+                identity.VerifiedAt > Now || identity.ValidUntil <= Now || identity.ValidUntil > identity.VerifiedAt.Add(GameAuthPolicy.IdentityLifetime))
+            {
+                return await FinishErrorAsync(claim, GameAuthErrors.InvalidProof, cancellationToken);
+            }
+
+            ExternalIdentity? linked = await identities.FindAsync(provider, identity.ProviderSubject, cancellationToken);
+            if (linked is not null && existing?.AccountId is { } expected && linked.AccountId.Value != expected)
+                return await FinishErrorAsync(claim, GameAuthErrors.AccountMismatch, cancellationToken, proofDigest);
+            bool sameSource = existing?.ApplicationKey == application.Key && existing.ProviderSubject == identity.ProviderSubject;
+            GameContextRecord context = (sameSource ? existing! : NewContext(claim.Record) with
+            {
+                AccountId = existing?.AccountId,
+                CredentialsVersion = existing?.CredentialsVersion ?? 0,
+                SessionEpoch = existing?.SessionEpoch ?? 0,
+                LauncherFamilyId = existing?.LauncherFamilyId,
+            }) with
+            {
+                ApplicationKey = application.Key,
+                Provider = provider,
+                ProviderSubject = identity.ProviderSubject,
+                IdentityVerifiedAt = identity.VerifiedAt,
+                IdentityValidUntil = identity.ValidUntil,
+                LicenseId = sameSource ? existing!.LicenseId : null,
+                LicenseRevision = sameSource ? existing!.LicenseRevision : null,
+                AuthorizationValidUntil = sameSource ? existing!.AuthorizationValidUntil : null,
             };
-            return await FinishContextAsync(claim, context, existing, proofDigest, cancellationToken, GameAuthErrors.AccountLinkRequired);
-        }
-        GameLicenseCheckResult? firstEvidence = null;
-        if (linked is null)
-        {
-            IGameLicenseProvider? licenseProvider = providers.License(provider);
-            if (licenseProvider?.AuthorityKind != LicenseAuthorityKind.VerifiedOwnership)
-                return await FinishErrorAsync(claim, GameAuthErrors.ProviderUnavailable, cancellationToken, proofDigest);
-            firstEvidence = await licenseProvider.CheckAsync(new(new AccountId(0), application, identity, null, null, Now), cancellationToken);
-            if (firstEvidence.Status != GameLicenseCheckStatus.Licensed || firstEvidence.ProviderSubject != identity.ProviderSubject ||
-                firstEvidence.ProviderProductId != application.ProviderProductId || firstEvidence.ObservedAt > Now ||
-                firstEvidence.AuthorizedUntil <= Now || (firstEvidence.ProviderExpiresAt is { } expiry && expiry <= Now))
+            if (linked is null && existing?.AccountId is not null)
             {
-                return await FinishErrorAsync(claim, firstEvidence.Status == GameLicenseCheckStatus.Unlicensed
-                    ? GameAuthErrors.OwnershipRequired : GameAuthErrors.ProviderUnavailable, cancellationToken, proofDigest);
+                context = context with
+                {
+                    State = GameAuthStates.PendingLink,
+                    PendingLinkId = Guid.NewGuid(),
+                    LinkChallenge = claim.Record.LinkChallenge,
+                    LinkProofExpiresAt = Earlier(claim.Record.CreatedAt.Add(GameAuthPolicy.LinkProofLifetime), identity.ValidUntil),
+                    AuthorizationValidUntil = null,
+                    LicenseId = null,
+                    LicenseRevision = null,
+                };
+                return await FinishContextAsync(claim, context, existing, proofDigest, cancellationToken, GameAuthErrors.AccountLinkRequired);
+            }
+            GameLicenseCheckResult? firstEvidence = null;
+            if (linked is null)
+            {
+                IGameLicenseProvider? licenseProvider = providers.License(provider);
+                if (licenseProvider?.AuthorityKind != LicenseAuthorityKind.VerifiedOwnership)
+                    return await FinishErrorAsync(claim, GameAuthErrors.ProviderUnavailable, cancellationToken, proofDigest);
+                firstEvidence = await licenseProvider.CheckAsync(new(new AccountId(0), application, identity, null, null, Now), cancellationToken);
+                if (firstEvidence.Status != GameLicenseCheckStatus.Licensed || firstEvidence.ProviderSubject != identity.ProviderSubject ||
+                    firstEvidence.ProviderProductId != application.ProviderProductId || firstEvidence.ObservedAt > Now ||
+                    firstEvidence.AuthorizedUntil <= Now || (firstEvidence.ProviderExpiresAt is { } expiry && expiry <= Now))
+                {
+                    return await FinishErrorAsync(claim, firstEvidence.Status == GameLicenseCheckStatus.Unlicensed
+                        ? GameAuthErrors.OwnershipRequired : GameAuthErrors.ProviderUnavailable, cancellationToken, proofDigest);
+                }
+
+                if (registration is null || sourceAddress is null)
+                    return await FinishErrorAsync(claim, GameAuthErrors.ServiceUnavailable, cancellationToken, proofDigest);
+                IdentityLinkResult created = await registration.CreateFromStoreAsync(claim.Record.Id, provider, identity.ProviderSubject,
+                    Earlier(identity.ValidUntil, Earlier(firstEvidence.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime), firstEvidence.AuthorizedUntil)),
+                    sourceAddress, cancellationToken);
+                linked = created.Status is IdentityLinkStatus.Linked or IdentityLinkStatus.AlreadyLinked ? created.Identity :
+                    created.Status == IdentityLinkStatus.SubjectTaken ? await identities.FindAsync(provider, identity.ProviderSubject, cancellationToken) : null;
+                if (linked is null || linked.Provider != provider || linked.ProviderSubject != identity.ProviderSubject)
+                {
+                    return await FinishErrorAsync(claim, created.Status == IdentityLinkStatus.CreationRefused
+                        ? GameAuthErrors.RegistrationLimit : GameAuthErrors.AccountUnavailable, cancellationToken, proofDigest);
+                }
+            }
+            Account? account = await accounts.FindByIdAsync(linked.AccountId, false, cancellationToken);
+            if (!Eligible(account, linked.AccountId.Value))
+                return await FinishErrorAsync(claim, GameAuthErrors.AccountUnavailable, cancellationToken, proofDigest);
+            context = context with { AccountId = account!.Id.Value, CredentialsVersion = account.CredentialsVersion, SessionEpoch = account.SessionEpoch };
+            GameLicenseAuthorityResult license = await licenseAuthority.VerifyAsync(new(account.Id, application, identity, context.LicenseId, context.LicenseRevision, Now),
+                cancellationToken, firstEvidence);
+            if (license.Status == GameLicenseCheckStatus.Unlicensed && license.LicenseId is not null)
+                await PublishRevocationAsync(account.Id, Guid.Empty);
+            context = WithAuthority(context, license) with { PendingLinkId = null, LinkChallenge = null, LinkProofExpiresAt = null };
+            bool? existingLicense = license.Status == GameLicenseCheckStatus.Unavailable && sameSource && existing is not null
+                ? await LicenseStandingAsync(existing, cancellationToken) : false;
+            if (existingLicense is null)
+            {
+                // Neither the renewal nor the existing license could be read: an outage, so nothing is stored.
+                await ReleaseClaimAsync(claim, cancellationToken);
+                return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
             }
 
-            if (registration is null || sourceAddress is null)
-                return await FinishErrorAsync(claim, GameAuthErrors.ServiceUnavailable, cancellationToken, proofDigest);
-            IdentityLinkResult created = await registration.CreateFromStoreAsync(claim.Record.Id, provider, identity.ProviderSubject,
-                Earlier(identity.ValidUntil, Earlier(firstEvidence.ObservedAt.Add(GameAuthPolicy.OwnershipLifetime), firstEvidence.AuthorizedUntil)),
-                sourceAddress, cancellationToken);
-            linked = created.Status is IdentityLinkStatus.Linked or IdentityLinkStatus.AlreadyLinked ? created.Identity :
-                created.Status == IdentityLinkStatus.SubjectTaken ? await identities.FindAsync(provider, identity.ProviderSubject, cancellationToken) : null;
-            if (linked is null || linked.Provider != provider || linked.ProviderSubject != identity.ProviderSubject)
+            if (existingLicense == true)
             {
-                return await FinishErrorAsync(claim, created.Status == IdentityLinkStatus.CreationRefused
-                    ? GameAuthErrors.RegistrationLimit : GameAuthErrors.AccountUnavailable, cancellationToken, proofDigest);
+                context = context with
+                {
+                    State = existing!.State,
+                    AuthorizationValidUntil = existing.AuthorizationValidUntil,
+                    LicenseId = existing.LicenseId,
+                    LicenseRevision = existing.LicenseRevision,
+                    LicenseObservationId = existing.LicenseObservationId
+                };
             }
-        }
-        Account? account = await accounts.FindByIdAsync(linked.AccountId, false, cancellationToken);
-        if (!Eligible(account, linked.AccountId.Value))
-            return await FinishErrorAsync(claim, GameAuthErrors.AccountUnavailable, cancellationToken, proofDigest);
-        context = context with { AccountId = account!.Id.Value, CredentialsVersion = account.CredentialsVersion, SessionEpoch = account.SessionEpoch };
-        GameLicenseAuthorityResult license = await licenseAuthority.VerifyAsync(new(account.Id, application, identity, context.LicenseId, context.LicenseRevision, Now),
-            cancellationToken, firstEvidence);
-        if (license.Status == GameLicenseCheckStatus.Unlicensed && license.LicenseId is not null)
-            await PublishRevocationAsync(account.Id, Guid.Empty);
-        context = WithAuthority(context, license) with { PendingLinkId = null, LinkChallenge = null, LinkProofExpiresAt = null };
-        if (license.Status == GameLicenseCheckStatus.Unavailable && sameSource && existing is not null &&
-            await HasCurrentLicenseAsync(existing, cancellationToken))
-        {
-            context = context with
-            {
-                State = existing.State,
-                AuthorizationValidUntil = existing.AuthorizationValidUntil,
-                LicenseId = existing.LicenseId,
-                LicenseRevision = existing.LicenseRevision,
-                LicenseObservationId = existing.LicenseObservationId
-            };
-        }
 
-        return await FinishContextAsync(claim, context, existing, proofDigest, cancellationToken,
-            license.Status == GameLicenseCheckStatus.Unavailable ? GameAuthErrors.ProviderUnavailable : null);
+            return await FinishContextAsync(claim, context, existing, proofDigest, cancellationToken,
+                license.Status == GameLicenseCheckStatus.Unavailable ? GameAuthErrors.ProviderUnavailable : null);
+        }
+        catch (Exception)
+        {
+            await ReleaseClaimAsync(claim, CancellationToken.None);
+            throw;
+        }
     }
 
     private static GameContextRecord WithAuthority(GameContextRecord context, GameLicenseAuthorityResult license) => context with
@@ -341,11 +426,23 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                     return (null, GameAuthReply.Failure(GameAuthErrors.ContextRevoked));
                 return (null, receipt);
             }
-            if (record.Receipt is not null || record.ExpiresAt <= Now || record.Claims >= 3) return (null, null);
+            if (record.Receipt is not null || record.ExpiresAt <= Now || record.Claims >= 3 ||
+                (handoff is null && record.ProviderVerifications >= GameAuthPolicy.MaximumProviderVerifications))
+            {
+                return (null, null);
+            }
+
             if (record.WorkerUntil > Now) return (null, GameAuthReply.Failure(GameAuthErrors.InProgress));
             if (handoff is not null && (record.Channel != GameLaunchChannels.Avalon || record.ContextId is not null))
                 return (null, GameAuthReply.Failure(GameAuthErrors.InvalidHandoff));
-            AuthAttemptRecord claimed = record with { Binding = binding, WorkerId = Guid.NewGuid(), WorkerUntil = Now.Add(GameAuthPolicy.MutationClaimLifetime), Claims = record.Claims + 1 };
+            AuthAttemptRecord claimed = record with
+            {
+                Binding = binding,
+                WorkerId = Guid.NewGuid(),
+                WorkerUntil = Now.Add(GameAuthPolicy.MutationClaimLifetime),
+                Claims = record.Claims + 1,
+                ProviderVerifications = record.ProviderVerifications + (handoff is null ? 1 : 0),
+            };
             var changes = new List<GameAuthMutation>();
             if (handoff is not null && record.HandoffGrant is null)
             {
@@ -360,6 +457,27 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             if (await store.CompareExchangeAsync(changes, cancellationToken)) return (new(key, next, claimed), null);
         }
         return (null, GameAuthReply.Failure(GameAuthErrors.InProgress));
+    }
+
+    /// <summary>
+    /// Releases a claim whose work did not finish (an outage or a fault), so the attempt can be retried at once instead
+    /// of after <see cref="GameAuthPolicy.MutationClaimLifetime"/>, and gives its slot back: only a worker that never
+    /// came back (its claim expired and was taken over) counts toward the attempt's three claims, so outages and faults
+    /// cannot exhaust an attempt; its own expiry and the rate limit bound the retries. Best effort, and a no-op once
+    /// the work stored a receipt (the claim's record has changed).
+    /// </summary>
+    private async Task ReleaseClaimAsync(Claim claim, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await store.CompareExchangeAsync([new(claim.Key, claim.Raw,
+                GameAuthJson.Serialize(claim.Record with { WorkerUntil = Now, Claims = Math.Max(0, claim.Record.Claims - 1) }),
+                claim.Record.ExpiresAt)], cancellationToken);
+        }
+        catch (Exception error) when (!cancellationToken.IsCancellationRequested)
+        {
+            _logger.LogWarning(error, "Game authentication attempt {AttemptId} claim could not be released", claim.Record.Id);
+        }
     }
 
     private GameAuthMutation FinishMutation(Claim claim, GameAuthReply reply)
@@ -471,24 +589,39 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             string contextKey = ContextKey(token.ContextId);
             string? rawContext = await store.ReadAsync(contextKey, cancellationToken);
             GameContextRecord? context = GameAuthJson.Deserialize<GameContextRecord>(rawContext);
-            if (context is null || !await IsCurrentAsync(context, cancellationToken)) return GameAuthReply.Failure(GameAuthErrors.ContextRevoked);
-            if (token.Spent)
+            if (context is null) return GameAuthReply.Failure(GameAuthErrors.ContextRevoked);
+            bool exactRetry = token.Spent && token.RequestId == requestId && token.Receipt is not null && token.ReceiptExpiresAt > Now;
+            // A spent token sent again, other than as its exact retry, is a reuse. Revoking needs only Redis, so it is
+            // detected before any database read and holds through a database outage too.
+            if (token.Spent && !exactRetry && context.State != GameAuthStates.Revoked && context.AbsoluteExpiresAt > Now)
             {
-                if (token.RequestId == requestId && token.Receipt is not null && token.ReceiptExpiresAt > Now)
-                {
-                    GameAuthReply receipt = crypto.Unprotect(token.Receipt, tokenKey + ":" + requestId.ToString("N"));
-                    return receipt.State != GameAuthStates.Authorized || await HasCurrentLicenseAsync(context, cancellationToken)
-                        ? receipt : GameAuthReply.Failure(GameAuthErrors.ContextRevoked);
-                }
-                if (!await store.CompareExchangeAsync([new(contextKey, rawContext,
-                    GameAuthJson.Serialize(context with { State = GameAuthStates.Revoked }), context.AbsoluteExpiresAt)], cancellationToken))
-                {
-                    continue;
-                }
-
-                if (context.AccountId is { } revokedAccount) await PublishRevocationAsync(new AccountId(revokedAccount), context.Id);
+                if (!await TryRevokeAsync(contextKey, rawContext, context, cancellationToken)) continue;
                 return GameAuthReply.Failure(GameAuthErrors.RefreshReuse);
             }
+
+            if (exactRetry)
+            {
+                GameAuthReply? answer;
+                try
+                {
+                    answer = await ReplayAsync(tokenKey, rawToken, token, contextKey, rawContext, context, requestId, cancellationToken);
+                }
+                catch (Exception)
+                {
+                    // A fault, or a retry the client gave up on, grants nothing; the receipt is kept as for an outage,
+                    // so the same retry sent afterwards is not taken for a reuse that revokes the context.
+                    await KeepReceiptAfterFaultAsync(tokenKey, rawToken, token, context);
+                    throw;
+                }
+
+                if (answer is null) continue;
+                return answer;
+            }
+
+            bool? current = await CurrentStandingAsync(context, true, cancellationToken);
+            // A database that could not be read is an outage, not a refusal: nothing is revoked or rotated (#862).
+            if (current is null) return await OutageAsync(tokenKey, rawToken, token, context, false, cancellationToken);
+            if (current == false) return GameAuthReply.Failure(GameAuthErrors.ContextRevoked);
             if (context.Generation != token.Generation || context.RefreshDigest != GameAuthCryptography.Digest(refresh))
                 continue; // Rotation may have committed between the two reads. Re-read the token's exact retry receipt.
             GameContextRecord renewed = context;
@@ -502,7 +635,10 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                 if (license.Status == GameLicenseCheckStatus.Unavailable)
                 {
                     renewalError = GameAuthErrors.ProviderUnavailable;
-                    if (await HasCurrentLicenseAsync(context, cancellationToken)) renewed = context;
+                    bool? licensed = await LicenseStandingAsync(context, cancellationToken);
+                    // Neither the renewal nor the current license could be read: an outage, so nothing rotates.
+                    if (licensed is null) return await OutageAsync(tokenKey, rawToken, token, context, false, cancellationToken);
+                    if (licensed == true) renewed = context;
                 }
             }
             string nextCredential = GameAuthCryptography.NewToken();
@@ -538,11 +674,104 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         return GameAuthReply.Failure(GameAuthErrors.InProgress);
     }
 
-    public async Task<bool> LogoutAsync(string credential, CancellationToken cancellationToken)
+    /// <summary>
+    /// Answers a refresh that met a license outage: PROVIDER_UNAVAILABLE, nothing revoked or rotated. An exact retry
+    /// keeps its receipt for <see cref="GameAuthPolicy.OutageReceiptLifetime"/> from this answer (never past the
+    /// context's absolute expiry), so the same retry, sent again once the outage is over, still finds its receipt rather
+    /// than being taken for a reuse and revoking the context. Each answer during the outage extends it again. Only the
+    /// newest rotation's receipt is kept: one a later refresh already replaced is left to expire.
+    /// </summary>
+    private async Task<GameAuthReply> OutageAsync(string tokenKey, string? rawToken, GameAuthTokenRecord token,
+        GameContextRecord context, bool exactRetry, CancellationToken cancellationToken)
     {
-        GameContextRecord? context = await GetContextAsync(credential, false, cancellationToken);
-        if (context is null) return false;
-        if (!await store.CompareExchangeAsync([new(ContextKey(context.Id), GameAuthJson.Serialize(context),
+        if (exactRetry) await KeepReceiptAsync(tokenKey, rawToken, token, context, cancellationToken);
+        return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
+    }
+
+    /// <summary>
+    /// Keeps an exact retry's receipt for <see cref="GameAuthPolicy.OutageReceiptLifetime"/> from now, within the
+    /// context's absolute expiry, while its rotation is still the newest. Best effort: a lost swap means another answer
+    /// already extended it.
+    /// </summary>
+    private async Task KeepReceiptAsync(string tokenKey, string? rawToken, GameAuthTokenRecord token, GameContextRecord context,
+        CancellationToken cancellationToken)
+    {
+        DateTime keep = Earlier(Now.Add(GameAuthPolicy.OutageReceiptLifetime), context.AbsoluteExpiresAt);
+        if (context.Generation == token.Generation + 1 && token.ReceiptExpiresAt < keep)
+        {
+            await store.CompareExchangeAsync([new(tokenKey, rawToken,
+                GameAuthJson.Serialize(token with { ReceiptExpiresAt = keep }), context.AbsoluteExpiresAt)], cancellationToken);
+        }
+    }
+
+    /// <summary><see cref="KeepReceiptAsync"/> after a fault, never throwing over the fault being rethrown.</summary>
+    private async Task KeepReceiptAfterFaultAsync(string tokenKey, string? rawToken, GameAuthTokenRecord token, GameContextRecord context)
+    {
+        try
+        {
+            await KeepReceiptAsync(tokenKey, rawToken, token, context, CancellationToken.None);
+        }
+        catch (Exception error)
+        {
+            _logger.LogWarning(error, "Game context {ContextId} refresh receipt could not be kept after a fault", context.Id);
+        }
+    }
+
+    /// <summary>
+    /// Answers an exact refresh retry from its receipt; null when the context changed under the revocation swap and the
+    /// refresh should read again.
+    /// </summary>
+    private async Task<GameAuthReply?> ReplayAsync(string tokenKey, string? rawToken, GameAuthTokenRecord token, string contextKey,
+        string? rawContext, GameContextRecord context, Guid requestId, CancellationToken cancellationToken)
+    {
+        bool? current = await CurrentStandingAsync(context, true, cancellationToken);
+        // A database that could not be read is an outage, not a refusal: nothing is revoked or rotated (#862).
+        if (current is null) return await OutageAsync(tokenKey, rawToken, token, context, true, cancellationToken);
+        if (current == false) return GameAuthReply.Failure(GameAuthErrors.ContextRevoked);
+        GameAuthReply receipt = crypto.Unprotect(token.Receipt!, tokenKey + ":" + requestId.ToString("N"));
+        if (receipt.State != GameAuthStates.Authorized) return receipt;
+        bool? licensed = await LicenseStandingAsync(context, cancellationToken);
+        if (licensed == true) return receipt;
+        if (licensed is null) return await OutageAsync(tokenKey, rawToken, token, context, true, cancellationToken);
+        // The license the receipt authorized is no longer current. CONTEXT_REVOKED must be true when it is answered:
+        // the context is revoked, and its world session told, before the refusal goes out (#862).
+        return await TryRevokeAsync(contextKey, rawContext, context, cancellationToken)
+            ? GameAuthReply.Failure(GameAuthErrors.ContextRevoked) : null;
+    }
+
+    /// <summary>
+    /// Ends the context <paramref name="credential"/> is the current credential of. The credential is checked once, as
+    /// current, and that check is what authorizes the logout: a rotation committing after it (a refresh by the same
+    /// holder, racing the logout) does not undo it, so a lost swap re-reads the same context and retries until the
+    /// context is revoked (#862). A credential already rotated, or spent, expired or unknown, when the logout is checked
+    /// ends nothing (<see cref="GameContextLogout.Unknown"/>), like any stale credential anywhere else. The check is on
+    /// Redis alone (<see cref="CredentialContextAsync"/>).
+    /// </summary>
+    public async Task<GameContextLogout> LogoutAsync(string credential, CancellationToken cancellationToken)
+    {
+        // Ending a context grants nothing, so it is authorized on Redis alone: a valid credential ends its context even
+        // while the database is down or the account or license no longer stands.
+        GameContextRecord? context = await CredentialContextAsync(credential, cancellationToken);
+        if (context is null) return GameContextLogout.Unknown;
+        if (context.State == GameAuthStates.Revoked || context.AbsoluteExpiresAt <= Now) return GameContextLogout.Ended;
+        string key = ContextKey(context.Id);
+        string? raw = GameAuthJson.Serialize(context);
+        for (int retry = 0; retry < GameAuthPolicy.MutationAttempts; retry++)
+        {
+            if (await TryRevokeAsync(key, raw, context, cancellationToken)) return GameContextLogout.Ended;
+            raw = await store.ReadAsync(key, cancellationToken);
+            context = GameAuthJson.Deserialize<GameContextRecord>(raw);
+            // Revoked by another writer (refresh reuse, a replacement, another logout), or gone: already ended.
+            if (context is null || context.State == GameAuthStates.Revoked || context.AbsoluteExpiresAt <= Now)
+                return GameContextLogout.Ended;
+        }
+        return GameContextLogout.Contended;
+    }
+
+    /// <summary>Revokes <paramref name="context"/> if it is still <paramref name="raw"/>, then tells its world session.</summary>
+    private async Task<bool> TryRevokeAsync(string key, string? raw, GameContextRecord context, CancellationToken cancellationToken)
+    {
+        if (!await store.CompareExchangeAsync([new(key, raw,
             GameAuthJson.Serialize(context with { State = GameAuthStates.Revoked }), context.AbsoluteExpiresAt)], cancellationToken))
         {
             return false;

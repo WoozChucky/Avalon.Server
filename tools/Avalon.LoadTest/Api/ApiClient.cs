@@ -64,7 +64,9 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
 
     /// <summary>
     /// How long a sign-out (<see cref="LogoutAsync"/>) is given, by every caller, on its own clock. Its first attempt
-    /// may use all of it; a quick failure (no connection, a 5xx) is retried in what is left.
+    /// may use all of it; a quick failure (no connection, a 5xx, or a 409 <c>IN_PROGRESS</c>: the context kept changing
+    /// under the logout, a refresh of it most likely, and is still live) is retried in what is left, with the newest
+    /// credential.
     /// </summary>
     public static TimeSpan LogoutTimeout { get; } = TimeSpan.FromSeconds(10);
 
@@ -137,7 +139,7 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
             using var limit = new CancellationTokenSource(LogoutTimeout);
             try
             {
-                await LogoutCredentialAsync(made, limit.Token);
+                await LogoutCredentialAsync(() => made, limit.Token);
             }
             catch (Exception error) when (error is ApiException || (error is OperationCanceledException && limit.IsCancellationRequested))
             {
@@ -230,12 +232,14 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// Signs the game context out; a context already gone (401, 404) counts as signed out. Each attempt has what is left
     /// of <see cref="LogoutTimeout"/> from the first send (the server drops a logout whose request is aborted, so an
     /// attempt is never cut short for a retry's sake). A logout is safe to repeat (a second one finds the context
-    /// revoked and changes nothing), so a transport failure or a 5xx is asked again, twice at most, while at least 1 s
-    /// is left after the wait; a timeout has spent the time and is not. Give it <see cref="LogoutTimeout"/>.
+    /// revoked and changes nothing), so a transport failure, a 5xx or a 409 <c>IN_PROGRESS</c> is asked again, twice at
+    /// most, while at least 1 s is left after the wait; a timeout has spent the time and is not. Each attempt sends the
+    /// context's newest credential: a 409 means the context rotated under the logout (a refresh of it), and the
+    /// credential it was sent with no longer ends anything. Give it <see cref="LogoutTimeout"/>.
     /// </summary>
-    public Task LogoutAsync(GameContext context, CancellationToken ct) => LogoutCredentialAsync(context.Credential, ct);
+    public Task LogoutAsync(GameContext context, CancellationToken ct) => LogoutCredentialAsync(() => context.Credential, ct);
 
-    private async Task LogoutCredentialAsync(string credential, CancellationToken ct)
+    private async Task LogoutCredentialAsync(Func<string> credential, CancellationToken ct)
     {
         long start = Stopwatch.GetTimestamp();
         for (int attempt = 0; ; attempt++)
@@ -244,7 +248,7 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
             try
             {
                 await SendAsync("logout", HttpMethod.Post, "client/auth/game-context/logout",
-                    new { gameContextCredential = credential }, null, idempotencyKey: null, ct, allowEmpty: true,
+                    new { gameContextCredential = credential() }, null, idempotencyKey: null, ct, allowEmpty: true,
                     attemptTimeout: left > s_logoutMinAttempt ? left : s_logoutMinAttempt);
                 return;
             }
@@ -252,7 +256,7 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
             {
                 return;
             }
-            catch (ApiException error) when (attempt < s_retryDelays.Length && error.Status is 0 or >= 500 &&
+            catch (ApiException error) when (attempt < s_retryDelays.Length && Repeatable(error, GameAuthErrors.InProgress) &&
                 LogoutTimeout - Stopwatch.GetElapsedTime(start) >= s_retryDelays[attempt] + s_logoutMinAttempt)
             {
                 await Task.Delay(s_retryDelays[attempt], ct);

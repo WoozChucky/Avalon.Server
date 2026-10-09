@@ -80,6 +80,8 @@ public sealed record AuthAttemptRecord
     public Guid? WorkerId { get; init; }
     public DateTime? WorkerUntil { get; init; }
     public int Claims { get; init; }
+    /// <summary>Provider claims made, never given back (<see cref="GameAuthPolicy.MaximumProviderVerifications"/>).</summary>
+    public int ProviderVerifications { get; init; }
     public string? HandoffGrant { get; init; }
     public string? Receipt { get; init; }
     public DateTime? ReceiptExpiresAt { get; init; }

@@ -82,15 +82,19 @@ public sealed class GameSessionFenceServiceShould
     }
     private Task<GameSessionLeaseReply> Activate(string server = "world-1") => _service.ActivateAsync(server, _head.AccountId, _head.GameSessionId, 2, CancellationToken.None);
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Shared_license_revocation_refuses_heartbeat_without_extending_the_lease(bool native)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Shared_license_revocation_refuses_heartbeat_without_extending_the_lease(bool native, bool outage)
     {
         await Arrange(native: native);
         Assert.Null((await Activate()).Error);
         DateTime until = _head.LeaseUntil;
-        _h.RevokeLicense();
-        Assert.Equal(GameAuthErrors.SessionRevoked, (await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, default)).Error);
+        // An outage of the license store is not a revocation: the world keeps its lease (no kick) and asks again.
+        if (outage) TestGameAuthorization.Licenses(_h.Store).FindFailure = new IOException("database down");
+        else _h.RevokeLicense();
+        Assert.Equal(outage ? GameAuthErrors.ServiceUnavailable : GameAuthErrors.SessionRevoked,
+            (await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, default)).Error);
         Assert.Equal(until, _head.LeaseUntil);
         await _h.Sessions.DidNotReceive().TryRenewAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<string>(), Arg.Any<int>(), Arg.Any<long>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
         await _target.DidNotReceive().RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());

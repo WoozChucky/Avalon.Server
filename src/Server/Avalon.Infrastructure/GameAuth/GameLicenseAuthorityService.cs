@@ -4,6 +4,8 @@ using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.StoreAuth;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Infrastructure.GameAuth;
@@ -13,8 +15,11 @@ public sealed record GameLicenseAuthorityResult(GameLicenseCheckStatus Status, G
 
 /// <summary>Owns common source/revision binding and bounded authority; adapters cannot issue game contexts.</summary>
 public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, IGameLicenseRepository licenses,
-    ILicenseObservationRepository observations, IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock)
+    ILicenseObservationRepository observations, IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock,
+    ILogger<GameLicenseAuthorityService>? logger = null)
 {
+    private readonly ILogger _logger = logger ?? NullLogger<GameLicenseAuthorityService>.Instance;
+
     private static GameLicenseAuthorityResult Unavailable => new(GameLicenseCheckStatus.Unavailable);
     private static GameLicenseAuthorityResult Unlicensed => new(GameLicenseCheckStatus.Unlicensed);
 
@@ -92,10 +97,12 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
 
             if (owns && license.ExpiresAt is { } storedExpiry && license.AuthorityKind == LicenseAuthorityKind.StoredGrant) end = Earlier(end, storedExpiry);
             if (owns && end <= completedAt) return Unavailable;
-            GameLicense? applied = await licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision,
+            LicenseDecisionResult decision = await licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision,
                 new(owns, evidence.ObservedAt, end, evidence.ProviderExpiresAt,
                     reestablish: request.BoundLicenseId is null && provider.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership), ct);
-            if (applied is null) return Unlicensed;
+            // A lost race (another decision applied first) is not a refusal: the caller keeps what still stands.
+            if (decision.Outcome == LicenseDecisionOutcome.Conflict) return Unavailable;
+            if (decision.License is not { } applied) return Unlicensed;
             if (!Matches(applied, request, provider.AuthorityKind)) return Unavailable;
             if (owns && !applied.Authorizes(request.Account, request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;
             var observation = new LicenseObservation
@@ -122,10 +129,23 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 : new(GameLicenseCheckStatus.Unlicensed, applied.Id, applied.AuthorityRevision, null, observation.Id);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception) { return Unavailable; }
+        catch (Exception error) when (!ct.IsCancellationRequested && DatabaseOutage.Is(error))
+        {
+            // Any other exception is a fault and propagates: a refusal or a downgrade must never stand for one.
+            _logger.LogWarning(error, "Game license for account {AccountId} could not be verified: database outage", request.Account.Value);
+            return Unavailable;
+        }
     }
 
     public async Task<bool> ValidateAsync(Guid licenseId, long revision, AccountId account,
+        GameApplicationSelection application, DateTime now, CancellationToken ct) =>
+        await CheckCurrentAsync(licenseId, revision, account, application, now, ct) == true;
+
+    /// <summary>
+    /// <see cref="ValidateAsync"/>, telling an outage apart: null when the license could not be read, so a caller that
+    /// would act on a refusal (revoke a context) does not act on a failed read. Any other exception propagates.
+    /// </summary>
+    public async Task<bool?> CheckCurrentAsync(Guid licenseId, long revision, AccountId account,
         GameApplicationSelection application, DateTime now, CancellationToken ct)
     {
         IGameLicenseProvider? provider = providers.License(application.Provider);
@@ -138,10 +158,19 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 license.Authorizes(account, application.Product, application.Environment, now);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception) { return false; }
+        catch (Exception error) when (!ct.IsCancellationRequested && DatabaseOutage.Is(error))
+        {
+            _logger.LogWarning(error, "Game license {LicenseId} could not be read: database outage", licenseId);
+            return null;
+        }
     }
 
-    public async Task<bool> ValidateBindingAsync(Guid licenseId, long revision, AccountId account,
+    /// <summary>
+    /// Whether the license row still holds the binding a context was issued with; null when the row could not be read
+    /// (an outage is not a refusal, so a caller answers it as unavailable rather than revoked). Any other exception
+    /// propagates.
+    /// </summary>
+    public async Task<bool?> ValidateBindingAsync(Guid licenseId, long revision, AccountId account,
         GameApplicationSelection application, string? subject, CancellationToken ct)
     {
         IGameLicenseProvider? provider = providers.License(application.Provider);
@@ -155,7 +184,11 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 row.ProviderSubject == subject && row.AuthorityKind == provider.AuthorityKind;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception) { return false; }
+        catch (Exception error) when (!ct.IsCancellationRequested && DatabaseOutage.Is(error))
+        {
+            _logger.LogWarning(error, "Game license {LicenseId} could not be read: database outage", licenseId);
+            return null;
+        }
     }
 
     private bool Trusted(GameApplicationSelection app)

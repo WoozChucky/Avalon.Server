@@ -1,4 +1,5 @@
 using Avalon.Api.Testing;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
@@ -199,10 +200,63 @@ public class GameContextStoreShould
         AuthAttemptReply attempt = (await Attempt("steam"))!;
         GameAuthReply result = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
         GameContextRecord current = (await Service().GetContextAsync(result.GameContextCredential!, true, CancellationToken.None))!;
-        Assert.True(await Service().LogoutAsync(result.GameContextCredential!, CancellationToken.None));
+        Assert.Equal(GameContextLogout.Ended, await Service().LogoutAsync(result.GameContextCredential!, CancellationToken.None));
         Assert.Null(await Service().GetContextByIdAsync(current.Id, true, CancellationToken.None));
         Assert.Equal("CONTEXT_REVOKED", (await Service().RefreshAsync(result.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None)).Error);
         await _revocations.Received(1).PublishAsync(new AccountId(7), current.Id);
+    }
+
+    [Theory]
+    [InlineData("racing")]
+    [InlineData("stale")]
+    [InlineData("outage")]
+    public async Task Logout_ends_a_context_rotated_while_it_runs_but_a_credential_already_rotated_ends_nothing(string scenario)
+    {
+        bool racing = scenario == "racing";
+        AuthAttemptReply attempt = (await Attempt("steam"))!;
+        GameAuthReply initial = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
+        GameContextRecord context = (await Service().GetContextAsync(initial.GameContextCredential!, true, CancellationToken.None))!;
+        if (scenario == "outage")
+        {
+            // Ending a context grants nothing: a valid credential ends it with the license store down.
+            TestGameAuthorization.Licenses(_store).FindFailure = new IOException("database down");
+            Assert.Equal(GameContextLogout.Ended, await Service().LogoutAsync(initial.GameContextCredential!, CancellationToken.None));
+            TestGameAuthorization.Licenses(_store).FindFailure = null;
+            Assert.Null(await Service().GetContextByIdAsync(context.Id, false, CancellationToken.None));
+            await _revocations.Received(1).PublishAsync(new AccountId(7), context.Id);
+            return;
+        }
+
+        var interleaving = new InterleavingAuthStore(_store);
+        GameAuthorizationService service = Service(interleaving);
+        GameAuthReply? rotated = null;
+        if (racing)
+        {
+            // The refresh commits after the logout checked its credential and before its swap.
+            interleaving.PauseKey = CacheKeys.GameAuth("production", "context", context.Id.ToString("N"));
+            interleaving.AfterRead = async () => rotated = await service.RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None);
+        }
+        else
+        {
+            rotated = await service.RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None);
+        }
+
+        GameContextLogout outcome = await service.LogoutAsync(initial.GameContextCredential!, CancellationToken.None);
+
+        Assert.Null(rotated!.Error);
+        if (racing)
+        {
+            Assert.Equal(GameContextLogout.Ended, outcome);
+            Assert.Null(await service.GetContextAsync(rotated.GameContextCredential!, false, CancellationToken.None));
+            Assert.Equal("CONTEXT_REVOKED", (await service.RefreshAsync(rotated.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None)).Error);
+            await _revocations.Received(1).PublishAsync(new AccountId(7), context.Id);
+        }
+        else
+        {
+            Assert.Equal(GameContextLogout.Unknown, outcome);
+            Assert.NotNull(await service.GetContextAsync(rotated.GameContextCredential!, true, CancellationToken.None));
+            await _revocations.DidNotReceiveWithAnyArgs().PublishAsync(default!, default);
+        }
     }
 
     [Fact]
@@ -255,6 +309,26 @@ public class GameContextStoreShould
             new(false, _clock.GetUtcNow().UtcDateTime, _clock.GetUtcNow().UtcDateTime));
         Assert.Null(await Service().GetContextByIdAsync(current.Id, true, CancellationToken.None));
         Assert.Equal("CONTEXT_REVOKED", (await Service().RefreshAsync(result.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None)).Error);
+    }
+
+    [Theory]
+    [InlineData(3)]
+    [InlineData(GameAuthPolicy.MaximumProviderVerifications)]
+    public async Task Outages_release_their_claims_without_exhausting_the_attempt_up_to_the_verification_cap(int outages)
+    {
+        AuthAttemptReply attempt = (await Attempt("steam"))!;
+        var request = Guid.NewGuid();
+        _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new SteamProofResult(SteamProofStatus.ProviderUnavailable));
+        for (int outage = 0; outage < outages; outage++)
+            Assert.Equal("PROVIDER_UNAVAILABLE", (await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None)).Error);
+        _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
+        GameAuthReply next = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None);
+        // Each released claim gave its slot back, but provider verifications are capped per attempt and never given back.
+        if (outages < GameAuthPolicy.MaximumProviderVerifications) Assert.Equal("authorized", next.State);
+        else Assert.Equal("INVALID_ATTEMPT", next.Error);
+        await _proof.ReceivedWithAnyArgs(Math.Min(outages + 1, GameAuthPolicy.MaximumProviderVerifications)).VerifyAsync(default, default!, default!, default);
     }
 
     [Fact]

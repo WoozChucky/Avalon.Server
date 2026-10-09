@@ -64,13 +64,13 @@ public sealed class LicenseHoldShould
         var holds = new LicenseHoldRepository(database);
         LicenseHoldResult held = await holds.SetAsync(grant.Id, "payment-dispute", "cause", true, s_now);
         var licenses = new GameLicenseRepository(database);
-        GameLicense? revoked = await licenses.ApplyDecisionAsync(grant.Id, held.AuthorityRevision, new(false, s_now.AddSeconds(1), s_now.AddSeconds(1)));
+        GameLicense? revoked = (await licenses.ApplyDecisionAsync(grant.Id, held.AuthorityRevision, new(false, s_now.AddSeconds(1), s_now.AddSeconds(1)))).License;
         Assert.NotNull(revoked);
         await holds.SetAsync(grant.Id, "payment-dispute", "cause", false, s_now.AddSeconds(2));
         GameLicense result = (await licenses.FindAsync(grant.Id))!;
         Assert.NotNull(result.RevokedAt);
         Assert.False(result.Authorizes(grant.AccountId, "avalon.base", "development", s_now.AddSeconds(3)));
-        Assert.Null(await licenses.ApplyDecisionAsync(grant.Id, result.AuthorityRevision, new(true, s_now.AddSeconds(3), s_now.AddMinutes(5), reestablish: true)));
+        Assert.Null((await licenses.ApplyDecisionAsync(grant.Id, result.AuthorityRevision, new(true, s_now.AddSeconds(3), s_now.AddMinutes(5), reestablish: true))).License);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class LicenseHoldShould
         using var database = SqliteDatabase.Auth();
         GameLicense grant = await Grant(database);
         LicenseHoldResult held = await new LicenseHoldRepository(database).SetAsync(grant.Id, "support", "cause", true, s_now);
-        GameLicense? result = await new GameLicenseRepository(database).ApplyDecisionAsync(grant.Id, held.AuthorityRevision, new(true, s_now, s_now.AddMinutes(5)));
+        GameLicense? result = (await new GameLicenseRepository(database).ApplyDecisionAsync(grant.Id, held.AuthorityRevision, new(true, s_now, s_now.AddMinutes(5)))).License;
         Assert.NotNull(result!.SuspendedAt);
         Assert.False(result.Authorizes(grant.AccountId, "avalon.base", "development", s_now));
     }

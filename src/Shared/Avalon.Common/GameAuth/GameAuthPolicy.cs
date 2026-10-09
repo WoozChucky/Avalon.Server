@@ -13,6 +13,8 @@ public static class GameAuthPolicy
     public static readonly TimeSpan JoinTicketLifetime = TimeSpan.FromSeconds(30);
     public static readonly TimeSpan JoinReceiptRetention = TimeSpan.FromSeconds(45);
     public static readonly TimeSpan RefreshReceiptLifetime = TimeSpan.FromSeconds(30);
+    /// <summary>How long a refresh receipt is kept from each answer that met a license outage, within the context's absolute expiry.</summary>
+    public static readonly TimeSpan OutageReceiptLifetime = TimeSpan.FromMinutes(5);
     public static readonly TimeSpan MutationClaimLifetime = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan SessionLeaseLifetime = TimeSpan.FromSeconds(45);
     public static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
@@ -26,6 +28,11 @@ public static class GameAuthPolicy
     public static readonly TimeSpan OpenIdNonceLifetime = TimeSpan.FromMinutes(2);
     public static readonly TimeSpan OpenIdClockSkew = TimeSpan.FromSeconds(30);
     public const int MutationAttempts = 3;
+    /// <summary>
+    /// Provider claims (each one an outbound identity verification) one attempt may make. Released claims give their
+    /// slot back, so this, not the three-claim limit, bounds the calls a retry loop on one attempt can cause.
+    /// </summary>
+    public const int MaximumProviderVerifications = 10;
     public const int TokenBytes = 32;
     public const int TokenCharacters = 43; // Unpadded base64url of TokenBytes.
     public const int MaximumPkceVerifierCharacters = 128;

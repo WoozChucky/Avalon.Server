@@ -29,6 +29,7 @@ public sealed class AvalonGameAuthorizationShould
     private readonly Account _account = new() { Id = new(7), Username = "NATIVE", Email = "native@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
     private readonly Guid _family = Guid.NewGuid();
     private readonly Guid _run = Guid.NewGuid();
+    private readonly IGameContextRevocations _revocations = Substitute.For<IGameContextRevocations>();
     private DateTime Now => _clock.GetUtcNow().UtcDateTime;
     public AvalonGameAuthorizationShould()
     {
@@ -40,7 +41,7 @@ public sealed class AvalonGameAuthorizationShould
         IGameLicenseRepository licenses = repository ?? _licenses;
         var registry = new GameProviderRegistry([], [new AvalonLicenseProvider(licenses)]);
         return new(_store, new(_store, _crypto, _options, _clock), _crypto, _accounts, _families, _identities,
-            registry, new(registry, licenses, _observations, _options, _clock), _options, _clock);
+            registry, new(registry, licenses, _observations, _options, _clock), _options, _clock, revocations: _revocations);
     }
     private GameLicense Grant(DateTime? expires = null, string provider = "avalon")
     {
@@ -176,6 +177,106 @@ public sealed class AvalonGameAuthorizationShould
         Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RedeemHandoffAsync(initial.Attempt, initial.Ticket, initial.Request, default)).Error);
     }
     [Theory]
+    [InlineData("lapsed", "")]
+    [InlineData("license-fault", "")]
+    [InlineData("license-read", "recovered")]
+    [InlineData("database-down", "recovered")]
+    [InlineData("database-down", "too-late")]
+    [InlineData("database-down", "near-expiry")]
+    [InlineData("database-down", "reuse")]
+    [InlineData("database-down", "superseded")]
+    public async Task A_refresh_receipt_refused_for_a_lapsed_license_revokes_the_context_but_an_outage_keeps_it_for_its_retry(string failure, string after)
+    {
+        GameLicense grant = Grant(); GameAuthReply initial = (await Handoff()).Reply; var request = Guid.NewGuid();
+        GameAuthReply rotated = await Service().RefreshAsync(initial.GameContextRefreshToken!, request, default);
+        Assert.Equal(GameAuthStates.Authorized, rotated.State);
+        GameContextRecord context = (await Service().GetContextAsync(rotated.GameContextCredential!, true, default))!;
+        string contextKey = Avalon.Infrastructure.CacheKeys.GameAuth("production", "context", context.Id.ToString("N"));
+        if (after == "near-expiry")
+        {
+            context = context with { AbsoluteExpiresAt = Now.AddMinutes(2) };
+            _store.Seed(contextKey, GameAuthJson.Serialize(context));
+        }
+
+        string tokenKey = Avalon.Infrastructure.CacheKeys.GameAuth("production", "token", GameAuthCryptography.Digest(initial.GameContextRefreshToken!));
+        DateTime? issued = GameAuthJson.Deserialize<GameAuthTokenRecord>(await _store.ReadAsync(tokenKey, default))!.ReceiptExpiresAt;
+        if (after == "superseded")
+        {
+            // A later refresh replaced the first rotation: its receipt is no longer the newest and is not kept.
+            GameAuthReply again = await Service().RefreshAsync(rotated.GameContextRefreshToken!, Guid.NewGuid(), default);
+            context = (await Service().GetContextAsync(again.GameContextCredential!, true, default))!;
+        }
+
+        if (failure == "lapsed")
+        {
+            grant.ExpiresAt = Now; // Lapsed, while the binding the context holds is intact.
+            Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(initial.GameContextRefreshToken!, request, default)).Error);
+            Assert.Null(await Service().GetContextByIdAsync(context.Id, false, default));
+            Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(rotated.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
+            await _revocations.Received(1).PublishAsync(_account.Id, context.Id);
+            return;
+        }
+
+        if (failure == "license-fault")
+        {
+            // A fault in the license read (not an outage) reaches the error handler: nothing is revoked or refused.
+            IGameLicenseRepository faulty = Substitute.For<IGameLicenseRepository>();
+            faulty.FindAsync(grant.Id, Arg.Any<CancellationToken>())
+                .Returns(_ => Task.FromResult<GameLicense?>(grant), _ => throw new InvalidOperationException("a second operation"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => Service(faulty).RefreshAsync(initial.GameContextRefreshToken!, request, default));
+            Assert.NotNull(await Service().GetContextAsync(rotated.GameContextCredential!, true, default));
+            // The exact retry's receipt is kept as for an outage, so the same retry after the fault still finds it.
+            Assert.Equal(Now.Add(GameAuthPolicy.OutageReceiptLifetime),
+                GameAuthJson.Deserialize<GameAuthTokenRecord>(await _store.ReadAsync(tokenKey, default))!.ReceiptExpiresAt);
+            _clock.Advance(GameAuthPolicy.RefreshReceiptLifetime + TimeSpan.FromSeconds(1));
+            Assert.Equal(rotated, await Service().RefreshAsync(initial.GameContextRefreshToken!, request, default));
+            await _revocations.DidNotReceiveWithAnyArgs().PublishAsync(default!, default);
+            return;
+        }
+
+        // license-read: every read works but the receipt's license check; database-down: the account read, the first.
+        IGameLicenseRepository licenses = Substitute.For<IGameLicenseRepository>();
+        licenses.FindAsync(grant.Id, Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult<GameLicense?>(grant), _ => throw new IOException("database down"));
+        if (failure == "database-down")
+            _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns<Account?>(_ => throw new IOException("database down"));
+        Assert.Equal(GameAuthErrors.ProviderUnavailable, (await Service(licenses).RefreshAsync(initial.GameContextRefreshToken!, request, default)).Error);
+        _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);
+        Assert.Equal(context, await _store.ReadAsync(contextKey, default) is { } raw ? GameAuthJson.Deserialize<GameContextRecord>(raw) : null);
+        DateTime? kept = GameAuthJson.Deserialize<GameAuthTokenRecord>(await _store.ReadAsync(tokenKey, default))!.ReceiptExpiresAt;
+
+        switch (after)
+        {
+            case "recovered":
+                // The outage outlasts the receipt's own 30 s; the same retry still finds its receipt once it is over.
+                Assert.Equal(Now.Add(GameAuthPolicy.OutageReceiptLifetime), kept);
+                _clock.Advance(GameAuthPolicy.RefreshReceiptLifetime + TimeSpan.FromSeconds(1));
+                Assert.Equal(rotated, await Service().RefreshAsync(initial.GameContextRefreshToken!, request, default));
+                await _revocations.DidNotReceiveWithAnyArgs().PublishAsync(default!, default);
+                break;
+            case "too-late":
+                // Past the window the outage answer gave, the retry is a reuse of the spent token.
+                _clock.Advance(GameAuthPolicy.OutageReceiptLifetime + TimeSpan.FromSeconds(1));
+                Assert.Equal(GameAuthErrors.RefreshReuse, (await Service().RefreshAsync(initial.GameContextRefreshToken!, request, default)).Error);
+                Assert.Null(await Service().GetContextByIdAsync(context.Id, false, default));
+                await _revocations.Received(1).PublishAsync(_account.Id, context.Id);
+                break;
+            case "reuse":
+                // A spent token sent under another key is a reuse, caught with the database still down.
+                _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns<Account?>(_ => throw new IOException("database down"));
+                Assert.Equal(GameAuthErrors.RefreshReuse, (await Service(licenses).RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
+                Assert.Equal(GameAuthStates.Revoked, GameAuthJson.Deserialize<GameContextRecord>(await _store.ReadAsync(contextKey, default))!.State);
+                await _revocations.Received(1).PublishAsync(_account.Id, context.Id);
+                break;
+            case "superseded":
+                Assert.Equal(issued, kept);
+                break;
+            case "near-expiry":
+                Assert.Equal(context.AbsoluteExpiresAt, kept); // Never past the context's absolute expiry.
+                break;
+        }
+    }
+    [Theory]
     [InlineData("account")]
     [InlineData("family")]
     [InlineData("epoch")]
@@ -187,13 +288,45 @@ public sealed class AvalonGameAuthorizationShould
         if (changed == "family") _families.IsLiveLauncherFamilyAsync(_account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(false);
         Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
     }
-    [Fact]
-    public async Task Database_failure_cannot_extend_existing_authority()
+    [Theory]
+    [InlineData("binding-read")]
+    [InlineData("license-reads")]
+    [InlineData("account-read")]
+    [InlineData("fault")]
+    [InlineData("lost-race")]
+    public async Task Database_failure_cannot_extend_existing_authority(string failing)
     {
-        Grant(); GameAuthReply initial = (await Handoff()).Reply;
+        GameLicense grant = Grant(); GameAuthReply initial = (await Handoff()).Reply;
+        if (failing == "lost-race")
+        {
+            // Another decision applied first: not a refusal, so the renewal keeps the authority that still stands.
+            _licenses.LoseDecisionRace = true;
+            GameAuthReply kept = await Service().RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default);
+            Assert.Equal(GameAuthStates.Authorized, kept.State);
+            Assert.Equal(GameAuthErrors.ProviderUnavailable, kept.Error);
+            return;
+        }
+
         IGameLicenseRepository unavailable = Substitute.For<IGameLicenseRepository>();
-        unavailable.FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns<Task<GameLicense?>>(_ => throw new IOException("database down"));
-        Assert.Equal(GameAuthErrors.ContextRevoked, (await Service(unavailable).RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
+        if (failing == "license-reads") // The binding read works; the renewal and the current-license check do not.
+            unavailable.FindAsync(grant.Id, Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult<GameLicense?>(grant), _ => throw new IOException("database down"));
+        else
+            unavailable.FindAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns<Task<GameLicense?>>(_ => throw new IOException("database down"));
+        if (failing == "account-read")
+            _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns<Account?>(_ => throw new IOException("database down"));
+        if (failing == "fault")
+        {
+            // A fault in the code is not an outage: it reaches the error handler, never a 503 nor a refusal.
+            _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns<Account?>(_ => throw new InvalidOperationException("a second operation"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => Service(_licenses).RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default));
+            return;
+        }
+        GameAuthReply refused = await Service(unavailable).RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default);
+        _accounts.FindByIdAsync(_account.Id, false, Arg.Any<CancellationToken>()).Returns(_account);
+        Assert.Equal(GameAuthErrors.ProviderUnavailable, refused.Error);
+        Assert.Null(refused.GameContextCredential);
+        // An outage neither rotated nor revoked the context: once the database is back, the same token renews it.
+        Assert.Equal(GameAuthStates.Authorized, (await Service().RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default)).State);
     }
     [Fact]
     public async Task Unknown_native_provider_is_not_an_attempt_authority()
