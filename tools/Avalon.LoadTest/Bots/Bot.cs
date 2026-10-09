@@ -21,10 +21,11 @@ public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, flo
 /// TLS, admission, handshake, character list, create on first entry, select, load report) and leaving it. Its
 /// character is named after the account, with the class and gender its index gives. Entry and leave are driven by one
 /// caller at a time; <see cref="NextInput"/>, <see cref="SendAsync"/> and the properties may be used by another (the
-/// input driver) while the bot is <see cref="BotState.InWorld"/>.
+/// input driver) while the bot is <see cref="BotState.InWorld"/>. Disposed once nothing uses it any more: after its
+/// leave, its life loop and the refresher are done.
 /// </summary>
 public sealed class Bot(int index, string account, string password, ApiClient api, ushort worldId, string? dialHost,
-    BotMetrics metrics)
+    BotMetrics metrics) : IDisposable
 {
     /// <summary>The version the handshake sends: the protocol the provider attempt names.</summary>
     public const string ClientVersion = ApiClient.ProtocolVersion;
@@ -46,14 +47,21 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// <summary>List, create and select are database round trips; select also waits for another session's save.</summary>
     private static readonly TimeSpan s_characterTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>The world's readiness barrier: a character whose load report was lost spawns after 15 s anyway.</summary>
-    private static readonly TimeSpan s_spawnTimeout = TimeSpan.FromSeconds(15);
+    /// <summary>
+    /// The wait for the spawn, from the moment the select reply is read. The world's readiness barrier spawns a character
+    /// whose load report was lost 15 s after the select anyway; the reply is read after the world sent it, so the wait
+    /// runs 5 s past the barrier before a missing spawn is a <c>spawn:timeout</c>.
+    /// </summary>
+    private static readonly TimeSpan s_spawnTimeout = TimeSpan.FromSeconds(20);
 
     /// <summary>A character in the world has every input answered within a tick or two.</summary>
     private static readonly TimeSpan s_firstAckTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>A leave waits for the character's logout save.</summary>
     private static readonly TimeSpan s_leaveTimeout = TimeSpan.FromSeconds(20);
+
+    /// <summary>The context's sign-out at the end of a leave, on its own clock: it runs even after the leave was cancelled.</summary>
+    private static readonly TimeSpan s_logoutTimeout = TimeSpan.FromSeconds(5);
 
     /// <summary>How often a spawned bot repeats its first idle input until one is answered.</summary>
     private static readonly TimeSpan s_firstAckProbeInterval = TimeSpan.FromMilliseconds(50);
@@ -150,8 +158,10 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         {
             metrics.SignInFailed(error.Step);
             Note?.Invoke($"Signing in again failed: {error.Message}; the bot stops.");
-            Context = null;
+            // Given up first, then the context cleared: what the bot does for itself (an entry, linked to GaveUp) sees
+            // the cancel before it can find no context, which it would count as an unexpected failure.
             await _gaveUp.CancelAsync();
+            Context = null;
             return false;
         }
     }
@@ -167,6 +177,21 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     {
         if (Context is null) throw new InvalidOperationException($"Bot {index} is not signed in.");
 
+        // A bot that gives up (SignInAgainAsync) stops entering at once, as on a cancel, and nothing is counted; for a
+        // caller whose own token was not cancelled, that is a failed step of its own.
+        using var entry = CancellationTokenSource.CreateLinkedTokenSource(ct, _gaveUp.Token);
+        try
+        {
+            await EnterWithRetriesAsync(takeover, entry.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested && _gaveUp.IsCancellationRequested)
+        {
+            throw new BotStepException("sign-in", "sign-in:gave-up", "the bot gave up: its game context could not be renewed");
+        }
+    }
+
+    private async Task EnterWithRetriesAsync(bool takeover, CancellationToken ct)
+    {
         for (int attempt = 0; ; attempt++)
         {
             metrics.EntryAttempt();
@@ -261,32 +286,24 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
     }
 
-    /// <summary>Leaves the world (<see cref="DisconnectAsync"/>) and signs the game context out.</summary>
+    /// <summary>
+    /// Leaves the world (<see cref="DisconnectAsync"/>) and signs the game context out. The sign-out runs however the
+    /// leave ended, a cancel included, on its own 5 s timeout rather than <paramref name="ct"/>.
+    /// </summary>
     public async Task LeaveAsync(CancellationToken ct)
     {
-        await DisconnectAsync(ct);
-        if (Context is { } context)
+        try
         {
-            long start = Stopwatch.GetTimestamp();
-            try
-            {
-                await api.LogoutAsync(context, ct);
-                StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
-            }
-            catch (ApiException error)
-            {
-                Note?.Invoke($"Logout: {error.Message}.");
-            }
-            finally
-            {
-                // The context is not used again: what the logout did not end, its 5-minute expiry does.
-                Context = null;
-                _state = BotState.Stopped;
-            }
+            await DisconnectAsync(ct);
         }
-
-        _state = BotState.Stopped;
+        finally
+        {
+            await LogoutAsync();
+        }
     }
+
+    /// <summary>Disposes what the bot keeps for its life: the <see cref="GaveUp"/> source.</summary>
+    public void Dispose() => _gaveUp.Dispose();
 
     /// <summary>The next input number on the current connection; they restart at 1 on each connection.</summary>
     public uint NextSeq() => Interlocked.Increment(ref _seq);
@@ -308,6 +325,36 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     public ValueTask SendAsync(NetworkPacket packet, CancellationToken ct) =>
         (_connection ?? throw new InvalidOperationException($"Bot {index} has no connection.")).SendAsync(packet, ct);
 
+    /// <summary>Signs the game context out, best effort; the bot is <see cref="BotState.Stopped"/> after, with no context.</summary>
+    private async Task LogoutAsync()
+    {
+        if (Context is { } context)
+        {
+            long start = Stopwatch.GetTimestamp();
+            using var limit = new CancellationTokenSource(s_logoutTimeout);
+            try
+            {
+                await api.LogoutAsync(context, limit.Token);
+                StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
+            }
+            catch (ApiException error)
+            {
+                Note?.Invoke($"Logout: {error.Message}.");
+            }
+            catch (OperationCanceledException) when (limit.IsCancellationRequested)
+            {
+                Note?.Invoke($"Logout: no reply within {s_logoutTimeout.TotalSeconds:0} s.");
+            }
+            finally
+            {
+                // The context is not used again: what the logout did not end, its 5-minute expiry does.
+                Context = null;
+            }
+        }
+
+        _state = BotState.Stopped;
+    }
+
     private NetworkPacket SealInput(WorldConnection connection, uint seq, float dirX, float dirZ, ushort yaw)
     {
         NetworkPacket packet = connection.Seal(
@@ -318,7 +365,15 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     private async Task EnterOnceAsync(bool takeover, CancellationToken ct)
     {
-        GameContext context = Context!;
+        GameContext? context = Context;
+        if (context is null)
+        {
+            // The bot gave up since the entry began: SignInAgainAsync cancels GaveUp, which ct is linked to, before it
+            // clears the context, so this is a stop rather than a failure.
+            ct.ThrowIfCancellationRequested();
+            throw new InvalidOperationException($"Bot {index} lost its game context while entering.");
+        }
+
         JoinTicket ticket = await StepAsync("join", s_joinTimeout,
             token => api.JoinTicketAsync(context, worldId, takeover, token), ct);
         // The client asked for the run's world and checked the reply; a destination elsewhere is never dialled.
@@ -382,26 +437,29 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
 
         uint characterId = character.CharacterId;
-        Task spawned = await StepAsync("select", s_characterTimeout, async token =>
+        (Task spawned, long selectRead) = await StepAsync("select", s_characterTimeout, async token =>
         {
             await connection.RequestAsync(connection.Seal(new CCharacterSelectedPacket { CharacterId = characterId },
                 NetworkPacketType.CMSG_CHARACTER_SELECTED), NetworkPacketType.SMSG_CHARACTER_SELECTED, token);
+            long read = Stopwatch.GetTimestamp();
             // Armed before the load report: nothing of the world reaches a connection before its character spawns.
             Task signal = connection.ArmSpawnSignal();
             // At once: the world holds the spawn until the client reports it has loaded (15 s otherwise).
             await connection.SendAsync(connection.Seal(new CCharacterLoadedPacket(),
                 NetworkPacketType.CMSG_CHARACTER_LOADED), token);
-            return signal;
+            return (signal, read);
         }, ct);
         _state = BotState.Loaded;
 
-        // No input before the spawn is seen: one sent earlier would reach the world before its character does.
-        await StepAsync("spawn", s_spawnTimeout, async token =>
+        // No input before the spawn is seen: one sent earlier would reach the world before its character does. The wait
+        // counts from the select reply, as the world's barrier counts from the select.
+        TimeSpan spawnLeft = s_spawnTimeout - Stopwatch.GetElapsedTime(selectRead);
+        await StepAsync("spawn", spawnLeft > TimeSpan.Zero ? spawnLeft : TimeSpan.Zero, async token =>
         {
             Task first = await Task.WhenAny(spawned, connection.Closed).WaitAsync(token);
             if (first != spawned) throw new WorldClosedException("the connection closed before the character spawned");
             return true;
-        }, ct);
+        }, ct, timeoutReason: $"no spawn within {s_spawnTimeout.TotalSeconds:0} s of the select reply");
 
         await StepAsync("first-ack", s_firstAckTimeout, async token =>
         {
@@ -491,8 +549,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// Runs one step under its own timeout, reports its duration, and turns what can go wrong in it into a
     /// <see cref="BotStepException"/> whose kind names the step and the failure. The caller's cancellation stays one.
     /// </summary>
+    /// <param name="timeoutReason">What a timeout is reported as; by default, no answer within <paramref name="timeout"/>.</param>
     private async Task<T> StepAsync<T>(string step, TimeSpan timeout, Func<CancellationToken, Task<T>> work,
-        CancellationToken ct)
+        CancellationToken ct, string? timeoutReason = null)
     {
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
         limit.CancelAfter(timeout);
@@ -505,7 +564,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new BotStepException(step, $"{step}:timeout", $"no answer within {timeout.TotalSeconds:0} s");
+            throw new BotStepException(step, $"{step}:timeout", timeoutReason ?? $"no answer within {timeout.TotalSeconds:0} s");
         }
         catch (ApiException error)
         {

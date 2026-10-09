@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using Avalon.LoadTest.Api;
 
 namespace Avalon.LoadTest.Bots;
@@ -9,9 +11,11 @@ namespace Avalon.LoadTest.Bots;
 /// a jitter of 0 to 20 seconds drawn once per bot, so contexts signed in together do not all refresh in the same pass.
 /// A failed refresh is counted as a sign-in failure (<c>refresh</c>) and tried again the next pass, under the same
 /// <c>Idempotency-Key</c> while the refresh token is the same (<see cref="GameContextTokens.RefreshKey"/>). A context
-/// that can no longer be refreshed (401: revoked, its token spent or unknown) is counted once
-/// (<c>refresh:&lt;code&gt;</c>) and replaced by a fresh sign-in (<see cref="Bot.SignInAgainAsync"/>), taking a slot of
-/// <paramref name="signIns"/>, the runner's bound on concurrent sign-ins; a bot whose sign-in fails gives up for good.
+/// that can no longer be refreshed (401: revoked, its token spent or unknown; or a reply that does not authorize it) is
+/// counted once (<c>refresh:&lt;code or state&gt;</c>) and replaced by a fresh sign-in (<see cref="Bot.SignInAgainAsync"/>),
+/// taking a slot of <paramref name="signIns"/>, the runner's bound on concurrent sign-ins; a bot whose sign-in fails
+/// gives up for good. Those sign-ins run on a queue of their own, beside the passes: a pass only refreshes, so bulk
+/// sign-ins waiting for a slot never hold up the other bots' refreshes.
 /// </summary>
 public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot>> bots, BotMetrics metrics,
     SemaphoreSlim signIns)
@@ -19,14 +23,22 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
     private static readonly TimeSpan s_pass = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan s_maxJitter = TimeSpan.FromSeconds(20);
 
-    /// <summary>How many refreshes run at once; a pass holds them all before the next.</summary>
+    /// <summary>How many refreshes run at once; a pass holds them all before the next. Also the most sign-ins queued at once.</summary>
     private const int Concurrency = 16;
 
     private readonly ConditionalWeakTable<Bot, StrongBox<TimeSpan>> _jitter = [];
 
+    /// <summary>Bots whose context cannot be refreshed, waiting to sign in again, with that context.</summary>
+    private readonly Channel<(Bot Bot, GameContext Context)> _signInQueue =
+        Channel.CreateUnbounded<(Bot Bot, GameContext Context)>(new UnboundedChannelOptions { SingleReader = true });
+
+    /// <summary>The bots queued or signing in again: passes leave them alone, and none is queued twice.</summary>
+    private readonly ConcurrentDictionary<Bot, byte> _signingIn = new();
+
     /// <summary>Refreshes the bots due every 5 seconds until <paramref name="ct"/> is cancelled; the task then completes.</summary>
     public async Task RunAsync(CancellationToken ct)
     {
+        Task signingIn = SignInAgainLoopAsync(ct);
         using var timer = new PeriodicTimer(s_pass);
         try
         {
@@ -39,6 +51,8 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
         }
+
+        await signingIn;
     }
 
     private async Task PassAsync(CancellationToken ct)
@@ -49,8 +63,13 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
             var due = new List<(Bot Bot, GameContext Context)>();
             foreach (Bot bot in bots())
             {
-                // A bot leaving signs its context out; one stopped has none.
-                if (bot.State is BotState.Leaving or BotState.Stopped || bot.Context is not { } context) continue;
+                // A bot leaving signs its context out; one stopped has none; one signing in again gets a new one.
+                if (bot.State is BotState.Leaving or BotState.Stopped || bot.Context is not { } context ||
+                    _signingIn.ContainsKey(bot))
+                {
+                    continue;
+                }
+
                 if (context.RenewAt - Jitter(bot) <= now) due.Add((bot, context));
             }
 
@@ -75,11 +94,13 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
             // A context the bot let go of since (a leave signs it out) is not a failure.
             if (!ReferenceEquals(bot.Context, context) || bot.State is BotState.Leaving or BotState.Stopped) return;
 
-            if (error is ApiException { Status: 401 } refused)
+            // Terminal: a 401, or a reply that answered without authorizing the context. Counted once, then queued.
+            if (error is ApiException refused && (refused.Status == 401 || refused.State is not null))
             {
-                metrics.SignInFailed($"refresh:{refused.Detail}");
-                bot.Note?.Invoke($"The game context cannot be refreshed ({refused.Detail}); signing in again.");
-                await SignInAgainAsync(bot, ct);
+                string code = refused.State ?? refused.Detail;
+                metrics.SignInFailed($"refresh:{code}");
+                bot.Note?.Invoke($"The game context cannot be refreshed ({code}); signing in again.");
+                if (_signingIn.TryAdd(bot, 0)) _signInQueue.Writer.TryWrite((bot, context));
                 return;
             }
 
@@ -88,16 +109,48 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
         }
     }
 
-    private async Task SignInAgainAsync(Bot bot, CancellationToken ct)
+    /// <summary>
+    /// Signs the queued bots in again, up to <see cref="Concurrency"/> at once, each waiting for a slot of the shared
+    /// sign-in bound, until <paramref name="ct"/> is cancelled.
+    /// </summary>
+    private async Task SignInAgainLoopAsync(CancellationToken ct)
     {
-        await signIns.WaitAsync(ct);
         try
         {
-            await bot.SignInAgainAsync(ct);
+            await Parallel.ForEachAsync(_signInQueue.Reader.ReadAllAsync(ct),
+                new ParallelOptions { MaxDegreeOfParallelism = Concurrency, CancellationToken = ct },
+                (entry, token) => new ValueTask(SignInAgainAsync(entry.Bot, entry.Context, token)));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task SignInAgainAsync(Bot bot, GameContext context, CancellationToken ct)
+    {
+        try
+        {
+            await signIns.WaitAsync(ct);
+            try
+            {
+                // Left alone when the bot let go of that context while it waited: a leave signs it out.
+                if (ReferenceEquals(bot.Context, context) && bot.State is not (BotState.Leaving or BotState.Stopped))
+                    await bot.SignInAgainAsync(ct);
+            }
+            finally
+            {
+                signIns.Release();
+            }
+        }
+        catch (Exception error) when (!(error is OperationCanceledException && ct.IsCancellationRequested))
+        {
+            // A sign-in's own failures are the bot's (counted, and it gives up); anything else is counted here.
+            metrics.SignInFailed("refresh:unexpected");
+            bot.Note?.Invoke($"Signing in again failed: {error.Message}.");
         }
         finally
         {
-            signIns.Release();
+            _signingIn.TryRemove(bot, out _);
         }
     }
 

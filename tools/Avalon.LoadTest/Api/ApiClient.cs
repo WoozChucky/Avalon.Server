@@ -99,6 +99,10 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         CancellationToken ct)
     {
         const string Step = "join";
+        // The key is kept across the retries. A retry meeting a receipt the server already stored for it, issued while
+        // the context was at an earlier generation (a refresh rotated it in between), is answered 409
+        // IDEMPOTENCY_CONFLICT, which is not retried here: the attempt fails, and Bot.EnterAsync's next attempt asks
+        // again under a new key.
         JsonNode reply = await SendWithRetriesAsync(Step, "game/join-tickets", Guid.NewGuid(),
             () => new { gameContextCredential = context.Credential, worldId, confirmTakeover }, GameAuthErrors.ContextChanged,
             attemptTimeout: null, ct);
@@ -133,7 +137,8 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// 30 s the server keeps a refresh's receipt; a timeout, transport failure or 5xx is retried twice, and so is a 409
     /// <c>IN_PROGRESS</c> (the server lost the race to rotate the token; a retry of the same key either rotates it or
     /// is answered with what an earlier attempt of the key did). A 401 means the context cannot be refreshed again
-    /// (<c>CONTEXT_REVOKED</c>, <c>INVALID_REFRESH</c>, <c>REFRESH_REUSE</c>): sign in afresh.
+    /// (<c>CONTEXT_REVOKED</c>, <c>INVALID_REFRESH</c>, <c>REFRESH_REUSE</c>): sign in afresh. So does a reply that is
+    /// not authorized (<see cref="ApiException.State"/> set): the context is no longer one the world admits.
     /// </summary>
     public async Task RefreshAsync(GameContext context, CancellationToken ct)
     {
@@ -329,11 +334,12 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         }
     }
 
+    /// <summary>A reply whose <c>state</c> is not <c>authorized</c> is an <see cref="ApiException"/> carrying that state.</summary>
     private static void RequireAuthorized(JsonNode reply, string step)
     {
         string state = reply["state"]?.ToString() ?? "no state";
         if (!state.Equals("authorized", StringComparison.OrdinalIgnoreCase))
-            throw new ApiException(step, 200, reply["error"] is { } error ? $"{state}: {error}" : state);
+            throw new ApiException(step, 200, reply["error"] is { } error ? $"{state}: {error}" : state) { State = state };
     }
 
     private static string Required(JsonNode reply, string property, string step) =>
@@ -381,4 +387,10 @@ public sealed class ApiException(string step, int status, string detail)
 
     /// <summary>The reply's error code (<c>ACTIVE_GAME_SESSION</c>, ...), problem detail or title.</summary>
     public string Detail { get; } = detail;
+
+    /// <summary>
+    /// For a reply that answered but did not authorize (<c>state</c> other than <c>authorized</c>), that state:
+    /// <c>revoked</c>, <c>expired</c>, ... (<c>no state</c> when it had none); null for any other failure.
+    /// </summary>
+    public string? State { get; init; }
 }

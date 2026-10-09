@@ -35,7 +35,7 @@ public static class CheckCommand
 
         using var api = new ApiClient(run.Api, s_apiTimeout);
         var metrics = new BotMetrics();
-        var bot = new Bot(options.Bot, account, run.BotPassword, api, run.WorldId, options.Dial, metrics)
+        using var bot = new Bot(options.Bot, account, run.BotPassword, api, run.WorldId, options.Dial, metrics)
         {
             Behaviour = options.Behaviour,
             StepTimed = (step, took) => Console.WriteLine(Invariant($"  {step,-10} {took.TotalMilliseconds,8:0} ms")),
