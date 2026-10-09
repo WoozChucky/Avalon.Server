@@ -46,14 +46,17 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// <summary>List, create and select are database round trips; select also waits for another session's save.</summary>
     private static readonly TimeSpan s_characterTimeout = TimeSpan.FromSeconds(30);
 
-    /// <summary>Above the world's 15 s readiness barrier, which spawns a character whose load report was lost.</summary>
-    private static readonly TimeSpan s_spawnTimeout = TimeSpan.FromSeconds(30);
+    /// <summary>The world's readiness barrier: a character whose load report was lost spawns after 15 s anyway.</summary>
+    private static readonly TimeSpan s_spawnTimeout = TimeSpan.FromSeconds(15);
+
+    /// <summary>A character in the world has every input answered within a tick or two.</summary>
+    private static readonly TimeSpan s_firstAckTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>A leave waits for the character's logout save.</summary>
     private static readonly TimeSpan s_leaveTimeout = TimeSpan.FromSeconds(20);
 
-    /// <summary>How often a bot waiting for its spawn sends an idle input; the first one answered means it is in.</summary>
-    private static readonly TimeSpan s_spawnProbeInterval = TimeSpan.FromMilliseconds(50);
+    /// <summary>How often a spawned bot repeats its first idle input until one is answered.</summary>
+    private static readonly TimeSpan s_firstAckProbeInterval = TimeSpan.FromMilliseconds(50);
 
     private readonly Lock _ackLock = new();
     private volatile BotState _state = BotState.SignedOut;
@@ -133,6 +136,21 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
                 await EnterOnceAsync(takeover || attempt > 0, ct);
                 return;
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Stopped, not failed: nothing is counted, and no socket is left open.
+                await CloseAsync();
+                _state = BotState.SignedIn;
+                throw;
+            }
+            catch (Exception error) when (error is not BotStepException)
+            {
+                // Something no step maps: counted and closed like any failure, and not retried.
+                metrics.EntryFailed("entry:unexpected");
+                await CloseAsync();
+                _state = BotState.SignedIn;
+                throw;
+            }
             catch (BotStepException error)
             {
                 metrics.EntryFailed(error.Kind);
@@ -168,6 +186,11 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             metrics.EntryFailed(error.Kind);
             throw;
         }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            metrics.EntryFailed("change:unexpected");
+            throw;
+        }
     }
 
     /// <summary>
@@ -180,23 +203,23 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         {
             BotState was = _state;
             _state = BotState.Leaving;
-            // A leave is answered only once the handshake is done; before it the world ignores it.
-            if (was is BotState.Selecting or BotState.Loaded or BotState.InWorld && !connection.Closed.IsCompleted)
+            try
             {
-                try
-                {
+                // A leave is answered only once the handshake is done; before it the world ignores it.
+                if (was is BotState.Selecting or BotState.Loaded or BotState.InWorld && !connection.Closed.IsCompleted)
                     await LeaveCharacterAsync(connection, ct);
-                }
-                catch (BotStepException error)
-                {
-                    Note?.Invoke($"Leave: {error.Reason}; closing the connection anyway.");
-                }
             }
-
-            await CloseAsync();
+            catch (BotStepException error)
+            {
+                Note?.Invoke($"Leave: {error.Reason}; closing the connection anyway.");
+            }
+            finally
+            {
+                // Whatever happened to the leave, a cancel included, the socket is closed.
+                await CloseAsync();
+                _state = Context is null ? BotState.SignedOut : BotState.SignedIn;
+            }
         }
-
-        _state = Context is null ? BotState.SignedOut : BotState.SignedIn;
     }
 
     /// <summary>Leaves the world (<see cref="DisconnectAsync"/>) and signs the game context out.</summary>
@@ -209,14 +232,18 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             try
             {
                 await api.LogoutAsync(context, ct);
+                StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
             }
             catch (ApiException error)
             {
                 Note?.Invoke($"Logout: {error.Message}.");
             }
-
-            Context = null;
-            StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
+            finally
+            {
+                // The context is not used again: what the logout did not end, its 5-minute expiry does.
+                Context = null;
+                _state = BotState.Stopped;
+            }
         }
 
         _state = BotState.Stopped;
@@ -227,20 +254,28 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>
     /// A sealed <c>CMSG_PLAYER_INPUT</c> for the current connection, its send time noted for the ack latency: send it
-    /// at once with <see cref="SendAsync"/>.
+    /// at once with <see cref="SendAsync"/>. Only while <see cref="BotState.InWorld"/>, so the input driver is the only
+    /// sender of inputs: entry and Change Character send their own, and an <see cref="InvalidOperationException"/> here
+    /// means the bot left the world since the caller looked.
     /// </summary>
     public NetworkPacket NextInput(uint seq, float dirX, float dirZ, ushort yaw)
     {
+        if (_state != BotState.InWorld) throw new InvalidOperationException($"Bot {index} is not in the world.");
         WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} has no connection.");
-        NetworkPacket packet = connection.Seal(
-            new CPlayerInputPacket { Seq = seq, DirX = dirX, DirZ = dirZ, YawDeg = yaw }, NetworkPacketType.CMSG_PLAYER_INPUT);
-        metrics.InputSent(index, seq, Stopwatch.GetTimestamp());
-        return packet;
+        return SealInput(connection, seq, dirX, dirZ, yaw);
     }
 
     /// <summary>Sends a packet on the current connection.</summary>
     public ValueTask SendAsync(NetworkPacket packet, CancellationToken ct) =>
         (_connection ?? throw new InvalidOperationException($"Bot {index} has no connection.")).SendAsync(packet, ct);
+
+    private NetworkPacket SealInput(WorldConnection connection, uint seq, float dirX, float dirZ, ushort yaw)
+    {
+        NetworkPacket packet = connection.Seal(
+            new CPlayerInputPacket { Seq = seq, DirX = dirX, DirZ = dirZ, YawDeg = yaw }, NetworkPacketType.CMSG_PLAYER_INPUT);
+        metrics.InputSent(index, seq, Stopwatch.GetTimestamp());
+        return packet;
+    }
 
     private async Task EnterOnceAsync(bool takeover, CancellationToken ct)
     {
@@ -293,10 +328,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         {
             SCharacterCreateResult result = await StepAsync("create", s_characterTimeout, async token =>
             {
-                await connection.SendAsync(connection.Seal(
+                NetworkPacket reply = await connection.RequestAsync(connection.Seal(
                     new CCharacterCreatePacket { Name = account, Class = index % 4 + 1, Gender = index % 2 },
-                    NetworkPacketType.CMSG_CHARACTER_CREATE), token);
-                NetworkPacket reply = await connection.ExpectAsync(NetworkPacketType.SMSG_CHARACTER_CREATED, token);
+                    NetworkPacketType.CMSG_CHARACTER_CREATE), NetworkPacketType.SMSG_CHARACTER_CREATED, token);
                 return connection.Codec.Decode<SCharacterCreatedPacket>(reply).Result;
             }, ct);
 
@@ -309,19 +343,28 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
 
         uint characterId = character.CharacterId;
-        await StepAsync("select", s_characterTimeout, async token =>
+        Task spawned = await StepAsync("select", s_characterTimeout, async token =>
         {
-            await connection.SendAsync(connection.Seal(new CCharacterSelectedPacket { CharacterId = characterId },
-                NetworkPacketType.CMSG_CHARACTER_SELECTED), token);
-            await connection.ExpectAsync(NetworkPacketType.SMSG_CHARACTER_SELECTED, token);
+            await connection.RequestAsync(connection.Seal(new CCharacterSelectedPacket { CharacterId = characterId },
+                NetworkPacketType.CMSG_CHARACTER_SELECTED), NetworkPacketType.SMSG_CHARACTER_SELECTED, token);
+            // Armed before the load report: nothing of the world reaches a connection before its character spawns.
+            Task signal = connection.ArmSpawnSignal();
             // At once: the world holds the spawn until the client reports it has loaded (15 s otherwise).
             await connection.SendAsync(connection.Seal(new CCharacterLoadedPacket(),
                 NetworkPacketType.CMSG_CHARACTER_LOADED), token);
-            return true;
+            return signal;
         }, ct);
         _state = BotState.Loaded;
 
+        // No input before the spawn is seen: one sent earlier would reach the world before its character does.
         await StepAsync("spawn", s_spawnTimeout, async token =>
+        {
+            Task first = await Task.WhenAny(spawned, connection.Closed).WaitAsync(token);
+            if (first != spawned) throw new WorldClosedException("the connection closed before the character spawned");
+            return true;
+        }, ct);
+
+        await StepAsync("first-ack", s_firstAckTimeout, async token =>
         {
             await WaitForFirstAckAsync(connection, token);
             return true;
@@ -334,15 +377,16 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     private Task<CharacterInfo?> ListAsync(WorldConnection connection, CancellationToken ct) =>
         StepAsync("list", s_characterTimeout, async token =>
         {
-            await connection.SendAsync(connection.Seal(new CCharacterListPacket(), NetworkPacketType.CMSG_CHARACTER_LIST), token);
-            NetworkPacket reply = await connection.ExpectAsync(NetworkPacketType.SMSG_CHARACTER_LIST, token);
+            NetworkPacket reply = await connection.RequestAsync(
+                connection.Seal(new CCharacterListPacket(), NetworkPacketType.CMSG_CHARACTER_LIST),
+                NetworkPacketType.SMSG_CHARACTER_LIST, token);
             CharacterInfo[]? characters = connection.Codec.Decode<SCharacterListPacket>(reply).Characters;
             return characters?.FirstOrDefault(c => string.Equals(c.Name, account, StringComparison.OrdinalIgnoreCase));
         }, ct);
 
     /// <summary>
-    /// Idle inputs until one is answered: the world drops input from a connection whose character has not spawned yet,
-    /// and answers every one after, so the first ack is the moment the character is in the world.
+    /// After the spawn is seen: an idle input, repeated until one is answered. The world answers every input of a
+    /// character in an instance, so the first ack is the moment the bot is in the world.
     /// </summary>
     private async Task WaitForFirstAckAsync(WorldConnection connection, CancellationToken ct)
     {
@@ -352,12 +396,10 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         {
             while (!firstAck.Task.IsCompleted)
             {
-                // The probes the world dropped are never answered: none is held long enough to count as latency.
-                metrics.ForgetPending(index);
-                await connection.SendAsync(NextInput(NextSeq(), 0f, 0f, 0), ct);
+                await connection.SendAsync(SealInput(connection, NextSeq(), 0f, 0f, 0), ct);
                 Task closed = connection.Closed;
-                Task first = await Task.WhenAny(firstAck.Task, closed, Task.Delay(s_spawnProbeInterval, ct));
-                if (first == closed) throw new WorldClosedException("the connection closed before the character spawned");
+                Task first = await Task.WhenAny(firstAck.Task, closed, Task.Delay(s_firstAckProbeInterval, ct));
+                if (first == closed) throw new WorldClosedException("the connection closed before an input was answered");
                 ct.ThrowIfCancellationRequested();
             }
         }
@@ -371,8 +413,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     {
         CharacterLeaveResult result = await StepAsync("leave", s_leaveTimeout, async token =>
         {
-            await connection.SendAsync(connection.Seal(new CCharacterLeavePacket(), NetworkPacketType.CMSG_CHARACTER_LEAVE), token);
-            NetworkPacket reply = await connection.ExpectAsync(NetworkPacketType.SMSG_CHARACTER_LEAVE_RESULT, token);
+            NetworkPacket reply = await connection.RequestAsync(
+                connection.Seal(new CCharacterLeavePacket(), NetworkPacketType.CMSG_CHARACTER_LEAVE),
+                NetworkPacketType.SMSG_CHARACTER_LEAVE_RESULT, token);
             return connection.Codec.Decode<SCharacterLeaveResultPacket>(reply).Result;
         }, ct);
         if (result != CharacterLeaveResult.Left)
@@ -433,13 +476,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
                 : error.Status.ToString(System.Globalization.CultureInfo.InvariantCulture);
             throw new BotStepException(step, $"{step}:{code}", error.Message);
         }
-        catch (AdmissionRefusedException error)
-        {
-            throw new BotStepException(step, $"{step}:{error.Result}", error.Message);
-        }
         catch (WorldRefusedException error)
         {
-            throw new BotStepException(step, $"{step}:refused", error.Message);
+            throw new BotStepException(step, $"{step}:{error.Code}", error.Message);
         }
         catch (WorldClosedException error)
         {
@@ -459,7 +498,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
 /// <summary>A step of a bot's way into or out of the world failed.</summary>
 /// <param name="step">The step: <c>sign-in</c>, <c>join</c>, <c>connect</c>, <c>admission</c>, <c>handshake</c>,
-/// <c>list</c>, <c>create</c>, <c>select</c>, <c>spawn</c> or <c>leave</c>.</param>
+/// <c>list</c>, <c>create</c>, <c>select</c>, <c>spawn</c>, <c>first-ack</c> or <c>leave</c>.</param>
 /// <param name="kind">The step and what went wrong, for the failure counts: <c>join:ActiveGameSession</c>, <c>spawn:timeout</c>, ...</param>
 /// <param name="reason">What went wrong, for a person; never a secret.</param>
 public sealed class BotStepException(string step, string kind, string reason) : Exception($"{step}: {reason}")

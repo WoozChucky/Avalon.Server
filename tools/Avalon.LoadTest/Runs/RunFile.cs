@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -100,6 +101,18 @@ public sealed record RunFile(
 
     /// <summary>Forgets the run: its accounts are gone.</summary>
     public void Delete() => File.Delete(FilePath);
+
+    /// <summary>The record's text without the bots' password.</summary>
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("RunId = ").Append(RunId)
+            .Append(", RunIds = [").AppendJoin(", ", RunIds)
+            .Append("], Api = ").Append(Api)
+            .Append(", WorldId = ").Append(WorldId)
+            .Append(", BotPassword = (redacted), Bots = ").Append(Bots.Count)
+            .Append(", CreatedAt = ").Append(CreatedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
+        return true;
+    }
 
     private static string PathOf(string runId) => Path.Combine(Directory, runId + ".json");
 

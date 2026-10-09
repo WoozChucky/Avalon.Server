@@ -41,6 +41,7 @@ public sealed class WorldConnection : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private int _disposed;
     private volatile string? _closeReason;
+    private volatile TaskCompletionSource? _worldState;
 
     private WorldConnection(Socket socket, SslStream stream)
     {
@@ -98,6 +99,7 @@ public sealed class WorldConnection : IAsyncDisposable
         CancellationToken ct)
     {
         byte[] pin = Pin(destination.TlsCertificateSha256);
+        string? refusal = null;
         var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
         try
         {
@@ -112,8 +114,13 @@ public sealed class WorldConnection : IAsyncDisposable
                     // The pin is the trust anchor: there is no chain whose revocation could be asked about.
                     CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                     RemoteCertificateValidationCallback = (_, certificate, chain, errors) =>
-                        IsPinned(certificate, chain, errors, pin),
+                        (refusal = Refusal(certificate, chain, errors, pin)) is null,
                 }, ct);
+            }
+            catch (AuthenticationException) when (refusal is not null)
+            {
+                await stream.DisposeAsync();
+                throw new WorldRefusedException($"the world's certificate was refused: {refusal}", "tls");
             }
             catch
             {
@@ -137,20 +144,27 @@ public sealed class WorldConnection : IAsyncDisposable
     /// </summary>
     public async Task AdmitAsync(string joinTicket, CancellationToken ct)
     {
-        await SendAsync(CGameAdmissionPacket.Create(joinTicket, _publicKey), ct);
-        NetworkPacket reply = await ExpectAsync(NetworkPacketType.SMSG_GAME_ADMISSION, ct);
+        NetworkPacket reply = await RequestAsync(CGameAdmissionPacket.Create(joinTicket, _publicKey),
+            NetworkPacketType.SMSG_GAME_ADMISSION, ct);
         SGameAdmissionPacket admission = Codec.Decode<SGameAdmissionPacket>(reply);
         if (admission.Result != GameAdmissionResult.Accepted)
             throw new AdmissionRefusedException(admission.Result);
 
-        _session.Initialize(admission.PublicKey);
+        try
+        {
+            _session.Initialize(admission.PublicKey);
+        }
+        catch (Exception error)
+        {
+            throw new WorldRefusedException($"the server's session key is unusable ({error.GetType().Name})", "bad-key");
+        }
     }
 
     /// <summary>Sends the client version and waits for the server to verify it; a refusal is a <see cref="WorldRefusedException"/>.</summary>
     public async Task HandshakeAsync(string version, CancellationToken ct)
     {
-        await SendAsync(CWorldHandshakePacket.Create(version, _session.Encryptor), ct);
-        NetworkPacket reply = await ExpectAsync(NetworkPacketType.SMSG_WORLD_HANDSHAKE, ct);
+        NetworkPacket reply = await RequestAsync(CWorldHandshakePacket.Create(version, _session.Encryptor),
+            NetworkPacketType.SMSG_WORLD_HANDSHAKE, ct);
         if (!Codec.Decode<SWorldHandshakePacket>(reply).Verified)
             throw new WorldRefusedException($"the server did not verify client version {version}");
     }
@@ -174,6 +188,32 @@ public sealed class WorldConnection : IAsyncDisposable
         {
             _sendLock.Release();
         }
+    }
+
+    /// <summary>
+    /// Sends a request and waits for its answer of <paramref name="replyType"/>. What <see cref="Inbound"/> still holds
+    /// is dropped first: a late answer to an earlier request that timed out must not pass for this one's.
+    /// </summary>
+    public async Task<NetworkPacket> RequestAsync(NetworkPacket request, NetworkPacketType replyType, CancellationToken ct)
+    {
+        while (_inbound.Reader.TryRead(out _))
+        {
+        }
+
+        await SendAsync(request, ct);
+        return await ExpectAsync(replyType, ct);
+    }
+
+    /// <summary>
+    /// A task that completes on the first world-state frame (<c>SMSG_WORLD_STATE_ADD</c>, <c>_UPDATE</c> or
+    /// <c>_REMOVE</c>) read after this call: the world sends them only to a character in an instance, so the first is
+    /// the sign the selected character has spawned. Only the header is looked at.
+    /// </summary>
+    public Task ArmSpawnSignal()
+    {
+        var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _worldState = signal;
+        return signal.Task;
     }
 
     /// <summary>
@@ -237,6 +277,10 @@ public sealed class WorldConnection : IAsyncDisposable
                     case NetworkPacketType.SMSG_PING:
                         Pong(packet);
                         break;
+                    case NetworkPacketType.SMSG_WORLD_STATE_ADD or NetworkPacketType.SMSG_WORLD_STATE_UPDATE
+                        or NetworkPacketType.SMSG_WORLD_STATE_REMOVE:
+                        if (_worldState is not null) Interlocked.Exchange(ref _worldState, null)?.TrySetResult();
+                        break;
                     case NetworkPacketType.SMSG_DISCONNECT:
                         DisconnectReason = Codec.Decode<SDisconnectPacket>(packet).ReasonCode;
                         break;
@@ -292,32 +336,49 @@ public sealed class WorldConnection : IAsyncDisposable
     private static byte[] Pin(string sha256Hex)
     {
         if (sha256Hex.Length != 64 || !sha256Hex.All(Uri.IsHexDigit))
-            throw new WorldRefusedException("the destination's certificate pin is not a SHA-256 digest in hex");
+            throw new WorldRefusedException("the destination's certificate pin is not a SHA-256 digest in hex", "bad-pin");
 
         return Convert.FromHexString(sha256Hex);
     }
 
     /// <summary>
-    /// The exact certificate pinned, with its name, validity and usage intact: of the chain's complaints only an
-    /// untrusted or unknown issuer (a self-signed or privately issued certificate) is tolerated.
+    /// Null for the exact certificate pinned, with its name, validity and usage intact (of the chain's complaints only
+    /// an untrusted or unknown issuer, a self-signed or privately issued certificate, is tolerated); otherwise why it
+    /// is refused: the policy errors, the chain status flags, or the presented certificate's (public) digest.
     /// </summary>
-    private static bool IsPinned(X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors, byte[] pin)
+    private static string? Refusal(X509Certificate? certificate, X509Chain? chain, SslPolicyErrors errors, byte[] pin)
     {
-        if (certificate is null || (errors & ~SslPolicyErrors.RemoteCertificateChainErrors) != 0) return false;
-        if (!CryptographicOperations.FixedTimeEquals(SHA256.HashData(certificate.GetRawCertData()), pin)) return false;
-        if ((errors & SslPolicyErrors.RemoteCertificateChainErrors) == 0) return true;
+        if (certificate is null) return "the world presented no certificate";
+        if ((errors & ~SslPolicyErrors.RemoteCertificateChainErrors) != 0)
+            return $"policy errors {errors & ~SslPolicyErrors.RemoteCertificateChainErrors}";
+
+        byte[] presented = SHA256.HashData(certificate.GetRawCertData());
+        if (!CryptographicOperations.FixedTimeEquals(presented, pin))
+            return $"the certificate presented (SHA-256 {Convert.ToHexString(presented)}) is not the pinned one";
+
+        if ((errors & SslPolicyErrors.RemoteCertificateChainErrors) == 0) return null;
+        if (chain is null) return "the certificate's chain could not be built";
 
         const X509ChainStatusFlags Tolerated = X509ChainStatusFlags.UntrustedRoot | X509ChainStatusFlags.PartialChain;
-        return chain is not null && chain.ChainStatus.All(status => (status.Status & ~Tolerated) == 0);
+        X509ChainStatusFlags refused = X509ChainStatusFlags.NoError;
+        foreach (X509ChainStatus status in chain.ChainStatus) refused |= status.Status & ~Tolerated;
+        return refused == X509ChainStatusFlags.NoError ? null : $"chain status {refused}";
     }
 }
 
-/// <summary>The world refused a step: a version it does not verify, or a destination the tool cannot pin.</summary>
-public class WorldRefusedException(string message) : Exception(message);
+/// <summary>
+/// The world refused a step, or the tool refused the world: a version it does not verify, a certificate that is not
+/// the pinned one, an unusable session key, a destination the tool cannot pin.
+/// </summary>
+/// <param name="code">One word for the failure counts: <c>refused</c>, <c>tls</c>, <c>bad-key</c>, <c>bad-pin</c>, or an admission result.</param>
+public class WorldRefusedException(string message, string code = "refused") : Exception(message)
+{
+    public string Code { get; } = code;
+}
 
 /// <summary>The world refused the admission; it closes the connection.</summary>
 public sealed class AdmissionRefusedException(GameAdmissionResult result)
-    : WorldRefusedException($"the world refused the admission: {result}")
+    : WorldRefusedException($"the world refused the admission: {result}", result.ToString())
 {
     /// <summary>The world's answer: <c>InvalidRequest</c>, <c>AuthorizationRequired</c>, ...</summary>
     public GameAdmissionResult Result { get; } = result;

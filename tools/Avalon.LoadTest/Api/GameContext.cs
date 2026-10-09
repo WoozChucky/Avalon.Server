@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Avalon.LoadTest.Api;
 
 /// <summary>
@@ -30,4 +32,12 @@ public sealed class GameContext
 public sealed record WorldDestination(ushort WorldId, string Host, int Port, string TlsServerName, string TlsCertificateSha256);
 
 /// <summary>A one-use join ticket (30 seconds at most) and the world server that redeems it.</summary>
-public sealed record JoinTicket(string Ticket, WorldDestination Destination);
+public sealed record JoinTicket(string Ticket, WorldDestination Destination)
+{
+    /// <summary>The record's text without the ticket, which is a credential until redeemed.</summary>
+    private bool PrintMembers(StringBuilder builder)
+    {
+        builder.Append("Ticket = (redacted), Destination = ").Append(Destination);
+        return true;
+    }
+}
