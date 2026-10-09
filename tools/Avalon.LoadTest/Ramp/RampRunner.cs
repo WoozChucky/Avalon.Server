@@ -72,6 +72,12 @@ public sealed record RampResult(
     /// 5 minutes. 0 while the stop sequence is still running.
     /// </summary>
     public int SignOutsSkipped { get; init; }
+
+    /// <summary>
+    /// Leaves skipped because the world was taken as hung (the leave <see cref="Breaker"/>): their sockets were closed
+    /// at once. 0 while the stop sequence is still running.
+    /// </summary>
+    public int LeavesSkipped { get; init; }
 }
 
 /// <summary>
@@ -126,6 +132,9 @@ public sealed class RampRunner(RunFile run, RampOptions options)
 
     /// <summary>The run's sign-out breaker, shared by every bot and the refresher.</summary>
     private readonly SignOutBreaker _signOuts = new();
+
+    /// <summary>The run's leave breaker, shared by every bot.</summary>
+    private readonly Breaker _leaves = new();
     private int _nextIndex;
     private int _signIns;
     private TimeSpan _signInTime;
@@ -263,6 +272,11 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         await background.CancelAsync();
         await Task.WhenAll(driving, refreshing).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         DisposeBots();
+        if (_leaves.Skipped > 0)
+        {
+            Console.Error.WriteLine(Invariant($"World unresponsive: {_leaves.Skipped} leaves skipped; sockets closed."));
+        }
+
         if (_signOuts.Skipped > 0)
         {
             Console.Error.WriteLine(Invariant(
@@ -281,6 +295,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             SignInFailures = signInFailures,
             WorldDrained = drained,
             SignOutsSkipped = _signOuts.Skipped,
+            LeavesSkipped = _leaves.Skipped,
         };
     }
 
@@ -375,7 +390,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             for (int i = 0; i < round; i++, _nextIndex++)
             {
                 bots[i] = new Bot(_nextIndex, run.Bots[_nextIndex], run.BotPassword, api, run.WorldId, options.Dial,
-                    metrics, _signOuts);
+                    metrics, _signOuts, _leaves);
             }
 
             long start = Stopwatch.GetTimestamp();

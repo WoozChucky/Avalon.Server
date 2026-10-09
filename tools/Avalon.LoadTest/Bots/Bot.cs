@@ -25,8 +25,9 @@ public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, flo
 /// leave, its life loop and the refresher are done.
 /// </summary>
 /// <param name="signOuts">The ramp's sign-out breaker, shared by its bots and its refresher; null for one of the bot's own.</param>
+/// <param name="leaves">The ramp's leave breaker, shared by its bots; null for one of the bot's own.</param>
 public sealed class Bot(int index, string account, string password, ApiClient api, ushort worldId, string? dialHost,
-    BotMetrics metrics, SignOutBreaker? signOuts = null) : IDisposable
+    BotMetrics metrics, SignOutBreaker? signOuts = null, Breaker? leaves = null) : IDisposable
 {
     /// <summary>The version the handshake sends: the protocol the provider attempt names.</summary>
     public const string ClientVersion = ApiClient.ProtocolVersion;
@@ -83,6 +84,14 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// after the leave was cancelled, and is skipped once the API is taken as down.
     /// </summary>
     private readonly SignOutBreaker _signOuts = signOuts ?? new SignOutBreaker();
+
+    /// <summary>
+    /// Every leave of <see cref="DisconnectAsync"/> goes through it: once 32 in a row went unanswered for 20 s
+    /// (<c>leave:timeout</c>; a closed connection is not that), the world is taken as hung and the leave is skipped (but
+    /// for a probe every 5 s), the socket closed at once; the world ends the session on the close. A <c>Left</c> reply
+    /// closes the breaker again.
+    /// </summary>
+    private readonly Breaker _leaves = leaves ?? new Breaker();
     private readonly CancellationTokenSource _gaveUp = new();
 
     /// <summary>Guards <see cref="Context"/>'s last change: the leave's sign-out against a re-sign-in landing after it.</summary>
@@ -302,12 +311,18 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             _state = BotState.Leaving;
             try
             {
-                // A leave is answered only once the handshake is done; before it the world ignores it.
-                if (was is BotState.Selecting or BotState.Loaded or BotState.InWorld && !connection.Closed.IsCompleted)
+                // A leave is answered only once the handshake is done; before it the world ignores it. Skipped (the
+                // breaker counts it) while the world is taken as hung: the close below ends the session.
+                if (was is BotState.Selecting or BotState.Loaded or BotState.InWorld && !connection.Closed.IsCompleted &&
+                    _leaves.TryEnter())
+                {
                     await LeaveCharacterAsync(connection, ct);
+                    _leaves.Succeeded();
+                }
             }
             catch (BotStepException error)
             {
+                if (error.Kind == "leave:timeout") _leaves.Failed();
                 Note?.Invoke($"Leave: {error.Reason}; closing the connection anyway.");
             }
             finally

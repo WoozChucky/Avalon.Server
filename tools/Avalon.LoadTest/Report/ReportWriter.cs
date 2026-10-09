@@ -188,6 +188,11 @@ public static class ReportWriter
             false => "- After the stop the world's players online had not come back to the count before the ramp within 90 s: wait before cleanup.",
             null => "- World drained: pending. The bots were still leaving when this was written; the report is rewritten when they are gone.",
         });
+        if (result.LeavesSkipped > 0)
+        {
+            md.AppendLine(Invariant($"- World unresponsive: {result.LeavesSkipped} leaves skipped; sockets closed."));
+        }
+
         if (result.SignOutsSkipped > 0)
         {
             md.AppendLine(Invariant(
@@ -241,6 +246,7 @@ public static class ReportWriter
                 result.SignInFailures,
                 result.WorldDrained,
                 result.SignOutsSkipped,
+                result.LeavesSkipped,
             },
         };
         return JsonSerializer.Serialize(report, s_json);
