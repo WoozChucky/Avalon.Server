@@ -13,6 +13,8 @@ CRequestServerInfoPacket → SServerInfoPacket (the client's version against App
    CMFASetupPacket / CMFAConfirmPacket / CMFAResetPacket (MFA management, each after PostLoginGuard)
 ```
 
+**`CMSG_REGISTER` has no handler, on purpose.** The auth server is kept as it is, and accounts are registered through the REST API (identity), never over TCP. `CRegisterPacket` still exists, so at startup `PacketManager` warns that it "does not have a handler", a client that sends it is answered with nothing but a "Could not find a handler" warning, and `AuthHostGraphShould` expects it to be the one auth packet without a handler factory (#866). All three are expected; neither the warning nor the test is a gap to fix.
+
 A login that passes every check ends in `GameLoginCompletion`. An account already online is answered `ALREADY_CONNECTED`: the server publishes the account on `world:accounts:disconnect` (noting its own publish, see the key list below) and closes the account's other auth connection, or, when it finds none, clears the stale flag with `MarkOfflineAsync`. Otherwise the login is written by column (`TryRecordLoginAsync`, with this connection's id as the online session), the connection keeps the account, its credentials version and the login time, `auth:accounts:online` is published, and `SAuthResultPacket` answers `SUCCESS` with the account id.
 
 ## World entry

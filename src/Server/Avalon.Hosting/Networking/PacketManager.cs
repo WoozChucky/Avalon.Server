@@ -1,11 +1,13 @@
 using System.Reflection;
 using Avalon.Network.Packets.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Hosting.Networking;
 
 /// <summary>
-/// Stores meta information about packets. This information should be only used for deserialization.
+/// Stores meta information about packets: each one's type and the handler it dispatches to. Built once, at
+/// startup, and read-only afterwards, so every connection reads it concurrently without a lock (#866).
 /// </summary>
 public interface IPacketManager
 {
@@ -70,7 +72,9 @@ public class PacketManager : IPacketManager
                 continue;
             }
 
-            _infos.Add(networkPacketType, new PacketInfo(packetType, packetHandlerType));
+            // Built here, once, at startup (#866): dispatch only reads it, so no connection writes shared state.
+            ObjectFactory handlerFactory = ActivatorUtilities.CreateFactory(packetHandlerType, []);
+            _infos.Add(networkPacketType, new PacketInfo(packetType, packetHandlerType, handlerFactory));
 
             logger.LogDebug("Registered packet {Header} with handler {HandlerType}", networkPacketType, packetHandlerType);
 
