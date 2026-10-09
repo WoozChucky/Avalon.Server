@@ -29,12 +29,15 @@ public interface ILoadTestAccounts
     Task<LoadTestRunCreated> CreateAsync(AccountId admin, CreateLoadTestRunRequest request, CancellationToken ct);
 
     /// <summary>
-    /// Deletes run <paramref name="runId"/>'s accounts (every load-test account when null) for <paramref name="admin"/>,
-    /// who has already proved their current password, with their characters in every configured world. 400
-    /// (<see cref="BusinessException"/>) for a run id outside the rules; 409 (<see cref="LoadTestConflictException"/>),
-    /// with nothing deleted, while one of them plays or a world's database is unavailable.
+    /// Deletes run <paramref name="runId"/>'s accounts, or every load-test account when <paramref name="all"/> is true,
+    /// for <paramref name="admin"/>, who has already proved their current password, with their characters in every
+    /// configured world. Exactly one of the two: neither, both, or an empty or blank run id is a 400
+    /// (<see cref="BusinessException"/>), as is a run id outside the rules. 409 (<see cref="LoadTestConflictException"/>)
+    /// with nothing deleted while one of them plays or a world's database is unavailable; 409 too when a bot enters a
+    /// game during the delete, after the run's characters were removed but before its accounts were: stop the bots
+    /// and repeat the request to finish it.
     /// </summary>
-    Task<LoadTestRunDeleted> DeleteAsync(AccountId admin, string? runId, CancellationToken ct);
+    Task<LoadTestRunDeleted> DeleteAsync(AccountId admin, string? runId, bool all, CancellationToken ct);
 }
 
 /// <summary>

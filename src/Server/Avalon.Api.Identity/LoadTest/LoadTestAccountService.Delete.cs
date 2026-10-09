@@ -20,12 +20,14 @@ namespace Avalon.Api.Identity.LoadTest;
 /// no store identity, store creation or consolidation, no email, no role beyond <c>Player | PTR</c>. One that holds the
 /// run's license and anything else is skipped and named in the reply, never deleted.
 /// <para>
+/// Every run is deleted only when asked for by name (<c>all</c>); a blank run id is refused, never read as every run.
 /// Nothing is deleted while any selected account is in a game session, holds a live gameplay fence or has a character
 /// online in any configured world, or while a configured world's database is unavailable (409). Then, per world, the
 /// accounts' characters (their rows cascade) and gameplay fences; then, in one auth transaction, the license
 /// observations and holds that point at their licenses without cascading, the licenses, and the accounts (everything
-/// else cascades); then a disconnect for each. A failure after the world sweep leaves the auth rows, so the same request
-/// again finishes the run.
+/// else cascades); then the world sweep again, best-effort, for what a bot still running created meanwhile; then a
+/// disconnect for each account deleted. A failure after the world sweep, or a bot entering a game during it (409), leaves
+/// the auth rows, so the same request again, once the bots are stopped, finishes the run.
 /// </para>
 /// </summary>
 public sealed partial class LoadTestAccountService
@@ -33,19 +35,16 @@ public sealed partial class LoadTestAccountService
     /// <summary>All a run's account holds: anything beyond is a person's, and keeps the account.</summary>
     private const AccountAccessLevel BotAccess = AccountAccessLevel.Player | AccountAccessLevel.PTR;
 
-    public async Task<LoadTestRunDeleted> DeleteAsync(AccountId admin, string? runId, CancellationToken ct)
+    public async Task<LoadTestRunDeleted> DeleteAsync(AccountId admin, string? runId, bool all, CancellationToken ct)
     {
-        string? run = null;
-        if (runId is not null)
-        {
-            if (runId.Length != RunIdLength || !runId.All(char.IsAsciiLetter))
-                throw new BusinessException($"A run id is {RunIdLength} ASCII letters.");
-            run = runId.ToUpperInvariant();
-        }
+        if (all && runId is not null)
+            throw new BusinessException("Name one run or every run, not both.");
+        string? run = all ? null : ParseRunScope(runId);
 
         Selection selection = await auth.ExecuteAsync((db, token) => SelectAsync(db, run, token), ct);
         AccountId[] ids = selection.Accounts;
-        int deleted = 0;
+        AccountId[] deleted = [];
+        List<string> skipped = [.. selection.Skipped];
         if (ids.Length > 0)
         {
             DateTime now = clock.GetUtcNow().UtcDateTime;
@@ -66,18 +65,44 @@ public sealed partial class LoadTestAccountService
 
             deleted = await auth.ExecuteAsync((db, token) => DeleteAccountsAsync(db, run, ids, now, token), ct);
 
-            foreach (AccountId id in ids)
-                await PublishDisconnectAsync(id);
+            // Kept by the second look inside the auth transaction: they gained something of a person's meanwhile.
+            var gone = deleted.Select(id => id.Value).ToHashSet();
+            skipped.AddRange(ids.Where(id => !gone.Contains(id.Value)).Select(id => selection.Names[id.Value]));
+            skipped.Sort(StringComparer.Ordinal);
+
+            if (deleted.Length > 0)
+            {
+                // A bot still running could have created a character between the sweep and the commit.
+                foreach (WorldId world in worlds)
+                    await SweepAgainAsync(world, deleted, ct);
+                foreach (AccountId id in deleted)
+                    await PublishDisconnectAsync(id);
+            }
         }
 
         logger.LogInformation(
             "Admin {AdminId} deleted load-test run {RunId}: {Deleted} accounts deleted, {Skipped} skipped",
-            admin.Value, run ?? "all", deleted, selection.Skipped.Count);
-        return new LoadTestRunDeleted(deleted, selection.Skipped);
+            admin.Value, run ?? "all", deleted.Length, skipped.Count);
+        return new LoadTestRunDeleted(deleted.Length, skipped);
     }
 
-    /// <summary>The accounts to delete, and the usernames of those holding the run's license that are kept.</summary>
-    private sealed record Selection(AccountId[] Accounts, IReadOnlyList<string> Skipped);
+    /// <summary>
+    /// The run a request names: 3 ASCII letters, upper-cased. Absent, empty or blank is refused (400), so a request
+    /// built from an unset variable never reaches every run; every run is asked for by name instead (<c>all=true</c>).
+    /// </summary>
+    public static string ParseRunScope(string? runId)
+    {
+        if (string.IsNullOrWhiteSpace(runId))
+            throw new BusinessException("Name the run to delete (run=<id>), or ask for every run (all=true).");
+        if (runId.Length != RunIdLength || !runId.All(char.IsAsciiLetter))
+            throw new BusinessException($"A run id is {RunIdLength} ASCII letters.");
+        return runId.ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// The accounts to delete with their usernames, and the usernames of those holding the run's license that are kept.
+    /// </summary>
+    private sealed record Selection(AccountId[] Accounts, IReadOnlyDictionary<long, string> Names, IReadOnlyList<string> Skipped);
 
     private static async Task<Selection> SelectAsync(AuthDbContext db, string? run, CancellationToken ct)
     {
@@ -86,7 +111,7 @@ public sealed partial class LoadTestAccountService
             .Where(l => l.Provider == StoreProviders.Avalon && EF.Functions.Like(l.LicenseReference, prefix))
             .Select(l => l.AccountId).Distinct().ToArrayAsync(ct);
         if (matched.Length == 0)
-            return new Selection([], []);
+            return new Selection([], new Dictionary<long, string>(), []);
 
         var accounts = await db.Accounts.AsNoTracking().Where(a => matched.Contains(a.Id))
             .Select(a => new { a.Id, a.Username, a.AccessLevel, a.Email, a.IsStoreGenerated })
@@ -119,6 +144,7 @@ public sealed partial class LoadTestAccountService
 
         return new Selection(
             accounts.Where(a => !kept.Contains(a.Id.Value)).Select(a => a.Id).ToArray(),
+            accounts.Where(a => !kept.Contains(a.Id.Value)).ToDictionary(a => a.Id.Value, a => a.Username),
             accounts.Where(a => kept.Contains(a.Id.Value)).Select(a => a.Username).Order(StringComparer.Ordinal).ToList());
     }
 
@@ -172,20 +198,41 @@ public sealed partial class LoadTestAccountService
     }
 
     /// <summary>
-    /// The auth rows, in one transaction. The selection is made again inside it and only accounts still selected are
-    /// deleted, so one that gained anything of a person's since is kept; one that entered a game since stops the
-    /// delete (its characters are already gone; it is a bot, and the request can be repeated once it has left).
+    /// After the auth commit, the sweep again for the accounts deleted. Best-effort: the accounts are gone already, so a
+    /// failure is logged, not answered.
     /// </summary>
-    private static async Task<int> DeleteAccountsAsync(AuthDbContext db, string? run, AccountId[] swept, DateTime now,
+    private async Task SweepAgainAsync(WorldId world, AccountId[] ids, CancellationToken ct)
+    {
+        try
+        {
+            await DeleteCharactersAsync(world, ids, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Could not sweep world {WorldId} again after deleting {Count} load-test accounts",
+                world.Value, ids.Length);
+        }
+    }
+
+    /// <summary>
+    /// The auth rows, in one transaction; returns the accounts deleted. The selection is made again inside it and only
+    /// accounts still selected are deleted, so one that gained anything of a person's since is kept. One that entered a
+    /// game since stops it with a 409: the run's characters are gone by then, its accounts are not.
+    /// </summary>
+    private static async Task<AccountId[]> DeleteAccountsAsync(AuthDbContext db, string? run, AccountId[] swept, DateTime now,
         CancellationToken ct)
     {
         Selection again = await SelectAsync(db, run, ct);
         var sweptIds = swept.Select(id => id.Value).ToHashSet();
         AccountId[] ids = again.Accounts.Where(id => sweptIds.Contains(id.Value)).ToArray();
         if (ids.Length == 0)
-            return 0;
+            return [];
         if (await AnyInGameAsync(db, ids, now, ct))
-            throw new LoadTestConflictException("A load-test account entered a game session; its account was not deleted.");
+        {
+            throw new LoadTestConflictException(
+                "The run's characters were removed, but its accounts were not: a bot entered a game meanwhile. " +
+                "Stop the bots and repeat the request.");
+        }
 
         Guid[] licenses = await db.GameLicenses.Where(l => ids.Contains(l.AccountId)).Select(l => l.Id).ToArrayAsync(ct);
         // Both point at the licenses with a restricting foreign key.
@@ -195,7 +242,8 @@ public sealed partial class LoadTestAccountService
         await db.LicenseHolds.Where(h => licenses.Contains(h.LicenseId)).ExecuteDeleteAsync(ct);
         await db.GameLicenses.Where(l => ids.Contains(l.AccountId)).ExecuteDeleteAsync(ct);
         // Sessions, tokens, devices, MFA, email verifications and external identities cascade.
-        return await db.Accounts.Where(a => ids.Contains(a.Id)).ExecuteDeleteAsync(ct);
+        await db.Accounts.Where(a => ids.Contains(a.Id)).ExecuteDeleteAsync(ct);
+        return ids;
     }
 
     /// <summary>Kicks anything still holding the account; best-effort, as the delete is committed.</summary>
