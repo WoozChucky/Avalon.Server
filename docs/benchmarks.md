@@ -1088,7 +1088,7 @@ and compares only against a baseline taken on the same machine.
 `perf/scenario-allocations.json` is the committed baseline: per scenario its `bytesPerWindow` (and, for reading,
 `bytesPerPlayerPerTick`), with the commit and date it was generated at. `perf/local/` holds per-machine runner
 baselines and is never committed. `ScenarioAllocationsShould` runs every scenario and compares its `bytesPerWindow`
-with the committed figure:
+with the committed figure (in a Release build; a Debug build reports it, see below):
 
 - **Fail** when the current figure is more than 5% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
@@ -1109,13 +1109,18 @@ Regenerate (every scenario, in Release; the runner refuses `--write-allocations`
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json
 ```
 
-The baseline is generated in Release and CI builds Release, so CI's run of the gate is the one that decides. A local
-`dotnet test` builds Debug and reads higher by a fixed amount: about 64 B per walking player per tick (1.92 MB per
-window in `many-instances`, 115 KB in `town-walk`), one object that the Release JIT allocates on the stack and an
-unoptimized build cannot. Running the Release runner with `DOTNET_JitObjectStackAllocation=0` reproduces the Debug
-figure (`town-walk` 1,580,400 B against Debug's 1,579,888 B). Before #850 that was +3.08% and +1.91%, inside the 5%
-band; against the lowered baseline it is +15.9% (`many-instances`) and +7.8% (`town-walk`), so **the gate fails in a
-local Debug run** and passes in Release (`dotnet test -c Release`). The gate runs in a non-parallel xUnit collection, so no other
+**The gate decides in Release.** The baseline is generated in Release and CI builds Release, so CI's run is the one
+that decides. In a Debug build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so
+a scenario that stopped doing its work still fails its `Verify` check, but it does not fail on the allocation figure:
+it writes the comparison (current, committed, change in percent, verdict) to the test output and says that the gate
+decides in Release. `dotnet test -c Release` runs the real gate locally.
+
+The reason is a fixed Debug overhead the 5% band no longer covers: about 64 B per walking player per tick (1.92 MB per
+window in `many-instances`, 115 KB in `town-walk`), the delegate each send creates for `CryptoSession.Encrypt`, which
+the Release JIT allocates on the stack and an unoptimized build cannot. Running the Release runner with
+`DOTNET_JitObjectStackAllocation=0` reproduces the Debug figure (`town-walk` 1,580,400 B against Debug's 1,579,888 B).
+Before #850 that was +3.08% and +1.91%, inside the band; against the lowered baseline it is +15.9% (`many-instances`)
+and +7.8% (`town-walk`). The gate runs in a non-parallel xUnit collection, so no other
 test in the World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in
 parallel processes under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds
 about 18 s to the World suite.

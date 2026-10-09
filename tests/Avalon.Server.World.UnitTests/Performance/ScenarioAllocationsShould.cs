@@ -15,6 +15,12 @@ public sealed class ScenarioAllocations;
 /// Gates every scenario's <see cref="ScenarioReport.BytesPerWindow" /> against the committed baseline
 /// (<c>perf/scenario-allocations.json</c>) by <see cref="AllocationBaseline.Compare" />.
 /// </summary>
+/// <remarks>
+/// The gate decides in Release, which CI builds and the baseline is generated in. An unoptimized (Debug) build
+/// allocates more by a fixed amount the 5% band no longer covers (the per-send <c>Encrypt</c> delegate, which the
+/// Release JIT keeps off the heap), so there it reports the comparison instead of failing on it. Every scenario still
+/// runs in Debug, so a scenario that stopped doing its work still fails its own check.
+/// </remarks>
 [Collection(nameof(ScenarioAllocations))]
 public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
 {
@@ -33,6 +39,13 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
 
         ScenarioReport report = ScenarioMeasurement.Run(Scenarios.Get(name), TimeSpan.FromSeconds(5), measureTicks: 0);
 
+#if DEBUG
+        double change = (report.BytesPerWindow - entry!.BytesPerWindow) * 100.0 / entry.BytesPerWindow;
+        output.WriteLine($"{name}: {report.BytesPerWindow:N0} B per {ScenarioMeasurement.WindowTicks}-tick window, " +
+                         $"committed {entry.BytesPerWindow:N0} B ({change:+0.00;-0.00;0.00}%), " +
+                         $"{AllocationBaseline.Compare(report.BytesPerWindow, entry.BytesPerWindow)}. " +
+                         "Debug build: reported only; the allocation gate decides in Release, which CI builds.");
+#else
         switch (AllocationBaseline.Compare(report.BytesPerWindow, entry!.BytesPerWindow))
         {
             case AllocationBaseline.Verdict.Regressed:
@@ -45,6 +58,7 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
                                  $"Lower the committed baseline: {Regenerate}");
                 break;
         }
+#endif
     }
 
     private static string RepositoryFile(string relativePath) => Path.Combine(TownNavmesh.RepositoryRoot, relativePath);
