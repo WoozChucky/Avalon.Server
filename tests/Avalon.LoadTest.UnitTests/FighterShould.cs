@@ -4,6 +4,7 @@ using Avalon.Common.Cryptography;
 using Avalon.LoadTest.Bots;
 using Avalon.LoadTest.Wire;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Org.BouncyCastle.Crypto;
@@ -26,15 +27,7 @@ public class FighterShould
     private readonly List<TripEnd> _trips = [];
     private long _now = Stopwatch.GetTimestamp();
 
-    public FighterShould()
-    {
-        AsymmetricCipherKeyPair clientKeys = AsymmetricCipher.GenerateECDHKeyPair();
-        var client = new AvalonCryptoSession(CryptoRole.Client, clientKeys);
-        _server = new AvalonCryptoSession(CryptoRole.Server);
-        _server.Initialize(AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeys)));
-        client.Initialize(_server.GetPublicKey());
-        _codec = new PacketCodec(client);
-    }
+    public FighterShould() => (_codec, _server) = Session();
 
     [Fact]
     public void Walk_into_the_forest_fight_walk_out_and_respawn_after_dying()
@@ -144,12 +137,244 @@ public class FighterShould
         Assert.InRange(warrior.Distance(15f, 30f), 1.9f, 2f);
     }
 
+    [Fact]
+    public async Task Form_a_party_with_the_party_packets_and_fight_solo_once_it_fails_twice_or_falls_apart()
+    {
+        var world = new PartyWorld();
+        FakeMember[] members = [new("LtAAA0", world), new("LtAAA1", world), new("LtAAA2", world)];
+        var party = new BotParty(members, _metrics, departJitter: TimeSpan.Zero);
+        for (int i = 0; i < members.Length; i++) members[i].Link = party.Links[i];
+        var leader = new Sim(this, new Fighter(0, _metrics, TimeSpan.FromSeconds(20), firstTripJitter: TimeSpan.Zero)
+        {
+            ReadyToLeaveTown = party.Links[0].ReadyToLeave,
+        });
+
+        // While the party forms, its members stand in town.
+        for (int i = 0; i < 600; i++) leader.Step();
+        Assert.Equal((FighterState.Town, 15f, 15f), (leader.Fighter.State, leader.X, leader.Z));
+
+        // The first invite of the last member is refused (it was not online yet): the attempt fails, and the next one,
+        // from scratch (each member, the leader last, declines and leaves, which ends the pair formed so far), forms
+        // the party. The leader is its first member, the others joined in order.
+        world.Refuse("LtAAA2", PartyResult.NotFound, times: 1);
+        Assert.True(await PartyFormer.FormAsync(party, CancellationToken.None));
+        Assert.Equal(PartyState.Formed, party.State);
+        Assert.Equal(["LtAAA0", "LtAAA1", "LtAAA2"], world.Joined);
+        Assert.Equal(["LtAAA1", "LtAAA2", "LtAAA1", "LtAAA2"], world.Invited);
+        Assert.Equal(["LtAAA2", "LtAAA1", "LtAAA0", "LtAAA2", "LtAAA1", "LtAAA0"], world.Left);
+
+        // Formed: it sets out.
+        _now = Math.Max(_now, party.DepartAt);
+        leader.Step();
+        Assert.Equal(FighterState.ToPortal, leader.Fighter.State);
+
+        // It reconnects (a trip that failed, say): the world keeps an offline member in its party and sends it the roster
+        // as its character spawns, and it sets out again at once.
+        members[0].Reconnect();
+        world.SendRoster(members[0]);
+        leader.Fighter.Reset();
+        leader.Step();
+        Assert.Equal(FighterState.ToPortal, leader.Fighter.State);
+
+        // The world restarts and forgets every party: the next login brings no roster. The fighter waits 20 s for one,
+        // then the party has fallen apart: counted once, every member leaves what is left of it, and they fight solo.
+        members[0].Reconnect();
+        leader.Fighter.Reset();
+        int held = 0;
+        leader.RunUntil(_ => leader.Fighter.State == FighterState.ToPortal, () => held++);
+        Assert.InRange(held, 20 * InputDriver.StepsPerSecond, 20 * InputDriver.StepsPerSecond + 2);
+        Assert.Equal(PartyState.Solo, party.State);
+        Assert.True(SpinWait.SpinUntil(() => world.Left.Count == 9, TimeSpan.FromSeconds(5)));
+        Assert.True(party.Links[1].ReadyToLeave(_now));
+
+        // A party whose invite is refused twice fights solo: counted once, after its members left what was formed.
+        FakeMember[] pair = [new("LtAAA3", world), new("LtAAA4", world)];
+        var solo = new BotParty(pair, _metrics, departJitter: TimeSpan.Zero);
+        for (int i = 0; i < pair.Length; i++) pair[i].Link = solo.Links[i];
+        world.Refuse("LtAAA4", PartyResult.NotFound, times: 2);
+        Assert.False(await PartyFormer.FormAsync(solo, CancellationToken.None));
+        Assert.Equal(PartyState.Solo, solo.State);
+        Assert.Equal(["LtAAA4", "LtAAA3", "LtAAA4", "LtAAA3", "LtAAA3", "LtAAA4"], world.Left[9..]);
+        Assert.True(solo.Links[1].ReadyToLeave(Math.Max(_now, solo.DepartAt)));
+
+        StepClientValues values = _metrics.TakeWindow();
+        Assert.Equal(1, values.PartiesFormed);
+        Assert.Equal([("party:fell-apart", 1), ("party:invite:NotFound", 1)],
+            values.PartyFormFailures.OrderBy(kind => kind.Key, StringComparer.Ordinal).Select(kind => (kind.Key, kind.Value)));
+    }
+
+    /// <summary>A client's session and the server's, keyed to each other.</summary>
+    private static (PacketCodec Client, AvalonCryptoSession Server) Session()
+    {
+        AsymmetricCipherKeyPair clientKeys = AsymmetricCipher.GenerateECDHKeyPair();
+        var client = new AvalonCryptoSession(CryptoRole.Client, clientKeys);
+        var server = new AvalonCryptoSession(CryptoRole.Server);
+        server.Initialize(AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeys)));
+        client.Initialize(server.GetPublicKey());
+        return (new PacketCodec(client), server);
+    }
+
     /// <summary>The character as the world describes it to its own player: no position (that travels on the acks).</summary>
     private ObjectState Self(bool alive) =>
         new() { Guid = _self, Health = 120, CurrentHealth = alive ? 120u : 0u, IsDead = !alive };
 
     private static ObjectState Creature(ulong guid, float x, float z) =>
         new() { Guid = guid, Position = new Vec3 { X = x, Y = 1, Z = z }, Health = 50, CurrentHealth = 50, IsDead = false };
+
+    /// <summary>
+    /// The world's party rules as far as forming one goes, each request answered as the world answers it (the invite
+    /// sent before the inviter's answer, the rosters before the joiner's) with the packets the server builds; one party
+    /// at most.
+    /// </summary>
+    private sealed class PartyWorld
+    {
+        private readonly Lock _lock = new();
+        private readonly List<FakeMember> _members = [];
+        private readonly List<FakeMember> _party = [];
+        private readonly List<string> _invited = [];
+        private readonly List<string> _left = [];
+
+        /// <summary>The invites held: the target's inviter, by target.</summary>
+        private readonly Dictionary<FakeMember, FakeMember> _invites = [];
+        private readonly Dictionary<string, (PartyResult Result, int Times)> _refusals = [];
+
+        /// <summary>The party's members in join order.</summary>
+        public List<string> Joined => Read(() => _party.ConvertAll(member => member.Name));
+
+        /// <summary>The names invited, in order.</summary>
+        public List<string> Invited => Read(() => _invited.ToList());
+
+        /// <summary>The members that sent a leave, in order.</summary>
+        public List<string> Left => Read(() => _left.ToList());
+
+        public void Add(FakeMember member) => _members.Add(member);
+
+        /// <summary>The next <paramref name="times"/> invites of <paramref name="name"/> are refused with <paramref name="result"/>.</summary>
+        public void Refuse(string name, PartyResult result, int times) => _refusals[name] = (result, times);
+
+        /// <summary>The roster a member of the party gets as its character spawns.</summary>
+        public void SendRoster(FakeMember to)
+        {
+            lock (_lock) to.Roster(_party);
+        }
+
+        public void Handle(FakeMember from, object message)
+        {
+            lock (_lock)
+            {
+                switch (message)
+                {
+                    case CPartyLeavePacket:
+                        _left.Add(from.Name);
+                        Leave(from);
+                        break;
+                    case CPartyInvitePacket invite:
+                        _invited.Add(invite.TargetName);
+                        if (_refusals.TryGetValue(invite.TargetName, out (PartyResult Result, int Times) refusal) && refusal.Times > 0)
+                        {
+                            _refusals[invite.TargetName] = (refusal.Result, refusal.Times - 1);
+                            from.Result(refusal.Result, invite.TargetName);
+                            break;
+                        }
+
+                        FakeMember target = _members.Single(member => member.Name == invite.TargetName);
+                        _invites[target] = from;
+                        target.Invite(from.Name);
+                        from.Result(PartyResult.Ok, invite.TargetName);
+                        break;
+                    case CPartyInviteResponsePacket response:
+                        Respond(from, response.Accept);
+                        break;
+                }
+            }
+        }
+
+        private void Leave(FakeMember from)
+        {
+            if (!_party.Remove(from))
+            {
+                from.Result(PartyResult.NotInParty);
+                return;
+            }
+
+            from.Roster([]);
+            // Fewer than two disbands the party.
+            List<FakeMember> rest = _party.Count < 2 ? [] : _party;
+            foreach (FakeMember member in _party.ToList()) member.Roster(rest);
+            if (rest.Count == 0) _party.Clear();
+            from.Result(PartyResult.Ok);
+        }
+
+        private void Respond(FakeMember from, bool accept)
+        {
+            if (!_invites.Remove(from, out FakeMember? inviter))
+            {
+                from.Result(PartyResult.NoInvite);
+                return;
+            }
+
+            if (!accept)
+            {
+                inviter.Result(PartyResult.InviteDeclined, from.Name);
+                from.Result(PartyResult.Ok);
+                return;
+            }
+
+            if (_party.Count == 0) _party.Add(inviter);
+            _party.Add(from);
+            foreach (FakeMember member in _party) member.Roster(_party);
+            from.Result(PartyResult.Ok);
+        }
+
+        private T Read<T>(Func<T> read)
+        {
+            lock (_lock) return read();
+        }
+    }
+
+    /// <summary>A party member whose requests reach the <see cref="PartyWorld"/> at once, and whose link gets the world's packets.</summary>
+    private sealed class FakeMember : IPartyMember
+    {
+        private readonly PartyWorld _world;
+        private readonly PacketCodec _codec;
+        private readonly AvalonCryptoSession _server;
+
+        public FakeMember(string name, PartyWorld world)
+        {
+            Name = name;
+            _world = world;
+            (_codec, _server) = Session();
+            world.Add(this);
+        }
+
+        public string Name { get; }
+
+        public bool InWorld => true;
+
+        public int Generation { get; private set; } = 1;
+
+        public PartyLink? Link { get; set; }
+
+        /// <summary>A new connection: what the old one read is no longer the member's.</summary>
+        public void Reconnect() => Generation++;
+
+        public ValueTask SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct) where T : class
+        {
+            _world.Handle(this, message);
+            return ValueTask.CompletedTask;
+        }
+
+        public void Result(PartyResult result, string? name = null) =>
+            Link!.OnPacket(SPartyResultPacket.Create(result, name, _server.Encryptor), _codec, Generation);
+
+        public void Invite(string inviter) =>
+            Link!.OnPacket(SPartyInvitePacket.Create(inviter, 1, 1, 60_000, _server.Encryptor), _codec, Generation);
+
+        public void Roster(List<FakeMember> party) =>
+            Link!.OnPacket(SPartyRosterPacket.Create(party.Count == 0 ? 0u : 1u, PartyExperienceMode.Even, 0,
+                party.ConvertAll(member => new PartyMemberDto { Name = member.Name, Online = true, SameInstance = true }),
+                _server.Encryptor), _codec, Generation);
+    }
 
     /// <summary>
     /// One fighter driven as the input driver drives it, its character moved as the world would: at a walk, answered

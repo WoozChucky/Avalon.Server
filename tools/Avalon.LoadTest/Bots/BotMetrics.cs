@@ -8,7 +8,7 @@ namespace Avalon.LoadTest.Bots;
 /// What the bots measure on the client side, by window: input-to-ack latency, entry time (ticket to first ack), entry
 /// attempts and failures by kind, leave and sign-in failures by kind, sign-out failures and unexpected disconnects; and
 /// the fighters' trips: forest entry time (portal request to transition), trips completed, casts sent and refused by
-/// reason, kills seen, their own deaths and failed steps by kind.
+/// reason, kills seen, their own deaths and failed steps by kind, and their parties formed and failed by reason.
 /// <see cref="TakeWindow"/> closes the current window and opens the next. Every recording method is safe from any
 /// thread and takes no lock of its own: counters are interlocked, and a count by kind is a
 /// <see cref="ConcurrentDictionary{TKey,TValue}"/> update, which briefly locks one of its stripes.
@@ -210,6 +210,16 @@ public sealed class BotMetrics
     /// </summary>
     public void FighterFailed(string kind) => CountKind(static window => window.FighterFailures, kind);
 
+    /// <summary>A party of fighters formed: its leader's roster listed every member.</summary>
+    public void PartyFormed() => Count(static window => ref window.PartiesFormed);
+
+    /// <summary>
+    /// A party of fighters failed to form twice, or fell apart once formed, and its members fight solo; counted once per
+    /// party. <paramref name="reason"/> names why (<c>party:timeout</c>, <c>party:invite:&lt;result&gt;</c>,
+    /// <c>party:fell-apart</c>, ...).
+    /// </summary>
+    public void PartyFormFailed(string reason) => CountKind(static window => window.PartyFormFailures, reason);
+
     /// <summary>
     /// Everything recorded since the last call (or since construction), and a fresh window for what follows. Read once
     /// no recorder is still registered on the closed window, so each snapshot is whole; its attempts are its successes
@@ -249,6 +259,8 @@ public sealed class BotMetrics
             Kills = (int)Volatile.Read(ref closed.Kills),
             OwnDeaths = (int)Volatile.Read(ref closed.OwnDeaths),
             FighterFailures = new Dictionary<string, int>(closed.FighterFailures, StringComparer.Ordinal),
+            PartiesFormed = (int)Volatile.Read(ref closed.PartiesFormed),
+            PartyFormFailures = new Dictionary<string, int>(closed.PartyFormFailures, StringComparer.Ordinal),
         };
     }
 
@@ -329,10 +341,12 @@ public sealed class BotMetrics
         public readonly Reservoir ForestEntries = new(MaxEntrySamples);
         public readonly ConcurrentDictionary<string, int> CastRefusals = new(StringComparer.Ordinal);
         public readonly ConcurrentDictionary<string, int> FighterFailures = new(StringComparer.Ordinal);
+        public readonly ConcurrentDictionary<string, int> PartyFormFailures = new(StringComparer.Ordinal);
         public long ForestTrips;
         public long CastsSent;
         public long Kills;
         public long OwnDeaths;
+        public long PartiesFormed;
     }
 
     /// <summary>Picks one of a window's counters, by reference.</summary>
@@ -476,6 +490,15 @@ public sealed record StepClientValues(
 
     /// <summary>Failed steps of fighters' trips, by kind (<see cref="BotMetrics.FighterFailed"/>).</summary>
     public IReadOnlyDictionary<string, int> FighterFailures { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
+
+    /// <summary>Parties of fighters formed (<see cref="BotMetrics.PartyFormed"/>).</summary>
+    public int PartiesFormed { get; init; }
+
+    /// <summary>
+    /// Parties of fighters that failed to form or fell apart, their members fighting solo, by reason
+    /// (<see cref="BotMetrics.PartyFormFailed"/>).
+    /// </summary>
+    public IReadOnlyDictionary<string, int> PartyFormFailures { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
 
     /// <summary>Bots that tried to enter in the window (an attempt of theirs ended there), each once.</summary>
     public int BotsTried => TriedBots.Count;

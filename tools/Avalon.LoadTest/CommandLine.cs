@@ -55,7 +55,10 @@ public static class CommandLine
         return new CleanupOptions(runId);
     }
 
-    /// <summary><c>check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker|fighter] [--forest-time 5m]</c>.</summary>
+    /// <summary>
+    /// <c>check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker|fighter] [--forest-time 5m] [--party-size 1]</c>;
+    /// a party size above 1 only with <c>--behaviour fighter</c>.
+    /// </summary>
     public static CheckOptions ParseCheck(string[] args)
     {
         string? runId = null;
@@ -63,6 +66,7 @@ public static class CommandLine
         int bot = 0;
         BehaviourKind behaviour = BehaviourKind.Idle;
         TimeSpan forestTime = Fighter.DefaultForestTime;
+        int partySize = 1;
         foreach ((string option, string value) in Pairs(args))
         {
             switch (option)
@@ -84,11 +88,15 @@ public static class CommandLine
                     };
                     break;
                 case "--forest-time": forestTime = ParseForestTime(value); break;
+                case "--party-size": partySize = ParseCount(option, value, BotParty.MaxSize); break;
                 default: throw new CommandLineException($"Unknown option {option}.");
             }
         }
 
-        return new CheckOptions(runId, dial, bot, behaviour, forestTime);
+        if (partySize > 1 && behaviour != BehaviourKind.Fighter)
+            throw new CommandLineException("--party-size above 1 needs --behaviour fighter: parties are fighters'.");
+
+        return new CheckOptions(runId, dial, bot, behaviour, forestTime, partySize);
     }
 
     /// <summary>The homelab Prometheus.</summary>
@@ -100,7 +108,7 @@ public static class CommandLine
     /// <summary>
     /// <c>ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
     /// [--limit name=value]... [--dial HOST] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
-    /// [--forest-time 5m]</c>.
+    /// [--forest-time 5m] [--party-size 1]</c>.
     /// </summary>
     public static RampArguments ParseRamp(string[] args)
     {
@@ -116,6 +124,7 @@ public static class CommandLine
         string pod = DefaultPod;
         int signIns = 8;
         TimeSpan forestTime = Fighter.DefaultForestTime;
+        int partySize = 1;
         foreach ((string option, string value) in Pairs(args))
         {
             switch (option)
@@ -144,12 +153,13 @@ public static class CommandLine
                     break;
                 case "--sign-in-concurrency": signIns = ParseCount(option, value, 64); break;
                 case "--forest-time": forestTime = ParseForestTime(value); break;
+                case "--party-size": partySize = ParseCount(option, value, BotParty.MaxSize); break;
                 default: throw new CommandLineException($"Unknown option {option}.");
             }
         }
 
         return new RampArguments(runId, mix, start, step, hold, max, Limits.WithOverrides(limits), dial, prometheus, pod, signIns,
-            forestTime);
+            forestTime, partySize);
     }
 
     /// <summary>A hold: <c>90s</c>, <c>2m</c> or plain seconds; at least the settle and a 20 s judged window.</summary>
@@ -236,15 +246,17 @@ public sealed record CleanupOptions(string? RunId);
 /// <param name="Bot">The bot's index in the run.</param>
 /// <param name="Behaviour">What the bot does in the world for the check: idle, walker or fighter.</param>
 /// <param name="ForestTime">How long a fighter's trip stays in the forest.</param>
-public sealed record CheckOptions(string? RunId, string? Dial, int Bot, BehaviourKind Behaviour, TimeSpan ForestTime);
+/// <param name="PartySize">Fighters only: this many bots from <paramref name="Bot"/> on form one party and make one trip; 1 is one bot, solo.</param>
+public sealed record CheckOptions(string? RunId, string? Dial, int Bot, BehaviourKind Behaviour, TimeSpan ForestTime, int PartySize);
 
 /// <summary>The options of <c>ramp</c> as given, before the run is known.</summary>
 /// <param name="RunId">The run, or null for the only one kept.</param>
 /// <param name="Max">The most bots, or null for the run's size.</param>
 /// <param name="ForestTime">How long a fighter's trip stays in the forest.</param>
+/// <param name="PartySize">The fighters' party size, 1 (solo) to <see cref="BotParty.MaxSize"/>.</param>
 public sealed record RampArguments(
     string? RunId, string Mix, int Start, int Step, TimeSpan Hold, int? Max, IReadOnlyList<Limit> Limits, string? Dial,
-    Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime)
+    Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize)
 {
     /// <summary>
     /// The options against <paramref name="run"/>, loaded for its bots (<see cref="RunFile.Load"/>, so it lists at
@@ -257,7 +269,7 @@ public sealed record RampArguments(
             throw new CommandLineException($"Run {run.RunId} has {run.Bots.Count} bots: --max takes at most that.");
 
         return new RampOptions(Mix, Math.Min(Start, max), Step, Hold, max, Limits, Dial, Prometheus, Pod, SignInConcurrency,
-            ForestTime);
+            ForestTime, PartySize);
     }
 }
 

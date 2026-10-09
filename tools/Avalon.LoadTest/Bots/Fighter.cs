@@ -292,10 +292,11 @@ public sealed class Fighter
     public FighterState State => _state;
 
     /// <summary>
-    /// Whether the fighter may set out from town, asked on each step it is ready to; null, the default, is always. A
-    /// fighter that is to enter with others waits here for them.
+    /// Whether the fighter may set out from town, asked with the step's time (<see cref="Stopwatch.GetTimestamp"/>) on
+    /// each step it is ready to, on the driver's thread; null, the default, is always. A party's member waits here for
+    /// its party (<see cref="PartyLink.ReadyToLeave"/>).
     /// </summary>
-    public Func<bool>? ReadyToLeaveTown { get; set; }
+    public Func<long, bool>? ReadyToLeaveTown { get; set; }
 
     /// <summary>
     /// Completes when the fighter asks its bot to reconnect: it could not get out of the forest, or could not respawn,
@@ -423,7 +424,7 @@ public sealed class Fighter
         switch (_state)
         {
             case FighterState.Town:
-                if (now < _leaveTownAt || ReadyToLeaveTown?.Invoke() == false) return Still(newHeading: false);
+                if (now < _leaveTownAt || ReadyToLeaveTown?.Invoke(now) == false) return Still(newHeading: false);
 
                 Enter(FighterState.ToPortal, now);
                 goto case FighterState.ToPortal;

@@ -28,7 +28,7 @@ public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, flo
 /// <param name="signOuts">The ramp's sign-out breaker, shared by its bots and its refresher; null for one of the bot's own.</param>
 /// <param name="leaves">The ramp's leave breaker, shared by its bots; null for one of the bot's own.</param>
 public sealed class Bot(int index, string account, string password, ApiClient api, ushort worldId, string? dialHost,
-    BotMetrics metrics, SignOutBreaker? signOuts = null, Breaker? leaves = null) : IDisposable
+    BotMetrics metrics, SignOutBreaker? signOuts = null, Breaker? leaves = null) : IPartyMember, IDisposable
 {
     /// <summary>The version the handshake sends: the protocol the provider attempt names.</summary>
     public const string ClientVersion = ApiClient.ProtocolVersion;
@@ -155,6 +155,12 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// Null for every other behaviour, whose connections leave the world-state packets unread.
     /// </summary>
     public Fighter? Fighter { get; set; }
+
+    /// <summary>
+    /// The fighter's place in its party, set before the bot enters: every connection then hands it the party packets.
+    /// Null for a fighter that fights solo and every other behaviour, whose connections leave those packets unread.
+    /// </summary>
+    public PartyLink? Party { get; set; }
 
     /// <summary>The guid of the bot's character in the world; 0 before its first select.</summary>
     public ulong CharacterGuid => Volatile.Read(ref _characterGuid);
@@ -447,6 +453,15 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     public ValueTask SendAsync(NetworkPacket packet, CancellationToken ct) =>
         (_connection ?? throw new InvalidOperationException($"Bot {index} has no connection.")).SendAsync(packet, ct);
 
+    string IPartyMember.Name => account;
+
+    bool IPartyMember.InWorld => State == BotState.InWorld;
+
+    int IPartyMember.Generation => ConnectionGeneration;
+
+    ValueTask IPartyMember.SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct) =>
+        SendAsync(SealInWorld(message, type), ct);
+
     /// <summary>
     /// Signs the game context out, best effort; the bot is <see cref="BotState.Stopped"/> after, with no context, and a
     /// re-sign-in still on its way signs its own context out when it lands.
@@ -532,7 +547,12 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
         _connection = connection;
         _noLeaveOn = connection;
-        Interlocked.Increment(ref _connectionGeneration);
+        int generation = Interlocked.Increment(ref _connectionGeneration);
+        if (Party is { } party)
+        {
+            // Before the select too: the world sends a member its roster as its character spawns.
+            connection.PartyPacket += packet => party.OnPacket(packet, connection.Codec, generation);
+        }
 
         await StepAsync("admission", s_admissionTimeout, async token =>
         {

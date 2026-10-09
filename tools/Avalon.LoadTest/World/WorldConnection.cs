@@ -22,7 +22,8 @@ namespace Avalon.LoadTest.World;
 /// its own task drains the socket the whole time, so the server's outbox never backs up behind a busy bot: it raises
 /// <see cref="Ack"/> for each <c>SMSG_PLAYER_STATE_ACK</c>, answers pings, queues the few packets the entry and leave
 /// code waits for on <see cref="Inbound"/>, applies the world-state packets to <see cref="State"/> when the bot keeps
-/// one (and with it hands over map transitions and cast refusals), and drops everything else without decoding it.
+/// one (and with it hands over map transitions and cast refusals), hands a party member's party packets over, and drops
+/// everything else without decoding it.
 /// </summary>
 /// <remarks>
 /// Sends are serialised by one lock, and sealing with the session by another (<see cref="Seal{T}"/>): the codec and the
@@ -113,6 +114,13 @@ public sealed class WorldConnection : IAsyncDisposable
 
     /// <summary>Each <c>SMSG_ABILITY_NOT_READY</c>'s reason, raised on the read loop while a handler is set (left unread otherwise).</summary>
     public event Action<CastRejectReason>? CastRefused;
+
+    /// <summary>
+    /// Each <c>SMSG_PARTY_INVITE</c>, <c>SMSG_PARTY_RESULT</c> and <c>SMSG_PARTY_ROSTER</c>, still sealed, raised on the
+    /// read loop while a handler is set (a fighter in a party); left unread otherwise, as every
+    /// <c>SMSG_PARTY_MEMBER_STATUS</c> is.
+    /// </summary>
+    public event Action<NetworkPacket>? PartyPacket;
 
     /// <summary>
     /// Completes when the read loop ends: successfully when the server closed the connection or it was disposed,
@@ -329,6 +337,10 @@ public sealed class WorldConnection : IAsyncDisposable
                         break;
                     case NetworkPacketType.SMSG_ABILITY_NOT_READY:
                         if (CastRefused is { } refused) refused(Codec.Decode<SAbilityNotReadyPacket>(packet).Reason);
+                        break;
+                    case NetworkPacketType.SMSG_PARTY_INVITE or NetworkPacketType.SMSG_PARTY_RESULT
+                        or NetworkPacketType.SMSG_PARTY_ROSTER:
+                        PartyPacket?.Invoke(packet);
                         break;
                     case NetworkPacketType.SMSG_DISCONNECT:
                         DisconnectReason = Codec.Decode<SDisconnectPacket>(packet).ReasonCode;

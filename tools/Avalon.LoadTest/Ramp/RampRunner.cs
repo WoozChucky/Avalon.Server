@@ -18,9 +18,10 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="Pod">The world server's pod, for its memory limit.</param>
 /// <param name="SignInConcurrency">Sign-ins at once, the runner's and the refresher's together.</param>
 /// <param name="ForestTime">How long a fighter's trip stays in the forest (<c>--forest-time</c>).</param>
+/// <param name="PartySize">The fighters' party size (<c>--party-size</c>), 1 (solo) to <see cref="BotParty.MaxSize"/>.</param>
 public sealed record RampOptions(
     string Mix, int Start, int Step, TimeSpan Hold, int Max, IReadOnlyList<Limit> Limits, string? Dial, Uri Prometheus,
-    string Pod, int SignInConcurrency, TimeSpan ForestTime);
+    string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize);
 
 /// <summary>One held step: what was there, what was measured, and the decision on it.</summary>
 /// <param name="Index">The step's number from 1; a re-hold is a step of its own at the same count.</param>
@@ -466,6 +467,9 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     /// <summary>Each added bot's <see cref="BotLife"/> loop.</summary>
     private readonly List<Task> _lives = [];
 
+    /// <summary>Each party's formation (<see cref="PartyFormer.FormAsync"/>), on the lives' token.</summary>
+    private readonly List<Task> _formations = [];
+
     private IReadOnlyCollection<Bot>? _snapshot;
 
     /// <summary>The run's sign-out breaker, shared by every bot and the refresher.</summary>
@@ -646,6 +650,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         if (presign is not null) await presign.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         await lives.CancelAsync();
         await Task.WhenAll(_lives).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        // No party request is under way when the bots leave.
+        await Task.WhenAll(_formations).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         // The re-sign-ins stop before the leaves, so no new context lands after a bot signed out; the refresh passes go
         // on through the leaves, so a bot waiting for a leave slot keeps its context and its world session's lease.
         await signInsAgain.CancelAsync();
@@ -816,6 +822,12 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     /// failures go on counting against admission rather than the bot quietly dropping out. A bot that gave up (its
     /// context lost) no longer counts towards the target: another account takes its place. Returns the bots entered.
     /// </summary>
+    /// <remarks>
+    /// With <c>--party-size</c> N above 1, the fighters among the bots entered are grouped in index order into whole
+    /// parties of N, which form in the background once their members are in (<see cref="PartyFormer"/>); the fighters
+    /// left over, fewer than N, fight solo. The mix decides every bot's behaviour as without parties, so the count
+    /// entered and the shares of the mix stay exact.
+    /// </remarks>
     private async Task<int> FillAsync(int target, ApiClient api, BotMetrics metrics, SemaphoreSlim signIns,
         CancellationToken life, CancellationToken ct)
     {
@@ -828,14 +840,14 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         while (entering.Count < need && _ready.TryDequeue(out Bot? bot)) entering.Add(bot);
         if (entering.Count == 0) return 0;
 
-        Console.Error.WriteLine(Invariant($"  entering {entering.Count} bots ({LiveCount() + entering.Count} live)"));
+        // Before the entries: a fighter's connection keeps its table, and a party member's its roster, from the first
+        // packet on.
+        List<BotParty> parties = Fighters(entering, metrics);
+        string inParties = parties.Count == 0 ? "" : Invariant($", {parties.Count} parties of {options.PartySize}");
+        Console.Error.WriteLine(Invariant($"  entering {entering.Count} bots ({LiveCount() + entering.Count} live{inParties})"));
         await Parallel.ForEachAsync(entering, new ParallelOptions { MaxDegreeOfParallelism = Concurrency, CancellationToken = ct },
             async (bot, token) =>
             {
-                bot.Behaviour = Bots.Mix.For(bot.Index, _mix);
-                // Before the entry: a fighter's connection keeps its table from the first add on.
-                if (bot.Behaviour == BehaviourKind.Fighter)
-                    bot.Fighter ??= new Fighter(bot.Index, metrics, options.ForestTime, Fighter.FirstTripJitter);
                 bool failed = false;
                 try
                 {
@@ -853,7 +865,50 @@ public sealed class RampRunner(RunFile run, RampOptions options)
                     _lives.Add(BotLife.RunAsync(bot, metrics, life, pauseFirst: failed));
                 }
             });
+
+        // Their members stand in town until each party has formed or gone solo.
+        foreach (BotParty party in parties) _formations.Add(PartyFormer.FormAsync(party, life));
         return entering.Count;
+    }
+
+    /// <summary>
+    /// Gives each bot its behaviour from the mix, and each fighter its <see cref="Fighter"/>: in whole parties of
+    /// <c>--party-size</c>, in index order, setting out together once formed; the rest, fewer than a party, solo after
+    /// their own first-trip wait. Returns the parties, still to be formed.
+    /// </summary>
+    private List<BotParty> Fighters(List<Bot> entering, BotMetrics metrics)
+    {
+        var fighters = new List<Bot>();
+        foreach (Bot bot in entering)
+        {
+            bot.Behaviour = Bots.Mix.For(bot.Index, _mix);
+            if (bot.Behaviour == BehaviourKind.Fighter) fighters.Add(bot);
+        }
+
+        int size = options.PartySize;
+        int inParties = size > 1 ? fighters.Count / size * size : 0;
+        var parties = new List<BotParty>(inParties / Math.Max(size, 1));
+        for (int i = 0; i < fighters.Count; i++)
+        {
+            Bot bot = fighters[i];
+            // A party waits out one first-trip wait for all its members (BotParty), so they set out together.
+            bot.Fighter = new Fighter(bot.Index, metrics, options.ForestTime, i < inParties ? TimeSpan.Zero : Fighter.FirstTripJitter);
+        }
+
+        for (int first = 0; first < inParties; first += size)
+        {
+            Bot[] members = [.. fighters.GetRange(first, size)];
+            var party = new BotParty(members, metrics, Fighter.FirstTripJitter);
+            for (int i = 0; i < members.Length; i++)
+            {
+                members[i].Party = party.Links[i];
+                members[i].Fighter!.ReadyToLeaveTown = party.Links[i].ReadyToLeave;
+            }
+
+            parties.Add(party);
+        }
+
+        return parties;
     }
 
     /// <summary>
@@ -995,6 +1050,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         AddCounts(castsRefused, judged.CastsRefused);
         var fighterFailures = new Dictionary<string, int>(settle.FighterFailures, StringComparer.Ordinal);
         AddCounts(fighterFailures, judged.FighterFailures);
+        var partyFailures = new Dictionary<string, int>(settle.PartyFormFailures, StringComparer.Ordinal);
+        AddCounts(partyFailures, judged.PartyFormFailures);
 
         return judged with
         {
@@ -1020,6 +1077,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             Kills = settle.Kills + judged.Kills,
             OwnDeaths = settle.OwnDeaths + judged.OwnDeaths,
             FighterFailures = fighterFailures,
+            PartiesFormed = settle.PartiesFormed + judged.PartiesFormed,
+            PartyFormFailures = partyFailures,
         };
     }
 
