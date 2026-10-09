@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
@@ -308,5 +308,64 @@ public class TickDrivenOutboxShould
 
         Assert.True(sw.Elapsed < s_noWaitCeiling,
             $"DisposeAsync took {sw.ElapsedMilliseconds}ms of a {s_longBudget.TotalMilliseconds}ms budget — the write it waited for completed early");
+    }
+
+    /// <summary>
+    /// The close cancels a write still in flight when its budget runs out. That write ends cancelled, which is the close
+    /// doing its job: not a fault to report, and not a reason to close a connection that is already closing.
+    /// </summary>
+    [Fact]
+    public async Task DisposeAsync_DoesNotReportAWriteItCancelled_AsAFault()
+    {
+        int faulted = 0;
+        var logger = new ErrorCountingLogger();
+        var outbox = new TickDrivenOutbox(Guid.NewGuid(), logger, capacity: 64,
+            onFault: () => Interlocked.Increment(ref faulted), flushTimeout: TimeSpan.FromMilliseconds(50), cancelGrace: s_longBudget);
+        outbox.Connect(new PacketStream(new CancellableStream()));
+
+        outbox.Enqueue(MakePacket()); // the close's own flush starts a write that only its cancellation ends
+
+        await outbox.DisposeAsync();
+
+        // The write's continuation wakes the close before it reports anything, so give a report the moment it would take.
+        await Task.Delay(100);
+
+        Assert.Equal(0, Volatile.Read(ref faulted));
+        Assert.Equal(0, logger.Errors);
+    }
+
+    // Stream whose WriteAsync completes only when its cancellation token is cancelled.
+    private sealed class CancellableStream : Stream
+    {
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken ct)
+            => new(Task.Delay(Timeout.Infinite, ct));
+        public override void Flush() { }
+        public override int Read(byte[] buf, int off, int cnt) => 0;
+        public override long Seek(long off, SeekOrigin orig) => 0;
+        public override void SetLength(long val) { }
+        public override void Write(byte[] buf, int off, int cnt) { }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => 0;
+        public override long Position { get => 0; set { } }
+    }
+
+    private sealed class ErrorCountingLogger : Microsoft.Extensions.Logging.ILogger
+    {
+        private int _errors;
+
+        public int Errors => Volatile.Read(ref _errors);
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= Microsoft.Extensions.Logging.LogLevel.Error)
+                Interlocked.Increment(ref _errors);
+        }
     }
 }

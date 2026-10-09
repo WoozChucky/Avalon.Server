@@ -49,7 +49,8 @@ public sealed class ScenarioWorld : IDisposable
 
     private static readonly DateTimeOffset s_start = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
 
-    // The seeded formula's defaults: the sheet flusher reads its caps, and a scenario has no reference data.
+    // The sheet flusher's formula argument, as WorldServer passes it; a scenario has no reference data to take it from.
+    // Scenario characters have no Stats, so the flusher returns at its first check and never reads the caps.
     private static readonly CombatFormula s_formula = new();
 
     // How far a walker must have moved between MarkProgress and a check: well above float noise, well below the

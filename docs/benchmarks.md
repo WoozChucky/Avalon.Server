@@ -1301,7 +1301,8 @@ almost every call takes: `InventoryUpdateFlusher.Flush` (the slot query captures
 called only when there is work. Measured in process with 200 connections and nothing changed: the inventory flush
 went from 6,400 B and 1.6 µs per tick to 0 B and 0.8 µs, and `EnteredInstanceIfChanged` from 40 B per call to 0. At
 200 players that is 72 B per player per tick, about 0.86 MB/s less garbage from the tick thread. The committed
-figures do not move: the scenario tick did not run the flushers before, and now runs the inventory one, guarded at 0.
+figures do not move: the scenario tick did not run the flushers before, and now runs the inventory, sheet and
+ability-amount flushers, guarded at 0 by `town-idle`.
 
 ### Results — no task per outbox flush (#875, 2026-10-09)
 
@@ -1312,7 +1313,8 @@ anything to send, every tick. The flush now reads a finished write's outcome inl
 write still in flight or already failed. The existing `TickDrivenOutbox` tests cover the three ways a write ends.
 
 Allocations, from `perf/scenario-allocations.json` (the developer machine's Release run, i9-12900K, Windows 11,
-.NET 10.0.12): each scenario falls by exactly the continuation, 112 B per player per tick.
+.NET 10.0.12): each scenario falls by about 112 B per player per tick, the continuation (111.7 in `town-walk`, 111.9
+in `many-instances`).
 
 | Scenario | Players | bytes/window | B/tick | B/player/tick | Before #875 | Change |
 |---|---:|---:|---:|---:|---:|---:|

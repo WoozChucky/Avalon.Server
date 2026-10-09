@@ -152,6 +152,9 @@ public sealed class TickDrivenOutbox : IOutbox
         Volatile.Write(ref self._writeSettled, 1); // flag stays at 1 — dead connection; no further writes
         self._inFlightCompletion?.TrySetResult();
 
+        // Only the close cancels a write (its budget ran out): the connection is already going, and there is no fault.
+        if (t.IsCanceled) return;
+
         Exception e = t.Exception?.GetBaseException() ?? new InvalidOperationException("Unknown write fault");
         if (e is OperationCanceledException) return;
 
