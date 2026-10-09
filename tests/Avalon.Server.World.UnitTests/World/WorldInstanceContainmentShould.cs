@@ -73,7 +73,8 @@ public class WorldInstanceContainmentShould
     /// <summary>
     /// #851: the instances are ticked from the registry's tick snapshot, an array rebuilt only when the set changes, not
     /// from a fresh copy of the list each tick. One published is ticked from the next tick; one removed while the
-    /// instances tick, from inside another's update, cuts that tick short for no one, and is not ticked again.
+    /// instances tick, from inside a later one's update, cuts that tick short for no one (a walk of the live list would
+    /// shift the rest down a place and skip the next instance), and is not ticked again.
     /// </summary>
     [Fact]
     public async Task Tick_each_published_instance_and_stop_ticking_one_removed_mid_tick()
@@ -105,21 +106,21 @@ public class WorldInstanceContainmentShould
         inTown.Received(1).UpdateMap();
         inDungeon.Received(1).UpdateMap();
 
-        // The cave is published at the top of the next tick, after the dungeon in the walk; the town, first in it,
-        // removes the dungeon from inside its own update.
+        // The cave is published at the top of the next tick, after the dungeon in the walk (town, dungeon, cave); the
+        // dungeon removes the town, ahead of it, from inside its own update.
         _ = world.InstanceRegistry.GetOrCreateNormalInstanceAsync(851_103, s_caveId);
-        inTown.When(c => c.UpdateMap()).Do(_ => world.InstanceRegistry.RemoveInstance(dungeon.InstanceId));
+        inDungeon.When(c => c.UpdateMap()).Do(_ => world.InstanceRegistry.RemoveInstance(town.InstanceId));
         world.Update(s_tick);
 
-        inTown.Received(2).UpdateMap();
+        inDungeon.Received(2).UpdateMap();
         inCave.Received(1).UpdateMap();
-        Assert.Null(world.InstanceRegistry.GetInstanceById(dungeon.InstanceId));
+        Assert.Null(world.InstanceRegistry.GetInstanceById(town.InstanceId));
 
-        inDungeon.ClearReceivedCalls();
+        inTown.ClearReceivedCalls();
         world.Update(s_tick);
 
-        inTown.Received(3).UpdateMap();
+        inTown.DidNotReceive().UpdateMap();
+        inDungeon.Received(3).UpdateMap();
         inCave.Received(2).UpdateMap();
-        inDungeon.DidNotReceive().UpdateMap();
     }
 }

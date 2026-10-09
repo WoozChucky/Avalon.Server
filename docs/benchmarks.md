@@ -1110,9 +1110,11 @@ dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write
 ```
 
 **The gate decides in Release, on CI's figures.** CI builds Release on a GitHub-hosted runner, and since #850 the
-committed figures are CI's (the first baseline was a run on the developer machine). #851's are the developer
-machine's Release run with the `Encrypt` delegate described below added back, 64 B per walking player per tick
-(115,200 B per window in `town-walk`, 1,920,000 B in `many-instances`, nothing in `town-idle`), which is CI's figure. In a Debug build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so
+committed figures stand for CI's (the first baseline was a run on the developer machine). #850's were CI's own run.
+#851's are derived, not measured on CI: the developer machine's Release run plus the `Encrypt` delegate described
+below, 64 B × 60 ticks × the walking players (115,200 B per window in `town-walk`, 1,920,000 B in `many-instances`,
+nothing in `town-idle`). The offset #850 measured between CI and the developer machine was slightly larger
+(+116,584 B and +1,924,000 B), so CI may read up to about 0.1% above the derived figures, well inside the 5% band. In a Debug build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so
 a scenario that stopped doing its work still fails its `Verify` check, but it does not fail on the allocation figure:
 it writes the comparison (current, committed, change in percent, verdict) to the test output and says that the gate
 decides in Release. `dotnet test -c Release` runs the real gate locally.

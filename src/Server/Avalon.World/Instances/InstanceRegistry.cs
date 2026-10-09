@@ -94,7 +94,8 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     /// after tick, rebuilt only once the set has changed, so it allocates nothing on a tick that published or removed
     /// nothing. A snapshot: an instance published or removed while it is walked joins or leaves the next tick's walk.
     /// Tick thread only; any other reader takes <see cref="ActiveInstances" />. On the concrete registry, never on the
-    /// modding API's <see cref="IInstanceRegistry" />.
+    /// modding API's <see cref="IInstanceRegistry" />. Public rather than internal: the test assemblies are not
+    /// strong-named.
     /// </summary>
     public ReadOnlySpan<IMapInstance> TickInstances()
     {

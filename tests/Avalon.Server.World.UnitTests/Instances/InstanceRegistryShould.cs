@@ -284,6 +284,7 @@ public class InstanceRegistryShould : IDisposable
         _registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
 
         Assert.Null(_registry.GetInstanceById(older.InstanceId));
+        Assert.Same(newer, Assert.Single(_registry.TickInstances().ToArray())); // and the tick stops ticking it (#851)
         Assert.Same(newer, await _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId).WaitAsync(s_bound));
         Assert.Equal(2, _builds.Count);
     }
