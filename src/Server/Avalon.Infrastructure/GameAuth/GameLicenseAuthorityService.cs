@@ -149,7 +149,11 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
         catch (Exception) { return null; }
     }
 
-    public async Task<bool> ValidateBindingAsync(Guid licenseId, long revision, AccountId account,
+    /// <summary>
+    /// Whether the license row still holds the binding a context was issued with; null when the row could not be read
+    /// (an outage is not a refusal, so a caller answers it as unavailable rather than revoked).
+    /// </summary>
+    public async Task<bool?> ValidateBindingAsync(Guid licenseId, long revision, AccountId account,
         GameApplicationSelection application, string? subject, CancellationToken ct)
     {
         IGameLicenseProvider? provider = providers.License(application.Provider);
@@ -163,7 +167,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 row.ProviderSubject == subject && row.AuthorityKind == provider.AuthorityKind;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception) { return false; }
+        catch (Exception) { return null; }
     }
 
     private bool Trusted(GameApplicationSelection app)
