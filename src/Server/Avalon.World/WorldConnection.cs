@@ -387,7 +387,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// An admitted connection's packet that no filter accepts at arrival is dropped here, never handed to
     /// <see cref="IServerBase.CallListener" />, which runs a handler on the receive path, off the tick (#861).
     /// A packet a filter takes in another state (input sent between the select and the spawn, which the client
-    /// does on every login, or a select-phase packet once in the world) is expected, and logged at Debug. One
+    /// does on every login, or a select-phase packet once in the world) is expected, and logged at Debug (input
+    /// and pong at Trace, as they arrive many times a second). One
     /// no filter takes in any state (an opcode missing its filter entry, or a client sending what it should not)
     /// is logged at Warning, once per connection, then at Debug.
     /// </summary>
@@ -395,7 +396,11 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     {
         if (WorldSessionFilter.IsSessionPacket(type) || MapSessionFilter.IsMapPacket(type))
         {
-            ReceiveLog.DroppedForState(_logger, type);
+            // Input (60 Hz before every spawn) and pong are kept out of Debug, as the receive loop's "IN:" line does.
+            if (type is NetworkPacketType.CMSG_PLAYER_INPUT or NetworkPacketType.CMSG_PONG)
+                ReceiveLog.DroppedForStateFrequent(_logger, type);
+            else
+                ReceiveLog.DroppedForState(_logger, type);
         }
         else if (!_warnedUnhandled)
         {
@@ -412,6 +417,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     {
         [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
         public static partial void DroppedForState(ILogger logger, NetworkPacketType packetType);
+
+        [LoggerMessage(Level = LogLevel.Trace, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
+        public static partial void DroppedForStateFrequent(ILogger logger, NetworkPacketType packetType);
 
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Could not find a handler for packet {PacketType}; further ones on this connection are logged at Debug")]

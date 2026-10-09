@@ -14,6 +14,7 @@ using Avalon.Server.World.UnitTests.Vendors;
 using Avalon.World;
 using Avalon.World.Chat;
 using Avalon.World.Entities;
+using Avalon.World.Filters;
 using Avalon.World.Handlers;
 using Avalon.World.Loot;
 using Avalon.World.Parties;
@@ -245,6 +246,13 @@ public class WorldHostGraphShould
                 .Select(packet => $"{packet.Type}: served by {packet.Layers} handler layers")
                 .ToArray();
             Assert.True(failures.Length == 0, string.Join(Environment.NewLine, failures));
+
+            // A game-layer packet no session filter ever accepts is dropped at arrival and its handler never runs (#861).
+            string[] unfiltered = gameLayer
+                .Where(type => !WorldSessionFilter.IsSessionPacket(type) && !MapSessionFilter.IsMapPacket(type))
+                .Select(type => $"{type}: has a handler but no session filter entry")
+                .ToArray();
+            Assert.True(unfiltered.Length == 0, string.Join(Environment.NewLine, unfiltered));
         }
         finally
         {

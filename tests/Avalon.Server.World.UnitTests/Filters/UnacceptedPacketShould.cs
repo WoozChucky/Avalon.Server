@@ -73,9 +73,13 @@ public sealed class UnacceptedPacketShould : IDisposable
     {
         if (spawnedBefore) Spawn();
 
-        _connection.Deliver(type, type == NetworkPacketType.CMSG_CHARACTER_LIST
-            ? new CCharacterListPacket()
-            : new CPlayerInputPacket());
+        Packet? payload = type switch
+        {
+            NetworkPacketType.CMSG_CHARACTER_LIST => new CCharacterListPacket(),
+            NetworkPacketType.CMSG_PLAYER_INPUT => new CPlayerInputPacket(),
+            _ => null
+        };
+        _connection.Deliver(type, payload);
         if (!spawnedBefore) Spawn();
         _connection.UpdateSession();
         _connection.UpdateMap();
@@ -95,7 +99,7 @@ public sealed class UnacceptedPacketShould : IDisposable
         IWorldServer server, TcpClient client, Microsoft.Extensions.Logging.ILoggerFactory loggerFactory,
         IPacketReader reader) : Avalon.World.WorldConnection(server, client, loggerFactory, reader)
     {
-        public void Deliver(NetworkPacketType type, Packet payload) =>
+        public void Deliver(NetworkPacketType type, Packet? payload) =>
             OnReceive(new NetworkPacketHeader { Type = type }, payload).GetAwaiter().GetResult();
     }
 }
