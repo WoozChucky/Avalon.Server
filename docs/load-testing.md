@@ -467,6 +467,20 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   - the bot PC's CPU and the driver's lateness p95;
   - the verdict: `pass`, `pass (blip)`, `re-hold (<breaches, or unknown: names>)`, `stop (...)`,
     `stop, unknown (...)`, or `pass, the last step`. A value Prometheus did not give reads `n/a`.
+- **Post-update stages**, for reading only (no limit is judged on them): one row per step, one column per stage of
+  `world.post_update.duration` (`quests`, `inventory`, `sheet`, `ability_amounts`, `party_status`, `presence`,
+  `pings`, `outbox`, `continuations`, in the order the tick runs them; [instrumentation](instrumentation.md#tick-and-instance-time)),
+  each `mean / p99` per tick in µs over the judged window. The mean is `sum by (stage)` of
+  `rate(world_post_update_duration_microseconds_sum[w])` over the same of `_count`; the p99 is `histogram_quantile(0.99,
+  sum by (stage, le)(rate(world_post_update_duration_microseconds_bucket[w])))`, interpolated within the stage buckets.
+  Whether the world exports them is asked against the tick histogram every build has:
+  `count(world_post_update_duration_microseconds_count) or (0 * count(world_tick_duration_microseconds_count))`. A
+  world that reports its ticks and no stage (0: a build from before #875) reads `not exported by this world build` on
+  its rows, and when no step was reported and at least one came from such a world, the section says so in one line
+  instead of a table. A world Prometheus has nothing from at all (an empty answer: a stalled export, a scrape gap, a
+  wrong world id), failed queries, or a window too short for a rate read `n/a`; when only one of the two stage queries
+  failed, only its half of each cell reads `n/a`. The JSON has them under each step's
+  `server.postUpdate`: `readout` (`Reported`, `NotExported` or `Unknown`) and `stages` (`stage`, `meanUs`, `p99Us`).
 - **Notes**: a world that restarted during the ramp, or after its last judged step without proof (the run does not
   stand: run again); one proven to have restarted after the last judged step (in bold; the verdict stands); or a
   restart check that was partial or unknown (the run does not stand); the blips; the steps whose drops may be the bot

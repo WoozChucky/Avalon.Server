@@ -28,7 +28,24 @@ Every tick histogram is in microseconds (`us`). The SDK's default buckets end at
 | `world.update.duration` | `world_update_duration_microseconds_bucket` | The world update pass of a tick |
 | `world.session_update.duration` | `world_session_update_duration_microseconds_bucket` | The session update pass of a tick |
 | `world.instance.update.duration` | `world_instance_update_duration_microseconds_bucket` | One instance's update, tagged `map.type` (`map_type` in Prometheus) |
+| `world.post_update.duration` | `world_post_update_duration_microseconds_bucket` | One stage after the world update, tagged `stage` (below) |
 | `world.tick.deadline_overshoot` | `world_tick_deadline_overshoot_microseconds_bucket` | How far past its deadline the tick loop woke; signed, an early wake is negative |
+
+The world update is followed by work no other histogram covers, about two thirds of a median tick in the first capacity ramp (#875). `world.post_update.duration` times each stage of it, in tick order, under its `stage` tag:
+
+| `stage` | What it times |
+|---|---|
+| `quests` | `QuestFlusher` over every connection: quest counts, log, updates, lines and markers |
+| `inventory` | `InventoryUpdateFlusher` over every connection |
+| `sheet` | `CharacterSheetFlusher` over every connection |
+| `ability_amounts` | `AbilityAmountsFlusher` over every connection |
+| `party_status` | `PartyService.FlushMemberStatus` |
+| `presence` | The admin view's presence capture |
+| `pings` | The time-sync pings due this tick |
+| `outbox` | `FlushOutbox` over every connection: each connection's queued packets framed and written to its stream |
+| `continuations` | `FlushContinuations` over every connection: the off-tick results handed back to the tick |
+
+A stage is usually a small part of a tick, so these buckets start lower (`WorldHistograms.StageMicroseconds`): `25, 50, 100, 250, 500, 1000, 2000, 4000, 8000, 12000, 16667, 25000, 33333, 50000, 100000, 250000, 1000000`. The stages together are the tick's time after the world update. Each stage's mean time per tick: `sum by (stage) (rate(world_post_update_duration_microseconds_sum[1m])) / sum by (stage) (rate(world_post_update_duration_microseconds_count[1m]))`.
 
 The deadline overshoot has its own buckets (`WorldHistograms.OvershootMicroseconds`): it is mostly within the timer's precision, so they split early from late around 0 and stay fine below 1 ms before reaching the same one-second stall:
 

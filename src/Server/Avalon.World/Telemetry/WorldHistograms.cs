@@ -20,6 +20,13 @@ public static class WorldHistograms
         [-1000, -250, -50, 0, 50, 100, 250, 500, 1000, 2000, 4000, 8000, 16667, 33333, 100000, 1000000];
 
     /// <summary>
+    /// The buckets of one stage of a tick (<c>world.post_update.duration</c>): a stage is usually a small part of a
+    /// tick, so they start at 25 µs, then follow <see cref="TickMicroseconds" /> to a 1 s stall.
+    /// </summary>
+    public static readonly double[] StageMicroseconds =
+        [25, 50, 100, 250, 500, 1000, 2000, 4000, 8000, 12000, 16667, 25000, 33333, 50000, 100000, 250000, 1000000];
+
+    /// <summary>
     /// A histogram in microseconds with <paramref name="buckets" /> as its buckets, <see cref="TickMicroseconds" />
     /// when none are given.
     /// </summary>

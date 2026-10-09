@@ -17,6 +17,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
 using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.DependencyInjection;
@@ -770,6 +771,16 @@ public sealed class QuestService(
             return;
         }
 
+        RunEnterInstanceHooks(character, instance);
+    }
+
+    /// <summary>
+    /// The hooks of an arrival, apart from the check above: the hook's lambda captures the instance, and a captured
+    /// variable's closure is allocated where its scope begins, so in the method that checks it would be allocated on
+    /// every call, for every connection on every tick (#875), arrival or not.
+    /// </summary>
+    private void RunEnterInstanceHooks(CharacterEntity character, IMapInstance instance)
+    {
         QuestCatalog catalog = Catalog;
         QuestInstanceView? view = null;
         foreach (ActiveQuest active in character.Quests.Active.ToList())

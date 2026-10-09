@@ -4,10 +4,12 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
 using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
@@ -46,6 +48,10 @@ public sealed class ScenarioWorld : IDisposable
     public static readonly TimeSpan Dt = TimeSpan.FromSeconds(1d / 60d);
 
     private static readonly DateTimeOffset s_start = new(2026, 10, 8, 12, 0, 0, TimeSpan.Zero);
+
+    // The sheet flusher's formula argument, as WorldServer passes it; a scenario has no reference data to take it from.
+    // Scenario characters have no Stats, so the flusher returns at its first check and never reads the caps.
+    private static readonly CombatFormula s_formula = new();
 
     // How far a walker must have moved between MarkProgress and a check: well above float noise, well below the
     // 20 m it walks in five windows.
@@ -105,8 +111,9 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>
     /// One world tick, in <c>World.Update</c>'s order for the registry: the builds finished since the last tick
-    /// published, then every instance through the registry's tick snapshot (<c>TickInstances</c>); then every
-    /// connection's outbox, as <c>WorldServer</c> flushes them after the world update; then the clock moves on a tick.
+    /// published, then every instance through the registry's tick snapshot (<c>TickInstances</c>); then, as
+    /// <c>WorldServer</c> runs them after the world update, the inventory, sheet and ability-amount flushers and every
+    /// connection's outbox; then the clock moves on a tick.
     /// The ticker contains an instance's throw, as it does in production; here it ends the scenario instead, since a
     /// tick cut short would be measured as a cheap one.
     /// </summary>
@@ -124,6 +131,15 @@ public sealed class ScenarioWorld : IDisposable
         _ticker.Tick(_registry.TickInstances(), Dt);
         if (_failures.First is { } failure)
             throw new InvalidOperationException("An instance threw during a scenario tick", failure);
+
+        // The flushers that need no service, in WorldServer's order after the world update (#875). Nothing a scenario
+        // does changes an inventory, the stats or the abilities, so they send nothing, and must allocate nothing.
+        for (int i = 0; i < _connections.Count; i++)
+            InventoryUpdateFlusher.Flush(_connections[i]);
+        for (int i = 0; i < _connections.Count; i++)
+            CharacterSheetFlusher.Flush(_connections[i], s_formula);
+        for (int i = 0; i < _connections.Count; i++)
+            AbilityAmountsFlusher.Flush(_connections[i]);
 
         for (int i = 0; i < _connections.Count; i++)
             _connections[i].FlushOutbox();
