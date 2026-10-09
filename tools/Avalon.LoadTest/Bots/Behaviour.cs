@@ -214,20 +214,24 @@ public static class BotLife
                     : await WaitClosedAsync(closed, ct);
             if (ct.IsCancellationRequested) return;
 
-            // Whatever woke the loop, the bot is about to enter again: a fighter's ask made on the old connection is
-            // answered by it, and must not wake the loop again once the bot is back.
-            bot.Fighter?.TakeReconnect();
-
             if (wake == Wake.Closed)
             {
                 // Only this loop closes a connection while the bot is in the world, and it is not closing one.
                 metrics.Disconnected(bot.Index);
                 bot.Note?.Invoke("The connection closed while in the world; entering again.");
                 await bot.DisconnectAsync(ct);
+                // Out of the world, the fighter is no longer stepped: an ask it made on the old connection is answered
+                // by the entry ahead, and must not wake the loop again once the bot is back.
+                bot.Fighter?.TakeReconnect();
                 continue;
             }
 
-            if (bot.State != BotState.InWorld) continue;
+            if (bot.State != BotState.InWorld)
+            {
+                // Out of the world already (not stepped): the entry ahead answers a fighter's ask.
+                bot.Fighter?.TakeReconnect();
+                continue;
+            }
 
             // A fighter that asked (its way out of the forest timed out) reconnects; a churner reconnects every fourth
             // churn and changes character otherwise.
@@ -244,6 +248,8 @@ public static class BotLife
                 {
                     // A full reconnect keeps the game context: LeaveAsync would sign it out.
                     await bot.DisconnectAsync(ct);
+                    // Taken once the fighter is no longer stepped, so no ask made before the close outlives it.
+                    bot.Fighter?.TakeReconnect();
                     await bot.EnterAsync(takeover: true, ct);
                 }
                 else

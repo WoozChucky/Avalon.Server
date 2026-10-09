@@ -168,7 +168,7 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
                 bool turned;
                 if (bot.Fighter is { } fighter)
                 {
-                    fighting = fighter.Step(ack, blocked, ActionGone(lane), bot.CharacterGuid, now, _rng);
+                    fighting = fighter.Step(ack, blocked, ActionGone(lane), bot.CharacterGuid, seq, now, _rng);
                     (dirX, dirZ, lane.Yaw, turned) = (fighting.DirX, fighting.DirZ, fighting.Yaw, fighting.NewHeading);
                 }
                 else

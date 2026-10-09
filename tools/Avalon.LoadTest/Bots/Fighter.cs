@@ -87,8 +87,15 @@ public readonly record struct FighterStep(
 /// <para>
 /// It moves by bump-and-turn: it steers straight at its goal, and when an ack shows the last heading stopped against
 /// a wall it turns away as a walker does (<see cref="Heading.TurnAway"/>) and holds that heading for a second before
-/// steering at the goal again. The forest has no straight path from deep inside, so the way out goes by the entry
-/// spawn first.
+/// steering at the goal again. The forest (chunks of 30 m, with branches) has no straight path from deep inside, so the
+/// way out retraces the way in: in the forest the fighter drops a crumb every 4 m it walks (a loop it walks back into
+/// is cut out of the trail), and on the way out it steers at the crumbs newest first, then at the entry spawn and the
+/// back portal. The trail is a fixed 256 crumbs; when full, every other crumb is dropped, so a longer walk keeps a
+/// coarser trail rather than none.
+/// </para>
+/// <para>
+/// After a map transition the acks of inputs sent before it was taken may still describe the old map: until an ack
+/// answers an input sent since, the fighter stands, and reads neither its position nor a wall from them.
 /// </para>
 /// <para>
 /// <see cref="Step"/>, <see cref="Reset"/> and the properties the driver reads run on the driver's thread only;
@@ -128,8 +135,27 @@ public sealed class Fighter
     /// <summary>How far a fighter looks for a creature.</summary>
     private const float SearchRange = 60f;
 
-    /// <summary>How far inside its ability's reach a fighter stops to cast.</summary>
+    /// <summary>
+    /// How far inside its ability's reach a fighter stops to cast, at most: 1 m, or a fifth of a short reach. A creature
+    /// holds its station 1.5 m from what it fights, so a warrior stopping a metre inside Cleave's 2.5 m would chase it
+    /// for ever; at 2 m its swing (whose cone reaches past the target's centre by its body) lands.
+    /// </summary>
     private const float ReachMargin = 1f;
+
+    /// <summary>The share of a short reach kept as the margin.</summary>
+    private const float ReachMarginShare = 0.2f;
+
+    /// <summary>The most crumbs a trail holds.</summary>
+    private const int TrailCapacity = 256;
+
+    /// <summary>A crumb is dropped once the fighter is this far from the last one; and a crumb this near cuts a loop.</summary>
+    private const float CrumbSpacing = 4f;
+
+    /// <summary>On the way out, a crumb within this is passed and the next one steered at.</summary>
+    private const float CrumbReached = 1.5f;
+
+    /// <summary>A character's base walk speed in m/s (the world's <c>CharacterMovement.BaseSpeed</c>), for the exit's budget.</summary>
+    private const float WalkSpeed = 4f;
 
     /// <summary>The table is looked at every this many steps: 10 Hz, as the world sends it.</summary>
     private const int LookEvery = 6;
@@ -156,7 +182,10 @@ public sealed class Fighter
     /// <summary>No live creature within <see cref="SearchRange"/> for this long, the forest is cleared: the fighter leaves.</summary>
     private static readonly long s_noCreatureTimeout = Ticks(TimeSpan.FromSeconds(60));
 
-    /// <summary>Not back in town this long after setting out for the exit, the fighter reconnects (in town).</summary>
+    /// <summary>
+    /// Not back in town this long after setting out for the exit, the fighter reconnects (in town); a long trail gets
+    /// twice its walk instead.
+    /// </summary>
     private static readonly long s_exitTimeout = Ticks(TimeSpan.FromSeconds(60));
 
     /// <summary>After the back portal refused, the fighter asks it again no sooner than this.</summary>
@@ -187,12 +216,20 @@ public sealed class Fighter
     /// <summary>The creatures cast at whose death is still to be seen; 0 is a free slot.</summary>
     private readonly ulong[] _castAt = new ulong[CastAtCapacity];
 
+    /// <summary>The trail's crumbs, oldest first: the way back out of the forest.</summary>
+    private readonly float[] _trailX = new float[TrailCapacity];
+    private readonly float[] _trailZ = new float[TrailCapacity];
+
     private volatile FighterState _state = FighterState.Town;
     private volatile TaskCompletionSource _reconnect = NewReconnect();
 
     /// <summary>The last transition the read loop handed over and not yet taken: <c>result &lt;&lt; 16 | map</c>.</summary>
     private int _transition = NoTransition;
     private long _transitionAt;
+    private int _trail;
+
+    /// <summary>The first input whose ack describes the map the fighter is on: the step's when a transition was taken.</summary>
+    private uint _freshFrom;
 
     private bool _started;
     private bool _reconnecting;
@@ -232,7 +269,7 @@ public sealed class Fighter
             3 => (220u, 25f), // Hunter, Quick Shot
             _ => (230u, 18f), // Healer, Smite
         };
-        _reach = reach - ReachMargin;
+        _reach = reach - MathF.Min(ReachMargin, ReachMarginShare * reach);
         _lookIn = botIndex % LookEvery + 1;
     }
 
@@ -270,10 +307,28 @@ public sealed class Fighter
     /// The connection handed over a map transition, at <paramref name="at"/> (<see cref="Stopwatch.GetTimestamp"/>), on
     /// its read loop after it cleared the table for a success. Taken on the next step.
     /// </summary>
+    /// <remarks>
+    /// A success not yet taken is never overwritten by a refusal: the move happened, and a refusal arriving right after it
+    /// (a repeated respawn answered <c>MoveInProgress</c>, say) answers an ask the move has made moot.
+    /// </remarks>
     public void OnTransition(MapTransitionResult result, ushort mapId, long at)
     {
-        Volatile.Write(ref _transitionAt, at);
-        Volatile.Write(ref _transition, ((int)result << 16) | mapId);
+        int transition = ((int)result << 16) | mapId;
+        if (result == MapTransitionResult.Success)
+        {
+            Volatile.Write(ref _transitionAt, at);
+            Volatile.Write(ref _transition, transition);
+            return;
+        }
+
+        // Only the step takes the slot (back to NoTransition) meanwhile: retried until it holds no success.
+        int pending = Volatile.Read(ref _transition);
+        while (!IsSuccess(pending))
+        {
+            int seen = Interlocked.CompareExchange(ref _transition, transition, pending);
+            if (seen == pending) return;
+            pending = seen;
+        }
     }
 
     /// <summary>The world refused a cast (<c>SMSG_ABILITY_NOT_READY</c>), on the read loop: counted by its reason.</summary>
@@ -287,6 +342,8 @@ public sealed class Fighter
     {
         _reconnecting = false;
         Volatile.Write(ref _transition, NoTransition);
+        _freshFrom = 0;
+        _trail = 0;
         Array.Clear(_castAt);
         _hasTarget = false;
         _detouring = false;
@@ -308,7 +365,8 @@ public sealed class Fighter
     /// </summary>
     /// <param name="canSend">Whether the bot's last packet besides its input has gone: only then may the step decide on another.</param>
     /// <param name="selfGuid">The bot's character's guid, by which the table tells its death.</param>
-    public FighterStep Step(BotAck ack, bool blocked, bool canSend, ulong selfGuid, long now, Random rng)
+    /// <param name="seq">The input this step sends: once a transition is taken, only acks of it and later describe the new map.</param>
+    public FighterStep Step(BotAck ack, bool blocked, bool canSend, ulong selfGuid, uint seq, long now, Random rng)
     {
         if (!_started)
         {
@@ -320,14 +378,18 @@ public sealed class Fighter
         if (_reconnecting) return Still(newHeading: false);
 
         FighterState before = _state;
-        TakeTransition(now);
+        TakeTransition(seq, now);
+        bool fresh = ack.Seq >= _freshFrom;
         if (--_lookIn <= 0)
         {
             _lookIn = LookEvery;
-            Look(ack, selfGuid, now);
+            Look(ack, selfGuid, fresh, now);
         }
 
-        FighterStep step = Decide(ack, blocked, canSend, now, rng);
+        // A dead character's inputs go unanswered, and a dead fighter reads nothing from the acks: it is never held.
+        FighterStep step = fresh || _state == FighterState.Dead
+            ? Decide(ack, blocked, canSend, now, rng)
+            : Still(newHeading: false);
         return _state != before && !step.NewHeading ? step with { NewHeading = true } : step;
     }
 
@@ -365,10 +427,11 @@ public sealed class Fighter
                 return Still(newHeading: false);
 
             case FighterState.InForest:
+                Track(ack.X, ack.Z);
                 if (now >= _forestUntil || now - _lastCreatureAt > s_noCreatureTimeout)
                 {
                     StepTimed?.Invoke("in-forest", Elapsed(_stateSince, now));
-                    _exitBy = now + s_exitTimeout;
+                    _exitBy = now + Math.Max(s_exitTimeout, Ticks(TimeSpan.FromSeconds(2 * WayOut(ack) / WalkSpeed)));
                     _pastEntry = false;
                     Enter(FighterState.ToExit, now);
                     goto case FighterState.ToExit;
@@ -382,6 +445,10 @@ public sealed class Fighter
                     ExitTimedOut(now);
                     return Still(newHeading: true);
                 }
+
+                // Back along the trail, newest crumb first, then by the entry spawn to the back portal.
+                while (_trail > 0 && Within(ack, _trailX[_trail - 1], _trailZ[_trail - 1], CrumbReached)) _trail--;
+                if (_trail > 0) return Walk(ack, _trailX[_trail - 1], _trailZ[_trail - 1], blocked, now, rng);
 
                 if (!_pastEntry)
                 {
@@ -449,7 +516,7 @@ public sealed class Fighter
     }
 
     /// <summary>The table at 10 Hz: its own death, the deaths of the creatures it cast at, and in the forest a target.</summary>
-    private void Look(BotAck ack, ulong selfGuid, long now)
+    private void Look(BotAck ack, ulong selfGuid, bool fresh, long now)
     {
         for (int i = 0; i < _castAt.Length; i++)
         {
@@ -478,14 +545,15 @@ public sealed class Fighter
             return;
         }
 
-        if (_state != FighterState.InForest) return;
+        // Targets are looked for from the acked position, which must be on this map.
+        if (_state != FighterState.InForest || !fresh) return;
 
         _hasTarget = Table.TryNearestLiveCreature(ack.X, ack.Z, SearchRange, out _target);
         if (_hasTarget) _lastCreatureAt = now;
     }
 
     /// <summary>The transition the read loop handed over, if any, applied to the trip.</summary>
-    private void TakeTransition(long now)
+    private void TakeTransition(uint seq, long now)
     {
         int transition = Interlocked.Exchange(ref _transition, NoTransition);
         if (transition == NoTransition) return;
@@ -495,9 +563,12 @@ public sealed class Fighter
         long at = Volatile.Read(ref _transitionAt);
         if (result == MapTransitionResult.Success)
         {
-            // A new instance, a new view: the connection cleared the table, and nothing cast at is in it any more.
+            // A new instance, a new view: the connection cleared the table, and nothing cast at is in it any more. The
+            // acks describe it from this step's input on.
             Array.Clear(_castAt);
             _hasTarget = false;
+            _freshFrom = seq;
+            _trail = 0;
             if (mapId == ForestMapId)
             {
                 if (_state == FighterState.Entering)
@@ -639,11 +710,81 @@ public sealed class Fighter
     private FighterStep Act(FighterAction action) =>
         new(0f, 0f, Heading.Wire(_yaw), true, action, 0f, 0f, 0f);
 
-    private static bool Near(BotAck ack, float x, float z)
+    private static bool Near(BotAck ack, float x, float z) => Within(ack, x, z, ArrivalRadius);
+
+    private static bool Within(BotAck ack, float x, float z, float radius) => Within(ack.X, ack.Z, x, z, radius);
+
+    private static bool Within(float fromX, float fromZ, float x, float z, float radius)
     {
-        float dx = x - ack.X;
-        float dz = z - ack.Z;
-        return dx * dx + dz * dz <= ArrivalRadius * ArrivalRadius;
+        float dx = x - fromX;
+        float dz = z - fromZ;
+        return dx * dx + dz * dz <= radius * radius;
+    }
+
+    private static float Distance(float fromX, float fromZ, float x, float z) =>
+        MathF.Sqrt((x - fromX) * (x - fromX) + (z - fromZ) * (z - fromZ));
+
+    private static bool IsSuccess(int transition) =>
+        transition != NoTransition && (MapTransitionResult)(transition >> 16) == MapTransitionResult.Success;
+
+    /// <summary>
+    /// The trail, from the acked position: a crumb once the fighter is <see cref="CrumbSpacing"/> from the last; back at
+    /// an older crumb, the loop since is cut out. Full, every other crumb is dropped (the oldest and newest kept).
+    /// </summary>
+    private void Track(float x, float z)
+    {
+        if (_trail > 0)
+        {
+            if (Within(x, z, _trailX[_trail - 1], _trailZ[_trail - 1], CrumbSpacing)) return;
+
+            for (int i = 0; i < _trail - 1; i++)
+            {
+                if (!Within(x, z, _trailX[i], _trailZ[i], CrumbSpacing)) continue;
+
+                _trail = i + 1;
+                return;
+            }
+
+            if (_trail == TrailCapacity) Thin();
+        }
+
+        _trailX[_trail] = x;
+        _trailZ[_trail] = z;
+        _trail++;
+    }
+
+    /// <summary>Halves a full trail: every other crumb from the oldest, and the newest.</summary>
+    private void Thin()
+    {
+        int kept = 0;
+        for (int i = 0; i < _trail; i += 2, kept++)
+        {
+            _trailX[kept] = _trailX[i];
+            _trailZ[kept] = _trailZ[i];
+        }
+
+        if ((_trail - 1) % 2 != 0)
+        {
+            _trailX[kept] = _trailX[_trail - 1];
+            _trailZ[kept] = _trailZ[_trail - 1];
+            kept++;
+        }
+
+        _trail = kept;
+    }
+
+    /// <summary>How far the way out is from the acked position: along the trail, then by the entry spawn to the back portal.</summary>
+    private float WayOut(BotAck ack)
+    {
+        float length = 0f;
+        (float x, float z) = (ack.X, ack.Z);
+        for (int i = _trail - 1; i >= 0; i--)
+        {
+            length += Distance(x, z, _trailX[i], _trailZ[i]);
+            (x, z) = (_trailX[i], _trailZ[i]);
+        }
+
+        return length + Distance(x, z, EntrySpawnX, EntrySpawnZ) + Distance(EntrySpawnX, EntrySpawnZ, BackPortalX, BackPortalZ);
     }
 
     private static TaskCompletionSource NewReconnect() => new(TaskCreationOptions.RunContinuationsAsynchronously);
