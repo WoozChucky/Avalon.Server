@@ -477,16 +477,13 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                 if (token.RequestId == requestId && token.Receipt is not null && token.ReceiptExpiresAt > Now)
                 {
                     GameAuthReply receipt = crypto.Unprotect(token.Receipt, tokenKey + ":" + requestId.ToString("N"));
-                    return receipt.State != GameAuthStates.Authorized || await HasCurrentLicenseAsync(context, cancellationToken)
-                        ? receipt : GameAuthReply.Failure(GameAuthErrors.ContextRevoked);
+                    if (receipt.State != GameAuthStates.Authorized || await HasCurrentLicenseAsync(context, cancellationToken)) return receipt;
+                    // The license the receipt authorized is no longer current. CONTEXT_REVOKED must be true when it is
+                    // answered: the context is revoked, and its world session told, before the refusal goes out (#862).
+                    if (!await TryRevokeAsync(contextKey, rawContext, context, cancellationToken)) continue;
+                    return GameAuthReply.Failure(GameAuthErrors.ContextRevoked);
                 }
-                if (!await store.CompareExchangeAsync([new(contextKey, rawContext,
-                    GameAuthJson.Serialize(context with { State = GameAuthStates.Revoked }), context.AbsoluteExpiresAt)], cancellationToken))
-                {
-                    continue;
-                }
-
-                if (context.AccountId is { } revokedAccount) await PublishRevocationAsync(new AccountId(revokedAccount), context.Id);
+                if (!await TryRevokeAsync(contextKey, rawContext, context, cancellationToken)) continue;
                 return GameAuthReply.Failure(GameAuthErrors.RefreshReuse);
             }
             if (context.Generation != token.Generation || context.RefreshDigest != GameAuthCryptography.Digest(refresh))
@@ -538,11 +535,35 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         return GameAuthReply.Failure(GameAuthErrors.InProgress);
     }
 
-    public async Task<bool> LogoutAsync(string credential, CancellationToken cancellationToken)
+    /// <summary>
+    /// Ends the context <paramref name="credential"/> is the current credential of. The credential is checked once, as
+    /// current, and that check is what authorizes the logout: a rotation committing after it (a refresh by the same
+    /// holder, racing the logout) does not undo it, so a lost swap re-reads the same context and retries until the
+    /// context is revoked (#862). A credential already rotated, or spent, expired or unknown, when the logout is checked
+    /// ends nothing (<see cref="GameContextLogout.Unknown"/>), like any stale credential anywhere else.
+    /// </summary>
+    public async Task<GameContextLogout> LogoutAsync(string credential, CancellationToken cancellationToken)
     {
         GameContextRecord? context = await GetContextAsync(credential, false, cancellationToken);
-        if (context is null) return false;
-        if (!await store.CompareExchangeAsync([new(ContextKey(context.Id), GameAuthJson.Serialize(context),
+        if (context is null) return GameContextLogout.Unknown;
+        string key = ContextKey(context.Id);
+        string? raw = GameAuthJson.Serialize(context);
+        for (int retry = 0; retry < GameAuthPolicy.MutationAttempts; retry++)
+        {
+            if (await TryRevokeAsync(key, raw, context, cancellationToken)) return GameContextLogout.Ended;
+            raw = await store.ReadAsync(key, cancellationToken);
+            context = GameAuthJson.Deserialize<GameContextRecord>(raw);
+            // Revoked by another writer (refresh reuse, a replacement, another logout), or gone: already ended.
+            if (context is null || context.State == GameAuthStates.Revoked || context.AbsoluteExpiresAt <= Now)
+                return GameContextLogout.Ended;
+        }
+        return GameContextLogout.Contended;
+    }
+
+    /// <summary>Revokes <paramref name="context"/> if it is still <paramref name="raw"/>, then tells its world session.</summary>
+    private async Task<bool> TryRevokeAsync(string key, string? raw, GameContextRecord context, CancellationToken cancellationToken)
+    {
+        if (!await store.CompareExchangeAsync([new(key, raw,
             GameAuthJson.Serialize(context with { State = GameAuthStates.Revoked }), context.AbsoluteExpiresAt)], cancellationToken))
         {
             return false;

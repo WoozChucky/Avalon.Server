@@ -29,6 +29,7 @@ public sealed class AvalonGameAuthorizationShould
     private readonly Account _account = new() { Id = new(7), Username = "NATIVE", Email = "native@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
     private readonly Guid _family = Guid.NewGuid();
     private readonly Guid _run = Guid.NewGuid();
+    private readonly IGameContextRevocations _revocations = Substitute.For<IGameContextRevocations>();
     private DateTime Now => _clock.GetUtcNow().UtcDateTime;
     public AvalonGameAuthorizationShould()
     {
@@ -40,7 +41,7 @@ public sealed class AvalonGameAuthorizationShould
         IGameLicenseRepository licenses = repository ?? _licenses;
         var registry = new GameProviderRegistry([], [new AvalonLicenseProvider(licenses)]);
         return new(_store, new(_store, _crypto, _options, _clock), _crypto, _accounts, _families, _identities,
-            registry, new(registry, licenses, _observations, _options, _clock), _options, _clock);
+            registry, new(registry, licenses, _observations, _options, _clock), _options, _clock, revocations: _revocations);
     }
     private GameLicense Grant(DateTime? expires = null, string provider = "avalon")
     {
@@ -174,6 +175,19 @@ public sealed class AvalonGameAuthorizationShould
         Assert.Null(await Service().GetContextAsync(rotated.GameContextCredential!, false, default));
         Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(initial.Reply.GameContextRefreshToken!, request, default)).Error);
         Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RedeemHandoffAsync(initial.Attempt, initial.Ticket, initial.Request, default)).Error);
+    }
+    [Fact]
+    public async Task A_refresh_receipt_refused_for_a_lapsed_license_revokes_the_context_it_reports_revoked()
+    {
+        GameLicense grant = Grant(); GameAuthReply initial = (await Handoff()).Reply; var request = Guid.NewGuid();
+        GameAuthReply rotated = await Service().RefreshAsync(initial.GameContextRefreshToken!, request, default);
+        Assert.Equal(GameAuthStates.Authorized, rotated.State);
+        GameContextRecord context = (await Service().GetContextAsync(rotated.GameContextCredential!, true, default))!;
+        grant.ExpiresAt = Now; // Lapsed, while the binding the context holds is intact.
+        Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(initial.GameContextRefreshToken!, request, default)).Error);
+        Assert.Null(await Service().GetContextByIdAsync(context.Id, false, default));
+        Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(rotated.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
+        await _revocations.Received(1).PublishAsync(_account.Id, context.Id);
     }
     [Theory]
     [InlineData("account")]

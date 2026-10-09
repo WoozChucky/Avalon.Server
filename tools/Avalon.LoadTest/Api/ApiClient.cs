@@ -64,7 +64,8 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
 
     /// <summary>
     /// How long a sign-out (<see cref="LogoutAsync"/>) is given, by every caller, on its own clock. Its first attempt
-    /// may use all of it; a quick failure (no connection, a 5xx) is retried in what is left.
+    /// may use all of it; a quick failure (no connection, a 5xx, or a 409 <c>IN_PROGRESS</c>: the context kept changing
+    /// under the logout, a refresh of it most likely, and is still live) is retried in what is left.
     /// </summary>
     public static TimeSpan LogoutTimeout { get; } = TimeSpan.FromSeconds(10);
 
@@ -252,7 +253,7 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
             {
                 return;
             }
-            catch (ApiException error) when (attempt < s_retryDelays.Length && error.Status is 0 or >= 500 &&
+            catch (ApiException error) when (attempt < s_retryDelays.Length && Repeatable(error, GameAuthErrors.InProgress) &&
                 LogoutTimeout - Stopwatch.GetElapsedTime(start) >= s_retryDelays[attempt] + s_logoutMinAttempt)
             {
                 await Task.Delay(s_retryDelays[attempt], ct);

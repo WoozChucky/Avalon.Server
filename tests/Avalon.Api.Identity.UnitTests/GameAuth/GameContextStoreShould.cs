@@ -199,10 +199,50 @@ public class GameContextStoreShould
         AuthAttemptReply attempt = (await Attempt("steam"))!;
         GameAuthReply result = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
         GameContextRecord current = (await Service().GetContextAsync(result.GameContextCredential!, true, CancellationToken.None))!;
-        Assert.True(await Service().LogoutAsync(result.GameContextCredential!, CancellationToken.None));
+        Assert.Equal(GameContextLogout.Ended, await Service().LogoutAsync(result.GameContextCredential!, CancellationToken.None));
         Assert.Null(await Service().GetContextByIdAsync(current.Id, true, CancellationToken.None));
         Assert.Equal("CONTEXT_REVOKED", (await Service().RefreshAsync(result.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None)).Error);
         await _revocations.Received(1).PublishAsync(new AccountId(7), current.Id);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Logout_ends_a_context_rotated_while_it_runs_but_a_credential_already_rotated_ends_nothing(bool racing)
+    {
+        AuthAttemptReply attempt = (await Attempt("steam"))!;
+        GameAuthReply initial = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
+        GameContextRecord context = (await Service().GetContextAsync(initial.GameContextCredential!, true, CancellationToken.None))!;
+        var interleaving = new InterleavingAuthStore(_store);
+        GameAuthorizationService service = Service(interleaving);
+        GameAuthReply? rotated = null;
+        if (racing)
+        {
+            // The refresh commits after the logout checked its credential and before its swap.
+            interleaving.PauseKey = CacheKeys.GameAuth("production", "context", context.Id.ToString("N"));
+            interleaving.AfterRead = async () => rotated = await service.RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None);
+        }
+        else
+        {
+            rotated = await service.RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None);
+        }
+
+        GameContextLogout outcome = await service.LogoutAsync(initial.GameContextCredential!, CancellationToken.None);
+
+        Assert.Null(rotated!.Error);
+        if (racing)
+        {
+            Assert.Equal(GameContextLogout.Ended, outcome);
+            Assert.Null(await service.GetContextAsync(rotated.GameContextCredential!, false, CancellationToken.None));
+            Assert.Equal("CONTEXT_REVOKED", (await service.RefreshAsync(rotated.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None)).Error);
+            await _revocations.Received(1).PublishAsync(new AccountId(7), context.Id);
+        }
+        else
+        {
+            Assert.Equal(GameContextLogout.Unknown, outcome);
+            Assert.NotNull(await service.GetContextAsync(rotated.GameContextCredential!, true, CancellationToken.None));
+            await _revocations.DidNotReceiveWithAnyArgs().PublishAsync(default!, default);
+        }
     }
 
     [Fact]

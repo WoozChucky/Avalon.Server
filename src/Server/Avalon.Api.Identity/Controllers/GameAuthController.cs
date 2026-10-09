@@ -58,8 +58,10 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
         if (!Request.IsHttps) return BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired));
         try
         {
-            await authorization.LogoutAsync(request.GameContextCredential, cancellationToken);
-            return NoContent();
+            // A context still live after every retry is answered 409 IN_PROGRESS, never 204: the caller logs out again.
+            return await authorization.LogoutAsync(request.GameContextCredential, cancellationToken) == GameContextLogout.Contended
+                ? StatusCode(409, GameAuthReply.Failure(GameAuthErrors.InProgress))
+                : NoContent();
         }
         catch (RedisException) { return StatusCode(503, GameAuthReply.Failure(GameAuthErrors.ServiceUnavailable)); }
     }
