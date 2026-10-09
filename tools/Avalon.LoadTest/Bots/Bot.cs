@@ -102,6 +102,12 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     private volatile GameContext? _context;
     private volatile BotState _state = BotState.SignedOut;
     private volatile WorldConnection? _connection;
+
+    /// <summary>
+    /// The connection whose Change Character leave failed: <see cref="DisconnectAsync"/> does not send that leave again
+    /// (the failure was counted once, with the change) and closes the socket directly.
+    /// </summary>
+    private volatile WorldConnection? _leaveFailedOn;
     private volatile TaskCompletionSource? _firstAck;
     private Action<NetworkPacket>? _onAck;
     private BotAck _lastAck;
@@ -283,7 +289,16 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         try
         {
             _state = BotState.Selecting;
-            await LeaveCharacterAsync(connection, ct);
+            try
+            {
+                await LeaveCharacterAsync(connection, ct);
+            }
+            catch (BotStepException)
+            {
+                _leaveFailedOn = connection;
+                throw;
+            }
+
             await SelectAsync(connection, ct);
             metrics.EntrySucceeded(Stopwatch.GetElapsedTime(start));
         }
@@ -311,10 +326,11 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             _state = BotState.Leaving;
             try
             {
-                // A leave is answered only once the handshake is done; before it the world ignores it. Skipped (the
-                // breaker counts it) while the world is taken as hung: the close below ends the session.
+                // A leave is answered only once the handshake is done; before it the world ignores it. Not sent again
+                // after this connection's Change Character leave failed, and skipped (the breaker counts it) while the
+                // world is taken as hung: the close below ends the session.
                 if (was is BotState.Selecting or BotState.Loaded or BotState.InWorld && !connection.Closed.IsCompleted &&
-                    _leaves.TryEnter())
+                    !ReferenceEquals(_leaveFailedOn, connection) && _leaves.TryEnter())
                 {
                     await LeaveCharacterAsync(connection, ct);
                     _leaves.Succeeded();
@@ -323,10 +339,11 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             catch (BotStepException error)
             {
                 // A timeout is the hung world's failure; a closed connection, an I/O or TLS failure says nothing of
-                // it; any other answer (a refusal of the leave) says the world is alive. Counted as its own kind.
+                // it; any other answer (a refusal of the leave) says the world is alive. Counted as a leave failure of
+                // its kind, apart from the entries (no attempt goes with it).
                 if (error.Kind == "leave:timeout") _leaves.Failed();
                 else if (error.Kind is not ("leave:closed" or "leave:io" or "leave:tls")) _leaves.Succeeded();
-                metrics.EntryFailed(error.Kind);
+                metrics.LeaveFailed(error.Kind);
                 Note?.Invoke($"Leave: {error.Reason}; closing the connection anyway.");
             }
             finally
@@ -406,7 +423,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         SignOutOutcome outcome = await _signOuts.SignOutAsync(api, context);
         if (outcome.Failure is { } failure)
         {
-            metrics.SignInFailed("logout");
+            metrics.SignOutFailed();
             Note?.Invoke($"Logout: {failure}.");
         }
         else if (!outcome.Skipped)

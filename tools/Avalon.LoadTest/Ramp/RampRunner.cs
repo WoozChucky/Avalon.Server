@@ -58,8 +58,11 @@ public sealed record RampResult(
     /// <summary>Bots the runner signed in.</summary>
     public int SignIns { get; init; }
 
-    /// <summary>Sign-in failures over the ramp, the context refresher's and failed sign-outs included.</summary>
+    /// <summary>Sign-in failures over the ramp, the context refresher's included.</summary>
     public int SignInFailures { get; init; }
+
+    /// <summary>Failed sign-outs of game contexts over the ramp, its stop sequence's included.</summary>
+    public int SignOutFailures { get; init; }
 
     /// <summary>
     /// Whether, after the stop, the world's players online came back to the count before the ramp; null while the stop
@@ -184,6 +187,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         IReadOnlyList<Breach> failedFirst = [];
         string? stopReason = null;
         int signInFailures = 0;
+        int signOutFailures = 0;
         Task? presign = null;
         try
         {
@@ -215,6 +219,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
                 StepRecord step = await HoldAsync(steps.Count + 1, prometheus, playersBefore, metrics, driver, decider, ct);
                 steps.Add(step);
                 signInFailures += step.Client.SignInFailures;
+                signOutFailures += step.Client.SignOutFailures;
                 Console.WriteLine(StepLine(step));
 
                 Decision decision = step.Decision;
@@ -245,6 +250,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             StopReason = stopReason,
             SignIns = _signIns,
             SignInFailures = signInFailures,
+            SignOutFailures = signOutFailures,
             WorldDrained = null,
         };
         try
@@ -286,7 +292,9 @@ public sealed class RampRunner(RunFile run, RampOptions options)
                 $"API down during the stop: {_signOuts.Skipped} sign-outs skipped; those contexts expire within 5 minutes."));
         }
 
-        signInFailures += metrics.TakeWindow().SignInFailures;
+        StepClientValues last = metrics.TakeWindow();
+        signInFailures += last.SignInFailures;
+        signOutFailures += last.SignOutFailures;
         bool drained = await WaitForDrainAsync(prometheus, playersBefore);
 
         // The count and the rate from one moment: sign-ins still landing when the outcome was known count in both.
@@ -296,6 +304,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             SignInRate = SignInRate(),
             Ended = DateTimeOffset.UtcNow,
             SignInFailures = signInFailures,
+            SignOutFailures = signOutFailures,
             WorldDrained = drained,
             SignOutsSkipped = _signOuts.Skipped,
             LeavesSkipped = _leaves.Skipped,
@@ -507,11 +516,17 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         foreach ((string kind, int count) in judged.EntryFailures)
             failures[kind] = failures.GetValueOrDefault(kind) + count;
 
+        var leaveFailures = new Dictionary<string, int>(settle.LeaveFailures, StringComparer.Ordinal);
+        foreach ((string kind, int count) in judged.LeaveFailures)
+            leaveFailures[kind] = leaveFailures.GetValueOrDefault(kind) + count;
+
         return judged with
         {
             EntryAttempts = settle.EntryAttempts + judged.EntryAttempts,
             EntryFailures = failures,
             SignInFailures = settle.SignInFailures + judged.SignInFailures,
+            LeaveFailures = leaveFailures,
+            SignOutFailures = settle.SignOutFailures + judged.SignOutFailures,
             Disconnects = settle.Disconnects + judged.Disconnects,
             EntrySuccesses = settle.EntrySuccesses + judged.EntrySuccesses,
             // Percentiles of two windows do not merge: the slower of the two, an upper bound.

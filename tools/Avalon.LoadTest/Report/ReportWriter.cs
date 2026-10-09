@@ -127,8 +127,8 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Live bots (idle / walker / churner) | In world at hold end | Players online − start | Instances | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Entries / failed | Failures by kind | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Step | Live bots (idle / walker / churner) | In world at hold end | Players online − start | Instances | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Entries / failed | Failures by kind | Leave failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
             ServerValues s = step.Server;
@@ -137,6 +137,9 @@ public static class ReportWriter
             string kinds = c.EntryFailures.Count == 0
                 ? ""
                 : string.Join(", ", c.EntryFailures.OrderByDescending(f => f.Value).Select(f => Invariant($"{f.Key} {f.Value}")));
+            string leaves = c.LeaveFailures.Count == 0
+                ? ""
+                : string.Join(", ", c.LeaveFailures.OrderByDescending(f => f.Value).Select(f => Invariant($"{f.Key} {f.Value}")));
             string bots = Invariant(
                 $"{step.Bots} ({step.ByBehaviour.GetValueOrDefault(BehaviourKind.Idle)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Walker)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Churner)})");
             string workingSet = s.WorkingSetMb is { } mb
@@ -159,6 +162,7 @@ public static class ReportWriter
                 Ms(s.SaveP95Ms, "0"),
                 Invariant($"{c.EntryAttempts} / {failed}"),
                 kinds,
+                leaves,
                 c.Disconnects.ToString(CultureInfo.InvariantCulture),
                 Percent(step.GeneratorCpu),
                 Ms(step.GeneratorLagP95Ms, "0.0"),
@@ -181,13 +185,14 @@ public static class ReportWriter
         md.AppendLine(result.SignIns == 0
             ? Invariant($"- Sign-ins (identity, apart from the world): none; {result.SignInFailures} failures.")
             : Invariant(
-                $"- Sign-ins (identity, apart from the world): {result.SignIns} bots, one every {result.SignInRate.TotalSeconds:0.00} s with {options.SignInConcurrency} at once ({60 / result.SignInRate.TotalSeconds:0} per minute); {result.SignInFailures} sign-in, refresh or sign-out failures."));
+                $"- Sign-ins (identity, apart from the world): {result.SignIns} bots, one every {result.SignInRate.TotalSeconds:0.00} s with {options.SignInConcurrency} at once ({60 / result.SignInRate.TotalSeconds:0} per minute); {result.SignInFailures} sign-in or refresh failures."));
         md.AppendLine(result.WorldDrained switch
         {
             true => "- After the stop the world's players online came back to the count before the ramp.",
             false => "- After the stop the world's players online had not come back to the count before the ramp within 90 s: wait before cleanup.",
             null => "- World drained: pending. The bots were still leaving when this was written; the report is rewritten when they are gone.",
         });
+        md.AppendLine(Invariant($"- Sign-outs of game contexts that failed: {result.SignOutFailures}."));
         if (result.LeavesSkipped > 0)
         {
             md.AppendLine(Invariant($"- World unresponsive during the stop: {result.LeavesSkipped} leaves skipped; sockets closed."));
@@ -244,6 +249,7 @@ public static class ReportWriter
                 result.SignIns,
                 SecondsPerSignIn = result.SignInRate.TotalSeconds,
                 result.SignInFailures,
+                result.SignOutFailures,
                 result.WorldDrained,
                 result.SignOutsSkipped,
                 result.LeavesSkipped,

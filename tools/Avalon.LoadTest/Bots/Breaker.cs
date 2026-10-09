@@ -9,7 +9,8 @@ namespace Avalon.LoadTest.Bots;
 /// a probe or one still in flight from before the trip, resets the count and closes the breaker; a failed probe keeps
 /// it tripped. So a dead peer costs one window of calls rather than one timeout per bot, and a short outage costs no
 /// more than itself. Armed only for a ramp's stop sequence (<see cref="Arm"/>): until then every call is made and
-/// nothing is counted, so a breaker never changes the load a step is judged on. Thread-safe.
+/// nothing is counted, so a breaker never changes the load a step is judged on. Thread-safe: every transition (the
+/// count, the trip, the reset, the next probe) happens under one lock, taken once per leave or sign-out.
 /// </summary>
 public sealed class Breaker
 {
@@ -21,19 +22,35 @@ public sealed class Breaker
 
     private static readonly long s_probeTicks = (long)(ProbeInterval.TotalSeconds * Stopwatch.Frequency);
 
+    private readonly Lock _lock = new();
     private int _failuresInARow;
     private int _skipped;
-    private volatile bool _tripped;
-    private volatile bool _armed;
+    private bool _tripped;
+    private bool _armed;
 
     /// <summary>The <see cref="Stopwatch"/> timestamp from which the next probe may go.</summary>
     private long _nextProbe;
 
     /// <summary>Calls skipped while the breaker was tripped.</summary>
-    public int Skipped => Volatile.Read(ref _skipped);
+    public int Skipped
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _skipped;
+            }
+        }
+    }
 
     /// <summary>Arms the breaker: from now on failures count, and it may trip. Called when the stop sequence begins.</summary>
-    public void Arm() => _armed = true;
+    public void Arm()
+    {
+        lock (_lock)
+        {
+            _armed = true;
+        }
+    }
 
     /// <summary>
     /// Whether to make the call: always while unarmed or closed; while tripped, only for the one caller that takes a
@@ -41,14 +58,20 @@ public sealed class Breaker
     /// </summary>
     public bool TryEnter()
     {
-        if (!_armed || !_tripped) return true;
+        lock (_lock)
+        {
+            if (!_armed || !_tripped) return true;
 
-        long now = Stopwatch.GetTimestamp();
-        long next = Interlocked.Read(ref _nextProbe);
-        if (now >= next && Interlocked.CompareExchange(ref _nextProbe, now + s_probeTicks, next) == next) return true;
+            long now = Stopwatch.GetTimestamp();
+            if (now >= _nextProbe)
+            {
+                _nextProbe = now + s_probeTicks;
+                return true;
+            }
 
-        Interlocked.Increment(ref _skipped);
-        return false;
+            _skipped++;
+            return false;
+        }
     }
 
     /// <summary>
@@ -57,24 +80,30 @@ public sealed class Breaker
     /// </summary>
     public void Succeeded()
     {
-        if (!_armed) return;
+        lock (_lock)
+        {
+            if (!_armed) return;
 
-        Interlocked.Exchange(ref _failuresInARow, 0);
-        _tripped = false;
+            _failuresInARow = 0;
+            _tripped = false;
+        }
     }
 
     /// <summary>
     /// The call failed the way a dead peer fails (no answer in time); the <see cref="Threshold"/>th in a row trips the
-    /// breaker, exactly at that crossing (a failure counted before a reset but checked after it cannot trip it again).
-    /// Nothing while unarmed.
+    /// breaker, its first probe one interval later. Nothing while unarmed.
     /// </summary>
     public void Failed()
     {
-        if (!_armed) return;
-        if (Interlocked.Increment(ref _failuresInARow) != Threshold) return;
+        lock (_lock)
+        {
+            if (!_armed) return;
 
-        // The first probe goes one interval after the trip.
-        Interlocked.Exchange(ref _nextProbe, Stopwatch.GetTimestamp() + s_probeTicks);
-        _tripped = true;
+            _failuresInARow++;
+            if (_tripped || _failuresInARow < Threshold) return;
+
+            _tripped = true;
+            _nextProbe = Stopwatch.GetTimestamp() + s_probeTicks;
+        }
     }
 }

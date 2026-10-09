@@ -5,7 +5,8 @@ namespace Avalon.LoadTest.Bots;
 
 /// <summary>
 /// What the bots measure on the client side, by window: input-to-ack latency, entry time (ticket to first ack), entry
-/// attempts and failures by kind, sign-in failures and unexpected disconnects. <see cref="TakeWindow"/> closes the
+/// attempts and failures by kind, leave failures by kind, sign-in and sign-out failures and unexpected disconnects.
+/// <see cref="TakeWindow"/> closes the
 /// current window and opens the next. Every recording method is safe from any thread and takes no lock.
 /// </summary>
 /// <remarks>
@@ -65,6 +66,15 @@ public sealed class BotMetrics
     /// <summary>A sign-in or a context refresh failed; <paramref name="kind"/> names the REST step.</summary>
     public void SignInFailed(string kind) => Interlocked.Increment(ref Volatile.Read(ref _window).SignInFailures);
 
+    /// <summary>
+    /// A leave outside an entry attempt (a disconnect's) failed; <paramref name="kind"/> names how (<c>leave:timeout</c>,
+    /// ...). Not an entry failure: no attempt goes with it, so it stays out of the admission ratio.
+    /// </summary>
+    public void LeaveFailed(string kind) => Volatile.Read(ref _window).LeaveFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
+
+    /// <summary>A game context's sign-out failed (no reply, a 5xx, another error, or its own timeout).</summary>
+    public void SignOutFailed() => Interlocked.Increment(ref Volatile.Read(ref _window).SignOutFailures);
+
     /// <summary>A bot in the world lost its connection without asking to.</summary>
     public void Disconnected(int bot) => Interlocked.Increment(ref Volatile.Read(ref _window).Disconnects);
 
@@ -84,6 +94,8 @@ public sealed class BotMetrics
             AckSamples = acks.Length,
             EntrySuccesses = (int)Volatile.Read(ref closed.EntrySuccesses),
             EntryP95 = Percentile(entries, 0.95),
+            LeaveFailures = new Dictionary<string, int>(closed.LeaveFailures, StringComparer.Ordinal),
+            SignOutFailures = (int)Volatile.Read(ref closed.SignOutFailures),
         };
     }
 
@@ -98,9 +110,11 @@ public sealed class BotMetrics
         public readonly Reservoir Acks = new(MaxSamples);
         public readonly Reservoir Entries = new(MaxEntrySamples);
         public readonly ConcurrentDictionary<string, int> EntryFailures = new(StringComparer.Ordinal);
+        public readonly ConcurrentDictionary<string, int> LeaveFailures = new(StringComparer.Ordinal);
         public long EntryAttempts;
         public long EntrySuccesses;
         public long SignInFailures;
+        public long SignOutFailures;
         public long Disconnects;
     }
 
@@ -192,4 +206,10 @@ public sealed record StepClientValues(
 
     /// <summary>The 95th percentile of entry time, join ticket issued to first ack, in milliseconds; NaN with none.</summary>
     public double EntryP95 { get; init; }
+
+    /// <summary>Failed leaves outside entry attempts (disconnects), by kind; not part of the admission ratio.</summary>
+    public IReadOnlyDictionary<string, int> LeaveFailures { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
+
+    /// <summary>Failed sign-outs of game contexts.</summary>
+    public int SignOutFailures { get; init; }
 }
