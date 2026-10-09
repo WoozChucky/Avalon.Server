@@ -33,9 +33,11 @@ public interface ILoadTestAccounts
     /// for <paramref name="admin"/>, who has already proved their current password, with their characters in every
     /// configured world. Exactly one of the two: neither, both, or an empty or blank run id is a 400
     /// (<see cref="BusinessException"/>), as is a run id outside the rules. 409 (<see cref="LoadTestConflictException"/>)
-    /// with nothing deleted while one of them plays or a world's database is unavailable; 409 too when a bot enters a
-    /// game during the delete, after the run's characters were removed but before its accounts were: stop the bots
-    /// and repeat the request to finish it.
+    /// with nothing deleted while one of them plays or a world's database is unavailable. Plays means a live game session
+    /// (not ended, lease unexpired) or a live gameplay fence in a world (not blocked, lease unexpired); a character's
+    /// <c>Online</c> flag counts only beside one of those, so a flag a crashed world left set never blocks. 409 too when
+    /// a bot enters a game during the delete, after the run's characters were removed but before its accounts were:
+    /// stop the bots and repeat the request to finish it.
     /// </summary>
     Task<LoadTestRunDeleted> DeleteAsync(AccountId admin, string? runId, bool all, CancellationToken ct);
 }

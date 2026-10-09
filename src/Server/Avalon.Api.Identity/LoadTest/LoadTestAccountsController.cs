@@ -61,8 +61,10 @@ public sealed class LoadTestAccountsController(ILoadTestAccounts accounts, IReau
     /// Deletes run <paramref name="run"/>'s accounts, or every load-test account with <paramref name="all"/>=true, with
     /// their characters in every world. Exactly one of the two, checked before the password: neither, both, or an empty
     /// or blank <c>run</c> is a 400, so a request built from an unset variable never deletes every run. 409 while any of
-    /// them is in a game or has a character online, and then nothing is deleted; 409 too when a bot enters a game during
-    /// the delete, after the run's characters were removed but before its accounts were: stop the bots and repeat it.
+    /// them has a live game session or a live gameplay fence in a world (a character's <c>Online</c> flag counts only
+    /// beside one of those, so a flag a crashed world left set never blocks), and then nothing is deleted; 409 too when
+    /// a bot enters a game during the delete, after the run's characters were removed but before its accounts were:
+    /// stop the bots and repeat it.
     /// </summary>
     [HttpDelete]
     [ProducesResponseType(typeof(LoadTestRunDeleted), StatusCodes.Status200OK)]

@@ -13,6 +13,7 @@ using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character;
 using Avalon.Domain.Auth;
+using Avalon.Domain.Characters;
 using Avalon.Domain.Commerce;
 using Avalon.Domain.World;
 using Avalon.Infrastructure;
@@ -293,8 +294,9 @@ public sealed class LoadTestAccountsShould : IDisposable
             Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
         }
 
-        // A bot still in a game session holds the whole run back, and so does a bot's character online in any world:
-        // nothing is deleted, in no database.
+        // A bot still in a game holds the whole run back: a character marked online counts beside a live game session,
+        // or beside a live gameplay fence in its world. Nothing is deleted, in no database.
+        await MarkOnlineAsync(1, bots[0]);
         await using (AuthDbContext db = _database.CreateDbContext())
         {
             db.GameSessions.Add(new GameSession
@@ -319,8 +321,8 @@ public sealed class LoadTestAccountsShould : IDisposable
 
         await using (AuthDbContext db = _database.CreateDbContext())
             await db.GameSessions.ExecuteUpdateAsync(u => u.SetProperty(s => s.State, GameSessionState.Ended));
-        await using (CharacterDbContext db = _worlds.CreateCharacters(new WorldId(2)))
-            await db.Characters.Where(c => c.AccountId == bots[1].Id).ExecuteUpdateAsync(u => u.SetProperty(c => c.Online, true));
+        await MarkOnlineAsync(2, bots[1]);
+        await SetFenceAsync(2, bots[1], GameplayFenceMode.Active, now.AddMinutes(1));
 
         using (HttpResponseMessage refused = await SendAsync(host, token, HttpMethod.Delete, deleteFirst, body))
             Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
@@ -329,8 +331,9 @@ public sealed class LoadTestAccountsShould : IDisposable
         Assert.Subset((await UsernamesAsync()).ToHashSet(StringComparer.Ordinal),
             bots.Concat(survivors).Select(a => a.Username).ToHashSet(StringComparer.Ordinal));
 
-        await using (CharacterDbContext db = _worlds.CreateCharacters(new WorldId(2)))
-            await db.Characters.ExecuteUpdateAsync(u => u.SetProperty(c => c.Online, false));
+        // The world that held bot 1 went away without clearing its flags: its fence's lease ran out, and the session
+        // ended. The flags left marked online no longer hold anything back.
+        await SetFenceAsync(2, bots[1], GameplayFenceMode.Active, now.AddMinutes(-1));
 
         // The first run goes; the second run and every player stay, the players named as skipped.
         using (HttpResponseMessage response = await SendAsync(host, token, HttpMethod.Delete, deleteFirst, body))
@@ -416,6 +419,19 @@ public sealed class LoadTestAccountsShould : IDisposable
             Assert.Equal(expected.Length, await db.ItemInstances.CountAsync());
             Assert.Equal(expected, (await db.AccountGameplayFences.Select(f => f.AccountId.Value).ToListAsync()).Order());
         }
+    }
+
+    private async Task MarkOnlineAsync(ushort world, Account account)
+    {
+        await using CharacterDbContext db = _worlds.CreateCharacters(new WorldId(world));
+        await db.Characters.Where(c => c.AccountId == account.Id).ExecuteUpdateAsync(u => u.SetProperty(c => c.Online, true));
+    }
+
+    private async Task SetFenceAsync(ushort world, Account account, GameplayFenceMode mode, DateTime leaseUntil)
+    {
+        await using CharacterDbContext db = _worlds.CreateCharacters(new WorldId(world));
+        await db.AccountGameplayFences.Where(f => f.AccountId == account.Id).ExecuteUpdateAsync(u => u
+            .SetProperty(f => f.Mode, mode).SetProperty(f => f.LeaseUntil, leaseUntil));
     }
 
     private static async Task<HttpResponseMessage> SendAsync(ApiTestHost host, string token, HttpMethod method, string path,

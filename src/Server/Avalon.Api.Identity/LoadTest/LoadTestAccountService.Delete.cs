@@ -21,8 +21,10 @@ namespace Avalon.Api.Identity.LoadTest;
 /// run's license and anything else is skipped and named in the reply, never deleted.
 /// <para>
 /// Every run is deleted only when asked for by name (<c>all</c>); a blank run id is refused, never read as every run.
-/// Nothing is deleted while any selected account is in a game session, holds a live gameplay fence or has a character
-/// online in any configured world, or while a configured world's database is unavailable (409). Then, per world, the
+/// Nothing is deleted while any selected account is online: in a game session (not ended, lease unexpired), or holding a
+/// live gameplay fence (not blocked, lease unexpired) in any configured world; a character's <c>Online</c> flag counts
+/// only beside one of those, so a flag a crashed world left behind never blocks. Nor while a configured world's
+/// database is unavailable (409). Then, per world, the
 /// accounts' characters (their rows cascade) and gameplay fences; then, in one auth transaction, the license
 /// observations and holds that point at their licenses without cascading, the licenses, and the accounts (everything
 /// else cascades); then the world sweep again, best-effort, for what a bot still running created meanwhile; then a
@@ -178,13 +180,17 @@ public sealed partial class LoadTestAccountService
         db.GameSessions.AnyAsync(s => ids.Contains(s.AccountId) && s.State != GameSessionState.Ended &&
                                       s.LeaseUntil > now, ct);
 
-    /// <summary>A character online, or a world still holding an account's gameplay fence.</summary>
+    /// <summary>
+    /// A world still holding an account: its gameplay fence not blocked and its lease unexpired. A character's
+    /// <c>Online</c> flag alone is not read (owner ruling): a world that crashed leaves it set, but its leases expire
+    /// within a minute. A flag counts only beside a live game session (<see cref="AnyInGameAsync"/>) or a live fence
+    /// in its world, and either of those refuses the delete by itself.
+    /// </summary>
     private async Task<bool> AnyOnlineAsync(WorldId world, AccountId[] ids, DateTime now, CancellationToken ct)
     {
         await using CharacterDbContext db = worldContexts.CreateCharacters(world);
-        return await db.Characters.AnyAsync(c => ids.Contains(c.AccountId) && c.Online, ct) ||
-               await db.AccountGameplayFences.AnyAsync(f => ids.Contains(f.AccountId) &&
-                                                            f.Mode != GameplayFenceMode.Blocked && f.LeaseUntil > now, ct);
+        return await db.AccountGameplayFences.AnyAsync(f => ids.Contains(f.AccountId) &&
+                                                           f.Mode != GameplayFenceMode.Blocked && f.LeaseUntil > now, ct);
     }
 
     /// <summary>The accounts' characters, whose rows cascade, and their gameplay fences, in one transaction.</summary>
