@@ -234,16 +234,18 @@ public static class ReportWriter
     /// <summary>
     /// Each step's time after the world update by stage (<c>world.post_update.duration</c>, #875): one row per step, one
     /// column per stage in tick order, mean / p99 per tick in microseconds. For reading only: no limit is judged on it.
-    /// A world that exports no stage (a build before #875) is said to, rather than shown as a row of n/a.
+    /// When no step was reported and at least one came from a world that exports no stage (a build before #875), the
+    /// section says so in one line rather than showing rows of n/a.
     /// </summary>
     private static void PostUpdateTable(StringBuilder md, IReadOnlyList<StepRecord> steps)
     {
         md.AppendLine();
         md.AppendLine("## Post-update stages");
         md.AppendLine();
-        if (steps.Count > 0 && steps.All(step => step.Server.PostUpdate.Readout == PostUpdateReadout.NotExported))
+        if (steps.Any(step => step.Server.PostUpdate.Readout == PostUpdateReadout.NotExported) &&
+            !steps.Any(step => step.Server.PostUpdate.Readout == PostUpdateReadout.Reported))
         {
-            md.AppendLine("Not reported: the world server exports no `world.post_update.duration` (a build from before #875).");
+            md.AppendLine("Not reported: on every step Prometheus could read, the world server exported no `world.post_update.duration` (a build from before #875).");
             return;
         }
 

@@ -6,10 +6,13 @@ public enum PostUpdateReadout
     /// <summary>The world exports the stages and the window held enough samples: <see cref="PostUpdateStages.Stages"/> holds them.</summary>
     Reported,
 
-    /// <summary>The world exports no <c>world.post_update.duration</c> at all: a build from before #875.</summary>
+    /// <summary>The world reports its ticks and no <c>world.post_update.duration</c> at all: a build from before #875.</summary>
     NotExported,
 
-    /// <summary>A query failed, or the window held too few samples for a rate, as can happen to any of a step's values.</summary>
+    /// <summary>
+    /// Nothing to tell: a query failed, Prometheus has nothing from the world at all (a stalled export, a scrape gap, a
+    /// wrong world id), or the window held too few samples for a rate, as can happen to any of a step's values.
+    /// </summary>
     Unknown,
 }
 
@@ -29,22 +32,28 @@ public sealed record PostUpdateStages(PostUpdateReadout Readout, IReadOnlyList<S
     private static readonly string[] s_tickOrder =
         ["quests", "inventory", "sheet", "ability_amounts", "party_status", "presence", "pings", "outbox", "continuations"];
 
+    private static readonly IReadOnlyDictionary<string, double> s_none = new Dictionary<string, double>(StringComparer.Ordinal);
+
     /// <summary>Nothing read.</summary>
     public static PostUpdateStages Unknown { get; } = new(PostUpdateReadout.Unknown, []);
 
     /// <summary>
-    /// The stages from three answers: whether the world exports the histogram at all (<paramref name="exportedAnswered"/>
-    /// false when that query failed, <paramref name="exportedSeries"/> its series count, null for an empty result), and
-    /// the mean and p99 by stage (null when their query failed). A world with no series is
-    /// <see cref="PostUpdateReadout.NotExported"/>; a failed query, or no stage with a value, is
-    /// <see cref="PostUpdateReadout.Unknown"/>.
+    /// The stages from three answers. Whether the world exports the histogram (<paramref name="exportedAnswered"/> false
+    /// when that query failed; <paramref name="exportedSeries"/> its series count, 0 for a world that reports its ticks
+    /// and no stage, null when Prometheus has nothing from the world at all), and the mean and p99 by stage (null when
+    /// their query failed). A count of 0 is <see cref="PostUpdateReadout.NotExported"/>. A failed or empty count is
+    /// <see cref="PostUpdateReadout.Unknown"/>, as are both stage queries failing and no stage with a value; one stage
+    /// query failing leaves its values null and the other's reported.
     /// </summary>
     public static PostUpdateStages From(bool exportedAnswered, double? exportedSeries,
         IReadOnlyDictionary<string, double>? meanUs, IReadOnlyDictionary<string, double>? p99Us)
     {
-        if (!exportedAnswered) return Unknown;
+        if (!exportedAnswered || exportedSeries is null) return Unknown;
         if (exportedSeries is not > 0) return new(PostUpdateReadout.NotExported, []);
-        if (meanUs is null || p99Us is null) return Unknown;
+        if (meanUs is null && p99Us is null) return Unknown;
+
+        meanUs ??= s_none;
+        p99Us ??= s_none;
 
         StageTiming[] stages =
         [

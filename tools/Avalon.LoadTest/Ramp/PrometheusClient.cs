@@ -117,10 +117,12 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             $"count(count_over_time({SaveCount}{{{world}}}{range}) unless {SaveCount}{{{world}}} offset {windowSeconds}) > 0",
             at, ct);
         Task<double?> instances = ValueAsync($"avalon_world_instances_active{{{world}}}", at, ct);
-        // The stages after the world update (#875): whether the world exports them at all (a build before it does not),
-        // then each stage's mean per tick and its p99.
+        // The stages after the world update (#875): whether the world exports them at all, then each stage's mean per
+        // tick and its p99. The first is anchored on the tick histogram, which every build exports: 0 is a world that
+        // reports ticks and no stage (a build before #875), an empty result a world Prometheus has nothing from at all.
         const string PostUpdate = "world_post_update_duration_microseconds";
-        Task<Answer> postUpdateSeries = AnswerAsync($"count({PostUpdate}_count{{{world}}})", at, ct);
+        Task<Answer> postUpdateSeries = AnswerAsync(
+            $"count({PostUpdate}_count{{{world}}}) or (0 * count(world_tick_duration_microseconds_count{{{world}}}))", at, ct);
         Task<IReadOnlyDictionary<string, double>?> stageMean = ByLabelAsync(
             $"sum by (stage)(rate({PostUpdate}_sum{{{world}}}{range})) / sum by (stage)(rate({PostUpdate}_count{{{world}}}{range}))",
             "stage", at, ct);
@@ -431,8 +433,8 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
     }
 
     /// <summary>
-    /// The query's value per value of <paramref name="label"/>, one per series (a series without the label, or not a
-    /// number, is passed over); null when the query failed.
+    /// The query's value per value of <paramref name="label"/>, one per series (a series without the label, or whose
+    /// value is not a number or NaN, is passed over); null when the query failed.
     /// </summary>
     private async Task<IReadOnlyDictionary<string, double>?> ByLabelAsync(string query, string label, DateTimeOffset at,
         CancellationToken ct)
@@ -452,7 +454,8 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         {
             if (result is JsonObject series && series["metric"] is JsonObject metric &&
                 metric[label]?.ToString() is { Length: > 0 } key && series["value"] is JsonArray { Count: 2 } pair &&
-                double.TryParse(pair[1]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+                double.TryParse(pair[1]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value) &&
+                !double.IsNaN(value))
             {
                 values[key] = value;
             }
