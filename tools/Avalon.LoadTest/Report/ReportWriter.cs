@@ -23,7 +23,7 @@ public static class ReportWriter
         Converters = { new JsonStringEnumConverter() },
     };
 
-    /// <summary><c>%LOCALAPPDATA%\Avalon.LoadTest\reports</c> (on Unix, <c>~/.local/share/Avalon.LoadTest/reports</c>).</summary>
+    /// <summary><c>%LOCALAPPDATA%\Avalon.LoadTest\reports</c> (on Linux <c>~/.local/share/Avalon.LoadTest/reports</c>, on macOS <c>~/Library/Application Support/Avalon.LoadTest/reports</c>).</summary>
     public static string Directory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Avalon.LoadTest", "reports");
 

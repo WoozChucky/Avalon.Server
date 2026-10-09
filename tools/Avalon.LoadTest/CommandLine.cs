@@ -202,7 +202,7 @@ public static class CommandLine
 }
 
 /// <summary>The options of <c>provision</c>.</summary>
-/// <param name="RunId">The first run's id, or null for the API to choose one.</param>
+/// <param name="RunId">The first run's id, or null for the tool to pick one no kept run file lists.</param>
 public sealed record ProvisionOptions(int Count, ushort World, Uri Api, string? RunId);
 
 /// <summary>The options of <c>cleanup</c>.</summary>

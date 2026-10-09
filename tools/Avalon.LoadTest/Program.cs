@@ -98,8 +98,8 @@ static int Usage()
           ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
                [--limit name=value]... [--dial HOST] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
               The capacity run: adds bots in steps of --step from --start up to --max (default: the run's size),
-              holds each step --hold (a 30 s settle, then judged on up to 60 s), and stops at the first limit
-              breached twice in a row. Behaviours are shared by --mix. --limit overrides a limit (repeatable):
+              holds each step --hold (a settle of at least 30 s, then judged on up to its last 60 s), and stops
+              at the first limit breached twice in a row. Behaviours are shared by --mix. --limit overrides a limit (repeatable):
               {string.Join(", ", Limits.Defaults.Select(l => l.CliName))}; e.g. tick-p99=20, memory=0.9.
               --prometheus (default {CommandLine.DefaultPrometheus}) and --pod (default {CommandLine.DefaultPod})
               locate the server's metrics; --sign-in-concurrency bounds sign-ins at once (default 8). Every bot

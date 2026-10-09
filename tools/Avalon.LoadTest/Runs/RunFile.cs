@@ -51,7 +51,7 @@ public sealed record RunFile(
         Converters = { new JsonStringEnumConverter<RunStatus>() },
     };
 
-    /// <summary><c>%LOCALAPPDATA%\Avalon.LoadTest\runs</c> (on Unix, <c>~/.local/share/Avalon.LoadTest/runs</c>).</summary>
+    /// <summary><c>%LOCALAPPDATA%\Avalon.LoadTest\runs</c> (on Linux <c>~/.local/share/Avalon.LoadTest/runs</c>, on macOS <c>~/Library/Application Support/Avalon.LoadTest/runs</c>).</summary>
     public static string Directory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Avalon.LoadTest", "runs");
 

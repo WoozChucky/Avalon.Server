@@ -163,8 +163,9 @@ public static class RunCommands
             catch (ApiException error) when (error.Status == 409)
             {
                 all = false;
-                Console.Error.WriteLine($"Run {runId}: bots still hold live sessions: stop the ramp and wait about a " +
-                                        $"minute, then retry. The API said: {error.Detail}");
+                // A bot still playing, a world's characters database down, or a bot that entered during the delete.
+                Console.Error.WriteLine($"Run {runId}: the API refused the delete (409): {error.Detail}. Stop the bots, " +
+                                        "wait about a minute, then run cleanup again.");
             }
             catch (ApiException error)
             {

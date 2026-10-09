@@ -11,7 +11,7 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="Mix">The behaviour shares, as <c>--mix</c> takes them (<see cref="Bots.Mix.Parse"/>).</param>
 /// <param name="Start">The first step's bot count.</param>
 /// <param name="Step">Bots added each step.</param>
-/// <param name="Hold">How long each step holds: a 30 s settle, then the judged window (<see cref="RampRunner.JudgedWindow"/>).</param>
+/// <param name="Hold">How long each step holds: a settle (30 s, longer for a hold above 90 s), then the judged window (<see cref="RampRunner.JudgedWindow"/>).</param>
 /// <param name="Max">The most bots, at most the run's size.</param>
 /// <param name="Dial">The host to dial instead of the join reply's, or null.</param>
 /// <param name="Prometheus">The Prometheus HTTP API's origin.</param>
@@ -376,19 +376,21 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             async (bot, token) =>
             {
                 bot.Behaviour = Bots.Mix.For(bot.Index, _mix);
+                bool failed = false;
                 try
                 {
                     await bot.EnterAsync(takeover: false, token);
                 }
                 catch (Exception error) when (error is not OperationCanceledException)
                 {
-                    // Counted by the bot; its life enters it again.
+                    // Counted by the bot; its life enters it again, after the pause.
+                    failed = true;
                 }
 
                 lock (_botsLock)
                 {
                     _added.Add(bot);
-                    _lives.Add(BotLife.RunAsync(bot, metrics, life));
+                    _lives.Add(BotLife.RunAsync(bot, metrics, life, pauseFirst: failed));
                 }
             });
         return entering.Count;

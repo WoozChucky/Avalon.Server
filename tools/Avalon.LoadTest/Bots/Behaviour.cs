@@ -138,11 +138,16 @@ public static class BotLife
     /// <paramref name="ct"/> and wait for this task before leaving the bot: a leave seen from here would pass for a
     /// disconnect.
     /// </summary>
-    public static async Task RunAsync(Bot bot, BotMetrics metrics, CancellationToken ct)
+    /// <param name="pauseFirst">
+    /// The bot's first entry failed every attempt: it waits the same pause before entering again, as after any entry
+    /// that spent its retries, rather than adding a burst of attempts to a step that is already refusing them.
+    /// </param>
+    public static async Task RunAsync(Bot bot, BotMetrics metrics, CancellationToken ct, bool pauseFirst = false)
     {
         using var life = CancellationTokenSource.CreateLinkedTokenSource(ct, bot.GaveUp);
         try
         {
+            if (pauseFirst) await Task.Delay(s_reentryPause, life.Token);
             await LiveAsync(bot, metrics, life.Token);
         }
         catch (OperationCanceledException) when (life.IsCancellationRequested)
