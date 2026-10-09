@@ -6,15 +6,14 @@ using Avalon.LoadTest.Runs;
 namespace Avalon.LoadTest.Bots;
 
 /// <summary>
-/// <c>check</c>: one bot of a run end to end. It signs in, enters the run's world, sends idle input at 60 Hz for ten
-/// seconds, leaves and signs out, printing each step's duration and the input-ack latency. Exit 0 when every step
-/// passed, 1 with the failing step and its reason otherwise.
+/// <c>check</c>: one bot of a run end to end. It signs in, enters the run's world, sends input at 60 Hz for ten seconds
+/// through the <see cref="InputDriver"/> (idle, or walking with <c>--behaviour walker</c>), leaves and signs out,
+/// printing each step's duration, the input-ack latency and the driver's lateness. Exit 0 when every step passed, 1
+/// with the failing step and its reason otherwise.
 /// </summary>
 public static class CheckCommand
 {
-    private const int InputsPerSecond = 60;
-
-    private static readonly TimeSpan s_idleTime = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan s_driveTime = TimeSpan.FromSeconds(10);
 
     /// <summary>How long the acks of the last inputs are waited for before the latency is read.</summary>
     private static readonly TimeSpan s_ackDrain = TimeSpan.FromMilliseconds(500);
@@ -38,6 +37,7 @@ public static class CheckCommand
         var metrics = new BotMetrics();
         var bot = new Bot(options.Bot, account, run.BotPassword, api, run.WorldId, options.Dial, metrics)
         {
+            Behaviour = options.Behaviour,
             StepTimed = (step, took) => Console.WriteLine(Invariant($"  {step,-10} {took.TotalMilliseconds,8:0} ms")),
             Note = line => Console.Error.WriteLine("  " + line),
         };
@@ -50,12 +50,14 @@ public static class CheckCommand
 
             // The entry's idle probes are not the latency asked about.
             metrics.TakeWindow();
-            await IdleAsync(bot, ct);
+            string step = options.Behaviour == BehaviourKind.Walker ? "walk" : "idle";
+            double latenessP95 = await DriveAsync(bot, step, ct);
             StepClientValues values = metrics.TakeWindow();
             Console.WriteLine(Invariant(
                 $"  ack        p50 {Ms(values.AckP50)}, p95 {Ms(values.AckP95)}, p99 {Ms(values.AckP99)} over {values.AckSamples} inputs"));
+            Console.WriteLine(Invariant($"  driver     lateness p95 {Ms(latenessP95)}"));
             if (values.AckSamples == 0)
-                throw new BotStepException("idle", "idle:no-acks", "no input was answered while idle");
+                throw new BotStepException(step, $"{step}:no-acks", "no input was answered");
 
             left = true;
             await bot.LeaveAsync(ct);
@@ -74,40 +76,42 @@ public static class CheckCommand
     }
 
     /// <summary>
-    /// Idle input at 60 Hz for <see cref="s_idleTime"/>: each input is due on a fixed schedule from the start, slept
-    /// towards while more than 2 ms away and yielded towards after, as the game client's fixed step sends.
+    /// Runs the input driver over this one bot for <see cref="s_driveTime"/>, then waits for the last acks. Returns the
+    /// driver's lateness p95; a walker also prints how far it got from where it started.
     /// </summary>
-    private static async Task IdleAsync(Bot bot, CancellationToken ct)
+    private static async Task<double> DriveAsync(Bot bot, string step, CancellationToken ct)
     {
+        Bot[] inWorld = [bot];
+        var driver = new InputDriver(() => inWorld);
+        BotAck from = bot.LastAck;
         long start = Stopwatch.GetTimestamp();
-        int inputs = (int)(s_idleTime.TotalSeconds * InputsPerSecond);
-        for (int i = 0; i < inputs; i++)
+
+        using (var stop = CancellationTokenSource.CreateLinkedTokenSource(ct))
         {
-            long due = start + (long)(i * (double)Stopwatch.Frequency / InputsPerSecond);
-            for (TimeSpan wait = Stopwatch.GetElapsedTime(Stopwatch.GetTimestamp(), due); wait > TimeSpan.Zero;
-                 wait = Stopwatch.GetElapsedTime(Stopwatch.GetTimestamp(), due))
+            stop.CancelAfter(s_driveTime);
+            Task driving = driver.RunAsync(stop.Token);
+            Task closed = bot.Closed;
+            if (await Task.WhenAny(driving, closed) == closed)
             {
-                if (wait > TimeSpan.FromMilliseconds(2))
-                    await Task.Delay(wait - TimeSpan.FromMilliseconds(2), ct);
-                else
-                    Thread.Yield();
+                await stop.CancelAsync();
+                await driving;
+                throw new BotStepException(step, $"{step}:closed", "the world closed the connection while the bot was driven");
             }
 
-            if (bot.Closed.IsCompleted)
-                throw new BotStepException("idle", "idle:closed", "the world closed the connection while the bot idled");
-
-            try
-            {
-                await bot.SendAsync(bot.NextInput(bot.NextSeq(), 0f, 0f, 0), ct);
-            }
-            catch (Exception error) when (error is IOException or ObjectDisposedException)
-            {
-                throw new BotStepException("idle", "idle:io", error.Message);
-            }
+            await driving;
         }
 
+        ct.ThrowIfCancellationRequested();
         await Task.Delay(s_ackDrain, ct);
-        bot.StepTimed?.Invoke("idle", Stopwatch.GetElapsedTime(start));
+        bot.StepTimed?.Invoke(step, Stopwatch.GetElapsedTime(start));
+        if (bot.Behaviour == BehaviourKind.Walker)
+        {
+            BotAck to = bot.LastAck;
+            double moved = Math.Sqrt((to.X - from.X) * (to.X - from.X) + (to.Z - from.Z) * (to.Z - from.Z));
+            Console.WriteLine(Invariant($"  walked     {moved:0.0} m from the spawn point (straight line)"));
+        }
+
+        return driver.LatenessP95Ms();
     }
 
     /// <summary>Leaves and signs out after a failure or a cancel, so the account's session does not linger; best effort.</summary>

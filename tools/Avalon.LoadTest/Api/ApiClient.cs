@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalon.Common.GameAuth;
 
 namespace Avalon.LoadTest.Api;
 
@@ -87,16 +88,18 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
 
     /// <summary>
     /// A join ticket for world <paramref name="worldId"/>. <paramref name="confirmTakeover"/> replaces the account's
-    /// live world session, which is otherwise refused (409, <c>ActiveGameSession</c>). A reply naming another world is
+    /// live world session, which is otherwise refused (409, <c>ACTIVE_GAME_SESSION</c>). A reply naming another world is
     /// refused here: the tool enters only the world it was told to. A timeout, transport failure or 5xx is retried twice
-    /// under the same <c>Idempotency-Key</c>.
+    /// under the same <c>Idempotency-Key</c>, and so is a 409 <c>CONTEXT_CHANGED</c> (the context moved on while the
+    /// ticket was issued, a refresh of it most likely; nothing was kept for the key), with the context's credential
+    /// read again for the retry.
     /// </summary>
     public async Task<JoinTicket> JoinTicketAsync(GameContext context, ushort worldId, bool confirmTakeover,
         CancellationToken ct)
     {
         const string Step = "join";
         JsonNode reply = await SendWithRetriesAsync(Step, "game/join-tickets",
-            new { gameContextCredential = context.Credential, worldId, confirmTakeover }, ct);
+            () => new { gameContextCredential = context.Credential, worldId, confirmTakeover }, GameAuthErrors.ContextChanged, ct);
         string ticket = Required(reply, "joinTicket", Step);
         JsonNode destination = reply["destination"] ?? throw new ApiException(Step, 200, "the reply has no destination");
 
@@ -123,13 +126,16 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
 
     /// <summary>
     /// Refreshes the context: both the credential and the refresh token rotate, and the expiries move on. A timeout,
-    /// transport failure or 5xx is retried twice under the same <c>Idempotency-Key</c>.
+    /// transport failure or 5xx is retried twice under the same <c>Idempotency-Key</c> and refresh token, and so is a
+    /// 409 <c>IN_PROGRESS</c> (the server lost the race to rotate the token; a retry of the same key either rotates it
+    /// or is answered with what an earlier attempt of the key did).
     /// </summary>
     public async Task RefreshAsync(GameContext context, CancellationToken ct)
     {
         const string Step = "refresh";
-        JsonNode reply = await SendWithRetriesAsync(Step, "client/auth/game-context/refresh",
-            new { gameContextRefreshToken = context.RefreshToken }, ct);
+        var body = new { gameContextRefreshToken = context.RefreshToken };
+        JsonNode reply = await SendWithRetriesAsync(Step, "client/auth/game-context/refresh", () => body,
+            GameAuthErrors.InProgress, ct);
         RequireAuthorized(reply, Step);
         string credential = Required(reply, "gameContextCredential", Step);
         string refreshToken = Required(reply, "gameContextRefreshToken", Step);
@@ -226,18 +232,22 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <summary>
     /// A POST that is safe to repeat: every attempt carries the same <c>Idempotency-Key</c>, so a reply lost to a timeout
     /// or a transport failure (status 0), or a 5xx, is asked again and the server answers what it already did. That
-    /// matters for a refresh: its refresh token is one-use, and a second key would find it already rotated.
+    /// matters for a refresh: its refresh token is one-use, and a second key would find it already rotated. A 409 whose
+    /// error is <paramref name="retryConflict"/> is asked again too: the call's own word that the request did not take
+    /// and may be repeated. <paramref name="body"/> is built for each attempt.
     /// </summary>
-    private async Task<JsonNode> SendWithRetriesAsync(string step, string path, object body, CancellationToken ct)
+    private async Task<JsonNode> SendWithRetriesAsync(string step, string path, Func<object> body, string retryConflict,
+        CancellationToken ct)
     {
         var key = Guid.NewGuid();
         for (int attempt = 0; ; attempt++)
         {
             try
             {
-                return await SendAsync(step, HttpMethod.Post, path, body, null, key, ct);
+                return await SendAsync(step, HttpMethod.Post, path, body(), null, key, ct);
             }
-            catch (ApiException error) when (attempt < s_retryDelays.Length && error.Status is 0 or >= 500)
+            catch (ApiException error) when (attempt < s_retryDelays.Length &&
+                (error.Status is 0 or >= 500 || (error.Status == 409 && error.Detail == retryConflict)))
             {
                 await Task.Delay(s_retryDelays[attempt], ct);
             }
@@ -362,6 +372,6 @@ public sealed class ApiException(string step, int status, string detail)
     /// <summary>The HTTP status; 0 when no reply came (a transport failure or the timeout).</summary>
     public int Status { get; } = status;
 
-    /// <summary>The reply's error code (<c>ActiveGameSession</c>, ...), problem detail or title.</summary>
+    /// <summary>The reply's error code (<c>ACTIVE_GAME_SESSION</c>, ...), problem detail or title.</summary>
     public string Detail { get; } = detail;
 }

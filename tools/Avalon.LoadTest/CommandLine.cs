@@ -1,4 +1,5 @@
 using System.Globalization;
+using Avalon.LoadTest.Bots;
 
 namespace Avalon.LoadTest;
 
@@ -52,12 +53,13 @@ public static class CommandLine
         return new CleanupOptions(runId);
     }
 
-    /// <summary><c>check [--run ABC] [--dial HOST] [--bot N]</c>.</summary>
+    /// <summary><c>check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker]</c>.</summary>
     public static CheckOptions ParseCheck(string[] args)
     {
         string? runId = null;
         string? dial = null;
         int bot = 0;
+        BehaviourKind behaviour = BehaviourKind.Idle;
         foreach ((string option, string value) in Pairs(args))
         {
             switch (option)
@@ -69,11 +71,19 @@ public static class CommandLine
                         ? n
                         : throw new CommandLineException($"--bot takes a bot's index in the run, 0 to {MaxBots - 1}.");
                     break;
+                case "--behaviour":
+                    behaviour = value switch
+                    {
+                        "idle" => BehaviourKind.Idle,
+                        "walker" => BehaviourKind.Walker,
+                        _ => throw new CommandLineException("--behaviour takes idle or walker."),
+                    };
+                    break;
                 default: throw new CommandLineException($"Unknown option {option}.");
             }
         }
 
-        return new CheckOptions(runId, dial, bot);
+        return new CheckOptions(runId, dial, bot, behaviour);
     }
 
     /// <summary>A host name or address to dial instead of the join reply's host; TLS still names the reply's server.</summary>
@@ -127,7 +137,8 @@ public sealed record CleanupOptions(string? RunId);
 /// <param name="RunId">The run, or null for the only one kept.</param>
 /// <param name="Dial">The host to dial instead of the join reply's, or null.</param>
 /// <param name="Bot">The bot's index in the run.</param>
-public sealed record CheckOptions(string? RunId, string? Dial, int Bot);
+/// <param name="Behaviour">What the bot does in the world for the check: idle or walker.</param>
+public sealed record CheckOptions(string? RunId, string? Dial, int Bot, BehaviourKind Behaviour);
 
 /// <summary>A command line the tool cannot run; the usage follows.</summary>
 public sealed class CommandLineException(string message) : Exception(message);

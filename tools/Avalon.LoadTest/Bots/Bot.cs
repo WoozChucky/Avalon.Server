@@ -74,6 +74,12 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     public BotState State => _state;
 
+    /// <summary>What the bot does in the world; set before it enters.</summary>
+    public BehaviourKind Behaviour { get; set; }
+
+    /// <summary>The input driver's state for this bot.</summary>
+    internal InputLane Lane { get; } = new();
+
     /// <summary>The bot's game context once signed in, which its refresher keeps alive; null when signed out.</summary>
     public GameContext? Context { get; private set; }
 
@@ -470,8 +476,8 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
         catch (ApiException error)
         {
-            // The API's error code when it is one word (ActiveGameSession, WorldUnavailable), else the status.
-            string code = error.Detail.Length is > 0 and <= 40 && error.Detail.All(char.IsAsciiLetter)
+            // The API's error code when it is one (ACTIVE_GAME_SESSION, WORLD_UNAVAILABLE), else the status.
+            string code = error.Detail.Length is > 0 and <= 40 && error.Detail.All(c => char.IsAsciiLetter(c) || c == '_')
                 ? error.Detail
                 : error.Status.ToString(System.Globalization.CultureInfo.InvariantCulture);
             throw new BotStepException(step, $"{step}:{code}", error.Message);
@@ -499,7 +505,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 /// <summary>A step of a bot's way into or out of the world failed.</summary>
 /// <param name="step">The step: <c>sign-in</c>, <c>join</c>, <c>connect</c>, <c>admission</c>, <c>handshake</c>,
 /// <c>list</c>, <c>create</c>, <c>select</c>, <c>spawn</c>, <c>first-ack</c> or <c>leave</c>.</param>
-/// <param name="kind">The step and what went wrong, for the failure counts: <c>join:ActiveGameSession</c>, <c>spawn:timeout</c>, ...</param>
+/// <param name="kind">The step and what went wrong, for the failure counts: <c>join:ACTIVE_GAME_SESSION</c>, <c>spawn:timeout</c>, ...</param>
 /// <param name="reason">What went wrong, for a person; never a secret.</param>
 public sealed class BotStepException(string step, string kind, string reason) : Exception($"{step}: {reason}")
 {

@@ -59,7 +59,7 @@ public sealed class BotMetrics
         window.Entries.Add(ticketToFirstAck.TotalMilliseconds);
     }
 
-    /// <summary>An attempt failed; <paramref name="kind"/> names the step and what went wrong (<c>join:ActiveGameSession</c>, <c>spawn:timeout</c>, ...).</summary>
+    /// <summary>An attempt failed; <paramref name="kind"/> names the step and what went wrong (<c>join:ACTIVE_GAME_SESSION</c>, <c>spawn:timeout</c>, ...).</summary>
     public void EntryFailed(string kind) => Volatile.Read(ref _window).EntryFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
 
     /// <summary>A sign-in or a context refresh failed; <paramref name="kind"/> names the REST step.</summary>

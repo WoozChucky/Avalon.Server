@@ -54,11 +54,12 @@ static int Usage()
               own id; the file is named after the first. --world is the only world the bots
               enter (default {CommandLine.DefaultWorld}); --api the API origin (default {CommandLine.DefaultApi});
               --run the first run's id, three letters (default: the API picks one).
-          check [--run ABC] [--dial HOST] [--bot N]
+          check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker]
               One bot end to end: signs in, enters the run's world (join ticket, TLS, admission, handshake,
-              create or select, loaded), sends idle input at 60 Hz for 10 s, leaves and signs out, printing
-              each step's duration and the input-ack latency. --dial is the host to connect to instead of the
-              join reply's (TLS still names the reply's server); --bot the bot's index in the run (default 0).
+              create or select, loaded), sends input at 60 Hz for 10 s through the input driver, leaves and
+              signs out, printing each step's duration, the input-ack latency and the driver's lateness.
+              --dial is the host to connect to instead of the join reply's (TLS still names the reply's
+              server); --bot the bot's index in the run (default 0); --behaviour idle (default) or walker.
           cleanup [--run ABC]
               Deletes the run's accounts as an admin and forgets the run file; refused while bots hold live
               sessions. --run names the run, needed only when several are kept.
