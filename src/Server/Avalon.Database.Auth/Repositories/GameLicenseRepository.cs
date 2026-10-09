@@ -11,7 +11,26 @@ public interface IGameLicenseRepository
     Task<GameLicense?> FindAsync(AccountId account, string provider, string environment, string reference, CancellationToken ct = default);
     Task<GameLicense?> FindActiveAsync(AccountId account, string provider, string environment, string product, string providerProductId, DateTime now, CancellationToken ct = default);
     Task<GameLicense> RecordGrantAsync(GameLicense license, CancellationToken ct = default);
-    Task<GameLicense?> ApplyDecisionAsync(Guid id, long expectedRevision, LicenseAuthorityDecision decision, CancellationToken ct = default);
+    Task<LicenseDecisionResult> ApplyDecisionAsync(Guid id, long expectedRevision, LicenseAuthorityDecision decision, CancellationToken ct = default);
+}
+
+/// <summary>Why a license decision was or was not applied.</summary>
+public enum LicenseDecisionOutcome
+{
+    /// <summary>The decision was applied; <see cref="LicenseDecisionResult.License"/> is the row after it.</summary>
+    Applied,
+
+    /// <summary>The decision cannot apply to this row (gone, revoked for good, evidence older than the grant).</summary>
+    Refused,
+
+    /// <summary>Another decision was applied first (revision, newer observation or the row's concurrency token).</summary>
+    Conflict,
+}
+
+public readonly record struct LicenseDecisionResult(GameLicense? License, LicenseDecisionOutcome Outcome)
+{
+    public static LicenseDecisionResult Refused => new(null, LicenseDecisionOutcome.Refused);
+    public static LicenseDecisionResult Conflict => new(null, LicenseDecisionOutcome.Conflict);
 }
 
 public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> factory) : IGameLicenseRepository
@@ -72,7 +91,7 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<GameLicense?> ApplyDecisionAsync(Guid id, long expectedRevision, LicenseAuthorityDecision decision, CancellationToken ct = default)
+    public async Task<LicenseDecisionResult> ApplyDecisionAsync(Guid id, long expectedRevision, LicenseAuthorityDecision decision, CancellationToken ct = default)
     {
         if (decision.ObservedAt.Kind != DateTimeKind.Utc || decision.AuthorizedUntil.Kind != DateTimeKind.Utc ||
             decision.AuthorizedUntil > decision.ObservedAt.AddMinutes(5) ||
@@ -84,18 +103,19 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
 
         await using AuthDbContext db = await factory.CreateDbContextAsync(ct);
         GameLicense? license = await db.GameLicenses.SingleOrDefaultAsync(x => x.Id == id, ct);
-        if (license is null || license.AuthorityRevision != expectedRevision || expectedRevision == long.MaxValue ||
-            decision.ObservedAt < license.GrantedAt || decision.ObservedAt < license.LastObservedAt)
-        {
-            return null;
-        }
+        if (license is null || expectedRevision == long.MaxValue || decision.ObservedAt < license.GrantedAt)
+            return LicenseDecisionResult.Refused;
+        // A moved revision or a newer observation means another decision was applied first: the caller keeps what that
+        // decision left standing and asks again with fresh evidence, rather than taking this for a refusal.
+        if (license.AuthorityRevision != expectedRevision || decision.ObservedAt < license.LastObservedAt)
+            return LicenseDecisionResult.Conflict;
 
         if (license.RevokedAt is not null && decision.OwnsProduct)
         {
             if (license.AuthorityKind == LicenseAuthorityKind.StoredGrant || !decision.Reestablish ||
                 decision.ObservedAt <= license.LastObservedAt)
             {
-                return null;
+                return LicenseDecisionResult.Refused;
             }
 
             license.AuthorityRevision++;
@@ -109,7 +129,7 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
         if (decision.OwnsProduct && decision.ObservedAt == license.LastObservedAt &&
             decision.AuthorizedUntil != license.VerifiedUntil)
         {
-            return null;
+            return LicenseDecisionResult.Conflict;
         }
 
         license.LastObservedAt = decision.ObservedAt;
@@ -118,8 +138,8 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
         // must not rewrite the original grant interval (it may predate that grant).
         if (decision.OwnsProduct && license.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership)
             license.ExpiresAt = decision.ProviderExpiresAt;
-        try { await db.SaveChangesAsync(ct); return license; }
-        catch (DbUpdateConcurrencyException) { return null; }
+        try { await db.SaveChangesAsync(ct); return new(license, LicenseDecisionOutcome.Applied); }
+        catch (DbUpdateConcurrencyException) { return LicenseDecisionResult.Conflict; }
     }
 
     private static GameLicense Match(GameLicense existing, GameLicense proposed) =>

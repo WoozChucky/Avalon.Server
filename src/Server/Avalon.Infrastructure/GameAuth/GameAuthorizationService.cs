@@ -268,8 +268,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             GameIdentityProofResult proof = await identityProvider.VerifyAsync(new(application, claim.Record.ProviderChallenge, proofValue), cancellationToken);
             if (proof.Status == GameIdentityProofStatus.Unavailable)
             {
-                await store.CompareExchangeAsync([new(claim.Key, claim.Raw,
-                    GameAuthJson.Serialize(claim.Record with { WorkerUntil = Now }), claim.Record.ExpiresAt)], cancellationToken);
+                await ReleaseClaimAsync(claim, cancellationToken);
                 return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
             }
             if (proof.Status != GameIdentityProofStatus.Verified || proof.Identity is not { } identity ||
@@ -352,12 +351,20 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             if (license.Status == GameLicenseCheckStatus.Unlicensed && license.LicenseId is not null)
                 await PublishRevocationAsync(account.Id, Guid.Empty);
             context = WithAuthority(context, license) with { PendingLinkId = null, LinkChallenge = null, LinkProofExpiresAt = null };
-            if (license.Status == GameLicenseCheckStatus.Unavailable && sameSource && existing is not null &&
-                await HasCurrentLicenseAsync(existing, cancellationToken))
+            bool? existingLicense = license.Status == GameLicenseCheckStatus.Unavailable && sameSource && existing is not null
+                ? await LicenseStandingAsync(existing, cancellationToken) : false;
+            if (existingLicense is null)
+            {
+                // Neither the renewal nor the existing license could be read: an outage, so nothing is stored.
+                await ReleaseClaimAsync(claim, cancellationToken);
+                return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
+            }
+
+            if (existingLicense == true)
             {
                 context = context with
                 {
-                    State = existing.State,
+                    State = existing!.State,
                     AuthorizationValidUntil = existing.AuthorizationValidUntil,
                     LicenseId = existing.LicenseId,
                     LicenseRevision = existing.LicenseRevision,
@@ -442,15 +449,18 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
 
     /// <summary>
     /// Releases a claim whose work did not finish (an outage or a fault), so the attempt can be retried at once instead
-    /// of after <see cref="GameAuthPolicy.MutationClaimLifetime"/>. Best effort, and a no-op once the work stored a
-    /// receipt (the claim's record has changed).
+    /// of after <see cref="GameAuthPolicy.MutationClaimLifetime"/>, and gives its slot back: only a worker that never
+    /// came back (its claim expired and was taken over) counts toward the attempt's three claims, so outages and faults
+    /// cannot exhaust an attempt; its own expiry and the rate limit bound the retries. Best effort, and a no-op once
+    /// the work stored a receipt (the claim's record has changed).
     /// </summary>
     private async Task ReleaseClaimAsync(Claim claim, CancellationToken cancellationToken)
     {
         try
         {
             await store.CompareExchangeAsync([new(claim.Key, claim.Raw,
-                GameAuthJson.Serialize(claim.Record with { WorkerUntil = Now }), claim.Record.ExpiresAt)], cancellationToken);
+                GameAuthJson.Serialize(claim.Record with { WorkerUntil = Now, Claims = Math.Max(0, claim.Record.Claims - 1) }),
+                claim.Record.ExpiresAt)], cancellationToken);
         }
         catch (Exception error) when (!cancellationToken.IsCancellationRequested)
         {
@@ -584,10 +594,10 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                 {
                     answer = await ReplayAsync(tokenKey, rawToken, token, contextKey, rawContext, context, requestId, cancellationToken);
                 }
-                catch (Exception) when (!cancellationToken.IsCancellationRequested)
+                catch (Exception)
                 {
-                    // A fault is answered 500 and grants nothing; the receipt is kept as for an outage, so the same
-                    // retry sent once the fault is gone is not taken for a reuse that revokes the context.
+                    // A fault, or a retry the client gave up on, grants nothing; the receipt is kept as for an outage,
+                    // so the same retry sent afterwards is not taken for a reuse that revokes the context.
                     await KeepReceiptAfterFaultAsync(tokenKey, rawToken, token, context);
                     throw;
                 }

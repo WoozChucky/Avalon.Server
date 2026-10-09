@@ -162,12 +162,12 @@ public sealed class GameLicenseProviderContractShould
             Licenses.FindAsync(Request.Account, provider, "production", "same-reference", Arg.Any<CancellationToken>()).Returns(_ => License);
             Licenses.ApplyDecisionAsync(License.Id, Arg.Any<long>(), Arg.Any<LicenseAuthorityDecision>(), Arg.Any<CancellationToken>()).Returns(call =>
             {
-                if (call.ArgAt<long>(1) != License.AuthorityRevision) return null;
+                if (call.ArgAt<long>(1) != License.AuthorityRevision) return LicenseDecisionResult.Conflict;
                 LicenseAuthorityDecision decision = call.ArgAt<LicenseAuthorityDecision>(2);
                 if (!decision.OwnsProduct) { License.AuthorityRevision++; License.RevokedAt = decision.ObservedAt; }
                 License.LastObservedAt = decision.ObservedAt;
                 License.VerifiedUntil = decision.OwnsProduct ? decision.AuthorizedUntil : null;
-                return License;
+                return new LicenseDecisionResult(License, LicenseDecisionOutcome.Applied);
             });
             Provider = new(provider, kind, new(GameLicenseCheckStatus.Licensed, "same-reference", s_now, s_now.AddHours(1),
                 ProviderProductId: providerProduct, ProviderSubject: Request.Identity?.ProviderSubject));

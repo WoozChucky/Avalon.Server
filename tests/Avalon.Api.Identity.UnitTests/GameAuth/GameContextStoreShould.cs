@@ -311,6 +311,21 @@ public class GameContextStoreShould
     }
 
     [Fact]
+    public async Task Outages_release_their_claims_without_exhausting_the_attempt()
+    {
+        AuthAttemptReply attempt = (await Attempt("steam"))!;
+        var request = Guid.NewGuid();
+        _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new SteamProofResult(SteamProofStatus.ProviderUnavailable));
+        for (int outage = 0; outage < 3; outage++)
+            Assert.Equal("PROVIDER_UNAVAILABLE", (await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None)).Error);
+        // Each released claim gave its slot back: the retry after three outages still gets its claim.
+        _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
+        Assert.Equal("authorized", (await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None)).State);
+    }
+
+    [Fact]
     public async Task Consume_handoff_once_return_pending_license_and_recover_an_exact_response_retry()
     {
         AuthAttemptReply attempt = (await Attempt("avalon"))!;

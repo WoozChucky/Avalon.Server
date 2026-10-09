@@ -97,11 +97,12 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
 
             if (owns && license.ExpiresAt is { } storedExpiry && license.AuthorityKind == LicenseAuthorityKind.StoredGrant) end = Earlier(end, storedExpiry);
             if (owns && end <= completedAt) return Unavailable;
-            GameLicense? applied = await licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision,
+            LicenseDecisionResult decision = await licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision,
                 new(owns, evidence.ObservedAt, end, evidence.ProviderExpiresAt,
                     reestablish: request.BoundLicenseId is null && provider.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership), ct);
             // A lost race (another decision applied first) is not a refusal: the caller keeps what still stands.
-            if (applied is null) return Unavailable;
+            if (decision.Outcome == LicenseDecisionOutcome.Conflict) return Unavailable;
+            if (decision.License is not { } applied) return Unlicensed;
             if (!Matches(applied, request, provider.AuthorityKind)) return Unavailable;
             if (owns && !applied.Authorizes(request.Account, request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;
             var observation = new LicenseObservation

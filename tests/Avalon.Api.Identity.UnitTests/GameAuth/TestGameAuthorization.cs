@@ -51,18 +51,19 @@ internal sealed class MemoryGameLicenses : IGameLicenseRepository
         }
         Rows.Add(row); return Task.FromResult(row);
     }
-    public Task<GameLicense?> ApplyDecisionAsync(Guid id, long expectedRevision, LicenseAuthorityDecision decision, CancellationToken ct = default)
+    public Task<LicenseDecisionResult> ApplyDecisionAsync(Guid id, long expectedRevision, LicenseAuthorityDecision decision, CancellationToken ct = default)
     {
         GameLicense? row = Rows.SingleOrDefault(x => x.Id == id);
-        if (LoseDecisionRace || row is null || row.AuthorityRevision != expectedRevision || decision.ObservedAt < row.LastObservedAt) return Task.FromResult<GameLicense?>(null);
+        if (row is null) return Task.FromResult(LicenseDecisionResult.Refused);
+        if (LoseDecisionRace || row.AuthorityRevision != expectedRevision || decision.ObservedAt < row.LastObservedAt) return Task.FromResult(LicenseDecisionResult.Conflict);
         if (row.RevokedAt is not null && decision.OwnsProduct)
         {
-            if (row.AuthorityKind == LicenseAuthorityKind.StoredGrant || !decision.Reestablish || decision.ObservedAt <= row.LastObservedAt) return Task.FromResult<GameLicense?>(null);
+            if (row.AuthorityKind == LicenseAuthorityKind.StoredGrant || !decision.Reestablish || decision.ObservedAt <= row.LastObservedAt) return Task.FromResult(LicenseDecisionResult.Refused);
             row.RevokedAt = null; row.AuthorityRevision++;
         }
         else if (!decision.OwnsProduct && row.RevokedAt is null) { row.RevokedAt = decision.ObservedAt; row.AuthorityRevision++; }
         row.LastObservedAt = decision.ObservedAt; row.VerifiedUntil = decision.OwnsProduct ? decision.AuthorizedUntil : null;
         if (decision.OwnsProduct && row.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership) row.ExpiresAt = decision.ProviderExpiresAt;
-        return Task.FromResult<GameLicense?>(row);
+        return Task.FromResult(new LicenseDecisionResult(row, LicenseDecisionOutcome.Applied));
     }
 }
