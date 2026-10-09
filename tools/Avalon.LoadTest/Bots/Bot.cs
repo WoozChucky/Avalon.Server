@@ -104,10 +104,12 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     private volatile WorldConnection? _connection;
 
     /// <summary>
-    /// The connection whose Change Character leave failed: <see cref="DisconnectAsync"/> does not send that leave again
-    /// (the failure was counted once, with the change) and closes the socket directly.
+    /// The connection on which <see cref="DisconnectAsync"/> sends no leave and closes the socket directly: one that
+    /// holds no character as far as the bot knows (no select sent on it yet, or a Change Character leave answered
+    /// <c>Left</c> since its last select), or one whose Change Character leave failed (counted once, with the change).
+    /// Set when a connection opens and by a Change Character leave; cleared when a select is sent and on close.
     /// </summary>
-    private volatile WorldConnection? _leaveFailedOn;
+    private volatile WorldConnection? _noLeaveOn;
     private volatile TaskCompletionSource? _firstAck;
     private Action<NetworkPacket>? _onAck;
     private BotAck _lastAck;
@@ -293,11 +295,15 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             {
                 await LeaveCharacterAsync(connection, ct);
             }
-            catch (BotStepException)
+            catch (Exception error) when (error is not OperationCanceledException)
             {
-                _leaveFailedOn = connection;
+                // Counted below with the change: a disconnect after it does not send the leave again.
+                _noLeaveOn = connection;
                 throw;
             }
+
+            // The connection holds no character until the select below is sent.
+            _noLeaveOn = connection;
 
             await SelectAsync(connection, ct);
             metrics.EntrySucceeded(Stopwatch.GetElapsedTime(start));
@@ -326,15 +332,20 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             _state = BotState.Leaving;
             try
             {
-                // A leave is answered only once the handshake is done; before it the world ignores it. Not sent again
-                // after this connection's Change Character leave failed, and skipped (the breaker counts it) while the
-                // world is taken as hung: the close below ends the session.
+                // A leave is answered only once the handshake is done; before it the world ignores it. Not sent on a
+                // connection holding no character or whose Change Character leave failed (_noLeaveOn), and skipped (the
+                // breaker counts it) while the world is taken as hung: the close below ends the session.
                 if (was is BotState.Selecting or BotState.Loaded or BotState.InWorld && !connection.Closed.IsCompleted &&
-                    !ReferenceEquals(_leaveFailedOn, connection) && _leaves.TryEnter())
+                    !ReferenceEquals(_noLeaveOn, connection) && _leaves.TryEnter())
                 {
                     await LeaveCharacterAsync(connection, ct);
                     _leaves.Succeeded();
                 }
+            }
+            catch (BotStepException error) when (error.Kind == $"leave:{CharacterLeaveResult.NoCharacter}")
+            {
+                // The connection held no character after all: nothing to leave, as good as Left.
+                _leaves.Succeeded();
             }
             catch (BotStepException error)
             {
@@ -469,6 +480,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         _onAck = packet => OnAck(connection, packet);
         connection.Ack += _onAck;
         _connection = connection;
+        _noLeaveOn = connection;
 
         await StepAsync("admission", s_admissionTimeout, async token =>
         {
@@ -514,6 +526,8 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
 
         uint characterId = character.CharacterId;
+        // From the select on, the connection may hold a character: a disconnect sends the leave.
+        _noLeaveOn = null;
         (Task spawned, long selectRead) = await StepAsync("select", s_characterTimeout, async token =>
         {
             await connection.RequestAsync(connection.Seal(new CCharacterSelectedPacket { CharacterId = characterId },
@@ -620,6 +634,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         connection.Ack -= _onAck;
         _onAck = null;
         _connection = null;
+        _noLeaveOn = null;
         await connection.DisposeAsync();
         metrics.ForgetPending(index);
     }

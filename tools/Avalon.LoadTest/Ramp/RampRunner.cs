@@ -65,6 +65,12 @@ public sealed record RampResult(
     public int SignOutFailures { get; init; }
 
     /// <summary>
+    /// Failed leaves, by kind, after the last judged step: the stop sequence's leaves (and any disconnect between the
+    /// last hold's end and the stop). Empty while the stop sequence is still running.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> StopLeaveFailures { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
+
+    /// <summary>
     /// Whether, after the stop, the world's players online came back to the count before the ramp; null while the stop
     /// sequence is still running (the report written as soon as the outcome is known).
     /// </summary>
@@ -305,6 +311,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             Ended = DateTimeOffset.UtcNow,
             SignInFailures = signInFailures,
             SignOutFailures = signOutFailures,
+            StopLeaveFailures = last.LeaveFailures,
             WorldDrained = drained,
             SignOutsSkipped = _signOuts.Skipped,
             LeavesSkipped = _leaves.Skipped,
@@ -461,8 +468,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
 
     /// <summary>
     /// Holds a step: the settle, then the judged window, at whose end the bots' window, the bot PC's CPU and lateness and
-    /// Prometheus are read and the decider asked. The settle's entry and sign-in counts count towards the step; its
-    /// acks do not.
+    /// Prometheus are read and the decider asked. The settle's entry, leave, sign-in, sign-out and disconnect counts
+    /// count towards the step; its acks do not.
     /// </summary>
     private async Task<StepRecord> HoldAsync(int index, PrometheusClient prometheus, int playersBefore, BotMetrics metrics,
         InputDriver driver, RampDecider decider, CancellationToken ct)
@@ -509,7 +516,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         };
     }
 
-    /// <summary>The judged window's acks with the whole step's entry, sign-in and disconnect counts.</summary>
+    /// <summary>The judged window's acks with the whole step's entry, leave, sign-in, sign-out and disconnect counts.</summary>
     private static StepClientValues Merge(StepClientValues settle, StepClientValues judged)
     {
         var failures = new Dictionary<string, int>(settle.EntryFailures, StringComparer.Ordinal);

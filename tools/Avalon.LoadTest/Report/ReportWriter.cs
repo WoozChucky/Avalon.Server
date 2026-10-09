@@ -193,6 +193,12 @@ public static class ReportWriter
             null => "- World drained: pending. The bots were still leaving when this was written; the report is rewritten when they are gone.",
         });
         md.AppendLine(Invariant($"- Sign-outs of game contexts that failed: {result.SignOutFailures}."));
+        if (result.StopLeaveFailures.Count > 0)
+        {
+            md.AppendLine("- Leaves that failed after the last judged step (the stop's): " + string.Join(", ",
+                result.StopLeaveFailures.OrderByDescending(f => f.Value).Select(f => Invariant($"{f.Key} {f.Value}"))) + ".");
+        }
+
         if (result.LeavesSkipped > 0)
         {
             md.AppendLine(Invariant($"- World unresponsive during the stop: {result.LeavesSkipped} leaves skipped; sockets closed."));
@@ -250,6 +256,7 @@ public static class ReportWriter
                 SecondsPerSignIn = result.SignInRate.TotalSeconds,
                 result.SignInFailures,
                 result.SignOutFailures,
+                result.StopLeaveFailures,
                 result.WorldDrained,
                 result.SignOutsSkipped,
                 result.LeavesSkipped,

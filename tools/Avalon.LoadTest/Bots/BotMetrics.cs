@@ -6,8 +6,8 @@ namespace Avalon.LoadTest.Bots;
 /// <summary>
 /// What the bots measure on the client side, by window: input-to-ack latency, entry time (ticket to first ack), entry
 /// attempts and failures by kind, leave failures by kind, sign-in and sign-out failures and unexpected disconnects.
-/// <see cref="TakeWindow"/> closes the
-/// current window and opens the next. Every recording method is safe from any thread and takes no lock.
+/// <see cref="TakeWindow"/> closes the current window and opens the next. Every recording method is safe from any
+/// thread and takes no lock.
 /// </summary>
 /// <remarks>
 /// An input's send time is kept per bot in a ring of <see cref="RingSize"/> slots indexed by <c>seq % 64</c>; its ack
@@ -192,7 +192,8 @@ public sealed class BotMetrics
 
 /// <summary>
 /// What the bots measured over one window: input-to-ack latency percentiles in milliseconds (NaN with no sample),
-/// entry attempts, entry failures by kind, sign-in failures and unexpected disconnects.
+/// entry attempts, entry failures by kind, sign-in failures and unexpected disconnects; leave failures by kind and
+/// sign-out failures (<see cref="LeaveFailures"/>, <see cref="SignOutFailures"/>).
 /// </summary>
 public sealed record StepClientValues(
     double AckP50, double AckP95, double AckP99, int EntryAttempts, IReadOnlyDictionary<string, int> EntryFailures,
