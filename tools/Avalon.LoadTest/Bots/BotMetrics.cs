@@ -10,9 +10,19 @@ namespace Avalon.LoadTest.Bots;
 /// thread and takes no lock.
 /// </summary>
 /// <remarks>
+/// <para>
+/// The counted events (entries, sign-in, sign-out and leave failures, disconnects) each land in exactly one window,
+/// whole: a recorder registers on the window it read (<see cref="Enter"/>) and moves to the new one if that was
+/// swapped meanwhile, and <see cref="TakeWindow"/> waits for the recorders still registered on the window it closed
+/// before reading it. Entry attempts are not a counter of their own but successes plus failures, so the two always
+/// agree. Latency samples (acks, entry times) are not gated: they feed percentiles, and a sample landing in the
+/// closed window just after it was read is one sample fewer, not a miscount.
+/// </para>
+/// <para>
 /// An input's send time is kept per bot in a ring of <see cref="RingSize"/> slots indexed by <c>seq % 64</c>; its ack
 /// takes it back out. An input still unanswered when its slot is needed again (about a second at 60 Hz) is recorded
 /// at its age then, a lower bound, so a server too slow to answer shows in the tail rather than vanishing from it.
+/// </para>
 /// </remarks>
 public sealed class BotMetrics
 {
@@ -56,10 +66,10 @@ public sealed class BotMetrics
     /// </summary>
     public void EntrySucceeded(TimeSpan ticketToFirstAck)
     {
-        Window window = Volatile.Read(ref _window);
-        Interlocked.Increment(ref window.EntryAttempts);
+        Window window = Enter();
         Interlocked.Increment(ref window.EntrySuccesses);
         window.Entries.Add(ticketToFirstAck.TotalMilliseconds);
+        Exit(window);
     }
 
     /// <summary>
@@ -68,41 +78,70 @@ public sealed class BotMetrics
     /// </summary>
     public void EntryFailed(string kind)
     {
-        Window window = Volatile.Read(ref _window);
-        Interlocked.Increment(ref window.EntryAttempts);
+        Window window = Enter();
         window.EntryFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
+        Exit(window);
     }
 
     /// <summary>A sign-in or a context refresh failed; <paramref name="kind"/> names the REST step.</summary>
-    public void SignInFailed(string kind) => Interlocked.Increment(ref Volatile.Read(ref _window).SignInFailures);
+    public void SignInFailed(string kind)
+    {
+        Window window = Enter();
+        Interlocked.Increment(ref window.SignInFailures);
+        Exit(window);
+    }
 
     /// <summary>
     /// A leave outside an entry attempt (a disconnect's) failed; <paramref name="kind"/> names how (<c>leave:timeout</c>,
     /// ...). Not an entry failure: no attempt goes with it, so it stays out of the admission ratio.
     /// </summary>
-    public void LeaveFailed(string kind) => Volatile.Read(ref _window).LeaveFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
+    public void LeaveFailed(string kind)
+    {
+        Window window = Enter();
+        window.LeaveFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
+        Exit(window);
+    }
 
     /// <summary>A game context's sign-out failed (no reply, a 5xx, another error, or its own timeout).</summary>
-    public void SignOutFailed() => Interlocked.Increment(ref Volatile.Read(ref _window).SignOutFailures);
+    public void SignOutFailed()
+    {
+        Window window = Enter();
+        Interlocked.Increment(ref window.SignOutFailures);
+        Exit(window);
+    }
 
     /// <summary>A bot in the world lost its connection without asking to.</summary>
-    public void Disconnected(int bot) => Interlocked.Increment(ref Volatile.Read(ref _window).Disconnects);
+    public void Disconnected(int bot)
+    {
+        Window window = Enter();
+        Interlocked.Increment(ref window.Disconnects);
+        Exit(window);
+    }
 
-    /// <summary>Everything recorded since the last call (or since construction), and a fresh window for what follows.</summary>
+    /// <summary>
+    /// Everything recorded since the last call (or since construction), and a fresh window for what follows. Read once
+    /// no recorder is still registered on the closed window, so each snapshot is whole; its attempts are its successes
+    /// plus its failures.
+    /// </summary>
     public StepClientValues TakeWindow()
     {
         Window closed = Interlocked.Exchange(ref _window, new Window());
+        var spin = new SpinWait();
+        while (Volatile.Read(ref closed.Writers) != 0) spin.SpinOnce();
+
         double[] acks = closed.Acks.Sorted();
         double[] entries = closed.Entries.Sorted();
+        var entryFailures = new Dictionary<string, int>(closed.EntryFailures, StringComparer.Ordinal);
+        int entrySuccesses = (int)Volatile.Read(ref closed.EntrySuccesses);
         return new StepClientValues(
             Percentile(acks, 0.50), Percentile(acks, 0.95), Percentile(acks, 0.99),
-            (int)Volatile.Read(ref closed.EntryAttempts),
-            new Dictionary<string, int>(closed.EntryFailures, StringComparer.Ordinal),
+            entrySuccesses + entryFailures.Values.Sum(),
+            entryFailures,
             (int)Volatile.Read(ref closed.SignInFailures),
             (int)Volatile.Read(ref closed.Disconnects))
         {
             AckSamples = acks.Length,
-            EntrySuccesses = (int)Volatile.Read(ref closed.EntrySuccesses),
+            EntrySuccesses = entrySuccesses,
             EntryP95 = Percentile(entries, 0.95),
             LeaveFailures = new Dictionary<string, int>(closed.LeaveFailures, StringComparer.Ordinal),
             SignOutFailures = (int)Volatile.Read(ref closed.SignOutFailures),
@@ -110,6 +149,25 @@ public sealed class BotMetrics
     }
 
     private static double Milliseconds(long ticks) => ticks * 1000.0 / Stopwatch.Frequency;
+
+    /// <summary>
+    /// The current window, with this recorder registered on it: registered first, then checked still current, so
+    /// either <see cref="TakeWindow"/> sees the registration and waits for <see cref="Exit"/>, or this sees the swap and
+    /// moves to the new window. Nothing is written to a window after it was read.
+    /// </summary>
+    private Window Enter()
+    {
+        while (true)
+        {
+            Window window = Volatile.Read(ref _window);
+            Interlocked.Increment(ref window.Writers);
+            if (ReferenceEquals(window, Volatile.Read(ref _window))) return window;
+
+            Interlocked.Decrement(ref window.Writers);
+        }
+    }
+
+    private static void Exit(Window window) => Interlocked.Decrement(ref window.Writers);
 
     /// <summary>The nearest-rank percentile of sorted samples; NaN when there are none.</summary>
     private static double Percentile(double[] sorted, double p) =>
@@ -121,8 +179,10 @@ public sealed class BotMetrics
         public readonly Reservoir Entries = new(MaxEntrySamples);
         public readonly ConcurrentDictionary<string, int> EntryFailures = new(StringComparer.Ordinal);
         public readonly ConcurrentDictionary<string, int> LeaveFailures = new(StringComparer.Ordinal);
-        public long EntryAttempts;
         public long EntrySuccesses;
+
+        /// <summary>Recorders registered on the window (<see cref="Enter"/>); read once they are gone.</summary>
+        public int Writers;
         public long SignInFailures;
         public long SignOutFailures;
         public long Disconnects;
