@@ -168,7 +168,7 @@ public class GameConfiguration
     /// never expire. Negative is refused at start.
     /// </summary>
     [Range(0, int.MaxValue)]
-    public int AbandonedInstanceLifetimeMinutes { get; set; } = 15;
+    public int AbandonedInstanceLifetimeMinutes { get; set; } = DefaultAbandonedInstanceLifetimeMinutes;
 
     /// <summary>Seconds an invite stays open before it expires.</summary>
     [Range(1, 3600)]
@@ -240,6 +240,9 @@ public class GameConfiguration
 
     /// <summary>The default of <see cref="FuryFromDamageTaken" />, for whatever is built without the options.</summary>
     public const float DefaultFuryFromDamageTaken = Avalon.Combat.Fury.DefaultFromDamageTaken;
+
+    /// <summary>The default of <see cref="AbandonedInstanceLifetimeMinutes" />, today's 15 minutes.</summary>
+    public const int DefaultAbandonedInstanceLifetimeMinutes = 15;
 
     /// <summary>The default of <see cref="FuryDecayPerSecond" />, for whatever is built without the options.</summary>
     public const float DefaultFuryDecayPerSecond = 5f;

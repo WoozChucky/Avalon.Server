@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Configuration;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Public.Enums;
@@ -58,7 +59,8 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     public static readonly TimeSpan UnenteredInstanceLifetime = TimeSpan.FromMinutes(15);
 
     /// <summary>The default of <c>Game:AbandonedInstanceLifetimeMinutes</c>, for a registry built without it.</summary>
-    public static readonly TimeSpan DefaultAbandonedInstanceLifetime = TimeSpan.FromMinutes(15);
+    public static readonly TimeSpan DefaultAbandonedInstanceLifetime =
+        TimeSpan.FromMinutes(GameConfiguration.DefaultAbandonedInstanceLifetimeMinutes);
 
     // The re-entry window for an abandoned instance; World passes the same value to ProcessExpiredInstances.
     private readonly TimeSpan _abandonedLifetime;

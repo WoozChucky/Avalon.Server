@@ -92,10 +92,37 @@ public class MapTeleportShould
         return navigator;
     }
 
+    /// <summary>Runs the continuations queued so far, as one tick's flush; any they queue wait for the next call.</summary>
     private void RunContinuations()
     {
-        foreach (Action continuation in _continuations.ToList())
+        List<Action> due = [.. _continuations];
+        _continuations.Clear();
+        foreach (Action continuation in due)
             continuation();
+    }
+
+    /// <summary>
+    /// The forest resolved for the teleport is released before the arrival (its abandoned lifetime ran out): the
+    /// character is never added to it. The arrival resolves the map again, enters the new instance a flush later, and
+    /// the move stays under way until then.
+    /// </summary>
+    [Fact]
+    public void Resolve_again_and_enter_the_new_instance_when_the_resolved_one_was_released_before_the_arrival()
+    {
+        IMapInstance forest2 = Substitute.For<IMapInstance>();
+        forest2.InstanceId.Returns(Guid.NewGuid());
+        _registry.GetInstanceById(_forest.InstanceId).Returns((IMapInstance?)null);
+        _registry.GetInstanceById(forest2.InstanceId).Returns(forest2);
+        _registry.GetOrCreateNormalInstanceAsync(7u, s_forest).Returns(Task.FromResult(_forest), Task.FromResult(forest2));
+
+        Assert.True(_teleport.Start(_connection, s_forest, position: null));
+        RunContinuations();
+        Assert.True(_connection.RespawnInFlight);
+        RunContinuations();
+
+        _world.DidNotReceive().TransferPlayer(_connection, _forest);
+        _world.Received(1).TransferPlayer(_connection, forest2);
+        Assert.False(_connection.RespawnInFlight);
     }
 
     [Fact]
