@@ -1136,8 +1136,13 @@ costs per call. Three things differ from production, all on the cost side only:
 - The `DiagnosticsConfig` counters (bytes, packets sent and dropped) are skipped, so their cost is **excluded** from the
   numbers. They allocate nothing while no listener is attached, but production attaches an OpenTelemetry listener.
 
-Not modelled at all: the session pass (the first of the tick's two passes), the readiness barrier, the flushers,
-pings, persistence and saves, and combat. Combat is the next scenario to add (`dungeon-combat`). Of `World.Update`
+Not modelled at all: the session pass (the first of the tick's two passes), the readiness barrier, the quest flusher,
+party member status, presence, pings, continuations, persistence and saves, and combat. Of the flushers `WorldServer`
+runs after the world update, the scenario tick runs the three that need no service, in its order and before the
+outbox flush (#875): inventory, character sheet and ability amounts. Nothing a scenario does changes an inventory, the
+stats or the abilities, so they send nothing; they must allocate nothing either, and with a closure the inventory
+flusher allocated on every call (32 B per player per tick, 57,600 B per window in `town-idle`), which the gate would
+fail. The quest flusher needs the quest service and the reference data, which no scenario builds. Combat is the next scenario to add (`dungeon-combat`). Of `World.Update`
 itself, the scenario tick runs the registry's publication of finished builds (`InstanceRegistry.PublishFinished`) and
 the instance pass, and leaves out:
 
@@ -1267,6 +1272,17 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 18 s to the World
 suite.
+
+### Results — no closure per flusher call (#875, 2026-10-09)
+
+Two methods the post-update flushers call for every connection on every tick declared a lambda over a local whose
+scope was the whole method, so the compiler allocated the lambda's closure on entry, before the early return that
+almost every call takes: `InventoryUpdateFlusher.Flush` (the slot query captures the character, 32 B) and
+`QuestService.EnteredInstanceIfChanged` (the hook captures the instance, 40 B). Both moved the lambda into a method
+called only when there is work. Measured in process with 200 connections and nothing changed: the inventory flush
+went from 6,400 B and 1.6 µs per tick to 0 B and 0.8 µs, and `EnteredInstanceIfChanged` from 40 B per call to 0. At
+200 players that is 72 B per player per tick, about 0.86 MB/s less garbage from the tick thread. The committed
+figures do not move: the scenario tick did not run the flushers before, and now runs the inventory one, guarded at 0.
 
 ### Results — no task per outbox flush (#875, 2026-10-09)
 
