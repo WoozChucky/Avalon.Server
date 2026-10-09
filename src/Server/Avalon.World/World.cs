@@ -100,6 +100,9 @@ public class World : IWorld
 
     private InstanceRegistry? _registry;
 
+    // Game:AbandonedInstanceLifetimeMinutes, read once at start: the registry's re-entry window and the expiry pass's.
+    private TimeSpan _abandonedInstanceLifetime = Instances.InstanceRegistry.DefaultAbandonedInstanceLifetime;
+
     private Domain.Auth.World? _world;
     private volatile List<Type>? _pendingHotReload;
 
@@ -490,7 +493,9 @@ public class World : IWorld
         await _chunkLibrary.LoadAsync(token);
 
         IChunkLayoutInstanceFactory chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
-        var registry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory, _tick);
+        _abandonedInstanceLifetime = TimeSpan.FromMinutes(_configuration.Value.AbandonedInstanceLifetimeMinutes);
+        var registry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory, _tick,
+            _abandonedInstanceLifetime);
         _registry = registry;
         InstanceRegistry = registry;
         PartyInstances = registry;
@@ -556,7 +561,7 @@ public class World : IWorld
         // the same array every tick until an instance is published or removed, so this allocates nothing (#851).
         _instanceTicker.Tick(_registry!.TickInstances(), deltaTime);
 
-        InstanceRegistry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+        InstanceRegistry.ProcessExpiredInstances(_abandonedInstanceLifetime);
     }
 
     /// <summary>

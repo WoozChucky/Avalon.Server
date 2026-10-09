@@ -24,7 +24,7 @@ public interface IMapInstance : ISimulationContext
 
     /// <summary>Character ID of the player who created this instance. Null for Town instances.
     /// Per-character keying ensures different characters on the same account get different
-    /// procedural instances even within the 15-minute re-entry window.</summary>
+    /// procedural instances even within the re-entry window.</summary>
     uint? OwnerCharacterId { get; }
 
     /// <summary>Stub for future group support. Contains OwnerCharacterId for Normal maps.</summary>

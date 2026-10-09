@@ -267,6 +267,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IReadOnlyList<uint> AllowedCharacters { get; }
     public int PlayerCount => _characters.Count;
     public DateTime? LastEmptyAt { get; private set; }
+
+    /// <summary>
+    /// Whether a character has ever been added. An instance nobody has entered yet (a build its requester has still to
+    /// reach, or a disbanded party's) is not abandoned: <see cref="InstanceRegistry" /> gives it the fixed
+    /// <see cref="InstanceRegistry.UnenteredInstanceLifetime" /> rather than <c>Game:AbandonedInstanceLifetimeMinutes</c>.
+    /// Tick thread, as is every membership change.
+    /// </summary>
+    internal bool HasBeenEntered { get; private set; }
     public int Seed { get; }
     public string ConfigVersion => Layout?.ConfigVersion ?? string.Empty;
     public ChunkLayout? Layout { get; }
@@ -455,6 +463,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootSnapshotOwed.Add(connection.Character.Guid);
         _pvpStateOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
+        HasBeenEntered = true;
 
         // Auras restored at select stood still while the client loaded, and a moved character's while it was between
         // instances (World.TransferPlayer); their time starts again now, here.

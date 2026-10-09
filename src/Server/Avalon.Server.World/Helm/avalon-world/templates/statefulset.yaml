@@ -104,6 +104,14 @@ spec:
               value: {{ .Values.server.game.playerRadius | quote }}
             - name: Game__MaxCharactersPerAccount
               value: {{ .Values.server.game.maxCharactersPerAccount | quote }}
+            {{- $lifetime := .Values.server.game.abandonedInstanceLifetimeMinutes }}
+            {{- if and (kindIs "float64" $lifetime) (eq $lifetime (floor $lifetime)) }}{{ $lifetime = int64 $lifetime }}{{ end }}
+            {{- $lifetime = ternary "" (toString $lifetime) (kindIs "invalid" $lifetime) }}
+            {{- if ne $lifetime "" }}
+            {{- if not (regexMatch "^(0|[1-9][0-9]*)$" $lifetime) }}{{ fail (printf "server.game.abandonedInstanceLifetimeMinutes must be a whole number of minutes, 0 or more, got %q" $lifetime) }}{{ end }}
+            - name: Game__AbandonedInstanceLifetimeMinutes
+              value: {{ $lifetime | quote }}
+            {{- end }}
             - name: World__Shutdown__DrainTime
               value: {{ include "avalon-server.timeSpan" (include "avalon-server.drainSeconds" .) | quote }}
             - name: World__Shutdown__SaveMargin
