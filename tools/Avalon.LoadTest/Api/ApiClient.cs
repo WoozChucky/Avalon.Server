@@ -1,4 +1,5 @@
 using System.Buffers.Text;
+using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -36,14 +37,36 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <summary>A refresh attempt's own timeout: three attempts and their waits stay inside the server's 30 s receipt.</summary>
     private static readonly TimeSpan s_refreshAttemptTimeout = TimeSpan.FromSeconds(8);
 
-    /// <summary>
-    /// A redeem attempt's own timeout: the redeem is seen through whatever the caller's token does, so three attempts
-    /// and their waits (about 32 s) bound it as the client's one 30 s call did.
-    /// </summary>
+    /// <summary>A redeem attempt's own timeout.</summary>
     private static readonly TimeSpan s_redeemAttemptTimeout = TimeSpan.FromSeconds(10);
 
-    /// <summary>The sign-out of a context a sign-in made but does not hand back, on its own clock.</summary>
-    private static readonly TimeSpan s_logoutTimeout = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// How long the server holds a redeem's claim (<c>GameAuthPolicy.MutationClaimLifetime</c>): while it does, a retry
+    /// of the key is answered 409 <c>IN_PROGRESS</c>, and the attempt holding it may still commit the context.
+    /// </summary>
+    private static readonly TimeSpan s_redeemClaim = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// A redeem is asked again until this long after its first send: the claim, then one whole attempt after it, and a
+    /// margin (30 s). By then the first attempt has committed (a retry gets its receipt) or lost its claim (a retry
+    /// redeems afresh).
+    /// </summary>
+    private static readonly TimeSpan s_redeemBudget = s_redeemClaim + s_redeemAttemptTimeout + TimeSpan.FromSeconds(5);
+
+    /// <summary>The wait between a redeem's attempts.</summary>
+    private static readonly TimeSpan s_redeemRetryDelay = TimeSpan.FromSeconds(1);
+
+    /// <summary>The shortest attempt worth starting before the redeem's budget runs out.</summary>
+    private static readonly TimeSpan s_redeemMinAttempt = TimeSpan.FromSeconds(2);
+
+    /// <summary>A logout attempt's own timeout: three attempts and their waits fit <see cref="LogoutTimeout"/>.</summary>
+    private static readonly TimeSpan s_logoutAttemptTimeout = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// How long a sign-out (<see cref="LogoutAsync"/>) is given, by every caller, on its own clock: three attempts of
+    /// 3 s and the waits between them.
+    /// </summary>
+    public static TimeSpan LogoutTimeout { get; } = TimeSpan.FromSeconds(10);
 
     // No redirect is followed: a 307 or 308 would send a body holding a password or a credential on to another place.
     private readonly HttpClient _http = new(new SocketsHttpHandler
@@ -91,11 +114,12 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
             handoffTicket = Required(ticket, "ticket", "game-ticket"),
         };
 
-        // Not sent once cancelled; once sent, not cancelled. No reply in time, a transport failure or a 5xx is asked
-        // again under the same key, which the server answers with what the first did (409 IN_PROGRESS while it works).
+        // Not sent once cancelled; once sent, not cancelled. No reply in time, a transport failure, a 5xx or a 409
+        // IN_PROGRESS (an earlier attempt still holds the server's claim) is asked again under the same key until 30 s
+        // from the first send: past the claim, the server answers with what the first attempt did, or redeems afresh.
         ct.ThrowIfCancellationRequested();
-        JsonNode redeemed = await SendWithRetriesAsync("redeem", "client/auth/handoffs/redeem", Guid.NewGuid(), () => redeem,
-            GameAuthErrors.InProgress, s_redeemAttemptTimeout, CancellationToken.None);
+        JsonNode redeemed = await SendUntilAsync("redeem", "client/auth/handoffs/redeem", Guid.NewGuid(), () => redeem,
+            GameAuthErrors.InProgress, s_redeemAttemptTimeout, s_redeemBudget);
 
         string? made = Text(redeemed, "gameContextCredential");
         try
@@ -110,7 +134,7 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         catch (ApiException) when (made is not null)
         {
             // A context made but not handed back (not authorized, or the reply lacks what a bot needs) is signed out.
-            using var limit = new CancellationTokenSource(s_logoutTimeout);
+            using var limit = new CancellationTokenSource(LogoutTimeout);
             try
             {
                 await LogoutCredentialAsync(made, limit.Token);
@@ -202,18 +226,32 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         _ = RequiredTime(reply, "authorizationValidUntil", Step);
     }
 
-    /// <summary>Signs the game context out; a context already gone (401, 404) counts as signed out.</summary>
+    /// <summary>
+    /// Signs the game context out; a context already gone (401, 404) counts as signed out. A logout is safe to repeat
+    /// (a second one finds the context revoked and changes nothing), so no reply within 3 s, a transport failure or a
+    /// 5xx is asked again twice; give it <see cref="LogoutTimeout"/>.
+    /// </summary>
     public Task LogoutAsync(GameContext context, CancellationToken ct) => LogoutCredentialAsync(context.Credential, ct);
 
     private async Task LogoutCredentialAsync(string credential, CancellationToken ct)
     {
-        try
+        for (int attempt = 0; ; attempt++)
         {
-            await SendAsync("logout", HttpMethod.Post, "client/auth/game-context/logout",
-                new { gameContextCredential = credential }, null, idempotencyKey: null, ct, allowEmpty: true);
-        }
-        catch (ApiException error) when (error.Status is 401 or 404)
-        {
+            try
+            {
+                await SendAsync("logout", HttpMethod.Post, "client/auth/game-context/logout",
+                    new { gameContextCredential = credential }, null, idempotencyKey: null, ct, allowEmpty: true,
+                    attemptTimeout: s_logoutAttemptTimeout);
+                return;
+            }
+            catch (ApiException error) when (error.Status is 401 or 404)
+            {
+                return;
+            }
+            catch (ApiException error) when (attempt < s_retryDelays.Length && error.Status is 0 or >= 500)
+            {
+                await Task.Delay(s_retryDelays[attempt], ct);
+            }
         }
     }
 
@@ -303,13 +341,41 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
             {
                 return await SendAsync(step, HttpMethod.Post, path, body(), null, key, ct, attemptTimeout: attemptTimeout);
             }
-            catch (ApiException error) when (attempt < s_retryDelays.Length &&
-                (error.Status is 0 or >= 500 || (error.Status == 409 && error.Detail == retryConflict)))
+            catch (ApiException error) when (attempt < s_retryDelays.Length && Repeatable(error, retryConflict))
             {
                 await Task.Delay(s_retryDelays[attempt], ct);
             }
         }
     }
+
+    /// <summary>
+    /// As <see cref="SendWithRetriesAsync"/>, never cancelled, asked again 1 s apart under the same key until
+    /// <paramref name="budget"/> from the first send has run out: each attempt has <paramref name="attemptTimeout"/>, or
+    /// what is left of the budget when that is less, and none starts with under 2 s left.
+    /// </summary>
+    private async Task<JsonNode> SendUntilAsync(string step, string path, Guid key, Func<object> body,
+        string retryConflict, TimeSpan attemptTimeout, TimeSpan budget)
+    {
+        long start = Stopwatch.GetTimestamp();
+        while (true)
+        {
+            TimeSpan left = budget - Stopwatch.GetElapsedTime(start);
+            try
+            {
+                return await SendAsync(step, HttpMethod.Post, path, body(), null, key, CancellationToken.None,
+                    attemptTimeout: left < attemptTimeout ? left : attemptTimeout);
+            }
+            catch (ApiException error) when (Repeatable(error, retryConflict) &&
+                budget - Stopwatch.GetElapsedTime(start) >= s_redeemRetryDelay + s_redeemMinAttempt)
+            {
+                await Task.Delay(s_redeemRetryDelay);
+            }
+        }
+    }
+
+    /// <summary>No reply (status 0), a 5xx, or a 409 whose error is <paramref name="retryConflict"/>.</summary>
+    private static bool Repeatable(ApiException error, string retryConflict) =>
+        error.Status is 0 or >= 500 || (error.Status == 409 && error.Detail == retryConflict);
 
     private async Task<JsonNode> SendAsync(string step, HttpMethod method, string path, object body, string? bearer,
         Guid? idempotencyKey, CancellationToken ct, bool allowEmpty = false, TimeSpan? attemptTimeout = null)

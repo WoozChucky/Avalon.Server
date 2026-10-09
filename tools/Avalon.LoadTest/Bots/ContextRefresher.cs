@@ -32,10 +32,10 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
     private static readonly TimeSpan s_maxJitter = TimeSpan.FromSeconds(20);
 
     /// <summary>
-    /// A sign-out of a context its bot let go of, or a refresh sent again for one, on its own clock: neither waits on
-    /// a token that may already be cancelled.
+    /// When the refresher stops, the contexts still unsettled are all sent again within this one deadline, each with a
+    /// refresh's own attempts (8 s each, two retries) inside it; the sign-outs that follow have their own clock.
     /// </summary>
-    private static readonly TimeSpan s_ownTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_settleBudget = TimeSpan.FromSeconds(60);
 
     /// <summary>
     /// How many refreshes run at once; a pass holds them all before the next. Also the most queued sign-ins running at
@@ -187,7 +187,7 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
             if (LetGo(bot, context))
             {
                 // Nobody would send this refresh again (passes leave such a bot alone): it is sent again at once.
-                await ResendAsync(bot, context);
+                await ResendAsync(bot, context, CancellationToken.None);
                 return;
             }
 
@@ -197,18 +197,18 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
     }
 
     /// <summary>
-    /// Sends again, under the same key and on its own 5 s, the refresh of a context whose refresh got no final answer,
-    /// now that its bot let go of it or the refresher stops: within the server's 30 s receipt it is answered with what
-    /// the earlier one did; past it the spent refresh token is refused (401) and the context revoked; a refresh that
-    /// never landed rotates the context now. A credential learned is signed out when the bot let go of the context (a
-    /// bot still holding it signs out what it reads); a 401 means the context is gone already.
+    /// Sends again, under the same key with a refresh's own attempts (8 s each, two retries, about 25 s), the refresh of
+    /// a context whose refresh got no final answer, now that its bot let go of it or the refresher stops (then within
+    /// <paramref name="ct"/>, the settle's deadline): within the server's 30 s receipt it is answered with what the
+    /// earlier one did; past it the spent refresh token is refused (401) and the context revoked; a refresh that never
+    /// landed rotates the context now. A credential learned is signed out when the bot let go of the context (a bot
+    /// still holding it signs out what it reads); a 401 means the context is gone already.
     /// </summary>
-    private async Task ResendAsync(Bot bot, GameContext context)
+    private async Task ResendAsync(Bot bot, GameContext context, CancellationToken ct)
     {
-        using var limit = new CancellationTokenSource(s_ownTimeout);
         try
         {
-            await api.RefreshAsync(context, limit.Token);
+            await api.RefreshAsync(context, ct);
             _unsettled.TryRemove(context, out _);
             if (!ReferenceEquals(bot.Context, context)) await SignOutAsync(bot, context);
         }
@@ -217,7 +217,7 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
             _unsettled.TryRemove(context, out _);
             if (refused.State is not null && !ReferenceEquals(bot.Context, context)) await SignOutAsync(bot, context);
         }
-        catch (Exception error) when (error is ApiException || (error is OperationCanceledException && limit.IsCancellationRequested))
+        catch (Exception error) when (error is ApiException || (error is OperationCanceledException && ct.IsCancellationRequested))
         {
             // Still unsettled: sent again when the refresher stops, else reported there.
             bot.Note?.Invoke($"Refreshing a context the bot let go of again failed: {error.Message}.");
@@ -226,15 +226,18 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
 
     /// <summary>
     /// When the refresher stops (the bots have left): every context whose refresh never got a final answer is refreshed
-    /// again (<see cref="ResendAsync"/>), so none the server rotated stays live unknown to its bot's sign-out.
+    /// again (<see cref="ResendAsync"/>), 16 at once, all within one 60 s deadline (a resend not done by then is
+    /// cancelled, one not started fails at once), so none the server rotated stays live unknown to its bot's sign-out
+    /// and an API that does not answer holds the stop up for 60 s, plus a last sign-out's 10 s, at most.
     /// </summary>
     private async Task SettleAsync()
     {
         KeyValuePair<GameContext, Bot>[] unsettled = [.. _unsettled];
         if (unsettled.Length == 0) return;
 
+        using var deadline = new CancellationTokenSource(s_settleBudget);
         await Parallel.ForEachAsync(unsettled, new ParallelOptions { MaxDegreeOfParallelism = Concurrency },
-            (entry, _) => new ValueTask(ResendAsync(entry.Value, entry.Key)));
+            (entry, _) => new ValueTask(ResendAsync(entry.Value, entry.Key, deadline.Token)));
         foreach ((GameContext _, Bot bot) in _unsettled)
         {
             bot.Note?.Invoke("A game context's last refresh never got an answer; it may stay live until it expires (5 minutes).");
@@ -303,10 +306,10 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
         }
     }
 
-    /// <summary>Signs out a context its bot let go of, best effort, on its own 5 s timeout.</summary>
+    /// <summary>Signs out a context its bot let go of, best effort, on its own 10 s (<see cref="ApiClient.LogoutTimeout"/>).</summary>
     private async Task SignOutAsync(Bot bot, GameContext context)
     {
-        using var limit = new CancellationTokenSource(s_ownTimeout);
+        using var limit = new CancellationTokenSource(ApiClient.LogoutTimeout);
         try
         {
             await api.LogoutAsync(context, limit.Token);

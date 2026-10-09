@@ -72,8 +72,11 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// <summary>A leave waits for the character's logout save.</summary>
     private static readonly TimeSpan s_leaveTimeout = TimeSpan.FromSeconds(20);
 
-    /// <summary>The context's sign-out at the end of a leave, on its own clock: it runs even after the leave was cancelled.</summary>
-    private static readonly TimeSpan s_logoutTimeout = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// The context's sign-out at the end of a leave, on its own clock (<see cref="ApiClient.LogoutTimeout"/>, retries
+    /// included): it runs even after the leave was cancelled.
+    /// </summary>
+    private static readonly TimeSpan s_logoutTimeout = ApiClient.LogoutTimeout;
 
     /// <summary>How often a spawned bot repeats its first idle input until one is answered.</summary>
     private static readonly TimeSpan s_firstAckProbeInterval = TimeSpan.FromMilliseconds(50);
@@ -317,7 +320,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>
     /// Leaves the world (<see cref="DisconnectAsync"/>) and signs the game context out. The sign-out runs however the
-    /// leave ended, a cancel included, on its own 5 s timeout rather than <paramref name="ct"/>.
+    /// leave ended, a cancel included, on its own 10 s timeout rather than <paramref name="ct"/>.
     /// </summary>
     public async Task LeaveAsync(CancellationToken ct)
     {
@@ -373,7 +376,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         _state = BotState.Stopped;
     }
 
-    /// <summary>Signs <paramref name="context"/> out on its own 5 s timeout; a failure is noted, never thrown.</summary>
+    /// <summary>Signs <paramref name="context"/> out on its own 10 s timeout; a failure is noted, never thrown.</summary>
     private async Task SignOutAsync(GameContext context)
     {
         long start = Stopwatch.GetTimestamp();
