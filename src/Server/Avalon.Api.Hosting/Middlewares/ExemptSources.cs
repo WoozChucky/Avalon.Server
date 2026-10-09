@@ -21,8 +21,7 @@ public interface IExemptSources
 
 /// <summary>
 /// <see cref="IExemptSources"/> over the configured entries, parsed once: an IP address (that address only) or a network
-/// in CIDR form (address/prefix). An IPv4-mapped IPv6 address, calling or configured as a plain address, is taken as
-/// its IPv4 address.
+/// in CIDR form (address/prefix). An IPv4-mapped IPv6 address, calling or configured, is taken as its IPv4 address.
 /// </summary>
 public sealed class ExemptSources : IExemptSources
 {
@@ -48,14 +47,19 @@ public sealed class ExemptSources : IExemptSources
         return false;
     }
 
-    /// <summary>The refusal for an entry that is neither an address nor a network, naming it.</summary>
+    /// <summary>The refusal for an entry <see cref="TryParse"/> refuses, naming it.</summary>
     public static string Invalid(string? entry) =>
-        $"{ApiRateLimiting.Section}:{nameof(RateLimitingConfig.ExemptSources)} has \"{entry}\", which is neither an " +
-        "IP address nor a network in CIDR form (address/prefix).";
+        $"{ApiRateLimiting.Section}:{nameof(RateLimitingConfig.ExemptSources)} has \"{entry}\", which is not an IP " +
+        "address or a network in CIDR form (address/prefix) as written: IPv4 in four plain decimal parts, and no " +
+        "address bits past the prefix.";
 
     /// <summary>
-    /// Parses one entry. An IPv4 address must have its four parts: <see cref="IPAddress.TryParse(string?, out IPAddress?)"/>
-    /// would read "10.1" as 10.0.0.1. A network's address must have no bits past its prefix.
+    /// Parses one entry, refusing any the parser would read as a different address or network than written: an IPv4
+    /// address must be four plain decimal parts (<see cref="IPAddress.TryParse(string?, out IPAddress?)"/> reads "10.1"
+    /// as 10.0.0.1, "010.0.0.5" as 8.0.0.5 and accepts hex); a network's address must have no bits past its prefix
+    /// (<see cref="IPNetwork.TryParse(string?, out IPNetwork)"/> would quietly clear them, so "10.1.0.5/16" would exempt
+    /// all of 10.1.0.0/16). An IPv4-mapped address or network is stored as IPv4, the form callers are matched in; a
+    /// mapped network wider than /96 reaches beyond the IPv4 space and is refused.
     /// </summary>
     public static bool TryParse(string? entry, out IPNetwork network)
     {
@@ -63,16 +67,32 @@ public sealed class ExemptSources : IExemptSources
         if (string.IsNullOrWhiteSpace(entry))
             return false;
         int slash = entry.IndexOf('/', StringComparison.Ordinal);
-        string address = slash < 0 ? entry : entry[..slash];
-        if (!address.Contains(':', StringComparison.Ordinal) && address.Count(c => c == '.') != 3)
+        string text = slash < 0 ? entry : entry[..slash];
+        if (!IPAddress.TryParse(text, out IPAddress? address))
             return false;
+        if (address.AddressFamily == AddressFamily.InterNetwork
+            && !string.Equals(address.ToString(), text, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        int prefix = address.AddressFamily == AddressFamily.InterNetworkV6 ? 128 : 32;
         if (slash >= 0)
-            return IPNetwork.TryParse(entry, out network);
-        if (!IPAddress.TryParse(entry, out IPAddress? parsed))
-            return false;
-        if (parsed.IsIPv4MappedToIPv6)
-            parsed = parsed.MapToIPv4();
-        network = new IPNetwork(parsed, parsed.AddressFamily == AddressFamily.InterNetworkV6 ? 128 : 32);
+        {
+            if (!IPNetwork.TryParse(entry, out IPNetwork parsed) || !parsed.BaseAddress.Equals(address))
+                return false;
+            prefix = parsed.PrefixLength;
+        }
+
+        if (address.IsIPv4MappedToIPv6)
+        {
+            if (prefix < 96)
+                return false;
+            address = address.MapToIPv4();
+            prefix -= 96;
+        }
+
+        network = new IPNetwork(address, prefix);
         return true;
     }
 }

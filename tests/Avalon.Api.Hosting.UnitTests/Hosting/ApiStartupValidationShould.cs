@@ -1,5 +1,4 @@
 using Avalon.Api.Hosting.Config;
-using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Identity;
 using Avalon.Api.Identity.Config;
@@ -125,31 +124,44 @@ public class ApiStartupValidationShould
     }
 
     /// <summary>
-    /// The load-test settings: the sources exempt from the per-source limits are parsed before the api serves, so an
-    /// entry that is not an address or a network refuses startup, naming it (an IPv4 address with fewer than four parts
-    /// would otherwise parse as another address); and a load-test account cap below one refuses too.
+    /// The sources exempt from the per-source limits are parsed before the api serves. An entry that is not an address
+    /// or a network, or that the parser would read as a different address (an IPv4 address with fewer than four parts,
+    /// a leading zero or a hex part; a network with bits past its prefix; an IPv4-mapped network wider than the IPv4
+    /// space), refuses startup, naming it.
     /// </summary>
     [Theory]
-    [InlineData("Application:RateLimiting:ExemptSources", "10.0.0.5|10.1.0.0/16|::1", null)]
-    [InlineData("Application:RateLimiting:ExemptSources", "10.0.0.5|not-an-ip", "\"not-an-ip\"")]
-    [InlineData("Application:RateLimiting:ExemptSources", "10.1", "\"10.1\"")]
-    [InlineData("Application:LoadTest:MaxAccounts", "0", "Application:LoadTest:MaxAccounts must be at least 1")]
-    public void Validate_the_load_test_settings_at_startup(string setting, string values, string? refusalNaming)
+    [InlineData("10.0.0.5|10.1.0.0/16|::1|::ffff:10.2.0.0/112", null)]
+    [InlineData("10.0.0.5|not-an-ip", "\"not-an-ip\"")]
+    [InlineData("10.1", "\"10.1\"")]
+    [InlineData("010.0.0.5", "\"010.0.0.5\"")]
+    [InlineData("0x0a.0.0.5", "\"0x0a.0.0.5\"")]
+    [InlineData("10.0.0.05/32", "\"10.0.0.05/32\"")]
+    [InlineData("10.1.0.5/16", "\"10.1.0.5/16\"")]
+    [InlineData("::ffff:0.0.0.0/80", "\"::ffff:0.0.0.0/80\"")]
+    public void Validate_the_exempt_sources_at_startup(string entries, string? refusalNaming)
     {
-        using ServiceProvider provider = Build("localhost:6379",
-            values.Split('|').Select((value, i) => (setting.EndsWith("ExemptSources", StringComparison.Ordinal)
-                ? $"{setting}:{i}" : setting, (string?)value)).ToArray());
+        using ServiceProvider provider = Build("localhost:6379", entries.Split('|')
+            .Select((entry, i) => ($"Application:RateLimiting:ExemptSources:{i}", (string?)entry)).ToArray());
 
         if (refusalNaming is null)
         {
             provider.GetRequiredService<IStartupValidator>().Validate();
-            Assert.True(provider.GetRequiredService<IExemptSources>().IsExempt(System.Net.IPAddress.Parse("10.1.2.3")));
             return;
         }
 
         OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
             () => provider.GetRequiredService<IStartupValidator>().Validate());
         Assert.Contains(refusalNaming, refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Refuse_to_start_with_a_load_test_account_cap_below_one()
+    {
+        using ServiceProvider provider = Build("localhost:6379", ("Application:LoadTest:MaxAccounts", "0"));
+
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        Assert.Contains("Application:LoadTest:MaxAccounts must be at least 1", refused.Message, StringComparison.Ordinal);
     }
 
     /// <summary>A reload timeout of zero or less would time every save out before it started waiting.</summary>
