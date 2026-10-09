@@ -9,7 +9,8 @@ namespace Avalon.Api.Identity.Authentication;
 /// <summary>
 /// The named rate-limit policy on the launcher sign-in endpoints (#591): per source, whether or not the caller is
 /// signed in, and in addition to the shared request rate limiter (<see cref="ApiRateLimiting"/>), whose rejection
-/// answers it too.
+/// answers it too. A source <c>ExemptSources</c> names (<see cref="IExemptSources"/>, a load machine) is not limited
+/// by it.
 /// </summary>
 public static class ClientAuthRateLimiting
 {
@@ -19,10 +20,10 @@ public static class ClientAuthRateLimiting
     public static IServiceCollection AddClientAuthRateLimiting(this IServiceCollection services)
     {
         services.AddOptions<RateLimiterOptions>()
-            .Configure<IOptions<RateLimitingConfig>>((options, config) =>
+            .Configure<IOptions<RateLimitingConfig>, IExemptSources>((options, config, exempt) =>
             {
                 RateLimitingConfig limits = config.Value;
-                options.AddPolicy(Policy, context => limits.Enabled
+                options.AddPolicy(Policy, context => limits.Enabled && !exempt.IsExempt(context.Connection.RemoteIpAddress)
                     ? RateLimitPartition.GetSlidingWindowLimiter(ApiRateLimiting.SourceOf(context), _ => new SlidingWindowRateLimiterOptions
                     {
                         PermitLimit = limits.ClientAuthPermitsPerMinute,

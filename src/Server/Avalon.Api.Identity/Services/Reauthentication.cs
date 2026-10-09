@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Authentication;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Identity.Exceptions;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
@@ -41,11 +42,14 @@ public sealed class Reauthentication : IReauthentication
 
     private readonly IAccountRepository _accounts;
     private readonly PasswordLoginPolicy _policy;
+    private readonly IExemptSources? _exemptSources;
 
-    public Reauthentication(IAccountRepository accounts, PasswordLoginPolicy policy)
+    /// <param name="exemptSources">The load machines that skip the per-source login budget; null, none.</param>
+    public Reauthentication(IAccountRepository accounts, PasswordLoginPolicy policy, IExemptSources? exemptSources = null)
     {
         _accounts = accounts;
         _policy = policy;
+        _exemptSources = exemptSources;
     }
 
     public async Task<Reauthenticated> RequireCurrentPasswordAsync(AccountId accountId, string password,
@@ -57,7 +61,7 @@ public sealed class Reauthentication : IReauthentication
         Account account = await _accounts.FindByIdAsync(accountId, track: false, cancellationToken)
                       ?? throw new AuthenticationException(InvalidPassword);
 
-        PasswordAttempt attempt = await _policy.CheckAsync(account, password, LoginSource.FromAddress(address),
+        PasswordAttempt attempt = await _policy.CheckAsync(account, password, _exemptSources.LoginSourceOf(address),
             cancellationToken);
 
         if (attempt.Refused)

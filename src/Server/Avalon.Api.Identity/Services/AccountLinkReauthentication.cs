@@ -1,4 +1,5 @@
 using System.Net;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Common.GameAuth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
@@ -10,8 +11,9 @@ namespace Avalon.Api.Identity.Services;
 public sealed record LinkReauthenticated(string? Error, int CredentialsVersion, long SessionEpoch, Guid? ConfirmedMfaId);
 
 /// <summary>A browser session or a refreshed JWT alone cannot grant store link consent.</summary>
+/// <param name="exemptSources">The load machines that skip the per-source login budget; null, none.</param>
 public sealed class AccountLinkReauthentication(IReauthentication password, IMfaSetupRepository setups,
-    IMFAHashService hashes, MfaLoginPolicy mfa)
+    IMFAHashService hashes, MfaLoginPolicy mfa, IExemptSources? exemptSources = null)
 {
     public async Task<LinkReauthenticated> RequireAsync(Account account, string currentPassword, string? code,
         IPAddress source, CancellationToken cancellationToken)
@@ -24,7 +26,7 @@ public sealed class AccountLinkReauthentication(IReauthentication password, IMfa
             return new(null, proof.CredentialsVersion, account.SessionEpoch, null);
         if (string.IsNullOrWhiteSpace(code)) return new(GameAuthErrors.MfaRequired, 0, 0, null);
         string hash = await hashes.GenerateHashAsync(account);
-        MfaCodeAttempt attempt = await mfa.CheckAsync(hash, code, LoginSource.FromAddress(source), cancellationToken);
+        MfaCodeAttempt attempt = await mfa.CheckAsync(hash, code, exemptSources.LoginSourceOf(source), cancellationToken);
         if (attempt.Result != MfaCodeCheck.Correct)
         {
             if (attempt.Result == MfaCodeCheck.WrongCode) await mfa.RecordFailureAsync(attempt, cancellationToken);

@@ -30,4 +30,11 @@ public class RateLimitingConfig
     /// service names (<see cref="Middlewares.IRateLimitWorkloads"/>). At least 1.
     /// </summary>
     public int WorkloadPermitsPerMinute { get; set; } = 16384;
+
+    /// <summary>
+    /// Sources exempt from the per-source limits (named load machines): IP addresses or networks in CIDR form, parsed on
+    /// start (<see cref="Middlewares.ExemptSources"/>), where an entry that is neither refuses startup, naming it.
+    /// Empty by default.
+    /// </summary>
+    public IList<string> ExemptSources { get; set; } = [];
 }

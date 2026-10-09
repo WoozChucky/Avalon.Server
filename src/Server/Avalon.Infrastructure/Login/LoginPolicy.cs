@@ -66,7 +66,7 @@ public abstract class LoginPolicy
     /// </summary>
     public async Task GiveBackAsync(LoginAttempt attempt)
     {
-        await SourceBudget.GiveBackAsync(Cache, attempt.Source.Key);
+        await SourceBudget.GiveBackAsync(Cache, attempt.Source);
         await UsernameBudget.GiveBackAsync(Cache, Limits, attempt.UsernameKey!);
     }
 
@@ -76,14 +76,14 @@ public abstract class LoginPolicy
     /// </summary>
     public async Task CompleteAsync(LoginAttempt attempt)
     {
-        await SourceBudget.GiveBackAsync(Cache, attempt.Source.Key);
+        await SourceBudget.GiveBackAsync(Cache, attempt.Source);
         await UsernameBudget.ResetAsync(Cache, Limits, attempt.UsernameKey!);
     }
 
-    /// <summary>Takes the source's slot. False when the source is past its budget.</summary>
+    /// <summary>Takes the source's slot, none for an exempt source. False when the source is past its budget.</summary>
     protected async Task<bool> TakeSourceAsync(LoginSource source, string what)
     {
-        if (await SourceBudget.TryTakeAsync(Cache, Limits, source.Key))
+        if (await SourceBudget.TryTakeAsync(Cache, Limits, source))
             return true;
 
         Logger.LogWarning("{What} refused for source {SourceKey}: too many failed attempts", what, source.Key);

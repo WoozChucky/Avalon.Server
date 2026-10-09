@@ -1,6 +1,7 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Controllers;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Identity.Authentication.Jwt;
 using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Exceptions;
@@ -27,11 +28,14 @@ public class MFAController : BaseController
     private readonly IRefreshTokenService _refreshService;
     private readonly MfaLoginPolicy _mfaPolicy;
     private readonly IReauthentication _reauthentication;
+    private readonly IExemptSources? _exemptSources;
 
+    /// <param name="exemptSources">The load machines that skip the per-source login budget; null, none.</param>
     public MFAController(IMFAService mfaService, IAuthContext authContext, AuthenticationConfig authConfig,
         IJwtUtils jwtUtils, IAccountRepository accountRepository, IRefreshTokenService refreshService,
-        MfaLoginPolicy mfaPolicy, IReauthentication reauthentication)
+        MfaLoginPolicy mfaPolicy, IReauthentication reauthentication, IExemptSources? exemptSources = null)
     {
+        _exemptSources = exemptSources;
         _mfaService = mfaService;
         _authContext = authContext;
         _authConfig = authConfig;
@@ -106,7 +110,7 @@ public class MFAController : BaseController
         // code is checked; and only one caller can win a hash, so two parallel verifies of one
         // hash cannot both get a session.
         MfaCodeAttempt attempt = await _mfaPolicy.CheckAsync(request.Hash, request.Code,
-            LoginSource.FromAddress(SourceAddress), CancellationToken);
+            _exemptSources.LoginSourceOf(SourceAddress), CancellationToken);
 
         switch (attempt.Result)
         {

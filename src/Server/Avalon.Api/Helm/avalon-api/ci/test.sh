@@ -145,6 +145,31 @@ grep -A1 "name: Application__RateLimiting__ClientAuthPermitsPerMinute" <<<"$rl" 
 on=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=true)
 grep -A1 "name: Application__RateLimiting__Enabled" <<<"$on" | grep -q '"true"'                        || { echo "rateLimiting.enabled=true missing"; exit 1; }
 ! grep -q "Application__RateLimiting__AnonymousPermitsPerMinute" <<<"$on"                             || { echo "an unset limit must not render"; exit 1; }
+# Exempt sources: indexed env, only when listed, in every service's release (the limiter runs in each).
+for service in identity worlds commerce distribution; do
+  ex=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json "services=[\"$service\"]"     --set 'rateLimiting.exemptSources={203.0.113.7/32,2001:db8::1}')
+  grep -A1 "name: Application__RateLimiting__ExemptSources__0" <<<"$ex" | grep -q '"203.0.113.7/32"' || { echo "exemptSources[0] missing for $service"; exit 1; }
+  grep -A1 "name: Application__RateLimiting__ExemptSources__1" <<<"$ex" | grep -q '"2001:db8::1"'    || { echo "exemptSources[1] missing for $service"; exit 1; }
+  ! grep -q "Application__RateLimiting__ExemptSources__2" <<<"$ex"                                     || { echo "rendered an extra exempt source for $service"; exit 1; }
+done
+# Load-test accounts: identity's alone, each only when set, so the API's defaults (off, 5000) apply otherwise;
+# false is a set value, and a large cap renders as digits.
+! grep -q "Application__LoadTest__" <<<"$out"                                                          || { echo "loadTest env rendered without a value"; exit 1; }
+lt=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json 'services=["identity"]'   --set loadTest.enabled=true --set loadTest.maxAccounts=250)
+grep -A1 "name: Application__LoadTest__Enabled" <<<"$lt" | grep -q '"true"'                            || { echo "loadTest.enabled=true missing"; exit 1; }
+grep -A1 "name: Application__LoadTest__MaxAccounts" <<<"$lt" | grep -q '"250"'                         || { echo "loadTest.maxAccounts missing"; exit 1; }
+off=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set loadTest.enabled=false)
+grep -A1 "name: Application__LoadTest__Enabled" <<<"$off" | grep -q '"false"'                          || { echo "loadTest.enabled=false missing"; exit 1; }
+! grep -q "Application__LoadTest__MaxAccounts" <<<"$off"                                               || { echo "an unset loadTest.maxAccounts must not render"; exit 1; }
+big=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json 'loadTest={"maxAccounts":1000000}')
+grep -A1 "name: Application__LoadTest__MaxAccounts" <<<"$big" | grep -q '"1000000"'                    || { echo "a large loadTest.maxAccounts must render as digits"; exit 1; }
+for service in worlds commerce distribution; do
+  nolt=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json "services=[\"$service\"]"     --set loadTest.enabled=true --set loadTest.maxAccounts=250)
+  ! grep -q "Application__LoadTest__" <<<"$nolt"                                                       || { echo "loadTest rendered for $service, which does not serve it"; exit 1; }
+done
+must_fail "loadTest.maxAccounts=0 must fail"          --set existingSecret=x "${W1[@]}" --set loadTest.maxAccounts=0
+must_fail "a non-numeric loadTest.maxAccounts must fail" --set existingSecret=x "${W1[@]}" --set loadTest.maxAccounts=many
+must_fail "a fractional loadTest.maxAccounts must fail" --set existingSecret=x "${W1[@]}" --set loadTest.maxAccounts=2.5
 # Balance service (admin /balance proxy): the URL renders only when set; the secret is always a
 # secretKeyRef, optional, so an unset key leaves the admin endpoints answering 503.
 ! grep -q "Application__Balance__Url" <<<"$out"                                                || { echo "balance url rendered without a value"; exit 1; }
@@ -262,7 +287,7 @@ diff <(shape <<<"$mono") <(shape <<<"$four" | grep -v '^env Application__Service
 owners() {
   case "$1" in
     Application__StoreAuthentication__Environment|Application__StoreAuthentication__SteamIdentityPrefix) echo "identity commerce" ;;
-    Application__StoreAuthentication__*|Application__Email__*|Application__Notification__*|Application__SteamWebLink__*|Application__GameWorkloads__*|Kestrel__Endpoints__GameInternal__*|Application__RateLimiting__ClientAuthPermitsPerMinute) echo identity ;;
+    Application__StoreAuthentication__*|Application__Email__*|Application__Notification__*|Application__SteamWebLink__*|Application__GameWorkloads__*|Kestrel__Endpoints__GameInternal__*|Application__RateLimiting__ClientAuthPermitsPerMinute|Application__LoadTest__*) echo identity ;;
     Application__Authentication__SigningKey|Application__Authentication__SigningKeyId|Application__GameAuth__*) echo identity ;;
     Database__Worlds__*__Characters__*) echo "identity worlds" ;;
     Database__Worlds__*__World__*|Application__Templates__*|Application__MapAssets__*|Application__Balance__*|Application__PublicWorldId|Application__PublicSiteUrl) echo worlds ;;
@@ -377,6 +402,7 @@ diff <(echo "$table") - <<'EOF' || { echo "routes must follow the manifest (desi
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/channels(/|$)
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/launcher(/|$)
 10020 api-distribution:8080 avalon-strip-api ^/api/(?i)client/releases(/|$)
+10020 api-identity:8080 avalon-strip-api ^/api/(?i)admin/load-test(/|$)
 10020 api-identity:8080 avalon-strip-api ^/api/(?i)client/auth(/|$)
 20020 api-worlds-next:8080 avalon-strip-api ^/api/(?i)world/1(/|$)
 20030 api-distribution-next:8080 avalon-strip-api ^/api/(?i)client/channels/dev(/|$)

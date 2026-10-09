@@ -35,7 +35,8 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | `ForwardedHeadersConfig`    | `Avalon.Api.Hosting.Config`        | `Application:ForwardedHeaders` | API (every service) | By hand in `AddApiHosting` (`ForwardedHeadersSetup.BuildOptions`) |
 | `EmailConfig`               | `Avalon.Api.Identity.Config`       | `Application:Email` | API (identity) | By hand in `AddEmail` |
 | `GameAuthConfig`            | `Avalon.Api.Identity.Config`       | `Application:GameAuth`: `HostKey` | API (identity) | Before the api serves (`IdentityStartupCheck`, `GameAuthHostKey`), see [REST API JWT Signing Key](#rest-api-jwt-signing-key) |
-| `RateLimitingConfig`        | `Avalon.Api.Hosting.Config`        | `Application:RateLimiting`, as `IOptions<RateLimitingConfig>` only | API (every service) | `ValidateOnStart` (each limit at least 1) |
+| `RateLimitingConfig`        | `Avalon.Api.Hosting.Config`        | `Application:RateLimiting`, as `IOptions<RateLimitingConfig>` only | API (every service) | `ValidateOnStart` (each limit at least 1; each `ExemptSources` entry by `ExemptSourcesValidation`, see [Exempt sources](#exempt-sources)) |
+| `LoadTestOptions`           | `Avalon.Api.Identity.LoadTest`     | `Application:LoadTest`, as `IOptions<LoadTestOptions>` | API (identity) | `ValidateOnStart` (`MaxAccounts` at least 1). See [REST API Load-Test Accounts](#rest-api-load-test-accounts) |
 | `MapAssetConfig`            | `Avalon.Api.Worlds.Config`         | `Application:MapAssets`, as `IOptions<MapAssetConfig>` | API (worlds) | Not validated |
 | `NotificationConfig`        | `Avalon.Api.Identity.Config`       | `Application:Notification` | API (identity) | Not validated |
 | `EnvironmentConfig`         | `Avalon.Api.Hosting.Config`        | `Application:Environment` | API (identity) | Not validated |
@@ -306,8 +307,8 @@ of it; `appsettings.json` keeps every service's non-secret defaults.
 | `Application:Templates:*`, `Application:MapAssets:*`, `Application:PublicWorldId`, `Application:PublicSiteUrl`, `Application:Previews:*`, `Application:Balance:*` | | yes | | |
 | `Application:Commerce:*` | | | yes | |
 | `Application:Distribution:*` | | | | yes |
-| `Application:ForwardedHeaders:*`, `Application:RateLimiting:{Enabled,AnonymousPermitsPerMinute,AuthenticatedPermitsPerMinute}`, `Application:ApiDocs:Enabled` | yes | yes | yes | yes |
-| `Application:RateLimiting:{ClientAuthPermitsPerMinute,WorkloadPermitsPerMinute}` | yes | | | |
+| `Application:ForwardedHeaders:*`, `Application:RateLimiting:{Enabled,AnonymousPermitsPerMinute,AuthenticatedPermitsPerMinute,ExemptSources}`, `Application:ApiDocs:Enabled` | yes | yes | yes | yes |
+| `Application:RateLimiting:{ClientAuthPermitsPerMinute,WorkloadPermitsPerMinute}`, `Application:LoadTest:*` | yes | | | |
 | `Application:Startup:AuthSchemaWaitSeconds` | | yes | yes | yes |
 
 Commerce binds `Application:StoreAuthentication` without identity's validator, since it reads only those two keys
@@ -548,6 +549,7 @@ Section: `Application:RateLimiting`, read by every API service (#561)
 | `AuthenticatedPermitsPerMinute` | int  | `300`   | Requests a minute per account for a caller with a valid access token or personal access token |
 | `ClientAuthPermitsPerMinute`    | int  | `20`    | Identity: launcher sign-in requests (`client/auth`: code, token, refresh, revoke) a minute per source, on top of the above (#591) |
 | `WorkloadPermitsPerMinute`      | int  | `16384` | Identity: requests a minute per authenticated game server on the game workload listener, every player's lease heartbeat included, counted instead of the limits above ([game server admission](steam-authentication-workloads.md)) |
+| `ExemptSources`                 | string[] | `[]` | Sources exempt from every per-source limit, for load machines: IP addresses or networks in CIDR form. See [Exempt sources](#exempt-sources) below |
 
 Every request counts, whatever the endpoint, in a sliding window of one minute in six segments, held in
 memory: each API process counts the requests it serves, and each replica on its own. While one process runs
@@ -582,12 +584,69 @@ Application__RateLimiting__ClientAuthPermitsPerMinute=20
 
 The Helm chart passes `rateLimiting.enabled`, `rateLimiting.anonymousPermitsPerMinute`,
 `rateLimiting.authenticatedPermitsPerMinute` and `rateLimiting.clientAuthPermitsPerMinute` (the last only to a
-release that runs identity), each only when set; empty, the API's defaults apply. `WorkloadPermitsPerMinute` has no
+release that runs identity), each only when set, and `rateLimiting.exemptSources` (below); empty, the API's defaults apply. `WorkloadPermitsPerMinute` has no
 chart value.
 
 The launcher sign-in endpoints (`client/auth/*`, #591) also carry the named policy `client-auth`: a
 separate sliding window per source (the same source rule), counted in addition to the limits above, so a
 signed-in caller is held to it too. It answers with the same 429.
+
+### Exempt sources
+
+`ExemptSources` names the machines a load test runs from, so hundreds of bots behind one address are not refused as
+one caller. A request whose source is listed (the address the limits count, after the
+[forwarded headers](#rest-api-forwarded-headers)) skips every per-source limit: the anonymous partition, the
+`client-auth` policy, the per-source failed-login budget (`MaxFailedLoginsPerSource`, which registration, MFA verify,
+the current-password checks and starting an email change spend too) and the per-source account-creation cap.
+Per-account and per-username limits still apply: a signed-in request from a listed source is counted against its
+account, and each username keeps its failed-login budget and its lock. The auth server's TCP login is not affected.
+[REST API authentication](api-authentication.md#rest-api-auth) has the details, the personal access token lookup an
+exempt source makes among them.
+
+Each entry is an address (`203.0.113.7`, that address only) or a network (`203.0.113.0/28`); an IPv4-mapped IPv6
+entry is read as its IPv4 address. Startup refuses, naming the entry and why:
+- an entry that does not read exactly as written: an IPv4 address must be four plain decimal parts (`10.1`,
+  `010.0.0.5` and hex forms are refused, since the parser would read them as other addresses), and a network must
+  have no address bits past its prefix (`10.1.0.5/16` is refused rather than widened to all of `10.1.0.0/16`);
+- a network wider than **/24 (IPv4)** or **/64 (IPv6)**: an exempt range is a hole in every per-source limit, so it
+  stays the size of a few machines;
+- an entry that overlaps loopback, or a proxy `Application:ForwardedHeaders` trusts (`KnownProxies`,
+  `KnownNetworks`): a trusted proxy forwards other callers, so exempting it would exempt everyone behind it.
+
+List each load machine on its own (`/32`), and remove the entries once the run is over. Behind a proxy, the machine's
+address is the one the API resolves only when that proxy is trusted in
+[forwarded headers](#rest-api-forwarded-headers); an entry naming the proxy itself is refused.
+
+```bash
+Application__RateLimiting__ExemptSources__0=203.0.113.7/32
+```
+
+The Helm chart renders `rateLimiting.exemptSources` (empty by default) as indexed env into every release, since each
+service process runs its own limiter.
+
+---
+
+## REST API Load-Test Accounts
+
+Section: `Application:LoadTest`, read by identity
+
+| Key           | Type | Default | Description |
+|---------------|------|---------|-------------|
+| `Enabled`     | bool | `false` | Turns on `POST` and `DELETE /admin/load-test/accounts`, which create and remove runs of load-test bot accounts ([API services](api-services.md#load-test-accounts)). Off, an admin's request to either gets the standard Not Found response (authorization still runs first) |
+| `MaxAccounts` | int  | `5000`  | The most load-test accounts that may exist at once, across every run; a create that would pass it is refused with 409. At least 1 |
+
+Bound as `IOptions<LoadTestOptions>` and validated at startup: a `MaxAccounts` below 1 stops identity, naming the
+setting. Keep it off except where load tests run: the bots hold `Player | PTR`, so they can enter any world that
+admits either.
+
+```bash
+Application__LoadTest__Enabled=true
+Application__LoadTest__MaxAccounts=5000
+```
+
+The Helm chart renders `loadTest.enabled` and `loadTest.maxAccounts` into a release that runs identity, and into no
+other, each only when set (empty, the defaults above apply); a `maxAccounts` that is not a whole number of at least 1
+refuses to render.
 
 ---
 
@@ -853,8 +912,8 @@ The REST API's `Application:*` settings are bound directly, by the services that
 `IOptions<T>`, and do not use `ValidateOnStart`, except `Application:Cache`, bound as `IOptions<CacheConfiguration>` in
 a process whose services need Redis and validated at startup like the servers' `Cache`, `Application:RateLimiting`,
 bound only as `IOptions<RateLimitingConfig>` and validated the same way (see
-[REST API Rate Limiting](#rest-api-rate-limiting)), and the worlds service's `Application:Templates` and commerce's
-`Application:Commerce`, validated the same way. The rest are checked by hand while the host is built: in every
+[REST API Rate Limiting](#rest-api-rate-limiting)), and identity's `Application:LoadTest`, the worlds service's
+`Application:Templates` and commerce's `Application:Commerce`, validated the same way. The rest are checked by hand while the host is built: in every
 process `Application:Services` (`ApiServiceSelection`), the token keys (`JwtKeys.Create` in
 `AvalonApiHost.CreateBuilder`, see [REST API JWT Signing Key](#rest-api-jwt-signing-key)) and the forwarded-headers entries
 (`ForwardedHeadersSetup.BuildOptions` in `AddApiHosting`); in identity the login limits
