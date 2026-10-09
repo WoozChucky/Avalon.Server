@@ -1092,6 +1092,25 @@ The TLS flush on Linux by connection count (µs per connection): 50, 0.533 ms (1
   leave the tick is an open decision (#875): it changes when a packet leaves relative to the tick and puts the TLS
   and socket work on other threads.
 
+### Results — the read loop, per frame (#875, 2026-10-09)
+
+`receive`, 200 connections each sending one frame per tick, 1800 ticks: 360,000 frames read over TLS.
+`PacketStream.EnumerateRawFramesAsync` refilled its buffer through `RefillAsync`, which took a delegate to set the
+new end of the data (one per read: the lambda captured the iterator's state) and was an `async ValueTask<bool>` (a
+state-machine box per read that waited for data, which is nearly every read of a client sending 60 small packets a
+second). It now returns the new end, or -1 once the stream ended, and its state machine is pooled
+(`PoolingAsyncValueTaskMethodBuilder`).
+
+| | Linux | Windows |
+|---|---:|---:|
+| Before, B allocated per frame read | 208.1 | 208.2 |
+| After | 64.1 | 64.2 |
+
+What is left per frame is mostly the frame's `NetworkPacketHeader`, which `InboundPacketFrame.ParseFrame` creates;
+the decrypt and deserialize that follow allocate the `Packet` (80 B, see
+[GC-008](#packet-reader-decrypt-gc-008--benchmark-results)). This is off the tick, on the connection's read loop: at
+the ramp's 12,000 packets a second in, about 1.7 MB/s less garbage.
+
 ---
 
 ## Scenario baseline

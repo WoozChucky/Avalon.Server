@@ -47,7 +47,8 @@ public class PacketStream(Stream stream) : Stream
                 if (lenResult is null)
                 {
                     // Need more bytes for the varint. Refill or yield break on EOF/error.
-                    if (!await RefillAsync(buffer, dataEnd, refilled => dataEnd = refilled, token).ConfigureAwait(false))
+                    dataEnd = await RefillAsync(buffer, dataEnd, token).ConfigureAwait(false);
+                    if (dataEnd < 0)
                         yield break;
 
                     // Compact if we filled the tail.
@@ -78,7 +79,8 @@ public class PacketStream(Stream stream) : Stream
                 // 3) Read until we have the full frame in the buffer.
                 while (dataEnd - dataStart < frameTotal)
                 {
-                    if (!await RefillAsync(buffer, dataEnd, refilled => dataEnd = refilled, token).ConfigureAwait(false))
+                    dataEnd = await RefillAsync(buffer, dataEnd, token).ConfigureAwait(false);
+                    if (dataEnd < 0)
                         yield break;
 
                     if (dataEnd == buffer.Length && dataStart > 0)
@@ -107,14 +109,20 @@ public class PacketStream(Stream stream) : Stream
         }
     }
 
-    private async ValueTask<bool> RefillAsync(byte[] buffer, int dataEnd,
-        Action<int> setDataEnd, CancellationToken token)
+    /// <summary>
+    /// Reads what the stream has into the free end of <paramref name="buffer" />. Returns the new end of the data, or
+    /// -1 once the stream has ended (the peer closed it, or it was disposed or cancelled). Called once per read, so per
+    /// packet or so: it returns the new end rather than handing it to a callback, which was a delegate per read, and
+    /// its state machine is pooled, which is a box per read that did not complete at once otherwise (#875).
+    /// </summary>
+    [AsyncMethodBuilder(typeof(PoolingAsyncValueTaskMethodBuilder<>))]
+    private async ValueTask<int> RefillAsync(byte[] buffer, int dataEnd, CancellationToken token)
     {
         int free = buffer.Length - dataEnd;
         if (free == 0)
         {
             // Caller is responsible for compaction/growth; we only get here on a full buffer.
-            return true;
+            return dataEnd;
         }
 
         int read;
@@ -122,13 +130,12 @@ public class PacketStream(Stream stream) : Stream
         {
             read = await stream.ReadAsync(buffer.AsMemory(dataEnd, free), token).ConfigureAwait(false);
         }
-        catch (ObjectDisposedException) { return false; }
-        catch (IOException) { return false; }
-        catch (OperationCanceledException) { return false; }
+        catch (ObjectDisposedException) { return -1; }
+        catch (IOException) { return -1; }
+        catch (OperationCanceledException) { return -1; }
 
-        if (read == 0) return false; // peer closed
-        setDataEnd(dataEnd + read);
-        return true;
+        if (read == 0) return -1; // peer closed
+        return dataEnd + read;
     }
 
     /// <summary>
