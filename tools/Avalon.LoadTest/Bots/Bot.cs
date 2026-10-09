@@ -21,9 +21,10 @@ public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, flo
 /// One load-test bot: one account, signed in once, entering the run's world as the game client does (join ticket,
 /// TLS, admission, handshake, character list, create on first entry, select, load report) and leaving it. Its
 /// character is named after the account, with the class and gender its index gives. Entry and leave are driven by one
-/// caller at a time; <see cref="NextInput"/>, <see cref="SendAsync"/> and the properties may be used by another (the
-/// input driver) while the bot is <see cref="BotState.InWorld"/>. Disposed once nothing uses it any more: after its
-/// leave, its life loop and the refresher are done.
+/// caller at a time; <see cref="NextInput"/>, <see cref="SendAsync"/> and the properties may be used by others while
+/// the bot is <see cref="BotState.InWorld"/>: the input driver, and its party's formation (<see cref="PartyFormer"/>),
+/// which sends through it as an <see cref="IPartyMember"/>. Disposed once nothing uses it any more: after its leave,
+/// its life loop and the refresher are done.
 /// </summary>
 /// <param name="signOuts">The ramp's sign-out breaker, shared by its bots and its refresher; null for one of the bot's own.</param>
 /// <param name="leaves">The ramp's leave breaker, shared by its bots; null for one of the bot's own.</param>
@@ -158,7 +159,8 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>
     /// The fighter's place in its party, set before the bot enters: every connection then hands it the party packets.
-    /// Null for a fighter that fights solo and every other behaviour, whose connections leave those packets unread.
+    /// Null for a fighter that fights solo, whose connections read a roster only to leave a party of an earlier run
+    /// (<see cref="StalePartyLeave"/>), and for every other behaviour, whose connections leave those packets unread.
     /// </summary>
     public PartyLink? Party { get; set; }
 
@@ -459,8 +461,13 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     int IPartyMember.Generation => ConnectionGeneration;
 
-    ValueTask IPartyMember.SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct) =>
-        SendAsync(SealInWorld(message, type), ct);
+    ValueTask IPartyMember.SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct)
+    {
+        // Sealed and sent on one connection: a reconnect between the two would send it sealed for another session.
+        WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} has no connection.");
+        if (_state != BotState.InWorld) throw new InvalidOperationException($"Bot {index} is not in the world.");
+        return connection.SendAsync(connection.Seal(message, type), ct);
+    }
 
     /// <summary>
     /// Signs the game context out, best effort; the bot is <see cref="BotState.Stopped"/> after, with no context, and a
@@ -552,6 +559,12 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         {
             // Before the select too: the world sends a member its roster as its character spawns.
             connection.PartyPacket += packet => party.OnPacket(packet, connection.Codec, generation);
+        }
+        else if (Fighter is not null)
+        {
+            // A fighter that fights solo may still be in a party of an earlier run (the world keeps it, offline members
+            // included, until it restarts), whose forest its portal would lead to: it leaves it.
+            connection.PartyPacket += new StalePartyLeave(connection).OnPacket;
         }
 
         await StepAsync("admission", s_admissionTimeout, async token =>

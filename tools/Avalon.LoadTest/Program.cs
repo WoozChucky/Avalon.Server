@@ -123,7 +123,9 @@ static int Usage()
               into town; --forest-time how long it fights (default 5m, as 90s, 5m or seconds). --party-size N
               (fighter only, 1 to {BotParty.MaxSize}, default 1) checks N bots from --bot on instead: they form one
               party with the party packets (the first invites the others by name, they accept), enter one shared
-              forest and make one trip each; passed when the party formed and every member walked out.
+              forest and make one trip each; passed when the party formed and every member walked out. At 1 the
+              fighter sends no party packet, except one leave when its character is still in a party of an
+              earlier run (the world keeps parties until it restarts).
           ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
                [--limit name=value]... [--dial HOST] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
                [--forest-time 5m] [--party-size 1]
@@ -131,11 +133,13 @@ static int Usage()
               holds each step --hold (a settle of at least 30 s, then judged on up to its last 60 s), and stops
               at the first limit breached twice in a row. Behaviours are shared by --mix (idle, walker, churner,
               fighter); a fighter's trip stays --forest-time in the forest (default 5m). --party-size N (1 to
-              {BotParty.MaxSize}, default 1: solo, no party traffic) groups the fighters each step adds into
-              parties of N, in bot order: the first invites the others by name, they accept, and once formed
-              they walk to the portal together and share one forest. A party that fails to form tries once
-              more, then its members fight solo; the fighters a step adds beyond a whole number of parties
-              fight solo, so the step's count and the mix stay exact. --limit overrides a limit (repeatable):
+              {BotParty.MaxSize}, default 1: solo) groups the fighters each step adds into parties of N, in bot
+              order: the first invites the others by name, they accept, and once formed they walk to the portal
+              together and share one forest. A party that fails to form tries once more, then its members fight
+              solo; the fighters a step adds beyond a whole number of parties fight solo, so the step's count
+              and the mix stay exact. A solo fighter sends no party packet, except one leave when its character
+              is still in a party of an earlier run (the world keeps parties until it restarts) and would
+              otherwise enter that party's forest. --limit overrides a limit (repeatable):
               {string.Join(", ", Limits.Defaults.Select(l => l.CliName))}; e.g. tick-p99=20, memory=0.9.
               --prometheus (default {CommandLine.DefaultPrometheus}) and --pod (default {CommandLine.DefaultPod})
               locate the server's metrics; --sign-in-concurrency bounds sign-ins at once (default 8). Every bot

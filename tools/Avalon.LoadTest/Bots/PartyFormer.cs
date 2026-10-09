@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading.Channels;
 using Avalon.LoadTest.Wire;
+using Avalon.LoadTest.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 
@@ -146,7 +147,8 @@ public sealed class BotParty
 internal enum PartyEventKind { Invite, Result, Roster }
 
 /// <param name="Name">The inviter's name on an invite; the other character on a result, when the world names one.</param>
-internal readonly record struct PartyEvent(PartyEventKind Kind, PartyResult Result, string? Name);
+/// <param name="Generation">The connection that read it.</param>
+internal readonly record struct PartyEvent(PartyEventKind Kind, PartyResult Result, string? Name, int Generation);
 
 /// <summary>
 /// One member's place in its <see cref="BotParty"/>: the party packets its bot's connections hand over (on their read
@@ -176,6 +178,13 @@ public sealed class PartyLink
     /// <summary>Since when the gate has found no whole roster on the current connection; 0 while it has one. The driver's only.</summary>
     private long _waitingSince;
 
+    /// <summary>
+    /// The requests sent on connection <see cref="_owedOn"/> whose answers have not been read: one an attempt timed out
+    /// on is still answered, later, and that answer is not the next request's. The formation's only.
+    /// </summary>
+    private int _owed;
+    private int _owedOn;
+
     internal PartyLink(BotParty party, IPartyMember member)
     {
         Party = party;
@@ -200,15 +209,15 @@ public sealed class PartyLink
             case NetworkPacketType.SMSG_PARTY_ROSTER:
                 bool whole = Party.IsWhole(codec.Decode<SPartyRosterPacket>(packet).Members);
                 Volatile.Write(ref _roster, ((long)generation << 1) | (whole ? 1L : 0L));
-                if (_listening) _events.Writer.TryWrite(new PartyEvent(PartyEventKind.Roster, PartyResult.Unknown, null));
+                if (_listening) _events.Writer.TryWrite(new PartyEvent(PartyEventKind.Roster, PartyResult.Unknown, null, generation));
                 break;
             case NetworkPacketType.SMSG_PARTY_INVITE when _listening:
                 _events.Writer.TryWrite(new PartyEvent(PartyEventKind.Invite, PartyResult.Unknown,
-                    codec.Decode<SPartyInvitePacket>(packet).InviterName));
+                    codec.Decode<SPartyInvitePacket>(packet).InviterName, generation));
                 break;
             case NetworkPacketType.SMSG_PARTY_RESULT when _listening:
                 SPartyResultPacket result = codec.Decode<SPartyResultPacket>(packet);
-                _events.Writer.TryWrite(new PartyEvent(PartyEventKind.Result, result.Result, result.Name));
+                _events.Writer.TryWrite(new PartyEvent(PartyEventKind.Result, result.Result, result.Name, generation));
                 break;
         }
     }
@@ -248,23 +257,50 @@ public sealed class PartyLink
         return now >= Party.DepartAt;
     }
 
-    /// <summary>Keeps what the connection hands over from now on, and drops what was kept.</summary>
+    /// <summary>
+    /// Keeps what the connection hands over from now on, and drops what was kept; an answer owed among it is no longer
+    /// owed.
+    /// </summary>
     internal void Listen()
     {
-        while (_events.Reader.TryRead(out _))
-        {
-        }
+        while (_events.Reader.TryRead(out PartyEvent dropped)) Answered(dropped);
 
         _listening = true;
     }
 
-    /// <summary>Stops keeping it, and drops what is kept.</summary>
+    /// <summary>Stops keeping it, and drops what is kept: no answer is owed any more.</summary>
     internal void StopListening()
     {
         _listening = false;
         while (_events.Reader.TryRead(out _))
         {
         }
+
+        _owed = 0;
+    }
+
+    /// <summary>A request was sent on connection <paramref name="generation"/>: its answer is owed (on a new connection, only its).</summary>
+    internal void Owe(int generation)
+    {
+        if (generation != _owedOn)
+        {
+            _owedOn = generation;
+            _owed = 0;
+        }
+
+        _owed++;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="next"/> answers the last request owed: a result, not an unasked one, on the connection the
+    /// requests were sent on, with no earlier request's answer still owed. An earlier one's is taken off what is owed.
+    /// </summary>
+    internal bool Answered(PartyEvent next)
+    {
+        if (next.Kind != PartyEventKind.Result || PartyFormer.IsUnasked(next.Result) || next.Generation != _owedOn || _owed == 0)
+            return false;
+
+        return --_owed == 0;
     }
 
     /// <summary>The next thing the connection handed over.</summary>
@@ -418,30 +454,27 @@ public static class PartyFormer
     }
 
     /// <summary>
-    /// Sends a party request and returns its answer: the next result that is not an unasked one. An unasked
-    /// <c>InviteExpired</c> or <c>InviteDeclined</c> on the way fails the attempt when <paramref name="unaskedFails"/>,
-    /// and is read past otherwise (starting from scratch, they answer what is being undone).
+    /// Sends a party request and returns its answer: the world answers requests in order, so after the answers still owed
+    /// to earlier requests (an attempt that timed out), the next result on this connection that is not an unasked one.
+    /// An unasked <c>InviteExpired</c> or <c>InviteDeclined</c> on the way fails the attempt when
+    /// <paramref name="unaskedFails"/>, and is read past otherwise (starting from scratch, they answer what is being
+    /// undone).
     /// </summary>
     private static async Task<PartyResult> RequestAsync<T>(PartyLink link, T message, NetworkPacketType type, bool unaskedFails,
         CancellationToken ct) where T : class
     {
+        int generation = link.Member.Generation;
         await link.Member.SendAsync(message, type, ct);
+        link.Owe(generation);
         while (true)
         {
             PartyEvent next = await link.NextAsync(ct);
-            if (next.Kind != PartyEventKind.Result) continue;
-
-            if (IsUnasked(next.Result))
-            {
-                if (unaskedFails) ThrowIfInviteEnded(next);
-                continue;
-            }
-
-            return next.Result;
+            if (unaskedFails) ThrowIfInviteEnded(next);
+            if (link.Answered(next)) return next.Result;
         }
     }
 
-    private static bool IsUnasked(PartyResult result) => result is PartyResult.InviteExpired or PartyResult.InviteDeclined;
+    internal static bool IsUnasked(PartyResult result) => result is PartyResult.InviteExpired or PartyResult.InviteDeclined;
 
     /// <summary>An invite of the attempt ended unanswered: it failed.</summary>
     private static void ThrowIfInviteEnded(PartyEvent next)
@@ -454,5 +487,40 @@ public static class PartyFormer
     private sealed class PartyFormationException(string kind) : Exception(kind)
     {
         public string Kind { get; } = kind;
+    }
+}
+
+/// <summary>
+/// One connection of a fighter that fights solo (<c>--party-size 1</c>, or a fighter left over from whole parties). The
+/// world keeps a party, its offline members in it, until it restarts, so the character may still be in a party of an
+/// earlier run, and its portal would lead to that party's forest. The world sends a roster as the character spawns only
+/// to a party's member: on the first roster with members, the connection sends one <c>CMSG_PARTY_LEAVE</c>, off the
+/// read loop. A character in no party gets no roster, and nothing is sent.
+/// </summary>
+internal sealed class StalePartyLeave(WorldConnection connection)
+{
+    private int _sent;
+
+    /// <summary>A party packet the connection read, on its read loop.</summary>
+    public void OnPacket(NetworkPacket packet)
+    {
+        if (packet.Header.Type != NetworkPacketType.SMSG_PARTY_ROSTER || Volatile.Read(ref _sent) != 0) return;
+        if (connection.Codec.Decode<SPartyRosterPacket>(packet).Members.Count == 0) return;
+        if (Interlocked.Exchange(ref _sent, 1) != 0) return;
+
+        _ = Task.Run(LeaveAsync);
+    }
+
+    private async Task LeaveAsync()
+    {
+        try
+        {
+            await connection.SendAsync(connection.Seal(new CPartyLeavePacket(), NetworkPacketType.CMSG_PARTY_LEAVE),
+                CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // The connection is closing; the next one leaves the party when its roster comes.
+        }
     }
 }

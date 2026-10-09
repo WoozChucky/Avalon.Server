@@ -194,7 +194,8 @@ public class FighterShould
         world.Refuse("LtAAA4", PartyResult.NotFound, times: 2);
         Assert.False(await PartyFormer.FormAsync(solo, CancellationToken.None));
         Assert.Equal(PartyState.Solo, solo.State);
-        Assert.Equal(["LtAAA4", "LtAAA3", "LtAAA4", "LtAAA3", "LtAAA3", "LtAAA4"], world.Left[9..]);
+        Assert.Equal(["LtAAA4", "LtAAA3", "LtAAA4", "LtAAA3"], world.Left[9..13]);
+        Assert.Equal(["LtAAA3", "LtAAA4"], world.Left[13..].Order(StringComparer.Ordinal));
         Assert.True(solo.Links[1].ReadyToLeave(Math.Max(_now, solo.DepartAt)));
 
         StepClientValues values = _metrics.TakeWindow();

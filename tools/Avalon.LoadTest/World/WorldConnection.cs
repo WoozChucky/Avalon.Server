@@ -117,7 +117,7 @@ public sealed class WorldConnection : IAsyncDisposable
 
     /// <summary>
     /// Each <c>SMSG_PARTY_INVITE</c>, <c>SMSG_PARTY_RESULT</c> and <c>SMSG_PARTY_ROSTER</c>, still sealed, raised on the
-    /// read loop while a handler is set (a fighter in a party); left unread otherwise, as every
+    /// read loop while a handler is set (a fighter); left unread otherwise, as every
     /// <c>SMSG_PARTY_MEMBER_STATUS</c> is.
     /// </summary>
     public event Action<NetworkPacket>? PartyPacket;
