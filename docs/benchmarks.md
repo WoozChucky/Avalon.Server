@@ -1037,7 +1037,7 @@ the instance pass, and leaves out:
 - `Time.Update`, the content and script hot reloads, and the parties tick.
 - `InstanceRegistry.ProcessExpiredInstances`, the last step. Its walk of the registry allocates a 72 B enumerator per
   tick in an unoptimized (Debug) build and, measured, nothing in Release, so it would add nothing to the committed
-  figure and would fail `town-idle`'s gate (4,320 B per window over a 9,600 B baseline) in every local Debug run.
+  figure and would fail `town-idle`'s gate (4,320 B per window over a 0 B baseline) in every local Debug run.
 - The map pass's dispatch wrapper: `WorldConnection.ProcessQueue` and `PacketDispatchTelemetry.Begin`. `LoopWalker`
   calls `PlayerInputHandler` directly, so the queue, the per-packet session filter and the dispatch telemetry are not
   in the numbers.
@@ -1094,11 +1094,11 @@ with the committed figure (in a Release build; a Debug build reports it, see bel
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 5% and more than 256 B under.
 - **Detection floor.** The 5% band is relative, so in the moving scenarios it is wide in absolute terms. With the
-  committed figures below, the gate fails only on a rise of about **8 B per tick** in `town-idle` (the 256 B floor is
-  below 5% of its 9,600 B, so 5% decides), **44 B per player per tick** in `town-walk` (79 KB per window), and
-  **23 B per player per tick** in `many-instances` (about 47 B per instance per tick, 701 KB per window). One new
-  64 B object per walking player per tick now fails it; before #850 lowered the baseline (166 and 104 B per player per
-  tick) it passed.
+  committed figures below, the gate fails on a rise of more than **256 B per window** in `town-idle` (about 4 B per
+  tick: it allocates nothing since #851, so the floor decides, and any one object allocated every tick fails it),
+  **44 B per player per tick** in `town-walk` (79 KB per window), and **23 B per player per tick** in
+  `many-instances` (about 46 B per instance per tick, 688 KB per window). One new 64 B object per walking player per
+  tick now fails it; before #850 lowered the baseline (166 and 104 B per player per tick) it passed.
 - **Ratchet.** The committed file goes down only by an explicit commit. When a change makes a scenario cheaper,
   regenerate and commit the lower figure, so the gain cannot be lost again unnoticed. When an increase is intended,
   regenerating is also the fix, and the JSON diff shows the reviewer what it costs.
@@ -1110,7 +1110,9 @@ dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write
 ```
 
 **The gate decides in Release, on CI's figures.** CI builds Release on a GitHub-hosted runner, and since #850 the
-committed figures are CI's run rather than a local one (the first baseline was a run on the developer machine). In a Debug build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so
+committed figures are CI's (the first baseline was a run on the developer machine). #851's are the developer
+machine's Release run with the `Encrypt` delegate described below added back, 64 B per walking player per tick
+(115,200 B per window in `town-walk`, 1,920,000 B in `many-instances`, nothing in `town-idle`), which is CI's figure. In a Debug build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so
 a scenario that stopped doing its work still fails its `Verify` check, but it does not fail on the allocation figure:
 it writes the comparison (current, committed, change in percent, verdict) to the test output and says that the gate
 decides in Release. `dotnet test -c Release` runs the real gate locally.
@@ -1132,9 +1134,41 @@ test in the World assembly competes for the CPU during the wall-clock warm-up; o
 parallel processes under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds
 about 18 s to the World suite.
 
+### Results — the tick's instance snapshot (#851, 2026-10-09)
+
+`World.Update` used to tick a fresh copy of the registry's instance list (`InstanceRegistry.ActiveInstances`, a
+`ToList` of a `ConcurrentDictionary`'s values) every tick and walk it through a boxed enumerator. It now ticks
+`InstanceRegistry.TickInstances`: an array the registry rebuilds only after it publishes or removes an instance, in
+publication order, walked as a span. `ActiveInstances` keeps its fresh copy for the readers off the tick (the gauges,
+presence, the hot reload walk).
+
+Allocations, from `perf/scenario-allocations.json`: the developer machine's Release run at `7a40ed08` plus the
+`Encrypt` delegate CI still allocates (see the gate above). "Before #851" is the committed figure before it, CI's run
+of #850.
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at | Before #851 | Change |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 0 | 0 | 0.00 | 257 | — | 9,600 | −100% |
+| `town-walk` | 30 | 1,570,560 | 26,176 | 872.53 | 1,649,089 | 1,492,031 | 1,581,064 | −0.7% |
+| `many-instances` | 500 | 13,769,728 | 229,495 | 458.99 | 14,458,215 | 13,081,241 | 14,018,368 | −1.8% |
+
+Like for like on the developer machine (Release, the same i9-12900K), before and after:
+
+| Scenario | bytes/window before | after | Change | Tick ms mean before | after | p95 before | after |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 9,600 | 0 | −9,600 | 0.034 | 0.030 | 0.057 | 0.053 |
+| `town-walk` | 1,464,480 | 1,455,360 | −9,120 | 0.211 | 0.171 | 0.739 | 0.444 |
+| `many-instances` | 12,094,368 | 11,849,728 | −244,640 | 2.235 | 2.027 | 3.799 | 3.621 |
+
+- **An idle tick allocates nothing.** `town-idle` falls from 160 B per tick to 0: the copy was all it allocated.
+- **The saving grows with the instances.** About 160 B per tick with one instance and about 4 KB per tick
+  (244,640 B per window) with 250, the size of the copy; with no instance published or removed, the walk allocates
+  nothing at any count. A tick that publishes or removes one allocates one array of the live instances.
+- **The timings are not read as a change.** The tick time moves between runs by more than the copy could cost.
+
 ### Results — after the platform cipher (#850, 2026-10-09)
 
-Allocations, from `perf/scenario-allocations.json`: CI's Release run of #850 on its GitHub-hosted runner
+Allocations, from `perf/scenario-allocations.json` at the time: CI's Release run of #850 on its GitHub-hosted runner
 (2026-10-09). "Fails from" is the first figure the gate fails on; "Notice at" the highest figure that prints the
 improvement notice. "Before #850" is the committed figure before it (the first baseline below, a Release run on the
 developer machine).
@@ -1204,7 +1238,8 @@ warm-up, 3600 timed ticks). Its allocation figures were within 0.01% of the comm
 
 - **An idle tick still allocates 160 B, every tick.** `town-idle` has nothing to do, yet each tick copies
   `InstanceRegistry.ActiveInstances` and `InstanceTicker` walks the copy through a boxed enumerator (issue #851).
-  It is small, but it is a fixed cost of every tick, and the floor the other scenarios stand on.
+  It is small, but it is a fixed cost of every tick, and the floor the other scenarios stand on. #851 removed it
+  (results above).
 - **Walking costs kilobytes per player per tick, and most of it is encryption.** About 3.3 KB per player per tick in
   `town-walk` and 2.1 KB in `many-instances`, dominated by the per-packet BouncyCastle encrypt (1.7–4.6 KB per call in
   the session cipher results above) of the state acknowledgement each walker is sent every tick. Issue #850 was the
