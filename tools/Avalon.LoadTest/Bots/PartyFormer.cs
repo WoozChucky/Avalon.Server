@@ -21,10 +21,10 @@ public interface IPartyMember
     int Generation { get; }
 
     /// <summary>
-    /// Sends <paramref name="message"/> on the member's current connection; an <see cref="InvalidOperationException"/>
-    /// when it is not in the world.
+    /// Sends <paramref name="message"/> on the member's current connection and returns that connection's
+    /// <see cref="Generation"/>; an <see cref="InvalidOperationException"/> when it is not in the world.
     /// </summary>
-    ValueTask SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct) where T : class;
+    ValueTask<int> SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct) where T : class;
 }
 
 /// <summary>Where a party of fighters stands.</summary>
@@ -54,7 +54,9 @@ public enum PartyState
 /// whole party on the member's current connection within <see cref="PartyLink.RosterWait"/> (the world restarted and
 /// forgot every party, or a member was removed) means the party fell apart: counted once
 /// (<see cref="BotMetrics.PartyFormFailed"/>, <c>party:fell-apart</c>), every member leaves what is left of it, and they
-/// fight solo from then on. No member ever waits longer than that for a roster.
+/// fight solo from then on. No member ever waits longer than that for a roster. A member out of the world when its
+/// party went solo (failed to form, or fell apart) leaves it once back, on the first roster its new connection reads
+/// (<see cref="StalePartyLeave"/>).
 /// </remarks>
 public sealed class BotParty
 {
@@ -463,9 +465,8 @@ public static class PartyFormer
     private static async Task<PartyResult> RequestAsync<T>(PartyLink link, T message, NetworkPacketType type, bool unaskedFails,
         CancellationToken ct) where T : class
     {
-        int generation = link.Member.Generation;
-        await link.Member.SendAsync(message, type, ct);
-        link.Owe(generation);
+        // Owed on the connection the request went out on, which a reconnect may have changed since it was looked at.
+        link.Owe(await link.Member.SendAsync(message, type, ct));
         while (true)
         {
             PartyEvent next = await link.NextAsync(ct);
@@ -491,13 +492,15 @@ public static class PartyFormer
 }
 
 /// <summary>
-/// One connection of a fighter that fights solo (<c>--party-size 1</c>, or a fighter left over from whole parties). The
-/// world keeps a party, its offline members in it, until it restarts, so the character may still be in a party of an
-/// earlier run, and its portal would lead to that party's forest. The world sends a roster as the character spawns only
-/// to a party's member: on the first roster with members, the connection sends one <c>CMSG_PARTY_LEAVE</c>, off the
-/// read loop. A character in no party gets no roster, and nothing is sent.
+/// One connection of a fighter that fights solo: <c>--party-size 1</c>, a fighter left over from whole parties, or a
+/// member of a party gone solo (<paramref name="when"/>, asked as each roster arrives). The world keeps a party, its
+/// offline members in it, until it restarts, so the character may still be in a party (of an earlier run, or the one
+/// its members left while it was out of the world), and its portal would lead to that party's forest. The world sends
+/// a roster as the character spawns only to a party's member: on the first roster with members, the connection sends
+/// one <c>CMSG_PARTY_LEAVE</c>, off the read loop. A character in no party gets no roster, and nothing is sent.
 /// </summary>
-internal sealed class StalePartyLeave(WorldConnection connection)
+/// <param name="when">Whether a roster arriving now calls for the leave; null is always.</param>
+internal sealed class StalePartyLeave(WorldConnection connection, Func<bool>? when = null)
 {
     private int _sent;
 
@@ -505,6 +508,7 @@ internal sealed class StalePartyLeave(WorldConnection connection)
     public void OnPacket(NetworkPacket packet)
     {
         if (packet.Header.Type != NetworkPacketType.SMSG_PARTY_ROSTER || Volatile.Read(ref _sent) != 0) return;
+        if (when?.Invoke() == false) return;
         if (connection.Codec.Decode<SPartyRosterPacket>(packet).Members.Count == 0) return;
         if (Interlocked.Exchange(ref _sent, 1) != 0) return;
 

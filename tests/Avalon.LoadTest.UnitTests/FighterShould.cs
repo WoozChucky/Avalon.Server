@@ -359,10 +359,10 @@ public class FighterShould
         /// <summary>A new connection: what the old one read is no longer the member's.</summary>
         public void Reconnect() => Generation++;
 
-        public ValueTask SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct) where T : class
+        public ValueTask<int> SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct) where T : class
         {
             _world.Handle(this, message);
-            return ValueTask.CompletedTask;
+            return ValueTask.FromResult(Generation);
         }
 
         public void Result(PartyResult result, string? name = null) =>

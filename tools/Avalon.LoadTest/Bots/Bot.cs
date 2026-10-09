@@ -461,12 +461,13 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     int IPartyMember.Generation => ConnectionGeneration;
 
-    ValueTask IPartyMember.SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct)
+    async ValueTask<int> IPartyMember.SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct)
     {
         // Sealed and sent on one connection: a reconnect between the two would send it sealed for another session.
         WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} has no connection.");
         if (_state != BotState.InWorld) throw new InvalidOperationException($"Bot {index} is not in the world.");
-        return connection.SendAsync(connection.Seal(message, type), ct);
+        await connection.SendAsync(connection.Seal(message, type), ct);
+        return connection.Generation;
     }
 
     /// <summary>
@@ -552,13 +553,20 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             connection.CastRefused += fighter.OnCastRefused;
         }
 
+        int generation = Interlocked.Increment(ref _connectionGeneration);
+        connection.Generation = generation;
         _connection = connection;
         _noLeaveOn = connection;
-        int generation = Interlocked.Increment(ref _connectionGeneration);
         if (Party is { } party)
         {
-            // Before the select too: the world sends a member its roster as its character spawns.
-            connection.PartyPacket += packet => party.OnPacket(packet, connection.Codec, generation);
+            // Before the select too: the world sends a member its roster as its character spawns. A member of a party
+            // gone solo that was out of the world when the others left it is still in it: it leaves it once back.
+            var stale = new StalePartyLeave(connection, () => party.Party.State == PartyState.Solo);
+            connection.PartyPacket += packet =>
+            {
+                party.OnPacket(packet, connection.Codec, generation);
+                stale.OnPacket(packet);
+            };
         }
         else if (Fighter is not null)
         {

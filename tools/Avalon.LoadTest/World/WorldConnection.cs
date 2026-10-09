@@ -123,6 +123,12 @@ public sealed class WorldConnection : IAsyncDisposable
     public event Action<NetworkPacket>? PartyPacket;
 
     /// <summary>
+    /// The owner's count of its connections at this one (<see cref="Bots.Bot.ConnectionGeneration"/>), set once before
+    /// the connection is used: what was sent or read on it is told apart from another connection's by it.
+    /// </summary>
+    public int Generation { get; set; }
+
+    /// <summary>
     /// Completes when the read loop ends: successfully when the server closed the connection or it was disposed,
     /// faulted with the read's exception otherwise.
     /// </summary>
