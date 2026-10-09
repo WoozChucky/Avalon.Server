@@ -127,6 +127,7 @@ public class TickThreadGuardSitesShould
         "InstanceRegistry.RemoveInstance",
         "InstanceRegistry.ProcessExpiredInstances",
         "InstanceRegistry.PublishFinished",
+        "InstanceRegistry.TickInstances",
     ];
 
     [Theory]
@@ -145,6 +146,7 @@ public class TickThreadGuardSitesShould
             "InstanceRegistry.ForgetParty" => () => registry.ForgetParty(new PartyId(1)),
             "InstanceRegistry.RemoveInstance" => () => registry.RemoveInstance(Guid.NewGuid()),
             "InstanceRegistry.ProcessExpiredInstances" => () => registry.ProcessExpiredInstances(TimeSpan.FromMinutes(15)),
+            "InstanceRegistry.TickInstances" => () => _ = registry.TickInstances(),
             _ => () => registry.PublishFinished(),
         };
 

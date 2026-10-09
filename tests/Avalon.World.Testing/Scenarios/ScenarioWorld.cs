@@ -105,10 +105,10 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>
     /// One world tick, in <c>World.Update</c>'s order for the registry: the builds finished since the last tick
-    /// published, then every instance through the registry's live list; then every connection's outbox, as
-    /// <c>WorldServer</c> flushes them after the world update; then the clock moves on a tick. The ticker contains an
-    /// instance's throw, as it does in production; here it ends the scenario instead, since a tick cut short would be
-    /// measured as a cheap one.
+    /// published, then every instance through the registry's tick snapshot (<c>TickInstances</c>); then every
+    /// connection's outbox, as <c>WorldServer</c> flushes them after the world update; then the clock moves on a tick.
+    /// The ticker contains an instance's throw, as it does in production; here it ends the scenario instead, since a
+    /// tick cut short would be measured as a cheap one.
     /// </summary>
     /// <remarks>
     /// Left out: <c>World.Update</c>'s last step, <c>InstanceRegistry.ProcessExpiredInstances</c>. Its walk of the
@@ -121,7 +121,7 @@ public sealed class ScenarioWorld : IDisposable
     {
         _registry.PublishFinished();
 
-        _ticker.Tick(_registry.ActiveInstances, Dt);
+        _ticker.Tick(_registry.TickInstances(), Dt);
         if (_failures.First is { } failure)
             throw new InvalidOperationException("An instance threw during a scenario tick", failure);
 

@@ -36,12 +36,23 @@ namespace Avalon.World.Instances;
 /// <see cref="IsPartyInstance" />, which read the instance list, a concurrent dictionary, so telemetry may read it
 /// from its own thread. The writers assert the tick thread while <see cref="TickThreadGuard" /> is enabled (#639).
 /// </para>
+/// <para>
+/// The tick walks its own copy of the list, <see cref="TickInstances" /> (#851): an array rebuilt only when an
+/// instance was published or removed since the last walk, so a tick that changes nothing allocates nothing for it.
+/// </para>
 /// </remarks>
 public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 {
     private static readonly TimeSpan s_reentryWindow = TimeSpan.FromMinutes(15);
 
     private readonly ConcurrentDictionary<Guid, MapInstance> _instances = new();
+
+    // The tick's own copy of the live instances (#851), in the order they were published, and the array TickInstances
+    // hands out. Written with _instances, on the tick alone; the array is replaced, never written in place, so a walk
+    // of one is never disturbed by a publish or a removal made during it.
+    private readonly List<MapInstance> _tickOrder = [];
+    private IMapInstance[] _tickSnapshot = [];
+    private bool _tickSnapshotStale;
 
     // characterId → { templateId → instanceId } for Normal map re-entry. Keyed by character
     // (not account) so different characters on the same account land in different instances
@@ -77,6 +88,31 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     }
 
     public IReadOnlyCollection<IMapInstance> ActiveInstances => _instances.Values.ToList();
+
+    /// <summary>
+    /// The live instances for <c>World.Update</c> to tick, in the order they were published (#851). The same array tick
+    /// after tick, rebuilt only once the set has changed, so it allocates nothing on a tick that published or removed
+    /// nothing. A snapshot: an instance published or removed while it is walked joins or leaves the next tick's walk.
+    /// Tick thread only; any other reader takes <see cref="ActiveInstances" />. On the concrete registry, never on the
+    /// modding API's <see cref="IInstanceRegistry" />.
+    /// </summary>
+    public ReadOnlySpan<IMapInstance> TickInstances()
+    {
+        _tick?.AssertOnTick("InstanceRegistry.TickInstances");
+
+        if (_tickSnapshotStale)
+        {
+            // A new array, never the old one rewritten: a walk of the old one may still be in progress.
+            var snapshot = new IMapInstance[_tickOrder.Count];
+            for (int i = 0; i < snapshot.Length; i++)
+                snapshot[i] = _tickOrder[i];
+
+            _tickSnapshot = snapshot;
+            _tickSnapshotStale = false;
+        }
+
+        return _tickSnapshot;
+    }
 
     public Task<IMapInstance> GetOrCreateTownInstanceAsync(MapTemplateId templateId, ushort maxPlayers)
     {
@@ -211,6 +247,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         // Dispose, not just drop: disposal ends the drops still on the instance's ground.
         if (_instances.TryRemove(instanceId, out MapInstance? instance))
         {
+            Untrack(instance);
             instance.Dispose();
             _logger.LogInformation("Instance {InstanceId} removed from registry", instanceId);
         }
@@ -232,6 +269,8 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             {
                 continue;
             }
+
+            Untrack(removed);
 
             // Without this the log line below is untrue: the instance stays rooted by the static
             // entity events it subscribed to in its constructor.
@@ -285,7 +324,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
                 }
 
                 MapInstance instance = done.Outcome.Result;
-                _instances[instance.InstanceId] = instance;
+                Track(instance);
                 Index(pending, instance);
 
                 _logger.LogInformation("Created {MapType} instance {InstanceId} for map {TemplateId}",
@@ -301,6 +340,24 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         }
 
         return published;
+    }
+
+    /// <summary>Registers an instance in the list and in the tick's copy of it, replacing one held under its id.</summary>
+    private void Track(MapInstance instance)
+    {
+        if (_instances.TryGetValue(instance.InstanceId, out MapInstance? held))
+            Untrack(held);
+
+        _instances[instance.InstanceId] = instance;
+        _tickOrder.Add(instance);
+        _tickSnapshotStale = true;
+    }
+
+    /// <summary>Drops an instance taken out of the list from the tick's copy of it.</summary>
+    private void Untrack(MapInstance instance)
+    {
+        if (_tickOrder.Remove(instance))
+            _tickSnapshotStale = true;
     }
 
     /// <summary>
