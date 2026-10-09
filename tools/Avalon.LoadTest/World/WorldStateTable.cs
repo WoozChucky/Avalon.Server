@@ -7,7 +7,9 @@ namespace Avalon.LoadTest.World;
 /// <summary>What a bot knows of one object in its view.</summary>
 /// <param name="Guid">The object's guid.</param>
 /// <param name="Kind">The guid's type byte (<c>guid &gt;&gt; 56</c>): 1 character, 2 creature, 4 projectile, 5 portal, 6 loot.</param>
-/// <param name="X">The last position the world sent; 0, 0, 0 until it sends one.</param>
+/// <param name="X">The last position's X the world sent; 0 until it sends a position.</param>
+/// <param name="Y">The last position's Y the world sent; 0 until it sends a position.</param>
+/// <param name="Z">The last position's Z the world sent; 0 until it sends a position.</param>
 /// <param name="Dead">The last death state the world sent; false until it sends one.</param>
 /// <param name="CurrentHealth">The last current health the world sent; 0 until it sends one.</param>
 public readonly record struct TrackedObject(ulong Guid, byte Kind, float X, float Y, float Z, bool Dead, int CurrentHealth);
@@ -88,11 +90,14 @@ public sealed class WorldStateTable
 
     /// <summary>
     /// The nearest creature on the ground plane (X, Z) to (<paramref name="x" />, <paramref name="z" />) that is
-    /// alive (not dead, health above 0) and whose position is known, no farther than <paramref name="maxRange" />.
+    /// alive (not dead, health above 0) and whose position is known, no farther than <paramref name="maxRange" />;
+    /// none for a negative range.
     /// </summary>
     public bool TryNearestLiveCreature(float x, float z, float maxRange, out TrackedObject target)
     {
         target = default;
+        if (maxRange < 0) return false;
+
         float best = maxRange * maxRange;
         bool found = false;
         lock (_lock)

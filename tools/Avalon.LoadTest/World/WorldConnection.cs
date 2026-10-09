@@ -86,6 +86,12 @@ public sealed class WorldConnection : IAsyncDisposable
     /// looks for targets (a fighter). Null, the default, leaves those packets unread, as every other behaviour wants:
     /// decoding them costs the bot PC per object in view, ten times a second.
     /// </summary>
+    /// <remarks>
+    /// Set it before the character is selected (and so before <see cref="ArmSpawnSignal"/>): the world describes each
+    /// object in full only once, in the add that brings it into view. A table set later misses those adds: a creature
+    /// returns only once it moves or is hurt (its update then carries its position and health), and an object that is
+    /// never updated is never seen.
+    /// </remarks>
     public WorldStateTable? State
     {
         get => _state;
