@@ -23,6 +23,9 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
     private static readonly TimeSpan s_pass = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan s_maxJitter = TimeSpan.FromSeconds(20);
 
+    /// <summary>The sign-out of a context refreshed after its bot let go of it, on its own clock.</summary>
+    private static readonly TimeSpan s_logoutTimeout = TimeSpan.FromSeconds(5);
+
     /// <summary>
     /// How many refreshes run at once; a pass holds them all before the next. Also the most queued sign-ins running at
     /// once (the queue itself is unbounded), each still waiting for a slot of the shared sign-in bound.
@@ -37,6 +40,9 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
 
     /// <summary>The bots queued or signing in again: passes leave them alone, and none is queued twice.</summary>
     private readonly ConcurrentDictionary<Bot, byte> _signingIn = new();
+
+    /// <summary>The re-sign-in loop's token, set when <see cref="RunAsync"/> starts: once cancelled, nothing is queued.</summary>
+    private CancellationToken _signInLoop;
 
     /// <summary>
     /// The loop that signs queued bots in again, set when <see cref="RunAsync"/> starts: it completes once
@@ -53,6 +59,7 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
     public async Task RunAsync(CancellationToken ct, CancellationToken signInsAgain)
     {
         using var signInLoop = CancellationTokenSource.CreateLinkedTokenSource(ct, signInsAgain);
+        _signInLoop = signInLoop.Token;
         Task signingIn = SigningInAgain = SignInAgainLoopAsync(signInLoop.Token);
         using var timer = new PeriodicTimer(s_pass);
         try
@@ -103,6 +110,13 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
         try
         {
             await api.RefreshAsync(context, ct);
+
+            // The bot let go of the context while it was refreshed (a leave signed it out, or it gave up or signed in
+            // again). A sign-out sent with the credential this refresh replaced finds nothing on the server, so the
+            // new one would stay live for 5 minutes: it is signed out here. Whichever finishes last, nothing stays
+            // live: a sign-out read after the rotation sends the new credential itself, and one sent before it is
+            // followed by this one (a second sign-out of a context already gone is answered as such).
+            if (!ReferenceEquals(bot.Context, context)) await SignOutAsync(bot, context);
         }
         catch (Exception error) when (!(error is OperationCanceledException && ct.IsCancellationRequested))
         {
@@ -114,6 +128,13 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
             {
                 string code = refused.State ?? refused.Detail;
                 metrics.SignInFailed($"refresh:{code}");
+                if (_signInLoop.IsCancellationRequested)
+                {
+                    // The re-sign-ins have stopped (the bots are leaving): the context is left as it is.
+                    bot.Note?.Invoke($"The game context cannot be refreshed ({code}); left as it is, the bots are leaving.");
+                    return;
+                }
+
                 bot.Note?.Invoke($"The game context cannot be refreshed ({code}); signing in again.");
                 if (_signingIn.TryAdd(bot, 0)) _signInQueue.Writer.TryWrite((bot, context));
                 return;
@@ -166,6 +187,20 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
         finally
         {
             _signingIn.TryRemove(bot, out _);
+        }
+    }
+
+    /// <summary>Signs out a context its bot let go of, best effort, on its own 5 s timeout.</summary>
+    private async Task SignOutAsync(Bot bot, GameContext context)
+    {
+        using var limit = new CancellationTokenSource(s_logoutTimeout);
+        try
+        {
+            await api.LogoutAsync(context, limit.Token);
+        }
+        catch (Exception error) when (error is ApiException || (error is OperationCanceledException && limit.IsCancellationRequested))
+        {
+            bot.Note?.Invoke($"Signing out a context refreshed after the bot let go of it failed: {error.Message}.");
         }
     }
 
