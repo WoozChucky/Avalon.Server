@@ -24,7 +24,7 @@ public sealed class IdentityProblemMapper : IExceptionProblemMapper
             "Service unavailable", exception.Message),
         EmailVerificationUnavailableException => new ExceptionProblem(StatusCodes.Status501NotImplemented,
             "NotImplemented", "Email delivery unavailable", exception.Message),
-        // A load-test run past the cap, or under a run id already used.
+        // A load-test run past the cap or under a run id already used, or a run deleted while a bot plays.
         LoadTestConflictException => new ExceptionProblem(StatusCodes.Status409Conflict, exception.GetType().Name,
             "Conflict", exception.Message),
         _ => null,

@@ -54,4 +54,25 @@ public sealed class LoadTestAccountsController(ILoadTestAccounts accounts, IReau
         LoadTestRunCreated created = await accounts.CreateAsync(User.AccountId(), req, ct);
         return StatusCode(StatusCodes.Status201Created, created);
     }
+
+    /// <summary>
+    /// Deletes run <paramref name="run"/>'s accounts, or every load-test account when it is absent, with their characters
+    /// in every world. 409 while any of them is in a game or has a character online, and then nothing is deleted.
+    /// </summary>
+    [HttpDelete]
+    [ProducesResponseType(typeof(LoadTestRunDeleted), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Delete([FromQuery] string? run, [FromBody] DeleteLoadTestRunRequest req,
+        CancellationToken ct)
+    {
+        if (CallerIsPat)
+            return StatusCode(StatusCodes.Status403Forbidden, "A personal access token cannot delete load-test accounts");
+
+        await reauthentication.RequireCurrentPasswordAsync(User.AccountId(), req.CurrentPassword, SourceAddress, ct);
+
+        return Ok(await accounts.DeleteAsync(User.AccountId(), run, ct));
+    }
 }

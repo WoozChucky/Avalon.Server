@@ -22,3 +22,16 @@ public sealed record CreateLoadTestRunRequest
 
 /// <summary>The run created: its id and its accounts' usernames, in index order. The password is never echoed.</summary>
 public sealed record LoadTestRunCreated(string RunId, IReadOnlyList<string> Accounts);
+
+/// <summary><c>DELETE /admin/load-test/accounts?run=</c>: the calling admin's own current password.</summary>
+public sealed record DeleteLoadTestRunRequest
+{
+    /// <summary>The calling admin's own current password, as for <c>POST /pat/admin</c>.</summary>
+    public string CurrentPassword { get; init; } = "";
+}
+
+/// <summary>
+/// The accounts deleted, and the usernames of those that hold the run's license but were kept: an account that also
+/// holds anything a load test never gives (another license, a purchase, a store identity, a role) is never deleted.
+/// </summary>
+public sealed record LoadTestRunDeleted(int Deleted, IReadOnlyList<string> Skipped);

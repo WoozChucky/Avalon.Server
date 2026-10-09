@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Exceptions;
+using Avalon.Api.Hosting.Worlds;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
@@ -9,13 +10,14 @@ using Avalon.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 
 namespace Avalon.Api.Identity.LoadTest;
 
-/// <summary>Creates runs of load-test bot accounts (<c>admin/load-test/accounts</c>).</summary>
+/// <summary>Creates and deletes runs of load-test bot accounts (<c>admin/load-test/accounts</c>).</summary>
 public interface ILoadTestAccounts
 {
     /// <summary>
@@ -25,6 +27,14 @@ public interface ILoadTestAccounts
     /// or for a run id already used.
     /// </summary>
     Task<LoadTestRunCreated> CreateAsync(AccountId admin, CreateLoadTestRunRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Deletes run <paramref name="runId"/>'s accounts (every load-test account when null) for <paramref name="admin"/>,
+    /// who has already proved their current password, with their characters in every configured world. 400
+    /// (<see cref="BusinessException"/>) for a run id outside the rules; 409 (<see cref="LoadTestConflictException"/>),
+    /// with nothing deleted, while one of them plays or a world's database is unavailable.
+    /// </summary>
+    Task<LoadTestRunDeleted> DeleteAsync(AccountId admin, string? runId, CancellationToken ct);
 }
 
 /// <summary>
@@ -35,8 +45,9 @@ public interface ILoadTestAccounts
 /// marks an account as a load-test account: the cap counts accounts by it and a run id is used once it appears. The
 /// accounts and their grants are inserted in one auth transaction. Admin-created, so no per-source budget is spent.
 /// </summary>
-public sealed class LoadTestAccountService(IDbTransactionRunner<AuthDbContext> auth, IOptions<LoadTestOptions> options,
-    IOptions<StoreAuthenticationConfiguration> store, TimeProvider clock, ILogger<LoadTestAccountService> logger)
+public sealed partial class LoadTestAccountService(IDbTransactionRunner<AuthDbContext> auth, IOptions<LoadTestOptions> options,
+    IOptions<StoreAuthenticationConfiguration> store, IWorldDatabases configuredWorlds, IWorldDbContextFactory worldContexts,
+    IReplicatedCache cache, TimeProvider clock, ILogger<LoadTestAccountService> logger)
     : ILoadTestAccounts
 {
     /// <summary>The most accounts one request creates.</summary>
