@@ -4,6 +4,7 @@ using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.StoreAuth;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.Infrastructure.GameAuth;
 
@@ -65,80 +66,102 @@ public sealed partial class GameAuthorizationService
             LinkConsentRecord claimed = consent with { Binding = binding, WorkerUntil = Earlier(Now.Add(GameAuthPolicy.MutationClaimLifetime), consent.ProofExpiresAt) };
             string claimedRaw = GameAuthJson.Serialize(claimed);
             if (!await store.CompareExchangeAsync([new(key, raw, claimedRaw, consent.ProofExpiresAt)], cancellationToken)) continue;
-            var operation = new IdentityLinkOperation(consent.OperationId, new AccountId(consent.AccountId), consent.Provider,
-                consent.ProviderSubject, consent.CredentialsVersion, consent.SessionEpoch, consent.ConfirmedMfaId)
-            { ProofExpiresAt = consent.ProofExpiresAt };
-            IdentityLinkResult result = await identities.LinkWithAuthorityAsync(operation, Now, cancellationToken);
-            if (result.Status is not (IdentityLinkStatus.Linked or IdentityLinkStatus.AlreadyLinked) || result.Identity?.Id != operation.OperationId)
+            try
             {
-                var failure = GameAuthReply.Failure(result.Status switch
+                var operation = new IdentityLinkOperation(consent.OperationId, new AccountId(consent.AccountId), consent.Provider,
+                    consent.ProviderSubject, consent.CredentialsVersion, consent.SessionEpoch, consent.ConfirmedMfaId)
+                { ProofExpiresAt = consent.ProofExpiresAt };
+                IdentityLinkResult result = await identities.LinkWithAuthorityAsync(operation, Now, cancellationToken);
+                if (result.Status is not (IdentityLinkStatus.Linked or IdentityLinkStatus.AlreadyLinked) || result.Identity?.Id != operation.OperationId)
                 {
-                    IdentityLinkStatus.SubjectTaken or IdentityLinkStatus.AccountProviderTaken => GameAuthErrors.AccountLinkConflict,
-                    IdentityLinkStatus.UsernameTaken or IdentityLinkStatus.EmailTaken => GameAuthErrors.RegistrationDetailsTaken,
-                    IdentityLinkStatus.CreationRefused => GameAuthErrors.RegistrationLimit,
-                    _ => GameAuthErrors.AccountUnavailable,
-                });
-                await store.CompareExchangeAsync([new(key, claimedRaw, GameAuthJson.Serialize(claimed with
-                { Receipt = crypto.Protect(failure, key + ":" + binding), ReceiptExpiresAt = consent.ProofExpiresAt, WorkerUntil = null }), consent.ProofExpiresAt)], cancellationToken);
-                return failure;
-            }
-            AccountId resolvedAccountId = operation.AccountId;
-            Account? account = await accounts.FindByIdAsync(resolvedAccountId, false, cancellationToken);
-            if (!Eligible(account, resolvedAccountId.Value) || account!.CredentialsVersion != consent.CredentialsVersion ||
-                account.SessionEpoch != consent.SessionEpoch + 1)
-            {
-                return GameAuthReply.Failure(GameAuthErrors.AccountUnavailable);
-            }
+                    var failure = GameAuthReply.Failure(result.Status switch
+                    {
+                        IdentityLinkStatus.SubjectTaken or IdentityLinkStatus.AccountProviderTaken => GameAuthErrors.AccountLinkConflict,
+                        IdentityLinkStatus.UsernameTaken or IdentityLinkStatus.EmailTaken => GameAuthErrors.RegistrationDetailsTaken,
+                        IdentityLinkStatus.CreationRefused => GameAuthErrors.RegistrationLimit,
+                        _ => GameAuthErrors.AccountUnavailable,
+                    });
+                    await store.CompareExchangeAsync([new(key, claimedRaw, GameAuthJson.Serialize(claimed with
+                    { Receipt = crypto.Protect(failure, key + ":" + binding), ReceiptExpiresAt = consent.ProofExpiresAt, WorkerUntil = null }), consent.ProofExpiresAt)], cancellationToken);
+                    return failure;
+                }
+                AccountId resolvedAccountId = operation.AccountId;
+                Account? account = await accounts.FindByIdAsync(resolvedAccountId, false, cancellationToken);
+                if (!Eligible(account, resolvedAccountId.Value) || account!.CredentialsVersion != consent.CredentialsVersion ||
+                    account.SessionEpoch != consent.SessionEpoch + 1)
+                {
+                    return GameAuthReply.Failure(GameAuthErrors.AccountUnavailable);
+                }
 
-            GameApplicationSelection application = options.Value.ResolveApplication(context.ApplicationKey)!;
-            GameLicenseAuthorityResult license = await licenseAuthority.VerifyAsync(new(account.Id, application,
-                new(consent.ProviderSubject, context.IdentityVerifiedAt!.Value, context.IdentityValidUntil!.Value),
-                null, null, Now), cancellationToken);
-            if (license.Status == GameLicenseCheckStatus.Unavailable)
-            {
-                await store.CompareExchangeAsync([new(key, claimedRaw, GameAuthJson.Serialize(claimed with { WorkerUntil = Now }), consent.ProofExpiresAt)], cancellationToken);
-                return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
+                GameApplicationSelection application = options.Value.ResolveApplication(context.ApplicationKey)!;
+                GameLicenseAuthorityResult license = await licenseAuthority.VerifyAsync(new(account.Id, application,
+                    new(consent.ProviderSubject, context.IdentityVerifiedAt!.Value, context.IdentityValidUntil!.Value),
+                    null, null, Now), cancellationToken);
+                if (license.Status == GameLicenseCheckStatus.Unavailable)
+                {
+                    await store.CompareExchangeAsync([new(key, claimedRaw, GameAuthJson.Serialize(claimed with { WorkerUntil = Now }), consent.ProofExpiresAt)], cancellationToken);
+                    return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
+                }
+                if (consent.ProofExpiresAt <= Now) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
+                string nextCredential = GameAuthCryptography.NewToken();
+                string nextRefresh = GameAuthCryptography.NewToken();
+                GameContextRecord next = context with
+                {
+                    AccountId = account.Id.Value,
+                    CredentialsVersion = account.CredentialsVersion,
+                    SessionEpoch = account.SessionEpoch,
+                    State = license.Status == GameLicenseCheckStatus.Licensed && license.AuthorizedUntil > Now ? GameAuthStates.Authorized : GameAuthStates.PendingLicense,
+                    AuthorizationValidUntil = license.Status == GameLicenseCheckStatus.Licensed ? license.AuthorizedUntil : null,
+                    LicenseObservationId = license.ObservationId,
+                    LicenseId = license.LicenseId,
+                    LicenseRevision = license.Revision,
+                    PendingLinkId = null,
+                    LinkChallenge = null,
+                    LinkProofExpiresAt = null,
+                    CredentialDigest = GameAuthCryptography.Digest(nextCredential),
+                    RefreshDigest = GameAuthCryptography.Digest(nextRefresh),
+                    CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt),
+                    Generation = context.Generation + 1,
+                };
+                GameAuthReply reply = Response(next, nextCredential, nextRefresh,
+                    license.Status == GameLicenseCheckStatus.Unavailable ? GameAuthErrors.ProviderUnavailable : null);
+                string oldRefreshKey = Key("token", context.RefreshDigest);
+                string? oldRefreshRaw = await store.ReadAsync(oldRefreshKey, cancellationToken);
+                GameAuthTokenRecord? oldRefresh = GameAuthJson.Deserialize<GameAuthTokenRecord>(oldRefreshRaw);
+                if (oldRefresh is null) return GameAuthReply.Failure(GameAuthErrors.ContextChanged);
+                DateTime receiptExpires = Earlier(consent.ProofExpiresAt, next.CredentialExpiresAt);
+                if (next.AuthorizationValidUntil is { } deadline && deadline < receiptExpires) receiptExpires = deadline;
+                LinkConsentRecord finished = claimed with { WorkerUntil = null, Receipt = crypto.Protect(reply, key + ":" + binding), ReceiptExpiresAt = receiptExpires };
+                var changes = new GameAuthMutation[]
+                {
+                    new(key, claimedRaw, GameAuthJson.Serialize(finished), consent.ProofExpiresAt),
+                    new(contextKey, rawContext, GameAuthJson.Serialize(next), context.AbsoluteExpiresAt),
+                    new(TokenKey(nextCredential), null, GameAuthJson.Serialize(new GameAuthTokenRecord(next.Id, GameAuthTokenKinds.Credential, next.Generation)), next.CredentialExpiresAt),
+                    new(TokenKey(nextRefresh), null, GameAuthJson.Serialize(new GameAuthTokenRecord(next.Id, GameAuthTokenKinds.Refresh, next.Generation)), next.AbsoluteExpiresAt),
+                    new(oldRefreshKey, oldRefreshRaw, GameAuthJson.Serialize(oldRefresh with { Spent = true }), context.AbsoluteExpiresAt),
+                };
+                return await store.CompareExchangeAsync(changes, cancellationToken) ? reply : GameAuthReply.Failure(GameAuthErrors.ContextChanged);
             }
-            if (consent.ProofExpiresAt <= Now) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
-            string nextCredential = GameAuthCryptography.NewToken();
-            string nextRefresh = GameAuthCryptography.NewToken();
-            GameContextRecord next = context with
+            catch (Exception)
             {
-                AccountId = account.Id.Value,
-                CredentialsVersion = account.CredentialsVersion,
-                SessionEpoch = account.SessionEpoch,
-                State = license.Status == GameLicenseCheckStatus.Licensed && license.AuthorizedUntil > Now ? GameAuthStates.Authorized : GameAuthStates.PendingLicense,
-                AuthorizationValidUntil = license.Status == GameLicenseCheckStatus.Licensed ? license.AuthorizedUntil : null,
-                LicenseObservationId = license.ObservationId,
-                LicenseId = license.LicenseId,
-                LicenseRevision = license.Revision,
-                PendingLinkId = null,
-                LinkChallenge = null,
-                LinkProofExpiresAt = null,
-                CredentialDigest = GameAuthCryptography.Digest(nextCredential),
-                RefreshDigest = GameAuthCryptography.Digest(nextRefresh),
-                CredentialExpiresAt = Earlier(Now.Add(GameAuthPolicy.CredentialLifetime), context.AbsoluteExpiresAt),
-                Generation = context.Generation + 1,
-            };
-            GameAuthReply reply = Response(next, nextCredential, nextRefresh,
-                license.Status == GameLicenseCheckStatus.Unavailable ? GameAuthErrors.ProviderUnavailable : null);
-            string oldRefreshKey = Key("token", context.RefreshDigest);
-            string? oldRefreshRaw = await store.ReadAsync(oldRefreshKey, cancellationToken);
-            GameAuthTokenRecord? oldRefresh = GameAuthJson.Deserialize<GameAuthTokenRecord>(oldRefreshRaw);
-            if (oldRefresh is null) return GameAuthReply.Failure(GameAuthErrors.ContextChanged);
-            DateTime receiptExpires = Earlier(consent.ProofExpiresAt, next.CredentialExpiresAt);
-            if (next.AuthorizationValidUntil is { } deadline && deadline < receiptExpires) receiptExpires = deadline;
-            LinkConsentRecord finished = claimed with { WorkerUntil = null, Receipt = crypto.Protect(reply, key + ":" + binding), ReceiptExpiresAt = receiptExpires };
-            var changes = new GameAuthMutation[]
-            {
-                new(key, claimedRaw, GameAuthJson.Serialize(finished), consent.ProofExpiresAt),
-                new(contextKey, rawContext, GameAuthJson.Serialize(next), context.AbsoluteExpiresAt),
-                new(TokenKey(nextCredential), null, GameAuthJson.Serialize(new GameAuthTokenRecord(next.Id, GameAuthTokenKinds.Credential, next.Generation)), next.CredentialExpiresAt),
-                new(TokenKey(nextRefresh), null, GameAuthJson.Serialize(new GameAuthTokenRecord(next.Id, GameAuthTokenKinds.Refresh, next.Generation)), next.AbsoluteExpiresAt),
-                new(oldRefreshKey, oldRefreshRaw, GameAuthJson.Serialize(oldRefresh with { Spent = true }), context.AbsoluteExpiresAt),
-            };
-            return await store.CompareExchangeAsync(changes, cancellationToken) ? reply : GameAuthReply.Failure(GameAuthErrors.ContextChanged);
+                // A fault after the claim (after the link committed, say) releases it: the same retry may run at once.
+                await ReleaseConsentClaimAsync(key, claimedRaw, claimed, consent.ProofExpiresAt);
+                throw;
+            }
         }
         return GameAuthReply.Failure(GameAuthErrors.InProgress);
+    }
+
+    private async Task ReleaseConsentClaimAsync(string key, string claimedRaw, LinkConsentRecord claimed, DateTime expires)
+    {
+        try
+        {
+            await store.CompareExchangeAsync([new(key, claimedRaw, GameAuthJson.Serialize(claimed with { WorkerUntil = Now }), expires)],
+                CancellationToken.None);
+        }
+        catch (Exception error)
+        {
+            _logger.LogWarning(error, "Game account link {Key} claim could not be released", key);
+        }
     }
 }

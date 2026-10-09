@@ -30,7 +30,12 @@ internal static class TestGameAuthorization
 internal sealed class MemoryGameLicenses : IGameLicenseRepository
 {
     public List<GameLicense> Rows { get; } = [];
-    public Task<GameLicense?> FindAsync(Guid id, CancellationToken ct = default) => Task.FromResult(Rows.SingleOrDefault(x => x.Id == id));
+    /// <summary>When set, reading a license by id throws it (a database outage or a fault).</summary>
+    public Exception? FindFailure { get; set; }
+    /// <summary>When set, every decision loses its race (the repository's compare-and-set finds another decision first).</summary>
+    public bool LoseDecisionRace { get; set; }
+    public Task<GameLicense?> FindAsync(Guid id, CancellationToken ct = default) => FindFailure is { } failure
+        ? Task.FromException<GameLicense?>(failure) : Task.FromResult(Rows.SingleOrDefault(x => x.Id == id));
     public Task<GameLicense?> FindAsync(AccountId account, string provider, string environment, string reference, CancellationToken ct = default) =>
         Task.FromResult(Rows.SingleOrDefault(x => x.AccountId == account && x.Provider == provider && x.Environment == environment && x.LicenseReference == reference));
     public Task<GameLicense?> FindActiveAsync(AccountId account, string provider, string environment, string product, string providerProductId, DateTime now, CancellationToken ct = default) =>
@@ -49,7 +54,7 @@ internal sealed class MemoryGameLicenses : IGameLicenseRepository
     public Task<GameLicense?> ApplyDecisionAsync(Guid id, long expectedRevision, LicenseAuthorityDecision decision, CancellationToken ct = default)
     {
         GameLicense? row = Rows.SingleOrDefault(x => x.Id == id);
-        if (row is null || row.AuthorityRevision != expectedRevision || decision.ObservedAt < row.LastObservedAt) return Task.FromResult<GameLicense?>(null);
+        if (LoseDecisionRace || row is null || row.AuthorityRevision != expectedRevision || decision.ObservedAt < row.LastObservedAt) return Task.FromResult<GameLicense?>(null);
         if (row.RevokedAt is not null && decision.OwnsProduct)
         {
             if (row.AuthorityKind == LicenseAuthorityKind.StoredGrant || !decision.Reestablish || decision.ObservedAt <= row.LastObservedAt) return Task.FromResult<GameLicense?>(null);

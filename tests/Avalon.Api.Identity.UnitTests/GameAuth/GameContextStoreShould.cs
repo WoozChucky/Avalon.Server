@@ -206,13 +206,26 @@ public class GameContextStoreShould
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Logout_ends_a_context_rotated_while_it_runs_but_a_credential_already_rotated_ends_nothing(bool racing)
+    [InlineData("racing")]
+    [InlineData("stale")]
+    [InlineData("outage")]
+    public async Task Logout_ends_a_context_rotated_while_it_runs_but_a_credential_already_rotated_ends_nothing(string scenario)
     {
+        bool racing = scenario == "racing";
         AuthAttemptReply attempt = (await Attempt("steam"))!;
         GameAuthReply initial = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
         GameContextRecord context = (await Service().GetContextAsync(initial.GameContextCredential!, true, CancellationToken.None))!;
+        if (scenario == "outage")
+        {
+            // Ending a context grants nothing: a valid credential ends it with the license store down.
+            TestGameAuthorization.Licenses(_store).FindFailure = new IOException("database down");
+            Assert.Equal(GameContextLogout.Ended, await Service().LogoutAsync(initial.GameContextCredential!, CancellationToken.None));
+            TestGameAuthorization.Licenses(_store).FindFailure = null;
+            Assert.Null(await Service().GetContextByIdAsync(context.Id, false, CancellationToken.None));
+            await _revocations.Received(1).PublishAsync(new AccountId(7), context.Id);
+            return;
+        }
+
         var interleaving = new InterleavingAuthStore(_store);
         GameAuthorizationService service = Service(interleaving);
         GameAuthReply? rotated = null;

@@ -100,7 +100,8 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
             GameLicense? applied = await licenses.ApplyDecisionAsync(license.Id, license.AuthorityRevision,
                 new(owns, evidence.ObservedAt, end, evidence.ProviderExpiresAt,
                     reestablish: request.BoundLicenseId is null && provider.AuthorityKind == LicenseAuthorityKind.VerifiedOwnership), ct);
-            if (applied is null) return Unlicensed;
+            // A lost race (another decision applied first) is not a refusal: the caller keeps what still stands.
+            if (applied is null) return Unavailable;
             if (!Matches(applied, request, provider.AuthorityKind)) return Unavailable;
             if (owns && !applied.Authorizes(request.Account, request.Application.Product, request.Application.Environment, completedAt)) return Unlicensed;
             var observation = new LicenseObservation
@@ -127,7 +128,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 : new(GameLicenseCheckStatus.Unlicensed, applied.Id, applied.AuthorityRevision, null, observation.Id);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception error) when (DatabaseOutage.Is(error))
+        catch (Exception error) when (!ct.IsCancellationRequested && DatabaseOutage.Is(error))
         {
             // Any other exception is a fault and propagates: a refusal or a downgrade must never stand for one.
             _logger.LogWarning(error, "Game license for account {AccountId} could not be verified: database outage", request.Account.Value);
@@ -156,7 +157,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 license.Authorizes(account, application.Product, application.Environment, now);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception error) when (DatabaseOutage.Is(error))
+        catch (Exception error) when (!ct.IsCancellationRequested && DatabaseOutage.Is(error))
         {
             _logger.LogWarning(error, "Game license {LicenseId} could not be read: database outage", licenseId);
             return null;
@@ -182,7 +183,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 row.ProviderSubject == subject && row.AuthorityKind == provider.AuthorityKind;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception error) when (DatabaseOutage.Is(error))
+        catch (Exception error) when (!ct.IsCancellationRequested && DatabaseOutage.Is(error))
         {
             _logger.LogWarning(error, "Game license {LicenseId} could not be read: database outage", licenseId);
             return null;

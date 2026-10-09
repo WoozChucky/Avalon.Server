@@ -49,7 +49,7 @@ public sealed partial class InternalGameAdmissionController
             return reply.Error switch
             {
                 null => Ok(reply),
-                GameAuthErrors.BarrierPending => StatusCode(503, reply),
+                GameAuthErrors.BarrierPending or GameAuthErrors.ServiceUnavailable => StatusCode(503, reply),
                 _ => Unauthorized(reply),
             };
         }

@@ -225,6 +225,11 @@ public sealed class AvalonGameAuthorizationShould
                 .Returns(_ => Task.FromResult<GameLicense?>(grant), _ => throw new InvalidOperationException("a second operation"));
             await Assert.ThrowsAsync<InvalidOperationException>(() => Service(faulty).RefreshAsync(initial.GameContextRefreshToken!, request, default));
             Assert.NotNull(await Service().GetContextAsync(rotated.GameContextCredential!, true, default));
+            // The exact retry's receipt is kept as for an outage, so the same retry after the fault still finds it.
+            Assert.Equal(Now.Add(GameAuthPolicy.OutageReceiptLifetime),
+                GameAuthJson.Deserialize<GameAuthTokenRecord>(await _store.ReadAsync(tokenKey, default))!.ReceiptExpiresAt);
+            _clock.Advance(GameAuthPolicy.RefreshReceiptLifetime + TimeSpan.FromSeconds(1));
+            Assert.Equal(rotated, await Service().RefreshAsync(initial.GameContextRefreshToken!, request, default));
             await _revocations.DidNotReceiveWithAnyArgs().PublishAsync(default!, default);
             return;
         }
@@ -288,9 +293,20 @@ public sealed class AvalonGameAuthorizationShould
     [InlineData("license-reads")]
     [InlineData("account-read")]
     [InlineData("fault")]
+    [InlineData("lost-race")]
     public async Task Database_failure_cannot_extend_existing_authority(string failing)
     {
         GameLicense grant = Grant(); GameAuthReply initial = (await Handoff()).Reply;
+        if (failing == "lost-race")
+        {
+            // Another decision applied first: not a refusal, so the renewal keeps the authority that still stands.
+            _licenses.LoseDecisionRace = true;
+            GameAuthReply kept = await Service().RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default);
+            Assert.Equal(GameAuthStates.Authorized, kept.State);
+            Assert.Equal(GameAuthErrors.ProviderUnavailable, kept.Error);
+            return;
+        }
+
         IGameLicenseRepository unavailable = Substitute.For<IGameLicenseRepository>();
         if (failing == "license-reads") // The binding read works; the renewal and the current-license check do not.
             unavailable.FindAsync(grant.Id, Arg.Any<CancellationToken>()).Returns(_ => Task.FromResult<GameLicense?>(grant), _ => throw new IOException("database down"));

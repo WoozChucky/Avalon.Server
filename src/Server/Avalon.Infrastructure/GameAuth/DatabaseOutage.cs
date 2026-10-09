@@ -16,7 +16,8 @@ internal static class DatabaseOutage
     {
         for (Exception? current = error; current is not null; current = current.InnerException)
         {
-            if (current is DbException { IsTransient: true } or TimeoutException or SocketException or IOException or RetryLimitExceededException)
+            // 57014 is the statement timeout; a cancelled request is told apart by the callers' own token.
+            if (current is DbException { IsTransient: true } or DbException { SqlState: "57014" } or TimeoutException or SocketException or IOException or RetryLimitExceededException)
                 return true;
         }
 
