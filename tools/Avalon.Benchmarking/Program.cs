@@ -12,6 +12,12 @@ public class Program
             return;
         }
 
+        if (args.Length > 0 && args[0] == "outbox-flush")
+        {
+            OutboxFlush.OutboxFlushHarness.Run(args[1..]);
+            return;
+        }
+
         BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
     }
 }

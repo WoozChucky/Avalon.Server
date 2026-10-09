@@ -21,6 +21,9 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketRe
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*GetContextPacketGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallListenerGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThreadGuard*"
+
+# Not BenchmarkDotNet: the outbox flush over real loopback sockets, plain and TLS (#875)
+dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 200 1 1800
 ```
 
 ---
@@ -1027,6 +1030,67 @@ Windows 11, 12th Gen Intel Core i9-12900K, .NET 10.0.12, BenchmarkDotNet 0.15.8,
 - **The tick runs a few guarded calls every tick** (the party tick, the member-status flush, the
   publish and the expiry pass) and more only on rare requests (transfers, spawns, party requests,
   ignores), so at 60 Hz the guard costs well under a microsecond a second.
+
+---
+
+## Outbox flush — the send path over real sockets (#875)
+
+`OutboxFlush/OutboxFlushHarness.cs`, run as `outbox-flush [connections] [packets] [ticks] [modes]` (defaults 200, 1,
+1800 and every mode). Not a BenchmarkDotNet suite: like `crowd-budget`, it is a steady state timed tick by tick.
+
+The first capacity ramp (#875) held about 150 players. At 200, about two thirds of a median tick (some 4.2 ms of
+6.2 ms) was spent after the world update, where no histogram looked; `world.post_update.duration` now times each stage
+of it ([instrumentation](instrumentation.md#tick-and-instance-time)). The [scenario baseline](#scenario-baseline)
+cannot show that cost: its outbox writes to a stream that only counts bytes. This harness puts the world's real
+`TickDrivenOutbox` (capacity 100) in front of each kind of stream and times what `WorldServer.Update`'s outbox stage
+does: flush every connection's outbox, one after the other, on one thread.
+
+For each mode it opens the connections over loopback (the server end is what the world holds; the client end is read
+and discarded on the thread pool, as a peer would), then ticks at 60 Hz: each tick queues `packets` movement
+acknowledgements (a frame of about 70 B, the size of the world's acks and state updates) on every connection and
+times the loop that flushes every outbox. It reports the flush time per tick, per connection, the tick thread's
+allocations per tick and the collections over the measured ticks, after 300 warm-up ticks.
+
+| Mode | Stream behind the outbox |
+|---|---|
+| `memory` | The scenario runner's counting stream: no socket, no TLS |
+| `tcp` | A plain `NetworkStream` |
+| `tls` | An `SslStream` over the socket (TLS 1.2 or 1.3, a self-signed P-256 certificate), as the world serves |
+| `tls-pool` | Prototype: the same, with each write started on the thread pool; the tick frames the packets and queues the write |
+| `tls-parallel` | Prototype: the same streams, the flush split among four thread-pool workers that the tick waits for |
+| `receive` | The other direction, off the tick: each client sends one frame per tick, and the server end reads it through `PacketStream.EnumerateRawFramesAsync` and `InboundPacketFrame.ParseFrame`; reports the bytes allocated per frame read |
+
+The two prototypes measure what the tick would pay if the write left it; they allocate (a `Task.Run` per write, a
+`Parallel.For` per tick), and the server does neither.
+
+### Results — 200 connections, one packet each per tick (2026-10-09)
+
+i9-12900K. Linux: a container limited to 4 CPUs (Docker on WSL2, Ubuntu 24.04, .NET 10.0.5, workstation GC). Windows
+11, .NET 10.0.12, workstation GC. 1800 measured ticks; flush time per tick in ms, and per connection in µs.
+
+| Mode | Linux mean | p50 | p99 | µs/conn | Windows mean | p50 | p99 | µs/conn |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `memory` | 0.067 | 0.063 | 0.159 | 0.33 | 0.063 | 0.053 | 0.186 | 0.31 |
+| `tcp` | 0.827 | 0.846 | 1.178 | 4.14 | 2.666 | 2.715 | 3.846 | 13.33 |
+| `tls` | 1.899 | 1.919 | 2.538 | 9.50 | 2.782 | 2.812 | 4.244 | 13.91 |
+| `tls-pool` | 0.189 | 0.184 | 0.289 | 0.94 | 0.129 | 0.119 | 0.472 | 0.65 |
+| `tls-parallel` | 0.716 | 0.710 | 1.130 | 3.58 | 1.068 | 1.012 | 1.928 | 5.34 |
+
+The TLS flush on Linux by connection count (µs per connection): 50, 0.533 ms (10.7); 100, 1.026 ms (10.3); 200,
+1.899 ms (9.5); 400, 3.748 ms (9.4). `tls-pool` at 400: 0.361 ms.
+
+- **The write is the cost, not the outbox.** Framing 200 connections' packets into their burst buffers takes 0.07 ms
+  a tick; writing them out takes 25 to 40 times that. On Linux about 4 µs per connection is the send call and about
+  5 µs the TLS record layer, linear in connections. On the homelab the world talks to its edge proxy over the pod
+  network rather than loopback, and the ramp's 4.2 ms after the world update at 200 players is about 20 µs per
+  connection: this cost, with pod networking added.
+- **The flushers are not.** With nothing changed, the inventory, sheet and ability-amount flushers took 0.8, 8.8 and
+  2.6 µs per tick for 200 connections together (a one-off in-process measurement), and the quest flusher's steady
+  state is a handful of comparisons per connection.
+- **Off the tick, the tick's share falls by a factor of 10.** `tls-pool` leaves the tick 0.9 µs per connection
+  (framing and queueing), `tls-parallel` 3.6 µs (the same work on four cores, waited for). Whether the write should
+  leave the tick is an open decision (#875): it changes when a packet leaves relative to the tick and puts the TLS
+  and socket work on other threads.
 
 ---
 
