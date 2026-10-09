@@ -28,6 +28,11 @@ public static class GameAuthPolicy
     public static readonly TimeSpan OpenIdNonceLifetime = TimeSpan.FromMinutes(2);
     public static readonly TimeSpan OpenIdClockSkew = TimeSpan.FromSeconds(30);
     public const int MutationAttempts = 3;
+    /// <summary>
+    /// Provider claims (each one an outbound identity verification) one attempt may make. Released claims give their
+    /// slot back, so this, not the three-claim limit, bounds the calls a retry loop on one attempt can cause.
+    /// </summary>
+    public const int MaximumProviderVerifications = 10;
     public const int TokenBytes = 32;
     public const int TokenCharacters = 43; // Unpadded base64url of TokenBytes.
     public const int MaximumPkceVerifierCharacters = 128;

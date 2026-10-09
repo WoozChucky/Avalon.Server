@@ -1,4 +1,5 @@
 using Avalon.Api.Testing;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
@@ -310,19 +311,24 @@ public class GameContextStoreShould
         Assert.Equal("CONTEXT_REVOKED", (await Service().RefreshAsync(result.GameContextRefreshToken!, Guid.NewGuid(), CancellationToken.None)).Error);
     }
 
-    [Fact]
-    public async Task Outages_release_their_claims_without_exhausting_the_attempt()
+    [Theory]
+    [InlineData(3)]
+    [InlineData(GameAuthPolicy.MaximumProviderVerifications)]
+    public async Task Outages_release_their_claims_without_exhausting_the_attempt_up_to_the_verification_cap(int outages)
     {
         AuthAttemptReply attempt = (await Attempt("steam"))!;
         var request = Guid.NewGuid();
         _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new SteamProofResult(SteamProofStatus.ProviderUnavailable));
-        for (int outage = 0; outage < 3; outage++)
+        for (int outage = 0; outage < outages; outage++)
             Assert.Equal("PROVIDER_UNAVAILABLE", (await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None)).Error);
-        // Each released claim gave its slot back: the retry after three outages still gets its claim.
         _proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new SteamProofResult(SteamProofStatus.Verified, "76561198000000001"));
-        Assert.Equal("authorized", (await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None)).State);
+        GameAuthReply next = await Service().AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", request, CancellationToken.None);
+        // Each released claim gave its slot back, but provider verifications are capped per attempt and never given back.
+        if (outages < GameAuthPolicy.MaximumProviderVerifications) Assert.Equal("authorized", next.State);
+        else Assert.Equal("INVALID_ATTEMPT", next.Error);
+        await _proof.ReceivedWithAnyArgs(Math.Min(outages + 1, GameAuthPolicy.MaximumProviderVerifications)).VerifyAsync(default, default!, default!, default);
     }
 
     [Fact]

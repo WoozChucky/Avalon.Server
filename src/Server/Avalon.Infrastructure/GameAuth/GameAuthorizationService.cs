@@ -426,11 +426,23 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                     return (null, GameAuthReply.Failure(GameAuthErrors.ContextRevoked));
                 return (null, receipt);
             }
-            if (record.Receipt is not null || record.ExpiresAt <= Now || record.Claims >= 3) return (null, null);
+            if (record.Receipt is not null || record.ExpiresAt <= Now || record.Claims >= 3 ||
+                (handoff is null && record.ProviderVerifications >= GameAuthPolicy.MaximumProviderVerifications))
+            {
+                return (null, null);
+            }
+
             if (record.WorkerUntil > Now) return (null, GameAuthReply.Failure(GameAuthErrors.InProgress));
             if (handoff is not null && (record.Channel != GameLaunchChannels.Avalon || record.ContextId is not null))
                 return (null, GameAuthReply.Failure(GameAuthErrors.InvalidHandoff));
-            AuthAttemptRecord claimed = record with { Binding = binding, WorkerId = Guid.NewGuid(), WorkerUntil = Now.Add(GameAuthPolicy.MutationClaimLifetime), Claims = record.Claims + 1 };
+            AuthAttemptRecord claimed = record with
+            {
+                Binding = binding,
+                WorkerId = Guid.NewGuid(),
+                WorkerUntil = Now.Add(GameAuthPolicy.MutationClaimLifetime),
+                Claims = record.Claims + 1,
+                ProviderVerifications = record.ProviderVerifications + (handoff is null ? 1 : 0),
+            };
             var changes = new List<GameAuthMutation>();
             if (handoff is not null && record.HandoffGrant is null)
             {
