@@ -177,23 +177,23 @@ negotiates it.
 
 ### Session Cipher — `SessionCipherBenchmarks.cs`
 
-Compares the session cipher as the packet pipeline calls it — BouncyCastle AES-GCM behind
-`AvalonCryptoSession.Encrypt` / `Decrypt` — against the platform's
-`System.Security.Cryptography.AesGcm` over the same key and the same nonce + ciphertext + tag
-layout.
+Compares the session cipher as the packet pipeline calls it — `AvalonCryptoSession.Encrypt` /
+`Decrypt` — against a bare `System.Security.Cryptography.AesGcm` over the same key and the same
+nonce + ciphertext + tag layout. Since #850 the session is itself the platform `AesGcm`, keyed once
+per direction; before it, the session was BouncyCastle AES-GCM re-keyed per call, and its arms were
+named `BouncyCastle_Encrypt` / `BouncyCastle_Decrypt`.
 
 | Scenario | What it models |
 |---|---|
-| `BouncyCastle_Encrypt` | Production `AvalonCryptoSession.Encrypt` — lock, per-call cipher `Init`, freshly allocated result |
-| `BouncyCastle_Decrypt` | Production `AvalonCryptoSession.Decrypt` — lock, per-call cipher `Init`, caller-supplied output buffer |
-| `AesGcm_Encrypt` | Platform one-shot encrypt into an equivalently allocated result buffer |
-| `AesGcm_Decrypt` | Platform one-shot decrypt into the same caller-supplied output buffer |
+| `Session_Encrypt` | Production `AvalonCryptoSession.Encrypt` — lock, counter nonce, one freshly allocated result sealed in place |
+| `Session_Decrypt` | Production `AvalonCryptoSession.Decrypt` — lock, caller-supplied output buffer |
+| `AesGcm_Encrypt` | Bare platform encrypt into an equivalently allocated result buffer (random nonce) |
+| `AesGcm_Decrypt` | Bare platform decrypt into the same caller-supplied output buffer |
 
 `PayloadSize` is parameterised at 64, 256 and 1024 bytes. The key is a real P-256 ECDH agreement
-shared by both arms, so the two differ in cipher implementation and call shape only — never in
-key material.
+shared by both arms, so the two differ in call shape only — never in key material.
 
-**Status:** Baseline recorded 2026-09-10.
+**Status:** Baseline recorded 2026-09-10; re-measured 2026-10-09 before and after #850.
 
 ---
 
@@ -877,6 +877,63 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2/2025Update/HudsonValle
   close the per-byte half, which is a property of the implementation rather than of how it is
   called.
 
+The table above is the record from before #850, when the session arm was BouncyCastle (named
+`BouncyCastle_*`). The runs below are the production figures since.
+
+### Results — #850, before and after (2026-10-09)
+
+Same machine and toolchain as above (Windows 11 build 26200.9457, i9-12900K, .NET SDK 10.0.401,
+.NET 10.0.12, BenchmarkDotNet 0.15.8, DefaultJob, Release). Both runs on this date, one on `main` at
+`c18f8cd7` and one with #850 applied; the bare `AesGcm_*` arms are unchanged between them and agree
+within run-to-run noise, which is the control.
+
+Before — the session on BouncyCastle, re-keyed per call (`main`, `c18f8cd7`):
+
+| Method | PayloadSize | Mean | Error | StdDev | Gen0 | Gen1 | Allocated |
+|---|---|---|---|---|---|---|---|
+| `BouncyCastle_Encrypt` | 64 | 447.4 ns | 8.97 ns | 24.09 ns | 0.1040 | - | 1,632 B |
+| `BouncyCastle_Decrypt` | 64 | 494.3 ns | 12.97 ns | 38.25 ns | 0.0916 | - | 1,440 B |
+| `AesGcm_Encrypt` | 64 | 297.4 ns | 5.78 ns | 8.29 ns | 0.0076 | - | 120 B |
+| `AesGcm_Decrypt` | 64 | 219.3 ns | 4.31 ns | 4.03 ns | - | - | - |
+| `BouncyCastle_Encrypt` | 256 | 614.4 ns | 12.23 ns | 35.49 ns | 0.1402 | - | 2,208 B |
+| `BouncyCastle_Decrypt` | 256 | 622.0 ns | 16.18 ns | 47.71 ns | 0.1040 | - | 1,632 B |
+| `AesGcm_Encrypt` | 256 | 331.9 ns | 6.62 ns | 11.94 ns | 0.0196 | - | 312 B |
+| `AesGcm_Decrypt` | 256 | 250.1 ns | 3.84 ns | 3.60 ns | - | - | - |
+| `BouncyCastle_Encrypt` | 1024 | 1,247.5 ns | 29.90 ns | 88.15 ns | 0.2861 | 0.0019 | 4,512 B |
+| `BouncyCastle_Decrypt` | 1024 | 1,115.2 ns | 22.17 ns | 37.04 ns | 0.1526 | 0.0010 | 2,400 B |
+| `AesGcm_Encrypt` | 1024 | 489.8 ns | 9.73 ns | 17.29 ns | 0.0687 | - | 1,080 B |
+| `AesGcm_Decrypt` | 1024 | 336.2 ns | 6.59 ns | 10.83 ns | - | - | - |
+
+After — the session on the platform `AesGcm`, keyed once per direction (#850):
+
+| Method | PayloadSize | Mean | Error | StdDev | Gen0 | Allocated |
+|---|---|---|---|---|---|---|
+| `Session_Encrypt` | 64 | 257.1 ns | 2.53 ns | 2.25 ns | 0.0076 | 120 B |
+| `Session_Decrypt` | 64 | 232.5 ns | 4.53 ns | 5.22 ns | - | - |
+| `AesGcm_Encrypt` | 64 | 295.8 ns | 5.88 ns | 11.88 ns | 0.0076 | 120 B |
+| `AesGcm_Decrypt` | 64 | 216.5 ns | 2.62 ns | 2.45 ns | - | - |
+| `Session_Encrypt` | 256 | 292.9 ns | 5.58 ns | 6.20 ns | 0.0196 | 312 B |
+| `Session_Decrypt` | 256 | 257.9 ns | 5.14 ns | 8.00 ns | - | - |
+| `AesGcm_Encrypt` | 256 | 323.3 ns | 5.93 ns | 5.26 ns | 0.0196 | 312 B |
+| `AesGcm_Decrypt` | 256 | 236.8 ns | 4.50 ns | 3.99 ns | - | - |
+| `Session_Encrypt` | 1024 | 423.9 ns | 8.44 ns | 11.83 ns | 0.0687 | 1,080 B |
+| `Session_Decrypt` | 1024 | 337.8 ns | 6.76 ns | 13.51 ns | - | - |
+| `AesGcm_Encrypt` | 1024 | 450.8 ns | 8.50 ns | 15.33 ns | 0.0687 | 1,080 B |
+| `AesGcm_Decrypt` | 1024 | 321.4 ns | 6.42 ns | 11.25 ns | - | - |
+
+- **Sealing allocates the sealed packet and nothing else; opening allocates nothing.** 120, 312 and
+  1,080 B are exactly a `byte[]` of nonce + payload + tag at 64, 256 and 1,024 bytes, down from
+  1.6–4.5 KB; decrypt goes from 1.4–2.4 KB to zero. `SessionKeyDerivationShould` pins both.
+- **1.7–2.9× faster to seal and 2.1–3.3× faster to open**, the gain growing with the payload
+  (at 256 B: 614 → 293 ns and 622 → 258 ns). The session now runs within ~20 ns of the bare
+  primitive on decrypt (the lock and the length checks). It seals slightly faster than the bare
+  arm, because the bare arm draws a random nonce while the session copies its counter.
+- **The BouncyCastle "before" ran faster than on 2026-09-10** (447 against 776 ns at 64 B) and
+  with a much wider spread (a bimodal decrypt): treat it as one noisy run, not a trend. The
+  allocation columns are deterministic and are the solid comparison.
+- **At broadcast scale** — 50 connections × 60 Hz × 256 B, 3,000 encrypts/s — sealing now costs
+  ~0.9 ms/s of CPU and ~0.9 MB/s of Gen0, against ~1.8 ms/s and ~6.6 MB/s in the before run.
+
 
 ---
 
@@ -960,10 +1017,10 @@ town found two adjacent centres whose circle stays a metre clear of every wall, 
 
 ### The send path is real
 
-Every scenario player has a real `AvalonCryptoSession` (BouncyCastle AES-GCM) and a real `TickDrivenOutbox`, which
-writes to a stream that only counts bytes. So the per-packet encryption cost, and its allocations, are in the numbers;
-issue #850 replaces that cipher, and the [session cipher results](#session-cipher--benchmark-results) above show what
-it costs per call. Three things differ from production, all on the cost side only:
+Every scenario player has a real `AvalonCryptoSession` (the platform `AesGcm` since #850) and a real
+`TickDrivenOutbox`, which writes to a stream that only counts bytes. So the per-packet encryption cost, and its
+allocations, are in the numbers; the [session cipher results](#session-cipher--benchmark-results) above show what it
+costs per call. Three things differ from production, all on the cost side only:
 
 - The counting stream stands in for production's `SslStream`, so the TLS record layer is **not** in the numbers. The
   counting stream also completes every write at once, so the outbox's flush finishes synchronously on the tick thread;

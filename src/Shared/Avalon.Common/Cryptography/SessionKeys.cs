@@ -29,6 +29,9 @@ public static class SessionKeys
     /// <summary>The GCM standard nonce length, and the width of the per-direction counter.</summary>
     public const int NonceSize = 12;
 
+    /// <summary>The GCM authentication tag length: the full 128 bits, at the end of every sealed packet.</summary>
+    public const int TagSize = 16;
+
     /// <summary>The version this derivation is. It appears in both labels and in the vector file.</summary>
     public const string Version = "avalon/v1";
 
