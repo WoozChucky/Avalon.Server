@@ -1168,8 +1168,12 @@ developer machine, and Debug, Release, Windows and Linux read them within run-to
 | Linux container, Release, the whole solution's `dotnet test` as CI runs it (×2) | 1,440,664 / 1,439,944 | 11,593,728 / 11,589,728 |
 | Windows, Release runner, `DOTNET_JitObjectStackAllocation=0` (#854) | 1,439,520 | 11,589,728 |
 
-The CI runs on `main` after #854 passed the gate; CI's test step does not print a passing test's output, so its
-figures are not in the logs, only its verdict.
+The CI runs on `main` after #854 passed the gate, but CI's test step does not print a passing test's output, so their
+figures are not in the logs, only the verdict. Since #852 the gate writes them to the run's summary page: when
+`GITHUB_STEP_SUMMARY` is set (on GitHub Actions), every scenario appends a row, pass or fail, to a "Scenario allocation
+gate" table (scenario, committed, measured, change in percent, tolerance, verdict) on the workflow run's Summary tab. A
+summary file that cannot be written is skipped with a line in the test output and never fails the gate. Read CI's
+figures there.
 
 A Debug build never optimises, so it never keeps an object on the stack; a Release build keeps some there once the
 optimised JIT tier applies. That Debug reads the same as Release shows that nothing on the measured path allocates
