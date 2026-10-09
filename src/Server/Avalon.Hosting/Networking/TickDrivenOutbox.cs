@@ -105,18 +105,35 @@ public sealed class TickDrivenOutbox : IOutbox
             return;
         }
 
-        // ExecuteSynchronously: if WriteAsync completes synchronously (e.g., MemoryStream),
-        // the continuation runs inline on the tick thread — zero TP hops.
-        // For a real socket, async completion schedules exactly 1 WI. The continuation observes the write's outcome;
-        // its own task is discarded, since OnWriteCompleted handles every way the write ends.
-        _ = _stream.WriteAsync(_burstWriter.WrittenMemory, _cts.Token)
-            .AsTask()
+        ValueTask write = _stream.WriteAsync(_burstWriter.WrittenMemory, _cts.Token);
+
+        // The usual case: a socket with room in its send buffer takes the bytes before WriteAsync returns. Its outcome
+        // is read here, on the tick, because a continuation on a write that is already over costs a task per flush,
+        // per connection, every tick (#875); what a continuation would do on success is all that happens.
+        if (write.IsCompletedSuccessfully)
+        {
+            write.GetAwaiter().GetResult();
+            OnWriteSucceeded();
+            return;
+        }
+
+        // Still writing, or already failed. ExecuteSynchronously: a write that has already failed is handled inline on
+        // the tick thread; one still in flight is handled where it completes (one thread-pool work item for a socket).
+        // The continuation observes the write's outcome; its own task is discarded, since OnWriteCompleted handles
+        // every way the write ends.
+        _ = write.AsTask()
             .ContinueWith(
                 s_onWriteCompleted,
                 this,
                 CancellationToken.None,
                 TaskContinuationOptions.ExecuteSynchronously,
                 TaskScheduler.Default);
+    }
+
+    private void OnWriteSucceeded()
+    {
+        Volatile.Write(ref _writeInFlight, 0);
+        _inFlightCompletion?.TrySetResult();
     }
 
     private static void OnWriteCompleted(Task t, object? state)
@@ -127,13 +144,13 @@ public sealed class TickDrivenOutbox : IOutbox
         // connection from here, and the close has to be able to tell "finished badly" from
         // "still writing" — the buffers it releases are pooled.
         if (t.IsCompletedSuccessfully)
-            Volatile.Write(ref self._writeInFlight, 0);
-        else
-            Volatile.Write(ref self._writeSettled, 1); // flag stays at 1 — dead connection; no further writes
+        {
+            self.OnWriteSucceeded();
+            return;
+        }
 
+        Volatile.Write(ref self._writeSettled, 1); // flag stays at 1 — dead connection; no further writes
         self._inFlightCompletion?.TrySetResult();
-
-        if (t.IsCompletedSuccessfully) return;
 
         Exception e = t.Exception?.GetBaseException() ?? new InvalidOperationException("Unknown write fault");
         if (e is OperationCanceledException) return;

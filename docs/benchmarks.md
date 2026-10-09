@@ -1127,9 +1127,11 @@ Every scenario player has a real `AvalonCryptoSession` (the platform `AesGcm` si
 allocations, are in the numbers; the [session cipher results](#session-cipher--benchmark-results) above show what it
 costs per call. Three things differ from production, all on the cost side only:
 
-- The counting stream stands in for production's `SslStream`, so the TLS record layer is **not** in the numbers. The
-  counting stream also completes every write at once, so the outbox's flush finishes synchronously on the tick thread;
-  over `SslStream` a write usually does not, and production may allocate an async state-machine box per flush there.
+- The counting stream stands in for production's `SslStream`, so the TLS record layer and the socket send are **not**
+  in the numbers: [outbox flush](#outbox-flush--the-send-path-over-real-sockets-875) measures them, about 10 µs per
+  connection per tick on Linux loopback against 0.3 µs here. The counting stream completes every write at once, as a
+  socket with room in its send buffer does; the outbox then reads the write's outcome inline (#875), so a flush over
+  either allocates nothing on the tick thread.
 - Scenario connections share key material. The point is the cost of sealing, not the secrecy of the result.
 - The `DiagnosticsConfig` counters (bytes, packets sent and dropped) are skipped, so their cost is **excluded** from the
   numbers. They allocate nothing while no listener is attached, but production attaches an OpenTelemetry listener.
@@ -1265,6 +1267,35 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 18 s to the World
 suite.
+
+### Results — no task per outbox flush (#875, 2026-10-09)
+
+`TickDrivenOutbox.Flush` observed every write through `WriteAsync(...).AsTask().ContinueWith(...)`. A write that is
+over before `WriteAsync` returns, which is every write to a socket with room in its send buffer, `SslStream` included,
+and every write to the scenarios' counting stream, still cost a continuation task: 112 B per connection that had
+anything to send, every tick. The flush now reads a finished write's outcome inline and keeps the continuation for a
+write still in flight or already failed. The existing `TickDrivenOutbox` tests cover the three ways a write ends.
+
+Allocations, from `perf/scenario-allocations.json` (the developer machine's Release run, i9-12900K, Windows 11,
+.NET 10.0.12): each scenario falls by exactly the continuation, 112 B per player per tick.
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Before #875 | Change |
+|---|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 0 | 0 | 0.00 | 0 | 0 |
+| `town-walk` | 30 | 1,239,120 | 20,652 | 688.40 | 1,440,240 | −14.0% |
+| `many-instances` | 500 | 8,233,728 | 137,229 | 274.46 | 11,589,728 | −29.0% |
+
+Like for like on the same machine (Release, the runner, 5 s warm-up, 3600 timed ticks), `77000278` and with #875:
+
+| Scenario | bytes/window before | after | Tick ms mean before | after | p99 before | after | gen0 before | after |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-walk` | 1,440,960 | 1,238,640 | 0.142 | 0.143 | 0.573 | 0.469 | 33 | 27 |
+| `many-instances` | 11,589,728 | 8,233,728 | 1.278 | 1.209 | 2.292 | 2.239 | 239 | 42 |
+
+Over real sockets ([outbox flush](#outbox-flush--the-send-path-over-real-sockets-875), 200 connections), the tick
+thread allocated 22,400 B per tick before, in every mode, TLS included, and 0 B after, on Linux and Windows. The flush
+time does not move by more than run-to-run noise: the task was cheap to run, only not to collect. At 200 players with
+something to send each tick, that is about 1.3 MB/s less garbage from the tick thread.
 
 ### Results — the cached cipher delegates (#854, 2026-10-09)
 
