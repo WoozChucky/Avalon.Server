@@ -181,7 +181,7 @@ public static class ReportWriter
         md.AppendLine(result.SignIns == 0
             ? Invariant($"- Sign-ins (identity, apart from the world): none; {result.SignInFailures} failures.")
             : Invariant(
-                $"- Sign-ins (identity, apart from the world): {result.SignIns} bots, one every {result.SignInRate.TotalSeconds:0.00} s with {options.SignInConcurrency} at once ({60 / result.SignInRate.TotalSeconds:0} per minute); {result.SignInFailures} sign-in or refresh failures."));
+                $"- Sign-ins (identity, apart from the world): {result.SignIns} bots, one every {result.SignInRate.TotalSeconds:0.00} s with {options.SignInConcurrency} at once ({60 / result.SignInRate.TotalSeconds:0} per minute); {result.SignInFailures} sign-in, refresh or sign-out failures."));
         md.AppendLine(result.WorldDrained switch
         {
             true => "- After the stop the world's players online came back to the count before the ramp.",
@@ -190,13 +190,13 @@ public static class ReportWriter
         });
         if (result.LeavesSkipped > 0)
         {
-            md.AppendLine(Invariant($"- World unresponsive: {result.LeavesSkipped} leaves skipped; sockets closed."));
+            md.AppendLine(Invariant($"- World unresponsive during the stop: {result.LeavesSkipped} leaves skipped; sockets closed."));
         }
 
         if (result.SignOutsSkipped > 0)
         {
             md.AppendLine(Invariant(
-                $"- API down: {result.SignOutsSkipped} sign-outs skipped; those contexts expire within 5 minutes."));
+                $"- API down during the stop: {result.SignOutsSkipped} sign-outs skipped; those contexts expire within 5 minutes."));
         }
 
         return md.ToString();

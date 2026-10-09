@@ -8,7 +8,8 @@ namespace Avalon.LoadTest.Bots;
 /// counted (<see cref="Skipped"/>), except one probe let through every <see cref="ProbeInterval"/>. A call answered,
 /// a probe or one still in flight from before the trip, resets the count and closes the breaker; a failed probe keeps
 /// it tripped. So a dead peer costs one window of calls rather than one timeout per bot, and a short outage costs no
-/// more than itself. Thread-safe.
+/// more than itself. Armed only for a ramp's stop sequence (<see cref="Arm"/>): until then every call is made and
+/// nothing is counted, so a breaker never changes the load a step is judged on. Thread-safe.
 /// </summary>
 public sealed class Breaker
 {
@@ -23,6 +24,7 @@ public sealed class Breaker
     private int _failuresInARow;
     private int _skipped;
     private volatile bool _tripped;
+    private volatile bool _armed;
 
     /// <summary>The <see cref="Stopwatch"/> timestamp from which the next probe may go.</summary>
     private long _nextProbe;
@@ -30,13 +32,16 @@ public sealed class Breaker
     /// <summary>Calls skipped while the breaker was tripped.</summary>
     public int Skipped => Volatile.Read(ref _skipped);
 
+    /// <summary>Arms the breaker: from now on failures count, and it may trip. Called when the stop sequence begins.</summary>
+    public void Arm() => _armed = true;
+
     /// <summary>
-    /// Whether to make the call: always while closed; while tripped, only for the one caller that takes a due probe.
-    /// A call not made is counted as skipped.
+    /// Whether to make the call: always while unarmed or closed; while tripped, only for the one caller that takes a
+    /// due probe. A call not made is counted as skipped.
     /// </summary>
     public bool TryEnter()
     {
-        if (!_tripped) return true;
+        if (!_armed || !_tripped) return true;
 
         long now = Stopwatch.GetTimestamp();
         long next = Interlocked.Read(ref _nextProbe);
@@ -46,20 +51,27 @@ public sealed class Breaker
         return false;
     }
 
-    /// <summary>The call was answered: the count restarts and the breaker closes.</summary>
+    /// <summary>
+    /// The peer answered (whatever it said: it is alive): the count restarts and the breaker closes. Nothing while
+    /// unarmed.
+    /// </summary>
     public void Succeeded()
     {
+        if (!_armed) return;
+
         Interlocked.Exchange(ref _failuresInARow, 0);
         _tripped = false;
     }
 
     /// <summary>
     /// The call failed the way a dead peer fails (no answer in time); the <see cref="Threshold"/>th in a row trips the
-    /// breaker.
+    /// breaker, exactly at that crossing (a failure counted before a reset but checked after it cannot trip it again).
+    /// Nothing while unarmed.
     /// </summary>
     public void Failed()
     {
-        if (Interlocked.Increment(ref _failuresInARow) < Threshold || _tripped) return;
+        if (!_armed) return;
+        if (Interlocked.Increment(ref _failuresInARow) != Threshold) return;
 
         // The first probe goes one interval after the trip.
         Interlocked.Exchange(ref _nextProbe, Stopwatch.GetTimestamp() + s_probeTicks);

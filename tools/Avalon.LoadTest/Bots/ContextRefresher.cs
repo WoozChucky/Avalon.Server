@@ -311,7 +311,11 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
     private async Task SignOutAsync(Bot bot, GameContext context)
     {
         SignOutOutcome outcome = await signOuts.SignOutAsync(api, context);
-        if (outcome.Failure is { } failure) bot.Note?.Invoke($"Signing out a context the bot let go of failed: {failure}.");
+        if (outcome.Failure is { } failure)
+        {
+            metrics.SignInFailed("logout");
+            bot.Note?.Invoke($"Signing out a context the bot let go of failed: {failure}.");
+        }
     }
 
     /// <summary>

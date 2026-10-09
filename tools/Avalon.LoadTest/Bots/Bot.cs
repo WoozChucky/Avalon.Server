@@ -322,7 +322,11 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             }
             catch (BotStepException error)
             {
+                // A timeout is the hung world's failure; a closed connection, an I/O or TLS failure says nothing of
+                // it; any other answer (a refusal of the leave) says the world is alive. Counted as its own kind.
                 if (error.Kind == "leave:timeout") _leaves.Failed();
+                else if (error.Kind is not ("leave:closed" or "leave:io" or "leave:tls")) _leaves.Succeeded();
+                metrics.EntryFailed(error.Kind);
                 Note?.Invoke($"Leave: {error.Reason}; closing the connection anyway.");
             }
             finally
@@ -400,8 +404,15 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     {
         long start = Stopwatch.GetTimestamp();
         SignOutOutcome outcome = await _signOuts.SignOutAsync(api, context);
-        if (outcome.Failure is { } failure) Note?.Invoke($"Logout: {failure}.");
-        else if (!outcome.Skipped) StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
+        if (outcome.Failure is { } failure)
+        {
+            metrics.SignInFailed("logout");
+            Note?.Invoke($"Logout: {failure}.");
+        }
+        else if (!outcome.Skipped)
+        {
+            StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
+        }
     }
 
     private NetworkPacket SealInput(WorldConnection connection, uint seq, float dirX, float dirZ, ushort yaw)

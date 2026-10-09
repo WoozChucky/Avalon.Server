@@ -58,7 +58,7 @@ public sealed record RampResult(
     /// <summary>Bots the runner signed in.</summary>
     public int SignIns { get; init; }
 
-    /// <summary>Sign-in failures over the ramp, the context refresher's included.</summary>
+    /// <summary>Sign-in failures over the ramp, the context refresher's and failed sign-outs included.</summary>
     public int SignInFailures { get; init; }
 
     /// <summary>
@@ -68,14 +68,14 @@ public sealed record RampResult(
     public bool? WorldDrained { get; init; }
 
     /// <summary>
-    /// Sign-outs skipped because the API was taken as down (<see cref="SignOutBreaker"/>): those contexts expire within
-    /// 5 minutes. 0 while the stop sequence is still running.
+    /// Sign-outs skipped in the stop sequence (the only time the breaker is armed) because the API was taken as down
+    /// (<see cref="SignOutBreaker"/>): those contexts expire within 5 minutes. 0 while the stop sequence still runs.
     /// </summary>
     public int SignOutsSkipped { get; init; }
 
     /// <summary>
-    /// Leaves skipped because the world was taken as hung (the leave <see cref="Breaker"/>): their sockets were closed
-    /// at once. 0 while the stop sequence is still running.
+    /// Leaves skipped in the stop sequence (the only time the breaker is armed) because the world was taken as hung
+    /// (the leave <see cref="Breaker"/>): their sockets were closed at once. 0 while the stop sequence still runs.
     /// </summary>
     public int LeavesSkipped { get; init; }
 }
@@ -257,6 +257,9 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         }
 
         Console.WriteLine(Invariant($"Stopping: {_added.Count} bots leave the world."));
+        // The breakers act only from here: during the ramp every leave and sign-out ran, its failures counted.
+        _leaves.Arm();
+        _signOuts.Arm();
         await presigning.CancelAsync();
         if (presign is not null) await presign.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         await lives.CancelAsync();
@@ -274,13 +277,13 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         DisposeBots();
         if (_leaves.Skipped > 0)
         {
-            Console.Error.WriteLine(Invariant($"World unresponsive: {_leaves.Skipped} leaves skipped; sockets closed."));
+            Console.Error.WriteLine(Invariant($"World unresponsive during the stop: {_leaves.Skipped} leaves skipped; sockets closed."));
         }
 
         if (_signOuts.Skipped > 0)
         {
             Console.Error.WriteLine(Invariant(
-                $"API down: {_signOuts.Skipped} sign-outs skipped; those contexts expire within 5 minutes."));
+                $"API down during the stop: {_signOuts.Skipped} sign-outs skipped; those contexts expire within 5 minutes."));
         }
 
         signInFailures += metrics.TakeWindow().SignInFailures;
