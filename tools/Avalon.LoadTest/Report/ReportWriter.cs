@@ -178,9 +178,9 @@ public static class ReportWriter
         {
             md.AppendLine($"- **The world server {result.RestartPhrase} ({serverChange}).** The steps were judged on one process, so the verdict stands; check the world before the next run.");
         }
-        else if (result.ServerChangeDetails is { } duringRamp)
+        else if (result.ServerChange is { } change)
         {
-            md.AppendLine($"- The world server {result.RestartPhrase} ({duringRamp}), so this run does not stand. Run again.");
+            md.AppendLine($"- World server: {change}. This run does not stand. Run again.");
         }
         else if (result.RestartCheck != RestartCheck.Complete)
         {

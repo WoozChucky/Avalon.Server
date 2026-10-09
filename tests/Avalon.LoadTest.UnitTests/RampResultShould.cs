@@ -9,8 +9,8 @@ public class RampResultShould
 
     /// <summary>
     /// Each row: the reads before and at the end of a ramp whose last judged window ended at 600 s and whose stop began
-    /// at 615 s (times in seconds from 18:00:00 UTC; the world's container started at 0 s in pod a), then the change the
-    /// report names and whether the run stands.
+    /// at 615 s (times in seconds from 18:00:00 UTC; the world's container started at 0 s in pod a, the ramp at 10 s),
+    /// then the change the report names and whether the run stands.
     /// </summary>
     private static readonly Dictionary<string, (Func<RampResult> Result, string? Change, bool Stands)> s_rows = new()
     {
@@ -42,6 +42,13 @@ public class RampResultShould
         ["nothing read at the end"] = (
             () => Result(versionAtEnd: null, podAtEnd: null, restartsAtEnd: null, startedAtEnd: null, newestPod: null,
                 newestPodStarted: null), null, false),
+        ["a container restart counted, its last end from before the ramp"] = (
+            () => Result(restartsAtEnd: 1, terminated: 5, startedAtEnd: 700),
+            "world restarted; not proven after the last judged step (the container's last end predates the ramp): 1.0; container restarted once, last started 18:11:40 UTC",
+            false),
+        ["a container crash inside the window, its pod then replaced while the bots left"] = (
+            () => Result(podAtEnd: "b", newestPod: "b", newestPodStarted: 645, restartsAtEnd: 1, terminated: 300, oldPodLastUp: 640, startedAtEnd: 645),
+            "world restarted during the ramp (1.0; pod a → b; container restarted once, last started 18:10:45 UTC)", false),
         ["a restart count that fell is unknown, not a restart"] = (() => Result(restartsAtStart: 3, restartsAtEnd: 1), null, false),
     };
 
@@ -63,7 +70,7 @@ public class RampResultShould
         string? versionAtEnd = "1.0", string? pod = "a", string? podAtEnd = "a", int? restartsAtStart = 0, int? restartsAtEnd = 0,
         int? startedAtStart = 0, int? startedAtEnd = 0, int? terminated = null, int? oldPodLastUp = null,
         string? newestPod = "a", int? newestPodStarted = 0, int? newestRestarts = 0) =>
-        new(RampOutcome.Capacity, 100, [], [], "1.0", TimeSpan.Zero, default, default)
+        new(RampOutcome.Capacity, 100, [], [], "1.0", TimeSpan.Zero, s_t0.AddSeconds(10), s_t0.AddSeconds(900))
         {
             ServerVersionAtEnd = versionAtEnd,
             ServerPod = pod,

@@ -432,28 +432,30 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   series with the newest sample: a world restarted within the last 5 minutes still has its old process's series in
   Prometheus's lookback; versions sharing the newest sample are all named), read with its pod uid (`k8s_pod_uid`)
   before the ramp and again at its end, with the container's restarts (kube-state-metrics'
-  `kube_pod_container_status_restarts_total`, scoped to the pod uid read before the ramp, or to `--pod` when there
-  was none) and its last start (`kube_pod_container_state_started`, by that uid and by `--pod`): `world restarted
-  during the ramp (A → B; pod x → y; container restarted N times, last started 18:34:40 UTC)`, naming what showed
-  it, when the pod differs, the restarts rose or the container started again, whatever the version, or `changed
-  during the ramp: A → B` when only the versions differ. `during the ramp` is said only when the restart is proven to
-  have come before the last judged window ended (the new process started by then, or the container ended by then);
-  `world restarted after the ramp's last judged step (...)`, with `, while the bots left` when the old process ended
-  after the stop began, when that is proven; otherwise `world restarted; not proven after the last judged step
-  (<the missing fact>): ...` (see [a world restart](#a-world-restart)). A version read only at the end is marked `(read at the end)`, and a check that could not be
-  made whole says so: `(restart check: partial, ...)` or `(restart check: unknown, Prometheus gave nothing at the
-  end)`. The tool warns when `target_info`'s pod name is not `--pod`. Then the run
-  and its size, the API, the mix, the ramp settings (start, step, hold and judged window, max, sign-in concurrency),
-  Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its clock's offset from Prometheus's at the
-  start (by which every query's time was corrected), and the limits, each marked when overridden.
+  `kube_pod_container_status_restarts_total`, scoped to the pod uid read before the ramp, or to `--pod` when there was
+  none) and its last start (`kube_pod_container_state_started`, by that uid and by `--pod`): `world restarted during
+  the ramp (A → B; pod x → y; container restarted N times, last started 18:34:40 UTC)`, naming what showed it, when
+  the pod differs, the restarts rose or the container started again, whatever the version, or `changed during the
+  ramp: A → B` when only the versions differ. `during the ramp` is said only when the restart is proven to have come
+  before the last judged window ended: the new process started by then, or a container restart counted in the pod
+  ended within the ramp by then. A new pod's start bounds the old one's end because the world runs as a StatefulSet,
+  whose pod is replaced under the same name only once the old pod is gone. `world restarted after the ramp's last
+  judged step (...)`, with `, while the bots left` when the old process ended after the stop began, when that is
+  proven; otherwise `world restarted; not proven after the last judged step (<the missing fact>): ...` (see [a world
+  restart](#a-world-restart)). A version read only at the end is marked `(read at the end)`, and a check that could
+  not be made whole says so: `(restart check: partial, ...)` or `(restart check: unknown, Prometheus gave nothing at
+  the end)`. The tool warns when `target_info`'s pod name is not `--pod`. Then the run and its size, the API, the mix,
+  the ramp settings (start, step, hold and judged window, max, sign-in concurrency), Prometheus, the pod, `--dial`,
+  the bot PC's CPU model and logical cores, its clock's offset from Prometheus's at the start (by which every query's
+  time was corrected), and the limits, each marked when overridden.
 - **Result**: one of `capacity N bots`, `no limit reached up to N bots`, `bot PC saturated: capacity ≥ N bots`,
-  `stopped: steps that could not be judged`, or `stopped (<reason>)`, followed by `; does not stand: <reason>` when the run does
-  not stand (`the world server restarted during the ramp`, `the world server restarted; not proven after the last
-  judged step (<the missing fact>)`, or `the restart check was partial (...)`). When the
-  finished report's reads change the line, the console prints it again. A stop reason is one of: Ctrl+C, an error, the
-  run's accounts running out, or no further bot able to sign in. Each `stopped` result adds the last passing step's
-  count, or says that no step passed. Then "failed first": each confirmed breach with its value and threshold
-  (`tick-p99 18.2 ms > 16.7 ms`).
+  `stopped: steps that could not be judged`, or `stopped (<reason>)`, followed by `; does not stand: <reason>` when
+  the run does not stand (`the world server restarted during the ramp`, `the world server restarted; not proven after
+  the last judged step (<the missing fact>)`, or `the restart check was partial (...)`). When the finished report's
+  reads change the line, the console prints it again. A stop reason is one of: Ctrl+C, an error, the run's accounts
+  running out, or no further bot able to sign in. Each `stopped` result adds the last passing step's count, or says
+  that no step passed. Then "failed first": each confirmed breach with its value and threshold (`tick-p99 18.2 ms >
+  16.7 ms`).
 - **Steps**, one row per held step (a re-hold is a row of its own):
   - live bots, by behaviour; bots in the world at the hold's end; players online less the count before the ramp;
   - map instances; tick p99; average TPS; ack p50, p95 and p99; drops; the deepest receive backlog of any
@@ -465,10 +467,10 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
     `stop, unknown (...)`, or `pass, the last step`. A value Prometheus did not give reads `n/a`.
 - **Notes**: a world that restarted during the ramp, or after its last judged step without proof (the run does not
   stand: run again); one proven to have restarted after the last judged step (in bold; the verdict stands); or a
-  restart check that was partial or unknown (the run does not stand); the blips; the steps whose drops may be the bot PC's; sign-ins, with their throughput (one every X s
-  with N at once, and per minute; identity's side, apart from the world) and the sign-in and refresh failures, by kind;
-  whether the world drained after the stop; failed sign-outs; the stop's leave failures by kind; and the leaves and
-  sign-outs the breakers skipped.
+  restart check that was partial or unknown (the run does not stand); the blips; the steps whose drops may be the bot
+  PC's; sign-ins, with their throughput (one every X s with N at once, and per minute; identity's side, apart from the
+  world) and the sign-in and refresh failures, by kind; whether the world drained after the stop; failed sign-outs;
+  the stop's leave failures by kind; and the leaves and sign-outs the breakers skipped.
 
 **Reading it.** The capacity is the last step that passed. "Failed first" says which limit gave out, and the steps
 before it show how that value climbed. A `bot PC saturated` result is a lower bound: run again with a lighter mix
@@ -499,7 +501,8 @@ kube-state-metrics reads, by the pod's uid and by `--pod`, show the new one; bef
 (`kube-state-metrics not scraped since the drain ended`). That read, given 10 seconds, takes none of the earlier
 read's values: what it cannot read stays unknown. Every time is corrected by the clock offset measured at the start.
 
-Without kube-state-metrics in Prometheus the restart check can never be complete, so every ramp fails: it exits 1 with `does not stand: the restart check was partial (...)`.
+Without kube-state-metrics in Prometheus the restart check can never be complete, so every ramp fails: it exits 1
+with `does not stand: the restart check was partial (...)`.
 
 ## Ctrl+C
 

@@ -197,13 +197,15 @@ public sealed record RampResult(
 
     /// <summary>
     /// Whether the restart is proven to have come before the last judged window ended: the new process started by then
-    /// (the newest pod, or the container), or the container's last end came by then.
+    /// (the newest pod, which under a StatefulSet starts only once the old pod is gone, or the container), or a container
+    /// restart counted in the pod read before the ramp ended within the ramp by then (its last end alone could predate
+    /// the ramp, the series persisting).
     /// </summary>
     public bool RestartProvenDuringRamp =>
         ServerRestarted && LastJudgedEnd is { } judged &&
         ((ServerPodChanged && Differ(ServerPod, NewestPod) && NewestPodStartedAt <= judged) ||
          (ContainerStartChanged && ContainerStartedAtEnd <= judged) ||
-         (!ServerPodChanged && ContainerLastTerminatedAt <= judged));
+         (ContainerRestarts > 0 && ContainerLastTerminatedAt is { } ended && ended > Started && ended <= judged));
 
     /// <summary>
     /// The first fact missing for <see cref="RestartedAfterLastJudgedStep"/> when the restart is neither proven after the
@@ -222,6 +224,7 @@ public sealed record RampResult(
                     : "when the old process ended is unknown";
             }
 
+            if (!ServerPodChanged && ended <= Started) return "the container's last end predates the ramp";
             if (ended <= judged) return "the old process was last seen up before the last judged window ended";
             if (!ServerPodChanged)
             {
@@ -236,8 +239,7 @@ public sealed record RampResult(
             if (ContainerRestarts is null) return "the old pod's restart count is unknown";
             if (ContainerRestarts > 0) return "the old pod's container also restarted";
             if (!Differ(ServerPod, NewestPod)) return "the new pod is unknown";
-            if (NewestPodStartedAt is not { } newStart) return "the new pod's start is unknown";
-            if (newStart <= judged) return "the new pod started before the last judged window ended";
+            if (NewestPodStartedAt is null) return "the new pod's start is unknown";
             return NewestPodRestarts is null ? "the new pod's restart count is unknown" : "the new pod's container restarted";
         }
     }
