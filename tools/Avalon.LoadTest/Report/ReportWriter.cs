@@ -34,13 +34,29 @@ public static class ReportWriter
         return (Markdown(result, options, run, cpu), Json(result, options, run, cpu));
     }
 
-    /// <summary>Writes the report to <c>&lt;yyyyMMdd-HHmm&gt;-&lt;runId&gt;.md</c> and <c>.json</c> in <see cref="Directory"/>; returns the Markdown's path.</summary>
-    public static string Save(RampResult result, RampOptions options, RunFile run)
+    /// <summary>
+    /// Writes the report as <c>.md</c> and <c>.json</c>. With no <paramref name="markdownPath"/>, to a new
+    /// <c>&lt;yyyyMMdd-HHmmss&gt;-&lt;runId&gt;</c> in <see cref="Directory"/> (a <c>-2</c>, <c>-3</c>, ... suffix
+    /// rather than overwrite any report there); with one, over that report, this ramp's own written earlier (the one
+    /// saved when its outcome was known, completed after the stop). Returns the Markdown's path.
+    /// </summary>
+    public static string Save(RampResult result, RampOptions options, RunFile run, string? markdownPath = null)
     {
         (string markdown, string json) = Write(result, options, run);
         System.IO.Directory.CreateDirectory(Directory);
-        string stem = Path.Combine(Directory,
-            $"{result.Started.ToLocalTime().ToString("yyyyMMdd-HHmm", CultureInfo.InvariantCulture)}-{run.RunId}");
+        string stem;
+        if (markdownPath is not null)
+        {
+            stem = Path.ChangeExtension(markdownPath, null);
+        }
+        else
+        {
+            string name = $"{result.Started.ToLocalTime().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{run.RunId}";
+            stem = Path.Combine(Directory, name);
+            for (int n = 2; File.Exists(stem + ".md") || File.Exists(stem + ".json"); n++)
+                stem = Path.Combine(Directory, $"{name}-{n.ToString(CultureInfo.InvariantCulture)}");
+        }
+
         File.WriteAllText(stem + ".md", markdown);
         File.WriteAllText(stem + ".json", json);
         return stem + ".md";
@@ -99,8 +115,8 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Bots (idle / walker / churner) | Instances | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Entries / failed | Failures by kind | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Step | Live bots (idle / walker / churner) | In world at hold end | Players online − start | Instances | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Entries / failed | Failures by kind | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
             ServerValues s = step.Server;
@@ -117,6 +133,8 @@ public static class ReportWriter
             md.AppendLine(string.Join(" | ",
                 "| " + step.Index.ToString(CultureInfo.InvariantCulture),
                 bots,
+                step.InWorld.ToString(CultureInfo.InvariantCulture),
+                step.PlayersOnlineAdded is { } added ? added.ToString(CultureInfo.InvariantCulture) : "n/a",
                 Number(s.Instances, "0"),
                 Ms(s.TickP99Ms, "0.0"),
                 Number(s.Tps, "0.0"),
@@ -152,9 +170,12 @@ public static class ReportWriter
             ? Invariant($"- Sign-ins (identity, apart from the world): none; {result.SignInFailures} failures.")
             : Invariant(
                 $"- Sign-ins (identity, apart from the world): {result.SignIns} bots, one every {result.SignInRate.TotalSeconds:0.00} s with {options.SignInConcurrency} at once ({60 / result.SignInRate.TotalSeconds:0} per minute); {result.SignInFailures} sign-in or refresh failures."));
-        md.AppendLine(result.WorldDrained
-            ? "- After the stop the world's players online came back to the count before the ramp."
-            : "- After the stop the world's players online had not come back to the count before the ramp within 90 s: wait before cleanup.");
+        md.AppendLine(result.WorldDrained switch
+        {
+            true => "- After the stop the world's players online came back to the count before the ramp.",
+            false => "- After the stop the world's players online had not come back to the count before the ramp within 90 s: wait before cleanup.",
+            null => "- World drained: pending. The bots were still leaving when this was written; the report is rewritten when they are gone.",
+        });
         return md.ToString();
     }
 

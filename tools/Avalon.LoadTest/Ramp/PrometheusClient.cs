@@ -33,6 +33,9 @@ public sealed class PrometheusException(string message) : Exception(message);
 /// </summary>
 public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : IDisposable
 {
+    /// <summary>The world server's container in its pod: the <c>avalon-world</c> chart names it after the chart.</summary>
+    private const string Container = "avalon-world";
+
     private static readonly TimeSpan s_timeout = TimeSpan.FromSeconds(10);
 
     private readonly HttpClient _http = new()
@@ -62,7 +65,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         Task<double?> workingSet = ValueAsync($"max(dotnet_process_memory_working_set_bytes{{{world}}})", at, ct);
         Task<double?> workingSetFraction = ValueAsync(
             $"max(dotnet_process_memory_working_set_bytes{{{world}}}) / " +
-            $"max(kube_pod_container_resource_limits{{namespace=\"avalon\",pod=\"{pod}\",resource=\"memory\"}})", at, ct);
+            $"max(kube_pod_container_resource_limits{{namespace=\"avalon\",pod=\"{pod}\",container=\"{Container}\",resource=\"memory\"}})", at, ct);
         Task<double?> gen2 = ValueAsync(
             $"sum(increase(dotnet_gc_collections_total{{{world},gc_heap_generation=\"gen2\"}}{range})) * 60 / {w.ToString(CultureInfo.InvariantCulture)}",
             at, ct);
@@ -107,9 +110,13 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
     /// <summary>The world's players online now.</summary>
     /// <exception cref="PrometheusException">Prometheus is unreachable or has no such series for the world.</exception>
-    public async Task<int> PlayersOnlineAsync(CancellationToken ct)
+    public Task<int> PlayersOnlineAsync(CancellationToken ct) => PlayersOnlineAsync(DateTimeOffset.UtcNow, ct);
+
+    /// <summary>The world's players online at <paramref name="at"/>.</summary>
+    /// <exception cref="PrometheusException">Prometheus is unreachable or has no such series for the world.</exception>
+    public async Task<int> PlayersOnlineAsync(DateTimeOffset at, CancellationToken ct)
     {
-        double? players = await ValueAsync($"avalon_world_players_online{{{_world}}}", DateTimeOffset.UtcNow, ct, quiet: false);
+        double? players = await ValueAsync($"avalon_world_players_online{{{_world}}}", at, ct, quiet: false);
         return players is { } value && double.IsFinite(value)
             ? (int)Math.Round(value)
             : throw new PrometheusException($"Prometheus has no avalon_world_players_online for world {worldId}.");

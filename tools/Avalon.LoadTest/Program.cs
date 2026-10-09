@@ -49,8 +49,10 @@ catch (OperationCanceledException) when (cancel.IsCancellationRequested)
     return 1;
 }
 
-// The capacity run, then its report, which is written however the ramp ended. Exit 0 when the ramp reached a verdict
-// (a capacity, no limit reached, the bot PC saturated), 1 when it stopped short of one.
+// The capacity run, then its report, which is written however the ramp ended: first as soon as the outcome is known
+// (before the bots leave, which a second Ctrl+C would cut short), then again over it once the stop sequence is done.
+// Exit 0 when the ramp reached a verdict (a capacity, no limit reached, the bot PC saturated), 1 when it stopped short
+// of one.
 static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
 {
     var run = RunFile.Load(arguments.RunId);
@@ -60,11 +62,16 @@ static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
         $"Ramp of run {run.RunId} into world {run.WorldId}: {options.Start} bots, +{options.Step} a step, up to {options.Max}, " +
         $"each held {options.Hold.TotalSeconds:0} s{dialling}. Ctrl+C stops it and still writes the report.");
 
-    RampResult result = await new RampRunner(run, options).RunAsync(ct);
-    string report = ReportWriter.Save(result, options, run);
-    Console.WriteLine($"Result: {ReportWriter.ResultLine(result)}");
-    foreach (Breach breach in result.FailedFirst)
-        Console.WriteLine($"  failed first: {RampRunner.Describe(breach, options.Limits)}");
+    string? report = null;
+    RampResult result = await new RampRunner(run, options).RunAsync(known =>
+    {
+        report = ReportWriter.Save(known, options, run);
+        Console.WriteLine($"Result: {ReportWriter.ResultLine(known)}");
+        foreach (Breach breach in known.FailedFirst)
+            Console.WriteLine($"  failed first: {RampRunner.Describe(breach, options.Limits)}");
+        Console.WriteLine($"Report: {report} (and .json); completed once the bots have left.");
+    }, ct);
+    report = ReportWriter.Save(result, options, run, report);
     Console.WriteLine($"Report: {report} (and .json)");
     return result.Outcome is RampOutcome.Capacity or RampOutcome.NoLimitReached or RampOutcome.GeneratorSaturated ? 0 : 1;
 }

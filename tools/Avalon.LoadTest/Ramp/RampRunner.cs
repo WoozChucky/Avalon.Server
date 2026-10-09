@@ -23,12 +23,26 @@ public sealed record RampOptions(
 
 /// <summary>One held step: what was there, what was measured, and the decision on it.</summary>
 /// <param name="Index">The step's number from 1; a re-hold is a step of its own at the same count.</param>
-/// <param name="Bots">The bots added so far (signed in and sent into the world).</param>
+/// <param name="Bots">
+/// The live bots: those sent into the world that have not given up (<see cref="BotState.Stopped"/>, their context
+/// lost), in the world or on their way back into it. The decider and the capacity count these.
+/// </param>
+/// <param name="ByBehaviour">The live bots by behaviour.</param>
 /// <param name="GeneratorCpu">The bot PC's CPU use over the judged window, a fraction of its cores.</param>
 /// <param name="GeneratorLagP95Ms">The input driver's lateness p95 over the judged window.</param>
 public sealed record StepRecord(
     int Index, int Bots, IReadOnlyDictionary<BehaviourKind, int> ByBehaviour, ServerValues Server, StepClientValues Client,
-    double GeneratorCpu, double GeneratorLagP95Ms, Decision Decision);
+    double GeneratorCpu, double GeneratorLagP95Ms, Decision Decision)
+{
+    /// <summary>Bots in the world at the hold's end (<see cref="BotState.InWorld"/>), a cross-check of <see cref="Bots"/>.</summary>
+    public int InWorld { get; init; }
+
+    /// <summary>
+    /// The world's players online at the hold's end less the count before the ramp, the server's own cross-check of
+    /// <see cref="Bots"/>; null when Prometheus could not say.
+    /// </summary>
+    public int? PlayersOnlineAdded { get; init; }
+}
 
 /// <summary>How a ramp ended.</summary>
 /// <param name="Capacity">As <see cref="Decision.Capacity"/>; for <see cref="RampOutcome.Stopped"/>, the last passing count (null with none).</param>
@@ -47,8 +61,11 @@ public sealed record RampResult(
     /// <summary>Sign-in failures over the ramp, the context refresher's included.</summary>
     public int SignInFailures { get; init; }
 
-    /// <summary>Whether, after the stop, the world's players online came back to the count before the ramp.</summary>
-    public bool WorldDrained { get; init; }
+    /// <summary>
+    /// Whether, after the stop, the world's players online came back to the count before the ramp; null while the stop
+    /// sequence is still running (the report written as soon as the outcome is known).
+    /// </summary>
+    public bool? WorldDrained { get; init; }
 }
 
 /// <summary>
@@ -71,6 +88,12 @@ public sealed class RampRunner(RunFile run, RampOptions options)
 
     /// <summary>One bot's leave and sign-out at the end gets this long.</summary>
     private static readonly TimeSpan s_leaveTimeout = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// After a hold's end, Prometheus is read this much later (still for the window ending at the hold's end), so the
+    /// world's last 10 s export of the window has landed.
+    /// </summary>
+    private static readonly TimeSpan s_exportLag = TimeSpan.FromSeconds(15);
 
     private static readonly TimeSpan s_drainPoll = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan s_drainLimit = TimeSpan.FromSeconds(90);
@@ -106,7 +129,15 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     /// (Ctrl+C) stops it as <see cref="RampOutcome.Stopped"/>; the stop sequence runs on its own timeouts.
     /// </summary>
     /// <exception cref="PrometheusException">Prometheus cannot be read before the first bot signs in.</exception>
-    public async Task<RampResult> RunAsync(CancellationToken ct)
+    public Task<RampResult> RunAsync(CancellationToken ct) => RunAsync(outcomeKnown: null, ct);
+
+    /// <summary>
+    /// As <see cref="RunAsync(CancellationToken)"/>, calling <paramref name="outcomeKnown"/> with the result as soon as
+    /// the outcome is known, before the stop sequence (minutes with many bots), its <see cref="RampResult.WorldDrained"/>
+    /// still null: a report written there survives a second Ctrl+C. A failure of the callback is reported and the stop
+    /// sequence goes on.
+    /// </summary>
+    public async Task<RampResult> RunAsync(Action<RampResult>? outcomeKnown, CancellationToken ct)
     {
         DateTimeOffset started = DateTimeOffset.UtcNow;
         using var prometheus = new PrometheusClient(options.Prometheus, run.WorldId, options.Pod);
@@ -142,15 +173,14 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             {
                 if (fill)
                 {
-                    int before = _added.Count;
                     if (presign is not null) await presign;
                     presign = null;
-                    await FillAsync(target, api, metrics, signIns, lives.Token, ct);
-                    if (_added.Count == before)
+                    if (await FillAsync(target, api, metrics, signIns, lives.Token, ct) == 0)
                     {
-                        (outcome, capacity, stopReason) = _nextIndex >= run.Bots.Count
-                            ? (RampOutcome.NoLimitReached, (int?)before, $"the run's {run.Bots.Count} accounts ran out")
-                            : (RampOutcome.Stopped, LastPass(steps), "no further bot could sign in");
+                        // Short of --max with no bot to add: the ramp cannot go on, and no limit decided it.
+                        (outcome, capacity, stopReason) = (RampOutcome.Stopped, LastPass(steps), _nextIndex >= run.Bots.Count
+                            ? $"the run's {run.Bots.Count} accounts ran out before {target} live bots (sign-ins failed or bots gave up)"
+                            : "no further bot could sign in");
                         break;
                     }
                 }
@@ -158,11 +188,11 @@ public sealed class RampRunner(RunFile run, RampOptions options)
                 // The next step's bots sign in while this one holds (a re-hold's are signing in already, or ready).
                 if (presign is null && target < options.Max)
                 {
-                    int nextNeed = Math.Min(target + options.Step, options.Max) - _added.Count - _ready.Count;
+                    int nextNeed = Math.Min(target + options.Step, options.Max) - LiveCount() - _ready.Count;
                     if (nextNeed > 0) presign = SignInAsync(nextNeed, api, metrics, signIns, presigning.Token);
                 }
 
-                StepRecord step = await HoldAsync(steps.Count + 1, prometheus, metrics, driver, decider, ct);
+                StepRecord step = await HoldAsync(steps.Count + 1, prometheus, playersBefore, metrics, driver, decider, ct);
                 steps.Add(step);
                 signInFailures += step.Client.SignInFailures;
                 Console.WriteLine(StepLine(step));
@@ -190,6 +220,22 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             Console.Error.WriteLine($"The ramp failed: {error}");
         }
 
+        var partial = new RampResult(outcome, capacity, failedFirst, steps, version, SignInRate(), started, DateTimeOffset.UtcNow)
+        {
+            StopReason = stopReason,
+            SignIns = _signIns,
+            SignInFailures = signInFailures,
+            WorldDrained = null,
+        };
+        try
+        {
+            outcomeKnown?.Invoke(partial);
+        }
+        catch (Exception error)
+        {
+            Console.Error.WriteLine($"Writing the report before the stop failed: {error.Message}");
+        }
+
         Console.WriteLine(Invariant($"Stopping: {_added.Count} bots leave the world."));
         await presigning.CancelAsync();
         if (presign is not null) await presign.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
@@ -201,11 +247,10 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         signInFailures += metrics.TakeWindow().SignInFailures;
         bool drained = await WaitForDrainAsync(prometheus, playersBefore);
 
-        return new RampResult(outcome, capacity, failedFirst, steps, version,
-            _signIns == 0 ? TimeSpan.Zero : _signInTime / _signIns, started, DateTimeOffset.UtcNow)
+        return partial with
         {
-            StopReason = stopReason,
-            SignIns = _signIns,
+            SignInRate = SignInRate(),
+            Ended = DateTimeOffset.UtcNow,
             SignInFailures = signInFailures,
             WorldDrained = drained,
         };
@@ -249,21 +294,22 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     /// Brings the bots sent into the world up to <paramref name="target"/>: the ones signed in ahead first, more signed in
     /// now if they fall short, then all entered at once (32 at a time), each with its behaviour from the mix. A bot
     /// whose entry fails every attempt still gets its <see cref="BotLife"/>, which enters it again after a pause: its
-    /// failures go on counting against admission rather than the bot quietly dropping out.
+    /// failures go on counting against admission rather than the bot quietly dropping out. A bot that gave up (its
+    /// context lost) no longer counts towards the target: another account takes its place. Returns the bots entered.
     /// </summary>
-    private async Task FillAsync(int target, ApiClient api, BotMetrics metrics, SemaphoreSlim signIns,
+    private async Task<int> FillAsync(int target, ApiClient api, BotMetrics metrics, SemaphoreSlim signIns,
         CancellationToken life, CancellationToken ct)
     {
-        int need = target - _added.Count;
-        if (need <= 0) return;
+        int need = target - LiveCount();
+        if (need <= 0) return 0;
 
         if (_ready.Count < need) await SignInAsync(need - _ready.Count, api, metrics, signIns, ct);
 
         var entering = new List<Bot>();
         while (entering.Count < need && _ready.TryDequeue(out Bot? bot)) entering.Add(bot);
-        if (entering.Count == 0) return;
+        if (entering.Count == 0) return 0;
 
-        Console.Error.WriteLine(Invariant($"  entering {entering.Count} bots ({_added.Count + entering.Count} in all)"));
+        Console.Error.WriteLine(Invariant($"  entering {entering.Count} bots ({LiveCount() + entering.Count} live)"));
         await Parallel.ForEachAsync(entering, new ParallelOptions { MaxDegreeOfParallelism = Concurrency, CancellationToken = ct },
             async (bot, token) =>
             {
@@ -283,6 +329,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
                     _lives.Add(BotLife.RunAsync(bot, metrics, life));
                 }
             });
+        return entering.Count;
     }
 
     /// <summary>
@@ -350,8 +397,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     /// Prometheus are read and the decider asked. The settle's entry and sign-in counts count towards the step; its
     /// acks do not.
     /// </summary>
-    private async Task<StepRecord> HoldAsync(int index, PrometheusClient prometheus, BotMetrics metrics, InputDriver driver,
-        RampDecider decider, CancellationToken ct)
+    private async Task<StepRecord> HoldAsync(int index, PrometheusClient prometheus, int playersBefore, BotMetrics metrics,
+        InputDriver driver, RampDecider decider, CancellationToken ct)
     {
         TimeSpan window = JudgedWindow(options.Hold);
         await Task.Delay(options.Hold - window, ct);
@@ -368,15 +415,31 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         double lag = driver.LatenessP95Ms();
         process.Refresh();
         double cpu = (process.TotalProcessorTime - cpuBefore) / (Stopwatch.GetElapsedTime(windowStart) * Environment.ProcessorCount);
+        Bot[] live = [.. _added.Where(bot => bot.State != BotState.Stopped)];
+        int inWorld = live.Count(bot => bot.State == BotState.InWorld);
+
+        await Task.Delay(s_exportLag, ct);
         ServerValues server = await prometheus.SampleAsync(end, window, ct);
+        int? playersAdded = null;
+        try
+        {
+            playersAdded = await prometheus.PlayersOnlineAsync(end, ct) - playersBefore;
+        }
+        catch (PrometheusException)
+        {
+            // Unknown: a cross-check only.
+        }
 
         StepClientValues client = Merge(settle, judged);
-        int bots = _added.Count;
         IReadOnlyDictionary<LimitName, double?> values = Values(server, client, cpu, lag);
-        Decision decision = decider.Decide(new StepSample(bots, values, cpu));
+        Decision decision = decider.Decide(new StepSample(live.Length, values, cpu));
         Dictionary<BehaviourKind, int> byBehaviour = Enum.GetValues<BehaviourKind>()
-            .ToDictionary(kind => kind, kind => _added.Count(bot => bot.Behaviour == kind));
-        return new StepRecord(index, bots, byBehaviour, server, client, cpu, lag, decision);
+            .ToDictionary(kind => kind, kind => live.Count(bot => bot.Behaviour == kind));
+        return new StepRecord(index, live.Length, byBehaviour, server, client, cpu, lag, decision)
+        {
+            InWorld = inWorld,
+            PlayersOnlineAdded = playersAdded,
+        };
     }
 
     /// <summary>The judged window's acks with the whole step's entry, sign-in and disconnect counts.</summary>
@@ -516,6 +579,11 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         "count" => Invariant($"{value:0}"),
         _ => Invariant($"{value:0.##} {unit}"),
     };
+
+    /// <summary>Bots sent into the world that have not given up.</summary>
+    private int LiveCount() => _added.Count(bot => bot.State != BotState.Stopped);
+
+    private TimeSpan SignInRate() => _signIns == 0 ? TimeSpan.Zero : _signInTime / _signIns;
 
     private static int? LastPass(IReadOnlyList<StepRecord> steps) =>
         steps.LastOrDefault(step => step.Decision.Action == RampAction.NextStep ||
