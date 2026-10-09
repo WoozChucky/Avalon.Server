@@ -1,11 +1,24 @@
 using Avalon.LoadTest;
+using Avalon.LoadTest.Api;
+using Avalon.LoadTest.Runs;
 
 // The load-test bot client: headless bots that sign in over the REST API, enter a world over TLS as the game client
 // does, and walk, idle or change character while the run measures how the world server copes.
+using var cancel = new CancellationTokenSource();
+Console.CancelKeyPress += (_, press) =>
+{
+    // The first Ctrl+C cancels what runs; a second one ends the process.
+    if (cancel.IsCancellationRequested) return;
+    press.Cancel = true;
+    cancel.Cancel();
+};
+
 try
 {
     return args switch
     {
+        ["provision", .. var options] => await RunCommands.ProvisionAsync(CommandLine.ParseProvision(options), cancel.Token),
+        ["cleanup", .. var options] => await RunCommands.CleanupAsync(CommandLine.ParseCleanup(options), cancel.Token),
         [] => Usage(),
         [var command, ..] => throw new CommandLineException($"Unknown command {command}."),
     };
@@ -15,14 +28,35 @@ catch (CommandLineException error)
     Console.Error.WriteLine(error.Message);
     return Usage();
 }
+catch (ApiException error)
+{
+    Console.Error.WriteLine(error.Message);
+    return 1;
+}
+catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+{
+    Console.Error.WriteLine("Cancelled.");
+    return 1;
+}
 
 static int Usage()
 {
-    Console.Error.WriteLine("""
+    Console.Error.WriteLine($"""
         Usage:
           dotnet run --project tools/Avalon.LoadTest -- <command> [options]
 
-        No command is available yet.
+        Commands:
+          provision --count N [--world W] [--api URL] [--run ABC]
+              Creates N bot accounts (1 to {CommandLine.MaxBots}) as an admin, who is asked for a username and
+              password, and keeps them in a run file. Above 1,000 bots the API makes several runs, each with its
+              own id; the file is named after the first. --world is the only world the bots
+              enter (default {CommandLine.DefaultWorld}); --api the API origin (default {CommandLine.DefaultApi});
+              --run the first run's id, three letters (default: the API picks one).
+          cleanup [--run ABC]
+              Deletes the run's accounts as an admin and forgets the run file; refused while bots hold live
+              sessions. --run names the run, needed only when several are kept.
+
+        Run files are kept in {RunFile.Directory}.
         """);
     return 2;
 }
