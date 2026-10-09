@@ -26,8 +26,9 @@ public class WireRoundTripShould
 
         // Client → server: many frames through the bot's writer, read by the server's own frame loop.
         var wire = new MemoryStream();
+        var writer = new FrameWriter(wire);
         for (uint seq = 1; seq <= 500; seq++)
-            await FrameIo.WriteAsync(wire, codec.Encrypted(new CPlayerInputPacket { Seq = seq, DirX = 1 }, NetworkPacketType.CMSG_PLAYER_INPUT), default);
+            await writer.WriteAsync(codec.Encrypted(new CPlayerInputPacket { Seq = seq, DirX = 1 }, NetworkPacketType.CMSG_PLAYER_INPUT), default);
         wire.Position = 0;
         uint expected = 1;
         await foreach (ReadOnlyMemory<byte> raw in new PacketStream(wire).EnumerateRawFramesAsync(256))

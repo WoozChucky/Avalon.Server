@@ -3,15 +3,21 @@ using ProtoBuf;
 
 namespace Avalon.LoadTest.Wire;
 
-/// <summary>Writes frames as the servers read them: a <see cref="NetworkPacket"/> behind a base-128 varint length.</summary>
-public static class FrameIo
+/// <summary>
+/// Writes one connection's frames as the servers read them: a <see cref="NetworkPacket"/> behind a base-128 varint
+/// length. The frame is serialized into a buffer the writer keeps, so a frame costs no allocation of its own, and goes
+/// to the stream in one write, so a TLS stream sends one record per packet.
+/// </summary>
+/// <remarks>Not thread-safe: the buffer is shared by every frame, so its connection writes one frame at a time.</remarks>
+public sealed class FrameWriter(Stream stream)
 {
-    public static async ValueTask WriteAsync(Stream stream, NetworkPacket packet, CancellationToken ct)
+    private readonly MemoryStream _buffer = new(512);
+
+    public async ValueTask WriteAsync(NetworkPacket packet, CancellationToken ct)
     {
-        // One buffered write per frame, so a TLS stream sends one record per packet.
-        using var buffer = new MemoryStream(64);
-        Serializer.SerializeWithLengthPrefix(buffer, packet, PrefixStyle.Base128);
-        await stream.WriteAsync(buffer.GetBuffer().AsMemory(0, (int)buffer.Length), ct).ConfigureAwait(false);
+        _buffer.SetLength(0);
+        Serializer.SerializeWithLengthPrefix(_buffer, packet, PrefixStyle.Base128);
+        await stream.WriteAsync(_buffer.GetBuffer().AsMemory(0, (int)_buffer.Length), ct).ConfigureAwait(false);
     }
 }
 
@@ -33,7 +39,7 @@ public sealed class FrameReader(Stream stream)
 
     /// <summary>The next packet, or null when the stream ends cleanly between frames.</summary>
     /// <exception cref="EndOfStreamException">The stream ended inside a frame.</exception>
-    /// <exception cref="InvalidDataException">A frame's length is malformed or above the limit.</exception>
+    /// <exception cref="InvalidDataException">A frame's length is malformed, zero or above the limit.</exception>
     public async ValueTask<NetworkPacket?> ReadAsync(CancellationToken ct)
     {
         int length = await ReadLengthAsync(ct).ConfigureAwait(false);
@@ -59,9 +65,14 @@ public sealed class FrameReader(Stream stream)
             value |= (ulong)(next & 0x7F) << shift;
             if ((next & 0x80) == 0)
             {
-                return value <= MaxFrameLength
-                    ? (int)value
-                    : throw new InvalidDataException($"A frame of {value} bytes is above the {MaxFrameLength}-byte limit.");
+                // Every packet has a header, so an empty frame is a corrupt stream, not an empty packet.
+                return value switch
+                {
+                    0 => throw new InvalidDataException("A frame of 0 bytes holds no packet."),
+                    > MaxFrameLength => throw new InvalidDataException(
+                        $"A frame of {value} bytes is above the {MaxFrameLength}-byte limit."),
+                    _ => (int)value,
+                };
             }
         }
 

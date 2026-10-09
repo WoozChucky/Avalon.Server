@@ -22,8 +22,8 @@ namespace Avalon.LoadTest.World;
 /// code waits for on <see cref="Inbound"/>, and drops everything else without decoding it.
 /// </summary>
 /// <remarks>
-/// Sends are serialised by one lock, and sealing with the session by another (<see cref="Seal{T}"/>): the codec reuses
-/// one buffer, and the frames of two senders must not interleave. Disposing closes the socket, which is what ends the
+/// Sends are serialised by one lock, and sealing with the session by another (<see cref="Seal{T}"/>): the codec and the
+/// frame writer each reuse one buffer, and the frames of two senders must not interleave. Disposing closes the socket, which is what ends the
 /// read loop.
 /// </remarks>
 public sealed class WorldConnection : IAsyncDisposable
@@ -33,6 +33,7 @@ public sealed class WorldConnection : IAsyncDisposable
 
     private readonly Socket _socket;
     private readonly SslStream _stream;
+    private readonly FrameWriter _writer;
     private readonly AvalonCryptoSession _session;
     private readonly byte[] _publicKey;
     private readonly Channel<NetworkPacket> _inbound;
@@ -47,6 +48,7 @@ public sealed class WorldConnection : IAsyncDisposable
     {
         _socket = socket;
         _stream = stream;
+        _writer = new FrameWriter(stream);
 
         // A session reports its own public key only once initialized, but the admission carries it before the
         // server's key is known: it is taken from the pair the session is built with.
@@ -182,7 +184,7 @@ public sealed class WorldConnection : IAsyncDisposable
         await _sendLock.WaitAsync(ct);
         try
         {
-            await FrameIo.WriteAsync(_stream, packet, ct);
+            await _writer.WriteAsync(packet, ct);
         }
         finally
         {
