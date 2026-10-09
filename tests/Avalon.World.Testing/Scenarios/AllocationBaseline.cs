@@ -8,8 +8,15 @@ namespace Avalon.World.Testing.Scenarios;
 /// </summary>
 public static class AllocationBaseline
 {
+    /// <summary>
+    /// The relative band, in percent. Every run since #854 (Debug and Release, Windows and Linux, alone and beside the
+    /// other test assemblies) reads within 0.05% of the committed figures, and CI's runner read within 0.09% of them once
+    /// the per-send delegate it paid was accounted for; 1% is ten times the widest of those.
+    /// </summary>
+    public const int TolerancePercent = 1;
+
     /// <summary>A change this small never counts, so a near-zero baseline does not fail on one stray allocation.</summary>
-    private const long SlackBytes = 256;
+    public const long SlackBytes = 256;
 
     /// <summary>One scenario's committed figures.</summary>
     public sealed record Entry(long BytesPerWindow, double BytesPerPlayerPerTick);
@@ -20,15 +27,15 @@ public static class AllocationBaseline
     public enum Verdict { Within, Regressed, Improved }
 
     /// <summary>
-    /// The gate rule: regressed when more than 5% and more than 256 B over the committed bytes, improved when more than
-    /// 5% and more than 256 B under them, within otherwise.
+    /// The gate rule: regressed when more than <see cref="TolerancePercent" /> and more than <see cref="SlackBytes" /> over
+    /// the committed bytes, improved when as far under them, within otherwise.
     /// </summary>
     public static Verdict Compare(long current, long committed)
     {
-        // current > committed × 1.05 and current < committed × 0.95, kept in whole numbers.
-        if (current * 20 > committed * 21 && current > committed + SlackBytes)
+        // current > committed × 1.01 and current < committed × 0.99, kept in whole numbers.
+        if (current * 100 > committed * (100 + TolerancePercent) && current > committed + SlackBytes)
             return Verdict.Regressed;
-        if (current * 20 < committed * 19 && current < committed - SlackBytes)
+        if (current * 100 < committed * (100 - TolerancePercent) && current < committed - SlackBytes)
             return Verdict.Improved;
         return Verdict.Within;
     }

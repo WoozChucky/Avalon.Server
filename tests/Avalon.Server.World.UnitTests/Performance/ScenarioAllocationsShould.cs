@@ -17,11 +17,12 @@ public sealed class ScenarioAllocations;
 /// (<c>perf/scenario-allocations.json</c>) by <see cref="AllocationBaseline.Compare" />.
 /// </summary>
 /// <remarks>
-/// The gate decides in Release, which CI builds; a Debug build reports the comparison instead of failing on it. Every
-/// scenario still runs in Debug, so a scenario that stopped doing its work still fails its own check. Since #854 the
-/// sends no longer create a delegate per packet, whose place (stack or heap) depended on how far the JIT had got by the
-/// end of the warm-up. A Debug build and a developer machine in Release now read the same figures within run-to-run
-/// noise; CI's runner is expected to as well, to be confirmed by its first run after #854.
+/// The gate decides in every build, Debug (a plain local <c>dotnet test</c>) as in Release (CI). Since #854 the sends no
+/// longer create a delegate per packet, whose place (stack or heap) depended on how far the JIT had got by the end of
+/// the warm-up, so Debug, Release and CI's runner read the same figures within run-to-run noise. Should a change make
+/// Debug and Release diverge again (an allocation the optimised JIT keeps on the stack and unoptimised code does not),
+/// make the regression branch Release-only (<c>#if !DEBUG</c>) and report in Debug instead, as #856 did; see
+/// docs/benchmarks.md, "The allocation gate".
 /// </remarks>
 [Collection(nameof(ScenarioAllocations))]
 public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
@@ -44,19 +45,15 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
         AllocationBaseline.Verdict verdict = AllocationBaseline.Compare(report.BytesPerWindow, entry!.BytesPerWindow);
         output.WriteLine($"{name}: {report.BytesPerWindow:N0} B per {ScenarioMeasurement.WindowTicks}-tick window, " +
                          $"committed {entry.BytesPerWindow:N0} B ({Change(report.BytesPerWindow, entry.BytesPerWindow)}), {verdict}.");
-#if DEBUG
-        output.WriteLine("Debug build: reported only; the allocation gate decides in Release, which CI builds.");
-#endif
 
         switch (verdict)
         {
-#if !DEBUG
             case AllocationBaseline.Verdict.Regressed:
                 Assert.Fail($"{name} allocates {report.BytesPerWindow:N0} B per {ScenarioMeasurement.WindowTicks}-tick window, " +
-                            $"committed {entry.BytesPerWindow:N0} B (more than 5% and 256 B over). " +
+                            $"committed {entry.BytesPerWindow:N0} B (more than {AllocationBaseline.TolerancePercent}% and " +
+                            $"{AllocationBaseline.SlackBytes} B over). " +
                             $"If the increase is intended, regenerate the baseline and commit it: {Regenerate}");
                 break;
-#endif
             case AllocationBaseline.Verdict.Improved:
                 output.WriteLine($"{name} improved: {report.BytesPerWindow:N0} B per window, committed {entry.BytesPerWindow:N0} B. " +
                                  $"Lower the committed baseline: {Regenerate}");

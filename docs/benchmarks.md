@@ -1129,17 +1129,22 @@ and compares only against a baseline taken on the same machine.
 `perf/scenario-allocations.json` is the committed baseline: per scenario its `bytesPerWindow` (and, for reading,
 `bytesPerPlayerPerTick`), with the commit and date it was generated at. `perf/local/` holds per-machine runner
 baselines and is never committed. `ScenarioAllocationsShould` runs every scenario and compares its `bytesPerWindow`
-with the committed figure (in a Release build; a Debug build reports it, see below):
+with the committed figure, in every build (Debug and Release, see below):
 
-- **Fail** when the current figure is more than 5% **and** more than 256 B over the committed one. The 256 B floor
+- **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
-- **Improvement notice** (test output, not a failure) when it is more than 5% and more than 256 B under.
-- **Detection floor.** The 5% band is relative, so in the moving scenarios it is wide in absolute terms. With the
-  committed figures below, the gate fails on a rise of more than **256 B per window** in `town-idle` (about 4 B per
-  tick: it allocates nothing since #851, so the floor decides, and any one object allocated every tick fails it),
-  **40 B per player per tick** in `town-walk` (72 KB per window), and **19 B per player per tick** in
-  `many-instances` (about 39 B per instance per tick, 579 KB per window). One new 64 B object per walking player per
-  tick fails it; before #850 lowered the baseline (166 and 104 B per player per tick) it passed.
+- **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
+- **Detection floor.** With the committed figures, the gate fails on a rise of more than **256 B per window** in
+  `town-idle` (about 4 B per tick: it allocates nothing since #851, so the floor decides, and any one object allocated
+  every tick fails it), **8 B per player per tick** in `town-walk` (14,402 B per window: it fails from 1,454,643 B), and
+  **3.9 B per player per tick** in `many-instances` (7.7 B per instance per tick, 115,897 B per window: it fails from
+  11,705,626 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
+  one per instance per tick in `many-instances`; one object per tick for the whole town (about 1.4 KB per window) does
+  not fail `town-walk`. Under the 5% band before #852 the floors were 40 and 19 B per player per tick.
+- **Why 1%.** Every run measured after #854 reads within −0.03% and +0.05% of the committed figures (the table
+  below), and CI's runner, before #854, read within 0.09% of the developer machine once the per-send delegate it alone
+  paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
+  widest of these.
 - **Ratchet.** The committed file goes down only by an explicit commit. When a change makes a scenario cheaper,
   regenerate and commit the lower figure, so the gain cannot be lost again unnoticed. When an increase is intended,
   regenerating is also the fix, and the JSON diff shows the reviewer what it costs.
@@ -1150,16 +1155,29 @@ Regenerate (every scenario, in Release; the runner refuses `--write-allocations`
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json
 ```
 
-**The gate decides in Release, and every machine is expected to read the same figures.** CI builds Release on a
-GitHub-hosted runner. Since #854 the committed figures are a plain Release run on the developer machine. CI's runner
-is expected to read the same, to be confirmed by the first CI run after #854: run with
-`DOTNET_JitObjectStackAllocation=0`, which reproduced CI's figures before #854, the Release runner reads the same within
-run-to-run noise (`town-walk` 1,439,520 against 1,440,240 B, `many-instances` 11,589,728 against 11,589,728 B), and the
-gate in Debug reads 1,440,688 and 11,587,728 B. In a Debug
-build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so a scenario that stopped
-doing its work still fails its `Verify` check, but it does not fail on the allocation figure: it writes the comparison
-(current, committed, change in percent, verdict) to the test output and says that the gate decides in Release.
-`dotnet test -c Release` runs the real gate locally.
+**The gate decides in every build, and every machine reads the same figures.** CI builds Release on a GitHub-hosted
+runner; a plain local `dotnet test` builds Debug. Since #854 the committed figures are a plain Release run on the
+developer machine, and Debug, Release, Windows and Linux read them within run-to-run noise. Measured at `2fe836e8`
+(#852, #859), bytes per window, committed `town-walk` 1,440,240 and `many-instances` 11,589,728:
+
+| Run | `town-walk` | `many-instances` |
+|---|---|---|
+| Windows, Release, the gate alone (×3) | 1,440,000 / 1,439,760 / 1,440,208 | 11,589,728 / 11,587,728 / 11,593,728 |
+| Windows, Debug, the gate alone (×3) | 1,440,208 / 1,440,688 / 1,440,432 | 11,589,728 / 11,589,728 / 11,593,728 |
+| Linux container (4 CPUs, 16 GB, CI's runner size), Release, the gate alone (×3) | 1,440,240 / 1,440,000 / 1,440,960 | 11,593,728 / 11,589,728 / 11,589,728 |
+| Linux container, Release, the whole solution's `dotnet test` as CI runs it (×2) | 1,440,664 / 1,439,944 | 11,593,728 / 11,589,728 |
+| Windows, Release runner, `DOTNET_JitObjectStackAllocation=0` (#854) | 1,439,520 | 11,589,728 |
+
+The CI runs on `main` after #854 passed the gate; CI's test step does not print a passing test's output, so its
+figures are not in the logs, only its verdict.
+
+A Debug build never optimises, so it never keeps an object on the stack; a Release build keeps some there once the
+optimised JIT tier applies. That Debug reads the same as Release shows that nothing on the measured path allocates
+differently depending on how far the JIT has got, which is what made the CI runner read higher before #854 (below).
+**Escape hatch:** should a change make Debug and Release diverge again (an allocation the optimised JIT keeps on the
+stack and unoptimised code does not), the gate goes back to deciding in Release only, as #856 had it: put the
+`Regressed` branch of `ScenarioAllocationsShould` under `#if !DEBUG` and write the comparison in Debug instead. A
+scenario that stopped doing its work still fails its `Verify` check in every build.
 
 Until #854 the figures depended on the machine, through one object: the delegate each send created by passing
 `CryptoSession.Encrypt` as a method group, about 64 B per walking player per tick. At most send sites the optimised JIT
@@ -1183,7 +1201,8 @@ comes back anywhere in `src/`.
 
 Allocations, from `perf/scenario-allocations.json`: the developer machine's Release run with #854 (i9-12900K, Windows
 11, .NET 10.0.12). "Before #854" is the committed figure before it (#851's, which carried the CI runner's `Encrypt`
-delegate).
+delegate). "Fails from" and "Notice at" are at the 5% band of the time; #852 narrowed it to 1% (see
+[The allocation gate](#the-allocation-gate)).
 
 | Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at | Before #854 | Change |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
