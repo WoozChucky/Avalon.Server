@@ -85,10 +85,10 @@ static int Usage()
         Commands:
           provision --count N [--world W] [--api URL] [--run ABC]
               Creates N bot accounts (1 to {CommandLine.MaxBots}) as an admin, who is asked for a username and
-              password, and keeps them in a run file. Above 1,000 bots the API makes several runs, each with its
-              own id; the file is named after the first. --world is the only world the bots
+              password, and keeps them in a run file. Above 1,000 bots it asks the API for several runs, each
+              with its own id; the file is named after the first. --world is the only world the bots
               enter (default {CommandLine.DefaultWorld}); --api the API origin (default {CommandLine.DefaultApi});
-              --run the first run's id, three letters (default: the API picks one).
+              --run the first run's id, three letters (default: the tool picks one no kept run file lists).
           check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker]
               One bot end to end: signs in, enters the run's world (join ticket, TLS, admission, handshake,
               create or select, loaded), sends input at 60 Hz for 10 s through the input driver, leaves and
