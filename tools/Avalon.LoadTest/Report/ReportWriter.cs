@@ -75,7 +75,10 @@ public static class ReportWriter
     }
 
     /// <summary>The result in a line: <c>capacity 300 bots</c>, <c>bot PC saturated: capacity ≥ 450 bots</c>, ...</summary>
-    public static string ResultLine(RampResult result) => result.Outcome switch
+    public static string ResultLine(RampResult result) => Verdict(result) +
+        (result.DoesNotStandReason is { } reason ? $"; does not stand: {reason}" : "");
+
+    private static string Verdict(RampResult result) => result.Outcome switch
     {
         RampOutcome.Capacity => Invariant($"capacity {result.Capacity ?? 0} bots"),
         RampOutcome.NoLimitReached => Invariant($"no limit reached up to {result.Capacity ?? 0} bots") +
@@ -94,7 +97,7 @@ public static class ReportWriter
         md.AppendLine(Invariant($"# Load-test ramp: world {run.WorldId}, run {run.RunId}"));
         md.AppendLine();
         md.AppendLine(Invariant($"- Date: {result.Started.ToLocalTime():yyyy-MM-dd HH:mm zzz} to {result.Ended.ToLocalTime():HH:mm zzz}"));
-        md.AppendLine($"- World {run.WorldId} server version: {result.ServerVersion ?? "unknown"}");
+        md.AppendLine($"- World {run.WorldId} server version: {ServerVersionText(result)}");
         md.AppendLine(Invariant($"- Run: {run.RunId} ({run.Bots.Count} bots) through {run.Api}"));
         md.AppendLine($"- Mix: {options.Mix}");
         md.AppendLine(Invariant(
@@ -171,6 +174,19 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Notes");
         md.AppendLine();
+        if (result.ServerChangeDetails is { } serverChange && result.RestartedAfterLastJudgedStep)
+        {
+            md.AppendLine($"- **The world server {result.RestartPhrase} ({serverChange}).** The steps were judged on one process, so the verdict stands; check the world before the next run.");
+        }
+        else if (result.ServerChange is { } change)
+        {
+            md.AppendLine($"- {char.ToUpperInvariant(change[0])}{change[1..]}. This run does not stand. Run again.");
+        }
+        else if (result.RestartCheck != RestartCheck.Complete)
+        {
+            md.AppendLine($"- Restart check {RestartCheckText(result.RestartCheck)} ({result.RestartCheckReason}): whether the world server restarted during the ramp is not known, so this run does not stand. Run again.");
+        }
+
         StepRecord[] blips = [.. result.Steps.Where(step => step.Decision.Blip)];
         md.AppendLine(blips.Length == 0
             ? "- Blips: none."
@@ -221,6 +237,21 @@ public static class ReportWriter
             Ended = result.Ended,
             World = run.WorldId,
             ServerVersion = result.ServerVersion,
+            result.ServerVersionAtEnd,
+            result.ServerPod,
+            result.ServerPodAtEnd,
+            result.ContainerRestartsAtStart,
+            result.ContainerRestartsAtEnd,
+            result.ContainerRestarts,
+            result.ContainerStartedAtStart,
+            result.ContainerStartedAtEnd,
+            result.ContainerLastTerminatedAt,
+            result.OldPodLastUpAt,
+            result.NewestPod,
+            result.NewestPodStartedAt,
+            result.NewestPodRestarts,
+            result.LastJudgedEnd,
+            result.StopStarted,
             RunId = run.RunId,
             RunBots = run.Bots.Count,
             Api = run.Api.ToString(),
@@ -250,6 +281,19 @@ public static class ReportWriter
             result.Steps,
             Notes = new
             {
+                result.ServerVersionChanged,
+                result.ServerPodChanged,
+                result.ServerChange,
+                result.ServerRestarted,
+                result.RestartProvenDuringRamp,
+                result.RestartedAfterLastJudgedStep,
+                result.RestartNotProvenAfter,
+                result.RestartNotProvenReason,
+                result.KubeNotScrapedSinceDrain,
+                result.Stands,
+                result.DoesNotStandReason,
+                RestartCheck = RestartCheckText(result.RestartCheck),
+                result.RestartCheckReason,
                 Blips = result.Steps.Where(step => step.Decision.Blip).Select(step => step.Index),
                 DropsMayBeGenerator = result.Steps.Where(step => step.Decision.DropsMayBeGenerator).Select(step => step.Index),
                 result.SignIns,
@@ -264,6 +308,28 @@ public static class ReportWriter
         };
         return JsonSerializer.Serialize(report, s_json);
     }
+
+    /// <summary>
+    /// The header's server version: the change during the ramp when one was seen; otherwise the version (marked when
+    /// read only at the end), with the restart check when it could not be made whole.
+    /// </summary>
+    private static string ServerVersionText(RampResult result)
+    {
+        if (result.ServerChange is { } change) return change;
+
+        string version = result.ServerVersion ??
+            (result.ServerVersionAtEnd is { } atEnd ? $"{atEnd} (read at the end)" : "unknown");
+        return result.RestartCheck == RestartCheck.Complete
+            ? version
+            : $"{version} (restart check: {RestartCheckText(result.RestartCheck)}, {result.RestartCheckReason})";
+    }
+
+    private static string RestartCheckText(RestartCheck check) => check switch
+    {
+        RestartCheck.Complete => "complete",
+        RestartCheck.Partial => "partial",
+        _ => "unknown",
+    };
 
     /// <summary>The bot PC's CPU model, or <c>unknown</c>.</summary>
     private static string CpuModel()

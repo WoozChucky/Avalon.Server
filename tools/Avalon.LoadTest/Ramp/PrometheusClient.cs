@@ -31,6 +31,12 @@ public sealed record ServerValues(
     double? TickP99Ms, double? Tps, double Drops, double? ReceiveBacklogMax, double? WorkingSetFraction, double? WorkingSetMb,
     double? Gen2PerMin, double? GcPauseFraction, double? SaveP95Ms, double? Instances);
 
+/// <summary>
+/// A world server process as Prometheus's <c>target_info</c> names it: its version, its pod's uid and its pod's name
+/// (null when the series carries none). A different pod uid is a restarted world, whatever its version.
+/// </summary>
+public sealed record ServerIdentity(string Version, string? PodUid, string? PodName);
+
 /// <summary>Prometheus could not answer a query the run needs.</summary>
 public sealed class PrometheusException(string message) : Exception(message);
 
@@ -116,22 +122,171 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             workingSet.Result is { } bytes ? bytes / (1024 * 1024) : null, gen2.Result, gcPause.Result, saveP95, instances.Result);
     }
 
-    /// <summary>The world server's version (<c>target_info</c>'s <c>service_version</c>); null when Prometheus has none.</summary>
-    public async Task<string?> ServerVersionAsync(CancellationToken ct)
+    /// <summary>
+    /// The world server now: <c>target_info</c>'s <c>service_version</c>, <c>k8s_pod_uid</c> and <c>k8s_pod_name</c>;
+    /// null when Prometheus has no version. A restarted world leaves the old process's series in the query's 5-minute lookback beside the new
+    /// one, so both come from the series with the newest sample; several series sharing that sample time are all named
+    /// (<c>0.18.7-dev.663, 0.18.7-dev.664</c>) rather than one guessed.
+    /// </summary>
+    public async Task<ServerIdentity?> ServerAsync(CancellationToken ct)
     {
+        JsonArray results;
         try
         {
-            JsonArray results = await QueryAsync($"target_info{{{_world}}}", DateTimeOffset.UtcNow, ct);
-            return results.Select(result => result is JsonObject { } series && series["metric"] is JsonObject metric
-                    ? metric["service_version"]?.ToString()
-                    : null)
-                .FirstOrDefault(version => !string.IsNullOrEmpty(version));
+            // timestamp() keeps every label but the metric name, so each series's version comes with its last sample time.
+            results = await QueryAsync($"timestamp(target_info{{{_world}}})", DateTimeOffset.UtcNow, ct);
         }
         catch (PrometheusException)
         {
             return null;
         }
+
+        double newest = double.NegativeInfinity;
+        var versions = new SortedSet<string>(StringComparer.Ordinal);
+        var pods = new SortedSet<string>(StringComparer.Ordinal);
+        var podNames = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (JsonNode? result in results)
+        {
+            if (result is not JsonObject { } series || series["metric"] is not JsonObject metric ||
+                metric["service_version"]?.ToString() is not { Length: > 0 } version ||
+                series["value"] is not JsonArray { Count: 2 } pair ||
+                !double.TryParse(pair[1]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double sampled) ||
+                !double.IsFinite(sampled) || sampled < newest)
+            {
+                continue;
+            }
+
+            if (sampled > newest)
+            {
+                newest = sampled;
+                versions.Clear();
+                pods.Clear();
+                podNames.Clear();
+            }
+
+            versions.Add(version);
+            if (metric["k8s_pod_uid"]?.ToString() is { Length: > 0 } pod) pods.Add(pod);
+            if (metric["k8s_pod_name"]?.ToString() is { Length: > 0 } podName) podNames.Add(podName);
+        }
+
+        return versions.Count == 0
+            ? null
+            : new ServerIdentity(string.Join(", ", versions), Joined(pods), Joined(podNames));
+
+        static string? Joined(SortedSet<string> values) => values.Count == 0 ? null : string.Join(", ", values);
     }
+
+    /// <summary>
+    /// How many times kube-state-metrics has seen the world server's container restart in its pod
+    /// (<c>kube_pod_container_status_restarts_total</c>): the pod whose uid is <paramref name="podUid"/> when given (a
+    /// <see cref="ServerIdentity.PodUid"/>, whatever its name), else the pod named by <c>--pod</c>, where a pod recreated
+    /// under the same name within the 5-minute lookback leaves the old pod's series beside the new one. With
+    /// <paramref name="over"/>, the highest count over that long, so a pod deleted since still answers. Null when
+    /// Prometheus has none or cannot be reached.
+    /// </summary>
+    public async Task<int?> ContainerRestartsAsync(string? podUid, TimeSpan? over, CancellationToken ct)
+    {
+        string series = $"kube_pod_container_status_restarts_total{{namespace=\"avalon\",container=\"{Container}\",{(podUid is null ? $"pod=\"{pod}\"" : UidMatcher("uid", podUid))}}}";
+        double? restarts = await ValueAsync(
+            over is { } range ? $"max(max_over_time({series}[{Seconds(range)}]))" : $"max({series})", DateTimeOffset.UtcNow, ct);
+        return restarts is { } value && double.IsFinite(value) ? (int)Math.Round(value) : null;
+    }
+
+    /// <summary>
+    /// When the world server's container last started (kube-state-metrics' <c>kube_pod_container_state_started</c>), on
+    /// the bot PC's clock: the newest start among the pods whose uid is in <paramref name="podUids"/> (comma-separated
+    /// <see cref="ServerIdentity.PodUid"/>s) and the pods named by <c>--pod</c>, so a pod replaced under the same name
+    /// shows before the new process's first <c>target_info</c> export does. Null when Prometheus has none or cannot be
+    /// reached.
+    /// </summary>
+    public async Task<DateTimeOffset?> ContainerStartedAsync(string? podUids, CancellationToken ct) =>
+        Instant(await ValueAsync($"max({StartedSeries(podUids)})", DateTimeOffset.UtcNow, ct));
+
+    /// <summary>
+    /// When kube-state-metrics was last scraped for the world server's container start (the sample time of
+    /// <see cref="ContainerStartedAsync"/>'s series), on the bot PC's clock; null when Prometheus has none.
+    /// </summary>
+    public async Task<DateTimeOffset?> ContainerStartScrapedAsync(string? podUids, CancellationToken ct) =>
+        // timestamp() of a selector is its sample's time; of an "or" expression it would be the query's.
+        Instant(await ValueAsync(
+            $"max({string.Join(" or ", StartedSeries(podUids).Split(" or ").Select(series => $"timestamp({series})"))})",
+            DateTimeOffset.UtcNow, ct));
+
+    /// <summary>
+    /// When the world server's container in the pod <paramref name="podUid"/> last ended
+    /// (<c>kube_pod_container_status_last_terminated_timestamp</c>; a series that exists only once it has restarted),
+    /// on the bot PC's clock; null when Prometheus has none.
+    /// </summary>
+    public async Task<DateTimeOffset?> ContainerLastTerminatedAsync(string podUid, CancellationToken ct) =>
+        Instant(await ValueAsync(
+            $"max(kube_pod_container_status_last_terminated_timestamp{{namespace=\"avalon\",container=\"{Container}\",{UidMatcher("uid", podUid)}}})",
+            DateTimeOffset.UtcNow, ct));
+
+    /// <summary>
+    /// The latest moment, over the last <paramref name="over"/>, at which the pod <paramref name="podUid"/>'s world
+    /// server was known to be up, on the bot PC's clock: its deletion request (<c>kube_pod_deletion_timestamp</c>, which
+    /// kube-state-metrics shows only while a pod terminates, so often never for a quick one) or its process's last
+    /// <c>target_info</c> export. The old process ended no earlier. Null when Prometheus has neither.
+    /// </summary>
+    public async Task<DateTimeOffset?> PodLastUpAsync(string podUid, TimeSpan over, CancellationToken ct)
+    {
+        string range = Seconds(over);
+        return Instant(await ValueAsync(
+            $"max(max_over_time(kube_pod_deletion_timestamp{{namespace=\"avalon\",{UidMatcher("uid", podUid)}}}[{range}]) or " +
+            $"max_over_time(timestamp(target_info{{{_world},{UidMatcher("k8s_pod_uid", podUid)}}})[{range}:15s]))",
+            DateTimeOffset.UtcNow, ct));
+    }
+
+    /// <summary>
+    /// The newest pod named by <c>--pod</c> (kube-state-metrics' <c>kube_pod_start_time</c>, the 5-minute lookback
+    /// holding a replaced pod beside its successor): its uid and its start, on the bot PC's clock; null when Prometheus
+    /// has none.
+    /// </summary>
+    public async Task<(string Uid, DateTimeOffset Started)?> NewestPodAsync(CancellationToken ct)
+    {
+        JsonArray results;
+        try
+        {
+            results = await QueryAsync($"kube_pod_start_time{{namespace=\"avalon\",pod=\"{pod}\"}}", DateTimeOffset.UtcNow, ct);
+        }
+        catch (PrometheusException)
+        {
+            return null;
+        }
+
+        (string Uid, DateTimeOffset Started)? newest = null;
+        foreach (JsonNode? result in results)
+        {
+            if (result is JsonObject { } series && series["metric"] is JsonObject metric &&
+                metric["uid"]?.ToString() is { Length: > 0 } uid && series["value"] is JsonArray { Count: 2 } pair &&
+                double.TryParse(pair[1]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) &&
+                Instant(seconds) is { } started && (newest is not { } current || started > current.Started))
+            {
+                newest = (uid, started);
+            }
+        }
+
+        return newest;
+    }
+
+    private string StartedSeries(string? podUids)
+    {
+        string started = $"kube_pod_container_state_started{{namespace=\"avalon\",container=\"{Container}\"";
+        return podUids is null ? $"{started},pod=\"{pod}\"}}" : $"{started},{UidMatcher("uid", podUids)}}} or {started},pod=\"{pod}\"}}";
+    }
+
+    /// <summary>
+    /// A matcher of <paramref name="label"/> (kube-state-metrics' <c>uid</c>, <c>target_info</c>'s <c>k8s_pod_uid</c>)
+    /// against pod uids, comma-separated (a tie in <see cref="ServerAsync"/>); uids are hex and dashes, safe in a regex.
+    /// </summary>
+    private static string UidMatcher(string label, string podUids) => $"{label}=~\"{string.Join('|', podUids.Split(", "))}\"";
+
+    private static string Seconds(TimeSpan span) => Math.Max(1, (int)Math.Ceiling(span.TotalSeconds)).ToString(CultureInfo.InvariantCulture) + "s";
+
+    /// <summary>A Unix time in seconds on Prometheus's clock as an instant on the bot PC's; null when it is no time.</summary>
+    private DateTimeOffset? Instant(double? seconds) => seconds is { } value && value is > 0 and <= 253_402_300_799
+        ? DateTimeOffset.UnixEpoch.AddSeconds(value) + _clockOffset
+        : null;
 
     /// <summary>The world's players online now.</summary>
     /// <exception cref="PrometheusException">Prometheus is unreachable or has no such series for the world.</exception>
