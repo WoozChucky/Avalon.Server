@@ -343,20 +343,20 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     }
 
     /// <summary>
-    /// The limits' values for a step: the server's, the bots' (admission = entry failures ÷ entry attempts, both counted
-    /// when an attempt ends, so a cancelled one counts in neither; 0 with no attempt) and the bot PC's.
+    /// The limits' values for a step: the server's, the bots' and the bot PC's. Admission is the bots that tried to
+    /// enter in the step and never got in there ÷ the bots that tried (<see cref="StepClientValues.BotsFailing"/>,
+    /// <see cref="StepClientValues.BotsTried"/>), each bot once however many attempts it made; 0 when none tried.
     /// </summary>
     public static IReadOnlyDictionary<LimitName, double?> Values(ServerValues server, StepClientValues client, double generatorCpu,
         double generatorLagP95Ms)
     {
-        int failures = client.EntryFailures.Values.Sum();
         return new Dictionary<LimitName, double?>
         {
             [LimitName.TickP99] = server.TickP99Ms,
             [LimitName.Tps] = server.Tps,
             [LimitName.AckP95] = client.AckP95,
             [LimitName.Drops] = server.Drops,
-            [LimitName.Admission] = client.EntryAttempts == 0 ? 0 : (double)failures / client.EntryAttempts,
+            [LimitName.Admission] = client.BotsTried == 0 ? 0 : (double)client.BotsFailing / client.BotsTried,
             [LimitName.Memory] = server.WorkingSetFraction,
             [LimitName.Gen2] = server.Gen2PerMin,
             [LimitName.GcPause] = server.GcPauseFraction,
@@ -561,6 +561,10 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             SignOutFailures = settle.SignOutFailures + judged.SignOutFailures,
             Disconnects = settle.Disconnects + judged.Disconnects,
             EntrySuccesses = settle.EntrySuccesses + judged.EntrySuccesses,
+            // The step's bots, settle and judged window together: one that failed in the settle and got in later in
+            // the step got in.
+            TriedBots = settle.TriedBots.Union(judged.TriedBots).ToHashSet(),
+            GotInBots = settle.GotInBots.Union(judged.GotInBots).ToHashSet(),
             // Percentiles of two windows do not merge: the slower of the two, an upper bound.
             EntryP95 = MaxFinite(settle.EntryP95, judged.EntryP95),
         };

@@ -268,8 +268,9 @@ Entering is the client's sequence. Each step has its own timeout:
 
 A failed entry is counted by kind (`<step>:<code>`, for example `join:ACTIVE_GAME_SESSION`, `admission:<result>`,
 `spawn:timeout`, `connect:tls`) and retried up to three times, after 1, 3 and 9 seconds, each retry taking over any
-session the failed attempt left. In a ramp, a bot whose last retry failed waits 30 seconds and starts again, its
-failures still counting against admission, so a bot never drops out quietly; `check` stops at the last failure.
+session the failed attempt left. In a ramp, a bot whose last retry failed waits 30 seconds and starts again, and in
+each step it tries without getting in it counts against admission once, so a bot never drops out quietly; `check`
+stops at the last failure.
 
 ### Behaviours
 
@@ -327,7 +328,7 @@ A step breaches a limit when its value is on the tripping side of the threshold.
 | `tps` | 58 | ticks/s | below | Prometheus: `avg_over_time(world_tick_rate_tps[w])` |
 | `ack-p95` | 150 | ms | above | Bots: the 95th percentile of input-to-ack latency over the judged window, over the input driver's inputs (an entry's `first-ack` probes are not samples). An input still unanswered when its slot is reused, about a second later, counts at its age then |
 | `drops` | 0 | count | above | Prometheus: `(sum(increase(network_out_dropped_total[w]) and network_out_dropped_total offset w) or vector(0)) + (sum(network_out_dropped_total unless network_out_dropped_total offset w) or vector(0))`, the packets a full outbox evicted. A packet type's series exists only from its first drop, and `increase` alone misses a new series' first sample, so a series already there at the window's start counts its increase and one first seen within the window counts its whole value |
-| `admission` | 0.01 | fraction | above | Bots: entry failures ÷ entry attempts over the whole step, settle included. Entries are first entries, re-entries, reconnects and character changes; sign-in and leave failures are not part of it |
+| `admission` | 0.01 | fraction | above | Bots: the bots that could not get into the world during the step ÷ the bots that tried, over the whole step, settle included. Each bot counts once: it tried when any entry attempt of its ended in the step, and got in when any of those succeeded, so a failure followed by a success in the step is a bot that got in, and a bot that only failed counts once however many retries it made. An attempt counts in the step its outcome lands in. Entries are first entries, re-entries, reconnects and character changes; sign-in and leave failures are not part of it. The step row also gives the attempts, the failed ones and the failures by kind |
 | `memory` | 0.85 | fraction | above | Prometheus: `max(dotnet_process_memory_working_set_bytes)` ÷ `kube_pod_container_resource_limits{namespace="avalon",pod=<--pod>,container="avalon-world",resource="memory"}`, at the hold's end |
 | `gen2` | 1 | per minute | above | Prometheus: `sum(increase(dotnet_gc_collections_total{gc_heap_generation="gen2"}[w])) * 60 / w` |
 | `gc-pause` | 0.05 | fraction | above | Prometheus: `sum(rate(dotnet_gc_pause_time_seconds_total[w]))`, the share of the window the GC paused the process |
@@ -434,8 +435,8 @@ the exit code still follows the verdict.
   - live bots, by behaviour; bots in the world at the hold's end; players online less the count before the ramp;
   - map instances; tick p99; average TPS; ack p50, p95 and p99; drops; the deepest receive backlog of any
     connection; working set (MB and % of the limit); gen2 per minute; GC pause; save p95;
-  - entries and entry failures, and failures by kind; leave failures by kind and sign-in failures by kind (both apart
-    from admission); disconnects;
+  - admission as bots that never got in ÷ bots that tried; entry attempts and failed attempts, and failures by kind;
+    leave failures by kind and sign-in failures by kind (both apart from admission); disconnects;
   - the bot PC's CPU and the driver's lateness p95;
   - the verdict: `pass`, `pass (blip)`, `re-hold (<breaches, or unknown: names>)`, `stop (...)`,
     `stop, unknown (...)`, or `pass, the last step`. A value Prometheus did not give reads `n/a`.

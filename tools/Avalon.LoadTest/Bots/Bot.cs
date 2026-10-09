@@ -277,14 +277,14 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             catch (Exception error) when (error is not BotStepException)
             {
                 // Something no step maps: counted and closed like any failure, and not retried.
-                metrics.EntryFailed("entry:unexpected");
+                metrics.EntryFailed(index, "entry:unexpected");
                 await CloseAsync();
                 _state = BotState.SignedIn;
                 throw;
             }
             catch (BotStepException error)
             {
-                metrics.EntryFailed(error.Kind);
+                metrics.EntryFailed(index, error.Kind);
                 await CloseAsync();
                 _state = BotState.SignedIn;
                 if (attempt == s_entryBackoff.Length) throw;
@@ -323,16 +323,16 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             _noLeaveOn = connection;
 
             await SelectAsync(connection, ct);
-            metrics.EntrySucceeded(Stopwatch.GetElapsedTime(start));
+            metrics.EntrySucceeded(index, Stopwatch.GetElapsedTime(start));
         }
         catch (BotStepException error)
         {
-            metrics.EntryFailed(error.Kind);
+            metrics.EntryFailed(index, error.Kind);
             throw;
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
-            metrics.EntryFailed("change:unexpected");
+            metrics.EntryFailed(index, "change:unexpected");
             throw;
         }
     }
@@ -519,7 +519,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
         await SelectAsync(connection, ct);
         TimeSpan entry = Stopwatch.GetElapsedTime(issued);
-        metrics.EntrySucceeded(entry);
+        metrics.EntrySucceeded(index, entry);
         StepTimed?.Invoke("entry", entry);
     }
 

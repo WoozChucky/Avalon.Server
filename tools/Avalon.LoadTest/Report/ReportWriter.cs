@@ -127,8 +127,8 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Live bots (idle / walker / churner) | In world at hold end | Players online − start | Instances | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Step | Live bots (idle / walker / churner) | In world at hold end | Players online − start | Instances | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
             ServerValues s = step.Server;
@@ -157,6 +157,7 @@ public static class ReportWriter
                 Number(s.Gen2PerMin, "0.##"),
                 Percent(s.GcPauseFraction, "0.##"),
                 Ms(s.SaveP95Ms, "0"),
+                Invariant($"{c.BotsFailing} / {c.BotsTried}"),
                 Invariant($"{c.EntryAttempts} / {failed}"),
                 kinds,
                 leaves,

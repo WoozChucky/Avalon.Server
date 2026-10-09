@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Text.Json.Serialization;
 
 namespace Avalon.LoadTest.Bots;
 
@@ -16,8 +17,10 @@ namespace Avalon.LoadTest.Bots;
 /// whole: a recorder registers on the window it read (<see cref="Enter"/>) and moves to the new one if that was
 /// swapped meanwhile, and <see cref="TakeWindow"/> waits for the recorders still registered on the window it closed
 /// before reading it. Entry attempts are not a counter of their own but successes plus failures, so the two always
-/// agree. Ack samples are not gated: they feed percentiles, and a sample landing in the closed window just after it
-/// was read is one sample fewer, not a miscount. An entry time is written with its success, inside the gate.
+/// agree. The bots that tried to enter and those that got in (admission's sets, by bot index) are noted with each
+/// outcome inside the gate too, so a bot's success always lands in the same window as its being counted as tried.
+/// Ack samples are not gated: they feed percentiles, and a sample landing in the closed window just after it was read
+/// is one sample fewer, not a miscount. An entry time is written with its success, inside the gate.
 /// </para>
 /// <para>
 /// An input's send time is kept per bot in a ring of <see cref="RingSize"/> slots indexed by <c>seq % 64</c>; its ack
@@ -65,17 +68,20 @@ public sealed class BotMetrics
     }
 
     /// <summary>
-    /// An attempt to reach the world (an entry, or a change of character) reached it, <paramref name="ticketToFirstAck"/>
-    /// after its join ticket was issued. An attempt is counted with its outcome, in the window the outcome lands in, so
-    /// one that ends neither way (cancelled) counts nowhere and failures ÷ attempts is never diluted.
+    /// An attempt of <paramref name="bot"/> to reach the world (an entry, or a change of character) reached it,
+    /// <paramref name="ticketToFirstAck"/> after its join ticket was issued. An attempt is counted with its outcome, in
+    /// the window the outcome lands in, so one that ends neither way (cancelled) counts nowhere. The bot is noted as
+    /// having tried and got in within that window, whatever else it did there.
     /// </summary>
-    public void EntrySucceeded(TimeSpan ticketToFirstAck)
+    public void EntrySucceeded(int bot, TimeSpan ticketToFirstAck)
     {
         Window window = Enter();
         try
         {
             Interlocked.Increment(ref window.EntrySuccesses);
             window.Entries.Add(ticketToFirstAck.TotalMilliseconds);
+            window.BotsTried.TryAdd(bot, 0);
+            window.BotsGotIn.TryAdd(bot, 0);
         }
         finally
         {
@@ -84,15 +90,18 @@ public sealed class BotMetrics
     }
 
     /// <summary>
-    /// An attempt to reach the world failed, counted as an attempt too; <paramref name="kind"/> names the step and what
-    /// went wrong (<c>join:ACTIVE_GAME_SESSION</c>, <c>spawn:timeout</c>, ...).
+    /// An attempt of <paramref name="bot"/> to reach the world failed, counted as an attempt too;
+    /// <paramref name="kind"/> names the step and what went wrong (<c>join:ACTIVE_GAME_SESSION</c>,
+    /// <c>spawn:timeout</c>, ...). The bot is noted as having tried within the window, once however many of its
+    /// attempts fail there.
     /// </summary>
-    public void EntryFailed(string kind)
+    public void EntryFailed(int bot, string kind)
     {
         Window window = Enter();
         try
         {
             window.EntryFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
+            window.BotsTried.TryAdd(bot, 0);
         }
         finally
         {
@@ -190,6 +199,8 @@ public sealed class BotMetrics
             EntryP95 = Percentile(entries, 0.95),
             LeaveFailures = new Dictionary<string, int>(closed.LeaveFailures, StringComparer.Ordinal),
             SignOutFailures = (int)Volatile.Read(ref closed.SignOutFailures),
+            TriedBots = closed.BotsTried.Keys.ToHashSet(),
+            GotInBots = closed.BotsGotIn.Keys.ToHashSet(),
         };
     }
 
@@ -225,6 +236,12 @@ public sealed class BotMetrics
         public readonly ConcurrentDictionary<string, int> EntryFailures = new(StringComparer.Ordinal);
         public readonly ConcurrentDictionary<string, int> LeaveFailures = new(StringComparer.Ordinal);
         public readonly ConcurrentDictionary<string, int> SignInFailures = new(StringComparer.Ordinal);
+
+        /// <summary>The bots with an entry attempt that ended in the window, by index.</summary>
+        public readonly ConcurrentDictionary<int, byte> BotsTried = new();
+
+        /// <summary>The bots with an entry attempt that succeeded in the window: a subset of <see cref="BotsTried"/>.</summary>
+        public readonly ConcurrentDictionary<int, byte> BotsGotIn = new();
         public long EntrySuccesses;
 
         /// <summary>Recorders registered on the window (<see cref="Enter"/>); read once they are gone.</summary>
@@ -333,4 +350,21 @@ public sealed record StepClientValues(
 
     /// <summary>Failed sign-outs of game contexts.</summary>
     public int SignOutFailures { get; init; }
+
+    /// <summary>The bots, by index, with an entry attempt that ended in the window; the report gives their count.</summary>
+    [JsonIgnore]
+    public IReadOnlySet<int> TriedBots { get; init; } = new HashSet<int>();
+
+    /// <summary>The bots, by index, with an entry attempt that succeeded in the window.</summary>
+    [JsonIgnore]
+    public IReadOnlySet<int> GotInBots { get; init; } = new HashSet<int>();
+
+    /// <summary>Bots that tried to enter in the window (an attempt of theirs ended there), each once.</summary>
+    public int BotsTried => TriedBots.Count;
+
+    /// <summary>
+    /// Bots that tried to enter in the window and never got in there: every attempt of theirs that ended in it failed.
+    /// A bot whose failure and later success both fall in the window got in.
+    /// </summary>
+    public int BotsFailing => TriedBots.Count(bot => !GotInBots.Contains(bot));
 }
