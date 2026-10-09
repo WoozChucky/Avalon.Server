@@ -26,6 +26,14 @@ public interface IAvalonCryptoSession
     byte[] GetPublicKey();
     byte[] GetOtherEndPublicKey();
     byte[] Encrypt(ReadOnlySpan<byte> data);
+
+    /// <summary>
+    /// <see cref="Encrypt" /> as an <see cref="EncryptFunc" />, created once with the session. Every send passes this
+    /// rather than the method group <c>Encrypt</c>: a method group is a new delegate each time it is converted, and
+    /// whether the JIT keeps that on the stack depends on how far it has optimised the caller (#854).
+    /// </summary>
+    EncryptFunc Encryptor { get; }
+
     int Decrypt(ReadOnlySpan<byte> data, byte[] output);
     byte[] GenerateHandshakeData();
 }
@@ -94,6 +102,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     public AvalonCryptoSession(CryptoRole role, AsymmetricCipherKeyPair? keyPair = null)
     {
         _initialized = false;
+        Encryptor = Encrypt;
         _role = role;
         _secureRandom = new SecureRandom();
         _ownKeyPair = keyPair ?? AsymmetricCipher.GenerateECDHKeyPair(256);
@@ -146,6 +155,8 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     {
         return _otherEndPublicKeyBytes;
     }
+
+    public EncryptFunc Encryptor { get; }
 
     public byte[] Encrypt(ReadOnlySpan<byte> data)
     {

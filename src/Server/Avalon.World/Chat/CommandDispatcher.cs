@@ -74,7 +74,7 @@ public sealed class CommandDispatcher : ICommandDispatcher
         {
             // Type name only — the message and stack stay in the log.
             connection.Send(SChatMessagePacket.System($"Command /{command.Name} failed: {ex.GetType().Name}.",
-                packet.DateTime, connection.CryptoSession.Encrypt));
+                packet.DateTime, connection.CryptoSession.Encryptor));
         }
     }
 }

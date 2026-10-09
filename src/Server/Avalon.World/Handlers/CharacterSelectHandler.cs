@@ -570,7 +570,7 @@ public class CharacterSelectHandler(
             Description = townTemplate.Description
         };
 
-        connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encrypt));
+        connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encryptor));
 
         // Send chunk layout so the client can compose the stitched map
         // and bake its local navmesh. Town + normal both flow through
@@ -600,7 +600,7 @@ public class CharacterSelectHandler(
                 dtos,
                 layout.EntrySpawnWorldPos,
                 portalDtos,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
         }
 
         Step(connection, select, _databaseWork.Run(() => characterRepository.UpdateForGameplayAsync(entity.GameplayAuthority!, character, CancellationToken.None)), _ =>
@@ -670,7 +670,7 @@ public class CharacterSelectHandler(
             .. ToDtos(InventoryType.Bag, entity[InventoryType.Bag].Items),
         ];
 
-        connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encrypt));
+        connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encryptor));
 
         Step(connection, select, _databaseWork.Run(() => characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None)),
             spells => OnSpellsReceived(connection, select, entity, instance, spells));
@@ -744,7 +744,7 @@ public class CharacterSelectHandler(
             AmountMax = amounts[i].Max,
         }).ToArray();
 
-        connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));
+        connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encryptor));
 
         // #433: the quest log, then the pending spawn. No repository (tests that build the handler without one) is
         // an empty log, as a character that never took a quest has.
@@ -770,7 +770,7 @@ public class CharacterSelectHandler(
     {
         if (ignoreRepository is null)
         {
-            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
+            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encryptor));
             LoadAuras(connection, select, entity, instance);
             return;
         }
@@ -778,7 +778,7 @@ public class CharacterSelectHandler(
         Step(connection, select, _databaseWork.Run(() => ignoreRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None)), rows =>
         {
             entity.Ignores.Load(rows);
-            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encrypt));
+            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encryptor));
             LoadAuras(connection, select, entity, instance);
         });
     }

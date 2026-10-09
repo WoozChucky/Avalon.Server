@@ -173,7 +173,7 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
                 spawnX, spawnY, spawnZ,
                 townTemplate.Name,
                 townTemplate.Description,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
 
             // Mirror EnterMapHandler.OnInstanceReceived: every chunk-layout-built instance ships
             // its layout to the client, which bakes the same navmesh from it and builds the map's
@@ -203,7 +203,7 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
                     dtos,
                     layout.EntrySpawnWorldPos,
                     portalDtos,
-                    connection.CryptoSession.Encrypt));
+                    connection.CryptoSession.Encryptor));
             }
 
             logger.LogInformation("Character {Name} returned to town {Map} instance {Instance}",

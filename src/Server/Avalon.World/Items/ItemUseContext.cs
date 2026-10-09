@@ -228,11 +228,11 @@ public sealed class ItemUseContext(
 
     // Messages.
     public void Tell(string line) => connection.Send(SChatMessagePacket.System(line,
-        tools.Time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encrypt));
+        tools.Time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encryptor));
 
     // A script's line, not a character's: no character id and class 0 (#763).
     public void Whisper(string from, string text) => connection.Send(SChatMessagePacket.Create(0UL, 0UL, from, text,
-        tools.Time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encrypt, ChatChannel.Whisper));
+        tools.Time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encryptor, ChatChannel.Whisper));
 
     /// <summary>
     /// The ability to cast: one the user holds, refused while its cooldown runs even when free; or, from the catalog,

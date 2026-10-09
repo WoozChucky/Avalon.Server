@@ -25,7 +25,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
             if (!commandDispatcher.Dispatch(connection, packet))
             {
                 connection.Send(SChatMessagePacket.System("Unknown command.", packet.DateTime,
-                    connection.CryptoSession.Encrypt));
+                    connection.CryptoSession.Encryptor));
             }
 
             return;
@@ -40,7 +40,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
         {
             connection.Send(SChatMessagePacket.System(ChatRateLimiter.TooFast(retryAfter), packet.DateTime,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
@@ -50,7 +50,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         {
             // Nowhere to say it: the sender still sees its own line.
             connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
-                connection.CryptoSession.Encrypt, characterClass: (ushort)sender.Class));
+                connection.CryptoSession.Encryptor, characterClass: (ushort)sender.Class));
             rateLimiter.Record(sender.Guid.Id);
             return;
         }
@@ -63,7 +63,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
                 continue;
 
             target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
-                target.CryptoSession.Encrypt, characterClass: (ushort)sender.Class));
+                target.CryptoSession.Encryptor, characterClass: (ushort)sender.Class));
         }
     }
 }

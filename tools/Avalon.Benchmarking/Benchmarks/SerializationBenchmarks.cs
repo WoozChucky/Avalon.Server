@@ -48,7 +48,7 @@ public class SerializationBenchmarks
         _server.Initialize(clientPublicKeyBytes);
 
         _encryptedPacket = new MemoryStream();
-        Serializer.SerializeWithLengthPrefix(_encryptedPacket, CCharacterListPacket.Create(_client.Encrypt), PrefixStyle.Base128);
+        Serializer.SerializeWithLengthPrefix(_encryptedPacket, CCharacterListPacket.Create(_client.Encryptor), PrefixStyle.Base128);
         _encryptedPacket.Seek(0, SeekOrigin.Begin);
     }
 
@@ -65,7 +65,7 @@ public class SerializationBenchmarks
     [Benchmark]
     public void Serialize_Encrypted()
     {
-        NetworkPacket packet = CCharacterListPacket.Create(_client.Encrypt);
+        NetworkPacket packet = CCharacterListPacket.Create(_client.Encryptor);
 
         using var memoryStream = new MemoryStream();
 

@@ -1,6 +1,6 @@
+using Avalon.Common.Cryptography;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
-using Avalon.Network.Packets.Serialization;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Testing.Scenarios;
 
@@ -20,7 +20,7 @@ public class ScenarioConnectionShould
         var sealedConnection = new ScenarioConnection(TestCharacters.New(650_001));
         var plainConnection = new ScenarioConnection(TestCharacters.New(650_002));
 
-        sealedConnection.Send(Ack(sealedConnection.CryptoSession.Encrypt));
+        sealedConnection.Send(Ack(sealedConnection.CryptoSession.Encryptor));
         plainConnection.Send(Ack(plaintext => plaintext.ToArray()));
         Assert.Equal(0, sealedConnection.BytesWritten); // queued, not written
 

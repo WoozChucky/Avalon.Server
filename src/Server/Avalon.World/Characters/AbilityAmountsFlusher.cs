@@ -52,6 +52,6 @@ public static class AbilityAmountsFlusher
             i++;
         }
 
-        connection.Send(SCharacterAbilityAmountsPacket.Create(infos, connection.CryptoSession.Encrypt));
+        connection.Send(SCharacterAbilityAmountsPacket.Create(infos, connection.CryptoSession.Encryptor));
     }
 }

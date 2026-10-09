@@ -58,6 +58,6 @@ public class VendorBuyHandler(
             result = VendorResult.NotFound;
         }
 
-        connection.Send(SVendorResultPacket.Create(packet.RequestId, result, connection.CryptoSession.Encrypt));
+        connection.Send(SVendorResultPacket.Create(packet.RequestId, result, connection.CryptoSession.Encryptor));
     }
 }

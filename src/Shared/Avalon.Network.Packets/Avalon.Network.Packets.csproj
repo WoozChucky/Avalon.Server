@@ -16,6 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- EncryptFunc, which every packet's Create takes, is declared beside the session in Avalon.Common. -->
+    <Using Include="Avalon.Common.Cryptography"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\..\..\sgKey.snk">
       <Link>sgKey.snk</Link>
     </None>

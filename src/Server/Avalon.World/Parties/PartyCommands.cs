@@ -180,7 +180,7 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
             if (parties.OnlineConnection(member.Id.Value) is { } target && !Ignoring.Hides(target, sender.Guid.Id))
             {
                 target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
-                    target.CryptoSession.Encrypt, ChatChannel.Party, characterClass: (ushort)sender.Class));
+                    target.CryptoSession.Encryptor, ChatChannel.Party, characterClass: (ushort)sender.Class));
             }
         }
 

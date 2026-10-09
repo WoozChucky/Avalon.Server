@@ -35,6 +35,10 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
     protected readonly ILogger _logger;
     private readonly IPacketReader _packetReader;
 
+    // CryptoSession.Decrypt as a delegate, created once. Passing the method group per packet made a new delegate per
+    // packet, and it escapes into IPacketReader.Read, so no JIT tier keeps it off the heap (#854).
+    private readonly DecryptFunc _decrypt;
+
     protected readonly IServerBase Server;
 
     private TcpClient? _client;
@@ -65,7 +69,9 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
         // A shared server key pair made that reachable from the far end alone, by a client that
         // reused its own key pair, and neither end could see it happen.
         ServerCrypto = new CryptoManager();
-        CryptoSession = new AvalonCryptoSession(CryptoRole.Server, ServerCrypto.GetKeyPair());
+        var session = new AvalonCryptoSession(CryptoRole.Server, ServerCrypto.GetKeyPair());
+        CryptoSession = session;
+        _decrypt = session.Decrypt;
         Id = Guid.NewGuid();
         ConnectionRateRegistry.Shared.Track(this);
     }
@@ -255,7 +261,7 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
 
                     Packet? payload = _packetReader.Read(
                         frame,
-                        frame.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? CryptoSession.Decrypt : null);
+                        frame.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? _decrypt : null);
 
                     int packetSize = frame.Size;
                     Interlocked.Add(ref BytesReceivedCount, packetSize);

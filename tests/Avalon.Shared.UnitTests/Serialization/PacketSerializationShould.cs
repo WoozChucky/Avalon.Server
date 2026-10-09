@@ -1,5 +1,5 @@
+using Avalon.Common.Cryptography;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using ProtoBuf;
 using Xunit;

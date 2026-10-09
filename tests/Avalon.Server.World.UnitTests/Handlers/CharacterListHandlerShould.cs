@@ -80,10 +80,13 @@ public class CharacterListHandlerShould : IDisposable
 
     private sealed class EchoCryptoSession : IAvalonCryptoSession
     {
+        public EchoCryptoSession() => Encryptor = Encrypt;
+
         public void Initialize(byte[] otherEndPublicKeyBytes) { }
         public byte[] GetPublicKey() => [];
         public byte[] GetOtherEndPublicKey() => [];
         public byte[] Encrypt(ReadOnlySpan<byte> data) => data.ToArray();
+        public EncryptFunc Encryptor { get; }
         public int Decrypt(ReadOnlySpan<byte> data, byte[] output) => 0;
         public byte[] GenerateHandshakeData() => [];
     }

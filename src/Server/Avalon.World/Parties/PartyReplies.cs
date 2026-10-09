@@ -36,7 +36,7 @@ public static class PartyReplies
     }
 
     public static void Answer(IWorldConnection connection, PartyResult result, string? name) =>
-        connection.Send(SPartyResultPacket.Create(result, name, connection.CryptoSession.Encrypt));
+        connection.Send(SPartyResultPacket.Create(result, name, connection.CryptoSession.Encryptor));
 
     public static string? Describe(PartyResult result, string? name) => result switch
     {

@@ -27,6 +27,6 @@ public static class CharacterSheetFlusher
             return;
 
         character.SheetSent = sheet;
-        connection.Send(SCharacterStatsPacket.Create(sheet.ToPacket(), connection.CryptoSession.Encrypt));
+        connection.Send(SCharacterStatsPacket.Create(sheet.ToPacket(), connection.CryptoSession.Encryptor));
     }
 }

@@ -437,7 +437,9 @@ public class SessionKeyDerivationShould
 
     /// <summary>
     /// Every packet in both directions goes through here, so the cost is per packet: sealing
-    /// allocates the sealed packet and nothing else, and opening allocates nothing at all.
+    /// allocates the sealed packet and nothing else, and opening allocates nothing at all. Sealing
+    /// goes through <c>Encryptor</c>, as every send does, so a getter that made a new delegate per
+    /// read would show here too (#854).
     /// </summary>
     [Fact]
     public void AllocateOnlyTheSealedPacketToSealAndNothingToOpen()
@@ -459,7 +461,7 @@ public class SessionKeyDerivationShould
 
         before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < Runs; i++)
-            sealedPacket = client.Encrypt(plaintext);
+            sealedPacket = client.Encryptor(plaintext);
         long sealing = GC.GetAllocatedBytesForCurrentThread() - before;
 
         before = GC.GetAllocatedBytesForCurrentThread();

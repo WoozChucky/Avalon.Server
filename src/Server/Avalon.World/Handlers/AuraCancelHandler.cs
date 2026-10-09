@@ -39,6 +39,6 @@ public class AuraCancelHandler(IWorld world, ILogger<AuraCancelHandler> logger) 
             result = AuraCancelResult.NotFound;
         }
 
-        connection.Send(SAuraCancelResultPacket.Create(packet.AuraId, result, connection.CryptoSession.Encrypt));
+        connection.Send(SAuraCancelResultPacket.Create(packet.AuraId, result, connection.CryptoSession.Encryptor));
     }
 }

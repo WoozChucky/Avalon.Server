@@ -90,6 +90,6 @@ public static class NpcInteraction
         if (connection.Character is CharacterEntity character)
             character.CloseNpcWindows();
 
-        connection.Send(SDialogueEndPacket.Create(npc.RawValue, connection.CryptoSession.Encrypt));
+        connection.Send(SDialogueEndPacket.Create(npc.RawValue, connection.CryptoSession.Encryptor));
     }
 }

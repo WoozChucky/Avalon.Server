@@ -35,6 +35,6 @@ public class CMFASetupHandler : IAuthPacketHandler<CMFASetupPacket>
         ctx.Connection.Send(SMFASetupPacket.Create(
             result.OtpUri ?? string.Empty,
             result.Status,
-            ctx.Connection.CryptoSession.Encrypt));
+            ctx.Connection.CryptoSession.Encryptor));
     }
 }

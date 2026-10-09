@@ -15,7 +15,7 @@ public sealed class WorldHandshakeHandler(IWorld world) : IWorldPacketHandler<CW
             return ctx.Connection.CloseAsync(false);
         }
 
-        connection.Send(SWorldHandshakePacket.Create(connection.AccountId!, true, connection.CryptoSession.Encrypt));
+        connection.Send(SWorldHandshakePacket.Create(connection.AccountId!, true, connection.CryptoSession.Encryptor));
         connection.RequestInitialTimeSyncPing();
         return Task.CompletedTask;
     }

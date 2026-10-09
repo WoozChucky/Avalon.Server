@@ -30,7 +30,7 @@ public static class MapArrival
         IChunkLibrary chunkLibrary)
     {
         connection.Send(SMapTransitionPacket.Create(MapTransitionResult.Success, instance.InstanceId, template.Id.Value,
-            at.x, at.y, at.z, template.Name, template.Description, connection.CryptoSession.Encrypt));
+            at.x, at.y, at.z, template.Name, template.Description, connection.CryptoSession.Encryptor));
 
         if (instance is not MapInstance { Layout: { } layout } built)
             return;
@@ -51,6 +51,6 @@ public static class MapArrival
             TargetMapId = p.TargetMapId,
         }).ToList();
         connection.Send(SChunkLayoutPacket.Create(layout.Seed, built.InstanceId, template.Id.Value, layout.CellSize, chunks,
-            layout.EntrySpawnWorldPos, portals, connection.CryptoSession.Encrypt));
+            layout.EntrySpawnWorldPos, portals, connection.CryptoSession.Encryptor));
     }
 }

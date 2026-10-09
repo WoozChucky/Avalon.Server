@@ -176,7 +176,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         _invites[targetId] = invite;
         targetConnection.Send(SPartyInvitePacket.Create(inviter.Name, (ushort)inviter.Class, inviter.Level,
-            (uint)timeout.TotalMilliseconds, targetConnection.CryptoSession.Encrypt));
+            (uint)timeout.TotalMilliseconds, targetConnection.CryptoSession.Encryptor));
         return PartyResult.Ok;
     }
 
@@ -325,7 +325,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     public void SendLine(uint characterId, string text)
     {
         if (OnlineConnection(characterId) is { } connection)
-            connection.Send(SChatMessagePacket.System(text, time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encrypt));
+            connection.Send(SChatMessagePacket.System(text, time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encryptor));
     }
 
     public void SendLine(Party party, string text)
@@ -457,7 +457,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
                     }
 
                     connection.Send(SPartyMemberStatusPacket.Create(id, status.Health, status.MaxHealth, status.Power,
-                        status.MaxPower, status.PowerType, status.IsDead, connection.CryptoSession.Encrypt));
+                        status.MaxPower, status.PowerType, status.IsDead, connection.CryptoSession.Encryptor));
                 }
             }
         }
@@ -637,7 +637,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
 
         if (connection.Character is CharacterEntity entity)
             entity.PartyId = null;
-        connection.Send(SPartyRosterPacket.Empty(connection.CryptoSession.Encrypt));
+        connection.Send(SPartyRosterPacket.Empty(connection.CryptoSession.Encryptor));
     }
 
     /// <summary>To the longest-standing online member other than the current leader; if none is online, the leader stays.</summary>
@@ -729,7 +729,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     private void Tell(uint characterId, PartyResult result, string? name)
     {
         if (OnlineConnection(characterId) is { } connection)
-            connection.Send(SPartyResultPacket.Create(result, name, connection.CryptoSession.Encrypt));
+            connection.Send(SPartyResultPacket.Create(result, name, connection.CryptoSession.Encryptor));
     }
 
     private void SendRoster(Party party)
@@ -766,7 +766,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             }
 
             connection.Send(SPartyRosterPacket.Create(party.Id.Value, party.ExperienceMode, lockedForMs, members,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
         }
     }
 

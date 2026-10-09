@@ -46,7 +46,7 @@ public class EnterMapHandler(
         {
             logger.LogDebug("EnterMap: {Name} is already moving to a map; refused", character.Name);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MoveInProgress,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
@@ -61,7 +61,7 @@ public class EnterMapHandler(
         {
             logger.LogDebug("EnterMap: target map {MapId} not found", packet.TargetMapId);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
@@ -74,7 +74,7 @@ public class EnterMapHandler(
             logger.LogError("EnterMap: current instance has no Layout; refusing teleport for character {Name}",
                 character.Name);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
@@ -83,7 +83,7 @@ public class EnterMapHandler(
         {
             logger.LogDebug("EnterMap: no portal to {TargetMapId}", packet.TargetMapId);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
@@ -101,7 +101,7 @@ public class EnterMapHandler(
                 Vector3.Distance(character.Position, portalPosition), portalRadius,
                 character.InstanceId, packet.TargetMapId);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.NotNearPortal,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
@@ -109,14 +109,14 @@ public class EnterMapHandler(
         if (targetTemplate.MinLevel.HasValue && character.Level < targetTemplate.MinLevel.Value)
         {
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.LevelTooLow,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
         if (targetTemplate.MaxLevel.HasValue && character.Level > targetTemplate.MaxLevel.Value)
         {
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.LevelTooHigh,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
@@ -164,7 +164,7 @@ public class EnterMapHandler(
         if (parties?.PartyOf(character.Guid.Id)?.Id.Equals(partyId) != true)
         {
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
@@ -173,7 +173,7 @@ public class EnterMapHandler(
         if (targetInstance.PlayerCount >= capacity)
         {
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.InstanceFull,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             return;
         }
 
@@ -230,7 +230,7 @@ public class EnterMapHandler(
             spawnX, spawnY, spawnZ,
             targetTemplate.Name,
             targetTemplate.Description,
-            connection.CryptoSession.Encrypt));
+            connection.CryptoSession.Encryptor));
 
         // 12. Send chunk layout packet for any instance backed by a ChunkLayout
         // (town + normal both flow through ChunkLayoutInstanceFactory now).
@@ -259,7 +259,7 @@ public class EnterMapHandler(
                 dtos,
                 layout.EntrySpawnWorldPos,
                 portalDtos,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
         }
 
         // 13. Persist updated map and position, with any dirty inventory and money, through the one

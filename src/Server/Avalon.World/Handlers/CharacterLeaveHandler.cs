@@ -132,5 +132,5 @@ public class CharacterLeaveHandler(ILogger<CharacterLeaveHandler> logger, IWorld
     }
 
     private static void Answer(IWorldConnection connection, CharacterLeaveResult result) =>
-        connection.Send(SCharacterLeaveResultPacket.Create(result, connection.CryptoSession.Encrypt));
+        connection.Send(SCharacterLeaveResultPacket.Create(result, connection.CryptoSession.Encryptor));
 }

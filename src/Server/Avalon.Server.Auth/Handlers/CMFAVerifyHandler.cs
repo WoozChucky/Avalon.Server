@@ -37,13 +37,13 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
         switch (attempt.Result)
         {
             case MfaCodeCheck.SourceRefused or MfaCodeCheck.UsernameRefused or MfaCodeCheck.Locked:
-                ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
+                ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encryptor));
                 return;
             case MfaCodeCheck.HashGone or MfaCodeCheck.HashSpent or MfaCodeCheck.AccountMissing or MfaCodeCheck.Replayed:
-                ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.MFA_FAILED, ctx.Connection.CryptoSession.Encrypt));
+                ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.MFA_FAILED, ctx.Connection.CryptoSession.Encryptor));
                 return;
             case MfaCodeCheck.WrongCode:
-                ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), ctx.Connection.CryptoSession.Encrypt));
+                ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), ctx.Connection.CryptoSession.Encryptor));
 
                 // Written after the reply, as a wrong password is. The failure in the budget's last
                 // slot locks the account, and the row is written whatever the hold does (a hold error
@@ -63,7 +63,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
         {
             _logger.LogWarning("Account {AccountId} refused at MFA verify while {Status}", account.Id, account.Status);
             AuthResult refusal = account.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, refusal, ctx.Connection.CryptoSession.Encrypt));
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, refusal, ctx.Connection.CryptoSession.Encryptor));
             return;
         }
 

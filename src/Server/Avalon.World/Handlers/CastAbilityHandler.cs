@@ -188,5 +188,5 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
     private static void Refuse(IWorldConnection connection, CCastAbilityPacket packet, CastRejectReason reason,
         uint cooldownMs = 0u) =>
         connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, reason, cooldownMs,
-            connection.CryptoSession.Encrypt));
+            connection.CryptoSession.Encryptor));
 }

@@ -33,6 +33,6 @@ public static class QuestReplies
             result = QuestResult.Error;
         }
 
-        connection.Send(SQuestResultPacket.Create(result, questId, connection.CryptoSession.Encrypt));
+        connection.Send(SQuestResultPacket.Create(result, questId, connection.CryptoSession.Encryptor));
     }
 }
