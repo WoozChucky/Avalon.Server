@@ -59,6 +59,8 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     private static readonly TimeSpan s_firstAckProbeInterval = TimeSpan.FromMilliseconds(50);
 
     private readonly Lock _ackLock = new();
+    private readonly CancellationTokenSource _gaveUp = new();
+    private volatile GameContext? _context;
     private volatile BotState _state = BotState.SignedOut;
     private volatile WorldConnection? _connection;
     private volatile TaskCompletionSource? _firstAck;
@@ -72,7 +74,11 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// <summary>The account's username, which is also the character's name.</summary>
     public string Account => account;
 
-    public BotState State => _state;
+    /// <summary>The bot's state; <see cref="BotState.Stopped"/> for good once it gave up (<see cref="SignInAgainAsync"/>).</summary>
+    public BotState State => _gaveUp.IsCancellationRequested ? BotState.Stopped : _state;
+
+    /// <summary>Cancelled when the bot gives up for good: whatever it is doing for itself stops.</summary>
+    public CancellationToken GaveUp => _gaveUp.Token;
 
     /// <summary>What the bot does in the world; set before it enters.</summary>
     public BehaviourKind Behaviour { get; set; }
@@ -81,7 +87,11 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     internal InputLane Lane { get; } = new();
 
     /// <summary>The bot's game context once signed in, which its refresher keeps alive; null when signed out.</summary>
-    public GameContext? Context { get; private set; }
+    public GameContext? Context
+    {
+        get => _context;
+        private set => _context = value;
+    }
 
     /// <summary>The last ack the current connection received (all zero before the first).</summary>
     public BotAck LastAck
@@ -121,6 +131,29 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
         _state = BotState.SignedIn;
         StepTimed?.Invoke("sign-in", Stopwatch.GetElapsedTime(start));
+    }
+
+    /// <summary>
+    /// Replaces a game context that can no longer be refreshed (revoked, its refresh token spent) with a fresh sign-in,
+    /// leaving the bot where it is: a bot thrown out of the world with the old context enters again with the new one.
+    /// A failure is counted as a sign-in failure and the bot gives up for good: it has no context, it is
+    /// <see cref="BotState.Stopped"/>, and <see cref="GaveUp"/> is cancelled. False then.
+    /// </summary>
+    public async Task<bool> SignInAgainAsync(CancellationToken ct)
+    {
+        try
+        {
+            Context = await api.SignInAsync(account, password, ct);
+            return true;
+        }
+        catch (ApiException error)
+        {
+            metrics.SignInFailed(error.Step);
+            Note?.Invoke($"Signing in again failed: {error.Message}; the bot stops.");
+            Context = null;
+            await _gaveUp.CancelAsync();
+            return false;
+        }
     }
 
     /// <summary>

@@ -133,63 +133,85 @@ public static class BotLife
     /// changes character on its connection; every fourth churn it reconnects instead (closes, keeping its game context,
     /// and enters again with a takeover). A connection that closes while the bot is in the world and nothing asked for
     /// it is counted as a disconnect, and the bot enters again with a takeover. A churn that fails, or an entry that
-    /// fails all its attempts, is counted by the bot and retried. Cancel <paramref name="ct"/> and wait for this task
-    /// before leaving the bot: a leave seen from here would pass for a disconnect.
+    /// fails all its attempts, is counted by the bot and retried after a pause. When the bot gives up for good
+    /// (<see cref="Bot.GaveUp"/>, its context lost), its connection is closed and the loop ends. Cancel
+    /// <paramref name="ct"/> and wait for this task before leaving the bot: a leave seen from here would pass for a
+    /// disconnect.
     /// </summary>
     public static async Task RunAsync(Bot bot, BotMetrics metrics, CancellationToken ct)
     {
-        int churns = 0;
+        using var life = CancellationTokenSource.CreateLinkedTokenSource(ct, bot.GaveUp);
         try
         {
-            while (!ct.IsCancellationRequested)
+            await LiveAsync(bot, metrics, life.Token);
+        }
+        catch (OperationCanceledException) when (life.IsCancellationRequested)
+        {
+        }
+
+        if (bot.GaveUp.IsCancellationRequested && !ct.IsCancellationRequested)
+        {
+            try
             {
-                if (bot.State != BotState.InWorld)
-                {
-                    if (!await ReenterAsync(bot, ct)) return;
-                    continue;
-                }
-
-                Task closed = bot.Closed;
-                bool churnDue = bot.Behaviour == BehaviourKind.Churner
-                    ? await ChurnDueAsync(closed, ct)
-                    : await WaitClosedAsync(closed, ct);
-                if (ct.IsCancellationRequested) return;
-
-                if (!churnDue)
-                {
-                    // Only this loop closes a connection while the bot is in the world, and it is not closing one.
-                    metrics.Disconnected(bot.Index);
-                    bot.Note?.Invoke("The connection closed while in the world; entering again.");
-                    await bot.DisconnectAsync(ct);
-                    continue;
-                }
-
-                if (bot.State != BotState.InWorld) continue;
-
-                churns++;
-                try
-                {
-                    if (churns % 4 == 0)
-                    {
-                        // A full reconnect keeps the game context: LeaveAsync would sign it out.
-                        await bot.DisconnectAsync(ct);
-                        await bot.EnterAsync(takeover: true, ct);
-                    }
-                    else
-                    {
-                        await bot.ChangeCharacterAsync(ct);
-                    }
-                }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    // Counted by the bot; the connection may be in any state, so it is closed and entered afresh.
-                    bot.Note?.Invoke($"Churn failed: {Reason(error)}.");
-                    await bot.DisconnectAsync(ct);
-                }
+                await bot.DisconnectAsync(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
             }
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+    }
+
+    private static async Task LiveAsync(Bot bot, BotMetrics metrics, CancellationToken ct)
+    {
+        int churns = 0;
+        while (!ct.IsCancellationRequested)
         {
+            if (bot.State != BotState.InWorld)
+            {
+                if (!await ReenterAsync(bot, ct)) return;
+                continue;
+            }
+
+            Task closed = bot.Closed;
+            bool churnDue = bot.Behaviour == BehaviourKind.Churner
+                ? await ChurnDueAsync(closed, ct)
+                : await WaitClosedAsync(closed, ct);
+            if (ct.IsCancellationRequested) return;
+
+            if (!churnDue)
+            {
+                // Only this loop closes a connection while the bot is in the world, and it is not closing one.
+                metrics.Disconnected(bot.Index);
+                bot.Note?.Invoke("The connection closed while in the world; entering again.");
+                await bot.DisconnectAsync(ct);
+                continue;
+            }
+
+            if (bot.State != BotState.InWorld) continue;
+
+            churns++;
+            bool reconnect = churns % 4 == 0;
+            try
+            {
+                if (reconnect)
+                {
+                    // A full reconnect keeps the game context: LeaveAsync would sign it out.
+                    await bot.DisconnectAsync(ct);
+                    await bot.EnterAsync(takeover: true, ct);
+                }
+                else
+                {
+                    await bot.ChangeCharacterAsync(ct);
+                }
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                // Counted by the bot; the connection may be in any state, so it is closed and entered afresh.
+                bot.Note?.Invoke($"Churn failed: {Reason(error)}.");
+                await bot.DisconnectAsync(ct);
+                // A reconnect's entry already spent its own retries: wait before entering again.
+                if (reconnect) await Task.Delay(s_reentryPause, ct);
+            }
         }
     }
 

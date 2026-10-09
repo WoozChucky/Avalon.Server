@@ -105,8 +105,15 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
             long nextPlanned = start + (long)((step + 1) * s_ticksPerStep);
             WaitForSends(nextPlanned);
 
-            long behind = (long)((Stopwatch.GetTimestamp() - nextPlanned) / s_ticksPerStep);
-            if (behind > MaxStepsBehind) step += behind;
+            long now = Stopwatch.GetTimestamp();
+            long behind = (long)((now - nextPlanned) / s_ticksPerStep);
+            if (behind > MaxStepsBehind)
+            {
+                // Each dropped step is a sample as late as it now is, so a stall shows in the percentiles by its length.
+                for (long dropped = 1; dropped <= behind; dropped++)
+                    Record(now - (start + (long)((step + dropped) * s_ticksPerStep)));
+                step += behind;
+            }
         }
     }
 

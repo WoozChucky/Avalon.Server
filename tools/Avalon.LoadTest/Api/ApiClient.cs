@@ -33,6 +33,9 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <summary>The waits before the retries of a repeatable call (<see cref="SendWithRetriesAsync"/>).</summary>
     private static readonly TimeSpan[] s_retryDelays = [TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1)];
 
+    /// <summary>A refresh attempt's own timeout: three attempts and their waits stay inside the server's 30 s receipt.</summary>
+    private static readonly TimeSpan s_refreshAttemptTimeout = TimeSpan.FromSeconds(8);
+
     // No redirect is followed: a 307 or 308 would send a body holding a password or a credential on to another place.
     private readonly HttpClient _http = new(new SocketsHttpHandler
     {
@@ -77,13 +80,11 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         }, null, idempotencyKey: Guid.NewGuid(), ct);
 
         RequireAuthorized(redeemed, "redeem");
-        return new GameContext
-        {
-            Credential = Required(redeemed, "gameContextCredential", "redeem"),
-            RefreshToken = Required(redeemed, "gameContextRefreshToken", "redeem"),
-            ContextExpiresAt = RequiredTime(redeemed, "contextExpiresAt", "redeem"),
-            AuthorizationValidUntil = RequiredTime(redeemed, "authorizationValidUntil", "redeem"),
-        };
+        return new GameContext(
+            Required(redeemed, "gameContextCredential", "redeem"),
+            Required(redeemed, "gameContextRefreshToken", "redeem"),
+            RequiredTime(redeemed, "contextExpiresAt", "redeem"),
+            RequiredTime(redeemed, "authorizationValidUntil", "redeem"));
     }
 
     /// <summary>
@@ -98,8 +99,9 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         CancellationToken ct)
     {
         const string Step = "join";
-        JsonNode reply = await SendWithRetriesAsync(Step, "game/join-tickets",
-            () => new { gameContextCredential = context.Credential, worldId, confirmTakeover }, GameAuthErrors.ContextChanged, ct);
+        JsonNode reply = await SendWithRetriesAsync(Step, "game/join-tickets", Guid.NewGuid(),
+            () => new { gameContextCredential = context.Credential, worldId, confirmTakeover }, GameAuthErrors.ContextChanged,
+            attemptTimeout: null, ct);
         string ticket = Required(reply, "joinTicket", Step);
         JsonNode destination = reply["destination"] ?? throw new ApiException(Step, 200, "the reply has no destination");
 
@@ -125,27 +127,28 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     }
 
     /// <summary>
-    /// Refreshes the context: both the credential and the refresh token rotate, and the expiries move on. A timeout,
-    /// transport failure or 5xx is retried twice under the same <c>Idempotency-Key</c> and refresh token, and so is a
-    /// 409 <c>IN_PROGRESS</c> (the server lost the race to rotate the token; a retry of the same key either rotates it
-    /// or is answered with what an earlier attempt of the key did).
+    /// Refreshes the context: both the credential and the refresh token rotate, and the expiries move on. Sent under
+    /// the generation's <see cref="GameContextTokens.RefreshKey"/>, the same on every retry and every later call until
+    /// the token rotates. Each attempt has 8 s (<see cref="s_refreshAttemptTimeout"/>), so the retries land within the
+    /// 30 s the server keeps a refresh's receipt; a timeout, transport failure or 5xx is retried twice, and so is a 409
+    /// <c>IN_PROGRESS</c> (the server lost the race to rotate the token; a retry of the same key either rotates it or
+    /// is answered with what an earlier attempt of the key did). A 401 means the context cannot be refreshed again
+    /// (<c>CONTEXT_REVOKED</c>, <c>INVALID_REFRESH</c>, <c>REFRESH_REUSE</c>): sign in afresh.
     /// </summary>
     public async Task RefreshAsync(GameContext context, CancellationToken ct)
     {
         const string Step = "refresh";
-        var body = new { gameContextRefreshToken = context.RefreshToken };
-        JsonNode reply = await SendWithRetriesAsync(Step, "client/auth/game-context/refresh", () => body,
-            GameAuthErrors.InProgress, ct);
+        GameContextTokens spent = context.Current;
+        var body = new { gameContextRefreshToken = spent.RefreshToken };
+        JsonNode reply = await SendWithRetriesAsync(Step, "client/auth/game-context/refresh", spent.RefreshKey, () => body,
+            GameAuthErrors.InProgress, s_refreshAttemptTimeout, ct);
         RequireAuthorized(reply, Step);
         string credential = Required(reply, "gameContextCredential", Step);
         string refreshToken = Required(reply, "gameContextRefreshToken", Step);
         DateTimeOffset contextExpiresAt = RequiredTime(reply, "contextExpiresAt", Step);
         DateTimeOffset authorizationValidUntil = RequiredTime(reply, "authorizationValidUntil", Step);
 
-        context.Credential = credential;
-        context.RefreshToken = refreshToken;
-        context.ContextExpiresAt = contextExpiresAt;
-        context.AuthorizationValidUntil = authorizationValidUntil;
+        context.Rotate(spent, credential, refreshToken, contextExpiresAt, authorizationValidUntil);
     }
 
     /// <summary>Signs the game context out; a context already gone (401, 404) counts as signed out.</summary>
@@ -236,15 +239,16 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// error is <paramref name="retryConflict"/> is asked again too: the call's own word that the request did not take
     /// and may be repeated. <paramref name="body"/> is built for each attempt.
     /// </summary>
-    private async Task<JsonNode> SendWithRetriesAsync(string step, string path, Func<object> body, string retryConflict,
-        CancellationToken ct)
+    /// <param name="key">The <c>Idempotency-Key</c> of every attempt.</param>
+    /// <param name="attemptTimeout">Each attempt's timeout when shorter than the client's; null for the client's.</param>
+    private async Task<JsonNode> SendWithRetriesAsync(string step, string path, Guid key, Func<object> body,
+        string retryConflict, TimeSpan? attemptTimeout, CancellationToken ct)
     {
-        var key = Guid.NewGuid();
         for (int attempt = 0; ; attempt++)
         {
             try
             {
-                return await SendAsync(step, HttpMethod.Post, path, body(), null, key, ct);
+                return await SendAsync(step, HttpMethod.Post, path, body(), null, key, ct, attemptTimeout: attemptTimeout);
             }
             catch (ApiException error) when (attempt < s_retryDelays.Length &&
                 (error.Status is 0 or >= 500 || (error.Status == 409 && error.Detail == retryConflict)))
@@ -255,8 +259,11 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     }
 
     private async Task<JsonNode> SendAsync(string step, HttpMethod method, string path, object body, string? bearer,
-        Guid? idempotencyKey, CancellationToken ct, bool allowEmpty = false)
+        Guid? idempotencyKey, CancellationToken ct, bool allowEmpty = false, TimeSpan? attemptTimeout = null)
     {
+        TimeSpan timeout = attemptTimeout is { } own && own < _http.Timeout ? own : _http.Timeout;
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(timeout);
         using var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body) };
         if (bearer is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
         if (idempotencyKey is { } key) request.Headers.Add("Idempotency-Key", key.ToString("D"));
@@ -264,15 +271,15 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         HttpResponseMessage response;
         try
         {
-            response = await _http.SendAsync(request, ct);
+            response = await _http.SendAsync(request, limit.Token);
         }
         catch (HttpRequestException error)
         {
             throw new ApiException(step, 0, error.Message);
         }
-        catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
-            throw new ApiException(step, 0, $"no reply within {_http.Timeout.TotalSeconds:0} s");
+            throw new ApiException(step, 0, $"no reply within {timeout.TotalSeconds:0} s");
         }
 
         using (response)
@@ -280,15 +287,15 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
             string text;
             try
             {
-                text = await response.Content.ReadAsStringAsync(ct);
+                text = await response.Content.ReadAsStringAsync(limit.Token);
             }
             catch (HttpRequestException error)
             {
                 throw new ApiException(step, (int)response.StatusCode, error.Message);
             }
-            catch (TaskCanceledException) when (!ct.IsCancellationRequested)
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
             {
-                throw new ApiException(step, (int)response.StatusCode, $"no reply within {_http.Timeout.TotalSeconds:0} s");
+                throw new ApiException(step, (int)response.StatusCode, $"no reply within {timeout.TotalSeconds:0} s");
             }
 
             if (!response.IsSuccessStatusCode)
