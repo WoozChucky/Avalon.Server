@@ -104,21 +104,29 @@ public class PublicKeyValidationShould
     }
 
     /// <summary>
-    /// And the session refuses it, rather than reporting the failure a step later.
+    /// And the session refuses it, rather than reporting the failure a step later — and stays
+    /// refused: a session whose Initialize threw never seals or opens, and cannot be initialised
+    /// again with a better key.
     /// </summary>
     /// <remarks>
-    /// It refuses the key, not the session: Initialize marks itself initialized before it
-    /// validates, so a session whose Initialize threw will fail inside Encrypt on a null key
-    /// rather than report that it was never initialized. Unreachable — the read loop's catch-all
-    /// closes the connection on the throw — and left alone because reordering the flag changes
-    /// what a second Initialize does, which is a separate contract.
+    /// Before #855 the session marked itself initialized before it parsed the key, so a failed
+    /// Initialize left one that read as ready with no ciphers, and Encrypt failed on a null
+    /// reference rather than refusing. The read loop's catch-all closed the connection either way;
+    /// this holds the session itself to failing closed.
     /// </remarks>
     [Fact]
-    public void RefuseAForeignCurveAtTheSession()
+    public void RefuseAForeignCurveAtTheSessionForGood()
     {
         var session = new AvalonCryptoSession(CryptoRole.Server);
 
         Assert.Throws<CryptographicException>(
             () => session.Initialize(PublicKeyOn(SecObjectIdentifiers.SecP384r1)));
+
+        Assert.Throws<InvalidOperationException>(() => session.Encrypt("after a failed exchange"u8));
+        Assert.Throws<InvalidOperationException>(() => session.Decrypt(new byte[64], new byte[64]));
+        Assert.Throws<InvalidOperationException>(() => session.GetPublicKey());
+        Assert.Throws<InvalidOperationException>(() => session.GetOtherEndPublicKey());
+        Assert.Throws<InvalidOperationException>(
+            () => session.Initialize(PublicKeyOn(SecObjectIdentifiers.SecP256r1)));
     }
 }

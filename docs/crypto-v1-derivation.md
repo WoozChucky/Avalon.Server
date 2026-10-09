@@ -116,6 +116,13 @@ so a replayed packet decrypts. That is a deliberate omission, not an oversight: 
 reliable ordered stream today and rejecting out-of-order nonces would be a behaviour change
 larger than this one. If it is wanted, it belongs with the transport decision in finding 2.
 
+**An exhausted counter ends the session.** After 2^96 - 1 sealed packets the counter has no next
+value; `SessionKeys.TryIncrementNonce`, which the session calls (`IncrementNonce` is its throwing
+form), checks for that before it writes anything, so it fails with the counter left where it was
+rather than wrapped to zero (#855), and the session that hit it marks itself spent: it never seals again, under nonce zero or any other, and opens nothing either. Not
+reachable in practice; what matters is that the failure cannot be followed by a packet sealed
+under a nonce the key has already used.
+
 ## The cipher
 
 AES-256-GCM is the platform's `System.Security.Cryptography.AesGcm` (#850): one instance per
@@ -132,6 +139,16 @@ The two instances live as long as the session, which lives as long as its connec
 disposed: the tick thread may still seal for a connection that has just closed, and a disposed
 cipher would make that an exception on the tick. Their native key handles are released, and the
 key material destroyed, by the handles' finalizers when the session is collected.
+
+A session seals and opens only once its exchange has completed (#855). `Initialize` runs once: it
+claims the session first, so a second call is refused even after a failed first one; it builds
+both ciphers, publishes them under the lock the packets take, and only then marks the session
+ready. An `Initialize` that throws (a peer key that does not parse, say) leaves the session failed
+for good, and every later `Encrypt` or `Decrypt` refuses with an `InvalidOperationException` rather
+than reaching a missing cipher. `GetPublicKey` and `GetOtherEndPublicKey` refuse the same way
+until the exchange has completed; a spent session still returns them, since exhaustion ends what
+it may seal, not which exchange it was. The ready check is one volatile read before each packet and one
+more under the lock the packet already takes, so it adds no lock and no allocation.
 
 `AesGcm` has no fallback. `ServerBase` refuses to construct, so the auth and world servers refuse to
 start, when `AesGcm.IsSupported` is false (on Linux it needs OpenSSL, which the `aspnet:10.0`
@@ -155,8 +172,8 @@ Honestly scoped: BouncyCastle does reject a foreign curve on its own, at the agr
 `InvalidOperationException` reading `ECDH public key has wrong domain parameters`. So this is
 not a hole being closed. What it changes is that the rejection is local and asserted rather than
 resting on undocumented library behaviour a version bump could alter, that it happens at the
-parse rather than after the session has marked itself initialized, and that it is typed as a
-rejected peer input rather than as a programming error.
+parse rather than inside the agreement, and that it is typed as a rejected peer input rather than
+as a programming error. Either way the session it was handed to is left failed, never half ready.
 
 ## What a client must implement
 

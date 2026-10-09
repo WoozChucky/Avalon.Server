@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
@@ -397,15 +398,48 @@ public class SessionKeyDerivationShould
     }
 
     /// <summary>
-    /// An exhausted counter fails rather than wrapping to a nonce already used. Unreachable at
-    /// 2^96 packets; the alternative is silent forgeable traffic.
+    /// An exhausted counter fails rather than wrapping to a nonce already used, and leaves the
+    /// counter where it was, so the next increment fails too. Unreachable at 2^96 packets; the
+    /// alternative is silent forgeable traffic.
     /// </summary>
     [Fact]
     public void RefuseToWrapAnExhaustedCounter()
     {
-        byte[] nonce = Enumerable.Repeat((byte)0xff, 12).ToArray();
+        byte[] exhausted = Enumerable.Repeat((byte)0xff, 12).ToArray();
+        byte[] nonce = (byte[])exhausted.Clone();
 
         Assert.Throws<OverflowException>(() => SessionKeys.IncrementNonce(nonce));
+        Assert.Equal(exhausted, nonce);
+        Assert.Throws<OverflowException>(() => SessionKeys.IncrementNonce(nonce));
+    }
+
+    /// <summary>
+    /// A session whose send counter is spent is spent for good: it never seals again — above all
+    /// not under nonce zero, which this key has already used — and it opens nothing either.
+    /// </summary>
+    /// <remarks>
+    /// The counter is set near its end through the session's private field, since 2^96 packets
+    /// cannot be sent. Before #855 the failed increment wrapped the counter to zero before it threw,
+    /// so the packet after the refused one sealed under nonce zero again.
+    /// </remarks>
+    [Fact]
+    public void NeverSealOrOpenAgainOnceTheCounterIsSpent()
+    {
+        (IAvalonCryptoSession client, IAvalonCryptoSession server) = Sessions(NewExchange());
+        byte[] fromServer = server.Encrypt("still in flight"u8);
+
+        byte[] counter = (byte[])typeof(AvalonCryptoSession)
+            .GetField("_sendNonce", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(client)!;
+        counter.AsSpan().Fill(0xff);
+        counter[^1] = 0xfe;
+        byte[] last = (byte[])counter.Clone();
+
+        // The last nonce the counter has, then nothing.
+        Assert.Equal(last, client.Encrypt("last"u8)[..12]);
+        Assert.Throws<OverflowException>(() => client.Encrypt("one too many"u8));
+        Assert.Throws<InvalidOperationException>(() => client.Encrypt("and after that"u8));
+        Assert.Throws<InvalidOperationException>(() => Open(fromServer, client));
     }
 
     // -- the wire shape ------------------------------------------------------
