@@ -1,5 +1,6 @@
 using Avalon.LoadTest;
 using Avalon.LoadTest.Api;
+using Avalon.LoadTest.Bots;
 using Avalon.LoadTest.Runs;
 
 // The load-test bot client: headless bots that sign in over the REST API, enter a world over TLS as the game client
@@ -18,6 +19,7 @@ try
     return args switch
     {
         ["provision", .. var options] => await RunCommands.ProvisionAsync(CommandLine.ParseProvision(options), cancel.Token),
+        ["check", .. var options] => await CheckCommand.RunAsync(CommandLine.ParseCheck(options), cancel.Token),
         ["cleanup", .. var options] => await RunCommands.CleanupAsync(CommandLine.ParseCleanup(options), cancel.Token),
         [] => Usage(),
         [var command, ..] => throw new CommandLineException($"Unknown command {command}."),
@@ -52,6 +54,11 @@ static int Usage()
               own id; the file is named after the first. --world is the only world the bots
               enter (default {CommandLine.DefaultWorld}); --api the API origin (default {CommandLine.DefaultApi});
               --run the first run's id, three letters (default: the API picks one).
+          check [--run ABC] [--dial HOST] [--bot N]
+              One bot end to end: signs in, enters the run's world (join ticket, TLS, admission, handshake,
+              create or select, loaded), sends idle input at 60 Hz for 10 s, leaves and signs out, printing
+              each step's duration and the input-ack latency. --dial is the host to connect to instead of the
+              join reply's (TLS still names the reply's server); --bot the bot's index in the run (default 0).
           cleanup [--run ABC]
               Deletes the run's accounts as an admin and forgets the run file; refused while bots hold live
               sessions. --run names the run, needed only when several are kept.

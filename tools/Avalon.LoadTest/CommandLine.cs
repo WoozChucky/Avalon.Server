@@ -52,6 +52,36 @@ public static class CommandLine
         return new CleanupOptions(runId);
     }
 
+    /// <summary><c>check [--run ABC] [--dial HOST] [--bot N]</c>.</summary>
+    public static CheckOptions ParseCheck(string[] args)
+    {
+        string? runId = null;
+        string? dial = null;
+        int bot = 0;
+        foreach ((string option, string value) in Pairs(args))
+        {
+            switch (option)
+            {
+                case "--run": runId = ParseRunId(value); break;
+                case "--dial": dial = ParseDial(value); break;
+                case "--bot":
+                    bot = int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int n) && n < MaxBots
+                        ? n
+                        : throw new CommandLineException($"--bot takes a bot's index in the run, 0 to {MaxBots - 1}.");
+                    break;
+                default: throw new CommandLineException($"Unknown option {option}.");
+            }
+        }
+
+        return new CheckOptions(runId, dial, bot);
+    }
+
+    /// <summary>A host name or address to dial instead of the join reply's host; TLS still names the reply's server.</summary>
+    public static string ParseDial(string value) =>
+        Uri.CheckHostName(value) != UriHostNameType.Unknown
+            ? value
+            : throw new CommandLineException("--dial takes a host name or an IP address.");
+
     /// <summary>An https API origin, given its trailing slash: the game routes refuse plain http.</summary>
     public static Uri ParseApi(string value)
     {
@@ -92,6 +122,12 @@ public sealed record ProvisionOptions(int Count, ushort World, Uri Api, string? 
 /// <summary>The options of <c>cleanup</c>.</summary>
 /// <param name="RunId">The run to delete, or null for the only one kept.</param>
 public sealed record CleanupOptions(string? RunId);
+
+/// <summary>The options of <c>check</c>.</summary>
+/// <param name="RunId">The run, or null for the only one kept.</param>
+/// <param name="Dial">The host to dial instead of the join reply's, or null.</param>
+/// <param name="Bot">The bot's index in the run.</param>
+public sealed record CheckOptions(string? RunId, string? Dial, int Bot);
 
 /// <summary>A command line the tool cannot run; the usage follows.</summary>
 public sealed class CommandLineException(string message) : Exception(message);
