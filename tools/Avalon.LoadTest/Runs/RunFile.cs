@@ -10,8 +10,9 @@ namespace Avalon.LoadTest.Runs;
 /// </summary>
 /// <param name="RunId">The first run's id: the file's name and the handle <c>--run</c> takes.</param>
 /// <param name="RunIds">
-/// Every run the API created for it, <paramref name="RunId"/> first: the API makes at most 1,000 accounts per run and
-/// never reuses a run id, so a larger count is several runs.
+/// Every run <c>provision</c> asked the API for, <paramref name="RunId"/> first: the API makes at most 1,000 accounts
+/// per run and never reuses a run id, so a larger count is several runs. Each id is saved here before its create call,
+/// so one whose reply never came (a timeout, a cancel) is still deleted by <c>cleanup</c>; it may hold no account.
 /// </param>
 /// <param name="Api">The API origin the accounts were made on, with its trailing slash.</param>
 /// <param name="WorldId">The only world the run's bots enter.</param>
@@ -64,15 +65,22 @@ public sealed record RunFile(
         {
             RunFile run = JsonSerializer.Deserialize<RunFile>(File.ReadAllText(path), s_json)
                 ?? throw new CommandLineException($"{path} is empty.");
-            return run.RunId == chosen && run.RunIds is [_, ..] && run.Bots is not null
+            if (run.RunId != chosen || run.RunIds is not [_, ..] || run.Bots is null || run.Api is null)
+                throw new CommandLineException($"{path} is not a run file of run {chosen}.");
+
+            // The admin's password goes to this origin: never in the clear, whatever the file was edited to.
+            return run.Api.IsAbsoluteUri && run.Api.Scheme == Uri.UriSchemeHttps
                 ? run
-                : throw new CommandLineException($"{path} is not a run file of run {chosen}.");
+                : throw new CommandLineException($"{path} names an API that is not https: {run.Api}.");
         }
         catch (JsonException error)
         {
             throw new CommandLineException($"{path} cannot be read as a run file: {error.Message}");
         }
     }
+
+    /// <summary>Whether a run file named <paramref name="runId"/> is kept.</summary>
+    public static bool Exists(string runId) => File.Exists(PathOf(runId.ToUpperInvariant()));
 
     /// <summary>Writes the run, replacing what was kept for it, through a temporary file so no half-written file is left.</summary>
     public void Save()

@@ -29,10 +29,17 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <summary>The launcher's loopback port; nothing listens, the code comes back in the body.</summary>
     private const int RedirectPort = 49152;
 
-    private readonly HttpClient _http = new(new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(5) })
+    /// <summary>The waits before the retries of a repeatable call (<see cref="SendWithRetriesAsync"/>).</summary>
+    private static readonly TimeSpan[] s_retryDelays = [TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(1)];
+
+    // No redirect is followed: a 307 or 308 would send a body holding a password or a credential on to another place.
+    private readonly HttpClient _http = new(new SocketsHttpHandler
     {
-        // Routes resolve against it, which keeps a path prefix (an ingress's /api) only behind a slash.
-        BaseAddress = api.AbsolutePath.EndsWith('/') ? api : new Uri(api.AbsoluteUri + "/"),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+        AllowAutoRedirect = false,
+    })
+    {
+        BaseAddress = Origin(api),
         Timeout = timeout,
     };
 
@@ -48,12 +55,12 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         string verifier = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
         string challenge = Base64Url.EncodeToString(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
         JsonNode code = await SendAsync("code", HttpMethod.Post, "client/auth/code",
-            new { challenge, redirectPort = RedirectPort, currentPassword = password }, accessToken, idempotent: false, ct);
+            new { challenge, redirectPort = RedirectPort, currentPassword = password }, accessToken, idempotencyKey: null, ct);
         JsonNode launcher = await SendAsync("token", HttpMethod.Post, "client/auth/token",
             new { code = Required(code, "code", "code"), verifier, redirectPort = RedirectPort, deviceName = DeviceName },
-            null, idempotent: false, ct);
+            null, idempotencyKey: null, ct);
         JsonNode ticket = await SendAsync("game-ticket", HttpMethod.Post, "client/auth/game-ticket", new { },
-            Required(launcher, "accessToken", "token"), idempotent: false, ct);
+            Required(launcher, "accessToken", "token"), idempotencyKey: null, ct);
 
         JsonNode attempt = await SendAsync("provider-attempt", HttpMethod.Post, "client/auth/provider-attempts", new
         {
@@ -61,12 +68,12 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
             protocolVersion = ProtocolVersion,
             clientRunId = Guid.NewGuid(),
             linkChallenge = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32)),
-        }, null, idempotent: false, ct);
+        }, null, idempotencyKey: null, ct);
         JsonNode redeemed = await SendAsync("redeem", HttpMethod.Post, "client/auth/handoffs/redeem", new
         {
             attemptCredential = Required(attempt, "attemptCredential", "provider-attempt"),
             handoffTicket = Required(ticket, "ticket", "game-ticket"),
-        }, null, idempotent: true, ct);
+        }, null, idempotencyKey: Guid.NewGuid(), ct);
 
         RequireAuthorized(redeemed, "redeem");
         return new GameContext
@@ -81,14 +88,15 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <summary>
     /// A join ticket for world <paramref name="worldId"/>. <paramref name="confirmTakeover"/> replaces the account's
     /// live world session, which is otherwise refused (409, <c>ActiveGameSession</c>). A reply naming another world is
-    /// refused here: the tool enters only the world it was told to.
+    /// refused here: the tool enters only the world it was told to. A timeout, transport failure or 5xx is retried twice
+    /// under the same <c>Idempotency-Key</c>.
     /// </summary>
     public async Task<JoinTicket> JoinTicketAsync(GameContext context, ushort worldId, bool confirmTakeover,
         CancellationToken ct)
     {
         const string Step = "join";
-        JsonNode reply = await SendAsync(Step, HttpMethod.Post, "game/join-tickets",
-            new { gameContextCredential = context.Credential, worldId, confirmTakeover }, null, idempotent: true, ct);
+        JsonNode reply = await SendWithRetriesAsync(Step, "game/join-tickets",
+            new { gameContextCredential = context.Credential, worldId, confirmTakeover }, ct);
         string ticket = Required(reply, "joinTicket", Step);
         JsonNode destination = reply["destination"] ?? throw new ApiException(Step, 200, "the reply has no destination");
 
@@ -113,12 +121,15 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         return new JoinTicket(ticket, parsed);
     }
 
-    /// <summary>Refreshes the context: both the credential and the refresh token rotate, and the expiries move on.</summary>
+    /// <summary>
+    /// Refreshes the context: both the credential and the refresh token rotate, and the expiries move on. A timeout,
+    /// transport failure or 5xx is retried twice under the same <c>Idempotency-Key</c>.
+    /// </summary>
     public async Task RefreshAsync(GameContext context, CancellationToken ct)
     {
         const string Step = "refresh";
-        JsonNode reply = await SendAsync(Step, HttpMethod.Post, "client/auth/game-context/refresh",
-            new { gameContextRefreshToken = context.RefreshToken }, null, idempotent: true, ct);
+        JsonNode reply = await SendWithRetriesAsync(Step, "client/auth/game-context/refresh",
+            new { gameContextRefreshToken = context.RefreshToken }, ct);
         RequireAuthorized(reply, Step);
         string credential = Required(reply, "gameContextCredential", Step);
         string refreshToken = Required(reply, "gameContextRefreshToken", Step);
@@ -137,7 +148,7 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         try
         {
             await SendAsync("logout", HttpMethod.Post, "client/auth/game-context/logout",
-                new { gameContextCredential = context.Credential }, null, idempotent: false, ct, allowEmpty: true);
+                new { gameContextCredential = context.Credential }, null, idempotencyKey: null, ct, allowEmpty: true);
         }
         catch (ApiException error) when (error.Status is 401 or 404)
         {
@@ -158,7 +169,7 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     {
         const string Step = "create-run";
         JsonNode reply = await SendAsync(Step, HttpMethod.Post, "admin/load-test/accounts",
-            new { runId, count, password = botPassword, currentPassword }, adminToken, idempotent: false, ct);
+            new { runId, count, password = botPassword, currentPassword }, adminToken, idempotencyKey: null, ct);
         return (Required(reply, "runId", Step), Strings(reply, "accounts", Step));
     }
 
@@ -172,7 +183,7 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         const string Step = "delete-run";
         JsonNode reply = await SendAsync(Step, HttpMethod.Delete,
             $"admin/load-test/accounts?run={Uri.EscapeDataString(runId)}", new { currentPassword }, adminToken,
-            idempotent: false, ct);
+            idempotencyKey: null, ct);
         try
         {
             int deleted = reply["deleted"]?.GetValue<int>() ?? throw new ApiException(Step, 200, "the reply has no deleted");
@@ -187,25 +198,58 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <inheritdoc />
     public void Dispose() => _http.Dispose();
 
+    /// <summary>
+    /// The https origin with its trailing slash, which keeps a path prefix (an ingress's /api) when routes resolve. Any
+    /// other scheme is refused: passwords and credentials never travel in the clear.
+    /// </summary>
+    private static Uri Origin(Uri api)
+    {
+        if (!api.IsAbsoluteUri || api.Scheme != Uri.UriSchemeHttps)
+            throw new ArgumentException($"The API must be an https origin, not {api}.", nameof(api));
+
+        return api.AbsolutePath.EndsWith('/') ? api : new Uri(api.AbsoluteUri + "/");
+    }
+
     private async Task<string> AuthenticateAsync(string username, string password, CancellationToken ct)
     {
         const string Step = "authenticate";
         JsonNode reply = await SendAsync(Step, HttpMethod.Post, "account/authenticate", new { username, password }, null,
-            idempotent: false, ct);
+            idempotencyKey: null, ct);
         if (reply["token"] is JsonValue token && token.TryGetValue(out string? value) && value.Length > 0)
             return value;
 
         throw new ApiException(Step, 200, reply["mfaHash"] is not null
             ? $"{username} has MFA on, which this tool does not answer: use an account without it"
-            : $"no token for {username} (status {reply["status"]})");
+            : $"no token for {username} (status {reply["status"]}{WithError(reply)})");
+    }
+
+    /// <summary>
+    /// A POST that is safe to repeat: every attempt carries the same <c>Idempotency-Key</c>, so a reply lost to a timeout
+    /// or a transport failure (status 0), or a 5xx, is asked again and the server answers what it already did. That
+    /// matters for a refresh: its refresh token is one-use, and a second key would find it already rotated.
+    /// </summary>
+    private async Task<JsonNode> SendWithRetriesAsync(string step, string path, object body, CancellationToken ct)
+    {
+        var key = Guid.NewGuid();
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                return await SendAsync(step, HttpMethod.Post, path, body, null, key, ct);
+            }
+            catch (ApiException error) when (attempt < s_retryDelays.Length && error.Status is 0 or >= 500)
+            {
+                await Task.Delay(s_retryDelays[attempt], ct);
+            }
+        }
     }
 
     private async Task<JsonNode> SendAsync(string step, HttpMethod method, string path, object body, string? bearer,
-        bool idempotent, CancellationToken ct, bool allowEmpty = false)
+        Guid? idempotencyKey, CancellationToken ct, bool allowEmpty = false)
     {
         using var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body) };
         if (bearer is not null) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", bearer);
-        if (idempotent) request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString("D"));
+        if (idempotencyKey is { } key) request.Headers.Add("Idempotency-Key", key.ToString("D"));
 
         HttpResponseMessage response;
         try
@@ -272,13 +316,16 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     {
         string state = reply["state"]?.ToString() ?? "no state";
         if (!state.Equals("authorized", StringComparison.OrdinalIgnoreCase))
-            throw new ApiException(step, 200, state);
+            throw new ApiException(step, 200, reply["error"] is { } error ? $"{state}: {error}" : state);
     }
 
     private static string Required(JsonNode reply, string property, string step) =>
         reply[property] is JsonValue value && value.TryGetValue(out string? text) && text.Length > 0
             ? text
-            : throw new ApiException(step, 200, $"the reply has no {property}");
+            : throw new ApiException(step, 200, $"the reply has no {property}{WithError(reply)}");
+
+    /// <summary>A 2xx reply's own <c>error</c>, for the message of a reply missing what was expected.</summary>
+    private static string WithError(JsonNode reply) => reply["error"] is { } error ? $", error {error}" : "";
 
     private static DateTimeOffset RequiredTime(JsonNode reply, string property, string step) =>
         DateTimeOffset.TryParse(Required(reply, property, step), CultureInfo.InvariantCulture,
