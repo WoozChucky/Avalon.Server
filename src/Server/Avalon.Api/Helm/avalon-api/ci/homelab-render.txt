@@ -58,6 +58,8 @@ env Application__GameWorkloads__Servers__2__ServerId="world-ptr"
 env Application__GameWorkloads__Servers__2__TlsCertificateSha256 <- "test-workload-bindings"/"world-ptr-tls-sha256"
 env Application__GameWorkloads__Servers__2__TlsServerName="ptr.example.test"
 env Application__GameWorkloads__Servers__2__WorldId="3"
+env Application__LoadTest__Enabled="false"
+env Application__LoadTest__MaxAccounts="5000"
 env Application__MapAssets__ChunkAssetRoot="/app/Maps"
 env Application__Notification__PrivateKey <- avalon-api/notification-private-key
 env Application__Notification__PrivateKey optional

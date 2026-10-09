@@ -17,7 +17,7 @@ run one service per process, each with only its own settings, secrets, database 
 
 | Service | Library | Owns | Needs |
 |---|---|---|---|
-| `identity` | `Avalon.Api.Identity` | Accounts and credentials, MFA, personal access tokens, web and launcher sessions and the tokens they are issued (the only service that mints them), store and Steam sign-in, account links and consolidation, game contexts, join tickets, game admission with its workload listener and session fences, email verification and change, push devices | Redis; the Characters database of every world; it owns the auth schema and migrates it |
+| `identity` | `Avalon.Api.Identity` | Accounts and credentials, MFA, personal access tokens, web and launcher sessions and the tokens they are issued (the only service that mints them), store and Steam sign-in, account links and consolidation, game contexts, join tickets, game admission with its workload listener and session fences, email verification and change, push devices, [load-test accounts](#load-test-accounts) | Redis; the Characters database of every world; it owns the auth schema and migrates it |
 | `worlds` | `Avalon.Api.Worlds` | The world registry and maintenance, world content and [live template editing](live-template-editing.md), characters, the views across worlds (`/character`, presence), public tooltips and link previews, the balance workbench's proxy | Redis; the World and Characters databases of every world; the world routes (`/world/{worldId}/...`) |
 | `commerce` | `Avalon.Api.Commerce` | Checkout, purchase and licence status, the admin purchase tools, payment notifications and the reconciliation worker ([Commerce](commerce-configuration.md)) | Redis; no world database |
 | `distribution` | `Avalon.Api.Distribution` | The launcher installer and its update feed, releases, the changelog, channels and their manifests, read from the build store | No Redis and no world database |
@@ -159,7 +159,7 @@ owns each path:
   "default": "identity",
   "internal": ["/internal"],
   "services": {
-    "identity": ["/account", "/mfa", "/pat", "/notification", "/client/auth", "/game"],
+    "identity": ["/account", "/mfa", "/pat", "/notification", "/client/auth", "/game", "/admin/load-test"],
     "worlds": ["/world", "/character", "/observability", "/public", "/balance"],
     "commerce": ["/account/game-license", "/account/purchases", "/admin/purchases", "/payments/notifications"],
     "distribution": ["/client/launcher", "/client/releases", "/client/changelog", "/client/channels"]
@@ -169,7 +169,9 @@ owns each path:
 
 - A rule `/x` matches `/x` and every path under it, ignoring case; the longest matching rule decides; a path no rule
   matches belongs to the default service, identity. So `/account/purchases/checkout` is commerce's,
-  `/account/links/steam/callback` identity's and `/client/channels/ptr/manifest` distribution's.
+  `/account/links/steam/callback` identity's and `/client/channels/ptr/manifest` distribution's. Identity's
+  `/admin/load-test` would reach it by default too; it is listed so that a later `/admin` rule for another service
+  cannot take it.
 - `internal` lists the paths served only inside the cluster (identity's game workload routes); no public route names
   them.
 - A rule is written one way only: lower-case segments of letters, digits and `-`, each after a `/`, with no `/` at the
@@ -178,7 +180,7 @@ owns each path:
 - Its readers are the chart (the service names it accepts in `services`, and the routes mode below), the host tests
   (`RouteOwnershipShould`, `EveryRouteReachableShould`) and the smoke check's coverage test (`SmokeCoverageShould`).
 
-Every endpoint has exactly one owner. The table that decides it is `RouteOwnershipShould`'s: 60 endpoints for
+Every endpoint has exactly one owner. The table that decides it is `RouteOwnershipShould`'s: 62 endpoints for
 identity (4 of them the internal game workload routes), 48 for worlds, 8 for commerce and 6 for distribution, plus the
 Steam OpenID callback (`/account/links/steam/callback`, answered by identity's middleware rather than an endpoint).
 Every process also maps `/health` and `/alive`, and the API docs where they are served, which through the ingress
@@ -266,13 +268,15 @@ nightly and registry workflows did not change. The chart's values that decide th
   holds only its own settings and Secret references. Identity's are `authentication.signingKeyId` and the Secret
   references of its private key and game-auth host key (#801), `storeAuthentication` (with the publisher key's
   Secret reference), `email`, `notification`, `steamWebLink`, `gameAdmission` (port 9443 on the container and the
-  Service, the certificate volume, the world bindings) and `rateLimiting.clientAuthPermitsPerMinute`; worlds' are
+  Service, the certificate volume, the world bindings), `rateLimiting.clientAuthPermitsPerMinute` and `loadTest`
+  ([load-test accounts](#load-test-accounts)); worlds' are
   `templates`, `mapAssets`, `publicWorldId`, `publicSiteUrl` and `balance`; commerce's `commerce`; distribution's
   `distribution`. `storeAuthentication.environment` and `steamIdentityPrefix` reach identity and commerce, `cache`
   every service but distribution, and the world connection strings the services that read them (characters for
   identity and worlds, world for worlds). Every release reads `existingSecret`, `database.auth`,
   `authentication.validationKeys` (the public keys, plain values, required where identity does not run),
-  `forwardedHeaders`, the other `rateLimiting` values, `otel`, `environment` and `resources`. The chart renders no
+  `forwardedHeaders`, the other `rateLimiting` values (`exemptSources` among them), `otel`, `environment` and
+  `resources`. The chart renders no
   HS256 key and refuses the removed `authentication.legacyIssuerSigningKey` and `authentication.issuerSigningKey`
   ([REST API signing key](development-setup.md#rest-api-signing-key)).
 - **Secret keys per service**, in a chart-managed Secret or the one `existingSecret` names (none holds the old
@@ -302,6 +306,62 @@ nightly and registry workflows did not change. The chart's values that decide th
 
 The chart's notes (`src/Server/Avalon.Api/Helm/avalon-api/templates/NOTES.txt`) name the services a release runs, or, for a routes release, where each service's requests
 go. `ci/test.sh` has a case for each mode (see [Guards](#guards)).
+
+## Load-test accounts
+
+Identity serves `POST` and `DELETE /admin/load-test/accounts` (`LoadTestAccountsController`,
+`LoadTestAccountService`), which create and remove runs of bot accounts for load tests. The controller is always
+mapped; while `Application:LoadTest:Enabled` is false
+([Configuration Reference](configuration-reference.md#rest-api-load-test-accounts)) both actions answer the standard
+Not Found response, whatever the request, before the body is even validated. Enabled, both need:
+
+- the `Admin` policy (Admin or Console);
+- an access token: a personal access token is refused with 403, as these accounts can enter PTR worlds;
+- the admin's own `currentPassword` in the body, checked through `IReauthentication` as for `POST /pat/admin`: a
+  wrong one is a failed login in every respect, answered 401.
+
+**Create**: `POST { runId?, count, password, currentPassword }` answers 201 `{ runId, accounts }`.
+- `count` is 1 to 1,000 (400 otherwise). Existing load-test accounts plus `count` above
+  `Application:LoadTest:MaxAccounts` (default 5,000) is 409.
+- `runId` is three ASCII letters, upper-cased, generated when absent. A run id is used once: one a license already
+  names, or whose usernames are taken, is 409.
+- `password` is the bots' shared password, under the registration rule (at least 8 characters, measured trimmed),
+  hashed once for the run; it is never echoed or logged.
+- The run's accounts are named `LT` + the run id + a 7-letter index (`LTABCAAAAAAA`, `LTABCAAAAAAB`, ...; 12
+  letters, so each name is also a valid character name), with no email, `Player | PTR` and credentials version 0.
+  Each holds an Avalon stored grant for the base game in the configured store environment under the reference
+  `loadtest:<runId>:<accountId>`, which is what marks it as a load-test account. Accounts and grants are inserted in
+  one auth transaction, directly, so no per-source registration budget is spent. The cap can be passed by two
+  creates running at once (accepted for an admin-only, password-confirmed action).
+
+**Delete**: `DELETE ?run=<id>` removes one run, `DELETE ?all=true` every run; the body is `{ currentPassword }`, and
+the reply 200 `{ deleted, skipped }`.
+- Exactly one of `run` and `all`, each given once, is checked before the password: neither, both, a repeated one,
+  `all` with any value but `true`, or an empty or blank `run` is 400, so a command built from an unset variable never
+  deletes every run.
+- An account is deleted when it holds an Avalon license under a load-test reference (of the run, when one is named)
+  and nothing a run never gives: no other license, purchase or refund, store identity, store creation or
+  consolidation, email, or role beyond `Player | PTR`. One that holds the run's license and any of those is kept and
+  named in `skipped`.
+- Nothing is deleted (409) while any selected account is online: a game session not ended whose lease runs, or a
+  gameplay fence not blocked whose lease runs, in any configured world. A character's `Online` flag counts only beside
+  one of those, so a flag a crashed world left set stops blocking once its leases expire (within a minute). Nor
+  (409) while a configured world's characters database is unavailable, since that world's bot characters would be
+  left behind. Stop the bots before deleting.
+- The order: in every configured world's characters database, the accounts' characters (their rows cascade) and
+  gameplay fences; then one auth transaction, which locks the accounts' rows, selects them again (keeping any that
+  gained something of a person's meanwhile), and deletes the license observations and holds that point at their
+  licenses, the licenses and the accounts (everything else cascades); then, once that has committed and whether or
+  not the caller still waits, a world disconnect for each account deleted, and the world sweep again, best-effort,
+  for a character a bot still running created meanwhile. `deleted` is the number of accounts that transaction
+  removed; one a concurrent delete removed is in neither field.
+- A 409 after the world sweep means a bot entered a game meanwhile: the run's characters are gone but its accounts
+  are not. Stop the bots and send the same request again: a delete is re-runnable, and finishes what one before it
+  left.
+
+Each create and delete logs one Information line (the admin's id, the run or `all`, the counts). `ExemptSources`
+([Configuration Reference](configuration-reference.md#exempt-sources)) is what lets the bots sign in from one load
+machine without the per-source limits; the create itself spends none.
 
 ## Rollout
 
@@ -408,4 +468,4 @@ BASE=http://127.0.0.1:18080 tools/api-smoke/smoke.sh   # after kubectl port-forw
 | `MonolithCompositionShould` | `Avalon.Api.UnitTests` | The all-in-one process differs from `Avalon.Api` before the split: its exception mappers, the game servers' rate-limit partition, the Steam callback's query kept out of the request log, the startup checks, the store settings bound once, the auth schema owned, the middleware order |
 | `ApiServiceSelectionShould`, `PipelineOrderShould`, `AuthSchemaGateShould`, `WorldDatabasePartsShould`, `RouteTableShould`, `OpenApiOrderShould` | `Avalon.Api.Hosting.UnitTests` | The selection rules, the pipeline order, the schema gate, the world parts a process reads, the manifest reader, or the ordinal order of a document's paths, tags and schemas change |
 | `InternalEndpointsShould` | `Avalon.Api.Identity.UnitTests` | `/internal/game/*` answers on a port other than the workload listener's |
-| `ci/test.sh` | the chart | The homelab values render differently from before the split with the ES256 keys (#801) in place of the HS256 key, identity's private key or game-auth host key is not required, a removed HS256 value renders, a service alone renders a setting or Secret key that is not its own, the routes release's rules, priorities or refusals change, or the NetworkPolicy renders without its peers |
+| `ci/test.sh` | the chart | The homelab values render differently from before the split with the ES256 keys (#801) in place of the HS256 key, identity's private key or game-auth host key is not required, a removed HS256 value renders, a service alone renders a setting or Secret key that is not its own, the routes release's rules, priorities or refusals change, the NetworkPolicy renders without its peers, `rateLimiting.exemptSources` misses a release, or `loadTest` reaches a release without identity |

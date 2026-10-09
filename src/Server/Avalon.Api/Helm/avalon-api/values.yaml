@@ -169,6 +169,20 @@ rateLimiting:
   anonymousPermitsPerMinute:
   authenticatedPermitsPerMinute:
   clientAuthPermitsPerMinute:
+  # Sources exempt from every per-source limit (Application:RateLimiting:ExemptSources), for every
+  # service: the request limits above and, in identity, the per-source failed-login and account-creation
+  # budgets. Per-account and per-username limits still apply. IP addresses or CIDR ranges, rendered as
+  # indexed env, e.g. [203.0.113.7/32] for one load-test machine. The API refuses at startup an entry it
+  # cannot read exactly, a range wider than /24 (IPv4) or /64 (IPv6), one with host bits set, and one
+  # overlapping loopback or forwardedHeaders. List single machines, and remove them after the run.
+  exemptSources: []
+
+# Load-test bot accounts (Application:LoadTest), identity only: POST and DELETE
+# /admin/load-test/accounts, for admins. Disabled, both answer 404. maxAccounts caps the load-test
+# accounts that may exist at once (a whole number, at least 1).
+loadTest:
+  enabled: false
+  maxAccounts: 5000
 
 # The world public tooltip links read when they name none (Application:PublicWorldId): the id of the
 # live world in the auth Worlds table. Left empty, GET /public/world falls back to the first world the
