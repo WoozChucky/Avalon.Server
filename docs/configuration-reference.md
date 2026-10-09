@@ -183,6 +183,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `FuryFromDamageTaken`            | float  | `50`       | Fury a character whose pool is Fury gains when hit (#526): `floor(health lost / max health × this)`, the health lost capped at what it had before the hit. `0` or more and finite (`0` turns it off); startup refuses anything else |
 | `FuryDecayPerSecond`             | float  | `5`        | Fury lost per second out of combat, down to 0 (#526); never in combat. `0` or more and finite (`0` turns it off); startup refuses anything else |
 | `MaxPartySize`                   | int    | `6`        | Most characters in one party; a party's instance also holds at most `min(this, the map's MaxPlayers)`. Range `2`–`40` |
+| `AbandonedInstanceLifetimeMinutes` | int  | `15`       | Minutes an abandoned dungeon instance (a Normal map's, solo or a party's, that a player entered and that is now empty) lives: re-entry within it returns the same instance, and the per-tick expiry pass frees it once it has passed. `0` frees it on the next tick, so the next entry builds a new one (a load-test world). An instance nobody has entered yet keeps a fixed 15 minutes; towns never expire. `0` or more; startup refuses a negative value. Chart value `server.game.abandonedInstanceLifetimeMinutes`, rendered only when set ([instanced maps](instanced-maps.md#expiry-cleanup)) |
 | `PartyInviteTimeoutSeconds`      | int    | `60`       | Seconds a party invite stays open before it expires. Range `1`–`3600` |
 | `PartyLeaveGraceSeconds`         | int    | `60`       | Seconds a character who stopped being a member may stay in the party's instance before it is moved to town. Range `1`–`3600` |
 | `PartyReturnRetrySeconds`        | int    | `5`        | Seconds before that move to town, when it failed (a town lookup or build that faulted), is tried again, at most 5 times while the character is still in that instance and not back in the party (#700). Range `1`–`3600` |
@@ -218,6 +219,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "FuryFromDamageTaken": 50,
   "FuryDecayPerSecond": 5,
   "MaxPartySize": 6,
+  "AbandonedInstanceLifetimeMinutes": 15,
   "PartyInviteTimeoutSeconds": 60,
   "PartyLeaveGraceSeconds": 60,
   "PartyReturnRetrySeconds": 5,

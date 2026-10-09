@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Configuration;
 using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Public.Enums;
@@ -37,13 +38,32 @@ namespace Avalon.World.Instances;
 /// from its own thread. The writers assert the tick thread while <see cref="TickThreadGuard" /> is enabled (#639).
 /// </para>
 /// <para>
+/// <b>Lifetime.</b> A Normal or party instance that has been entered and is now empty (abandoned) is kept for
+/// <c>Game:AbandonedInstanceLifetimeMinutes</c> (15 by default): re-entry within it returns the same instance, and the
+/// expiry pass frees it once it has passed. At 0 an abandoned instance is never reused and the next tick's pass frees it.
+/// One nobody has entered yet keeps the fixed <see cref="UnenteredInstanceLifetime" />, so a build is never freed between
+/// its publication and its requester's arrival, which comes in a connection continuation after the pass. Towns never
+/// expire here.
+/// </para>
+/// <para>
 /// The tick walks its own copy of the list, <see cref="TickInstances" /> (#851): an array rebuilt only when an
 /// instance was published or removed since the last walk, so a tick that changes nothing allocates nothing for it.
 /// </para>
 /// </remarks>
 public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 {
-    private static readonly TimeSpan s_reentryWindow = TimeSpan.FromMinutes(15);
+    /// <summary>
+    /// How long a Normal or party instance nobody has entered yet lives: its requester's arrival, or a disbanded
+    /// party's orphaned build. Fixed, whatever <c>Game:AbandonedInstanceLifetimeMinutes</c> says.
+    /// </summary>
+    public static readonly TimeSpan UnenteredInstanceLifetime = TimeSpan.FromMinutes(15);
+
+    /// <summary>The default of <c>Game:AbandonedInstanceLifetimeMinutes</c>, for a registry built without it.</summary>
+    public static readonly TimeSpan DefaultAbandonedInstanceLifetime =
+        TimeSpan.FromMinutes(GameConfiguration.DefaultAbandonedInstanceLifetimeMinutes);
+
+    // The re-entry window for an abandoned instance; World passes the same value to ProcessExpiredInstances.
+    private readonly TimeSpan _abandonedLifetime;
 
     private readonly ConcurrentDictionary<Guid, MapInstance> _instances = new();
 
@@ -56,7 +76,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 
     // characterId → { templateId → instanceId } for Normal map re-entry. Keyed by character
     // (not account) so different characters on the same account land in different instances
-    // even within the 15-min re-entry window.
+    // even within the re-entry window.
     private readonly Dictionary<uint, Dictionary<MapTemplateId, Guid>> _characterInstanceMap = [];
 
     // partyId → { templateId → instanceId }: the party's instances (2026-09-30).
@@ -79,9 +99,11 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         ILoggerFactory loggerFactory,
         IAvalonMapManager mapManager,
         IChunkLayoutInstanceFactory chunkLayoutFactory,
-        TickThreadGuard? tickThread = null)
+        TickThreadGuard? tickThread = null,
+        TimeSpan? abandonedInstanceLifetime = null)
     {
         _logger = loggerFactory.CreateLogger<InstanceRegistry>();
+        _abandonedLifetime = abandonedInstanceLifetime ?? DefaultAbandonedInstanceLifetime;
         _mapManager = mapManager;
         _chunkLayoutFactory = chunkLayoutFactory;
         _tick = tickThread;
@@ -184,7 +206,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         if (_characterInstanceMap.TryGetValue(characterId, out Dictionary<MapTemplateId, Guid>? characterMap) &&
             characterMap.TryGetValue(templateId, out Guid existingId) &&
             _instances.TryGetValue(existingId, out MapInstance? existing) &&
-            !existing.IsExpired(s_reentryWindow))
+            !HasExpired(existing, _abandonedLifetime))
         {
             _logger.LogInformation(
                 "Returning existing Normal instance {InstanceId} for character {CharacterId}, map {TemplateId}",
@@ -216,7 +238,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         _partyInstanceMap.TryGetValue(party, out Dictionary<MapTemplateId, Guid>? maps)
         && maps.TryGetValue(templateId, out Guid id)
         && _instances.TryGetValue(id, out MapInstance? instance)
-        && !instance.IsExpired(s_reentryWindow)
+        && !HasExpired(instance, _abandonedLifetime)
             ? instance
             : null;
 
@@ -254,14 +276,14 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         }
     }
 
-    public void ProcessExpiredInstances(TimeSpan normalMapExpiry)
+    public void ProcessExpiredInstances(TimeSpan abandonedInstanceLifetime)
     {
         _tick?.AssertOnTick("InstanceRegistry.ProcessExpiredInstances");
 
         foreach ((Guid id, MapInstance instance) in _instances)
         {
             if (instance.MapType != MapType.Normal || instance.PlayerCount > 0 ||
-                !instance.IsExpired(normalMapExpiry))
+                !HasExpired(instance, abandonedInstanceLifetime))
             {
                 continue;
             }
@@ -289,6 +311,13 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
                 Unindex(_partyInstanceMap, party.Value, instance.TemplateId, id);
         }
     }
+
+    /// <summary>
+    /// Past its lifetime: <paramref name="abandonedLifetime" /> once it has been entered and emptied, the fixed
+    /// <see cref="UnenteredInstanceLifetime" /> while nobody has entered it.
+    /// </summary>
+    private static bool HasExpired(MapInstance instance, TimeSpan abandonedLifetime) =>
+        instance.IsExpired(instance.HasBeenEntered ? abandonedLifetime : UnenteredInstanceLifetime);
 
     /// <summary>
     /// Publishes every build that has finished since the last call: registers the instance, writes its index entry,

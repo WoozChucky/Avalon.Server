@@ -120,9 +120,19 @@ public class EnterMapHandler(
             return;
         }
 
-        // 8. Resolve target instance. Procedural maps key per CHARACTER (not per account) so
-        // alts on the same account get fresh instances even within the 15-min re-entry window.
-        // Town instances are shared and don't need an owner identity.
+        // 8. Resolve target instance.
+        ResolveTarget(connection, character, targetTemplate, packet.TargetMapId, reResolved: false);
+    }
+
+    /// <summary>
+    /// Resolves the target instance and enqueues the arrival. Procedural maps key per CHARACTER (not per account) so
+    /// alts on the same account get fresh instances even within the re-entry window. Town instances are shared and
+    /// don't need an owner identity. <paramref name="reResolved" /> marks the one second resolve an arrival may make
+    /// when its instance was released before it got there (<see cref="ArrivesInReleasedInstance" />).
+    /// </summary>
+    private void ResolveTarget(IWorldConnection connection, ICharacter character, MapTemplate targetTemplate,
+        MapId targetMapId, bool reResolved)
+    {
         uint characterId = character.Guid.Id;
 
         if (targetTemplate.MapType == MapType.Town)
@@ -130,7 +140,8 @@ public class EnterMapHandler(
             connection.EnqueueContinuation(
                 world.InstanceRegistry.GetOrCreateTownInstanceAsync(targetTemplate.Id,
                     targetTemplate.MaxPlayers ?? 30),
-                targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, packet.TargetMapId));
+                targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, targetMapId,
+                    reResolved));
         }
         else if (parties?.PartyOf(characterId) is { } party)
         {
@@ -142,20 +153,56 @@ public class EnterMapHandler(
             connection.EnqueueContinuation(
                 world.PartyInstances.GetOrCreatePartyInstanceAsync(partyId, targetTemplate.Id),
                 targetInstance => OnPartyInstanceReceived(connection, character, targetInstance, targetTemplate,
-                    packet.TargetMapId, partyId, capacity));
+                    targetMapId, partyId, capacity, reResolved));
         }
         else
         {
             connection.EnqueueContinuation(
                 world.InstanceRegistry.GetOrCreateNormalInstanceAsync(characterId, targetTemplate.Id),
-                targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, packet.TargetMapId));
+                targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, targetMapId,
+                    reResolved));
         }
     }
 
+    /// <summary>
+    /// The resolved instance was released before the arrival reached it: an abandoned instance's lifetime
+    /// (<c>Game:AbandonedInstanceLifetimeMinutes</c>) can run out between the resolve and this continuation, at 0
+    /// within a tick (the last member inside a party instance left meanwhile). The character is never added to a
+    /// released instance: the first time, the target is resolved again through the same path, and true is returned.
+    /// A second release in a row, which nothing is known to cause, fails the move rather than resolving forever.
+    /// </summary>
+    private bool ArrivesInReleasedInstance(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
+        MapTemplate targetTemplate, MapId targetMapId, bool reResolved)
+    {
+        if (world.InstanceRegistry.GetInstanceById(targetInstance.InstanceId) is not null)
+            return false;
+
+        if (!reResolved)
+        {
+            logger.LogInformation(
+                "EnterMap: instance {InstanceId} of map {MapId} was released before {Name} arrived; resolving again",
+                targetInstance.InstanceId, targetMapId, character.Name);
+            ResolveTarget(connection, character, targetTemplate, targetMapId, reResolved: true);
+            return true;
+        }
+
+        logger.LogWarning("EnterMap: instance {InstanceId} of map {MapId} was released again before {Name} arrived",
+            targetInstance.InstanceId, targetMapId, character.Name);
+        connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
+            connection.CryptoSession.Encryptor));
+        return true;
+    }
+
     private void OnPartyInstanceReceived(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
-        MapTemplate targetTemplate, MapId targetMapId, PartyId partyId, int capacity)
+        MapTemplate targetTemplate, MapId targetMapId, PartyId partyId, int capacity, bool reResolved)
     {
         if (!ReferenceEquals(connection.Character, character))
+        {
+            return;
+        }
+
+        // Before the membership and capacity checks: a released instance holds nobody, and the second resolve repeats both.
+        if (ArrivesInReleasedInstance(connection, character, targetInstance, targetTemplate, targetMapId, reResolved))
         {
             return;
         }
@@ -177,11 +224,11 @@ public class EnterMapHandler(
             return;
         }
 
-        OnInstanceReceived(connection, character, targetInstance, targetTemplate, targetMapId);
+        OnInstanceReceived(connection, character, targetInstance, targetTemplate, targetMapId, reResolved);
     }
 
     private void OnInstanceReceived(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
-        MapTemplate targetTemplate, MapId targetMapId)
+        MapTemplate targetTemplate, MapId targetMapId, bool reResolved)
     {
         // The character can leave the connection while the instance loads: a select of it on
         // another connection despawns it here and kicks this one. Transferring then would put a
@@ -190,6 +237,11 @@ public class EnterMapHandler(
         {
             logger.LogDebug("EnterMap: character {Name} left the connection before its target instance was ready",
                 character.Name);
+            return;
+        }
+
+        if (ArrivesInReleasedInstance(connection, character, targetInstance, targetTemplate, targetMapId, reResolved))
+        {
             return;
         }
 

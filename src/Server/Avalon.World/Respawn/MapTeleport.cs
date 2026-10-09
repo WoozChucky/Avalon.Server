@@ -26,6 +26,8 @@ namespace Avalon.World.Respawn;
 /// the instance's entry spawn. The character is saved on arrival, as a portal entry saves it. Tick thread;
 /// the instance build runs off it and the arrival comes back as a connection continuation. RespawnInFlight marks the
 /// move under way, so it cannot overlap a respawn, a party return or a second teleport; it is cleared on every ending.
+/// An instance released between the resolve and the arrival (Game:AbandonedInstanceLifetimeMinutes ran out meanwhile) is
+/// never entered: the arrival resolves it again once, as a portal arrival does.
 /// </summary>
 public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChunkLibrary chunkLibrary,
     ICharacterSaver saver, PartyService? parties = null)
@@ -44,6 +46,18 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
             return false;
         }
 
+        connection.RespawnInFlight = true;
+        Resolve(connection, character, template, position, reResolved: false);
+        return true;
+    }
+
+    /// <summary>
+    /// Resolves the target instance as a portal does and enqueues the arrival. <paramref name="reResolved" /> marks the
+    /// one second resolve an arrival may make when its instance was released before it got there.
+    /// </summary>
+    private void Resolve(IWorldConnection connection, ICharacter character, MapTemplate template, Vector3? position,
+        bool reResolved)
+    {
         Task<IMapInstance> instance;
         PartyId? partyId = null;
         int capacity = int.MaxValue;
@@ -62,15 +76,16 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
             instance = world.InstanceRegistry.GetOrCreateNormalInstanceAsync(character.Guid.Id, template.Id);
         }
 
-        connection.RespawnInFlight = true;
         connection.EnqueueContinuation(Settled(instance),
-            () => Arrive(connection, character, instance, template, position, partyId, capacity));
-        return true;
+            () => Arrive(connection, character, instance, template, position, partyId, capacity, reResolved));
     }
 
     private void Arrive(IWorldConnection connection, ICharacter character, Task<IMapInstance> built, MapTemplate template,
-        Vector3? position, PartyId? partyId, int capacity)
+        Vector3? position, PartyId? partyId, int capacity, bool reResolved)
     {
+        // Set when the arrival is handed to a second resolve, which then owns RespawnInFlight.
+        bool resolvingAgain = false;
+
         // The character can leave the connection while the instance builds (a select elsewhere kicks it): the flag
         // then belongs to the next character, and nothing is moved.
         if (!ReferenceEquals(connection.Character, character))
@@ -96,6 +111,28 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
 #pragma warning disable MA0045 // the task has completed successfully: reading its result does not block
             IMapInstance target = built.Result;
 #pragma warning restore MA0045
+
+            // Released between the resolve and this arrival (an abandoned instance's lifetime ran out; at 0 the last
+            // member inside a party instance left meanwhile): never added to it. Resolved again once, as a portal
+            // arrival is; a second release in a row, which nothing is known to cause, fails the move.
+            if (world.InstanceRegistry.GetInstanceById(target.InstanceId) is null)
+            {
+                if (!reResolved)
+                {
+                    logger.LogInformation(
+                        "Teleport of {Name} to map {Map}: instance {Instance} was released before the arrival; resolving again",
+                        character.Name, template.Id.Value, target.InstanceId);
+                    Resolve(connection, character, template, position, reResolved: true);
+                    resolvingAgain = true; // after: a resolve that throws leaves the flag to be cleared below
+                    return;
+                }
+
+                logger.LogWarning("Teleport of {Name} to map {Map}: instance {Instance} was released again before the arrival",
+                    character.Name, template.Id.Value, target.InstanceId);
+                connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
+                    connection.CryptoSession.Encryptor));
+                return;
+            }
 
             if (PartyRefusal(character, target, partyId, capacity) is { } refusal)
             {
@@ -126,7 +163,8 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
         }
         finally
         {
-            connection.RespawnInFlight = false;
+            if (!resolvingAgain)
+                connection.RespawnInFlight = false;
         }
     }
 

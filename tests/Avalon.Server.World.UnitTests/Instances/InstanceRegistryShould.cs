@@ -30,12 +30,12 @@ public class InstanceRegistryShould : IDisposable
     private readonly List<(MapTemplate Template, uint? Owner)> _requested = [];
     private readonly List<MapInstance> _instances = [];
     private readonly FixedTimeProvider _clock = new(new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero));
+    private readonly IAvalonMapManager _mapManager = Substitute.For<IAvalonMapManager>();
     private readonly InstanceRegistry _registry;
 
     public InstanceRegistryShould()
     {
-        IAvalonMapManager mapManager = Substitute.For<IAvalonMapManager>();
-        mapManager.Templates.Returns([
+        _mapManager.Templates.Returns([
             new MapTemplate { Id = s_townId, MapType = MapType.Town },
             new MapTemplate { Id = s_dungeonId, MapType = MapType.Normal },
             new MapTemplate { Id = s_caveId, MapType = MapType.Normal },
@@ -53,7 +53,7 @@ public class InstanceRegistryShould : IDisposable
             return build.Task;
         });
 
-        _registry = new InstanceRegistry(NullLoggerFactory.Instance, mapManager, _factory);
+        _registry = new InstanceRegistry(NullLoggerFactory.Instance, _mapManager, _factory);
     }
 
     /// <summary>
@@ -287,6 +287,52 @@ public class InstanceRegistryShould : IDisposable
         Assert.Same(newer, Assert.Single(_registry.TickInstances().ToArray())); // and the tick stops ticking it (#851)
         Assert.Same(newer, await _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId).WaitAsync(s_bound));
         Assert.Equal(2, _builds.Count);
+    }
+
+    /// <summary>
+    /// <c>Game:AbandonedInstanceLifetimeMinutes</c> is both the re-entry window and the expiry of a dungeon instance its
+    /// player has left. At the default a re-entry a minute later finds the same instance; at 0 the next expiry pass frees
+    /// it and the re-entry builds a new one. Either way an instance nobody has entered yet keeps the fixed 15 minutes, so
+    /// a build published before its requester arrives survives the expiry pass that runs between the two.
+    /// </summary>
+    [Theory]
+    [InlineData(15)]
+    [InlineData(0)]
+    public async Task Keep_or_release_an_abandoned_dungeon_by_its_configured_lifetime(int lifetimeMinutes)
+    {
+        var lifetime = TimeSpan.FromMinutes(lifetimeMinutes);
+        var registry = new InstanceRegistry(NullLoggerFactory.Instance, _mapManager, _factory,
+            abandonedInstanceLifetime: lifetime);
+
+        Task<IMapInstance> build = registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
+        CompleteBuilds();
+        registry.PublishFinished();
+        var first = (MapInstance)await build.WaitAsync(s_bound);
+
+        registry.ProcessExpiredInstances(lifetime); // the pass between the publish and the requester's arrival
+        Assert.Same(first, registry.GetInstanceById(first.InstanceId));
+
+        MapInstanceClient player = MapInstanceClients.Join(first, CharacterId);
+        first.RemoveCharacter(player.Connection);
+        _clock.Now += TimeSpan.FromMinutes(1);
+        registry.ProcessExpiredInstances(lifetime);
+
+        Task<IMapInstance> reentry = registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId);
+        CompleteBuilds();
+        registry.PublishFinished();
+        IMapInstance second = await reentry.WaitAsync(s_bound);
+
+        if (lifetimeMinutes == 0)
+        {
+            Assert.NotEqual(first.InstanceId, second.InstanceId);
+            Assert.Null(registry.GetInstanceById(first.InstanceId));
+            Assert.Equal(2, _builds.Count);
+        }
+        else
+        {
+            Assert.Equal(first.InstanceId, second.InstanceId);
+            Assert.Single(_builds);
+        }
     }
 
     private void CompleteBuildsAndPublish()

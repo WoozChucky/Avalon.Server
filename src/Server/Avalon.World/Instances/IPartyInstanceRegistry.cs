@@ -12,7 +12,8 @@ public interface IPartyInstanceRegistry
 {
     /// <summary>
     /// The party's live instance of <paramref name="templateId" />, or a new one; members entering at once share one
-    /// build. Not expired: an instance empty for 15 minutes is left to expiry and a new one is built.
+    /// build. Not expired: an instance abandoned for longer than Game:AbandonedInstanceLifetimeMinutes (15 by default) is
+    /// left to expiry and a new one is built.
     /// </summary>
     Task<IMapInstance> GetOrCreatePartyInstanceAsync(PartyId party, MapTemplateId templateId);
 

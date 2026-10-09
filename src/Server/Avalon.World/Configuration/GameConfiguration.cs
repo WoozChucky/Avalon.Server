@@ -161,6 +161,15 @@ public class GameConfiguration
     [Range(2, 40)]
     public int MaxPartySize { get; set; } = 6;
 
+    /// <summary>
+    /// Minutes an abandoned Normal map instance (a dungeon, solo or a party's) lives once its last player has left:
+    /// re-entry within it returns the same instance, and the per-tick expiry pass frees it after. 0 frees it on the next
+    /// tick, so the next entry builds a new one. An instance nobody has entered yet keeps a fixed 15 minutes, and towns
+    /// never expire. Negative is refused at start.
+    /// </summary>
+    [Range(0, int.MaxValue)]
+    public int AbandonedInstanceLifetimeMinutes { get; set; } = DefaultAbandonedInstanceLifetimeMinutes;
+
     /// <summary>Seconds an invite stays open before it expires.</summary>
     [Range(1, 3600)]
     public int PartyInviteTimeoutSeconds { get; set; } = 60;
@@ -231,6 +240,9 @@ public class GameConfiguration
 
     /// <summary>The default of <see cref="FuryFromDamageTaken" />, for whatever is built without the options.</summary>
     public const float DefaultFuryFromDamageTaken = Avalon.Combat.Fury.DefaultFromDamageTaken;
+
+    /// <summary>The default of <see cref="AbandonedInstanceLifetimeMinutes" />, today's 15 minutes.</summary>
+    public const int DefaultAbandonedInstanceLifetimeMinutes = 15;
 
     /// <summary>The default of <see cref="FuryDecayPerSecond" />, for whatever is built without the options.</summary>
     public const float DefaultFuryDecayPerSecond = 5f;

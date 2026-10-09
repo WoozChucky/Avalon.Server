@@ -15,7 +15,7 @@ Avalon has no single persistent open world. Players gather in shared town instan
 | Type    | Description |
 |---------|-------------|
 | `Town`  | Shared hub with a player cap (default 30). Multiple instances are created automatically when all existing ones are full. New players are always routed to the least-populated instance that still has room. |
-| `Normal`| Private instanced area, one per player, or one per party while the character is in a party (see [party protocol](party-protocol.md) and [parties](parties.md)). A 15-minute expiry countdown starts when the last player leaves. Re-entering within that window returns the player to the same live instance. After expiry the instance is freed. |
+| `Normal`| Private instanced area, one per player, or one per party while the character is in a party (see [party protocol](party-protocol.md) and [parties](parties.md)). An expiry countdown of `Game:AbandonedInstanceLifetimeMinutes` (15 by default) starts when the last player leaves. Re-entering within that window returns the player to the same live instance. After expiry the instance is freed; at 0 it is freed on the next tick and every entry builds a new one (see [Expiry Cleanup](#expiry-cleanup)). |
 
 Players move between maps via `CEnterMapPacket`; the server validates that the player is within range of a portal defined for that map pair.
 
@@ -32,7 +32,7 @@ Logging out inside a Normal map saves the character to the associated town. The 
 public enum MapType
 {
     Town   = 0,   // Shared hub; multiple instances with MaxPlayers cap
-    Normal = 1,   // Private instanced map; 15-min expiry timer
+    Normal = 1,   // Private instanced map; expires once abandoned (Game:AbandonedInstanceLifetimeMinutes)
 }
 ```
 
@@ -111,7 +111,7 @@ public interface IInstanceRegistry
 
     IMapInstance? GetInstanceById(Guid instanceId);
     void RemoveInstance(Guid instanceId);
-    void ProcessExpiredInstances(TimeSpan normalMapExpiry);
+    void ProcessExpiredInstances(TimeSpan abandonedInstanceLifetime);
 }
 ```
 
@@ -154,7 +154,8 @@ Otherwise, in this order:
 ```
 
 `RemoveCharacter` sets `LastEmptyAt` from the instance's `TimeProvider` when the last player leaves, and so does
-construction, so an instance nobody ever entered expires too. `AddCharacter` clears it.
+construction, so an instance nobody ever entered expires too. `AddCharacter` clears it and marks the instance entered
+(`HasBeenEntered`, World-side), which decides which lifetime its expiry counts against (see [Expiry Cleanup](#expiry-cleanup)).
 
 ---
 
@@ -175,15 +176,35 @@ construction, so an instance nobody ever entered expires too. `AddCharacter` cle
 
 `GetOrCreateNormalInstanceAsync`:
 1. Check the character's existing instance map — if the Guid maps to an existing, non-expired instance: return it
+   (party instances: the party's map, the same rule)
 2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it
 
-The cache is keyed by `characterId` (the in-game character id surfaced via `ObjectGuid.Id`), NOT by `accountId`. Two characters on the same account that walk into the same procedural map within the 15-min re-entry window get separate instances.
+The cache is keyed by `characterId` (the in-game character id surfaced via `ObjectGuid.Id`), NOT by `accountId`. Two characters on the same account that walk into the same procedural map within the re-entry window get separate instances.
 
 ### Expiry Cleanup
 
-`ProcessExpiredInstances(expiry)`:
-- Removes Normal map instances where `IsExpired(expiry)` and `PlayerCount == 0`
+`ProcessExpiredInstances(abandonedInstanceLifetime)` runs on every tick, at the end of `World.Update`:
+- Removes empty Normal map instances (solo and party) past their lifetime, and disposes them (the navmesh goes with
+  them):
+  - **abandoned** (a player entered it, and it is now empty): `Game:AbandonedInstanceLifetimeMinutes`, 15 by default.
+    The re-entry lookups (`GetOrCreateNormalInstanceAsync`, `GetOrCreatePartyInstanceAsync`) use the same value, so
+    an instance past it is never handed out again. A party instance stays alive while any member is inside.
+  - **never entered**: a fixed 15 minutes (`InstanceRegistry.UnenteredInstanceLifetime`), whatever the setting. A
+    build is published at the start of `World.Update` and its requester enters it in a connection continuation after
+    the expiry pass, so at 0 it would otherwise be freed before anyone arrived. A disbanded party's orphaned build
+    expires on this clock too.
 - Logs: `"Normal map instance {InstanceId} for map {TemplateId} freed after expiry"`
+
+**At 0** (the load-test world): an emptied dungeon is never reused, and the expiry pass of the tick after the last
+player leaves frees it; the next entry builds a new one. Release stays on the tick and goes only through this pass
+(no new per-tick cost: one flag read per empty instance in the existing walk).
+
+**Arrival guard.** A portal entry (`EnterMapHandler`) or an item teleport (`MapTeleport`) resolves its instance on one
+tick and adds the character in a later continuation. If the instance was released in between (at 0, the last member
+inside a party instance can leave meanwhile), the character is never added to it: the arrival resolves the target
+again, once, through the same path (the party's instance for a member, the character's own otherwise) and enters
+that. A second release in a row, which nothing is known to cause, answers `MapNotFound`. Towns are never released by
+expiry, so their arrivals never take this path.
 
 ---
 
@@ -191,7 +212,7 @@ The cache is keyed by `characterId` (the in-game character id surfaced via `Obje
 
 `World.Update` advances the game time, applies queued `/reload` patches and any script hot reload, then
 hands every live instance to `InstanceTicker.Tick`, and finally frees expired normal instances
-(`ProcessExpiredInstances(TimeSpan.FromMinutes(15))`). The live instances it ticks are
+(`ProcessExpiredInstances` with `Game:AbandonedInstanceLifetimeMinutes`, read once at start). The live instances it ticks are
 `InstanceRegistry.TickInstances` (#851): an array in publication order, rebuilt only after an instance
 is published or removed, so a tick that does neither allocates nothing for the walk.
 
@@ -275,6 +296,8 @@ public class SMapTransitionPacket : Packet
        Normal → in a party: GetOrCreatePartyInstanceAsync(partyId, targetMapId), then re-check the
                 party (MapNotFound) and the seats (InstanceFull) once it is built;
                 otherwise GetOrCreateNormalInstanceAsync(characterId, targetMapId)
+       The arrival continuation first checks the instance is still registered; one released
+       meanwhile is resolved again once (see Expiry Cleanup)
 9.  world.TransferPlayer(connection, targetInstance):
        a. currentInstance.RemoveCharacter(connection)
        b. character.InstanceId = targetInstance.InstanceId
@@ -331,8 +354,8 @@ Portals come from `ChunkLayout.Portals` populated at instance build time. See [M
 | Character select | Player spawns in correct town instance; `SCharacterSelectedPacket.MapInfo.InstanceId` is that instance's id |
 | Portal enter (town → normal) | `CEnterMapPacket` near a portal creates a new normal instance; client receives `SMapTransitionPacket(Success)` |
 | Portal — too far | `NotNearPortal` result; no transfer |
-| Normal map re-entry | Leaving and re-entering within 15 min returns the same `InstanceId` |
-| 15-min expiry | `ProcessExpiredInstances` frees the instance; next entry creates a fresh one |
+| Normal map re-entry | Leaving and re-entering within the lifetime returns the same `InstanceId`; at 0 the emptied instance is freed and the next entry builds a new one, while a build nobody has entered yet survives the pass (`InstanceRegistryShould`) |
+| Expiry | `ProcessExpiredInstances` frees the instance; next entry creates a fresh one |
 | Town overflow (`MaxPlayers = 2`, 3 connections) | Two instances created; instances have 2 and 1 player respectively |
 | Logout from normal map | `character.Map` saved as town map ID; character logs in at town on next session |
 

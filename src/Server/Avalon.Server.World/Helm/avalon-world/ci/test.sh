@@ -77,6 +77,19 @@ for bad in "shutdown.drainSeconds=-1" "shutdown.drainSeconds=1.5" "shutdown.drai
 done
 helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set shutdown.saveMarginSeconds=21 >/dev/null || { echo "a 21 s margin must render"; exit 1; }
 
+# Abandoned dungeon lifetime: unset leaves the world's default (15); 0 renders as "0" (a falsy value still renders); a
+# values-file float renders as digits; a negative or non-integer one fails.
+! grep -q "Game__AbandonedInstanceLifetimeMinutes" <<<"$off"                                    || { echo "abandoned instance lifetime rendered when unset"; exit 1; }
+al=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.game.abandonedInstanceLifetimeMinutes=0)
+grep -A1 "name: Game__AbandonedInstanceLifetimeMinutes" <<<"$al" | grep -q '"0"'                || { echo "an abandoned instance lifetime of 0 must render"; exit 1; }
+aj=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-json server.game.abandonedInstanceLifetimeMinutes=30)
+grep -A1 "name: Game__AbandonedInstanceLifetimeMinutes" <<<"$aj" | grep -q '"30"'               || { echo "a float abandoned instance lifetime must render as digits"; exit 1; }
+for bad in "server.game.abandonedInstanceLifetimeMinutes=-1" "server.game.abandonedInstanceLifetimeMinutes=1.5" "server.game.abandonedInstanceLifetimeMinutes=15m"; do
+  if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set "$bad" >/dev/null 2>&1; then
+    echo "rendering with $bad must fail"; exit 1
+  fi
+done
+
 # Each required transport setting refuses omission for its own reason.
 for setting in server.transport.existingSecret server.admission.apiUrl server.admission.serverId server.admission.apiCertificateSecret server.admission.apiCertificateKey; do
   if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-string "$setting=" 2>&1); then

@@ -25,6 +25,9 @@ public interface IInstanceRegistry
     IMapInstance? GetInstanceById(Guid instanceId);
     void RemoveInstance(Guid instanceId);
 
-    /// <summary>Frees all Normal map instances that have been empty longer than <paramref name="normalMapExpiry" />.</summary>
-    void ProcessExpiredInstances(TimeSpan normalMapExpiry);
+    /// <summary>
+    ///     Frees every empty Normal map instance past its lifetime: <paramref name="abandonedInstanceLifetime" /> once a
+    ///     player has entered it and it emptied, a fixed 15 minutes while nobody has entered it yet.
+    /// </summary>
+    void ProcessExpiredInstances(TimeSpan abandonedInstanceLifetime);
 }
