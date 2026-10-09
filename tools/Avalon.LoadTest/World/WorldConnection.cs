@@ -19,7 +19,8 @@ namespace Avalon.LoadTest.World;
 /// reply names, admission with a join ticket and the client's session key, then the version handshake. A read loop on
 /// its own task drains the socket the whole time, so the server's outbox never backs up behind a busy bot: it raises
 /// <see cref="Ack"/> for each <c>SMSG_PLAYER_STATE_ACK</c>, answers pings, queues the few packets the entry and leave
-/// code waits for on <see cref="Inbound"/>, and drops everything else without decoding it.
+/// code waits for on <see cref="Inbound"/>, applies the world-state packets to <see cref="State"/> when the bot keeps
+/// one, and drops everything else without decoding it.
 /// </summary>
 /// <remarks>
 /// Sends are serialised by one lock, and sealing with the session by another (<see cref="Seal{T}"/>): the codec and the
@@ -43,6 +44,7 @@ public sealed class WorldConnection : IAsyncDisposable
     private int _disposed;
     private volatile string? _closeReason;
     private volatile TaskCompletionSource? _worldState;
+    private volatile WorldStateTable? _state;
 
     private WorldConnection(Socket socket, SslStream stream)
     {
@@ -78,6 +80,17 @@ public sealed class WorldConnection : IAsyncDisposable
     /// when the read loop ends.
     /// </summary>
     public ChannelReader<NetworkPacket> Inbound => _inbound.Reader;
+
+    /// <summary>
+    /// The objects in the character's view, kept from the world-state packets on the read loop; set only for a bot that
+    /// looks for targets (a fighter). Null, the default, leaves those packets unread, as every other behaviour wants:
+    /// decoding them costs the bot PC per object in view, ten times a second.
+    /// </summary>
+    public WorldStateTable? State
+    {
+        get => _state;
+        set => _state = value;
+    }
 
     /// <summary>Each <c>SMSG_PLAYER_STATE_ACK</c>, still sealed, raised on the read loop: a handler must be quick.</summary>
     public event Action<NetworkPacket>? Ack;
@@ -209,7 +222,8 @@ public sealed class WorldConnection : IAsyncDisposable
     /// <summary>
     /// A task that completes on the first world-state frame (<c>SMSG_WORLD_STATE_ADD</c>, <c>_UPDATE</c> or
     /// <c>_REMOVE</c>) read after this call: the world sends them only to a character in an instance, so the first is
-    /// the sign the selected character has spawned. Only the header is looked at.
+    /// the sign the selected character has spawned. Only the header is looked at here; the frame is decoded only for
+    /// <see cref="State"/>.
     /// </summary>
     public Task ArmSpawnSignal()
     {
@@ -281,6 +295,8 @@ public sealed class WorldConnection : IAsyncDisposable
                         break;
                     case NetworkPacketType.SMSG_WORLD_STATE_ADD or NetworkPacketType.SMSG_WORLD_STATE_UPDATE
                         or NetworkPacketType.SMSG_WORLD_STATE_REMOVE:
+                        // Applied first, so a fighter woken by the spawn signal already finds the first add.
+                        _state?.Apply(packet, Codec);
                         if (_worldState is not null) Interlocked.Exchange(ref _worldState, null)?.TrySetResult();
                         break;
                     case NetworkPacketType.SMSG_DISCONNECT:
