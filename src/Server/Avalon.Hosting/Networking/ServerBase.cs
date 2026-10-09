@@ -55,8 +55,9 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     private readonly ILogger _logger;
 
-    // Swapped whole, never mutated (#866): the auth server registers its listener in ExecuteAsync, after
-    // its port opened, while connections finishing their handshakes already enumerate the listeners.
+    // Swapped whole, never mutated (#866): a registration may land while connections finishing their
+    // handshakes enumerate the listeners. Both servers now register theirs before their port opens
+    // (#665, #867), but nothing here requires that of a server.
     private ImmutableArray<Func<IConnection, bool>> _connectionListeners = ImmutableArray<Func<IConnection, bool>>.Empty;
     private readonly Stopwatch _serverTimer = new();
     private readonly CancellationTokenSource _stoppingToken = new();
@@ -138,7 +139,8 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     /// <summary>
     /// Whether <see cref="StartAsync" /> opens the port. A server with work to finish before a client
     /// may connect answers false and calls <see cref="StartListening" /> itself once it is ready (#665):
-    /// the world server loads its scripts and world first, so a load that fails never leaves an
+    /// the world server loads its scripts and world first, and the auth server its certificate, the
+    /// start-up reset, its subscription and its listener (#867), so a start that fails never leaves an
     /// endpoint accepting.
     /// </summary>
     protected virtual bool ListenOnStart => true;
