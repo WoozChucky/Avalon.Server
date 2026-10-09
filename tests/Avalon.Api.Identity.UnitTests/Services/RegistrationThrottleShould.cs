@@ -175,19 +175,19 @@ public sealed class RegistrationThrottleShould : IDisposable
     public async Task Neither_budget_nor_cap_an_exempt_source()
     {
         _config.MaxAccountsCreatedPerSource = 1;
+        var loadMachine = IPAddress.Parse("198.51.100.50");
         for (int i = 0; i < 3; i++)
-            await _counters.Cache.IncrementAsync(LoopbackSourceKey, TimeSpan.FromMinutes(15));
-        AccountService service = NewService(new ExemptSources(["127.0.0.1"]));
+            await _counters.Cache.IncrementAsync("auth:source:198.51.100.50:failedLogins", TimeSpan.FromMinutes(15));
+        AccountService service = NewService(new ExemptSources(["198.51.100.50"]));
 
         for (int i = 0; i < 3; i++)
-            await Register($"load{i}", $"load{i}@avalon.monster", service: service);
-        await Register("other", "other@avalon.monster", IPAddress.Parse("10.0.0.9"), service);
-        await Assert.ThrowsAsync<AccountLockedException>(() =>
-            Register("again", "again@avalon.monster", IPAddress.Parse("10.0.0.9"), service));
+            await Register($"load{i}", $"load{i}@avalon.monster", loadMachine, service);
+        await Register("other", "other@avalon.monster", service: service);
+        await Assert.ThrowsAsync<AccountLockedException>(() => Register("again", "again@avalon.monster", service: service));
 
         Assert.Equal(4, await AccountsAsync());
-        Assert.Equal(3, _counters.CountOf(LoopbackSourceKey));
-        Assert.Equal(0, _counters.CountOf(LoopbackCreationKey));
+        Assert.Equal(3, _counters.CountOf("auth:source:198.51.100.50:failedLogins"));
+        Assert.Equal(0, _counters.CountOf("auth:source:198.51.100.50:accountsCreated"));
     }
 
     [Fact]

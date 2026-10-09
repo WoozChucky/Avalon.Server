@@ -127,10 +127,19 @@ public class ApiStartupValidationShould
     /// The sources exempt from the per-source limits are parsed before the api serves. An entry that is not an address
     /// or a network, or that the parser would read as a different address (an IPv4 address with fewer than four parts,
     /// a leading zero or a hex part; a network with bits past its prefix; an IPv4-mapped network wider than the IPv4
-    /// space), refuses startup, naming it.
+    /// space), refuses startup, naming it. So does one wider than /24 (IPv4) or /64 (IPv6), or one covering loopback or
+    /// a trusted proxy (192.0.2.10 here), whose forwarded callers it would all exempt.
     /// </summary>
     [Theory]
-    [InlineData("10.0.0.5|10.1.0.0/16|::1|::ffff:10.2.0.0/112", null)]
+    [InlineData("10.0.0.5|10.1.2.0/24|2001:db8::1|::ffff:10.2.3.0/120", null)]
+    [InlineData("203.0.113.7|203.0.113.0/24|2001:db8::/64", null)]
+    [InlineData("10.0.0.0/16", "\"10.0.0.0/16\", wider than /24")]
+    [InlineData("::ffff:10.2.0.0/112", "\"::ffff:10.2.0.0/112\", wider than /24")]
+    [InlineData("2001:db8::/48", "\"2001:db8::/48\", wider than /64")]
+    [InlineData("127.0.0.1", "\"127.0.0.1\", which covers loopback")]
+    [InlineData("::1", "\"::1\", which covers loopback")]
+    [InlineData("192.0.2.10", "\"192.0.2.10\", which covers a proxy")]
+    [InlineData("192.0.2.0/24", "\"192.0.2.0/24\", which covers a proxy")]
     [InlineData("10.0.0.5|not-an-ip", "\"not-an-ip\"")]
     [InlineData("10.1", "\"10.1\"")]
     [InlineData("010.0.0.5", "\"010.0.0.5\"")]
@@ -141,7 +150,8 @@ public class ApiStartupValidationShould
     public void Validate_the_exempt_sources_at_startup(string entries, string? refusalNaming)
     {
         using ServiceProvider provider = Build("localhost:6379", entries.Split('|')
-            .Select((entry, i) => ($"Application:RateLimiting:ExemptSources:{i}", (string?)entry)).ToArray());
+            .Select((entry, i) => ($"Application:RateLimiting:ExemptSources:{i}", (string?)entry))
+            .Append(("Application:ForwardedHeaders:KnownProxies:0", "192.0.2.10")).ToArray());
 
         if (refusalNaming is null)
         {
@@ -257,6 +267,7 @@ public class ApiStartupValidationShould
             GameAuth = configuration.GetSection("Application:GameAuth").Get<GameAuthConfig>(),
             Notification = new NotificationConfig(),
             Cache = new CacheConfiguration(),
+            ForwardedHeaders = configuration.GetSection("Application:ForwardedHeaders").Get<ForwardedHeadersConfig>(),
         };
 
         ServiceCollection services = new();

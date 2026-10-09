@@ -535,8 +535,9 @@ public sealed class RateLimitingShould
 
     /// <summary>
     /// A named load machine (<c>ExemptSources</c>) skips the per-source limits, the anonymous partition and the
-    /// client-auth policy, while another source in the same host is still refused past them. Signed in, it is
-    /// still counted against its account.
+    /// client-auth policy, while another source in the same host is still refused past them, as is an untrusted peer
+    /// whose X-Forwarded-For claims the exempt address. Signed in, with an access token or a personal access token, it
+    /// is still counted against its account.
     /// </summary>
     [Fact]
     public async Task Not_limit_an_exempt_source_per_source_but_still_per_account()
@@ -545,6 +546,7 @@ public sealed class RateLimitingShould
         await using ApiTestHost host = await StartAsync(anonymous: 6, authenticated: 5, clientAuth: 3,
             exempt: ["198.51.100.48/30"]);
         host.AccountNowIs(ApiTestHost.MakeAccount());
+        host.PatIs(PatToken, PatFor(PatToken));
         string token = ApiTestHost.Mint(ApiTestHost.MakeAccount());
 
         await SpendAsync(host, 20, peer: LoadMachine);
@@ -555,7 +557,16 @@ public sealed class RateLimitingShould
         Assert.Equal(HttpStatusCode.TooManyRequests,
             await SendAsync(host, ApiTestHost.ClientAuthLimitedPath, peer: "198.51.100.60"));
 
-        await SpendAsync(host, 5, "/player", peer: LoadMachine, token: token);
+        // The header is ignored from a peer that is not a trusted proxy, so it cannot claim the exemption.
+        await SpendAsync(host, 6, peer: "203.0.113.10", forwardedFor: LoadMachine);
+        Assert.Equal(HttpStatusCode.TooManyRequests,
+            await SendAsync(host, peer: "203.0.113.10", forwardedFor: LoadMachine));
+
+        // One account's budget of five, spent by its access token and its personal access token alike.
+        await SpendAsync(host, 3, "/player", peer: LoadMachine, token: token);
+        await SpendAsync(host, 2, "/player", peer: LoadMachine, token: PatToken, scheme: "Avalon");
+        Assert.Equal(HttpStatusCode.TooManyRequests,
+            await SendAsync(host, "/player", peer: LoadMachine, token: PatToken, scheme: "Avalon"));
         Assert.Equal(HttpStatusCode.TooManyRequests, await SendAsync(host, "/player", peer: LoadMachine, token: token));
     }
 

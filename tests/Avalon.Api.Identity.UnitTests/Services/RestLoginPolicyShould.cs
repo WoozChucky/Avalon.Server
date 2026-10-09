@@ -289,24 +289,29 @@ public sealed class RestLoginPolicyShould : IDisposable
     [Fact]
     public async Task Skip_the_source_budget_for_an_exempt_source_but_not_the_usernames()
     {
-        const string OtherSourceKey = "auth:source:10.0.0.9:failedLogins";
+        const string ExemptSourceKey = "auth:source:198.51.100.50:failedLogins";
+        var loadMachine = IPAddress.Parse("198.51.100.50");
         Account account = await _accounts.CreateAsync(NewAccount());
         for (int i = 0; i < _config.MaxFailedLoginsPerSource; i++)
         {
             await _cache.Cache.IncrementAsync(LoopbackSourceKey, TimeSpan.FromMinutes(15));
-            await _cache.Cache.IncrementAsync(OtherSourceKey, TimeSpan.FromMinutes(15));
+            await _cache.Cache.IncrementAsync(ExemptSourceKey, TimeSpan.FromMinutes(15));
         }
 
-        AccountService service = Service(exempt: new ExemptSources(["127.0.0.1"]));
+        AccountService service = Service(exempt: new ExemptSources(["198.51.100.50"]));
+
+        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync(s_password, service: service));
+        for (int i = 1; i < _config.MaxFailedLoginAttempts; i++)
+        {
+            await Assert.ThrowsAsync<AuthenticationException>(() =>
+                LoginAsync(TestPasswords.Wrong, service: service, from: loadMachine));
+        }
 
         await Assert.ThrowsAsync<AccountLockedException>(() =>
-            LoginAsync(s_password, service: service, from: IPAddress.Parse("10.0.0.9")));
-        for (int i = 1; i < _config.MaxFailedLoginAttempts; i++)
-            await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong, service: service));
-        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync(TestPasswords.Wrong, service: service));
+            LoginAsync(TestPasswords.Wrong, service: service, from: loadMachine));
 
         Assert.True((await StoredAsync(account.Id)).Locked);
-        Assert.Equal(_config.MaxFailedLoginsPerSource, _cache.CountOf(LoopbackSourceKey));
+        Assert.Equal(_config.MaxFailedLoginsPerSource, _cache.CountOf(ExemptSourceKey));
     }
 
     /// <summary>A completed login clears the username's count and the row's, as the game client's does.</summary>

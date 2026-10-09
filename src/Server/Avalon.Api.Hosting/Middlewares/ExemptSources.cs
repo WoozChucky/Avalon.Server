@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Sockets;
 using Avalon.Api.Hosting.Config;
 using Avalon.Infrastructure.Login;
+using ForwardedHeadersOptions = Microsoft.AspNetCore.Builder.ForwardedHeadersOptions;
+using IPNetwork = System.Net.IPNetwork;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Hosting.Middlewares;
@@ -33,15 +35,30 @@ public static class ExemptSourcesExtensions
 /// <summary>
 /// <see cref="IExemptSources"/> over the configured entries, parsed once: an IP address (that address only) or a network
 /// in CIDR form (address/prefix). An IPv4-mapped IPv6 address, calling or configured, is taken as its IPv4 address.
+/// An entry must name a few load machines, never a range of callers: none wider than /<see cref="ShortestIPv4Prefix"/>
+/// (IPv4) or /<see cref="ShortestIPv6Prefix"/> (IPv6), and none covering loopback; startup also refuses one covering a
+/// trusted proxy (<see cref="RefusalOf"/>).
 /// </summary>
 public sealed class ExemptSources : IExemptSources
 {
+    /// <summary>
+    /// The widest exempt network for IPv4, /24, and for IPv6, /64 (one host's usual allocation, and the source the
+    /// login budgets count): an exempt range is a hole in every per-source limit, so it stays the size of a few machines.
+    /// </summary>
+    public const int ShortestIPv4Prefix = 24;
+
+    /// <inheritdoc cref="ShortestIPv4Prefix"/>
+    public const int ShortestIPv6Prefix = 64;
+
+    private static readonly IPNetwork[] s_loopback = [new(IPAddress.Loopback, 8), new(IPAddress.IPv6Loopback, 128)];
+
     private readonly IPNetwork[] _networks;
 
+    /// <summary>Throws, naming the entry and the reason, for an entry <see cref="RefusalOf"/> refuses without proxies.</summary>
     public ExemptSources(IEnumerable<string> entries) =>
-        _networks = entries.Select(entry => TryParse(entry, out IPNetwork network)
-            ? network
-            : throw new InvalidOperationException(Invalid(entry))).ToArray();
+        _networks = entries.Select(entry => RefusalOf(entry, null) is { } refusal
+            ? throw new InvalidOperationException(refusal)
+            : Parse(entry)).ToArray();
 
     public bool IsExempt(IPAddress? address)
     {
@@ -56,6 +73,56 @@ public sealed class ExemptSources : IExemptSources
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Why <paramref name="entry"/> is refused, naming it, or null when it is accepted: it does not parse as written
+    /// (<see cref="TryParse"/>), it is wider than the widest exempt network, or it overlaps loopback or a proxy
+    /// <paramref name="proxies"/> trusts (<c>Application:ForwardedHeaders</c>). A trusted proxy forwards other callers,
+    /// so exempting its address would exempt every caller whose header it does not rewrite, and every request it makes
+    /// with none.
+    /// </summary>
+    public static string? RefusalOf(string? entry, ForwardedHeadersOptions? proxies)
+    {
+        if (!TryParse(entry, out IPNetwork network))
+            return Invalid(entry);
+
+        int shortest = network.BaseAddress.AddressFamily == AddressFamily.InterNetworkV6 ? ShortestIPv6Prefix : ShortestIPv4Prefix;
+        if (network.PrefixLength < shortest)
+        {
+            return $"{Setting} has \"{entry}\", wider than /{shortest}: an exempt network is a hole in every per-source " +
+                   "limit, so list the load machines' own addresses or a network no wider than that.";
+        }
+
+        if (s_loopback.Any(loopback => Overlap(network, loopback)))
+            return $"{Setting} has \"{entry}\", which covers loopback, a trusted proxy: every caller it forwards would be exempt.";
+
+        if (proxies is not null
+            && (proxies.KnownProxies.Any(proxy => network.Contains(Unmap(proxy)))
+                || proxies.KnownIPNetworks.Any(trusted => Overlap(network, trusted))))
+        {
+            return $"{Setting} has \"{entry}\", which covers a proxy {ForwardedHeadersSetup.Section} trusts: every " +
+                   "caller it forwards would be exempt.";
+        }
+
+        return null;
+    }
+
+    private static string Setting => $"{ApiRateLimiting.Section}:{nameof(RateLimitingConfig.ExemptSources)}";
+
+    private static IPNetwork Parse(string entry) =>
+        TryParse(entry, out IPNetwork network) ? network : throw new InvalidOperationException(Invalid(entry));
+
+    private static IPAddress Unmap(IPAddress address) => address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
+
+    /// <summary>Whether two networks share an address: one holds the other's base address. Unmapped first.</summary>
+    private static bool Overlap(IPNetwork exempt, IPNetwork other)
+    {
+        IPNetwork trusted = other.BaseAddress.IsIPv4MappedToIPv6 && other.PrefixLength >= 96
+            ? new IPNetwork(other.BaseAddress.MapToIPv4(), other.PrefixLength - 96)
+            : other;
+        return exempt.BaseAddress.AddressFamily == trusted.BaseAddress.AddressFamily
+               && (exempt.Contains(trusted.BaseAddress) || trusted.Contains(exempt.BaseAddress));
     }
 
     /// <summary>The refusal for an entry <see cref="TryParse"/> refuses, naming it.</summary>
@@ -109,17 +176,18 @@ public sealed class ExemptSources : IExemptSources
 }
 
 /// <summary>
-/// Refuses <c>Application:RateLimiting:ExemptSources</c> at startup, naming the first entry that does not parse
-/// (<see cref="ExemptSources.TryParse"/>).
+/// Refuses <c>Application:RateLimiting:ExemptSources</c> at startup, naming the first entry refused and why
+/// (<see cref="ExemptSources.RefusalOf"/>), against the proxies the forwarded-headers middleware trusts.
 /// </summary>
-internal sealed class ExemptSourcesValidation : IValidateOptions<RateLimitingConfig>
+/// <param name="proxies">The registered forwarded-headers options; null (no hosting registered) checks loopback only.</param>
+internal sealed class ExemptSourcesValidation(ForwardedHeadersOptions? proxies = null) : IValidateOptions<RateLimitingConfig>
 {
     public ValidateOptionsResult Validate(string? name, RateLimitingConfig options)
     {
         foreach (string entry in options.ExemptSources)
         {
-            if (!ExemptSources.TryParse(entry, out _))
-                return ValidateOptionsResult.Fail(ExemptSources.Invalid(entry));
+            if (ExemptSources.RefusalOf(entry, proxies) is { } refusal)
+                return ValidateOptionsResult.Fail(refusal);
         }
 
         return ValidateOptionsResult.Success;
