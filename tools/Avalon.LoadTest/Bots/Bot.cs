@@ -99,6 +99,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>Set by the leave's sign-out; a context signed in after it is signed out at once. Guarded by <see cref="_contextLock"/>.</summary>
     private bool _signedOut;
+
+    /// <summary>Set once <see cref="LeaveAsync"/> begins; never cleared.</summary>
+    private volatile bool _leavingForGood;
     private volatile GameContext? _context;
     private volatile BotState _state = BotState.SignedOut;
     private volatile WorldConnection? _connection;
@@ -114,6 +117,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     private Action<NetworkPacket>? _onAck;
     private BotAck _lastAck;
     private uint _seq;
+    private int _connectionGeneration;
 
     /// <summary>The bot's index in the run: it picks the account, the class (<c>index % 4 + 1</c>) and the gender (<c>index % 2</c>).</summary>
     public int Index => index;
@@ -126,6 +130,19 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>Cancelled when the bot gives up for good: whatever it is doing for itself stops.</summary>
     public CancellationToken GaveUp => _gaveUp.Token;
+
+    /// <summary>
+    /// Whether the bot's final leave (<see cref="LeaveAsync"/>) has begun: it signs out the context it holds. A churn's
+    /// reconnect and a disconnect's close leave the world too (<see cref="BotState.Leaving"/>) but keep the context, and
+    /// are not this.
+    /// </summary>
+    public bool LeavingForGood => _leavingForGood;
+
+    /// <summary>
+    /// Counts the bot's connections: it changes when a new one opens, so the input driver can tell a fresh connection
+    /// (input numbers restarted, nothing of the old one's movement applying) from the one it last drove.
+    /// </summary>
+    public int ConnectionGeneration => Volatile.Read(ref _connectionGeneration);
 
     /// <summary>What the bot does in the world; set before it enters.</summary>
     public BehaviourKind Behaviour { get; set; }
@@ -172,7 +189,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
         catch (ApiException error)
         {
-            metrics.SignInFailed(error.Step);
+            metrics.SignInFailed($"sign-in:{error.Step}");
             throw new BotStepException("sign-in", $"sign-in:{error.Step}", error.Message);
         }
 
@@ -206,7 +223,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
         catch (ApiException error)
         {
-            metrics.SignInFailed(error.Step);
+            metrics.SignInFailed($"sign-in-again:{error.Step}");
             Note?.Invoke($"Signing in again failed: {error.Message}; the bot stops.");
             // Given up first, then the context cleared: what the bot does for itself (an entry, linked to GaveUp) sees
             // the cancel before it can find no context, which it would count as an unexpected failure.
@@ -367,11 +384,13 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     }
 
     /// <summary>
-    /// Leaves the world (<see cref="DisconnectAsync"/>) and signs the game context out. The sign-out runs however the
-    /// leave ended, a cancel included, on its own 10 s timeout rather than <paramref name="ct"/>.
+    /// Leaves the world (<see cref="DisconnectAsync"/>) and signs the game context out, for good
+    /// (<see cref="LeavingForGood"/>). The sign-out runs however the leave ended, a cancel included, on its own 10 s
+    /// timeout rather than <paramref name="ct"/>.
     /// </summary>
     public async Task LeaveAsync(CancellationToken ct)
     {
+        _leavingForGood = true;
         try
         {
             await DisconnectAsync(ct);
@@ -398,7 +417,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     {
         if (_state != BotState.InWorld) throw new InvalidOperationException($"Bot {index} is not in the world.");
         WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} has no connection.");
-        return SealInput(connection, seq, dirX, dirZ, yaw);
+        return SealInput(connection, seq, dirX, dirZ, yaw, noteSent: true);
     }
 
     /// <summary>Sends a packet on the current connection.</summary>
@@ -443,11 +462,12 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
     }
 
-    private NetworkPacket SealInput(WorldConnection connection, uint seq, float dirX, float dirZ, ushort yaw)
+    /// <param name="noteSent">Whether the send time is noted for the ack latency: the input driver's inputs, not an entry's probes.</param>
+    private NetworkPacket SealInput(WorldConnection connection, uint seq, float dirX, float dirZ, ushort yaw, bool noteSent)
     {
         NetworkPacket packet = connection.Seal(
             new CPlayerInputPacket { Seq = seq, DirX = dirX, DirZ = dirZ, YawDeg = yaw }, NetworkPacketType.CMSG_PLAYER_INPUT);
-        metrics.InputSent(index, seq, Stopwatch.GetTimestamp());
+        if (noteSent) metrics.InputSent(index, seq, Stopwatch.GetTimestamp());
         return packet;
     }
 
@@ -481,6 +501,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         connection.Ack += _onAck;
         _connection = connection;
         _noLeaveOn = connection;
+        Interlocked.Increment(ref _connectionGeneration);
 
         await StepAsync("admission", s_admissionTimeout, async token =>
         {
@@ -559,6 +580,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             await WaitForFirstAckAsync(connection, token);
             return true;
         }, ct);
+        // A Change Character leaves the driver's last inputs to the old character unanswered: not latency.
         metrics.ForgetPending(index);
         _state = BotState.InWorld;
     }
@@ -586,7 +608,8 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         {
             while (!firstAck.Task.IsCompleted)
             {
-                await connection.SendAsync(SealInput(connection, NextSeq(), 0f, 0f, 0), ct);
+                // Not latency (BotMetrics.InputSent): its ack only says the character is in the world.
+                await connection.SendAsync(SealInput(connection, NextSeq(), 0f, 0f, 0, noteSent: false), ct);
                 Task closed = connection.Closed;
                 Task first = await Task.WhenAny(firstAck.Task, closed, Task.Delay(s_firstAckProbeInterval, ct));
                 if (first == closed) throw new WorldClosedException("the connection closed before an input was answered");

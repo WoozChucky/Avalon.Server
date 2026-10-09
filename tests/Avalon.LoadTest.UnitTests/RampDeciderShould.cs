@@ -37,7 +37,7 @@ public class RampDeciderShould
     }
 
     [Fact]
-    public void Stop_with_a_lower_bound_when_the_generator_saturates_and_after_two_unknown_steps()
+    public void Judge_saturation_unknown_steps_and_drops_and_refuse_invalid_limits()
     {
         var saturated = new RampDecider(Limits.Defaults, 500);
         saturated.Decide(Sample(50, genCpu: 0.5));

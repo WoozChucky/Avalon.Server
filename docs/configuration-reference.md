@@ -418,7 +418,7 @@ world chart renders them from `otel` values, and only when `otel.endpoint` is se
 | `otel.endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | empty: nothing is exported | The collector, e.g. `http://otel-collector:4317` (OTLP gRPC) |
 | `otel.serviceName` | `OTEL_SERVICE_NAME` | the release's full name | The `service.name` resource attribute |
 | `otel.resourceAttributes` | `OTEL_RESOURCE_ATTRIBUTES` | `{}` | Extra resource attributes, e.g. `{deployment.environment: production}`. `avalon.world.id` always comes first, from `server.game.worldId`, and a value for it here is ignored |
-| `otel.metricExportIntervalMs` | `OTEL_METRIC_EXPORT_INTERVAL` | empty: the SDK's 60000 | How often metrics are exported, in milliseconds. A positive integer; anything else refuses to render |
+| `otel.metricExportIntervalMs` | `OTEL_METRIC_EXPORT_INTERVAL` | empty: the SDK's 60000 | How often metrics are exported, in milliseconds. A positive integer; with `otel.endpoint` set, anything else refuses to render (with no endpoint the value is not read) |
 
 The load-test world sets `otel.metricExportIntervalMs: 10000`, so each 60-second window of a
 [load-test ramp](load-testing.md) holds six samples of every series. A rate needs two samples in its window, and with

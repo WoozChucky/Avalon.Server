@@ -5,9 +5,10 @@ namespace Avalon.LoadTest.Bots;
 
 /// <summary>
 /// What the bots measure on the client side, by window: input-to-ack latency, entry time (ticket to first ack), entry
-/// attempts and failures by kind, leave failures by kind, sign-in and sign-out failures and unexpected disconnects.
+/// attempts and failures by kind, leave and sign-in failures by kind, sign-out failures and unexpected disconnects.
 /// <see cref="TakeWindow"/> closes the current window and opens the next. Every recording method is safe from any
-/// thread and takes no lock.
+/// thread and takes no lock of its own: counters are interlocked, and a count by kind is a
+/// <see cref="ConcurrentDictionary{TKey,TValue}"/> update, which briefly locks one of its stripes.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -35,7 +36,11 @@ public sealed class BotMetrics
     private readonly ConcurrentDictionary<int, PendingRing> _pending = new();
     private Window _window = new();
 
-    /// <summary>Notes input <paramref name="seq"/> of <paramref name="bot"/> sent at <paramref name="timestamp"/> (<see cref="Stopwatch.GetTimestamp"/>).</summary>
+    /// <summary>
+    /// Notes input <paramref name="seq"/> of <paramref name="bot"/> sent at <paramref name="timestamp"/>
+    /// (<see cref="Stopwatch.GetTimestamp"/>). Only the input driver's inputs are noted: an entry's probes, repeated
+    /// until one is answered, are not latency, and more than 64 of them would displace each other into the samples.
+    /// </summary>
     public void InputSent(int bot, uint seq, long timestamp)
     {
         PendingRing ring = _pending.GetOrAdd(bot, static _ => new PendingRing());
@@ -51,8 +56,8 @@ public sealed class BotMetrics
     }
 
     /// <summary>
-    /// Forgets <paramref name="bot"/>'s unanswered inputs: those sent before its character was in the world, or on a
-    /// connection now closed, are never answered and are not latency.
+    /// Forgets <paramref name="bot"/>'s unanswered inputs: those sent for a character it has since left (a Change
+    /// Character), or on a connection now closed, are never answered and are not latency.
     /// </summary>
     public void ForgetPending(int bot)
     {
@@ -95,13 +100,17 @@ public sealed class BotMetrics
         }
     }
 
-    /// <summary>A sign-in or a context refresh failed; <paramref name="kind"/> names the REST step.</summary>
+    /// <summary>
+    /// A sign-in or a context refresh failed, identity's side and not an entry: no attempt goes with it, so it stays out
+    /// of the admission ratio. <paramref name="kind"/> names the call and what went wrong (<c>sign-in:authenticate</c>,
+    /// <c>sign-in-again:redeem</c>, <c>refresh:no-reply</c>, <c>refresh:CONTEXT_REVOKED</c>, ...).
+    /// </summary>
     public void SignInFailed(string kind)
     {
         Window window = Enter();
         try
         {
-            Interlocked.Increment(ref window.SignInFailures);
+            window.SignInFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
         }
         finally
         {
@@ -173,7 +182,7 @@ public sealed class BotMetrics
             Percentile(acks, 0.50), Percentile(acks, 0.95), Percentile(acks, 0.99),
             entrySuccesses + entryFailures.Values.Sum(),
             entryFailures,
-            (int)Volatile.Read(ref closed.SignInFailures),
+            new Dictionary<string, int>(closed.SignInFailures, StringComparer.Ordinal),
             (int)Volatile.Read(ref closed.Disconnects))
         {
             AckSamples = acks.Length,
@@ -215,11 +224,11 @@ public sealed class BotMetrics
         public readonly Reservoir Entries = new(MaxEntrySamples);
         public readonly ConcurrentDictionary<string, int> EntryFailures = new(StringComparer.Ordinal);
         public readonly ConcurrentDictionary<string, int> LeaveFailures = new(StringComparer.Ordinal);
+        public readonly ConcurrentDictionary<string, int> SignInFailures = new(StringComparer.Ordinal);
         public long EntrySuccesses;
 
         /// <summary>Recorders registered on the window (<see cref="Enter"/>); read once they are gone.</summary>
         public int Writers;
-        public long SignInFailures;
         public long SignOutFailures;
         public long Disconnects;
     }
@@ -298,13 +307,17 @@ public sealed class BotMetrics
 
 /// <summary>
 /// What the bots measured over one window: input-to-ack latency percentiles in milliseconds (NaN with no sample),
-/// entry attempts, entry failures by kind, sign-in failures and unexpected disconnects; leave failures by kind and
-/// sign-out failures (<see cref="LeaveFailures"/>, <see cref="SignOutFailures"/>).
+/// entry attempts, entry failures by kind, sign-in failures by kind and unexpected disconnects; leave failures by kind
+/// and sign-out failures (<see cref="LeaveFailures"/>, <see cref="SignOutFailures"/>).
 /// </summary>
 /// <param name="EntryAttempts">Attempts that ended in the window, succeeded or failed (a cancelled one is not counted).</param>
+/// <param name="SignInFailures">
+/// Failed sign-ins and context refreshes by kind (<see cref="BotMetrics.SignInFailed"/>): identity's side, not part of
+/// the admission ratio.
+/// </param>
 public sealed record StepClientValues(
     double AckP50, double AckP95, double AckP99, int EntryAttempts, IReadOnlyDictionary<string, int> EntryFailures,
-    int SignInFailures, int Disconnects)
+    IReadOnlyDictionary<string, int> SignInFailures, int Disconnects)
 {
     /// <summary>How many latency samples the percentiles are over (at most <see cref="BotMetrics.MaxSamples"/>).</summary>
     public int AckSamples { get; init; }

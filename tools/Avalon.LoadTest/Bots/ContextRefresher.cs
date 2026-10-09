@@ -9,17 +9,19 @@ namespace Avalon.LoadTest.Bots;
 /// Keeps every bot's game context alive: a context not refreshed expires after 5 minutes, and the bot's world session
 /// with it. Every 5 seconds the bots due are refreshed, a bot being due from its <see cref="GameContext.RenewAt"/> less
 /// a jitter of 0 to 20 seconds drawn once per bot, so contexts signed in together do not all refresh in the same pass.
-/// A failed refresh is counted as a sign-in failure (<c>refresh</c>) and tried again the next pass, under the same
-/// <c>Idempotency-Key</c> while the refresh token is the same (<see cref="GameContextTokens.RefreshKey"/>). A context
-/// that can no longer be refreshed (401: revoked, its token spent or unknown; or a reply that does not authorize it) is
-/// counted once (<c>refresh:&lt;code or state&gt;</c>) and replaced by a fresh sign-in (<see cref="Bot.SignInAgainAsync"/>),
+/// A failed refresh is counted as a sign-in failure (<c>refresh:no-reply</c>, or <c>refresh:&lt;status&gt;</c>) and
+/// tried again the next pass, under the same <c>Idempotency-Key</c> while the refresh token is the same
+/// (<see cref="GameContextTokens.RefreshKey"/>). A context that can no longer be refreshed (401: revoked, its token
+/// spent or unknown; or a reply that does not authorize it) is counted once (<c>refresh:&lt;code or state&gt;</c>)
+/// and replaced by a fresh sign-in (<see cref="Bot.SignInAgainAsync"/>),
 /// taking a slot of <paramref name="signIns"/>, the runner's bound on concurrent sign-ins; a bot whose sign-in fails
 /// gives up for good. Those sign-ins run on a queue of their own, beside the passes: a pass only refreshes, so bulk
 /// sign-ins waiting for a slot never hold up the other bots' refreshes.
 /// </summary>
 /// <remarks>
-/// No context the refresher touched stays live once its bot let go of it (a leave signs out the context it holds, with
-/// the credential it reads then). A refresh the server applied after the bot's sign-out read the credential leaves a
+/// No context the refresher touched stays live once its bot let go of it (its final leave,
+/// <see cref="Bot.LeavingForGood"/>, signs out the context it holds, with the credential it reads then; a churn's
+/// reconnect or a disconnect keeps the context, which is refreshed and replaced as ever). A refresh the server applied after the bot's sign-out read the credential leaves a
 /// new one nobody signs out: so a refresh, once sent, is seen through whatever stops the refresher; a new credential
 /// learned for a bot that let go is signed out here; a refresh with no answer is sent again under the same key until
 /// one comes (the server's 30 s receipt replays what it did, and past it the spent token is refused and the context
@@ -111,8 +113,9 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
             var due = new List<(Bot Bot, GameContext Context)>();
             foreach (Bot bot in bots())
             {
-                // A bot leaving signs its context out; one stopped has none; one signing in again gets a new one.
-                if (bot.State is BotState.Leaving or BotState.Stopped || bot.Context is not { } context ||
+                // A bot leaving for good signs its context out; one stopped has none; one signing in again gets a new
+                // one. A churn's reconnect keeps its context: refreshed as ever.
+                if (bot.LeavingForGood || bot.State is BotState.Stopped || bot.Context is not { } context ||
                     _signingIn.ContainsKey(bot))
                 {
                     continue;
@@ -192,7 +195,12 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
                 return;
             }
 
-            metrics.SignInFailed(error is ApiException ? "refresh" : "refresh:unexpected");
+            metrics.SignInFailed(error switch
+            {
+                ApiException { Status: 0 } => "refresh:no-reply",
+                ApiException refusal => $"refresh:{refusal.Status.ToString(System.Globalization.CultureInfo.InvariantCulture)}",
+                _ => "refresh:unexpected",
+            });
             bot.Note?.Invoke($"Refreshing the game context failed: {error.Message}; trying again in {s_pass.TotalSeconds:0} s.");
         }
     }
@@ -324,9 +332,13 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
     /// </summary>
     private static bool IsTerminal(ApiException refused) => refused.Status == 401 || refused.State is not null;
 
-    /// <summary>The bot no longer holds <paramref name="context"/>, or is leaving (its leave signs out what it holds).</summary>
+    /// <summary>
+    /// The bot no longer holds <paramref name="context"/>, has stopped, or is leaving for good (its final leave signs
+    /// out what it holds). A churn's reconnect or a disconnect (<see cref="BotState.Leaving"/> too) keeps the context:
+    /// not let go, so a terminal refresh there is counted and the bot signed in again.
+    /// </summary>
     private static bool LetGo(Bot bot, GameContext context) =>
-        !ReferenceEquals(bot.Context, context) || bot.State is BotState.Leaving or BotState.Stopped;
+        !ReferenceEquals(bot.Context, context) || bot.LeavingForGood || bot.State is BotState.Stopped;
 
     private static void LeftAsItIs(Bot bot, string code) =>
         bot.Note?.Invoke($"The game context cannot be refreshed ({code}); left as it is, the bots are leaving.");

@@ -58,8 +58,17 @@ public sealed record RampResult(
     /// <summary>Bots the runner signed in.</summary>
     public int SignIns { get; init; }
 
-    /// <summary>Sign-in failures over the ramp, the context refresher's included.</summary>
-    public int SignInFailures { get; init; }
+    /// <summary>
+    /// Sign-in failures over the ramp by kind (<see cref="BotMetrics.SignInFailed"/>), the context refresher's and the
+    /// stop sequence's included; identity's side, apart from admission.
+    /// </summary>
+    public IReadOnlyDictionary<string, int> SignInFailures { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The bot PC's clock less Prometheus's, measured when the ramp started (positive: the bot PC is ahead); every
+    /// query's time was corrected by it.
+    /// </summary>
+    public TimeSpan ClockOffset { get; init; }
 
     /// <summary>Failed sign-outs of game contexts over the ramp, its stop sequence's included.</summary>
     public int SignOutFailures { get; init; }
@@ -155,7 +164,10 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     /// Runs the ramp and the stop sequence; the result is returned whatever ended it. Cancelling <paramref name="ct"/>
     /// (Ctrl+C) stops it as <see cref="RampOutcome.Stopped"/>; the stop sequence runs on its own timeouts.
     /// </summary>
-    /// <exception cref="PrometheusException">Prometheus cannot be read before the first bot signs in.</exception>
+    /// <exception cref="PrometheusException">
+    /// Prometheus cannot be read before the first bot signs in, or its clock and the bot PC's are more than
+    /// <see cref="PrometheusClient.MaxClockOffset"/> apart.
+    /// </exception>
     public Task<RampResult> RunAsync(CancellationToken ct) => RunAsync(outcomeKnown: null, ct);
 
     /// <summary>
@@ -168,6 +180,17 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     {
         DateTimeOffset started = DateTimeOffset.UtcNow;
         using var prometheus = new PrometheusClient(options.Prometheus, run.WorldId, options.Pod);
+        // Each step is read for the window that ended at the hold's end on the bot PC's clock: on Prometheus's clock,
+        // that is the offset away. Far apart, the clocks are refused rather than trusted.
+        TimeSpan clockOffset = await prometheus.MeasureClockOffsetAsync(ct);
+        if (clockOffset.Duration() > PrometheusClient.MaxClockOffset)
+        {
+            throw new PrometheusException(Invariant(
+                $"The bot PC's clock is {clockOffset.Duration().TotalSeconds:0} s {(clockOffset > TimeSpan.Zero ? "ahead of" : "behind")} Prometheus's ({options.Prometheus}), more than {PrometheusClient.MaxClockOffset.TotalSeconds:0} s: synchronise the bot PC's clock (on Windows, w32tm /resync) and run again."));
+        }
+
+        Console.WriteLine(Invariant(
+            $"The bot PC's clock is {ClockOffsetText(clockOffset)} Prometheus's; query times are corrected by it."));
         string? version = await prometheus.ServerVersionAsync(ct);
         int playersBefore = await prometheus.PlayersOnlineAsync(ct);
         Console.WriteLine(Invariant(
@@ -192,7 +215,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         int? capacity = null;
         IReadOnlyList<Breach> failedFirst = [];
         string? stopReason = null;
-        int signInFailures = 0;
+        var signInFailures = new Dictionary<string, int>(StringComparer.Ordinal);
         int signOutFailures = 0;
         Task? presign = null;
         try
@@ -224,7 +247,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
 
                 StepRecord step = await HoldAsync(steps.Count + 1, prometheus, playersBefore, metrics, driver, decider, ct);
                 steps.Add(step);
-                signInFailures += step.Client.SignInFailures;
+                AddCounts(signInFailures, step.Client.SignInFailures);
                 signOutFailures += step.Client.SignOutFailures;
                 Console.WriteLine(StepLine(step));
 
@@ -255,9 +278,10 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         {
             StopReason = stopReason,
             SignIns = _signIns,
-            SignInFailures = signInFailures,
+            SignInFailures = new Dictionary<string, int>(signInFailures, StringComparer.Ordinal),
             SignOutFailures = signOutFailures,
             WorldDrained = null,
+            ClockOffset = clockOffset,
         };
         try
         {
@@ -299,7 +323,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         }
 
         StepClientValues last = metrics.TakeWindow();
-        signInFailures += last.SignInFailures;
+        AddCounts(signInFailures, last.SignInFailures);
         signOutFailures += last.SignOutFailures;
         bool drained = await WaitForDrainAsync(prometheus, playersBefore);
 
@@ -522,18 +546,17 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     private static StepClientValues Merge(StepClientValues settle, StepClientValues judged)
     {
         var failures = new Dictionary<string, int>(settle.EntryFailures, StringComparer.Ordinal);
-        foreach ((string kind, int count) in judged.EntryFailures)
-            failures[kind] = failures.GetValueOrDefault(kind) + count;
-
+        AddCounts(failures, judged.EntryFailures);
         var leaveFailures = new Dictionary<string, int>(settle.LeaveFailures, StringComparer.Ordinal);
-        foreach ((string kind, int count) in judged.LeaveFailures)
-            leaveFailures[kind] = leaveFailures.GetValueOrDefault(kind) + count;
+        AddCounts(leaveFailures, judged.LeaveFailures);
+        var signInFailures = new Dictionary<string, int>(settle.SignInFailures, StringComparer.Ordinal);
+        AddCounts(signInFailures, judged.SignInFailures);
 
         return judged with
         {
             EntryAttempts = settle.EntryAttempts + judged.EntryAttempts,
             EntryFailures = failures,
-            SignInFailures = settle.SignInFailures + judged.SignInFailures,
+            SignInFailures = signInFailures,
             LeaveFailures = leaveFailures,
             SignOutFailures = settle.SignOutFailures + judged.SignOutFailures,
             Disconnects = settle.Disconnects + judged.Disconnects,
@@ -542,6 +565,17 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             EntryP95 = MaxFinite(settle.EntryP95, judged.EntryP95),
         };
     }
+
+    /// <summary>Adds <paramref name="counts"/> into <paramref name="total"/>, kind by kind.</summary>
+    private static void AddCounts(Dictionary<string, int> total, IReadOnlyDictionary<string, int> counts)
+    {
+        foreach ((string kind, int count) in counts)
+            total[kind] = total.GetValueOrDefault(kind) + count;
+    }
+
+    /// <summary>A clock offset in words: <c>0.4 s ahead of</c>, <c>1.2 s behind</c>.</summary>
+    public static string ClockOffsetText(TimeSpan offset) =>
+        Invariant($"{offset.Duration().TotalSeconds:0.0} s {(offset >= TimeSpan.Zero ? "ahead of" : "behind")}");
 
     /// <summary>Every bot signed in leaves the world and signs out, 32 at a time, each on its own timeout.</summary>
     private async Task LeaveAllAsync()

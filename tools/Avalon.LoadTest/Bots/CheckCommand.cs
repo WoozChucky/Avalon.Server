@@ -8,8 +8,8 @@ namespace Avalon.LoadTest.Bots;
 /// <summary>
 /// <c>check</c>: one bot of a run end to end. It signs in, enters the run's world, sends input at 60 Hz for ten seconds
 /// through the <see cref="InputDriver"/> (idle, or walking with <c>--behaviour walker</c>), leaves and signs out,
-/// printing each step's duration, the input-ack latency and the driver's lateness. Exit 0 when every step passed, 1
-/// with the failing step and its reason otherwise.
+/// printing each step's duration, the input-ack latency and the driver's lateness. Exit 0 when every step passed, the
+/// leave and the sign-out included, 1 with the failing step and its reason otherwise.
 /// </summary>
 public static class CheckCommand
 {
@@ -25,7 +25,7 @@ public static class CheckCommand
 
     public static async Task<int> RunAsync(CheckOptions options, CancellationToken ct)
     {
-        var run = RunFile.Load(options.RunId);
+        var run = RunFile.Load(options.RunId, forBots: true);
         if (options.Bot >= run.Bots.Count)
             throw new CommandLineException($"Run {run.RunId} has {run.Bots.Count} bots: --bot takes 0 to {run.Bots.Count - 1}.");
 
@@ -61,6 +61,21 @@ public static class CheckCommand
 
             left = true;
             await bot.LeaveAsync(ct);
+            // The leave and the sign-out note their failures rather than throw: a check that could not leave cleanly
+            // did not pass.
+            StepClientValues leaving = metrics.TakeWindow();
+            if (leaving.LeaveFailures.Count > 0)
+            {
+                Console.Error.WriteLine($"Check failed at leave: {string.Join(", ", leaving.LeaveFailures.Keys.Order(StringComparer.Ordinal))}");
+                return 1;
+            }
+
+            if (leaving.SignOutFailures > 0)
+            {
+                Console.Error.WriteLine("Check failed at logout: the game context's sign-out failed; it expires within 5 minutes");
+                return 1;
+            }
+
             Console.WriteLine("Check passed.");
             return 0;
         }

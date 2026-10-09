@@ -59,7 +59,9 @@ Everything here has to be in place, or the run fails early or measures the wrong
    `count_over_time(world_tick_rate_tps{avalon_world_id="4"}[60s])` should read about 6, not 1.
 5. **Prometheus is reachable from the bot PC.** The default is `http://10.10.1.15:30090/` (`--prometheus`). The ramp
    reads the world's players online before it signs in a single bot and refuses to start when Prometheus does not
-   have that value. The memory limit comes from kube-state-metrics, by pod (`--pod`, default
+   have that value. It first measures the bot PC's clock against Prometheus's (`time()`) and corrects every query's
+   time by the difference, which the report's header gives; when the two clocks are more than 60 seconds apart it
+   refuses to start and says so: synchronise the bot PC's clock (`w32tm /resync` on Windows) and run again. The memory limit comes from kube-state-metrics, by pod (`--pod`, default
    `avalon-world-loadtest-0`, in namespace `avalon`, container `avalon-world`).
 6. **An admin account without MFA.** `provision` and `cleanup` ask for an admin's username and password. The account
    needs the Admin (or Console) role, and MFA has to be off on it: the tool does not answer an MFA challenge. The API
@@ -77,13 +79,15 @@ dotnet run -c Release --project tools/Avalon.LoadTest -- <command> [options]
 ```
 
 Every option takes a value (`--run ABC`, not `--run=ABC`). A command line the tool cannot run prints the usage and
-exits 2. A REST or Prometheus failure that ends a command prints its reason and exits 1.
+exits 2; so does a run file that cannot be read, and, for `check` and `ramp`, a run that lists no bots (a provision
+that saved none: clean it up and provision again), has no bot password or names world 0 (`cleanup` deletes such a
+run all the same). A REST or Prometheus failure that ends a command prints its reason and exits 1.
 
 | Command | Exit 0 | Exit 1 |
 |---|---|---|
 | `provision` | every account created and kept in the run file | an API refusal, a cancel or a run-file write failure; what exists is printed with how to delete it |
-| `check` | every step passed | the failing step and its reason |
-| `ramp` | a verdict: a capacity, no limit reached, or the bot PC saturated | stopped short of one: unknown steps, Ctrl+C, an error, bots that could not sign in |
+| `check` | every step passed, the leave and the sign-out included | the failing step and its reason |
+| `ramp` | a verdict: a capacity, no limit reached, or the bot PC saturated | stopped short of one: unknown steps, Ctrl+C, an error, bots that could not sign in, clocks more than 60 s apart |
 | `cleanup` | every run deleted and the run file gone | any run not deleted; the run file is kept |
 
 ### provision
@@ -134,7 +138,9 @@ changed on the server or the network: it is the quickest way to see that the who
 | `--behaviour idle\|walker` | `idle` | What the bot does for its 10 seconds |
 
 A failure prints `Check failed at <step>: <reason>`, and the bot still leaves and signs out (with 30 seconds of its
-own). The steps and their timeouts are in [entry](#entry-and-retries).
+own). A leave or a sign-out that fails after the bot was driven fails the check too: `Check failed at leave:` with
+the leave's failure kinds (`leave:timeout`, ...), or `Check failed at logout:`. The steps and their timeouts are in
+[entry](#entry-and-retries).
 
 ### ramp
 
@@ -238,9 +244,12 @@ launcher code, the launcher token, a game ticket, a provider attempt, the handof
 two BCrypt checks. After that the game context is refreshed rather than signed in again. The context refresher looks
 at every bot every 5 seconds and refreshes the ones due: a context is due a minute before the earlier of its
 credential's expiry and its authorization deadline, less a jitter of 0 to 20 seconds per bot. A refresh that fails
-is retried on the next pass, under the same idempotency key. A context that can no longer be refreshed (revoked, or
-its refresh token spent) is counted as a sign-in failure and replaced by a fresh sign-in. A bot whose fresh sign-in
-also fails gives up for good. It no longer counts as live, and the next fill signs in another account in its place.
+is retried on the next pass, under the same idempotency key, and counted as a sign-in failure (`refresh:no-reply`,
+or `refresh:<status>`). A context that can no longer be refreshed (revoked, or its refresh token spent) is counted
+as a sign-in failure (`refresh:<code>`) and replaced by a fresh sign-in. A bot whose fresh sign-in also fails
+(`sign-in-again:<call>`) gives up for good. A first sign-in that fails counts as `sign-in:<call>`. Sign-in failures
+are identity's side and never part of admission. A churner's reconnect keeps its context, so the refresher goes on
+refreshing (and if need be replacing) it; only the bot's final leave, which signs the context out, ends that. It no longer counts as live, and the next fill signs in another account in its place.
 
 ### Entry and retries
 
@@ -254,7 +263,7 @@ Entering is the client's sequence. Each step has its own timeout:
 | `handshake` | 10 s | The protocol version, `0.2.0` |
 | `list`, `create`, `select` | 30 s each | `create` only when the list lacks the character |
 | `spawn` | 35 s from the select reply | Inputs start only after the first world-state frame, the sign the character has spawned |
-| `first-ack` | 10 s | An idle input repeated every 50 ms until one is answered: the bot is in the world |
+| `first-ack` | 10 s | An idle input repeated every 50 ms until one is answered: the bot is in the world. These probes are not ack-latency samples |
 | `leave` | 20 s | Waits for the world's logout save |
 
 A failed entry is counted by kind (`<step>:<code>`, for example `join:ACTIVE_GAME_SESSION`, `admission:<result>`,
@@ -316,8 +325,8 @@ A step breaches a limit when its value is on the tripping side of the threshold.
 |---|---|---|---|---|
 | `tick-p99` | 16.7 | ms | above | Prometheus: `histogram_quantile(0.99, sum by (le)(rate(world_tick_duration_microseconds_bucket[w]))) / 1000` |
 | `tps` | 58 | ticks/s | below | Prometheus: `avg_over_time(world_tick_rate_tps[w])` |
-| `ack-p95` | 150 | ms | above | Bots: the 95th percentile of input-to-ack latency over the judged window. An input still unanswered when its slot is reused, about a second later, counts at its age then |
-| `drops` | 0 | count | above | Prometheus: `sum(increase(network_out_dropped_total[w])) or vector(0)`, the packets a full outbox evicted |
+| `ack-p95` | 150 | ms | above | Bots: the 95th percentile of input-to-ack latency over the judged window, over the input driver's inputs (an entry's `first-ack` probes are not samples). An input still unanswered when its slot is reused, about a second later, counts at its age then |
+| `drops` | 0 | count | above | Prometheus: `(sum(increase(network_out_dropped_total[w]) and network_out_dropped_total offset w) or vector(0)) + (sum(network_out_dropped_total unless network_out_dropped_total offset w) or vector(0))`, the packets a full outbox evicted. A packet type's series exists only from its first drop, and `increase` alone misses a new series' first sample, so a series already there at the window's start counts its increase and one first seen within the window counts its whole value |
 | `admission` | 0.01 | fraction | above | Bots: entry failures ÷ entry attempts over the whole step, settle included. Entries are first entries, re-entries, reconnects and character changes; sign-in and leave failures are not part of it |
 | `memory` | 0.85 | fraction | above | Prometheus: `max(dotnet_process_memory_working_set_bytes)` ÷ `kube_pod_container_resource_limits{namespace="avalon",pod=<--pod>,container="avalon-world",resource="memory"}`, at the hold's end |
 | `gen2` | 1 | per minute | above | Prometheus: `sum(increase(dotnet_gc_collections_total{gc_heap_generation="gen2"}[w])) * 60 / w` |
@@ -408,12 +417,14 @@ Each ramp writes two files with the same data to `%LOCALAPPDATA%\Avalon.LoadTest
 `~/.local/share/Avalon.LoadTest/reports`, on macOS `~/Library/Application Support/Avalon.LoadTest/reports`): `<yyyyMMdd-HHmmss>-<RunId>.md` to read and `.json` with the same data
 for tools, named from the ramp's start time in local time. A name that already exists gets `-2`, `-3`, and so on;
 no report is ever overwritten, except the ramp's own early save. Reports are never written to the repository and hold
-no secret (no password, ticket or credential).
+no secret (no password, ticket or credential). If the report cannot be completed after the stop (a full disk, a file
+held open), the console says so and names the early report, which remains as it was saved (world drained: pending);
+the exit code still follows the verdict.
 
 - **Header**: the date and time, the world's server version (Prometheus `target_info`'s `service_version`), the run
   and its size, the API, the mix, the ramp settings (start, step, hold and judged window, max, sign-in concurrency),
-  Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, and the limits, each marked when
-  overridden.
+  Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its clock's offset from Prometheus's at the
+  start (by which every query's time was corrected), and the limits, each marked when overridden.
 - **Result**: one of `capacity N bots`, `no limit reached up to N bots`, `bot PC saturated: capacity ≥ N bots`,
   `stopped: steps that could not be judged`, or `stopped (<reason>)`. A stop reason is one of: Ctrl+C, an error, the
   run's accounts running out, or no further bot able to sign in. Each `stopped` result adds the last passing step's
@@ -423,12 +434,13 @@ no secret (no password, ticket or credential).
   - live bots, by behaviour; bots in the world at the hold's end; players online less the count before the ramp;
   - map instances; tick p99; average TPS; ack p50, p95 and p99; drops; the deepest receive backlog of any
     connection; working set (MB and % of the limit); gen2 per minute; GC pause; save p95;
-  - entries and entry failures, and failures by kind; leave failures by kind (apart from admission); disconnects;
+  - entries and entry failures, and failures by kind; leave failures by kind and sign-in failures by kind (both apart
+    from admission); disconnects;
   - the bot PC's CPU and the driver's lateness p95;
   - the verdict: `pass`, `pass (blip)`, `re-hold (<breaches, or unknown: names>)`, `stop (...)`,
     `stop, unknown (...)`, or `pass, the last step`. A value Prometheus did not give reads `n/a`.
 - **Notes**: the blips; the steps whose drops may be the bot PC's; sign-ins, with their throughput (one every X s
-  with N at once, and per minute; identity's side, apart from the world) and the sign-in and refresh failures;
+  with N at once, and per minute; identity's side, apart from the world) and the sign-in and refresh failures, by kind;
   whether the world drained after the stop; failed sign-outs; the stop's leave failures by kind; and the leaves and
   sign-outs the breakers skipped.
 

@@ -52,10 +52,10 @@ catch (OperationCanceledException) when (cancel.IsCancellationRequested)
 // The capacity run, then its report, which is written however the ramp ended: first as soon as the outcome is known
 // (before the bots leave, which a second Ctrl+C would cut short), then again over it once the stop sequence is done.
 // Exit 0 when the ramp reached a verdict (a capacity, no limit reached, the bot PC saturated), 1 when it stopped short
-// of one.
+// of one; a report that could not be completed is said, and does not change the exit code.
 static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
 {
-    var run = RunFile.Load(arguments.RunId);
+    var run = RunFile.Load(arguments.RunId, forBots: true);
     RampOptions options = arguments.For(run);
     string dialling = options.Dial is null ? "" : $", dialling {options.Dial}";
     Console.WriteLine(
@@ -71,8 +71,19 @@ static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
             Console.WriteLine($"  failed first: {RampRunner.Describe(breach, options.Limits)}");
         Console.WriteLine($"Report: {report} (and .json); completed once the bots have left.");
     }, ct);
-    report = ReportWriter.Save(result, options, run, report);
-    Console.WriteLine($"Report: {report} (and .json)");
+    try
+    {
+        report = ReportWriter.Save(result, options, run, report);
+        Console.WriteLine($"Report: {report} (and .json)");
+    }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+    {
+        // The bots are gone and the verdict stands: only the stop's part of the report is lost.
+        Console.Error.WriteLine(report is null
+            ? $"Writing the report failed: {error.Message}. No report was written."
+            : $"Completing the report failed: {error.Message}. The report saved before the stop remains: {report} (and .json), without the stop's results.");
+    }
+
     return result.Outcome is RampOutcome.Capacity or RampOutcome.NoLimitReached or RampOutcome.GeneratorSaturated ? 0 : 1;
 }
 

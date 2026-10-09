@@ -60,10 +60,41 @@ public sealed record RunFile(
     public string FilePath => PathOf(RunId);
 
     /// <summary>
-    /// The run <paramref name="runId"/> names (any case), or with null the only run there is. No run, an unknown one, or
-    /// several with none named is a <see cref="CommandLineException"/> listing the runs kept.
+    /// The run <paramref name="runId"/> names (any case), or with null the only run there is. No run, an unknown one,
+    /// several with none named, a file that cannot be read, or one that is not a run file is a
+    /// <see cref="CommandLineException"/> saying which.
     /// </summary>
-    public static RunFile Load(string? runId)
+    /// <param name="forBots">
+    /// The run's bots are to play (<c>check</c>, <c>ramp</c>): a run that lists no bot (a provision that saved none),
+    /// has no bot password or names world 0 is refused too. <c>cleanup</c> needs none of that and deletes such a run.
+    /// </param>
+    public static RunFile Load(string? runId, bool forBots)
+    {
+        try
+        {
+            RunFile run = LoadKept(runId);
+            if (!forBots) return run;
+
+            if (run.Bots.Count == 0)
+            {
+                throw new CommandLineException(
+                    $"Run {run.RunId} lists no bots (its provision saved none): run cleanup --run {run.RunId}, then provision again.");
+            }
+
+            if (string.IsNullOrEmpty(run.BotPassword))
+                throw new CommandLineException($"{run.FilePath} has no bot password: the bots cannot sign in.");
+
+            return run.WorldId != 0
+                ? run
+                : throw new CommandLineException($"{run.FilePath} names no world (worldId 0): world ids start at 1.");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            throw new CommandLineException($"The run files in {Directory} cannot be read: {error.Message}");
+        }
+    }
+
+    private static RunFile LoadKept(string? runId)
     {
         string[] kept = Kept();
         string chosen;
@@ -93,7 +124,8 @@ public sealed record RunFile(
             RunFile run = JsonSerializer.Deserialize<RunFile>(File.ReadAllText(path), s_json)
                 ?? throw new CommandLineException($"{path} is empty.");
             if (run.RunId != chosen || run.Runs is not [var first, ..] || first?.Id != chosen || run.Bots is null ||
-                run.Api is null || run.Runs.Any(entry => entry?.Id is not { Length: > 0 } || !Enum.IsDefined(entry.Status)))
+                run.Api is null || run.Runs.Any(entry => entry?.Id is not { Length: > 0 } || !Enum.IsDefined(entry.Status)) ||
+                run.Bots.Any(bot => string.IsNullOrEmpty(bot)))
             {
                 throw new CommandLineException($"{path} is not a run file of run {chosen}.");
             }

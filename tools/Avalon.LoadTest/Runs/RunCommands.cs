@@ -121,7 +121,7 @@ public static class RunCommands
     /// </summary>
     public static async Task<int> CleanupAsync(CleanupOptions options, CancellationToken ct)
     {
-        var run = RunFile.Load(options.RunId);
+        var run = RunFile.Load(options.RunId, forBots: false);
         IReadOnlyList<KeptRun> others = RunFile.Others(run.RunId);
         using var api = new ApiClient(run.Api, s_adminTimeout);
         AdminLogin admin = await AdminLogin.SignInAsync(api, ct);

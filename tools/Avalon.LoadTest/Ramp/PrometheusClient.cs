@@ -11,7 +11,11 @@ namespace Avalon.LoadTest.Ramp;
 /// </summary>
 /// <param name="TickP99Ms">The 99th percentile of tick duration, in milliseconds.</param>
 /// <param name="Tps">The average tick rate, ticks per second.</param>
-/// <param name="Drops">Outbound packets the server dropped (a client's outbox full) over the window.</param>
+/// <param name="Drops">
+/// Outbound packets the server dropped (a client's outbox full) over the window. A packet type's series exists only
+/// from its first drop, so one that first appears within the window counts whole (its value then), the others by
+/// their increase.
+/// </param>
 /// <param name="ReceiveBacklogMax">The deepest the receive queue got over the window.</param>
 /// <param name="WorkingSetFraction">The world process's working set as a fraction of its pod's memory limit.</param>
 /// <param name="WorkingSetMb">The world process's working set, in MiB.</param>
@@ -50,6 +54,12 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
     private readonly string _world = $"avalon_world_id=\"{worldId.ToString(CultureInfo.InvariantCulture)}\"";
 
+    /// <summary>The bot PC's clock less Prometheus's (<see cref="MeasureClockOffsetAsync"/>); zero until measured.</summary>
+    private TimeSpan _clockOffset;
+
+    /// <summary>The furthest apart the bot PC's clock and Prometheus's may be for a ramp to start.</summary>
+    public static TimeSpan MaxClockOffset { get; } = TimeSpan.FromSeconds(60);
+
     /// <summary>
     /// The server values over <paramref name="window"/> (whole seconds) ending at <paramref name="at"/>. The rates need
     /// two samples of a series in the window: with the exporter's default 60 s interval a 60 s window has one, and those
@@ -64,7 +74,13 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         Task<double?> tick = ValueAsync(
             $"histogram_quantile(0.99, sum by (le)(rate(world_tick_duration_microseconds_bucket{{{world}}}{range}))) / 1000", at, ct);
         Task<double?> tps = ValueAsync($"avg_over_time(world_tick_rate_tps{{{world}}}{range})", at, ct, lowerIsWorse: true);
-        Task<double?> drops = ValueAsync($"sum(increase(network_out_dropped_total{{{world}}}{range})) or vector(0)", at, ct);
+        string windowSeconds = $"{w.ToString(CultureInfo.InvariantCulture)}s";
+        // A packet type's series is born with its first drop: a series there at the window's start counts its increase,
+        // one first seen within the window its whole value (the increase alone would miss its first sample's drops).
+        string dropped = $"network_out_dropped_total{{{world}}}";
+        Task<double?> drops = ValueAsync(
+            $"(sum(increase({dropped}{range}) and {dropped} offset {windowSeconds}) or vector(0)) + " +
+            $"(sum({dropped} unless {dropped} offset {windowSeconds}) or vector(0))", at, ct);
         Task<double?> backlog = ValueAsync($"max_over_time(world_receive_queue_depth{{{world},stat=\"max\"}}{range})", at, ct);
         Task<double?> workingSet = ValueAsync($"max(dotnet_process_memory_working_set_bytes{{{world}}})", at, ct);
         Task<double?> workingSetFraction = ValueAsync(
@@ -81,7 +97,6 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         // samples in the window, whether it was there at the window's start, and whether a series of it appeared within
         // the window (one that a restarted world starts beside the old one; its first sample's saves are no increase).
         const string SaveCount = "world_character_save_duration_milliseconds_count";
-        string windowSeconds = $"{w.ToString(CultureInfo.InvariantCulture)}s";
         Task<Answer> saveIncrease = AnswerAsync($"sum(increase({SaveCount}{{{world}}}{range}))", at, ct);
         Task<Answer> saveSamples = AnswerAsync($"sum(count_over_time({SaveCount}{{{world}}}{range}))", at, ct);
         Task<Answer> savesAtStart = AnswerAsync($"sum({SaveCount}{{{world}}})", at - TimeSpan.FromSeconds(w), ct);
@@ -107,7 +122,9 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         try
         {
             JsonArray results = await QueryAsync($"target_info{{{_world}}}", DateTimeOffset.UtcNow, ct);
-            return results.Select(result => result?["metric"]?["service_version"]?.ToString())
+            return results.Select(result => result is JsonObject { } series && series["metric"] is JsonObject metric
+                    ? metric["service_version"]?.ToString()
+                    : null)
                 .FirstOrDefault(version => !string.IsNullOrEmpty(version));
         }
         catch (PrometheusException)
@@ -128,6 +145,29 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         return players is { } value && double.IsFinite(value)
             ? (int)Math.Round(value)
             : throw new PrometheusException($"Prometheus has no avalon_world_players_online for world {worldId}.");
+    }
+
+    /// <summary>
+    /// Measures how far the bot PC's clock is from Prometheus's (Prometheus's <c>time()</c>, against the local clock
+    /// halfway through the request) and corrects every later query's time by it, so a window ending at a local instant
+    /// is read where Prometheus has it. Returns the bot PC's clock less Prometheus's: positive when the bot PC is ahead.
+    /// </summary>
+    /// <exception cref="PrometheusException">Prometheus is unreachable or its answer holds no time.</exception>
+    public async Task<TimeSpan> MeasureClockOffsetAsync(CancellationToken ct)
+    {
+        DateTimeOffset sent = DateTimeOffset.UtcNow;
+        JsonNode? result = (await DataAsync("time()", null, ct))["result"];
+        DateTimeOffset received = DateTimeOffset.UtcNow;
+        if (result is not JsonArray { Count: 2 } pair ||
+            !double.TryParse(pair[1]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double seconds) ||
+            seconds is not (>= 0 and <= 253_402_300_799))
+        {
+            throw new PrometheusException($"Prometheus at {_http.BaseAddress} answered time() without a time.");
+        }
+
+        DateTimeOffset local = sent + (received - sent) / 2;
+        _clockOffset = local - DateTimeOffset.UnixEpoch.AddMilliseconds(Math.Round(seconds * 1000));
+        return _clockOffset;
     }
 
     /// <inheritdoc />
@@ -201,7 +241,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         double? worst = null;
         foreach (JsonNode? result in results)
         {
-            if (result?["value"] is not JsonArray { Count: 2 } pair ||
+            if (result is not JsonObject series || series["value"] is not JsonArray { Count: 2 } pair ||
                 !double.TryParse(pair[1]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
             {
                 continue;
@@ -215,23 +255,40 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         return worst;
     }
 
-    /// <summary>The <c>data.result</c> vector of an instant query at <paramref name="at"/>.</summary>
-    private async Task<JsonArray> QueryAsync(string query, DateTimeOffset at, CancellationToken ct)
+    /// <summary>
+    /// The <c>data.result</c> vector of an instant query at <paramref name="at"/>, a local instant read on Prometheus's
+    /// clock (<see cref="MeasureClockOffsetAsync"/>).
+    /// </summary>
+    private async Task<JsonArray> QueryAsync(string query, DateTimeOffset at, CancellationToken ct) =>
+        (await DataAsync(query, at - _clockOffset, ct))["result"] as JsonArray ?? [];
+
+    /// <summary>
+    /// The <c>data</c> object of an instant query at <paramref name="time"/> (Prometheus's own now with null). A reply
+    /// that is not a successful JSON object with a <c>data</c> object is a <see cref="PrometheusException"/>.
+    /// </summary>
+    private async Task<JsonObject> DataAsync(string query, DateTimeOffset? time, CancellationToken ct)
     {
-        string time = (at.ToUnixTimeMilliseconds() / 1000.0).ToString("0.###", CultureInfo.InvariantCulture);
-        string path = $"api/v1/query?query={Uri.EscapeDataString(query)}&time={time}";
+        string path = $"api/v1/query?query={Uri.EscapeDataString(query)}";
+        if (time is { } at)
+            path += "&time=" + (at.ToUnixTimeMilliseconds() / 1000.0).ToString("0.###", CultureInfo.InvariantCulture);
+
         try
         {
             using HttpResponseMessage response = await _http.GetAsync(path, ct);
             string text = await response.Content.ReadAsStringAsync(ct);
-            var reply = JsonNode.Parse(text);
-            if (!response.IsSuccessStatusCode || reply is null || reply["status"]?.ToString() != "success")
+            // Anything but an object (an array, a bare value, null) is no answer, as a refusal is.
+            var reply = JsonNode.Parse(text) as JsonObject;
+            if (response.IsSuccessStatusCode && reply is null)
+                throw new PrometheusException($"Prometheus at {_http.BaseAddress} answered something that is not a query reply.");
+
+            if (!response.IsSuccessStatusCode || reply is null || reply["status"]?.ToString() != "success" ||
+                reply["data"] is not JsonObject data)
             {
                 throw new PrometheusException(
                     $"Prometheus refused a query ({(int)response.StatusCode}): {reply?["error"]?.ToString() ?? "no detail"}.");
             }
 
-            return reply["data"]?["result"] as JsonArray ?? [];
+            return data;
         }
         catch (HttpRequestException error)
         {

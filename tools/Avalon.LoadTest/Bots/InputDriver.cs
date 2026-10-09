@@ -133,10 +133,16 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
                 lane.Pending = null;
             }
 
+            // A new connection (seqs restarted at 1, the character spawned afresh): what the lane knew of the old one
+            // no longer applies.
+            int generation = bot.ConnectionGeneration;
+            if (generation != lane.Generation)
+            {
+                lane.Moving = false;
+                lane.Generation = generation;
+            }
+
             uint seq = bot.NextSeq();
-            // Seqs restart at 1 on each connection: what the lane knew of the old one no longer applies.
-            if (seq <= lane.LastSeq) lane.Moving = false;
-            lane.LastSeq = seq;
 
             float dirX = 0f;
             float dirZ = 0f;
@@ -298,8 +304,8 @@ internal sealed class InputLane
     /// <summary>The first seq sent on the current heading.</summary>
     public uint HeadingFrom;
 
-    /// <summary>The last seq sent, to see a new connection's seqs restart.</summary>
-    public uint LastSeq;
+    /// <summary>The bot's <see cref="Bot.ConnectionGeneration"/> the lane last drove, to see a new connection.</summary>
+    public int Generation;
 
     /// <summary>The last send, while it had not completed when fired.</summary>
     public Task? Pending;

@@ -223,7 +223,10 @@ public sealed record RampArguments(
     string? RunId, string Mix, int Start, int Step, TimeSpan Hold, int? Max, IReadOnlyList<Limit> Limits, string? Dial,
     Uri Prometheus, string Pod, int SignInConcurrency)
 {
-    /// <summary>The options against <paramref name="run"/>: <c>--max</c> defaults to the run's size and cannot pass it.</summary>
+    /// <summary>
+    /// The options against <paramref name="run"/>, loaded for its bots (<see cref="RunFile.Load"/>, so it lists at
+    /// least one): <c>--max</c> defaults to the run's size and cannot pass it.
+    /// </summary>
     public RampOptions For(RunFile run)
     {
         int max = Max ?? run.Bots.Count;

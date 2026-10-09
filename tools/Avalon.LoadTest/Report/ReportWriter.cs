@@ -100,7 +100,7 @@ public static class ReportWriter
         md.AppendLine(Invariant(
             $"- Ramp: start {options.Start}, step {options.Step}, hold {options.Hold.TotalSeconds:0} s (judged on the last {RampRunner.JudgedWindow(options.Hold).TotalSeconds:0} s), max {options.Max}, {options.SignInConcurrency} sign-ins at once"));
         md.AppendLine($"- Prometheus: {options.Prometheus} (pod {options.Pod}){(options.Dial is { } dial ? $"; dialling {dial}" : "")}");
-        md.AppendLine(Invariant($"- Bot PC: {cpu}, {Environment.ProcessorCount} logical cores"));
+        md.AppendLine(Invariant($"- Bot PC: {cpu}, {Environment.ProcessorCount} logical cores; its clock {RampRunner.ClockOffsetText(result.ClockOffset)} Prometheus's at the start (query times corrected by it)"));
         md.AppendLine();
         md.AppendLine("| Limit | Trips when | |");
         md.AppendLine("|---|---|---|");
@@ -127,19 +127,16 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Live bots (idle / walker / churner) | In world at hold end | Players online − start | Instances | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Entries / failed | Failures by kind | Leave failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Step | Live bots (idle / walker / churner) | In world at hold end | Players online − start | Instances | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
             ServerValues s = step.Server;
             StepClientValues c = step.Client;
             int failed = c.EntryFailures.Values.Sum();
-            string kinds = c.EntryFailures.Count == 0
-                ? ""
-                : string.Join(", ", c.EntryFailures.OrderByDescending(f => f.Value).Select(f => Invariant($"{f.Key} {f.Value}")));
-            string leaves = c.LeaveFailures.Count == 0
-                ? ""
-                : string.Join(", ", c.LeaveFailures.OrderByDescending(f => f.Value).Select(f => Invariant($"{f.Key} {f.Value}")));
+            string kinds = Kinds(c.EntryFailures);
+            string leaves = Kinds(c.LeaveFailures);
+            string signIns = Kinds(c.SignInFailures);
             string bots = Invariant(
                 $"{step.Bots} ({step.ByBehaviour.GetValueOrDefault(BehaviourKind.Idle)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Walker)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Churner)})");
             string workingSet = s.WorkingSetMb is { } mb
@@ -163,6 +160,7 @@ public static class ReportWriter
                 Invariant($"{c.EntryAttempts} / {failed}"),
                 kinds,
                 leaves,
+                signIns,
                 c.Disconnects.ToString(CultureInfo.InvariantCulture),
                 Percent(step.GeneratorCpu),
                 Ms(step.GeneratorLagP95Ms, "0.0"),
@@ -182,10 +180,12 @@ public static class ReportWriter
             md.AppendLine($"- Drops while the bot PC was above 60 % CPU, possibly the bots reading slowly rather than the server: steps {string.Join(", ", slowReaders.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
         }
 
+        int signInFailures = result.SignInFailures.Values.Sum();
+        string signInKinds = signInFailures == 0 ? "" : $" ({Kinds(result.SignInFailures)})";
         md.AppendLine(result.SignIns == 0
-            ? Invariant($"- Sign-ins (identity, apart from the world): none; {result.SignInFailures} failures.")
+            ? Invariant($"- Sign-ins (identity, apart from the world): none; {signInFailures} sign-in or refresh failures{signInKinds}.")
             : Invariant(
-                $"- Sign-ins (identity, apart from the world): {result.SignIns} bots, one every {result.SignInRate.TotalSeconds:0.00} s with {options.SignInConcurrency} at once ({60 / result.SignInRate.TotalSeconds:0} per minute); {result.SignInFailures} sign-in or refresh failures."));
+                $"- Sign-ins (identity, apart from the world): {result.SignIns} bots, one every {result.SignInRate.TotalSeconds:0.00} s with {options.SignInConcurrency} at once ({60 / result.SignInRate.TotalSeconds:0} per minute); {signInFailures} sign-in or refresh failures{signInKinds}."));
         md.AppendLine(result.WorldDrained switch
         {
             true => "- After the stop the world's players online came back to the count before the ramp.",
@@ -195,8 +195,7 @@ public static class ReportWriter
         md.AppendLine(Invariant($"- Sign-outs of game contexts that failed: {result.SignOutFailures}."));
         if (result.StopLeaveFailures.Count > 0)
         {
-            md.AppendLine("- Leaves that failed after the last judged step (the stop's): " + string.Join(", ",
-                result.StopLeaveFailures.OrderByDescending(f => f.Value).Select(f => Invariant($"{f.Key} {f.Value}"))) + ".");
+            md.AppendLine($"- Leaves that failed after the last judged step (the stop's): {Kinds(result.StopLeaveFailures)}.");
         }
 
         if (result.LeavesSkipped > 0)
@@ -238,7 +237,7 @@ public static class ReportWriter
                 options.Pod,
             },
             Limits = options.Limits.Select(limit => new { limit.Name, limit.CliName, limit.Threshold, limit.TripsAbove, limit.Unit }),
-            BotPc = new { Cpu = cpu, Cores = Environment.ProcessorCount },
+            BotPc = new { Cpu = cpu, Cores = Environment.ProcessorCount, ClockOffsetSeconds = result.ClockOffset.TotalSeconds },
             Result = new
             {
                 result.Outcome,
@@ -290,6 +289,11 @@ public static class ReportWriter
 
         return "unknown";
     }
+
+    /// <summary>Counts by kind, the most frequent first: <c>join:ACTIVE_GAME_SESSION 3, spawn:timeout 1</c>; empty with none.</summary>
+    private static string Kinds(IReadOnlyDictionary<string, int> counts) =>
+        string.Join(", ", counts.OrderByDescending(f => f.Value).ThenBy(f => f.Key, StringComparer.Ordinal)
+            .Select(f => Invariant($"{f.Key} {f.Value}")));
 
     private static string Number(double? value, string format) =>
         value is { } v && double.IsFinite(v) ? v.ToString(format, CultureInfo.InvariantCulture) : "n/a";
