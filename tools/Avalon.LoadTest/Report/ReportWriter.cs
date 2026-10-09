@@ -75,7 +75,10 @@ public static class ReportWriter
     }
 
     /// <summary>The result in a line: <c>capacity 300 bots</c>, <c>bot PC saturated: capacity ≥ 450 bots</c>, ...</summary>
-    public static string ResultLine(RampResult result) => result.Outcome switch
+    public static string ResultLine(RampResult result) => Verdict(result) +
+        (result.RestartedDuringRamp ? "; does not stand: the world server restarted during the ramp" : "");
+
+    private static string Verdict(RampResult result) => result.Outcome switch
     {
         RampOutcome.Capacity => Invariant($"capacity {result.Capacity ?? 0} bots"),
         RampOutcome.NoLimitReached => Invariant($"no limit reached up to {result.Capacity ?? 0} bots") +
@@ -171,9 +174,13 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Notes");
         md.AppendLine();
-        if (result.ServerChangeDetails is { } serverChange)
+        if (result.ServerChangeDetails is { } serverChange && result.RestartedAfterLastJudgedStep)
         {
-            md.AppendLine($"- The world server restarted during the ramp ({serverChange}), so this run does not stand. Run again.");
+            md.AppendLine($"- **The world server restarted after the ramp's last judged step, while the bots left ({serverChange}).** The steps were judged on one process, so the verdict stands; check the world before the next run.");
+        }
+        else if (result.ServerChangeDetails is { } duringRamp)
+        {
+            md.AppendLine($"- The world server restarted during the ramp ({duringRamp}), so this run does not stand. Run again.");
         }
         else if (result.RestartCheck != RestartCheck.Complete)
         {
@@ -236,6 +243,9 @@ public static class ReportWriter
             result.ContainerRestartsAtStart,
             result.ContainerRestartsAtEnd,
             result.ContainerRestarts,
+            result.ContainerStartedAtStart,
+            result.ContainerStartedAtEnd,
+            result.LastJudgedEnd,
             RunId = run.RunId,
             RunBots = run.Bots.Count,
             Api = run.Api.ToString(),
@@ -269,6 +279,8 @@ public static class ReportWriter
                 result.ServerPodChanged,
                 result.ServerChange,
                 result.ServerRestarted,
+                result.RestartedDuringRamp,
+                result.RestartedAfterLastJudgedStep,
                 RestartCheck = RestartCheckText(result.RestartCheck),
                 result.RestartCheckReason,
                 Blips = result.Steps.Where(step => step.Decision.Blip).Select(step => step.Index),

@@ -52,8 +52,9 @@ catch (OperationCanceledException) when (cancel.IsCancellationRequested)
 // The capacity run, then its report, which is written however the ramp ended: first as soon as the outcome is known
 // (before the bots leave, which a second Ctrl+C would cut short), then again over it once the stop sequence is done.
 // Exit 0 when the ramp reached a verdict (a capacity, no limit reached, the bot PC saturated), 1 when it stopped short
-// of one or the world server restarted during it (the run does not stand); a report that could not be completed is
-// said, and does not change the exit code.
+// of one or the world server restarted before its last judged window ended (the run does not stand; a restart while
+// the bots left is reported and changes nothing); a report that could not be completed is said, and does not change
+// the exit code.
 static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
 {
     var run = RunFile.Load(arguments.RunId, forBots: true);
@@ -85,7 +86,7 @@ static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
             : $"Completing the report failed: {error.Message}. The report saved before the stop remains: {report} (and .json), without the stop's results.");
     }
 
-    return result.ServerChange is null &&
+    return !result.RestartedDuringRamp &&
         result.Outcome is RampOutcome.Capacity or RampOutcome.NoLimitReached or RampOutcome.GeneratorSaturated
         ? 0
         : 1;

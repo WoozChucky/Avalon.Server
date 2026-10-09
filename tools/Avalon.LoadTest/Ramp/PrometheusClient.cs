@@ -193,6 +193,25 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         return restarts is { } value && double.IsFinite(value) ? (int)Math.Round(value) : null;
     }
 
+    /// <summary>
+    /// When the world server's container last started (kube-state-metrics' <c>kube_pod_container_state_started</c>), on
+    /// the bot PC's clock: the newest start among the pods whose uid is in <paramref name="podUids"/> (comma-separated
+    /// <see cref="ServerIdentity.PodUid"/>s) and the pods named by <c>--pod</c>, so a pod replaced under the same name
+    /// shows before the new process's first <c>target_info</c> export does. Null when Prometheus has none or cannot be
+    /// reached.
+    /// </summary>
+    public async Task<DateTimeOffset?> ContainerStartedAsync(string? podUids, CancellationToken ct)
+    {
+        string started = $"kube_pod_container_state_started{{namespace=\"avalon\",container=\"{Container}\"";
+        string query = podUids is null
+            ? $"max({started},pod=\"{pod}\"}})"
+            : $"max({started},uid=~\"{string.Join('|', podUids.Split(", "))}\"}} or {started},pod=\"{pod}\"}})";
+        double? seconds = await ValueAsync(query, DateTimeOffset.UtcNow, ct);
+        return seconds is { } value && value is >= 0 and <= 253_402_300_799
+            ? DateTimeOffset.UnixEpoch.AddSeconds(value) + _clockOffset
+            : null;
+    }
+
     /// <summary>The world's players online now.</summary>
     /// <exception cref="PrometheusException">Prometheus is unreachable or has no such series for the world.</exception>
     public Task<int> PlayersOnlineAsync(CancellationToken ct) => PlayersOnlineAsync(DateTimeOffset.UtcNow, ct);
