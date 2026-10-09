@@ -76,7 +76,7 @@ public static class ReportWriter
 
     /// <summary>The result in a line: <c>capacity 300 bots</c>, <c>bot PC saturated: capacity ≥ 450 bots</c>, ...</summary>
     public static string ResultLine(RampResult result) => Verdict(result) +
-        (result.RestartedDuringRamp ? "; does not stand: the world server restarted during the ramp" : "");
+        (result.DoesNotStandReason is { } reason ? $"; does not stand: {reason}" : "");
 
     private static string Verdict(RampResult result) => result.Outcome switch
     {
@@ -176,15 +176,15 @@ public static class ReportWriter
         md.AppendLine();
         if (result.ServerChangeDetails is { } serverChange && result.RestartedAfterLastJudgedStep)
         {
-            md.AppendLine($"- **The world server restarted after the ramp's last judged step, while the bots left ({serverChange}).** The steps were judged on one process, so the verdict stands; check the world before the next run.");
+            md.AppendLine($"- **The world server {result.RestartPhrase} ({serverChange}).** The steps were judged on one process, so the verdict stands; check the world before the next run.");
         }
         else if (result.ServerChangeDetails is { } duringRamp)
         {
-            md.AppendLine($"- The world server restarted during the ramp ({duringRamp}), so this run does not stand. Run again.");
+            md.AppendLine($"- The world server restarted during the ramp ({duringRamp}), or after its last judged step without proof that it was, so this run does not stand. Run again.");
         }
         else if (result.RestartCheck != RestartCheck.Complete)
         {
-            md.AppendLine($"- Restart check {RestartCheckText(result.RestartCheck)} ({result.RestartCheckReason}): a restart of the world server during the ramp may have gone unseen.");
+            md.AppendLine($"- Restart check {RestartCheckText(result.RestartCheck)} ({result.RestartCheckReason}): whether the world server restarted during the ramp is not known, so this run does not stand. Run again.");
         }
 
         StepRecord[] blips = [.. result.Steps.Where(step => step.Decision.Blip)];
@@ -245,7 +245,13 @@ public static class ReportWriter
             result.ContainerRestarts,
             result.ContainerStartedAtStart,
             result.ContainerStartedAtEnd,
+            result.ContainerLastTerminatedAt,
+            result.OldPodLastUpAt,
+            result.NewestPod,
+            result.NewestPodStartedAt,
+            result.NewestPodRestarts,
             result.LastJudgedEnd,
+            result.StopStarted,
             RunId = run.RunId,
             RunBots = run.Bots.Count,
             Api = run.Api.ToString(),
@@ -281,6 +287,8 @@ public static class ReportWriter
                 result.ServerRestarted,
                 result.RestartedDuringRamp,
                 result.RestartedAfterLastJudgedStep,
+                result.Stands,
+                result.DoesNotStandReason,
                 RestartCheck = RestartCheckText(result.RestartCheck),
                 result.RestartCheckReason,
                 Blips = result.Steps.Where(step => step.Decision.Blip).Select(step => step.Index),

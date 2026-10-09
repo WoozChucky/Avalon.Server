@@ -60,6 +60,11 @@ public enum RestartCheck
     Unknown,
 }
 
+/// <summary>The reads of the world server at the end of a ramp (<see cref="RampResult.WithEndRead"/>); null where unknown.</summary>
+internal readonly record struct EndRead(
+    ServerIdentity? Server, int? Restarts, DateTimeOffset? Started, DateTimeOffset? Terminated, DateTimeOffset? LastUp,
+    (string Uid, DateTimeOffset Started)? Newest, int? NewestRestarts);
+
 /// <summary>How a ramp ended.</summary>
 /// <param name="Capacity">As <see cref="Decision.Capacity"/>; for <see cref="RampOutcome.Stopped"/>, the last passing count (null with none).</param>
 /// <param name="FailedFirst">The confirmed breaches that stopped the ramp; empty for any other end.</param>
@@ -87,29 +92,38 @@ public sealed record RampResult(
     public TimeSpan ClockOffset { get; init; }
 
     /// <summary>
-    /// The world server's version read when the ramp ended (as <see cref="ServerVersion"/>, read before it started), or
-    /// once the bots had left for the finished report; null when Prometheus had none.
+    /// The world server's version read at the end: when the ramp ended for the early report, after the bots had left
+    /// for the finished one (as every other end read). Null when Prometheus had none.
     /// </summary>
     public string? ServerVersionAtEnd { get; init; }
 
-    /// <summary>The world server's pod uid read before the ramp started; null when Prometheus had none.</summary>
+    /// <summary>The world server's pod uid read before the ramp started (<c>target_info</c>); null when Prometheus had none.</summary>
     public string? ServerPod { get; init; }
 
-    /// <summary>The world server's pod uid read at the end (as <see cref="ServerVersionAtEnd"/>); null when Prometheus had none.</summary>
+    /// <summary>The world server's pod uid read at the end (<c>target_info</c>, which may still name a replaced pod); null when unknown.</summary>
     public string? ServerPodAtEnd { get; init; }
 
     /// <summary>
-    /// kube-state-metrics' restart count of the world server's container before the ramp, for the pod read then (by
-    /// uid); null when Prometheus had none.
+    /// The newest pod named by <c>--pod</c> at the end (kube-state-metrics), read only when <c>target_info</c> named that
+    /// pod before the ramp: a replacement shows here before the new process exports. Null when unknown.
     /// </summary>
+    public string? NewestPod { get; init; }
+
+    /// <summary>When <see cref="NewestPod"/> started (bot PC's clock); null when unknown.</summary>
+    public DateTimeOffset? NewestPodStartedAt { get; init; }
+
+    /// <summary>The world server container's restarts in <see cref="NewestPod"/>; null when unknown.</summary>
+    public int? NewestPodRestarts { get; init; }
+
+    /// <summary>The world server container's restart count in the pod read before the ramp, read then; null when unknown.</summary>
     public int? ContainerRestartsAtStart { get; init; }
 
-    /// <summary>The same count at the end (as <see cref="ServerVersionAtEnd"/>), for the same pod; null when Prometheus had none.</summary>
+    /// <summary>The same pod's count at the end (its highest over the ramp, so a deleted pod still answers); null when unknown.</summary>
     public int? ContainerRestartsAtEnd { get; init; }
 
     /// <summary>
-    /// How many times the world server's container restarted inside its pod during the ramp, a restart the pod uid
-    /// cannot show; null when either count is unknown or the count fell (a count that cannot be trusted).
+    /// How many times the world server's container restarted inside the pod read before the ramp, a restart the pod
+    /// uid cannot show; null when either count is unknown or the count fell (a count that cannot be trusted).
     /// </summary>
     public int? ContainerRestarts =>
         ContainerRestartsAtStart is { } start && ContainerRestartsAtEnd is { } end && end >= start ? end - start : null;
@@ -118,36 +132,75 @@ public sealed record RampResult(
     public DateTimeOffset? ContainerStartedAtStart { get; init; }
 
     /// <summary>
-    /// When the world server's container last started, read at the end (as <see cref="ServerVersionAtEnd"/>; bot PC's
-    /// clock): the newest start of the pod read before the ramp and of the pods named by <c>--pod</c>. Null when unknown.
+    /// When the world server's container last started, read at the end (bot PC's clock): the newest start of the pod
+    /// read before the ramp and of the pods named by <c>--pod</c>. Null when unknown.
     /// </summary>
     public DateTimeOffset? ContainerStartedAtEnd { get; init; }
+
+    /// <summary>When the container in the pod read before the ramp last ended (bot PC's clock); null when unknown or it never did.</summary>
+    public DateTimeOffset? ContainerLastTerminatedAt { get; init; }
+
+    /// <summary>
+    /// The latest moment the pod read before the ramp was known to be up (its deletion request or its process's last
+    /// export; bot PC's clock): its process ended no earlier. Null when unknown.
+    /// </summary>
+    public DateTimeOffset? OldPodLastUpAt { get; init; }
 
     /// <summary>When the last judged window ended (bot PC's clock); null when no step was judged.</summary>
     public DateTimeOffset? LastJudgedEnd { get; init; }
 
+    /// <summary>When the ramp ended and the stop sequence began (bot PC's clock); null when unknown.</summary>
+    public DateTimeOffset? StopStarted { get; init; }
+
     /// <summary>Whether the world's version read at the end differs from the one read before the ramp (both known).</summary>
     public bool ServerVersionChanged => Differ(ServerVersion, ServerVersionAtEnd);
 
-    /// <summary>Whether the world's pod uid read at the end differs from the one read before the ramp (both known).</summary>
-    public bool ServerPodChanged => Differ(ServerPod, ServerPodAtEnd);
+    /// <summary>
+    /// Whether the pod read before the ramp was replaced: <c>target_info</c>'s pod uid at the end, or the newest pod named
+    /// by <c>--pod</c>, differs from it (both known).
+    /// </summary>
+    public bool ServerPodChanged => Differ(ServerPod, ServerPodAtEnd) || Differ(ServerPod, NewestPod);
 
     /// <summary>Whether the world server's container started again after the start read (both start times known).</summary>
     public bool ContainerStartChanged => ContainerStartedAtStart is { } start && ContainerStartedAtEnd > start;
 
-    /// <summary>Whether the world server restarted at all between the reads before the ramp and at its end, as far as was seen.</summary>
+    /// <summary>Whether the world server restarted at all between the reads before the ramp and at the end, as far as was seen.</summary>
     public bool ServerRestarted => ServerChangeDetails is not null;
 
     /// <summary>
-    /// Whether the restart seen happened after the last judged window ended, while the bots left: the container's start
-    /// time says so, and no more than one restart is counted. The steps were judged on one process, so the verdict
-    /// stands. A restart whose start time is unknown, or with no step judged, counts as during the ramp.
+    /// A lower bound of when the world server that ran the ramp ended: for a replaced pod, the last moment it was known
+    /// up (<see cref="OldPodLastUpAt"/>); for a container restart inside it, the container's last end. Null when unknown.
+    /// </summary>
+    public DateTimeOffset? OldWorldEndedAt => ServerPodChanged ? OldPodLastUpAt : ContainerLastTerminatedAt;
+
+    /// <summary>
+    /// Whether the restart is proven to have come after the last judged window ended, so the steps were judged on one
+    /// process and the verdict stands. Proven only when the old world ended after that window (<see cref="OldWorldEndedAt"/>
+    /// known and later) and exactly one restart is accounted for: a container restart (count 1) in a pod that stayed, or a
+    /// pod replaced (no container restart in it) by one that started after the window and has not restarted. Anything
+    /// else, unknowns included, is not proven.
     /// </summary>
     public bool RestartedAfterLastJudgedStep =>
-        ServerRestarted && ContainerStartChanged && LastJudgedEnd is { } end && ContainerStartedAtEnd > end && ContainerRestarts is not > 1;
+        ServerRestarted && LastJudgedEnd is { } judged && OldWorldEndedAt > judged &&
+        (ServerPodChanged
+            ? ContainerRestarts == 0 && Differ(ServerPod, NewestPod) && NewestPodStartedAt > judged && NewestPodRestarts == 0
+            : ContainerRestarts == 1);
 
-    /// <summary>Whether the world server restarted during the ramp, before its last judged window ended: the run does not stand.</summary>
+    /// <summary>Whether the world server restarted and that it came after the last judged window is not proven: the run does not stand.</summary>
     public bool RestartedDuringRamp => ServerRestarted && !RestartedAfterLastJudgedStep;
+
+    /// <summary>
+    /// Why the run does not stand: the world server restarted during the ramp (not proven after its last judged
+    /// window), or no restart was seen but the check could not be made whole. Null when the run stands.
+    /// </summary>
+    public string? DoesNotStandReason => RestartedDuringRamp
+        ? "the world server restarted during the ramp"
+        : !ServerRestarted && RestartCheck != RestartCheck.Complete
+            ? $"the restart check was {(RestartCheck == RestartCheck.Partial ? "partial" : "unknown")} ({RestartCheckReason})"
+            : null;
+
+    /// <summary>Whether the run stands as far as the world server's restarts go (<see cref="DoesNotStandReason"/>).</summary>
+    public bool Stands => DoesNotStandReason is null;
 
     /// <summary>
     /// What showed the world server restarting: <c>A → B; pod x → y; container restarted N times, last started
@@ -165,7 +218,7 @@ public sealed record RampResult(
             var details = new List<string>(3);
             if (ServerVersionChanged) details.Add($"{ServerVersion} → {ServerVersionAtEnd}");
             else if ((ServerVersion ?? ServerVersionAtEnd) is { } version) details.Add(version);
-            if (ServerPodChanged) details.Add($"pod {ServerPod} → {ServerPodAtEnd}");
+            if (ServerPodChanged) details.Add($"pod {ServerPod} → {(Differ(ServerPod, NewestPod) ? NewestPod : ServerPodAtEnd)}");
             string? started = ContainerStartChanged && ContainerStartedAtEnd is { } at
                 ? at.UtcDateTime.ToString("HH:mm:ss 'UTC'", CultureInfo.InvariantCulture)
                 : null;
@@ -186,17 +239,28 @@ public sealed record RampResult(
     }
 
     /// <summary>
-    /// The world server's restart as the report's header gives it: <c>world restarted after the ramp's last judged step,
-    /// while the bots left (...)</c>; <c>world restarted during the ramp (...)</c> when the pod or the container shows it;
-    /// <c>changed during the ramp: A → B</c> when only the versions do; null when nothing did.
+    /// How the restart came, as a phrase: <c>restarted after the ramp's last judged step, while the bots left</c> (the
+    /// old world ended after the stop began), <c>restarted after the ramp's last judged step</c>, or <c>restarted during
+    /// the ramp</c>; null when no restart was seen.
+    /// </summary>
+    public string? RestartPhrase => !ServerRestarted
+        ? null
+        : RestartedAfterLastJudgedStep
+            ? StopStarted is { } stop && OldWorldEndedAt > stop
+                ? "restarted after the ramp's last judged step, while the bots left"
+                : "restarted after the ramp's last judged step"
+            : "restarted during the ramp";
+
+    /// <summary>
+    /// The world server's restart as the report's header gives it: <c>world restarted after the ramp's last judged
+    /// step[, while the bots left] (...)</c>; <c>world restarted during the ramp (...)</c> when the pod or the container
+    /// shows it; <c>changed during the ramp: A → B</c> when only the versions do; null when nothing did.
     /// </summary>
     public string? ServerChange => ServerChangeDetails is not { } details
         ? null
-        : RestartedAfterLastJudgedStep
-            ? $"world restarted after the ramp's last judged step, while the bots left ({details})"
-            : ServerPodChanged || ContainerRestarts > 0 || ContainerStartChanged
-                ? $"world restarted during the ramp ({details})"
-                : $"changed during the ramp: {details}";
+        : RestartedAfterLastJudgedStep || ServerPodChanged || ContainerRestarts > 0 || ContainerStartChanged
+            ? $"world {RestartPhrase} ({details})"
+            : $"changed during the ramp: {details}";
 
     /// <summary>
     /// How much of the restart check could be made: <see cref="Ramp.RestartCheck.Complete"/> when the versions, the pod
@@ -244,6 +308,20 @@ public sealed record RampResult(
 
     private static bool Differ(string? start, string? end) =>
         start is not null && end is not null && !string.Equals(start, end, StringComparison.Ordinal);
+
+    /// <summary>This result with every end read taken from <paramref name="read"/>, unknowns included.</summary>
+    internal RampResult WithEndRead(EndRead read) => this with
+    {
+        ServerVersionAtEnd = read.Server?.Version,
+        ServerPodAtEnd = read.Server?.PodUid,
+        ContainerRestartsAtEnd = read.Restarts,
+        ContainerStartedAtEnd = read.Started,
+        ContainerLastTerminatedAt = read.Terminated,
+        OldPodLastUpAt = read.LastUp,
+        NewestPod = read.Newest?.Uid,
+        NewestPodStartedAt = read.Newest?.Started,
+        NewestPodRestarts = read.NewestRestarts,
+    };
 
     /// <summary>Failed sign-outs of game contexts over the ramp, its stop sequence's included.</summary>
     public int SignOutFailures { get; init; }
@@ -374,7 +452,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
                 $"World {run.WorldId} runs in pod {podName} (target_info), not --pod {options.Pod}: the working set's share of the memory limit reads --pod's limit.");
         }
 
-        int? restartsBefore = await prometheus.ContainerRestartsAsync(server?.PodUid, ct);
+        int? restartsBefore = await prometheus.ContainerRestartsAsync(server?.PodUid, over: null, ct);
         DateTimeOffset? startedBefore = await prometheus.ContainerStartedAsync(server?.PodUid, ct);
         int playersBefore = await prometheus.PlayersOnlineAsync(ct);
         Console.WriteLine(Invariant(
@@ -459,30 +537,29 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         }
 
         // Read again before the stop sequence (the reads at once, 3 s at most: s_endReadTimeout): a world restarted
-        // during the ramp, on any version, invalidates the run.
-        EndRead atEnd = await ReadServerAsync(prometheus, server?.PodUid);
-        var partial = new RampResult(outcome, capacity, failedFirst, steps, version, SignInRate(), started, DateTimeOffset.UtcNow)
+        // during the ramp, on any version, invalidates the run. --pod's newest pod stands for the world's only when target_info named that pod before the ramp.
+        bool podNamed = server?.PodName is { } named && string.Equals(named, options.Pod, StringComparison.Ordinal);
+        DateTimeOffset stopStarted = DateTimeOffset.UtcNow;
+        EndRead atEnd = await ReadServerAsync(prometheus, server?.PodUid, podNamed, stopStarted - started);
+        RampResult partial = new RampResult(outcome, capacity, failedFirst, steps, version, SignInRate(), started, DateTimeOffset.UtcNow)
         {
-            ServerVersionAtEnd = atEnd.Server?.Version,
             ServerPod = server?.PodUid,
-            ServerPodAtEnd = atEnd.Server?.PodUid,
             ContainerRestartsAtStart = restartsBefore,
-            ContainerRestartsAtEnd = atEnd.Restarts,
             ContainerStartedAtStart = startedBefore,
-            ContainerStartedAtEnd = atEnd.Started,
             LastJudgedEnd = steps.Count == 0 ? null : steps[^1].WindowEnd,
+            StopStarted = stopStarted,
             StopReason = stopReason,
             SignIns = _signIns,
             SignInFailures = new Dictionary<string, int>(signInFailures, StringComparer.Ordinal),
             SignOutFailures = signOutFailures,
             WorldDrained = null,
             ClockOffset = clockOffset,
-        };
+        }.WithEndRead(atEnd);
         if (partial.ServerChange is { } change)
         {
-            Console.Error.WriteLine(partial.RestartedDuringRamp
-                ? $"World {run.WorldId} server: {change}. This run does not stand."
-                : $"World {run.WorldId} server: {change}. The verdict stands.");
+            Console.Error.WriteLine(partial.Stands
+                ? $"World {run.WorldId} server: {change}. The verdict stands."
+                : $"World {run.WorldId} server: {change}. This run does not stand.");
         }
 
         try
@@ -528,19 +605,16 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         AddCounts(signInFailures, last.SignInFailures);
         signOutFailures += last.SignOutFailures;
         bool drained = await WaitForDrainAsync(prometheus, playersBefore);
-        // A restart late in the ramp, or during the stop, may show only now: the finished report's end reads come from
-        // here, each falling back to the read at the ramp's end when this one has none. A replaced pod drains at once
-        // (its players online start at 0), so target_info may still name the old process here; the container's start
-        // time (kube-state-metrics, also by --pod) shows the new one, and decides when the restart happened.
-        EndRead final = await ReadServerAsync(prometheus, server?.PodUid);
+        // A restart late in the ramp, or during the stop, may show only now: the finished report's end reads all come
+        // from here, none falling back to the earlier read (an unknown stays unknown, and proves nothing). A replaced
+        // pod drains at once (its players online start at 0), so target_info may still name the old process here; the
+        // kube-state-metrics reads (by uid and by --pod) show the new one, once scraped after the drain ended.
+        await WaitForKubeScrapeAsync(prometheus, server?.PodUid, DateTimeOffset.UtcNow);
+        EndRead final = await ReadServerAsync(prometheus, server?.PodUid, podNamed, DateTimeOffset.UtcNow - started);
 
         // The count and the rate from one moment: sign-ins still landing when the outcome was known count in both.
-        RampResult result = partial with
+        RampResult result = partial.WithEndRead(final) with
         {
-            ServerVersionAtEnd = final.Server?.Version ?? partial.ServerVersionAtEnd,
-            ServerPodAtEnd = final.Server?.PodUid ?? partial.ServerPodAtEnd,
-            ContainerRestartsAtEnd = final.Restarts ?? partial.ContainerRestartsAtEnd,
-            ContainerStartedAtEnd = final.Started ?? partial.ContainerStartedAtEnd,
             SignIns = _signIns,
             SignInRate = SignInRate(),
             Ended = DateTimeOffset.UtcNow,
@@ -553,9 +627,9 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         };
         if (result.ServerChange is { } finalChange && !string.Equals(finalChange, partial.ServerChange, StringComparison.Ordinal))
         {
-            Console.Error.WriteLine(result.RestartedDuringRamp
-                ? $"World {run.WorldId} server: {finalChange}. This run does not stand."
-                : $"World {run.WorldId} server: {finalChange}. The verdict stands.");
+            Console.Error.WriteLine(result.Stands
+                ? $"World {run.WorldId} server: {finalChange}. The verdict stands."
+                : $"World {run.WorldId} server: {finalChange}. This run does not stand.");
         }
 
         return result;
@@ -564,34 +638,67 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     /// <summary>The longest the reads of the world server at the ramp's end may take, together.</summary>
     private static readonly TimeSpan s_endReadTimeout = TimeSpan.FromSeconds(3);
 
+    /// <summary>The longest the runner waits for kube-state-metrics to be scraped after the drain, before the last read.</summary>
+    private static readonly TimeSpan s_kubeScrapeWait = TimeSpan.FromSeconds(45);
+
     /// <summary>
-    /// The world server, its container's restarts (in the pod <paramref name="podUid"/>) and its container's last start,
-    /// read at once and bounded by <see cref="s_endReadTimeout"/> rather than the ramp's token (a Ctrl+C has cancelled
-    /// it); a read that did not answer in time is null.
+    /// The world server as <see cref="RampResult"/>'s end reads take it, read at once and bounded by
+    /// <see cref="s_endReadTimeout"/> rather than the ramp's token (a Ctrl+C has cancelled it); a read that did not answer
+    /// in time is null. <paramref name="podUid"/> is the pod read before the ramp; <paramref name="podNamed"/> whether
+    /// <c>--pod</c> named it, so its newest pod stands for the world's; <paramref name="ramp"/> how far back the reads of
+    /// a pod deleted since look.
     /// </summary>
-    private static async Task<EndRead> ReadServerAsync(PrometheusClient prometheus, string? podUid)
+    private static async Task<EndRead> ReadServerAsync(PrometheusClient prometheus, string? podUid, bool podNamed, TimeSpan ramp)
     {
         using var timeout = new CancellationTokenSource(s_endReadTimeout);
-        Task<ServerIdentity?> server = prometheus.ServerAsync(timeout.Token);
-        Task<int?> restarts = prometheus.ContainerRestartsAsync(podUid, timeout.Token);
-        Task<DateTimeOffset?> started = prometheus.ContainerStartedAsync(podUid, timeout.Token);
+        CancellationToken token = timeout.Token;
+        TimeSpan lookBack = ramp + TimeSpan.FromMinutes(5);
+        Task<ServerIdentity?> server = prometheus.ServerAsync(token);
+        Task<int?> restarts = prometheus.ContainerRestartsAsync(podUid, lookBack, token);
+        Task<DateTimeOffset?> started = prometheus.ContainerStartedAsync(podUid, token);
+        Task<DateTimeOffset?> terminated = podUid is null ? Task.FromResult<DateTimeOffset?>(null) : prometheus.ContainerLastTerminatedAsync(podUid, token);
+        Task<DateTimeOffset?> lastUp = podUid is null ? Task.FromResult<DateTimeOffset?>(null) : prometheus.PodLastUpAsync(podUid, lookBack, token);
+        Task<(string Uid, DateTimeOffset Started)?> newest = podNamed
+            ? prometheus.NewestPodAsync(token)
+            : Task.FromResult<(string Uid, DateTimeOffset Started)?>(null);
+        int? newestRestarts = null;
         try
         {
-            await Task.WhenAll(server, restarts, started);
+            await Task.WhenAll(server, restarts, started, terminated, lastUp, newest);
+            if (newest.Result is { } pod) newestRestarts = await prometheus.ContainerRestartsAsync(pod.Uid, over: null, token);
         }
         catch (OperationCanceledException)
         {
             // Whichever read ran out of time is unknown.
         }
 
-        return new EndRead(
-            server.IsCompletedSuccessfully ? server.Result : null,
-            restarts.IsCompletedSuccessfully ? restarts.Result : null,
-            started.IsCompletedSuccessfully ? started.Result : null);
+        return new EndRead(Done(server), Done(restarts), Done(started), Done(terminated), Done(lastUp), Done(newest), newestRestarts);
+
+        static T? Done<T>(Task<T> task) => task.IsCompletedSuccessfully ? task.Result : default;
     }
 
-    /// <summary>The reads of the world server at the ramp's end (<see cref="ReadServerAsync"/>); null where unknown.</summary>
-    private readonly record struct EndRead(ServerIdentity? Server, int? Restarts, DateTimeOffset? Started);
+    /// <summary>
+    /// Waits, at most <see cref="s_kubeScrapeWait"/>, until kube-state-metrics' container start for the world has a sample
+    /// taken after <paramref name="after"/>, so the last read does not see the world as it was before the drain ended.
+    /// </summary>
+    private static async Task WaitForKubeScrapeAsync(PrometheusClient prometheus, string? podUid, DateTimeOffset after)
+    {
+        DateTimeOffset deadline = after + s_kubeScrapeWait;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            using var timeout = new CancellationTokenSource(s_endReadTimeout);
+            try
+            {
+                if (await prometheus.ContainerStartScrapedAsync(podUid, timeout.Token) > after) return;
+            }
+            catch (OperationCanceledException)
+            {
+                // Not yet known; try again.
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(5));
+        }
+    }
 
     /// <summary>
     /// The limits' values for a step: the server's, the bots' and the bot PC's. Admission is the bots that tried to

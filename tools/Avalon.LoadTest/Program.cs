@@ -52,9 +52,9 @@ catch (OperationCanceledException) when (cancel.IsCancellationRequested)
 // The capacity run, then its report, which is written however the ramp ended: first as soon as the outcome is known
 // (before the bots leave, which a second Ctrl+C would cut short), then again over it once the stop sequence is done.
 // Exit 0 when the ramp reached a verdict (a capacity, no limit reached, the bot PC saturated), 1 when it stopped short
-// of one or the world server restarted before its last judged window ended (the run does not stand; a restart while
-// the bots left is reported and changes nothing); a report that could not be completed is said, and does not change
-// the exit code.
+// of one or the run does not stand (the world server restarted and that it came after the last judged window is not
+// proven, or no restart was seen but the check could not be made whole); a report that could not be completed is said,
+// and does not change the exit code.
 static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
 {
     var run = RunFile.Load(arguments.RunId, forBots: true);
@@ -65,14 +65,21 @@ static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
         $"each held {options.Hold.TotalSeconds:0} s{dialling}. Ctrl+C stops it and still writes the report.");
 
     string? report = null;
+    string? earlyResult = null;
     RampResult result = await new RampRunner(run, options).RunAsync(known =>
     {
         report = ReportWriter.Save(known, options, run);
-        Console.WriteLine($"Result: {ReportWriter.ResultLine(known)}");
+        earlyResult = ReportWriter.ResultLine(known);
+        Console.WriteLine($"Result: {earlyResult}");
         foreach (Breach breach in known.FailedFirst)
             Console.WriteLine($"  failed first: {RampRunner.Describe(breach, options.Limits)}");
         Console.WriteLine($"Report: {report} (and .json); completed once the bots have left.");
     }, ct);
+    // The end reads after the bots left can change whether the run stands.
+    string finalResult = ReportWriter.ResultLine(result);
+    if (!string.Equals(finalResult, earlyResult, StringComparison.Ordinal))
+        Console.WriteLine($"Result: {finalResult}");
+
     try
     {
         report = ReportWriter.Save(result, options, run, report);
@@ -86,7 +93,7 @@ static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
             : $"Completing the report failed: {error.Message}. The report saved before the stop remains: {report} (and .json), without the stop's results.");
     }
 
-    return !result.RestartedDuringRamp &&
+    return result.Stands &&
         result.Outcome is RampOutcome.Capacity or RampOutcome.NoLimitReached or RampOutcome.GeneratorSaturated
         ? 0
         : 1;
