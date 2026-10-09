@@ -80,6 +80,11 @@ public static class ApiRateLimiting
             .Validate(c => c.WorkloadPermitsPerMinute >= 1,
                 $"{Section}:{nameof(RateLimitingConfig.WorkloadPermitsPerMinute)} must be at least 1.")
             .ValidateOnStart();
+        // Names the entry it refuses, which a Validate message cannot.
+        services.AddSingleton<IValidateOptions<RateLimitingConfig>, ExemptSourcesValidation>();
+        // Parsed once, for the limiter and identity's per-source budgets.
+        services.AddSingleton<IExemptSources>(sp =>
+            new ExemptSources(sp.GetRequiredService<IOptions<RateLimitingConfig>>().Value.ExemptSources));
 
         services.AddSingleton<FailedPatLookups>();
         services.AddRateLimiter(_ => { });

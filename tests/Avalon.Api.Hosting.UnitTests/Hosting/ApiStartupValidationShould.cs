@@ -1,4 +1,5 @@
 using Avalon.Api.Hosting.Config;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Identity;
 using Avalon.Api.Identity.Config;
@@ -121,6 +122,34 @@ public class ApiStartupValidationShould
             ("Application:RateLimiting:AuthenticatedPermitsPerMinute", "1"));
 
         provider.GetRequiredService<IStartupValidator>().Validate();
+    }
+
+    /// <summary>
+    /// The load-test settings: the sources exempt from the per-source limits are parsed before the api serves, so an
+    /// entry that is not an address or a network refuses startup, naming it (an IPv4 address with fewer than four parts
+    /// would otherwise parse as another address); and a load-test account cap below one refuses too.
+    /// </summary>
+    [Theory]
+    [InlineData("Application:RateLimiting:ExemptSources", "10.0.0.5|10.1.0.0/16|::1", null)]
+    [InlineData("Application:RateLimiting:ExemptSources", "10.0.0.5|not-an-ip", "\"not-an-ip\"")]
+    [InlineData("Application:RateLimiting:ExemptSources", "10.1", "\"10.1\"")]
+    [InlineData("Application:LoadTest:MaxAccounts", "0", "Application:LoadTest:MaxAccounts must be at least 1")]
+    public void Validate_the_load_test_settings_at_startup(string setting, string values, string? refusalNaming)
+    {
+        using ServiceProvider provider = Build("localhost:6379",
+            values.Split('|').Select((value, i) => (setting.EndsWith("ExemptSources", StringComparison.Ordinal)
+                ? $"{setting}:{i}" : setting, (string?)value)).ToArray());
+
+        if (refusalNaming is null)
+        {
+            provider.GetRequiredService<IStartupValidator>().Validate();
+            Assert.True(provider.GetRequiredService<IExemptSources>().IsExempt(System.Net.IPAddress.Parse("10.1.2.3")));
+            return;
+        }
+
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        Assert.Contains(refusalNaming, refused.Message, StringComparison.Ordinal);
     }
 
     /// <summary>A reload timeout of zero or less would time every save out before it started waiting.</summary>

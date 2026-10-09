@@ -5,6 +5,7 @@ using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Identity.Authentication;
 using Avalon.Api.Identity.Authentication.Jwt;
 using Avalon.Api.Identity.Config;
+using Avalon.Api.Identity.LoadTest;
 using Avalon.Api.Identity.Services;
 using Avalon.Api.Identity.Services.Email;
 using Avalon.Infrastructure;
@@ -94,6 +95,10 @@ public static class IdentityServiceRegistration
         services.AddScoped<Avalon.Infrastructure.GameAuth.IGameServerAllocator, GameServerAllocator>();
         services.AddOptions<Avalon.Configuration.GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads")
             .Validate(c => { c.Validate(); return true; });
+        services.AddOptions<LoadTestOptions>().BindConfiguration(LoadTestOptions.Section)
+            .Validate(o => o.MaxAccounts >= 1,
+                $"{LoadTestOptions.Section}:{nameof(LoadTestOptions.MaxAccounts)} must be at least 1.")
+            .ValidateOnStart();
         services.AddScoped<AccountLinkReauthentication>();
         services.AddScoped<StoreAccountRegistration>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.IGameAccountRegistration>(sp => sp.GetRequiredService<StoreAccountRegistration>());
