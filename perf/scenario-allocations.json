@@ -3,16 +3,16 @@
   "date": "2026-10-09",
   "scenarios": {
     "many-instances": {
-      "bytesPerWindow": 12098368,
-      "bytesPerPlayerPerTick": 403.2789333333333
+      "bytesPerWindow": 14018368,
+      "bytesPerPlayerPerTick": 467.2789333333333
     },
     "town-idle": {
       "bytesPerWindow": 9600,
       "bytesPerPlayerPerTick": 5.333333333333333
     },
     "town-walk": {
-      "bytesPerWindow": 1464952,
-      "bytesPerPlayerPerTick": 813.8622222222222
+      "bytesPerWindow": 1581064,
+      "bytesPerPlayerPerTick": 878.3688888888888
     }
   }
 }

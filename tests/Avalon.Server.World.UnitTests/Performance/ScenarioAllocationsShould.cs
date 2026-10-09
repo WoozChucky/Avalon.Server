@@ -16,10 +16,11 @@ public sealed class ScenarioAllocations;
 /// (<c>perf/scenario-allocations.json</c>) by <see cref="AllocationBaseline.Compare" />.
 /// </summary>
 /// <remarks>
-/// The gate decides in Release, which CI builds and the baseline is generated in. An unoptimized (Debug) build
-/// allocates more by a fixed amount the 5% band no longer covers (the per-send <c>Encrypt</c> delegate, which the
-/// Release JIT keeps off the heap), so there it reports the comparison instead of failing on it. Every scenario still
-/// runs in Debug, so a scenario that stopped doing its work still fails its own check.
+/// The gate decides in Release, which CI builds; the committed figures are CI's Linux Release run. The figure depends
+/// on the build and the platform by more than the 5% band (the per-send <c>Encrypt</c> delegate, 64 B per walking
+/// player per tick, is on the heap in Debug and on Linux but kept on the stack by the Windows Release JIT), so a
+/// Debug build reports the comparison instead of failing on it. Every scenario still runs in Debug, so a scenario
+/// that stopped doing its work still fails its own check.
 /// </remarks>
 [Collection(nameof(ScenarioAllocations))]
 public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
