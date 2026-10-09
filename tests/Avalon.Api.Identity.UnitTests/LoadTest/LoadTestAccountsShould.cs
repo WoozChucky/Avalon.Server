@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Authentication.AV;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Identity.Services;
 using Avalon.Api.Testing;
@@ -77,14 +78,18 @@ public sealed class LoadTestAccountsShould : IDisposable
         return await db.Accounts.Select(a => a.Username).ToListAsync();
     }
 
-    /// <summary>Identity alone, enabled, with the real account service and repositories over the test database.</summary>
-    private async Task<ApiTestHost> HostAsync()
+    /// <summary>
+    /// Identity alone, enabled unless <paramref name="enabled"/> says otherwise, with the real account service and
+    /// repositories over the test database.
+    /// </summary>
+    private async Task<ApiTestHost> HostAsync(bool enabled = true, int maxAccounts = 5000)
     {
         ApiTestHost host = await ApiTestHost.StartAsync([IdentityApi.Service], new ApiTestHostOptions
         {
             Settings = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
-                ["Application:LoadTest:Enabled"] = "true",
+                ["Application:LoadTest:Enabled"] = enabled ? "true" : "false",
+                ["Application:LoadTest:MaxAccounts"] = maxAccounts.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 // The store settings a deployment has; the grants are recorded in its environment.
                 ["Application:StoreAuthentication:SteamPublisherKey"] = "private-test-publisher-key",
                 ["Application:StoreAuthentication:SteamAppId"] =
@@ -162,6 +167,74 @@ public sealed class LoadTestAccountsShould : IDisposable
         AuthenticateResponse? session = await login.Content.ReadFromJsonAsync<AuthenticateResponse>();
         Assert.Equal(AuthenticationResponseStatus.Success, session?.Status);
         Assert.False(string.IsNullOrEmpty(session?.Token));
+    }
+
+    /// <summary>
+    /// A request the endpoint must not carry out creates nothing. Disabled, the endpoint answers Not Found to both
+    /// actions; a personal access token is refused even with the admin role; the admin's current password is checked;
+    /// a run is 1 to 1,000 accounts, stays within the cap (3 here), and uses a run id once.
+    /// </summary>
+    [Theory]
+    [InlineData("disabled", HttpStatusCode.NotFound)]
+    [InlineData("personal access token", HttpStatusCode.Forbidden)]
+    [InlineData("wrong current password", HttpStatusCode.Unauthorized)]
+    [InlineData("no accounts", HttpStatusCode.BadRequest)]
+    [InlineData("more than 1000 accounts", HttpStatusCode.BadRequest)]
+    [InlineData("over the cap", HttpStatusCode.Conflict)]
+    [InlineData("run id used", HttpStatusCode.Conflict)]
+    public async Task Refuse_load_test_requests_that_are_not_allowed(string refusal, HttpStatusCode expected)
+    {
+        Account admin = await AdminAsync();
+        await using ApiTestHost host = await HostAsync(enabled: refusal != "disabled", maxAccounts: 3);
+        string token = ApiTestHost.Mint(admin);
+        if (refusal == "personal access token")
+        {
+            token = PatPrefix + "0123456789abcdef0123456789abcdef0123456789a";
+            host.PatIs(token, new PersonalAccessToken
+            {
+                Id = new PersonalAccessTokenId(5),
+                AccountId = admin.Id,
+                TokenHash = PersonalAccessTokens.Hash(token),
+                Name = "ci",
+                TokenPrefix = token[..8],
+                Roles = admin.AccessLevel,
+                CreatedAt = DateTime.UtcNow,
+                ExpiresAt = DateTime.UtcNow.AddDays(1),
+            });
+        }
+
+        if (refusal == "run id used")
+        {
+            using HttpResponseMessage first = await SendAsync(host, token, HttpMethod.Post, "/admin/load-test/accounts",
+                new { runId = "ABC", count = 1, password = s_botPassword, currentPassword = s_adminPassword });
+            Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        }
+
+        List<string> before = await UsernamesAsync();
+        object body = new
+        {
+            runId = refusal == "run id used" ? "abc" : null,
+            count = refusal switch
+            {
+                "no accounts" => 0,
+                "more than 1000 accounts" => 1001,
+                "over the cap" => 4,
+                _ => 1,
+            },
+            password = s_botPassword,
+            currentPassword = refusal == "wrong current password" ? "not-the-password" : s_adminPassword,
+        };
+
+        using (HttpResponseMessage response = await SendAsync(host, token, HttpMethod.Post, "/admin/load-test/accounts", body))
+            Assert.Equal(expected, response.StatusCode);
+        if (refusal == "disabled")
+        {
+            using HttpResponseMessage delete = await SendAsync(host, token, HttpMethod.Delete,
+                "/admin/load-test/accounts?all=true", new { currentPassword = s_adminPassword });
+            Assert.Equal(HttpStatusCode.NotFound, delete.StatusCode);
+        }
+
+        Assert.Equal(before, await UsernamesAsync());
     }
 
     [Fact]
@@ -285,9 +358,10 @@ public sealed class LoadTestAccountsShould : IDisposable
         object body = new { currentPassword = s_adminPassword };
         string deleteFirst = $"/admin/load-test/accounts?run={first}";
 
-        // Every run is asked for by name only: no scope, a blank run, or both is refused before the password is
+        // Every run is asked for by name only: no scope, a blank run, both, or a repeated one is refused before the password is
         // checked (a wrong one here), whatever variable was left unset.
-        foreach (string query in new[] { "", "?run=", "?run=%20%20%20", $"?run={second}&all=true", "?all=false" })
+        foreach (string query in new[] { "", "?run=", "?run=%20%20%20", $"?run={second}&all=true", "?all=false",
+                     "?all=true&all=true" })
         {
             using HttpResponseMessage refused = await SendAsync(host, token, HttpMethod.Delete,
                 "/admin/load-test/accounts" + query, new { currentPassword = "not-the-password" });
@@ -393,6 +467,8 @@ public sealed class LoadTestAccountsShould : IDisposable
 
     private static readonly ushort[] s_worldIds = [1, 2];
 
+    private const string PatPrefix = "avp_";
+
     /// <summary>A run of 2 created through the endpoint: its id and its accounts.</summary>
     private async Task<(string RunId, List<Account> Bots)> CreateRunAsync(ApiTestHost host, string token)
     {
@@ -434,11 +510,17 @@ public sealed class LoadTestAccountsShould : IDisposable
             .SetProperty(f => f.Mode, mode).SetProperty(f => f.LeaseUntil, leaseUntil));
     }
 
+    /// <summary>
+    /// Sends <paramref name="body"/> with <paramref name="token"/>: an access token, or a personal access token under the
+    /// <c>Avalon</c> scheme.
+    /// </summary>
     private static async Task<HttpResponseMessage> SendAsync(ApiTestHost host, string token, HttpMethod method, string path,
         object body)
     {
         using var request = new HttpRequestMessage(method, path) { Content = JsonContent.Create(body) };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Authorization = token.StartsWith(PatPrefix, StringComparison.Ordinal)
+            ? new AuthenticationHeaderValue("Avalon", token)
+            : new AuthenticationHeaderValue("Bearer", token);
         return await host.Client.SendAsync(request);
     }
 

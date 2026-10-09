@@ -110,6 +110,8 @@ public sealed class RouteOwnershipShould
         ["POST /internal/game/sessions/activate"] = Identity,
         ["POST /internal/game/sessions/heartbeat"] = Identity,
         ["POST /internal/game/sessions/end"] = Identity,
+        ["POST /admin/load-test/accounts"] = Identity,
+        ["DELETE /admin/load-test/accounts"] = Identity,
 
         // worlds: the world registry and maintenance, world content and its live editing, characters, presence,
         // public tooltips and previews, the balance proxy.

@@ -27,8 +27,9 @@ namespace Avalon.Api.Identity.LoadTest;
 /// database is unavailable (409). Then, per world, the
 /// accounts' characters (their rows cascade) and gameplay fences; then, in one auth transaction, the license
 /// observations and holds that point at their licenses without cascading, the licenses, and the accounts (everything
-/// else cascades); then the world sweep again, best-effort, for what a bot still running created meanwhile; then a
-/// disconnect for each account deleted. A failure after the world sweep, or a bot entering a game during it (409), leaves
+/// else cascades); then a disconnect for each account deleted; then the world sweep again, best-effort, for what a bot
+/// still running created meanwhile. Both run to the end once the auth transaction has committed, whether or not the
+/// caller is still waiting. A failure after the world sweep, or a bot entering a game during it (409), leaves
 /// the auth rows, so the same request again, once the bots are stopped, finishes the run.
 /// </para>
 /// </summary>
@@ -65,20 +66,22 @@ public sealed partial class LoadTestAccountService
             foreach (WorldId world in worlds)
                 await DeleteCharactersAsync(world, ids, ct);
 
-            deleted = await auth.ExecuteAsync((db, token) => DeleteAccountsAsync(db, run, ids, now, token), ct);
+            AuthDelete removed = await auth.ExecuteAsync((db, token) => DeleteAccountsAsync(db, run, ids, now, token), ct);
+            deleted = removed.Deleted;
 
-            // Kept by the second look inside the auth transaction: they gained something of a person's meanwhile.
-            var gone = deleted.Select(id => id.Value).ToHashSet();
-            skipped.AddRange(ids.Where(id => !gone.Contains(id.Value)).Select(id => selection.Names[id.Value]));
+            // Kept by the second look inside the auth transaction: they gained something of a person's meanwhile. One
+            // another delete removed meanwhile is in neither list.
+            skipped.AddRange(removed.Kept.Select(id => selection.Names[id.Value]));
             skipped.Sort(StringComparer.Ordinal);
 
+            // Committed: what follows finishes even if the caller has gone, so no deleted account misses its disconnect.
             if (deleted.Length > 0)
             {
-                // A bot still running could have created a character between the sweep and the commit.
-                foreach (WorldId world in worlds)
-                    await SweepAgainAsync(world, deleted, ct);
                 foreach (AccountId id in deleted)
                     await PublishDisconnectAsync(id);
+                // A bot still running could have created a character between the sweep and the commit.
+                foreach (WorldId world in worlds)
+                    await SweepAgainAsync(world, deleted);
             }
         }
 
@@ -204,16 +207,16 @@ public sealed partial class LoadTestAccountService
     }
 
     /// <summary>
-    /// After the auth commit, the sweep again for the accounts deleted. Best-effort: the accounts are gone already, so a
-    /// failure is logged, not answered.
+    /// After the auth commit, the sweep again for the accounts deleted. Best-effort and not cancelled with the request:
+    /// the accounts are gone already, so a failure is logged, not answered.
     /// </summary>
-    private async Task SweepAgainAsync(WorldId world, AccountId[] ids, CancellationToken ct)
+    private async Task SweepAgainAsync(WorldId world, AccountId[] ids)
     {
         try
         {
-            await DeleteCharactersAsync(world, ids, ct);
+            await DeleteCharactersAsync(world, ids, CancellationToken.None);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex)
         {
             logger.LogWarning(ex, "Could not sweep world {WorldId} again after deleting {Count} load-test accounts",
                 world.Value, ids.Length);
@@ -221,18 +224,26 @@ public sealed partial class LoadTestAccountService
     }
 
     /// <summary>
-    /// The auth rows, in one transaction; returns the accounts deleted. The selection is made again inside it and only
-    /// accounts still selected are deleted, so one that gained anything of a person's since is kept. One that entered a
-    /// game since stops it with a 409: the run's characters are gone by then, its accounts are not.
+    /// The auth rows, in one transaction; returns the accounts deleted and those kept. The swept accounts' rows are locked first, so a
+    /// delete running beside this one waits for it, and the rows this one deletes are exactly those it returns. The
+    /// selection is then made again and only accounts still selected are deleted, so one that gained anything of a
+    /// person's since is kept, and one another delete removed meanwhile is neither counted nor disconnected here. One
+    /// that entered a game since stops it with a 409: the run's characters are gone by then, its accounts are not.
     /// </summary>
-    private static async Task<AccountId[]> DeleteAccountsAsync(AuthDbContext db, string? run, AccountId[] swept, DateTime now,
+    private static async Task<AuthDelete> DeleteAccountsAsync(AuthDbContext db, string? run, AccountId[] swept, DateTime now,
         CancellationToken ct)
     {
+        // A write that changes nothing takes the row locks, as AccountConsolidationRepository does for its roots; the
+        // rows still there after it are this delete's to keep or delete.
+        await db.Accounts.Where(a => swept.Contains(a.Id))
+            .ExecuteUpdateAsync(u => u.SetProperty(a => a.SessionEpoch, a => a.SessionEpoch), ct);
+        AccountId[] locked = await db.Accounts.Where(a => swept.Contains(a.Id)).Select(a => a.Id).ToArrayAsync(ct);
         Selection again = await SelectAsync(db, run, ct);
-        var sweptIds = swept.Select(id => id.Value).ToHashSet();
-        AccountId[] ids = again.Accounts.Where(id => sweptIds.Contains(id.Value)).ToArray();
+        var still = again.Accounts.Select(id => id.Value).ToHashSet();
+        AccountId[] ids = locked.Where(id => still.Contains(id.Value)).ToArray();
+        AccountId[] kept = locked.Where(id => !still.Contains(id.Value)).ToArray();
         if (ids.Length == 0)
-            return [];
+            return new AuthDelete([], kept);
         if (await AnyInGameAsync(db, ids, now, ct))
         {
             throw new LoadTestConflictException(
@@ -249,8 +260,11 @@ public sealed partial class LoadTestAccountService
         await db.GameLicenses.Where(l => ids.Contains(l.AccountId)).ExecuteDeleteAsync(ct);
         // Sessions, tokens, devices, MFA, email verifications and external identities cascade.
         await db.Accounts.Where(a => ids.Contains(a.Id)).ExecuteDeleteAsync(ct);
-        return ids;
+        return new AuthDelete(ids, kept);
     }
+
+    /// <summary>The swept accounts the auth transaction deleted, and those it found it must keep.</summary>
+    private readonly record struct AuthDelete(AccountId[] Deleted, AccountId[] Kept);
 
     /// <summary>Kicks anything still holding the account; best-effort, as the delete is committed.</summary>
     private async Task PublishDisconnectAsync(AccountId account)

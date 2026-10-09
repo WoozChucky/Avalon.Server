@@ -13,8 +13,8 @@ namespace Avalon.Api.Identity.LoadTest;
 
 /// <summary>
 /// Load-test bot accounts, for admins. Always mapped; while <c>Application:LoadTest:Enabled</c> is false every action
-/// answers an empty 404, whatever the body. A personal access token is refused, and the admin's own current password
-/// is required, as for <c>POST /pat/admin</c>: these accounts can enter PTR worlds.
+/// answers the standard Not Found response, whatever the body. A personal access token is refused, and the admin's own
+/// current password is required, as for <c>POST /pat/admin</c>: these accounts can enter PTR worlds.
 /// </summary>
 [ApiController]
 [Authorize(Policy = AvalonRoles.Admin)]
@@ -59,12 +59,12 @@ public sealed class LoadTestAccountsController(ILoadTestAccounts accounts, IReau
 
     /// <summary>
     /// Deletes run <paramref name="run"/>'s accounts, or every load-test account with <paramref name="all"/>=true, with
-    /// their characters in every world. Exactly one of the two, checked before the password: neither, both, or an empty
-    /// or blank <c>run</c> is a 400, so a request built from an unset variable never deletes every run. 409 while any of
-    /// them has a live game session or a live gameplay fence in a world (a character's <c>Online</c> flag counts only
-    /// beside one of those, so a flag a crashed world left set never blocks), and then nothing is deleted; 409 too when
-    /// a bot enters a game during the delete, after the run's characters were removed but before its accounts were:
-    /// stop the bots and repeat it.
+    /// their characters in every world. Exactly one of the two, each given once, checked before the password: neither,
+    /// both, a repeated one, or an empty or blank <c>run</c> is a 400, so a request built from an unset variable never
+    /// deletes every run. 409 while any of them has a live game session or a live gameplay fence in a world (a
+    /// character's <c>Online</c> flag counts only beside one of those, so a flag a crashed world left set never blocks),
+    /// and then nothing is deleted; 409 too when a bot enters a game during the delete, after the run's characters were
+    /// removed but before its accounts were: stop the bots and repeat it.
     /// </summary>
     [HttpDelete]
     [ProducesResponseType(typeof(LoadTestRunDeleted), StatusCodes.Status200OK)]
@@ -80,11 +80,11 @@ public sealed class LoadTestAccountsController(ILoadTestAccounts accounts, IReau
 
         // Read from the query itself: binding turns an empty run= into null, which must not pass for "no run given".
         bool namesRun = Request.Query.TryGetValue("run", out StringValues runs);
-        bool namesAll = Request.Query.ContainsKey("all");
+        bool namesAll = Request.Query.TryGetValue("all", out StringValues alls);
         if (namesRun == namesAll)
             throw new BusinessException("Name the run to delete (run=<id>) or ask for every run (all=true): exactly one.");
-        if (namesAll && all != true)
-            throw new BusinessException("Every run is deleted with all=true only.");
+        if (namesAll && (alls.Count != 1 || all != true))
+            throw new BusinessException("Every run is deleted with one all=true only.");
         if (namesRun)
         {
             if (runs.Count != 1)

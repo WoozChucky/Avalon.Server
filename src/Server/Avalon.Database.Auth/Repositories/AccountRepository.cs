@@ -161,7 +161,9 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     /// <summary>
     /// Inserts new accounts on a context the caller owns, so they commit with what the caller writes beside them in its
     /// transaction (a load-test run's licenses), and sets their ids. New rows only: no row that was read is written back.
-    /// A username already taken fails the save, and the caller's transaction with it.
+    /// A username already taken fails the save, and the caller's transaction with it. Nothing else is checked here: the
+    /// caller owns all validation of the rows (access level, the username rule, the email's form), as registration owns
+    /// it for its own insert.
     /// </summary>
     public static async Task InsertManyAsync(AuthDbContext context, IReadOnlyList<Account> accounts,
         CancellationToken cancellationToken = default)

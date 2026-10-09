@@ -15,6 +15,7 @@ identity	GET	/pat	200	pat
 identity	GET	/client/auth/sessions	403	pat
 identity	GET	/notification/register	405	none
 identity	GET	/game/worlds	405	none
+identity	GET	/admin/load-test/accounts	405	none
 identity	GET	/internal/game/sessions/heartbeat	404,405	none
 # Production serves no API docs (#803): the OpenAPI document and Scalar are not mapped.
 identity	GET	/openapi/v1.json	404	none

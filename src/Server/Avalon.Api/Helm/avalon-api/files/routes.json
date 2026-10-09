@@ -3,7 +3,7 @@
   "default": "identity",
   "internal": ["/internal"],
   "services": {
-    "identity": ["/account", "/mfa", "/pat", "/notification", "/client/auth", "/game"],
+    "identity": ["/account", "/mfa", "/pat", "/notification", "/client/auth", "/game", "/admin/load-test"],
     "worlds": ["/world", "/character", "/observability", "/public", "/balance"],
     "commerce": ["/account/game-license", "/account/purchases", "/admin/purchases", "/payments/notifications"],
     "distribution": ["/client/launcher", "/client/releases", "/client/changelog", "/client/channels"]
