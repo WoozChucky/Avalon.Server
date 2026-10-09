@@ -17,7 +17,10 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="WorkingSetMb">The world process's working set, in MiB.</param>
 /// <param name="Gen2PerMin">Gen 2 collections per minute over the window.</param>
 /// <param name="GcPauseFraction">The fraction of the window the GC paused the process.</param>
-/// <param name="SaveP95Ms">The 95th percentile of character save duration, in milliseconds; 0 with no save in the window.</param>
+/// <param name="SaveP95Ms">
+/// The 95th percentile of character save duration, in milliseconds; 0 when the window had no save, null when it had
+/// saves but no percentile came back (or the count of saves could not be read).
+/// </param>
 /// <param name="Instances">Map instances active at the step's end.</param>
 public sealed record ServerValues(
     double? TickP99Ms, double? Tps, double Drops, double? ReceiveBacklogMax, double? WorkingSetFraction, double? WorkingSetMb,
@@ -72,20 +75,22 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         Task<double?> gcPause = ValueAsync($"sum(rate(dotnet_gc_pause_time_seconds_total{{{world}}}{range}))", at, ct);
         Task<double?> save = ValueAsync(
             $"histogram_quantile(0.95, sum by (le)(rate(world_character_save_duration_milliseconds_bucket{{{world}}}{range})))",
-            at, ct, keepNaN: true);
+            at, ct);
+        // How many saves the window had: an empty result (a world that never saved has no series) is none. Null only
+        // when the query failed.
+        Task<double?> saves = ValueAsync(
+            $"sum(increase(world_character_save_duration_milliseconds_count{{{world}}}{range})) or vector(0)", at, ct);
         Task<double?> instances = ValueAsync($"avalon_world_instances_active{{{world}}}", at, ct);
 
-        await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, instances);
+        await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saves, instances);
 
-        // No save in the window: the quantile of empty buckets is NaN, and a world that never saved since it started
-        // has no save series at all, which reads as empty while the tick histogram (always there) has a value. Neither
-        // is a slow save. An empty save result beside an empty tick result is the window itself lacking samples.
-        double? saveP95 = save.Result switch
+        // No save in the window is not a slow save: 0. Saves with no percentile to show for them (an empty or NaN
+        // quantile) cannot be judged, nor can a window whose count of saves is unknown.
+        double? saveP95 = saves.Result switch
         {
-            double.NaN => 0,
-            { } value => value,
-            null when tick.Result is not null => 0,
             null => null,
+            <= 0 => 0,
+            _ => save.Result is { } p95 && double.IsFinite(p95) ? p95 : null,
         };
 
         return new ServerValues(
@@ -127,11 +132,11 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
     /// <summary>
     /// The query's value: the highest across the result's series (the lowest with <paramref name="lowerIsWorse"/>),
-    /// null when the result is empty or, unless <paramref name="quiet"/> is false, the query failed. NaN stays NaN
-    /// only with <paramref name="keepNaN"/>; otherwise a series reading NaN is passed over.
+    /// null when the result is empty or, unless <paramref name="quiet"/> is false, the query failed. A series reading NaN
+    /// is passed over.
     /// </summary>
     private async Task<double?> ValueAsync(string query, DateTimeOffset at, CancellationToken ct, bool lowerIsWorse = false,
-        bool keepNaN = false, bool quiet = true)
+        bool quiet = true)
     {
         JsonArray results;
         try
@@ -144,7 +149,6 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         }
 
         double? worst = null;
-        bool sawNaN = false;
         foreach (JsonNode? result in results)
         {
             if (result?["value"] is not JsonArray { Count: 2 } pair ||
@@ -153,16 +157,12 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
                 continue;
             }
 
-            if (double.IsNaN(value))
-            {
-                sawNaN = true;
-                continue;
-            }
+            if (double.IsNaN(value)) continue;
 
             worst = worst is not { } current ? value : lowerIsWorse ? Math.Min(current, value) : Math.Max(current, value);
         }
 
-        return worst ?? (sawNaN && keepNaN ? double.NaN : null);
+        return worst;
     }
 
     /// <summary>The <c>data.result</c> vector of an instant query at <paramref name="at"/>.</summary>

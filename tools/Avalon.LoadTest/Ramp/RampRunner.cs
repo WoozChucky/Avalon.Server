@@ -244,11 +244,14 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         await LeaveAllAsync();
         await background.CancelAsync();
         await Task.WhenAll(driving, refreshing).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        DisposeBots();
         signInFailures += metrics.TakeWindow().SignInFailures;
         bool drained = await WaitForDrainAsync(prometheus, playersBefore);
 
+        // The count and the rate from one moment: sign-ins still landing when the outcome was known count in both.
         return partial with
         {
+            SignIns = _signIns,
             SignInRate = SignInRate(),
             Ended = DateTimeOffset.UtcNow,
             SignInFailures = signInFailures,
@@ -364,31 +367,40 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     }
 
     /// <summary>
-    /// Signs one bot in; once signed in it is kept at once (refreshed, and signed out at the end) even if the round it is
-    /// part of is cancelled.
+    /// Signs one bot in; once signed in it is kept at once (refreshed, signed out and disposed at the end) even if the
+    /// round it is part of is cancelled. A bot not kept is disposed here.
     /// </summary>
     private async Task<bool> SignInOneAsync(Bot bot, SemaphoreSlim signIns, CancellationToken ct)
     {
-        await signIns.WaitAsync(ct);
+        bool kept = false;
         try
         {
-            await bot.SignInAsync(ct);
-            lock (_botsLock)
+            await signIns.WaitAsync(ct);
+            try
             {
-                _bots.Add(bot);
-                _snapshot = null;
-            }
+                await bot.SignInAsync(ct);
+                lock (_botsLock)
+                {
+                    _bots.Add(bot);
+                    _snapshot = null;
+                }
 
-            return true;
-        }
-        catch (BotStepException)
-        {
-            // Counted by the bot.
-            return false;
+                kept = true;
+                return true;
+            }
+            catch (BotStepException)
+            {
+                // Counted by the bot.
+                return false;
+            }
+            finally
+            {
+                signIns.Release();
+            }
         }
         finally
         {
-            signIns.Release();
+            if (!kept) bot.Dispose();
         }
     }
 
@@ -480,6 +492,15 @@ public sealed class RampRunner(RunFile run, RampOptions options)
                 Console.Error.WriteLine(Invariant($"  bot {bot.Index} did not leave cleanly: {error.Message}"));
             }
         });
+    }
+
+    /// <summary>Disposes every bot signed in, once the leaves, the life loops, the driver and the refresher are done with them.</summary>
+    private void DisposeBots()
+    {
+        lock (_botsLock)
+        {
+            foreach (Bot bot in _bots) bot.Dispose();
+        }
     }
 
     /// <summary>

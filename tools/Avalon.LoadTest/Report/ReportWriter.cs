@@ -38,7 +38,8 @@ public static class ReportWriter
     /// Writes the report as <c>.md</c> and <c>.json</c>. With no <paramref name="markdownPath"/>, to a new
     /// <c>&lt;yyyyMMdd-HHmmss&gt;-&lt;runId&gt;</c> in <see cref="Directory"/> (a <c>-2</c>, <c>-3</c>, ... suffix
     /// rather than overwrite any report there); with one, over that report, this ramp's own written earlier (the one
-    /// saved when its outcome was known, completed after the stop). Returns the Markdown's path.
+    /// saved when its outcome was known, completed after the stop). Each file is written whole or not at all: an earlier
+    /// version stays until the new one replaces it. Returns the Markdown's path.
     /// </summary>
     public static string Save(RampResult result, RampOptions options, RunFile run, string? markdownPath = null)
     {
@@ -57,9 +58,20 @@ public static class ReportWriter
                 stem = Path.Combine(Directory, $"{name}-{n.ToString(CultureInfo.InvariantCulture)}");
         }
 
-        File.WriteAllText(stem + ".md", markdown);
-        File.WriteAllText(stem + ".json", json);
+        Replace(stem + ".md", markdown);
+        Replace(stem + ".json", json);
         return stem + ".md";
+    }
+
+    /// <summary>
+    /// Writes <paramref name="path"/> through <c>&lt;path&gt;.tmp</c> and a move over it, so a process ended part way
+    /// (a second Ctrl+C during the rewrite) leaves the earlier report whole rather than a truncated one.
+    /// </summary>
+    private static void Replace(string path, string text)
+    {
+        string temporary = path + ".tmp";
+        File.WriteAllText(temporary, text);
+        File.Move(temporary, path, overwrite: true);
     }
 
     /// <summary>The result in a line: <c>capacity 300 bots</c>, <c>bot PC saturated: capacity ≥ 450 bots</c>, ...</summary>
