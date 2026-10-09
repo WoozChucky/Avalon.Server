@@ -27,10 +27,10 @@ public static class CheckCommand
     private static readonly TimeSpan s_cleanupTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// A fighter's trip ends within <c>--forest-time</c> and this: the walk to the portal (20 s), the entry (30 s), the
-    /// way out (60 s), a respawn (30 s), and a margin.
+    /// A fighter's trip ends within <c>--forest-time</c>, its exit budget (<see cref="ExitBudget"/>) and this: the walk
+    /// to the portal (20 s), the entry (30 s), a respawn (30 s), a hold for a fresh ack (10 s), and a margin.
     /// </summary>
-    private static readonly TimeSpan s_tripMargin = TimeSpan.FromMinutes(4);
+    private static readonly TimeSpan s_tripMargin = TimeSpan.FromMinutes(3);
 
     public static async Task<int> RunAsync(CheckOptions options, CancellationToken ct)
     {
@@ -168,7 +168,7 @@ public static class CheckCommand
     /// <summary>
     /// Runs the input driver over this one fighter until its first trip ends, then waits for the last acks. Returns the
     /// driver's lateness p95 and how the trip ended. A connection the world closes, or a trip that has not ended within
-    /// <c>--forest-time</c> and <see cref="s_tripMargin"/>, fails the check.
+    /// <c>--forest-time</c>, its exit budget and <see cref="s_tripMargin"/>, fails the check.
     /// </summary>
     private static async Task<(double LatenessP95, TripEnd? Trip)> TripAsync(Bot bot, Fighter fighter, TimeSpan forestTime,
         CancellationToken ct)
@@ -178,7 +178,7 @@ public static class CheckCommand
         fighter.TripEnded += end => ended.TrySetResult(end);
         Bot[] inWorld = [bot];
         var driver = new InputDriver(() => inWorld);
-        TimeSpan limit = forestTime + s_tripMargin;
+        TimeSpan limit = forestTime + ExitBudget(forestTime) + s_tripMargin;
         long start = Stopwatch.GetTimestamp();
 
         using (var stop = CancellationTokenSource.CreateLinkedTokenSource(ct))
@@ -202,6 +202,13 @@ public static class CheckCommand
         bot.StepTimed?.Invoke(Step, Stopwatch.GetElapsedTime(start));
         return (driver.LatenessP95Ms(), await ended.Task);
     }
+
+    /// <summary>
+    /// The most a fighter's way out may take: 60 s, or twice the walk back along its trail, which is at most as long as
+    /// its walk in, at most <c>--forest-time</c> at the walk speed: so at most twice <c>--forest-time</c>.
+    /// </summary>
+    private static TimeSpan ExitBudget(TimeSpan forestTime) =>
+        TimeSpan.FromSeconds(Math.Max(60, 2 * forestTime.TotalSeconds));
 
     /// <summary>What a fighter's trip counted.</summary>
     private static void PrintTrip(StepClientValues values)

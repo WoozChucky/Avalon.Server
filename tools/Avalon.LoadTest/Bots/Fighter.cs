@@ -200,6 +200,12 @@ public sealed class Fighter
     /// <summary>Still dead this long after dying, the fighter reconnects: a fresh login lands in town.</summary>
     private static readonly long s_respawnTimeout = Ticks(TimeSpan.FromSeconds(30));
 
+    /// <summary>
+    /// Held this long after a transition with no ack from the new map (a living character's every input is answered
+    /// within a tick or two), the fighter reconnects.
+    /// </summary>
+    private static readonly long s_staleAckTimeout = Ticks(TimeSpan.FromSeconds(10));
+
     /// <summary>How long a heading turned away from a wall is held before steering at the goal again.</summary>
     private static readonly long s_detour = Ticks(TimeSpan.FromSeconds(1));
 
@@ -230,6 +236,9 @@ public sealed class Fighter
 
     /// <summary>The first input whose ack describes the map the fighter is on: the step's when a transition was taken.</summary>
     private uint _freshFrom;
+
+    /// <summary>When the last transition was taken: a hold for a fresh ack counts from it.</summary>
+    private long _heldSince;
 
     private bool _started;
     private bool _reconnecting;
@@ -387,9 +396,25 @@ public sealed class Fighter
         }
 
         // A dead character's inputs go unanswered, and a dead fighter reads nothing from the acks: it is never held.
-        FighterStep step = fresh || _state == FighterState.Dead
-            ? Decide(ack, blocked, canSend, now, rng)
-            : Still(newHeading: false);
+        FighterStep step;
+        if (fresh || _state == FighterState.Dead)
+        {
+            step = Decide(ack, blocked, canSend, now, rng);
+        }
+        else if (now - _heldSince > s_staleAckTimeout)
+        {
+            // No timeout of Decide's runs while held: this one ends a hold that the world never answers.
+            _metrics.FighterFailed("forest:stale-acks");
+            Note?.Invoke("No ack from the new map 10 s after the transition: reconnecting.");
+            EndTrip(TripEnd.Failed);
+            AskReconnect(now);
+            step = Still(newHeading: true);
+        }
+        else
+        {
+            step = Still(newHeading: false);
+        }
+
         return _state != before && !step.NewHeading ? step with { NewHeading = true } : step;
     }
 
@@ -568,6 +593,7 @@ public sealed class Fighter
             Array.Clear(_castAt);
             _hasTarget = false;
             _freshFrom = seq;
+            _heldSince = now;
             _trail = 0;
             if (mapId == ForestMapId)
             {
@@ -609,7 +635,7 @@ public sealed class Fighter
         }
         else if (_state == FighterState.Leaving)
         {
-            // The way out is still open while the exit's minute lasts: back to the portal, and ask again.
+            // The way out is still open while its exit budget lasts: back to the portal, and ask again.
             _metrics.FighterFailed($"forest:leave:{result}");
             Note?.Invoke($"The back portal refused: {result}.");
             _pastEntry = true;
@@ -631,7 +657,7 @@ public sealed class Fighter
     private void ExitTimedOut(long now)
     {
         _metrics.FighterFailed("forest:exit-timeout");
-        Note?.Invoke("Not back in town 60 s after setting out for the exit: reconnecting.");
+        Note?.Invoke("Not back in town within its exit budget: reconnecting.");
         EndTrip(TripEnd.Failed);
         AskReconnect(now);
     }

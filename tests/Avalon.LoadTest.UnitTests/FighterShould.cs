@@ -116,6 +116,8 @@ public class FighterShould
         Assert.Equal(FighterAction.Respawn, wizard.RunUntil(s => s.Action != FighterAction.None, () => steps++).Action);
         Assert.InRange(steps, 299, 301);
         wizard.Transition(Fighter.TownMapId, _now);
+        // The repeated ask, answered after the move it repeats: the move stands.
+        wizard.Fighter.OnTransition(MapTransitionResult.MoveInProgress, Fighter.TownMapId, _now);
         wizard.Step();
         wizard.Step();
         Assert.Equal(FighterState.ToPortal, wizard.Fighter.State);
