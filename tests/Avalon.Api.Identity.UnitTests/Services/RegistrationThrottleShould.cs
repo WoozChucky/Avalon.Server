@@ -1,5 +1,6 @@
 using System.Net;
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Exceptions;
@@ -34,8 +35,13 @@ public sealed class RegistrationThrottleShould : IDisposable
 
     public RegistrationThrottleShould()
     {
+        _service = NewService();
+    }
+
+    private AccountService NewService(IExemptSources? exempt = null)
+    {
         AccountRepository accounts = new(_database);
-        _service = new AccountService(
+        return new AccountService(
             NullLoggerFactory.Instance,
             accounts,
             Substitute.For<Avalon.Api.Identity.Authentication.Jwt.IJwtUtils>(),
@@ -47,12 +53,14 @@ public sealed class RegistrationThrottleShould : IDisposable
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
             _config,
             TestLogin.Password(accounts, _counters.Cache, _config),
-            TestLogin.Reauthentication(accounts, _counters.Cache, _config));
+            TestLogin.Reauthentication(accounts, _counters.Cache, _config),
+            exemptSources: exempt);
     }
 
     public void Dispose() => _database.Dispose();
 
-    private Task Register(string username, string email, IPAddress? from = null) => _service.Register(
+    private Task Register(string username, string email, IPAddress? from = null, AccountService? service = null) =>
+        (service ?? _service).Register(
         new RegisterRequest { Username = username, Password = TestPasswords.Valid, Email = email },
         "test-agent", from ?? IPAddress.Loopback, CancellationToken.None);
 
@@ -157,6 +165,29 @@ public sealed class RegistrationThrottleShould : IDisposable
         await Register("two", "two@avalon.monster", IPAddress.Parse("10.0.0.9"));
 
         Assert.Equal(2, await AccountsAsync());
+    }
+
+    /// <summary>
+    /// A named load machine (<c>ExemptSources</c>) registers past both per-source limits, its login budget and its
+    /// creation cap, and spends neither; another source is still capped.
+    /// </summary>
+    [Fact]
+    public async Task Neither_budget_nor_cap_an_exempt_source()
+    {
+        _config.MaxAccountsCreatedPerSource = 1;
+        for (int i = 0; i < 3; i++)
+            await _counters.Cache.IncrementAsync(LoopbackSourceKey, TimeSpan.FromMinutes(15));
+        AccountService service = NewService(new ExemptSources(["127.0.0.1"]));
+
+        for (int i = 0; i < 3; i++)
+            await Register($"load{i}", $"load{i}@avalon.monster", service: service);
+        await Register("other", "other@avalon.monster", IPAddress.Parse("10.0.0.9"), service);
+        await Assert.ThrowsAsync<AccountLockedException>(() =>
+            Register("again", "again@avalon.monster", IPAddress.Parse("10.0.0.9"), service));
+
+        Assert.Equal(4, await AccountsAsync());
+        Assert.Equal(3, _counters.CountOf(LoopbackSourceKey));
+        Assert.Equal(0, _counters.CountOf(LoopbackCreationKey));
     }
 
     [Fact]

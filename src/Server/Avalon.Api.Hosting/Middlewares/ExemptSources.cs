@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Api.Hosting.Config;
+using Avalon.Infrastructure.Login;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Hosting.Middlewares;
@@ -17,6 +18,16 @@ public interface IExemptSources
     /// No address is never exempt.
     /// </summary>
     bool IsExempt(IPAddress? address);
+}
+
+public static class ExemptSourcesExtensions
+{
+    /// <summary>
+    /// The login policy's source for <paramref name="address"/>, exempt from the per-source login budget
+    /// (<see cref="SourceBudget"/>) when <paramref name="exempt"/> lists it. Null lists nothing.
+    /// </summary>
+    public static LoginSource LoginSourceOf(this IExemptSources? exempt, IPAddress address) =>
+        LoginSource.FromAddress(address, exempt?.IsExempt(address) == true);
 }
 
 /// <summary>

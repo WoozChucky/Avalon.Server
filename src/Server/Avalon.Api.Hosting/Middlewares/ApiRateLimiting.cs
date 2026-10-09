@@ -26,7 +26,9 @@ namespace Avalon.Api.Hosting.Middlewares;
 /// <c>LOCKED</c> with <c>Retry-After</c>, the same whichever partition refused it. A service adds
 /// to it (#794): the workloads it authenticates (<see cref="IRateLimitWorkloads"/>), counted per
 /// server ahead of the account and the source, and named policies of its own, through
-/// <see cref="RateLimiterOptions"/>.
+/// <see cref="RateLimiterOptions"/>. A source <c>ExemptSources</c> names (<see cref="IExemptSources"/>, a load
+/// machine) is not limited per source: not signed in, it is not limited at all, and it skips the early
+/// personal-access-token lookup's per-source bounds. Signed in, it is counted against its account as anyone is.
 /// </summary>
 public static class ApiRateLimiting
 {
@@ -89,13 +91,14 @@ public static class ApiRateLimiting
         services.AddSingleton<FailedPatLookups>();
         services.AddRateLimiter(_ => { });
         services.AddOptions<RateLimiterOptions>()
-            .Configure<IOptions<RateLimitingConfig>, IEnumerable<IRateLimitWorkloads>>((options, config, workloads) =>
+            .Configure<IOptions<RateLimitingConfig>, IEnumerable<IRateLimitWorkloads>, IExemptSources>(
+                (options, config, workloads, exempt) =>
             {
                 RateLimitingConfig limits = config.Value;
                 IRateLimitWorkloads[] named = workloads.ToArray();
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
                 options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, Partition>(
-                    context => LimiterFor(PartitionOf(context, limits.Enabled, named), limits));
+                    context => LimiterFor(PartitionOf(context, limits.Enabled, named, exempt), limits));
                 options.OnRejected = OnRejectedAsync;
             });
         return services;
@@ -129,6 +132,9 @@ public static class ApiRateLimiting
     /// tokens cannot force a database query per request past the limit. Authorization still
     /// answers 401 for a request the limiter lets through.</item>
     /// </list>
+    /// An exempt source (<see cref="IExemptSources"/>) is looked up every time, with neither per-source bound: it
+    /// is never refused as anonymous, so authorization would make the same lookup anyway, and looked up here its
+    /// request is counted against its account rather than in the unlimited anonymous partition.
     /// </summary>
     public static async Task IdentifyPersonalAccessTokenAsync(HttpContext context)
     {
@@ -138,6 +144,14 @@ public static class ApiRateLimiting
             return;
         if (context.GetEndpoint()?.Metadata.GetMetadata<IAuthorizeData>() is null)
             return;
+
+        if (context.RequestServices.GetService<IExemptSources>()?.IsExempt(context.Connection.RemoteIpAddress) == true)
+        {
+            AuthenticateResult exempt = await context.AuthenticateAsync(AvalonAuthenticationSchemeOptions.SchemeName);
+            if (exempt.Succeeded && AccountIdOf(exempt.Principal) is { } exemptAccountId)
+                context.Items[PatAccountItem] = exemptAccountId;
+            return;
+        }
 
         FailedPatLookups failures = context.RequestServices.GetRequiredService<FailedPatLookups>();
         string source = SourceOf(context);
@@ -213,15 +227,21 @@ public static class ApiRateLimiting
     }
 
     /// <summary>
-    /// Which partition a request is counted against, with the workloads the request's services name
-    /// (<see cref="IRateLimitWorkloads"/>).
+    /// Which partition a request is counted against, with the workloads and exempt sources the request's services
+    /// name (<see cref="IRateLimitWorkloads"/>, <see cref="IExemptSources"/>).
     /// </summary>
     public static Partition PartitionOf(HttpContext context, bool enabled) =>
         PartitionOf(context, enabled,
-            context.RequestServices?.GetServices<IRateLimitWorkloads>() ?? Enumerable.Empty<IRateLimitWorkloads>());
+            context.RequestServices?.GetServices<IRateLimitWorkloads>() ?? Enumerable.Empty<IRateLimitWorkloads>(),
+            context.RequestServices?.GetService<IExemptSources>());
 
-    /// <summary>Which partition a request is counted against, with <paramref name="workloads"/> naming the workloads.</summary>
-    public static Partition PartitionOf(HttpContext context, bool enabled, IEnumerable<IRateLimitWorkloads> workloads)
+    /// <summary>
+    /// Which partition a request is counted against, with <paramref name="workloads"/> naming the workloads. A caller
+    /// that is neither a workload nor an account is counted against its source, unless <paramref name="exempt"/>
+    /// lists the source.
+    /// </summary>
+    public static Partition PartitionOf(HttpContext context, bool enabled, IEnumerable<IRateLimitWorkloads> workloads,
+        IExemptSources? exempt)
     {
         if (!enabled || context.GetEndpoint()?.Metadata.GetMetadata<DisableRateLimitingAttribute>() is not null)
             return new Partition(PartitionKind.Exempt, "");
@@ -236,6 +256,9 @@ public static class ApiRateLimiting
             : context.Items[PatAccountItem] as string;
         if (accountId is not null)
             return new Partition(PartitionKind.Authenticated, accountId);
+
+        if (exempt?.IsExempt(context.Connection.RemoteIpAddress) == true)
+            return new Partition(PartitionKind.Exempt, "");
 
         return new Partition(PartitionKind.Anonymous, SourceOf(context));
     }

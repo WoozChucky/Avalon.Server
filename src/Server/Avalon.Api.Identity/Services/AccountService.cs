@@ -5,6 +5,7 @@ using System.Text;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Exceptions;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Identity.Authentication.Jwt;
 using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Exceptions;
@@ -69,6 +70,7 @@ public class AccountService : IAccountService
     private readonly IReauthentication _reauthentication;
     private readonly IEmailSender? _emailSender;
     private readonly EmailConfig? _emailConfig;
+    private readonly IExemptSources? _exemptSources;
 
     /// <summary>What precedes the token in an email-change confirmation, on a line of its own (#510).</summary>
     public const string EmailChangeTokenLabel = "Confirmation code: ";
@@ -86,8 +88,12 @@ public class AccountService : IAccountService
         PasswordLoginPolicy loginPolicy,
         IReauthentication reauthentication,
         IEmailSender? emailSender = null,
-        EmailConfig? emailConfig = null)
+        EmailConfig? emailConfig = null,
+        IExemptSources? exemptSources = null)
     {
+        // The load machines (Application:RateLimiting:ExemptSources) that skip the per-source login budget and
+        // account-creation cap; null, none.
+        _exemptSources = exemptSources;
         _emailSender = emailSender;
         _emailConfig = emailConfig;
         _logger = loggerFactory.CreateLogger<AccountService>();
@@ -121,7 +127,7 @@ public class AccountService : IAccountService
         // alike. Every slot taken is kept unless the attempt ends below with an MFA hash or a
         // completed login.
         PasswordAttempt attempt = await _loginPolicy.CheckAsync(model.Username, model.Password,
-            LoginSource.FromAddress(ipAddress), cancellationToken);
+            _exemptSources.LoginSourceOf(ipAddress), cancellationToken);
 
         if (attempt.Refused)
             throw new AccountLockedException();
@@ -201,7 +207,7 @@ public class AccountService : IAccountService
         if (!AccountEmail.IsValid(model.Email))
             throw new BusinessException(AccountEmail.Requirement);
 
-        string sourceKey = await TakeSourceSlotAsync(ipAddress, "Registration");
+        LoginSource source = await TakeSourceSlotAsync(ipAddress, "Registration");
 
         string username = model.Username.ToUpperInvariant().Trim();
         Account? existingAccount = await _accountRepository.FindByUserNameAsync(username, cancellationToken);
@@ -233,7 +239,7 @@ public class AccountService : IAccountService
             Os = OperatingSystem.Windows,
         };
 
-        account = await InsertAccountAsync(account, ipAddress, cancellationToken);
+        account = await InsertAccountAsync(account, ipAddress, source.Exempt, cancellationToken);
 
         if (account == null)
             throw new Exception("Failed to insert account");
@@ -247,7 +253,7 @@ public class AccountService : IAccountService
             TrustEnd = DateTime.UtcNow,
         }, cancellationToken);
 
-        await SourceBudget.GiveBackAsync(_cache, sourceKey);
+        await SourceBudget.GiveBackAsync(_cache, source);
 
         return (new RegisterResponse
         {
@@ -259,25 +265,28 @@ public class AccountService : IAccountService
     /// <summary>
     /// Takes a slot from the source's budget (#495) for a step that answers whether a name or an
     /// address is taken (registration, and the start of an email change, #503 review); 429 LOCKED
-    /// past it. The caller gives it back only when the step succeeds.
+    /// past it. The caller gives it back only when the step succeeds. An exempt source takes none.
     /// </summary>
-    private async Task<string> TakeSourceSlotAsync(IPAddress ipAddress, string action)
+    private async Task<LoginSource> TakeSourceSlotAsync(IPAddress ipAddress, string action)
     {
-        string sourceKey = LoginSource.FromAddress(ipAddress).Key;
-        if (await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
-            return sourceKey;
+        LoginSource source = _exemptSources.LoginSourceOf(ipAddress);
+        if (await SourceBudget.TryTakeAsync(_cache, _authConfig, source))
+            return source;
 
-        _logger.LogWarning("{Action} refused for source {SourceKey}: too many attempts", action, sourceKey);
+        _logger.LogWarning("{Action} refused for source {SourceKey}: too many attempts", action, source.Key);
         throw new AccountLockedException();
     }
 
     /// <summary>
     /// Takes a slot of the source's account-creation cap (#495 review): at most
     /// <c>MaxAccountsCreatedPerSource</c> accounts per <c>AccountCreationWindowMinutes</c>. Unlike the
-    /// login budget, a created account keeps its slot. Past the cap: 429 LOCKED.
+    /// login budget, a created account keeps its slot. Past the cap: 429 LOCKED. An exempt source takes none (null).
     /// </summary>
-    private async Task<string> TakeCreationSlotAsync(IPAddress ipAddress)
+    private async Task<string?> TakeCreationSlotAsync(IPAddress ipAddress, bool exempt)
     {
+        if (exempt)
+            return null;
+
         string key = CacheKeys.AuthSourceAccountsCreated(RemoteAddress.SourceOf(ipAddress));
         long created = await AttemptBudget.TakeAsync(_cache, key,
             TimeSpan.FromMinutes(_authConfig.AccountCreationWindowMinutes));
@@ -296,17 +305,17 @@ public class AccountService : IAccountService
     /// have given; any other failure is rethrown. The insert takes a slot of the source's creation cap first, given back
     /// when no account comes of it.
     /// </summary>
-    private async Task<Account> InsertAccountAsync(Account account, IPAddress ipAddress,
+    private async Task<Account> InsertAccountAsync(Account account, IPAddress ipAddress, bool exempt,
         CancellationToken cancellationToken)
     {
-        string creationKey = await TakeCreationSlotAsync(ipAddress);
+        string? creationKey = await TakeCreationSlotAsync(ipAddress, exempt);
         try
         {
             return await _accountRepository.CreateAsync(account, cancellationToken);
         }
         catch (DbUpdateException ex)
         {
-            await AttemptBudget.GiveBackAsync(_cache, creationKey);
+            await GiveBackCreationSlotAsync(creationKey);
             if (await _accountRepository.FindByUserNameAsync(account.Username, cancellationToken) != null)
                 throw new BusinessException(UsernameTaken, ex);
             if (await _accountRepository.FindByEmailAsync(account.Email!, cancellationToken) != null)
@@ -315,10 +324,13 @@ public class AccountService : IAccountService
         }
         catch
         {
-            await AttemptBudget.GiveBackAsync(_cache, creationKey);
+            await GiveBackCreationSlotAsync(creationKey);
             throw;
         }
     }
+
+    private Task GiveBackCreationSlotAsync(string? creationKey) =>
+        creationKey is null ? Task.CompletedTask : AttemptBudget.GiveBackAsync(_cache, creationKey);
 
     public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default)
     {
@@ -436,7 +448,7 @@ public class AccountService : IAccountService
         // "Email already exists" says whether an address has an account. The proof above gave back
         // its own slots, so this answer takes one of its own (#503 review), as registration does,
         // kept unless the change is started: a stolen password cannot test addresses for free.
-        string sourceKey = await TakeSourceSlotAsync(ipAddress, "Email change");
+        LoginSource source = await TakeSourceSlotAsync(ipAddress, "Email change");
 
         string email = AccountEmail.Normalise(newEmail);
         if (await _accountRepository.FindByEmailAsync(email, cancellationToken) != null)
@@ -493,7 +505,7 @@ public class AccountService : IAccountService
         // Only once the confirmation went (#510 re-review): a start that could not send leaves the
         // earlier pending change as it was.
         await ReplacePendingEmailChangeAsync(accountId, tokenHash);
-        await SourceBudget.GiveBackAsync(_cache, sourceKey);
+        await SourceBudget.GiveBackAsync(_cache, source);
 
         try
         {

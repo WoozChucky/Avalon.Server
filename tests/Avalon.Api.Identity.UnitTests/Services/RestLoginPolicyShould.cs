@@ -3,6 +3,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
 using Avalon.Api.Contract;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Identity.Authentication.Jwt;
 using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Exceptions;
@@ -47,7 +48,8 @@ public sealed class RestLoginPolicyShould : IDisposable
 
     public void Dispose() => _database.Dispose();
 
-    private AccountService Service(IAccountRepository? accounts = null, IPasswordVerifier? verifier = null)
+    private AccountService Service(IAccountRepository? accounts = null, IPasswordVerifier? verifier = null,
+        IExemptSources? exempt = null)
     {
         IAccountRepository repository = accounts ?? _accounts;
         IJwtUtils jwt = Substitute.For<IJwtUtils>();
@@ -56,7 +58,8 @@ public sealed class RestLoginPolicyShould : IDisposable
             new MfaSetupRepository(_database), new DeviceRepository(_database), _cache.Cache,
             Substitute.For<ISecureRandom>(), new DbTransactionRunner<AuthDbContext>(_database), _config,
             TestLogin.Password(repository, _cache.Cache, _config, verifier ?? _verifier),
-            TestLogin.Reauthentication(repository, _cache.Cache, _config, verifier ?? _verifier));
+            TestLogin.Reauthentication(repository, _cache.Cache, _config, verifier ?? _verifier),
+            exemptSources: exempt);
     }
 
     private static Account NewAccount(string username = "CALLER") => new()
@@ -107,9 +110,9 @@ public sealed class RestLoginPolicyShould : IDisposable
     }
 
     private Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> LoginAsync(string password,
-        string username = "caller", AccountService? service = null) =>
+        string username = "caller", AccountService? service = null, IPAddress? from = null) =>
         (service ?? Service()).Authenticate(new AuthenticateRequest { Username = username, Password = password },
-            IPAddress.Loopback, CancellationToken.None);
+            from ?? IPAddress.Loopback, CancellationToken.None);
 
     private async Task<Account> StoredAsync(AccountId id)
     {
@@ -277,6 +280,33 @@ public sealed class RestLoginPolicyShould : IDisposable
 
         Assert.Equal(0, _verifier.Count);
         Assert.Empty(_cache.UsernameKeys);
+    }
+
+    /// <summary>
+    /// A named load machine (<c>ExemptSources</c>) neither checks nor spends its source's budget, so its logins run
+    /// past it; the username's budget still applies and locks the account. Another source past its budget is refused.
+    /// </summary>
+    [Fact]
+    public async Task Skip_the_source_budget_for_an_exempt_source_but_not_the_usernames()
+    {
+        const string OtherSourceKey = "auth:source:10.0.0.9:failedLogins";
+        Account account = await _accounts.CreateAsync(NewAccount());
+        for (int i = 0; i < _config.MaxFailedLoginsPerSource; i++)
+        {
+            await _cache.Cache.IncrementAsync(LoopbackSourceKey, TimeSpan.FromMinutes(15));
+            await _cache.Cache.IncrementAsync(OtherSourceKey, TimeSpan.FromMinutes(15));
+        }
+
+        AccountService service = Service(exempt: new ExemptSources(["127.0.0.1"]));
+
+        await Assert.ThrowsAsync<AccountLockedException>(() =>
+            LoginAsync(s_password, service: service, from: IPAddress.Parse("10.0.0.9")));
+        for (int i = 1; i < _config.MaxFailedLoginAttempts; i++)
+            await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong, service: service));
+        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync(TestPasswords.Wrong, service: service));
+
+        Assert.True((await StoredAsync(account.Id)).Locked);
+        Assert.Equal(_config.MaxFailedLoginsPerSource, _cache.CountOf(LoopbackSourceKey));
     }
 
     /// <summary>A completed login clears the username's count and the row's, as the game client's does.</summary>
