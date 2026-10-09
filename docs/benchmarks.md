@@ -1150,27 +1150,29 @@ Regenerate (every scenario, in Release; the runner refuses `--write-allocations`
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json
 ```
 
-**The gate decides in Release, and every machine reads the same figures.** CI builds Release on a GitHub-hosted
-runner. Since #854 the committed figures are a plain Release run on the developer machine, and they should hold for CI's
-runner (its first run after #854 confirms it) as they hold for a Debug build: run with `DOTNET_JitObjectStackAllocation=0`, which reproduced CI's figures
-before #854, the Release runner reads the same within run-to-run noise (`town-walk` 1,439,520 against 1,440,240 B,
-`many-instances` 11,589,728 against 11,589,728 B), and the gate in Debug reads 1,440,688 and 11,587,728 B. In a Debug
+**The gate decides in Release, and every machine is expected to read the same figures.** CI builds Release on a
+GitHub-hosted runner. Since #854 the committed figures are a plain Release run on the developer machine. CI's runner
+is expected to read the same, to be confirmed by the first CI run after #854: run with
+`DOTNET_JitObjectStackAllocation=0`, which reproduced CI's figures before #854, the Release runner reads the same within
+run-to-run noise (`town-walk` 1,439,520 against 1,440,240 B, `many-instances` 11,589,728 against 11,589,728 B), and the
+gate in Debug reads 1,440,688 and 11,587,728 B. In a Debug
 build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so a scenario that stopped
 doing its work still fails its `Verify` check, but it does not fail on the allocation figure: it writes the comparison
 (current, committed, change in percent, verdict) to the test output and says that the gate decides in Release.
 `dotnet test -c Release` runs the real gate locally.
 
 Until #854 the figures depended on the machine, through one object: the delegate each send created by passing
-`CryptoSession.Encrypt` as a method group, about 64 B per walking player per tick. The optimised JIT tier kept it on
-the stack; until that tier applied, it was on the heap. The CI runner (a small, shared VM, with the other test
-assemblies running in parallel) ended the gate's 5 s warm-up before the optimised tier reached the send path, and a
+`CryptoSession.Encrypt` as a method group, about 64 B per walking player per tick. At most send sites the optimised JIT
+tier kept it on the stack (not everywhere: the Serialization benchmark shows it on the heap, fully optimised, where
+`Create` is not inlined); until that tier applied, it was on the heap. The CI runner (a small, shared VM, with the other
+test assemblies running in parallel) ended the gate's 5 s warm-up before the optimised tier reached the send path, and a
 Debug build never optimises, so both read about 7% higher in `town-walk` and 14% higher in `many-instances` than a
-developer machine or the homelab node in Release; the committed figures were CI's, and a faster machine's run was not
-to be committed. #854 passes the session's `Encryptor`, a delegate created once with the session, so how far the JIT
-has got no longer changes what a send allocates. The gate runs in a non-parallel xUnit collection, so no other
-test in the World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in
-parallel processes under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds
-about 18 s to the World suite.
+developer machine or the homelab node in Release; the committed figures were CI's, and a faster machine's run was not to
+be committed. #854 passes the session's `Encryptor`, a delegate created once with the session, so how far the JIT has
+got no longer changes what a send allocates. The gate runs in a non-parallel xUnit collection, so no other test in the
+World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
+under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 18 s to the World
+suite.
 
 ### Results — the cached cipher delegates (#854, 2026-10-09)
 
@@ -1201,8 +1203,8 @@ and with #854:
 - **The committed figures fall by the delegate CI paid**: 130,320 B per window in `town-walk` and 2,180,000 B in
   `many-instances`, about 72 B per walking player per tick.
 - **The developer machine gains too**, about 8.7 B per walking player per tick (15,600 and 260,000 B per window), in
-  code the optimised tier had already reached: most likely not every send site's delegate was kept on the stack. Both scenarios
-  fall by the same amount per player per tick, as a cost of the per-player send path would.
+  code the optimised tier had already reached: most likely not every send site's delegate was kept on the stack. Both
+  scenarios fall by the same amount per player per tick, as a cost of the per-player send path would.
 - **No dependency on the JIT is left on this path.** The same Release runner with stack allocation turned off
   (`DOTNET_JitObjectStackAllocation=0`) reads 1,439,520 and 11,589,728 B, and the Debug gate 1,440,688 and
   11,587,728 B, within run-to-run noise of the committed figures. Before #854 the same switch added 64 B per walking

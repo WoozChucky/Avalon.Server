@@ -35,8 +35,8 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
     protected readonly ILogger _logger;
     private readonly IPacketReader _packetReader;
 
-    // CryptoSession.Decrypt as a delegate, created once. Passing the method group per packet made a new delegate per
-    // packet, and it escapes into IPacketReader.Read, so no JIT tier keeps it off the heap (#854).
+    // CryptoSession.Decrypt as a delegate, created once. Passing the method group made a new delegate per packet, and
+    // the Release JIT did not keep it off the heap (PacketReaderDecryptGcBenchmarks, #854).
     private readonly DecryptFunc _decrypt;
 
     protected readonly IServerBase Server;

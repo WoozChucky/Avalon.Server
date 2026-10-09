@@ -20,8 +20,8 @@ public sealed class ScenarioAllocations;
 /// The gate decides in Release, which CI builds; a Debug build reports the comparison instead of failing on it. Every
 /// scenario still runs in Debug, so a scenario that stopped doing its work still fails its own check. Since #854 the
 /// sends no longer create a delegate per packet, whose place (stack or heap) depended on how far the JIT had got by the
-/// end of the warm-up, so a Debug build, CI's runner and a developer machine in Release read the same figures within
-/// run-to-run noise.
+/// end of the warm-up. A Debug build and a developer machine in Release now read the same figures within run-to-run
+/// noise; CI's runner is expected to as well, to be confirmed by its first run after #854.
 /// </remarks>
 [Collection(nameof(ScenarioAllocations))]
 public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
