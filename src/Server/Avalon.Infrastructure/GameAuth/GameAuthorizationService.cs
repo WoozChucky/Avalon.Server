@@ -84,9 +84,14 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         (providers.License(context.Provider ?? string.Empty)?.AuthorityKind == LicenseAuthorityKind.StoredGrant ||
          (context.ProviderSubject is not null && context.IdentityValidUntil > Now));
 
-    private async Task<bool> HasCurrentLicenseAsync(GameContextRecord context, CancellationToken ct) => HasLicense(context) &&
-        options.Value.ResolveApplication(context.ApplicationKey) is { } application && await licenseAuthority.ValidateAsync(
-            context.LicenseId!.Value, context.LicenseRevision!.Value, new AccountId(context.AccountId!.Value), application, Now, ct);
+    private async Task<bool> HasCurrentLicenseAsync(GameContextRecord context, CancellationToken ct) =>
+        await LicenseStandingAsync(context, ct) == true;
+
+    /// <summary>Whether the context's license is current; null when the license could not be read.</summary>
+    private async Task<bool?> LicenseStandingAsync(GameContextRecord context, CancellationToken ct) =>
+        !HasLicense(context) || options.Value.ResolveApplication(context.ApplicationKey) is not { } application ? false :
+            await licenseAuthority.CheckCurrentAsync(context.LicenseId!.Value, context.LicenseRevision!.Value,
+                new AccountId(context.AccountId!.Value), application, Now, ct);
 
     private async Task<bool> IsCurrentAsync(GameContextRecord context, CancellationToken cancellationToken)
     {
@@ -477,7 +482,12 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                 if (token.RequestId == requestId && token.Receipt is not null && token.ReceiptExpiresAt > Now)
                 {
                     GameAuthReply receipt = crypto.Unprotect(token.Receipt, tokenKey + ":" + requestId.ToString("N"));
-                    if (receipt.State != GameAuthStates.Authorized || await HasCurrentLicenseAsync(context, cancellationToken)) return receipt;
+                    if (receipt.State != GameAuthStates.Authorized) return receipt;
+                    bool? licensed = await LicenseStandingAsync(context, cancellationToken);
+                    if (licensed == true) return receipt;
+                    // A license that could not be read is an outage, not a refusal: nothing is revoked, and the same
+                    // retry is answered again once the license store is back.
+                    if (licensed is null) return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
                     // The license the receipt authorized is no longer current. CONTEXT_REVOKED must be true when it is
                     // answered: the context is revoked, and its world session told, before the refusal goes out (#862).
                     if (!await TryRevokeAsync(contextKey, rawContext, context, cancellationToken)) continue;

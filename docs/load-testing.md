@@ -388,7 +388,8 @@ stop sequence. Ctrl+C does not cut it short; each part has a timeout of its own.
 3. Every signed-in bot leaves the world and signs out, 32 at a time. A leave waits up to 20 seconds for the world's
    logout save, and a sign-out has 10 seconds of its own; the ramp gives each bot at most 60 seconds in all. The
    sign-out runs however the leave ended. Within its 10 seconds a sign-out with no reply, a 5xx or a 409
-   `IN_PROGRESS` (the context kept changing under it, a refresh most likely, and is still live) is sent again.
+   `IN_PROGRESS` (the context kept changing under it, a refresh most likely, and is still live) is sent again, each
+   time with the newest credential the bot holds: the one a 409 answered no longer ends the context.
 4. The context refresher finishes its current pass. Any refresh that never got an answer is sent again, all within
    one 60-second deadline, so that no context the server rotated is left alive behind a sign-out that missed it.
 5. The ramp polls the world's players online every 5 seconds, for up to 90 seconds, until it is back to the count

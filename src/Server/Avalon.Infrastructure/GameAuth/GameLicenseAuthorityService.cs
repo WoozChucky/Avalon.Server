@@ -126,6 +126,14 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
     }
 
     public async Task<bool> ValidateAsync(Guid licenseId, long revision, AccountId account,
+        GameApplicationSelection application, DateTime now, CancellationToken ct) =>
+        await CheckCurrentAsync(licenseId, revision, account, application, now, ct) == true;
+
+    /// <summary>
+    /// <see cref="ValidateAsync"/>, telling an outage apart: null when the license could not be read, so a caller that
+    /// would act on a refusal (revoke a context) does not act on a failed read.
+    /// </summary>
+    public async Task<bool?> CheckCurrentAsync(Guid licenseId, long revision, AccountId account,
         GameApplicationSelection application, DateTime now, CancellationToken ct)
     {
         IGameLicenseProvider? provider = providers.License(application.Provider);
@@ -138,7 +146,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 license.Authorizes(account, application.Product, application.Environment, now);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception) { return false; }
+        catch (Exception) { return null; }
     }
 
     public async Task<bool> ValidateBindingAsync(Guid licenseId, long revision, AccountId account,
