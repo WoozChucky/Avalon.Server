@@ -376,7 +376,57 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             _receiveQueue.Enqueue(new WorldPacket(header.Type, payload, _time.GetUtcNow().UtcTicks));
             return ValueTask.CompletedTask;
         }
-        return new ValueTask(Server.CallListener(this, header, payload));
+        DropUnaccepted(header.Type);
+        return ValueTask.CompletedTask;
+    }
+
+    // Read and written only by this connection's receive loop, which delivers one packet at a time.
+    private bool _warnedUnhandled;
+
+    /// <summary>
+    /// An admitted connection's packet that no filter accepts at arrival is dropped here, never handed to
+    /// <see cref="IServerBase.CallListener" />, which runs a handler on the receive path, off the tick (#861).
+    /// A packet a filter takes in another state (input sent between the select and the spawn, which the client
+    /// does on every login, or a select-phase packet once in the world) is expected, and logged at Debug (input
+    /// at Trace, as it arrives many times a second). One
+    /// no filter takes in any state (an opcode missing its filter entry, or a client sending what it should not)
+    /// is logged at Warning, once per connection, then at Debug.
+    /// </summary>
+    private void DropUnaccepted(NetworkPacketType type)
+    {
+        if (WorldSessionFilter.IsSessionPacket(type) || MapSessionFilter.IsMapPacket(type))
+        {
+            // Input (60 Hz before every spawn) is kept out of Debug, as the receive loop's "IN:" line does.
+            if (type == NetworkPacketType.CMSG_PLAYER_INPUT)
+                ReceiveLog.DroppedForStateFrequent(_logger, type);
+            else
+                ReceiveLog.DroppedForState(_logger, type);
+        }
+        else if (!_warnedUnhandled)
+        {
+            _warnedUnhandled = true;
+            ReceiveLog.NoHandler(_logger, type);
+        }
+        else
+        {
+            ReceiveLog.NoHandlerRepeated(_logger, type);
+        }
+    }
+
+    private static partial class ReceiveLog
+    {
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
+        public static partial void DroppedForState(ILogger logger, NetworkPacketType packetType);
+
+        [LoggerMessage(Level = LogLevel.Trace, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
+        public static partial void DroppedForStateFrequent(ILogger logger, NetworkPacketType packetType);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Could not find a handler for packet {PacketType}; further ones on this connection are logged at Debug")]
+        public static partial void NoHandler(ILogger logger, NetworkPacketType packetType);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Could not find a handler for packet {PacketType}")]
+        public static partial void NoHandlerRepeated(ILogger logger, NetworkPacketType packetType);
     }
 
     protected override void OnPacketAccounted(NetworkPacketType type, int size)
