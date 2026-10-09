@@ -40,13 +40,20 @@ public class WorldSessionFilter(IWorldConnection connection) : PacketFilter
             return false;
         }
 
-        return type switch
-        {
-            NetworkPacketType.CMSG_CHARACTER_LIST => true,
-            NetworkPacketType.CMSG_CHARACTER_CREATE => true,
-            NetworkPacketType.CMSG_CHARACTER_DELETE => true,
-            NetworkPacketType.CMSG_CHARACTER_SELECTED => true,
-            _ => false
-        };
+        return IsSelectPacket(type);
     }
+
+    /// <summary>
+    /// Whether this filter accepts the packet in some connection state, whatever the current one:
+    /// <c>WorldConnection.OnReceive</c> tells a packet refused for the state it arrived in
+    /// from one no filter takes at all.
+    /// </summary>
+    public static bool IsSessionPacket(NetworkPacketType type) =>
+        type is NetworkPacketType.CMSG_PONG or NetworkPacketType.CMSG_CHARACTER_LOADED
+            or NetworkPacketType.CMSG_CHARACTER_LEAVE || IsSelectPacket(type);
+
+    /// <summary>The select-phase packets, accepted only while the connection holds no character.</summary>
+    private static bool IsSelectPacket(NetworkPacketType type) =>
+        type is NetworkPacketType.CMSG_CHARACTER_LIST or NetworkPacketType.CMSG_CHARACTER_CREATE
+            or NetworkPacketType.CMSG_CHARACTER_DELETE or NetworkPacketType.CMSG_CHARACTER_SELECTED;
 }
