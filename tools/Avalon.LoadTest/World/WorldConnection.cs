@@ -23,8 +23,8 @@ namespace Avalon.LoadTest.World;
 /// </summary>
 /// <remarks>
 /// Sends are serialised by one lock, and sealing with the session by another (<see cref="Seal{T}"/>): the codec and the
-/// frame writer each reuse one buffer, and the frames of two senders must not interleave. Disposing closes the socket, which is what ends the
-/// read loop.
+/// frame writer each reuse one buffer, and the frames of two senders must not interleave. Disposing closes the socket,
+/// which is what ends the read loop.
 /// </remarks>
 public sealed class WorldConnection : IAsyncDisposable
 {

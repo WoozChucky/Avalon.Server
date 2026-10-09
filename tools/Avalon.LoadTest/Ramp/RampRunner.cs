@@ -152,10 +152,11 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         var driver = new InputDriver(Snapshot);
         var refresher = new ContextRefresher(api, Snapshot, metrics, signIns);
         using var background = new CancellationTokenSource();
+        using var refreshes = new CancellationTokenSource();
         using var lives = new CancellationTokenSource();
         using var presigning = CancellationTokenSource.CreateLinkedTokenSource(ct);
         Task driving = driver.RunAsync(background.Token);
-        Task refreshing = refresher.RunAsync(background.Token);
+        Task refreshing = refresher.RunAsync(refreshes.Token);
 
         var steps = new List<StepRecord>();
         var decider = new RampDecider(options.Limits, options.Max);
@@ -241,9 +242,12 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         if (presign is not null) await presign.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         await lives.CancelAsync();
         await Task.WhenAll(_lives).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        // The refresher, its queued re-sign-ins with it, stops before the leaves: none lands after a bot signed out.
+        await refreshes.CancelAsync();
+        await refreshing.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         await LeaveAllAsync();
         await background.CancelAsync();
-        await Task.WhenAll(driving, refreshing).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        await driving.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         DisposeBots();
         signInFailures += metrics.TakeWindow().SignInFailures;
         bool drained = await WaitForDrainAsync(prometheus, playersBefore);

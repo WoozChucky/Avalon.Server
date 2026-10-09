@@ -18,8 +18,9 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="Gen2PerMin">Gen 2 collections per minute over the window.</param>
 /// <param name="GcPauseFraction">The fraction of the window the GC paused the process.</param>
 /// <param name="SaveP95Ms">
-/// The 95th percentile of character save duration, in milliseconds; 0 when the window had no save, null when it had
-/// saves but no percentile came back (or the count of saves could not be read).
+/// The 95th percentile of character save duration, in milliseconds; 0 when the window is known to have had no save,
+/// null when it had saves but no percentile came back or whether it had any cannot be told (see
+/// <see cref="PrometheusClient.SaveP95"/>).
 /// </param>
 /// <param name="Instances">Map instances active at the step's end.</param>
 public sealed record ServerValues(
@@ -76,22 +77,18 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         Task<double?> save = ValueAsync(
             $"histogram_quantile(0.95, sum by (le)(rate(world_character_save_duration_milliseconds_bucket{{{world}}}{range})))",
             at, ct);
-        // How many saves the window had: an empty result (a world that never saved has no series) is none. Null only
-        // when the query failed.
-        Task<double?> saves = ValueAsync(
-            $"sum(increase(world_character_save_duration_milliseconds_count{{{world}}}{range})) or vector(0)", at, ct);
+        // Whether the window had saves: the count's increase (two samples of a series in the window at least), its
+        // samples in the window, and whether it was there at the window's start.
+        const string SaveCount = "world_character_save_duration_milliseconds_count";
+        Task<Answer> saveIncrease = AnswerAsync($"sum(increase({SaveCount}{{{world}}}{range}))", at, ct);
+        Task<Answer> saveSamples = AnswerAsync($"sum(count_over_time({SaveCount}{{{world}}}{range}))", at, ct);
+        Task<Answer> savesAtStart = AnswerAsync($"sum({SaveCount}{{{world}}})", at - TimeSpan.FromSeconds(w), ct);
         Task<double?> instances = ValueAsync($"avalon_world_instances_active{{{world}}}", at, ct);
 
-        await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saves, instances);
+        await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saveIncrease,
+            saveSamples, savesAtStart, instances);
 
-        // No save in the window is not a slow save: 0. Saves with no percentile to show for them (an empty or NaN
-        // quantile) cannot be judged, nor can a window whose count of saves is unknown.
-        double? saveP95 = saves.Result switch
-        {
-            null => null,
-            <= 0 => 0,
-            _ => save.Result is { } p95 && double.IsFinite(p95) ? p95 : null,
-        };
+        double? saveP95 = SaveP95(tick.Result, save.Result, saveIncrease.Result, saveSamples.Result, savesAtStart.Result);
 
         return new ServerValues(
             tick.Result, tps.Result, drops.Result ?? double.NaN, backlog.Result, workingSetFraction.Result,
@@ -129,6 +126,50 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
     /// <inheritdoc />
     public void Dispose() => _http.Dispose();
+
+    /// <summary>
+    /// The save p95 a step is judged on. 0 only when the window is known to have had no save: the world never saved
+    /// (no save count, before the window or in it), or the count did not move over samples spanning the window. Null
+    /// (unknown) when the window lacks samples (no tick value either), when a query failed, when the count has fewer
+    /// than two samples in the window, or when saves happened (the count rose, or its series first appeared within the
+    /// window, which takes a save) and the quantile is empty or NaN. Otherwise the quantile.
+    /// </summary>
+    internal static double? SaveP95(double? tick, double? quantile, Answer increase, Answer samples, Answer atStart)
+    {
+        if (tick is null || !increase.Answered || !samples.Answered || !atStart.Answered) return null;
+
+        double? p95 = quantile is { } q && double.IsFinite(q) ? q : null;
+        if (samples.Value is not > 0)
+        {
+            // No sample in the window: a world that never saved is no save; a count that was there and stopped
+            // reporting says nothing.
+            return atStart.Value is null ? 0 : null;
+        }
+
+        if (atStart.Value is null) return p95;
+        return increase.Value switch
+        {
+            null => null,
+            > 0 => p95,
+            _ => 0,
+        };
+    }
+
+    /// <summary>
+    /// The query's value as <see cref="ValueAsync"/> reads it, with whether Prometheus answered at all: an empty result
+    /// (<see cref="Answer.Value"/> null) is then told apart from a failed query.
+    /// </summary>
+    private async Task<Answer> AnswerAsync(string query, DateTimeOffset at, CancellationToken ct)
+    {
+        try
+        {
+            return new Answer(true, await ValueAsync(query, at, ct, quiet: false));
+        }
+        catch (PrometheusException)
+        {
+            return new Answer(false, null);
+        }
+    }
 
     /// <summary>
     /// The query's value: the highest across the result's series (the lowest with <paramref name="lowerIsWorse"/>),
@@ -197,3 +238,6 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         }
     }
 }
+
+/// <summary>A query's value (null for an empty result), and whether Prometheus answered the query at all.</summary>
+internal readonly record struct Answer(bool Answered, double? Value);

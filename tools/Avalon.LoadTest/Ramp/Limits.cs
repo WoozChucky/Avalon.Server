@@ -65,7 +65,7 @@ public static class Limits
             if (!double.TryParse(entry[(equals + 1)..].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out double threshold)
                 || !double.IsFinite(threshold))
             {
-                throw new CommandLineException($"--limit {entry}: '{entry[(equals + 1)..]}' is not a number.");
+                throw new CommandLineException($"--limit {entry}: '{entry[(equals + 1)..]}' is not a finite number.");
             }
 
             if (threshold < 0)

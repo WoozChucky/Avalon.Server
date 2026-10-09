@@ -77,7 +77,7 @@ public class RampDeciderShould
         var drops = new RampDecider(Limits.Defaults, 500);
         Assert.True(drops.Decide(Sample(50, drops: 3, genCpu: 0.7)).DropsMayBeGenerator);
 
-        // A drops value that is not a number cannot be judged on, unlike a missing one (no drops): the step is unknown.
+        // A drops value that is not finite cannot be judged on, unlike a missing one (no drops): the step is unknown.
         var nanDrops = new RampDecider(Limits.Defaults, 500);
         Assert.Equal(RampAction.Rehold, nanDrops.Decide(Sample(50, drops: double.PositiveInfinity)).Action);
         Assert.Equal(RampOutcome.Unknown, nanDrops.Decide(Sample(50, drops: double.NaN)).Outcome);

@@ -48,11 +48,20 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     private static readonly TimeSpan s_characterTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// The wait for the spawn, from the moment the select reply is read. The world's readiness barrier spawns a character
-    /// whose load report was lost 15 s after the select anyway; the reply is read after the world sent it, so the wait
-    /// runs 5 s past the barrier before a missing spawn is a <c>spawn:timeout</c>.
+    /// The world's <c>Game:CharacterLoadTimeoutSeconds</c> (15 s, <c>GameConfiguration</c> and the world's appsettings).
+    /// It bounds two waits in a row: the select's loads after its reply (quests, ignores, auras, read off the tick one
+    /// after the other) until the spawn is armed, counted from the select's start, past which the world closes the
+    /// connection; then the readiness barrier, which spawns the armed character after as long again if its load report
+    /// did not (a report sent before the spawn is armed is held until the barrier releases it).
     /// </summary>
-    private static readonly TimeSpan s_spawnTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan s_worldLoadTimeout = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// The wait for the spawn, from the moment the select reply is read: the select's loads after its reply and the
+    /// readiness barrier, each at most <see cref="s_worldLoadTimeout"/>, then 5 s for the release's own admission check
+    /// and the tick. Only past it is a missing spawn a <c>spawn:timeout</c>.
+    /// </summary>
+    private static readonly TimeSpan s_spawnTimeout = s_worldLoadTimeout + s_worldLoadTimeout + TimeSpan.FromSeconds(5);
 
     /// <summary>A character in the world has every input answered within a tick or two.</summary>
     private static readonly TimeSpan s_firstAckTimeout = TimeSpan.FromSeconds(10);
@@ -68,6 +77,12 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     private readonly Lock _ackLock = new();
     private readonly CancellationTokenSource _gaveUp = new();
+
+    /// <summary>Guards <see cref="Context"/>'s last change: the leave's sign-out against a re-sign-in landing after it.</summary>
+    private readonly Lock _contextLock = new();
+
+    /// <summary>Set by the leave's sign-out; a context signed in after it is signed out at once. Guarded by <see cref="_contextLock"/>.</summary>
+    private bool _signedOut;
     private volatile GameContext? _context;
     private volatile BotState _state = BotState.SignedOut;
     private volatile WorldConnection? _connection;
@@ -145,14 +160,25 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// Replaces a game context that can no longer be refreshed (revoked, its refresh token spent) with a fresh sign-in,
     /// leaving the bot where it is: a bot thrown out of the world with the old context enters again with the new one.
     /// A failure is counted as a sign-in failure and the bot gives up for good: it has no context, it is
-    /// <see cref="BotState.Stopped"/>, and <see cref="GaveUp"/> is cancelled. False then.
+    /// <see cref="BotState.Stopped"/>, and <see cref="GaveUp"/> is cancelled. False then. A sign-in that completes
+    /// after the bot's leave signed it out is signed out too, and not kept: false.
     /// </summary>
     public async Task<bool> SignInAgainAsync(CancellationToken ct)
     {
         try
         {
-            Context = await api.SignInAsync(account, password, ct);
-            return true;
+            GameContext fresh = await api.SignInAsync(account, password, ct);
+            lock (_contextLock)
+            {
+                if (!_signedOut)
+                {
+                    Context = fresh;
+                    return true;
+                }
+            }
+
+            await SignOutAsync(fresh);
+            return false;
         }
         catch (ApiException error)
         {
@@ -325,34 +351,43 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     public ValueTask SendAsync(NetworkPacket packet, CancellationToken ct) =>
         (_connection ?? throw new InvalidOperationException($"Bot {index} has no connection.")).SendAsync(packet, ct);
 
-    /// <summary>Signs the game context out, best effort; the bot is <see cref="BotState.Stopped"/> after, with no context.</summary>
+    /// <summary>
+    /// Signs the game context out, best effort; the bot is <see cref="BotState.Stopped"/> after, with no context, and a
+    /// re-sign-in still on its way signs its own context out when it lands.
+    /// </summary>
     private async Task LogoutAsync()
     {
-        if (Context is { } context)
+        GameContext? context;
+        lock (_contextLock)
         {
-            long start = Stopwatch.GetTimestamp();
-            using var limit = new CancellationTokenSource(s_logoutTimeout);
-            try
-            {
-                await api.LogoutAsync(context, limit.Token);
-                StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
-            }
-            catch (ApiException error)
-            {
-                Note?.Invoke($"Logout: {error.Message}.");
-            }
-            catch (OperationCanceledException) when (limit.IsCancellationRequested)
-            {
-                Note?.Invoke($"Logout: no reply within {s_logoutTimeout.TotalSeconds:0} s.");
-            }
-            finally
-            {
-                // The context is not used again: what the logout did not end, its 5-minute expiry does.
-                Context = null;
-            }
+            // The context is not used again: what the logout does not end, its 5-minute expiry does.
+            context = Context;
+            Context = null;
+            _signedOut = true;
         }
 
+        if (context is not null) await SignOutAsync(context);
         _state = BotState.Stopped;
+    }
+
+    /// <summary>Signs <paramref name="context"/> out on its own 5 s timeout; a failure is noted, never thrown.</summary>
+    private async Task SignOutAsync(GameContext context)
+    {
+        long start = Stopwatch.GetTimestamp();
+        using var limit = new CancellationTokenSource(s_logoutTimeout);
+        try
+        {
+            await api.LogoutAsync(context, limit.Token);
+            StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
+        }
+        catch (ApiException error)
+        {
+            Note?.Invoke($"Logout: {error.Message}.");
+        }
+        catch (OperationCanceledException) when (limit.IsCancellationRequested)
+        {
+            Note?.Invoke($"Logout: no reply within {s_logoutTimeout.TotalSeconds:0} s.");
+        }
     }
 
     private NetworkPacket SealInput(WorldConnection connection, uint seq, float dirX, float dirZ, ushort yaw)
@@ -444,7 +479,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             long read = Stopwatch.GetTimestamp();
             // Armed before the load report: nothing of the world reaches a connection before its character spawns.
             Task signal = connection.ArmSpawnSignal();
-            // At once: the world holds the spawn until the client reports it has loaded (15 s otherwise).
+            // At once: the world holds the spawn until the client reports it has loaded (its barrier otherwise).
             await connection.SendAsync(connection.Seal(new CCharacterLoadedPacket(),
                 NetworkPacketType.CMSG_CHARACTER_LOADED), token);
             return (signal, read);
@@ -452,14 +487,15 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         _state = BotState.Loaded;
 
         // No input before the spawn is seen: one sent earlier would reach the world before its character does. The wait
-        // counts from the select reply, as the world's barrier counts from the select.
+        // counts from the select reply: the world arms the spawn only after more loads, and its barrier counts from that.
         TimeSpan spawnLeft = s_spawnTimeout - Stopwatch.GetElapsedTime(selectRead);
         await StepAsync("spawn", spawnLeft > TimeSpan.Zero ? spawnLeft : TimeSpan.Zero, async token =>
         {
             Task first = await Task.WhenAny(spawned, connection.Closed).WaitAsync(token);
             if (first != spawned) throw new WorldClosedException("the connection closed before the character spawned");
             return true;
-        }, ct, timeoutReason: $"no spawn within {s_spawnTimeout.TotalSeconds:0} s of the select reply");
+        }, ct, timeoutReason: $"no spawn within {s_spawnTimeout.TotalSeconds:0} s of the select reply (the world's loads " +
+            $"after it and its readiness barrier, {s_worldLoadTimeout.TotalSeconds:0} s each, and a margin)");
 
         await StepAsync("first-ack", s_firstAckTimeout, async token =>
         {

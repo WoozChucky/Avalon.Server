@@ -23,7 +23,10 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
     private static readonly TimeSpan s_pass = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan s_maxJitter = TimeSpan.FromSeconds(20);
 
-    /// <summary>How many refreshes run at once; a pass holds them all before the next. Also the most sign-ins queued at once.</summary>
+    /// <summary>
+    /// How many refreshes run at once; a pass holds them all before the next. Also the most queued sign-ins running at
+    /// once (the queue itself is unbounded), each still waiting for a slot of the shared sign-in bound.
+    /// </summary>
     private const int Concurrency = 16;
 
     private readonly ConditionalWeakTable<Bot, StrongBox<TimeSpan>> _jitter = [];
