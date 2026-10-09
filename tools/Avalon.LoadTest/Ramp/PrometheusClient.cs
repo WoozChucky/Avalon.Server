@@ -19,8 +19,8 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="GcPauseFraction">The fraction of the window the GC paused the process.</param>
 /// <param name="SaveP95Ms">
 /// The 95th percentile of character save duration, in milliseconds; 0 when the window is known to have had no save,
-/// null when it had saves but no percentile came back or whether it had any cannot be told (see
-/// <see cref="PrometheusClient.SaveP95"/>).
+/// null when it had saves but no percentile came back or whether it had any cannot be told (too few samples, a failed
+/// query).
 /// </param>
 /// <param name="Instances">Map instances active at the step's end.</param>
 public sealed record ServerValues(
@@ -78,17 +78,23 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             $"histogram_quantile(0.95, sum by (le)(rate(world_character_save_duration_milliseconds_bucket{{{world}}}{range})))",
             at, ct);
         // Whether the window had saves: the count's increase (two samples of a series in the window at least), its
-        // samples in the window, and whether it was there at the window's start.
+        // samples in the window, whether it was there at the window's start, and whether a series of it appeared within
+        // the window (one that a restarted world starts beside the old one; its first sample's saves are no increase).
         const string SaveCount = "world_character_save_duration_milliseconds_count";
+        string windowSeconds = $"{w.ToString(CultureInfo.InvariantCulture)}s";
         Task<Answer> saveIncrease = AnswerAsync($"sum(increase({SaveCount}{{{world}}}{range}))", at, ct);
         Task<Answer> saveSamples = AnswerAsync($"sum(count_over_time({SaveCount}{{{world}}}{range}))", at, ct);
         Task<Answer> savesAtStart = AnswerAsync($"sum({SaveCount}{{{world}}})", at - TimeSpan.FromSeconds(w), ct);
+        Task<Answer> newSaveSeries = AnswerAsync(
+            $"count(count_over_time({SaveCount}{{{world}}}{range}) unless {SaveCount}{{{world}}} offset {windowSeconds}) > 0",
+            at, ct);
         Task<double?> instances = ValueAsync($"avalon_world_instances_active{{{world}}}", at, ct);
 
         await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saveIncrease,
-            saveSamples, savesAtStart, instances);
+            saveSamples, savesAtStart, newSaveSeries, instances);
 
-        double? saveP95 = SaveP95(tick.Result, save.Result, saveIncrease.Result, saveSamples.Result, savesAtStart.Result);
+        double? saveP95 = SaveP95(tick.Result, save.Result, saveIncrease.Result, saveSamples.Result, savesAtStart.Result,
+            newSaveSeries.Result);
 
         return new ServerValues(
             tick.Result, tps.Result, drops.Result ?? double.NaN, backlog.Result, workingSetFraction.Result,
@@ -129,14 +135,17 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
     /// <summary>
     /// The save p95 a step is judged on. 0 only when the window is known to have had no save: the world never saved
-    /// (no save count, before the window or in it), or the count did not move over samples spanning the window. Null
-    /// (unknown) when the window lacks samples (no tick value either), when a query failed, when the count has fewer
-    /// than two samples in the window, or when saves happened (the count rose, or its series first appeared within the
-    /// window, which takes a save) and the quantile is empty or NaN. Otherwise the quantile.
+    /// (no save count, before the window or in it), or the count did not move over samples spanning the window and no
+    /// series of it appeared within the window. Null (unknown) when the window lacks samples (no tick value either),
+    /// when a query failed, when the count has fewer than two samples in the window, or when saves happened (the count
+    /// rose, or a series of it first appeared within the window, which takes a save) and the quantile is empty or NaN.
+    /// Otherwise the quantile.
     /// </summary>
-    internal static double? SaveP95(double? tick, double? quantile, Answer increase, Answer samples, Answer atStart)
+    private static double? SaveP95(double? tick, double? quantile, Answer increase, Answer samples, Answer atStart,
+        Answer newSeries)
     {
-        if (tick is null || !increase.Answered || !samples.Answered || !atStart.Answered) return null;
+        if (tick is null || !increase.Answered || !samples.Answered || !atStart.Answered || !newSeries.Answered)
+            return null;
 
         double? p95 = quantile is { } q && double.IsFinite(q) ? q : null;
         if (samples.Value is not > 0)
@@ -146,7 +155,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             return atStart.Value is null ? 0 : null;
         }
 
-        if (atStart.Value is null) return p95;
+        if (atStart.Value is null || newSeries.Value > 0) return p95;
         return increase.Value switch
         {
             null => null,

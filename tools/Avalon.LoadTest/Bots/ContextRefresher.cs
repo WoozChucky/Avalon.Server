@@ -38,10 +38,22 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
     /// <summary>The bots queued or signing in again: passes leave them alone, and none is queued twice.</summary>
     private readonly ConcurrentDictionary<Bot, byte> _signingIn = new();
 
-    /// <summary>Refreshes the bots due every 5 seconds until <paramref name="ct"/> is cancelled; the task then completes.</summary>
-    public async Task RunAsync(CancellationToken ct)
+    /// <summary>
+    /// The loop that signs queued bots in again, set when <see cref="RunAsync"/> starts: it completes once
+    /// <c>signInsAgain</c> (or the refresher's own token) is cancelled and the sign-ins it runs are done.
+    /// </summary>
+    public Task SigningInAgain { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// Refreshes the bots due every 5 seconds until <paramref name="ct"/> is cancelled; the task then completes.
+    /// Cancelling <paramref name="signInsAgain"/> stops only the re-sign-ins (await <see cref="SigningInAgain"/>), so
+    /// the passes go on refreshing bots that are leaving while no new context lands; a context that becomes terminal
+    /// after it is counted and left as it is.
+    /// </summary>
+    public async Task RunAsync(CancellationToken ct, CancellationToken signInsAgain)
     {
-        Task signingIn = SignInAgainLoopAsync(ct);
+        using var signInLoop = CancellationTokenSource.CreateLinkedTokenSource(ct, signInsAgain);
+        Task signingIn = SigningInAgain = SignInAgainLoopAsync(signInLoop.Token);
         using var timer = new PeriodicTimer(s_pass);
         try
         {

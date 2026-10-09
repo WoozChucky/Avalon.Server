@@ -153,10 +153,11 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         var refresher = new ContextRefresher(api, Snapshot, metrics, signIns);
         using var background = new CancellationTokenSource();
         using var refreshes = new CancellationTokenSource();
+        using var signInsAgain = new CancellationTokenSource();
         using var lives = new CancellationTokenSource();
         using var presigning = CancellationTokenSource.CreateLinkedTokenSource(ct);
         Task driving = driver.RunAsync(background.Token);
-        Task refreshing = refresher.RunAsync(refreshes.Token);
+        Task refreshing = refresher.RunAsync(refreshes.Token, signInsAgain.Token);
 
         var steps = new List<StepRecord>();
         var decider = new RampDecider(options.Limits, options.Max);
@@ -242,12 +243,14 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         if (presign is not null) await presign.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         await lives.CancelAsync();
         await Task.WhenAll(_lives).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-        // The refresher, its queued re-sign-ins with it, stops before the leaves: none lands after a bot signed out.
-        await refreshes.CancelAsync();
-        await refreshing.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        // The re-sign-ins stop before the leaves, so no new context lands after a bot signed out; the refresh passes go
+        // on through the leaves, so a bot waiting for a leave slot keeps its context and its world session's lease.
+        await signInsAgain.CancelAsync();
+        await refresher.SigningInAgain.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         await LeaveAllAsync();
+        await refreshes.CancelAsync();
         await background.CancelAsync();
-        await driving.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        await Task.WhenAll(driving, refreshing).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         DisposeBots();
         signInFailures += metrics.TakeWindow().SignInFailures;
         bool drained = await WaitForDrainAsync(prometheus, playersBefore);

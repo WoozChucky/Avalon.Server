@@ -49,17 +49,20 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>
     /// The world's <c>Game:CharacterLoadTimeoutSeconds</c> (15 s, <c>GameConfiguration</c> and the world's appsettings).
-    /// It bounds two waits in a row: the select's loads after its reply (quests, ignores, auras, read off the tick one
-    /// after the other) until the spawn is armed, counted from the select's start, past which the world closes the
-    /// connection; then the readiness barrier, which spawns the armed character after as long again if its load report
-    /// did not (a report sent before the spawn is armed is held until the barrier releases it).
+    /// It bounds the select's loads after its reply (quests, ignores, auras, read off the tick one after the other) until
+    /// the spawn is armed, counted from the select's start, past which the world closes the connection. It is also the
+    /// readiness barrier's own wait, which only a lost load report runs into: the bot's report, sent at once after the
+    /// reply, reaches the world before the spawn is armed, is held, and is released by the first barrier sweep after
+    /// the spawn is armed, a tick later, without waiting the barrier out.
     /// </summary>
     private static readonly TimeSpan s_worldLoadTimeout = TimeSpan.FromSeconds(15);
 
     /// <summary>
-    /// The wait for the spawn, from the moment the select reply is read: the select's loads after its reply and the
-    /// readiness barrier, each at most <see cref="s_worldLoadTimeout"/>, then 5 s for the release's own admission check
-    /// and the tick. Only past it is a missing spawn a <c>spawn:timeout</c>.
+    /// The wait for the spawn, from the moment the select reply is read: a safe upper bound, not the expected wait. The
+    /// expected spawn is the select's loads after its reply (at most <see cref="s_worldLoadTimeout"/>), the barrier
+    /// sweep's release a tick later, and its admission check. The bound adds the barrier's full wait as well, in case
+    /// the report is lost, then 5 s for the admission check and the tick. Only past it is a missing spawn a
+    /// <c>spawn:timeout</c>.
     /// </summary>
     private static readonly TimeSpan s_spawnTimeout = s_worldLoadTimeout + s_worldLoadTimeout + TimeSpan.FromSeconds(5);
 
@@ -487,7 +490,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         _state = BotState.Loaded;
 
         // No input before the spawn is seen: one sent earlier would reach the world before its character does. The wait
-        // counts from the select reply: the world arms the spawn only after more loads, and its barrier counts from that.
+        // counts from the select reply: the world arms the spawn only after more loads, then releases the held report.
         TimeSpan spawnLeft = s_spawnTimeout - Stopwatch.GetElapsedTime(selectRead);
         await StepAsync("spawn", spawnLeft > TimeSpan.Zero ? spawnLeft : TimeSpan.Zero, async token =>
         {
@@ -495,7 +498,8 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             if (first != spawned) throw new WorldClosedException("the connection closed before the character spawned");
             return true;
         }, ct, timeoutReason: $"no spawn within {s_spawnTimeout.TotalSeconds:0} s of the select reply (the world's loads " +
-            $"after it and its readiness barrier, {s_worldLoadTimeout.TotalSeconds:0} s each, and a margin)");
+            $"after it and, were the load report lost, its readiness barrier, {s_worldLoadTimeout.TotalSeconds:0} s each, " +
+            "and a margin)");
 
         await StepAsync("first-ack", s_firstAckTimeout, async token =>
         {
