@@ -66,6 +66,12 @@ public sealed record RampResult(
     /// sequence is still running (the report written as soon as the outcome is known).
     /// </summary>
     public bool? WorldDrained { get; init; }
+
+    /// <summary>
+    /// Sign-outs skipped because the API was taken as down (<see cref="SignOutBreaker"/>): those contexts expire within
+    /// 5 minutes. 0 while the stop sequence is still running.
+    /// </summary>
+    public int SignOutsSkipped { get; init; }
 }
 
 /// <summary>
@@ -117,6 +123,9 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     private readonly List<Task> _lives = [];
 
     private IReadOnlyCollection<Bot>? _snapshot;
+
+    /// <summary>The run's sign-out breaker, shared by every bot and the refresher.</summary>
+    private readonly SignOutBreaker _signOuts = new();
     private int _nextIndex;
     private int _signIns;
     private TimeSpan _signInTime;
@@ -150,7 +159,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         var metrics = new BotMetrics();
         using var signIns = new SemaphoreSlim(options.SignInConcurrency);
         var driver = new InputDriver(Snapshot);
-        var refresher = new ContextRefresher(api, Snapshot, metrics, signIns);
+        var refresher = new ContextRefresher(api, Snapshot, metrics, signIns, _signOuts);
         using var background = new CancellationTokenSource();
         using var refreshes = new CancellationTokenSource();
         using var signInsAgain = new CancellationTokenSource();
@@ -254,6 +263,12 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         await background.CancelAsync();
         await Task.WhenAll(driving, refreshing).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         DisposeBots();
+        if (_signOuts.Skipped > 0)
+        {
+            Console.Error.WriteLine(Invariant(
+                $"API down: {_signOuts.Skipped} sign-outs skipped; those contexts expire within 5 minutes."));
+        }
+
         signInFailures += metrics.TakeWindow().SignInFailures;
         bool drained = await WaitForDrainAsync(prometheus, playersBefore);
 
@@ -265,6 +280,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             Ended = DateTimeOffset.UtcNow,
             SignInFailures = signInFailures,
             WorldDrained = drained,
+            SignOutsSkipped = _signOuts.Skipped,
         };
     }
 
@@ -357,7 +373,10 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             int round = Math.Min(count - signedIn, run.Bots.Count - _nextIndex);
             var bots = new Bot[round];
             for (int i = 0; i < round; i++, _nextIndex++)
-                bots[i] = new Bot(_nextIndex, run.Bots[_nextIndex], run.BotPassword, api, run.WorldId, options.Dial, metrics);
+            {
+                bots[i] = new Bot(_nextIndex, run.Bots[_nextIndex], run.BotPassword, api, run.WorldId, options.Dial,
+                    metrics, _signOuts);
+            }
 
             long start = Stopwatch.GetTimestamp();
             bool[] ok = await Task.WhenAll(bots.Select(bot => SignInOneAsync(bot, signIns, ct)));

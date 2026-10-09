@@ -56,15 +56,15 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// <summary>The wait between a redeem's attempts.</summary>
     private static readonly TimeSpan s_redeemRetryDelay = TimeSpan.FromSeconds(1);
 
-    /// <summary>The shortest attempt worth starting before the redeem's budget runs out.</summary>
+    /// <summary>The shortest timeout a redeem attempt gets, however little of the budget is left.</summary>
     private static readonly TimeSpan s_redeemMinAttempt = TimeSpan.FromSeconds(2);
 
-    /// <summary>A logout attempt's own timeout: three attempts and their waits fit <see cref="LogoutTimeout"/>.</summary>
-    private static readonly TimeSpan s_logoutAttemptTimeout = TimeSpan.FromSeconds(3);
+    /// <summary>The shortest timeout a logout attempt gets, and the least time left worth a retry.</summary>
+    private static readonly TimeSpan s_logoutMinAttempt = TimeSpan.FromSeconds(1);
 
     /// <summary>
-    /// How long a sign-out (<see cref="LogoutAsync"/>) is given, by every caller, on its own clock: three attempts of
-    /// 3 s and the waits between them.
+    /// How long a sign-out (<see cref="LogoutAsync"/>) is given, by every caller, on its own clock. Its first attempt
+    /// may use all of it; a quick failure (no connection, a 5xx) is retried in what is left.
     /// </summary>
     public static TimeSpan LogoutTimeout { get; } = TimeSpan.FromSeconds(10);
 
@@ -227,28 +227,33 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     }
 
     /// <summary>
-    /// Signs the game context out; a context already gone (401, 404) counts as signed out. A logout is safe to repeat
-    /// (a second one finds the context revoked and changes nothing), so no reply within 3 s, a transport failure or a
-    /// 5xx is asked again twice; give it <see cref="LogoutTimeout"/>.
+    /// Signs the game context out; a context already gone (401, 404) counts as signed out. Each attempt has what is left
+    /// of <see cref="LogoutTimeout"/> from the first send (the server drops a logout whose request is aborted, so an
+    /// attempt is never cut short for a retry's sake). A logout is safe to repeat (a second one finds the context
+    /// revoked and changes nothing), so a transport failure or a 5xx is asked again, twice at most, while at least 1 s
+    /// is left after the wait; a timeout has spent the time and is not. Give it <see cref="LogoutTimeout"/>.
     /// </summary>
     public Task LogoutAsync(GameContext context, CancellationToken ct) => LogoutCredentialAsync(context.Credential, ct);
 
     private async Task LogoutCredentialAsync(string credential, CancellationToken ct)
     {
+        long start = Stopwatch.GetTimestamp();
         for (int attempt = 0; ; attempt++)
         {
+            TimeSpan left = LogoutTimeout - Stopwatch.GetElapsedTime(start);
             try
             {
                 await SendAsync("logout", HttpMethod.Post, "client/auth/game-context/logout",
                     new { gameContextCredential = credential }, null, idempotencyKey: null, ct, allowEmpty: true,
-                    attemptTimeout: s_logoutAttemptTimeout);
+                    attemptTimeout: left > s_logoutMinAttempt ? left : s_logoutMinAttempt);
                 return;
             }
             catch (ApiException error) when (error.Status is 401 or 404)
             {
                 return;
             }
-            catch (ApiException error) when (attempt < s_retryDelays.Length && error.Status is 0 or >= 500)
+            catch (ApiException error) when (attempt < s_retryDelays.Length && error.Status is 0 or >= 500 &&
+                LogoutTimeout - Stopwatch.GetElapsedTime(start) >= s_retryDelays[attempt] + s_logoutMinAttempt)
             {
                 await Task.Delay(s_retryDelays[attempt], ct);
             }
@@ -350,8 +355,9 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
 
     /// <summary>
     /// As <see cref="SendWithRetriesAsync"/>, never cancelled, asked again 1 s apart under the same key until
-    /// <paramref name="budget"/> from the first send has run out: each attempt has <paramref name="attemptTimeout"/>, or
-    /// what is left of the budget when that is less, and none starts with under 2 s left.
+    /// <paramref name="budget"/> from the first send has run out: each attempt has what is left of the budget, held
+    /// between 2 s and <paramref name="attemptTimeout"/>, and none starts once the budget is spent, so the whole call
+    /// takes at most the budget and 2 s.
     /// </summary>
     private async Task<JsonNode> SendUntilAsync(string step, string path, Guid key, Func<object> body,
         string retryConflict, TimeSpan attemptTimeout, TimeSpan budget)
@@ -359,16 +365,19 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         long start = Stopwatch.GetTimestamp();
         while (true)
         {
+            // Read after any wait: a delay that ran late (a starved thread pool) leaves less, never a negative timeout.
             TimeSpan left = budget - Stopwatch.GetElapsedTime(start);
+            TimeSpan timeout = left < s_redeemMinAttempt ? s_redeemMinAttempt : left > attemptTimeout ? attemptTimeout : left;
             try
             {
                 return await SendAsync(step, HttpMethod.Post, path, body(), null, key, CancellationToken.None,
-                    attemptTimeout: left < attemptTimeout ? left : attemptTimeout);
+                    attemptTimeout: timeout);
             }
-            catch (ApiException error) when (Repeatable(error, retryConflict) &&
-                budget - Stopwatch.GetElapsedTime(start) >= s_redeemRetryDelay + s_redeemMinAttempt)
+            catch (ApiException error) when (Repeatable(error, retryConflict) && Stopwatch.GetElapsedTime(start) < budget)
             {
                 await Task.Delay(s_redeemRetryDelay);
+                // The wait ended past the deadline: the last failure stands.
+                if (Stopwatch.GetElapsedTime(start) >= budget) throw;
             }
         }
     }

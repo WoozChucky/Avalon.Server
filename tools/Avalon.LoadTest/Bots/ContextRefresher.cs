@@ -25,8 +25,9 @@ namespace Avalon.LoadTest.Bots;
 /// one comes (the server's 30 s receipt replays what it did, and past it the spent token is refused and the context
 /// revoked); and a context replaced by a sign-in is signed out.
 /// </remarks>
+/// <param name="signOuts">The ramp's sign-out breaker, shared with its bots.</param>
 public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot>> bots, BotMetrics metrics,
-    SemaphoreSlim signIns)
+    SemaphoreSlim signIns, SignOutBreaker signOuts)
 {
     private static readonly TimeSpan s_pass = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan s_maxJitter = TimeSpan.FromSeconds(20);
@@ -306,18 +307,11 @@ public sealed class ContextRefresher(ApiClient api, Func<IReadOnlyCollection<Bot
         }
     }
 
-    /// <summary>Signs out a context its bot let go of, best effort, on its own 10 s (<see cref="ApiClient.LogoutTimeout"/>).</summary>
+    /// <summary>Signs out a context its bot let go of, best effort, through the shared breaker on its own 10 s.</summary>
     private async Task SignOutAsync(Bot bot, GameContext context)
     {
-        using var limit = new CancellationTokenSource(ApiClient.LogoutTimeout);
-        try
-        {
-            await api.LogoutAsync(context, limit.Token);
-        }
-        catch (Exception error) when (error is ApiException || (error is OperationCanceledException && limit.IsCancellationRequested))
-        {
-            bot.Note?.Invoke($"Signing out a context the bot let go of failed: {error.Message}.");
-        }
+        SignOutOutcome outcome = await signOuts.SignOutAsync(api, context);
+        if (outcome.Failure is { } failure) bot.Note?.Invoke($"Signing out a context the bot let go of failed: {failure}.");
     }
 
     /// <summary>

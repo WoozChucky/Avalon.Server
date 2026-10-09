@@ -24,8 +24,9 @@ public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, flo
 /// input driver) while the bot is <see cref="BotState.InWorld"/>. Disposed once nothing uses it any more: after its
 /// leave, its life loop and the refresher are done.
 /// </summary>
+/// <param name="signOuts">The ramp's sign-out breaker, shared by its bots and its refresher; null for one of the bot's own.</param>
 public sealed class Bot(int index, string account, string password, ApiClient api, ushort worldId, string? dialHost,
-    BotMetrics metrics) : IDisposable
+    BotMetrics metrics, SignOutBreaker? signOuts = null) : IDisposable
 {
     /// <summary>The version the handshake sends: the protocol the provider attempt names.</summary>
     public const string ClientVersion = ApiClient.ProtocolVersion;
@@ -72,16 +73,16 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// <summary>A leave waits for the character's logout save.</summary>
     private static readonly TimeSpan s_leaveTimeout = TimeSpan.FromSeconds(20);
 
-    /// <summary>
-    /// The context's sign-out at the end of a leave, on its own clock (<see cref="ApiClient.LogoutTimeout"/>, retries
-    /// included): it runs even after the leave was cancelled.
-    /// </summary>
-    private static readonly TimeSpan s_logoutTimeout = ApiClient.LogoutTimeout;
-
     /// <summary>How often a spawned bot repeats its first idle input until one is answered.</summary>
     private static readonly TimeSpan s_firstAckProbeInterval = TimeSpan.FromMilliseconds(50);
 
     private readonly Lock _ackLock = new();
+
+    /// <summary>
+    /// Every sign-out of the bot's goes through it, on its own clock (<see cref="ApiClient.LogoutTimeout"/>): it runs even
+    /// after the leave was cancelled, and is skipped once the API is taken as down.
+    /// </summary>
+    private readonly SignOutBreaker _signOuts = signOuts ?? new SignOutBreaker();
     private readonly CancellationTokenSource _gaveUp = new();
 
     /// <summary>Guards <see cref="Context"/>'s last change: the leave's sign-out against a re-sign-in landing after it.</summary>
@@ -376,24 +377,16 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         _state = BotState.Stopped;
     }
 
-    /// <summary>Signs <paramref name="context"/> out on its own 10 s timeout; a failure is noted, never thrown.</summary>
+    /// <summary>
+    /// Signs <paramref name="context"/> out through the breaker, on its own 10 s timeout; a failure is noted, never
+    /// thrown, and a skip (the API taken as down) is counted by the breaker.
+    /// </summary>
     private async Task SignOutAsync(GameContext context)
     {
         long start = Stopwatch.GetTimestamp();
-        using var limit = new CancellationTokenSource(s_logoutTimeout);
-        try
-        {
-            await api.LogoutAsync(context, limit.Token);
-            StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
-        }
-        catch (ApiException error)
-        {
-            Note?.Invoke($"Logout: {error.Message}.");
-        }
-        catch (OperationCanceledException) when (limit.IsCancellationRequested)
-        {
-            Note?.Invoke($"Logout: no reply within {s_logoutTimeout.TotalSeconds:0} s.");
-        }
+        SignOutOutcome outcome = await _signOuts.SignOutAsync(api, context);
+        if (outcome.Failure is { } failure) Note?.Invoke($"Logout: {failure}.");
+        else if (!outcome.Skipped) StepTimed?.Invoke("logout", Stopwatch.GetElapsedTime(start));
     }
 
     private NetworkPacket SealInput(WorldConnection connection, uint seq, float dirX, float dirZ, ushort yaw)
