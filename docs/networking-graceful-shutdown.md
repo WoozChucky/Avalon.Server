@@ -7,10 +7,12 @@ This document describes the connection lifecycle and graceful-shutdown protocol 
 Both TCP servers run on one code path:
 
 - **`ServerBase<T>`** (`src/Server/Avalon.Hosting/Networking/ServerBase.cs`) — extends `BackgroundService`; one awaited
-  `AcceptTcpClientAsync` loop, started at host start, or for the world server by `StartListening` once the world is
-  ready (#665). Only a stop ends it. `BoundEndPoint` is the endpoint the listener bound, null until it has: with
-  `Hosting:Port` 0 the OS picks a free port, and tests read it back from there rather than reserving one and releasing
-  it before the server binds it, which another process could take in between (#841).
+  `AcceptTcpClientAsync` loop, started by each server's `ExecuteAsync` through `StartListening` once the server is
+  ready: the world server once the world is loaded (#665), the auth server once its certificate, start-up reset,
+  disconnect subscription and connection listener are (#867). Only a stop ends it. `BoundEndPoint` is the endpoint the
+  listener bound, null until it has: with `Hosting:Port` 0 the OS picks a free port, and tests read it back from there
+  rather than reserving one and releasing it before the server binds it, which another process could take in between
+  (#841).
 - **`AuthServer : ServerBase<AuthConnection>`** — the auth server.
 - **`WorldServer : ServerBase<WorldConnection>`** (`src/Server/Avalon.World/WorldServer.cs`) — the world server.
 - Connections implement **`IConnection`** (in `Avalon.Hosting.Networking`), which exposes:

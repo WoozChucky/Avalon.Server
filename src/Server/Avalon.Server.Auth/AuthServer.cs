@@ -58,6 +58,11 @@ public class AuthServer(
 
     public X509Certificate2 Certificate { get; private set; }
 
+    /// <summary>
+    /// The port opens in <see cref="ExecuteAsync" />, once the server is ready, not at host start (#867).
+    /// </summary>
+    protected override bool ListenOnStart => false;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         byte[] serverCertBytes = await File.ReadAllBytesAsync(_securityOptions.CertificatePath, stoppingToken);
@@ -78,13 +83,30 @@ public class AuthServer(
         await accountRepository.MarkAllOfflineAsync(stoppingToken);
 
         await SubscribeToAccountDisconnectsAsync();
+        try
+        {
+            RegisterNewConnectionListener(NewConnection);
 
-        RegisterNewConnectionListener(NewConnection);
+            // Only now does the port open (#867, as the world's does, #665): the certificate is loaded,
+            // no account is left online from a previous run, a ban published from here on closes its
+            // sessions, and the connection listener is registered. A step that threw above never gets
+            // here, so a failed start never leaves an endpoint accepting clients, and the fault stops
+            // the host; a stop that began meanwhile makes this a no-op. A port that cannot be bound
+            // fails the start the same way.
+            StartListening();
 
-        // The liveness sweep (#555) runs for the server's life and ends with the stopping token.
-        var onlineSweep = new OnlineSweep(accountRepository, () => Connections.Select(c => c.Id),
-            OnlineSweepInterval, _time, loggerFactory.CreateLogger<OnlineSweep>());
-        await onlineSweep.RunAsync(OnlineSweepPollPeriod(OnlineSweepInterval), stoppingToken);
+            // The liveness sweep (#555) runs for the server's life and ends with the stopping token.
+            var onlineSweep = new OnlineSweep(accountRepository, () => Connections.Select(c => c.Id),
+                OnlineSweepInterval, _time, loggerFactory.CreateLogger<OnlineSweep>());
+            await onlineSweep.RunAsync(OnlineSweepPollPeriod(OnlineSweepInterval), stoppingToken);
+        }
+        finally
+        {
+            // OnStoppingAsync unsubscribes first, but a stop that began while the start-up was still
+            // running reaches it before this subscription exists (#867). Removing the handler twice is
+            // harmless.
+            await UnsubscribeFromAccountDisconnectsAsync().ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -96,17 +118,7 @@ public class AuthServer(
 
     protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {
-        if (_accountDisconnectHandler != null)
-        {
-            try
-            {
-                await cache.UnsubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, _accountDisconnectHandler);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not unsubscribe from the account disconnect channel");
-            }
-        }
+        await UnsubscribeFromAccountDisconnectsAsync().ConfigureAwait(false);
 
         // Awaited, and all at once: the shutdown notice is delivered by the close, so returning
         // before they finish lets the host exit with the packets still queued.
@@ -220,6 +232,22 @@ public class AuthServer(
         _accountDisconnectHandler ??= (_, message) =>
             HandleAccountDisconnect(message, System.Diagnostics.Stopwatch.GetTimestamp());
         return cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, _accountDisconnectHandler);
+    }
+
+    /// <summary>Stops listening on the account disconnect channel; best effort, a failure is logged.</summary>
+    private async Task UnsubscribeFromAccountDisconnectsAsync()
+    {
+        if (_accountDisconnectHandler is not { } handler)
+            return;
+
+        try
+        {
+            await cache.UnsubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, handler).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not unsubscribe from the account disconnect channel");
+        }
     }
 
     /// <summary>
