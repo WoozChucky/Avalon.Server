@@ -231,6 +231,7 @@ public static class ReportWriter
             result.ServerVersionAtEnd,
             result.ServerPod,
             result.ServerPodAtEnd,
+            result.ContainerRestarts,
             RunId = run.RunId,
             RunBots = run.Bots.Count,
             Api = run.Api.ToString(),

@@ -171,6 +171,22 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             : new ServerIdentity(string.Join(", ", versions), pods.Count == 0 ? null : string.Join(", ", pods));
     }
 
+    /// <summary>
+    /// How many times kube-state-metrics has seen the world server's container restart in its pod
+    /// (<c>kube_pod_container_status_restarts_total</c>), the pod named <paramref name="podUid"/> when given (a
+    /// <see cref="ServerIdentity.PodUid"/>): a pod recreated under the same name within the 5-minute lookback leaves the
+    /// old pod's series beside the new one. Null when Prometheus has none or cannot be reached.
+    /// </summary>
+    public async Task<int?> ContainerRestartsAsync(string? podUid, CancellationToken ct)
+    {
+        // Pod uids are hex and dashes, safe in a regex; several (a tie in ServerAsync) read as alternatives.
+        string uid = podUid is null ? "" : $",uid=~\"{string.Join('|', podUid.Split(", "))}\"";
+        double? restarts = await ValueAsync(
+            $"max(kube_pod_container_status_restarts_total{{namespace=\"avalon\",pod=\"{pod}\",container=\"{Container}\"{uid}}})",
+            DateTimeOffset.UtcNow, ct);
+        return restarts is { } value && double.IsFinite(value) ? (int)Math.Round(value) : null;
+    }
+
     /// <summary>The world's players online now.</summary>
     /// <exception cref="PrometheusException">Prometheus is unreachable or has no such series for the world.</exception>
     public Task<int> PlayersOnlineAsync(CancellationToken ct) => PlayersOnlineAsync(DateTimeOffset.UtcNow, ct);

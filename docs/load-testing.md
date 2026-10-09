@@ -427,8 +427,10 @@ the exit code still follows the verdict.
 - **Header**: the date and time, the world's server version (Prometheus `target_info`'s `service_version`, from the
   series with the newest sample: a world restarted within the last 5 minutes still has its old process's series in
   Prometheus's lookback; versions sharing the newest sample are all named), read with its pod uid (`k8s_pod_uid`)
-  before the ramp and again at its end: `world restarted during the ramp (A → B; pod x → y)` when the pod differs,
-  whatever the version, or `changed during the ramp: A → B` when only the versions could be compared; the run
+  before the ramp and again at its end, with the container's restarts in that pod (kube-state-metrics'
+  `kube_pod_container_status_restarts_total` for `--pod`): `world restarted during the ramp (A → B; pod x → y;
+  container restarted N times)`, naming what showed it, when the pod differs or the restarts rose, whatever the
+  version, or `changed during the ramp: A → B` when only the versions could be compared; the run
   and its size, the API, the mix, the ramp settings (start, step, hold and judged window, max, sign-in concurrency),
   Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its clock's offset from Prometheus's at the
   start (by which every query's time was corrected), and the limits, each marked when overridden.
@@ -446,8 +448,8 @@ the exit code still follows the verdict.
   - the bot PC's CPU and the driver's lateness p95;
   - the verdict: `pass`, `pass (blip)`, `re-hold (<breaches, or unknown: names>)`, `stop (...)`,
     `stop, unknown (...)`, or `pass, the last step`. A value Prometheus did not give reads `n/a`.
-- **Notes**: a world that restarted during the ramp (its pod or its version changed, so the run does not stand: run
-  again); the blips; the steps whose drops may be the bot PC's; sign-ins, with their throughput (one every X s
+- **Notes**: a world that restarted during the ramp (its pod or its version changed, or its container restarted, so
+  the run does not stand: run again); the blips; the steps whose drops may be the bot PC's; sign-ins, with their throughput (one every X s
   with N at once, and per minute; identity's side, apart from the world) and the sign-in and refresh failures, by kind;
   whether the world drained after the stop; failed sign-outs; the stop's leave failures by kind; and the leaves and
   sign-outs the breakers skipped.

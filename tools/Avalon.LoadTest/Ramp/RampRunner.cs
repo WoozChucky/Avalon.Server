@@ -93,13 +93,35 @@ public sealed record RampResult(
     public bool ServerRestarted => Differ(ServerPod, ServerPodAtEnd);
 
     /// <summary>
-    /// What changed in the world server during the ramp: <c>world restarted during the ramp (A → B; pod x → y)</c> when
-    /// the pod changed, <c>changed during the ramp: A → B</c> when only the versions could be compared; null when
-    /// nothing did.
+    /// How many times the world server's container restarted inside its pod during the ramp (kube-state-metrics' count
+    /// at the end less at the start, for the pod read at the start); null when either read had none. A restart the pod
+    /// uid cannot show, since the pod stays.
     /// </summary>
-    public string? ServerChange => ServerRestarted
-        ? $"world restarted during the ramp ({(ServerVersionChanged ? $"{ServerVersion} → {ServerVersionAtEnd}" : ServerVersion ?? ServerVersionAtEnd ?? "version unknown")}; pod {ServerPod} → {ServerPodAtEnd})"
-        : ServerVersionChanged ? $"changed during the ramp: {ServerVersion} → {ServerVersionAtEnd}" : null;
+    public int? ContainerRestarts { get; init; }
+
+    /// <summary>
+    /// What changed in the world server during the ramp: <c>world restarted during the ramp (A → B; pod x → y; container
+    /// restarted N times)</c>, naming what showed it, when the pod changed or the container restarted;
+    /// <c>changed during the ramp: A → B</c> when only the versions could be compared; null when nothing did.
+    /// </summary>
+    public string? ServerChange
+    {
+        get
+        {
+            bool containerRestarted = ContainerRestarts > 0;
+            if (!ServerRestarted && !containerRestarted)
+                return ServerVersionChanged ? $"changed during the ramp: {ServerVersion} → {ServerVersionAtEnd}" : null;
+
+            var details = new List<string>(3)
+            {
+                ServerVersionChanged ? $"{ServerVersion} → {ServerVersionAtEnd}" : ServerVersion ?? ServerVersionAtEnd ?? "version unknown",
+            };
+            if (ServerRestarted) details.Add($"pod {ServerPod} → {ServerPodAtEnd}");
+            if (containerRestarted)
+                details.Add(ContainerRestarts == 1 ? "container restarted once" : FormattableString.Invariant($"container restarted {ContainerRestarts} times"));
+            return $"world restarted during the ramp ({string.Join("; ", details)})";
+        }
+    }
 
     private static bool Differ(string? start, string? end) =>
         start is not null && end is not null && !string.Equals(start, end, StringComparison.Ordinal);
@@ -227,6 +249,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             $"The bot PC's clock is {ClockOffsetText(clockOffset)} Prometheus's; query times are corrected by it."));
         ServerIdentity? server = await prometheus.ServerAsync(ct);
         string? version = server?.Version;
+        int? restartsBefore = await prometheus.ContainerRestartsAsync(server?.PodUid, ct);
         int playersBefore = await prometheus.PlayersOnlineAsync(ct);
         Console.WriteLine(Invariant(
             $"World {run.WorldId} ({version ?? "version unknown"}), {playersBefore} players online before the ramp."));
@@ -312,11 +335,13 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         // Read again before the stop sequence, without the ramp's token (a Ctrl+C has cancelled it; the client's own
         // timeout bounds the read): a world restarted during the ramp, on any version, invalidates the run.
         ServerIdentity? serverAtEnd = await prometheus.ServerAsync(CancellationToken.None);
+        int? restartsAtEnd = await prometheus.ContainerRestartsAsync(server?.PodUid, CancellationToken.None);
         var partial = new RampResult(outcome, capacity, failedFirst, steps, version, SignInRate(), started, DateTimeOffset.UtcNow)
         {
             ServerVersionAtEnd = serverAtEnd?.Version,
             ServerPod = server?.PodUid,
             ServerPodAtEnd = serverAtEnd?.PodUid,
+            ContainerRestarts = restartsAtEnd - restartsBefore,
             StopReason = stopReason,
             SignIns = _signIns,
             SignInFailures = new Dictionary<string, int>(signInFailures, StringComparer.Ordinal),
