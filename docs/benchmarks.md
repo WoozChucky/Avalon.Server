@@ -122,8 +122,10 @@ returns the buffer to the pool within the same call.
 |---|---|
 | `Legacy_DecryptAndRead` | Old pattern — `packet.Payload = decryptFunc(packet.Payload)` (new `byte[]`) then `Read` — **baseline** |
 | `Fixed_DecryptAndRead` | New pattern — `Read(packet, decrypt)` with rented buffer, no payload swap |
+| `Session_MethodGroupPerPacket` | A real `AvalonCryptoSession` opening a sealed packet, passed as the method group `_server.Decrypt` on every call: `Connection`'s read loop before #854 |
+| `Session_CachedDelegate` | The same, through a `DecryptFunc` created once: `Connection`'s read loop since #854 |
 
-The passthrough `DecryptFunc` (`input.CopyTo(output); return input.Length`) isolates allocation
+In the first two arms the passthrough `DecryptFunc` (`input.CopyTo(output); return input.Length`) isolates allocation
 from actual cipher cost. At steady state the `ArrayPool` bucket for this payload size is pre-warmed —
 zero net allocation per call for the buffer.
 
@@ -163,7 +165,7 @@ session layer.
 | Scenario | What it models |
 |---|---|
 | `Serialize_NoEncryption` | Serialize `CClientInfoPacket` — no encryption |
-| `Serialize_Encrypted` | Serialize `CCharacterListPacket` through `AvalonCryptoSession.Encrypt` |
+| `Serialize_Encrypted` | Serialize `CCharacterListPacket` through the session's `Encryptor`, as every send does (the `Encrypt` method group before #854) |
 | `Deserialize_Encrypted` | Deserialize + decrypt + inner-deserialize an encrypted packet |
 | `Deserialize_NoEncryption` | Deserialize an unencrypted `NetworkPacket` |
 
@@ -675,6 +677,28 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValle
 - **Residual 80 B**: The deserialized `Packet` object — unavoidable until `NetworkPacket.Payload` is changed to `Memory<byte>` (Approach C, tracked separately).
 - **Throughput unchanged**: Mean is 124.5 ns vs 132.3 ns — the small overhead (~6%) is the `ArrayPool.Rent/Return` cost plus `input.CopyTo(output)` in the passthrough; real crypto will dominate this.
 
+### Results — the read loop's decrypt delegate (#854, 2026-10-09)
+
+i9-12900K, Windows 11, .NET 10.0.12, DefaultJob, Release. The two `Session_*` arms are new with #854 and call `Read`
+through `IPacketReader`, as `Connection` does; the first two arms, run on `main` (`a892abe7`) and with #854, are
+unchanged and are the control.
+
+| Method | Mean | Error | StdDev | Gen0 | Allocated |
+|---|---:|---:|---:|---:|---:|
+| `Legacy_DecryptAndRead` (main) | 157.8 ns | 5.09 ns | 15.00 ns | 0.0086 | 136 B |
+| `Fixed_DecryptAndRead` (main) | 162.1 ns | 5.17 ns | 15.23 ns | 0.0050 | 80 B |
+| `Legacy_DecryptAndRead` (#854) | 154.1 ns | 2.99 ns | 7.55 ns | 0.0086 | 136 B |
+| `Fixed_DecryptAndRead` (#854) | 153.2 ns | 3.09 ns | 7.39 ns | 0.0050 | 80 B |
+| `Session_MethodGroupPerPacket` | 412.8 ns | 8.08 ns | 12.58 ns | 0.0091 | 144 B |
+| `Session_CachedDelegate` | 411.7 ns | 8.19 ns | 21.15 ns | 0.0048 | 80 B |
+
+- **The method group cost 64 B per packet, in fully optimised code.** Passed through the interface, the delegate
+  escapes and is on the heap: 144 B against 80 B, the 80 B being the deserialized `Packet` and nothing else.
+- **No time difference**: creating a small delegate is a few nanoseconds against ~410 ns of open and deserialize.
+- **Through the concrete `PacketReader` the JIT hides it.** A first run of the `Session_*` arms called `Read` on the
+  concrete type, which .NET 10 inlines; the delegate stayed on the stack and both arms allocated 80 B. That is the
+  dependency #854 removes: whether the per-packet delegate cost anything depended on the JIT, not on the code.
+
 ---
 
 ## Context Factory Delegate GC-010 — Benchmark Results
@@ -821,6 +845,23 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2/2025Update/HudsonValle
 - **The unencrypted rows are the protobuf floor** — 205.5 ns / 872 B to serialize and 182.0 ns /
   208 B to deserialize a small packet. Anything above that on the encrypted rows is the session
   layer, not Protobuf-net.
+
+### Results — #854, before and after (2026-10-09)
+
+Same machine (Windows 11 build 26200.9457, i9-12900K, .NET SDK 10.0.401, .NET 10.0.12, DefaultJob, Release). Before:
+`main` at `a892abe7`, `Serialize_Encrypted` passing `_client.Encrypt` as a method group. After: #854, passing
+`_client.Encryptor`.
+
+| Method | Before mean | Before allocated | After mean | After allocated |
+|---|---:|---:|---:|---:|
+| `Serialize_NoEncryption` | 269.2 ns | 872 B | 265.8 ns | 872 B |
+| `Serialize_Encrypted` | 441.8 ns | 648 B | 457.0 ns | 584 B |
+| `Deserialize_Encrypted` | 324.9 ns | 288 B | 379.7 ns | 288 B |
+| `Deserialize_NoEncryption` | 224.5 ns | 208 B | 233.8 ns | 208 B |
+
+- **The send loses its 64 B delegate** (648 → 584 B), even here, in fully optimised code: the method group escapes
+  into `Create`, which is not inlined, so it is on the heap. The means move within the runs' spread (StdDev
+  10-37 ns); `Deserialize_Encrypted` uses no delegate at all, so its 55 ns is run-to-run noise.
 
 ---
 
@@ -1096,9 +1137,9 @@ with the committed figure (in a Release build; a Debug build reports it, see bel
 - **Detection floor.** The 5% band is relative, so in the moving scenarios it is wide in absolute terms. With the
   committed figures below, the gate fails on a rise of more than **256 B per window** in `town-idle` (about 4 B per
   tick: it allocates nothing since #851, so the floor decides, and any one object allocated every tick fails it),
-  **44 B per player per tick** in `town-walk` (79 KB per window), and **23 B per player per tick** in
-  `many-instances` (about 46 B per instance per tick, 688 KB per window). One new 64 B object per walking player per
-  tick now fails it; before #850 lowered the baseline (166 and 104 B per player per tick) it passed.
+  **40 B per player per tick** in `town-walk` (72 KB per window), and **19 B per player per tick** in
+  `many-instances` (about 39 B per instance per tick, 579 KB per window). One new 64 B object per walking player per
+  tick fails it; before #850 lowered the baseline (166 and 104 B per player per tick) it passed.
 - **Ratchet.** The committed file goes down only by an explicit commit. When a change makes a scenario cheaper,
   regenerate and commit the lower figure, so the gain cannot be lost again unnoticed. When an increase is intended,
   regenerating is also the fix, and the JSON diff shows the reviewer what it costs.
@@ -1109,32 +1150,64 @@ Regenerate (every scenario, in Release; the runner refuses `--write-allocations`
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json
 ```
 
-**The gate decides in Release, on CI's figures.** CI builds Release on a GitHub-hosted runner, and since #850 the
-committed figures stand for CI's (the first baseline was a run on the developer machine). #850's were CI's own run.
-#851's are derived, not measured on CI: the developer machine's Release run plus the `Encrypt` delegate described
-below, 64 B × 60 ticks × the walking players (115,200 B per window in `town-walk`, 1,920,000 B in `many-instances`,
-nothing in `town-idle`). The offset #850 measured between CI and the developer machine was slightly larger
-(+116,584 B and +1,924,000 B), so CI may read up to about 0.1% above the derived figures, well inside the 5% band. In a Debug build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so
-a scenario that stopped doing its work still fails its `Verify` check, but it does not fail on the allocation figure:
-it writes the comparison (current, committed, change in percent, verdict) to the test output and says that the gate
-decides in Release. `dotnet test -c Release` runs the real gate locally.
+**The gate decides in Release, and every machine reads the same figures.** CI builds Release on a GitHub-hosted
+runner. Since #854 the committed figures are a plain Release run on the developer machine, and they should hold for CI's
+runner (its first run after #854 confirms it) as they hold for a Debug build: run with `DOTNET_JitObjectStackAllocation=0`, which reproduced CI's figures
+before #854, the Release runner reads the same within run-to-run noise (`town-walk` 1,439,520 against 1,440,240 B,
+`many-instances` 11,589,728 against 11,589,728 B), and the gate in Debug reads 1,440,688 and 11,587,728 B. In a Debug
+build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so a scenario that stopped
+doing its work still fails its `Verify` check, but it does not fail on the allocation figure: it writes the comparison
+(current, committed, change in percent, verdict) to the test output and says that the gate decides in Release.
+`dotnet test -c Release` runs the real gate locally.
 
-The reason is one object whose place depends on how far the JIT has got: the delegate each send creates for
-`CryptoSession.Encrypt`, about 64 B per walking player per tick (1.92 MB per window in `many-instances`, 116 KB in
-`town-walk`). The optimised JIT tier keeps it on the stack; until that tier applies, it is on the heap. The CI runner
-(a small, shared GitHub-hosted VM, with the other test assemblies running in parallel) ends the gate's 5 s warm-up
-before the optimised tier reaches the send path, so the committed figures include the delegate. On the developer
-machine (Windows) and on the homelab node (Linux), both in Release, it is gone by then, so they read about 7% lower in
-`town-walk` and 14% lower in `many-instances` and print the improvement notice: **do not lower the baseline from
-those runs.** A Debug build never optimises, so it matches CI. Running the Release runner with
-`DOTNET_JitObjectStackAllocation=0` reproduces CI's figure (`town-walk` 1,580,400 B against CI's 1,581,064 B). A
-long-running server on real hardware runs the optimised code. Before #850 the delegate was about 3% of the walking
-figures, inside the band, which is how a developer-machine baseline passed in CI; after it, the developer-machine
-figure fails in CI by +7.9% (`town-walk`) and +15.9% (`many-instances`). #854 caches the delegates, which removes the
-dependency on JIT tiering; after it every machine should read the lower figure, and the baseline follows it down. The gate runs in a non-parallel xUnit collection, so no other
+Until #854 the figures depended on the machine, through one object: the delegate each send created by passing
+`CryptoSession.Encrypt` as a method group, about 64 B per walking player per tick. The optimised JIT tier kept it on
+the stack; until that tier applied, it was on the heap. The CI runner (a small, shared VM, with the other test
+assemblies running in parallel) ended the gate's 5 s warm-up before the optimised tier reached the send path, and a
+Debug build never optimises, so both read about 7% higher in `town-walk` and 14% higher in `many-instances` than a
+developer machine or the homelab node in Release; the committed figures were CI's, and a faster machine's run was not
+to be committed. #854 passes the session's `Encryptor`, a delegate created once with the session, so how far the JIT
+has got no longer changes what a send allocates. The gate runs in a non-parallel xUnit collection, so no other
 test in the World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in
 parallel processes under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds
 about 18 s to the World suite.
+
+### Results — the cached cipher delegates (#854, 2026-10-09)
+
+Every send passed `CryptoSession.Encrypt` to its packet's `Create` as a method group, a new delegate per packet; the
+read loop did the same with `CryptoSession.Decrypt`. The session now exposes `Encryptor`, created once with it, and
+`Connection` creates its decrypt delegate once with its session. `SessionDelegatesShould` fails if a method group
+comes back anywhere in `src/`.
+
+Allocations, from `perf/scenario-allocations.json`: the developer machine's Release run with #854 (i9-12900K, Windows
+11, .NET 10.0.12). "Before #854" is the committed figure before it (#851's, which carried the CI runner's `Encrypt`
+delegate).
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at | Before #854 | Change |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 0 | 0 | 0.00 | 257 | — | 0 | 0 |
+| `town-walk` | 30 | 1,440,240 | 24,004 | 800.13 | 1,512,253 | 1,368,227 | 1,570,560 | −8.3% |
+| `many-instances` | 500 | 11,589,728 | 193,162 | 386.32 | 12,169,215 | 11,010,241 | 13,769,728 | −15.8% |
+
+Like for like on the developer machine (Release, the runner, 10 s warm-up, 3600 timed ticks), `main` at `a892abe7`
+and with #854:
+
+| Scenario | bytes/window before | after | Change | Tick ms mean before | after | p95 before | after |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 0 | 0 | 0 | 0.037 | 0.031 | 0.065 | 0.054 |
+| `town-walk` | 1,455,840 | 1,440,240 | −15,600 | 0.193 | 0.191 | 0.550 | 0.490 |
+| `many-instances` | 11,849,728 | 11,589,728 | −260,000 | 2.021 | 1.954 | 3.501 | 3.500 |
+
+- **The committed figures fall by the delegate CI paid**: 130,320 B per window in `town-walk` and 2,180,000 B in
+  `many-instances`, about 72 B per walking player per tick.
+- **The developer machine gains too**, about 8.7 B per walking player per tick (15,600 and 260,000 B per window), in
+  code the optimised tier had already reached: most likely not every send site's delegate was kept on the stack. Both scenarios
+  fall by the same amount per player per tick, as a cost of the per-player send path would.
+- **No dependency on the JIT is left on this path.** The same Release runner with stack allocation turned off
+  (`DOTNET_JitObjectStackAllocation=0`) reads 1,439,520 and 11,589,728 B, and the Debug gate 1,440,688 and
+  11,587,728 B, within run-to-run noise of the committed figures. Before #854 the same switch added 64 B per walking
+  player per tick.
+- **The timings are not read as a change.** They move between runs by more than a delegate could cost.
 
 ### Results — the tick's instance snapshot (#851, 2026-10-09)
 
@@ -1144,8 +1217,11 @@ about 18 s to the World suite.
 publication order, walked as a span. `ActiveInstances` keeps its fresh copy for the readers off the tick (the gauges,
 presence, the hot reload walk).
 
-Allocations, from `perf/scenario-allocations.json`: the developer machine's Release run at `7a40ed08` plus the
-`Encrypt` delegate CI still allocates (see the gate above). "Before #851" is the committed figure before it, CI's run
+Allocations, from `perf/scenario-allocations.json` at the time: the developer machine's Release run at `7a40ed08`
+plus the `Encrypt` delegate CI still allocated then (see #854 above). They were derived, not measured on CI: the
+Release run plus 64 B × 60 ticks × the walking players (115,200 B per window in `town-walk`, 1,920,000 B in
+`many-instances`); the offset #850 measured between CI and the developer machine was slightly larger (+116,584 B and
++1,924,000 B). "Before #851" is the committed figure before it, CI's run
 of #850.
 
 | Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at | Before #851 | Change |
@@ -1182,8 +1258,8 @@ developer machine).
 | `many-instances` | 500 | 14,018,368 | 233,639 | 467.28 | 14,719,287 | 13,317,449 | 62,226,368 | −77.5% |
 
 The committed change mixes machines. Like for like, on the developer machine below, the walking scenarios fell to
-1,464,952 B (`town-walk`, −75.4%) and 12,098,368 B (`many-instances`, −80.6%); the difference is the `Encrypt`
-delegate described above, still on the heap when CI's warm-up ends.
+1,464,952 B (`town-walk`, −75.4%) and 12,098,368 B (`many-instances`, −80.6%); the difference was the `Encrypt`
+delegate, still on the heap when CI's warm-up ended (see #854 above).
 
 Timing and GC, from the developer machine's Release run (2026-10-09; the same machine as the first baseline:
 i9-12900K, Windows 11 Pro, .NET 10.0.12, Server GC; 10 s warm-up, 3600 timed ticks):
