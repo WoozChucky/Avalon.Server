@@ -67,6 +67,13 @@ public class RampDeciderShould
         Assert.Equal(RampAction.Rehold, breachThenUnknown.Decide(Sample(150, tickP99: null)).Action);
         Assert.Equal(RampOutcome.Unknown, breachThenUnknown.Decide(Sample(150, tickP99: null)).Outcome);
 
+        // Verdicts that keep alternating: three re-holds at most, then the step is inconclusive.
+        var alternating = new RampDecider(Limits.Defaults, 500);
+        alternating.Decide(Sample(50));
+        (RampAction, RampOutcome, int?) rehold = (RampAction.Rehold, RampOutcome.Running, null);
+        Assert.Equal([rehold, rehold, rehold, (RampAction.Stop, RampOutcome.Unknown, 50)],
+            new double?[] { 30, null, 30, null }.Select(t => alternating.Decide(Sample(100, tickP99: t))).Select(d => (d.Action, d.Outcome, d.Capacity)));
+
         var drops = new RampDecider(Limits.Defaults, 500);
         Assert.True(drops.Decide(Sample(50, drops: 3, genCpu: 0.7)).DropsMayBeGenerator);
     }
