@@ -1,5 +1,6 @@
 using System.Reflection;
 using Avalon.Network.Packets.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Hosting.Networking;
@@ -71,7 +72,9 @@ public class PacketManager : IPacketManager
                 continue;
             }
 
-            _infos.Add(networkPacketType, new PacketInfo(packetType, packetHandlerType));
+            // Built here, once, at startup (#866): dispatch only reads it, so no connection writes shared state.
+            ObjectFactory handlerFactory = ActivatorUtilities.CreateFactory(packetHandlerType, []);
+            _infos.Add(networkPacketType, new PacketInfo(packetType, packetHandlerType, handlerFactory));
 
             logger.LogDebug("Registered packet {Header} with handler {HandlerType}", networkPacketType, packetHandlerType);
 

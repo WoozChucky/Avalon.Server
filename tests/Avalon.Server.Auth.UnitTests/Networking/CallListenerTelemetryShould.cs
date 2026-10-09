@@ -63,10 +63,11 @@ public sealed class CallListenerTelemetryShould : IDisposable
     private TestServer Server(Type handler)
     {
         IPacketManager packets = Substitute.For<IPacketManager>();
+        var info = new PacketInfo(typeof(object), handler);
         packets.TryGetPacketInfo(NetworkPacketType.CMSG_AUTH, out Arg.Any<PacketInfo>())
             .Returns(call =>
             {
-                call[1] = new PacketInfo(typeof(object), handler);
+                call[1] = info;
                 return true;
             });
         return new TestServer(packets, new PacketDispatchTelemetry(_source, _meter));

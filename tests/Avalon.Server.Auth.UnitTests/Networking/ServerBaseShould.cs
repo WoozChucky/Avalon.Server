@@ -441,10 +441,11 @@ public class ServerBaseShould
         using var gate = new ManualResetEventSlim(false);
         var packetProbe = new PacketProbe { Gate = gate };
         IPacketManager packets = Substitute.For<IPacketManager>();
+        var info = new PacketInfo(typeof(Packet), typeof(TokenProbeHandler));
         packets.TryGetPacketInfo(Arg.Any<NetworkPacketType>(), out Arg.Any<PacketInfo>())
             .Returns(call =>
             {
-                call[1] = new PacketInfo(typeof(Packet), typeof(TokenProbeHandler));
+                call[1] = info;
                 return true;
             });
         var logger = new CapturingLogger();

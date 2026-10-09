@@ -9,11 +9,17 @@ namespace Avalon.Hosting.Networking;
 /// </summary>
 public readonly struct PacketInfo
 {
-    public PacketInfo(Type packetType, Type? packetHandlerType = null)
+    /// <param name="packetType">The packet's type.</param>
+    /// <param name="packetHandlerType">The handler it dispatches to, if any.</param>
+    /// <param name="handlerFactory">
+    /// Builds <paramref name="packetHandlerType" />; <see cref="PacketManager" /> passes the one it built at
+    /// startup. Left out, it is built here, once per call.
+    /// </param>
+    public PacketInfo(Type packetType, Type? packetHandlerType = null, ObjectFactory? handlerFactory = null)
     {
         PacketType = packetType;
         PacketHandlerType = packetHandlerType;
-        HandlerFactory = packetHandlerType is null ? null : ActivatorUtilities.CreateFactory(packetHandlerType, []);
+        HandlerFactory = handlerFactory ?? (packetHandlerType is null ? null : ActivatorUtilities.CreateFactory(packetHandlerType, []));
     }
 
     public Type PacketType { get; }

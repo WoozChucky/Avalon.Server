@@ -868,10 +868,11 @@ public class UsernameBudgetShould
             .AddSingleton<IPasswordVerifier>(_verifier)
             .BuildServiceProvider();
         IPacketManager packets = Substitute.For<IPacketManager>();
+        var info = new PacketInfo(typeof(CAuthPacket), typeof(CAuthHandler));
         packets.TryGetPacketInfo(NetworkPacketType.CMSG_AUTH, out Arg.Any<PacketInfo>())
             .Returns(ci =>
             {
-                ci[1] = new PacketInfo(typeof(CAuthPacket), typeof(CAuthHandler));
+                ci[1] = info;
                 return true;
             });
         IOptions<HostingConfiguration> hosting = Substitute.For<IOptions<HostingConfiguration>>();
