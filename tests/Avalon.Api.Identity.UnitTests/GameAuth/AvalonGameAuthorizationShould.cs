@@ -178,6 +178,7 @@ public sealed class AvalonGameAuthorizationShould
     }
     [Theory]
     [InlineData("lapsed", "")]
+    [InlineData("license-fault", "")]
     [InlineData("license-read", "recovered")]
     [InlineData("database-down", "recovered")]
     [InlineData("database-down", "too-late")]
@@ -213,6 +214,18 @@ public sealed class AvalonGameAuthorizationShould
             Assert.Null(await Service().GetContextByIdAsync(context.Id, false, default));
             Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(rotated.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
             await _revocations.Received(1).PublishAsync(_account.Id, context.Id);
+            return;
+        }
+
+        if (failure == "license-fault")
+        {
+            // A fault in the license read (not an outage) reaches the error handler: nothing is revoked or refused.
+            IGameLicenseRepository faulty = Substitute.For<IGameLicenseRepository>();
+            faulty.FindAsync(grant.Id, Arg.Any<CancellationToken>())
+                .Returns(_ => Task.FromResult<GameLicense?>(grant), _ => throw new InvalidOperationException("a second operation"));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => Service(faulty).RefreshAsync(initial.GameContextRefreshToken!, request, default));
+            Assert.NotNull(await Service().GetContextAsync(rotated.GameContextCredential!, true, default));
+            await _revocations.DidNotReceiveWithAnyArgs().PublishAsync(default!, default);
             return;
         }
 

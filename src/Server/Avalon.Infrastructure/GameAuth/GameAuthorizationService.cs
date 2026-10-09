@@ -113,7 +113,8 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         {
             return await ReadStandingAsync(context, cancellationToken);
         }
-        catch (Exception error) when (tolerateOutage && DatabaseOutage.Is(error))
+        catch (Exception error) when (tolerateOutage && !(error is OperationCanceledException && cancellationToken.IsCancellationRequested) &&
+            DatabaseOutage.Is(error))
         {
             _logger.LogWarning(error, "Game context {ContextId} could not be checked: database outage", context.Id);
             return null;

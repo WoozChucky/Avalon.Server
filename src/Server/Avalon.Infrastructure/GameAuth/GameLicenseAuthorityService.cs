@@ -127,7 +127,12 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 : new(GameLicenseCheckStatus.Unlicensed, applied.Id, applied.AuthorityRevision, null, observation.Id);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception) { return Unavailable; }
+        catch (Exception error) when (DatabaseOutage.Is(error))
+        {
+            // Any other exception is a fault and propagates: a refusal or a downgrade must never stand for one.
+            _logger.LogWarning(error, "Game license for account {AccountId} could not be verified: database outage", request.Account.Value);
+            return Unavailable;
+        }
     }
 
     public async Task<bool> ValidateAsync(Guid licenseId, long revision, AccountId account,
@@ -136,7 +141,7 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
 
     /// <summary>
     /// <see cref="ValidateAsync"/>, telling an outage apart: null when the license could not be read, so a caller that
-    /// would act on a refusal (revoke a context) does not act on a failed read.
+    /// would act on a refusal (revoke a context) does not act on a failed read. Any other exception propagates.
     /// </summary>
     public async Task<bool?> CheckCurrentAsync(Guid licenseId, long revision, AccountId account,
         GameApplicationSelection application, DateTime now, CancellationToken ct)
@@ -156,12 +161,12 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
             _logger.LogWarning(error, "Game license {LicenseId} could not be read: database outage", licenseId);
             return null;
         }
-        catch (Exception) { return false; }
     }
 
     /// <summary>
     /// Whether the license row still holds the binding a context was issued with; null when the row could not be read
-    /// (an outage is not a refusal, so a caller answers it as unavailable rather than revoked).
+    /// (an outage is not a refusal, so a caller answers it as unavailable rather than revoked). Any other exception
+    /// propagates.
     /// </summary>
     public async Task<bool?> ValidateBindingAsync(Guid licenseId, long revision, AccountId account,
         GameApplicationSelection application, string? subject, CancellationToken ct)
@@ -182,7 +187,6 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
             _logger.LogWarning(error, "Game license {LicenseId} could not be read: database outage", licenseId);
             return null;
         }
-        catch (Exception) { return false; }
     }
 
     private bool Trusted(GameApplicationSelection app)

@@ -5,8 +5,9 @@ using Microsoft.EntityFrameworkCore.Storage;
 namespace Avalon.Infrastructure.GameAuth;
 
 /// <summary>
-/// Tells a database outage (the server unreachable, a timeout, the retry strategy giving up) from a fault in the code.
-/// Game authentication answers an outage as unavailable, never as a refusal; anything else is not an outage.
+/// Tells a database outage (a transient provider error, the server unreachable, a timeout, the retry strategy giving
+/// up) from a fault: a schema or SQL error, or a bug, is not an outage. Game authentication answers an outage as
+/// unavailable, never as a refusal; a fault reaches the error handler.
 /// </summary>
 internal static class DatabaseOutage
 {
@@ -15,7 +16,7 @@ internal static class DatabaseOutage
     {
         for (Exception? current = error; current is not null; current = current.InnerException)
         {
-            if (current is DbException or TimeoutException or SocketException or IOException or RetryLimitExceededException)
+            if (current is DbException { IsTransient: true } or TimeoutException or SocketException or IOException or RetryLimitExceededException)
                 return true;
         }
 
