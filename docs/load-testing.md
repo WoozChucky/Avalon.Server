@@ -61,8 +61,9 @@ Everything here has to be in place, or the run fails early or measures the wrong
    reads the world's players online before it signs in a single bot and refuses to start when Prometheus does not
    have that value. It first measures the bot PC's clock against Prometheus's (`time()`) and corrects every query's
    time by the difference, which the report's header gives; when the two clocks are more than 60 seconds apart it
-   refuses to start and says so: synchronise the bot PC's clock (`w32tm /resync` on Windows) and run again. The memory limit comes from kube-state-metrics, by pod (`--pod`, default
-   `avalon-world-loadtest-0`, in namespace `avalon`, container `avalon-world`).
+   refuses to start and says so: synchronise the bot PC's clock (`w32tm /resync` on Windows) and run again. The
+   memory limit comes from kube-state-metrics, by pod (`--pod`, default `avalon-world-loadtest-0`, in namespace
+   `avalon`, container `avalon-world`).
 6. **An admin account without MFA.** `provision` and `cleanup` ask for an admin's username and password. The account
    needs the Admin (or Console) role, and MFA has to be off on it: the tool does not answer an MFA challenge. The API
    checks the password again on every create and delete, so a wrong one counts as a failed login.
@@ -243,13 +244,14 @@ A bot signs in once per ramp, through the same REST chain as the launcher and th
 launcher code, the launcher token, a game ticket, a provider attempt, the handoff redemption). That costs identity
 two BCrypt checks. After that the game context is refreshed rather than signed in again. The context refresher looks
 at every bot every 5 seconds and refreshes the ones due: a context is due a minute before the earlier of its
-credential's expiry and its authorization deadline, less a jitter of 0 to 20 seconds per bot. A refresh that fails
-is retried on the next pass, under the same idempotency key, and counted as a sign-in failure (`refresh:no-reply`,
-or `refresh:<status>`). A context that can no longer be refreshed (revoked, or its refresh token spent) is counted
-as a sign-in failure (`refresh:<code>`) and replaced by a fresh sign-in. A bot whose fresh sign-in also fails
-(`sign-in-again:<call>`) gives up for good. A first sign-in that fails counts as `sign-in:<call>`. Sign-in failures
-are identity's side and never part of admission. A churner's reconnect keeps its context, so the refresher goes on
-refreshing (and if need be replacing) it; only the bot's final leave, which signs the context out, ends that. It no longer counts as live, and the next fill signs in another account in its place.
+credential's expiry and its authorization deadline, less a jitter of 0 to 20 seconds per bot. A refresh that fails is
+retried on the next pass, under the same idempotency key, and counted as a sign-in failure (`refresh:no-reply`, or
+`refresh:<status>`). A context that can no longer be refreshed (revoked, or its refresh token spent) is counted as a
+sign-in failure (`refresh:<code>`) and replaced by a fresh sign-in. A bot whose fresh sign-in also fails
+(`sign-in-again:<call>`) gives up for good. It no longer counts as live, and the next fill signs in another account
+in its place. A first sign-in that fails counts as `sign-in:<call>`. Sign-in failures are identity's side and never
+part of admission. A churner's reconnect keeps its context, so the refresher goes on refreshing (and if need be
+replacing) it; only the bot's final leave, which signs the context out, ends that.
 
 ### Entry and retries
 
