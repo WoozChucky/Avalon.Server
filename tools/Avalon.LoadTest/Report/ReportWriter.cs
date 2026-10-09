@@ -171,6 +171,8 @@ public static class ReportWriter
                 RampRunner.Verdict(step, options.Limits) + " |"));
         }
 
+        PostUpdateTable(md, result.Steps);
+
         md.AppendLine();
         md.AppendLine("## Notes");
         md.AppendLine();
@@ -227,6 +229,48 @@ public static class ReportWriter
         }
 
         return md.ToString();
+    }
+
+    /// <summary>
+    /// Each step's time after the world update by stage (<c>world.post_update.duration</c>, #875): one row per step, one
+    /// column per stage in tick order, mean / p99 per tick in microseconds. For reading only: no limit is judged on it.
+    /// A world that exports no stage (a build before #875) is said to, rather than shown as a row of n/a.
+    /// </summary>
+    private static void PostUpdateTable(StringBuilder md, IReadOnlyList<StepRecord> steps)
+    {
+        md.AppendLine();
+        md.AppendLine("## Post-update stages");
+        md.AppendLine();
+        if (steps.Count > 0 && steps.All(step => step.Server.PostUpdate.Readout == PostUpdateReadout.NotExported))
+        {
+            md.AppendLine("Not reported: the world server exports no `world.post_update.duration` (a build from before #875).");
+            return;
+        }
+
+        string[] stages = [.. PostUpdateStages.InTickOrder(steps.SelectMany(step => step.Server.PostUpdate.Stages).Select(timing => timing.Stage))];
+        if (stages.Length == 0)
+        {
+            md.AppendLine("Not reported: Prometheus gave no stage for any step.");
+            return;
+        }
+
+        md.AppendLine("The time of each stage after the world update, mean / p99 per tick in µs over the judged window. Not a limit.");
+        md.AppendLine();
+        md.AppendLine("| Step | Bots | " + string.Join(" | ", stages) + " |");
+        md.AppendLine("|---|---|" + string.Concat(stages.Select(_ => "---|")));
+        foreach (StepRecord step in steps)
+        {
+            PostUpdateStages post = step.Server.PostUpdate;
+            string cells = post.Readout switch
+            {
+                PostUpdateReadout.NotExported => "not exported by this world build |" + string.Concat(stages.Skip(1).Select(_ => " |")),
+                PostUpdateReadout.Unknown => string.Join(" | ", stages.Select(_ => "n/a")) + " |",
+                _ => string.Join(" | ", stages.Select(stage => post.Stages.FirstOrDefault(t => t.Stage == stage) is { } t
+                    ? $"{Number(t.MeanUs, "0")} / {Number(t.P99Us, "0")}"
+                    : "n/a")) + " |",
+            };
+            md.AppendLine(Invariant($"| {step.Index} | {step.Bots} | ") + cells);
+        }
     }
 
     private static string Json(RampResult result, RampOptions options, RunFile run, string cpu)

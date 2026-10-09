@@ -29,7 +29,14 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="Instances">Map instances active at the step's end.</param>
 public sealed record ServerValues(
     double? TickP99Ms, double? Tps, double Drops, double? ReceiveBacklogMax, double? WorkingSetFraction, double? WorkingSetMb,
-    double? Gen2PerMin, double? GcPauseFraction, double? SaveP95Ms, double? Instances);
+    double? Gen2PerMin, double? GcPauseFraction, double? SaveP95Ms, double? Instances)
+{
+    /// <summary>
+    /// Each stage after the world update over the window (<c>world.post_update.duration</c>, #875), for the report
+    /// only: no limit reads it.
+    /// </summary>
+    public PostUpdateStages PostUpdate { get; init; } = PostUpdateStages.Unknown;
+}
 
 /// <summary>
 /// A world server process as Prometheus's <c>target_info</c> names it: its version, its pod's uid and its pod's name
@@ -110,16 +117,29 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             $"count(count_over_time({SaveCount}{{{world}}}{range}) unless {SaveCount}{{{world}}} offset {windowSeconds}) > 0",
             at, ct);
         Task<double?> instances = ValueAsync($"avalon_world_instances_active{{{world}}}", at, ct);
+        // The stages after the world update (#875): whether the world exports them at all (a build before it does not),
+        // then each stage's mean per tick and its p99.
+        const string PostUpdate = "world_post_update_duration_microseconds";
+        Task<Answer> postUpdateSeries = AnswerAsync($"count({PostUpdate}_count{{{world}}})", at, ct);
+        Task<IReadOnlyDictionary<string, double>?> stageMean = ByLabelAsync(
+            $"sum by (stage)(rate({PostUpdate}_sum{{{world}}}{range})) / sum by (stage)(rate({PostUpdate}_count{{{world}}}{range}))",
+            "stage", at, ct);
+        Task<IReadOnlyDictionary<string, double>?> stageP99 = ByLabelAsync(
+            $"histogram_quantile(0.99, sum by (stage, le)(rate({PostUpdate}_bucket{{{world}}}{range})))", "stage", at, ct);
 
         await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saveIncrease,
-            saveSamples, savesAtStart, newSaveSeries, instances);
+            saveSamples, savesAtStart, newSaveSeries, instances, postUpdateSeries, stageMean, stageP99);
 
         double? saveP95 = SaveP95(tick.Result, save.Result, saveIncrease.Result, saveSamples.Result, savesAtStart.Result,
             newSaveSeries.Result);
 
         return new ServerValues(
             tick.Result, tps.Result, drops.Result ?? double.NaN, backlog.Result, workingSetFraction.Result,
-            workingSet.Result is { } bytes ? bytes / (1024 * 1024) : null, gen2.Result, gcPause.Result, saveP95, instances.Result);
+            workingSet.Result is { } bytes ? bytes / (1024 * 1024) : null, gen2.Result, gcPause.Result, saveP95, instances.Result)
+        {
+            PostUpdate = PostUpdateStages.From(postUpdateSeries.Result.Answered, postUpdateSeries.Result.Value,
+                stageMean.Result, stageP99.Result),
+        };
     }
 
     /// <summary>
@@ -408,6 +428,37 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         }
 
         return worst;
+    }
+
+    /// <summary>
+    /// The query's value per value of <paramref name="label"/>, one per series (a series without the label, or not a
+    /// number, is passed over); null when the query failed.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, double>?> ByLabelAsync(string query, string label, DateTimeOffset at,
+        CancellationToken ct)
+    {
+        JsonArray results;
+        try
+        {
+            results = await QueryAsync(query, at, ct);
+        }
+        catch (PrometheusException)
+        {
+            return null;
+        }
+
+        var values = new Dictionary<string, double>(StringComparer.Ordinal);
+        foreach (JsonNode? result in results)
+        {
+            if (result is JsonObject series && series["metric"] is JsonObject metric &&
+                metric[label]?.ToString() is { Length: > 0 } key && series["value"] is JsonArray { Count: 2 } pair &&
+                double.TryParse(pair[1]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+            {
+                values[key] = value;
+            }
+        }
+
+        return values;
     }
 
     /// <summary>
