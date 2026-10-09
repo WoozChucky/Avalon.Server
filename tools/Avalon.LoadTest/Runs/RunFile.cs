@@ -4,26 +4,52 @@ using System.Text.Json.Serialization;
 
 namespace Avalon.LoadTest.Runs;
 
+/// <summary>Where a run id of a <see cref="RunFile"/> stands.</summary>
+public enum RunStatus
+{
+    /// <summary>
+    /// Saved before its create call, which has not answered: the API may have made the run (a reply lost to a timeout or
+    /// a cancel), or not, in which case another provision may since have taken the id.
+    /// </summary>
+    Pending,
+
+    /// <summary>The API answered the create call with this id: the run is this file's.</summary>
+    Created,
+}
+
+/// <summary>One run id a <see cref="RunFile"/> asked the API for, and where it stands.</summary>
+public sealed record RunEntry(string Id, RunStatus Status);
+
+/// <summary>Another kept run file, as <c>cleanup</c> checks a pending run id against it.</summary>
+/// <param name="RunId">The file's run.</param>
+/// <param name="Ids">The run ids it lists; null when it cannot be read, so it may list any.</param>
+public sealed record KeptRun(string RunId, IReadOnlyList<string>? Ids);
+
 /// <summary>
 /// A provisioned run of bot accounts, kept in <see cref="Directory"/> as <c>&lt;RunId&gt;.json</c> until
 /// <c>cleanup</c> deletes its accounts. The only place the bots' password is kept: the file is the user's own (owner-only
 /// on Unix), and nothing prints it.
 /// </summary>
 /// <param name="RunId">The first run's id: the file's name and the handle <c>--run</c> takes.</param>
-/// <param name="RunIds">
+/// <param name="Runs">
 /// Every run <c>provision</c> asked the API for, <paramref name="RunId"/> first: the API makes at most 1,000 accounts
-/// per run and never reuses a run id, so a larger count is several runs. Each id is saved here before its create call,
-/// so one whose reply never came (a timeout, a cancel) is still deleted by <c>cleanup</c>; it may hold no account.
+/// per run and never reuses a run id, so a larger count is several runs. Each id is saved here as
+/// <see cref="RunStatus.Pending"/> before its create call and becomes <see cref="RunStatus.Created"/> once the call
+/// answers, so one whose reply never came (a timeout, a cancel) is still known to <c>cleanup</c>; it may hold no account.
 /// </param>
 /// <param name="Api">The API origin the accounts were made on, with its trailing slash.</param>
 /// <param name="WorldId">The only world the run's bots enter.</param>
 /// <param name="BotPassword">The password every account of the run signs in with.</param>
 /// <param name="Bots">The accounts' usernames, run by run, in index order.</param>
 public sealed record RunFile(
-    string RunId, IReadOnlyList<string> RunIds, Uri Api, ushort WorldId, string BotPassword, IReadOnlyList<string> Bots,
+    string RunId, IReadOnlyList<RunEntry> Runs, Uri Api, ushort WorldId, string BotPassword, IReadOnlyList<string> Bots,
     DateTimeOffset CreatedAt)
 {
-    private static readonly JsonSerializerOptions s_json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    private static readonly JsonSerializerOptions s_json = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter<RunStatus>() },
+    };
 
     /// <summary><c>%LOCALAPPDATA%\Avalon.LoadTest\runs</c> (on Unix, <c>~/.local/share/Avalon.LoadTest/runs</c>).</summary>
     public static string Directory { get; } = Path.Combine(
@@ -66,8 +92,11 @@ public sealed record RunFile(
         {
             RunFile run = JsonSerializer.Deserialize<RunFile>(File.ReadAllText(path), s_json)
                 ?? throw new CommandLineException($"{path} is empty.");
-            if (run.RunId != chosen || run.RunIds is not [_, ..] || run.Bots is null || run.Api is null)
+            if (run.RunId != chosen || run.Runs is not [var first, ..] || first?.Id != chosen || run.Bots is null ||
+                run.Api is null || run.Runs.Any(entry => entry?.Id is not { Length: > 0 } || !Enum.IsDefined(entry.Status)))
+            {
                 throw new CommandLineException($"{path} is not a run file of run {chosen}.");
+            }
 
             // The admin's password goes to this origin: never in the clear, whatever the file was edited to.
             return run.Api.IsAbsoluteUri && run.Api.Scheme == Uri.UriSchemeHttps
@@ -83,30 +112,73 @@ public sealed record RunFile(
     /// <summary>Whether a run file named <paramref name="runId"/> is kept.</summary>
     public static bool Exists(string runId) => File.Exists(PathOf(runId.ToUpperInvariant()));
 
-    /// <summary>Writes the run, replacing what was kept for it, through a temporary file so no half-written file is left.</summary>
+    /// <summary>The run with <paramref name="id"/> at <paramref name="status"/>: updated where it is listed, else added last.</summary>
+    public RunFile With(string id, RunStatus status) => this with
+    {
+        Runs = Runs.Any(entry => entry.Id == id)
+            ? [.. Runs.Select(entry => entry.Id == id ? entry with { Status = status } : entry)]
+            : [.. Runs, new RunEntry(id, status)],
+    };
+
+    /// <summary>The run without <paramref name="id"/>.</summary>
+    public RunFile Without(string id) => this with { Runs = [.. Runs.Where(entry => entry.Id != id)] };
+
+    /// <summary>The ids at <paramref name="status"/>, in the order asked.</summary>
+    public IReadOnlyList<string> IdsAt(RunStatus status) =>
+        [.. Runs.Where(entry => entry.Status == status).Select(entry => entry.Id)];
+
+    /// <summary>
+    /// Writes the run, replacing what was kept for it, through a temporary file so no half-written file is left.
+    /// </summary>
+    /// <exception cref="RunFileWriteException">The file could not be written; what was kept before is unchanged.</exception>
     public void Save()
     {
-        System.IO.Directory.CreateDirectory(Directory);
         string path = FilePath;
         string temporary = path + ".tmp";
-        var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write };
-        if (!OperatingSystem.IsWindows())
-            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        try
+        {
+            System.IO.Directory.CreateDirectory(Directory);
+            var options = new FileStreamOptions { Mode = FileMode.Create, Access = FileAccess.Write };
+            if (!OperatingSystem.IsWindows())
+                options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
 
-        using (var stream = new FileStream(temporary, options))
-            JsonSerializer.Serialize(stream, this, s_json);
+            using (var stream = new FileStream(temporary, options))
+                JsonSerializer.Serialize(stream, this, s_json);
 
-        File.Move(temporary, path, overwrite: true);
+            File.Move(temporary, path, overwrite: true);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            throw new RunFileWriteException(path, "written", error);
+        }
     }
 
-    /// <summary>Forgets the run: its accounts are gone.</summary>
-    public void Delete() => File.Delete(FilePath);
+    /// <summary>Forgets the run: its accounts are gone, or it holds no run of this provision.</summary>
+    /// <exception cref="RunFileWriteException">The file could not be deleted.</exception>
+    public void Delete()
+    {
+        try
+        {
+            File.Delete(FilePath);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            throw new RunFileWriteException(FilePath, "deleted", error);
+        }
+    }
+
+    /// <summary>
+    /// Every kept run file but <paramref name="exceptRunId"/>'s, with the run ids it lists; a file that cannot be read
+    /// is listed with none known (<see cref="KeptRun.Ids"/> null).
+    /// </summary>
+    public static IReadOnlyList<KeptRun> Others(string? exceptRunId) =>
+        [.. Kept().Where(runId => runId != exceptRunId).Select(runId => new KeptRun(runId, IdsListed(PathOf(runId))))];
 
     /// <summary>The record's text without the bots' password.</summary>
     private bool PrintMembers(StringBuilder builder)
     {
         builder.Append("RunId = ").Append(RunId)
-            .Append(", RunIds = [").AppendJoin(", ", RunIds)
+            .Append(", Runs = [").AppendJoin(", ", Runs.Select(entry => $"{entry.Id} {entry.Status}"))
             .Append("], Api = ").Append(Api)
             .Append(", WorldId = ").Append(WorldId)
             .Append(", BotPassword = (redacted), Bots = ").Append(Bots.Count)
@@ -116,6 +188,22 @@ public sealed record RunFile(
 
     private static string PathOf(string runId) => Path.Combine(Directory, runId + ".json");
 
+    /// <summary>The run ids a kept file lists; null when it cannot be read as a run file.</summary>
+    private static string[]? IdsListed(string path)
+    {
+        try
+        {
+            RunFile? run = JsonSerializer.Deserialize<RunFile>(File.ReadAllText(path), s_json);
+            return run?.Runs is { } runs && runs.All(entry => entry?.Id is not null)
+                ? [.. runs.Select(entry => entry.Id)]
+                : null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
     private static string[] Kept() =>
         System.IO.Directory.Exists(Directory)
             ? System.IO.Directory.EnumerateFiles(Directory, "*.json")
@@ -124,3 +212,7 @@ public sealed record RunFile(
                 .ToArray()
             : [];
 }
+
+/// <summary>A run file could not be written or deleted; the message says which and why.</summary>
+public sealed class RunFileWriteException(string path, string what, Exception inner)
+    : Exception($"The run file {path} could not be {what}: {inner.Message}", inner);
