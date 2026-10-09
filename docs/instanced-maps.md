@@ -191,7 +191,9 @@ The cache is keyed by `characterId` (the in-game character id surfaced via `Obje
 
 `World.Update` advances the game time, applies queued `/reload` patches and any script hot reload, then
 hands every live instance to `InstanceTicker.Tick`, and finally frees expired normal instances
-(`ProcessExpiredInstances(TimeSpan.FromMinutes(15))`).
+(`ProcessExpiredInstances(TimeSpan.FromMinutes(15))`). The live instances it ticks are
+`InstanceRegistry.TickInstances` (#851): an array in publication order, rebuilt only after an instance
+is published or removed, so a tick that does neither allocates nothing for the walk.
 
 `InstanceTicker` (#639) ticks each instance on its own:
 

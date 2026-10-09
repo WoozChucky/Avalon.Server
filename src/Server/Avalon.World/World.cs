@@ -552,8 +552,9 @@ public class World : IWorld
             TickParties(_parties);
 
         // Each instance is contained and timed on its own (#639): one that throws is logged, and the
-        // others, and the flushes after this update, still run.
-        _instanceTicker.Tick(InstanceRegistry.ActiveInstances, deltaTime);
+        // others, and the flushes after this update, still run. The registry's tick snapshot, not ActiveInstances:
+        // the same array every tick until an instance is published or removed, so this allocates nothing (#851).
+        _instanceTicker.Tick(_registry!.TickInstances(), deltaTime);
 
         InstanceRegistry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
     }

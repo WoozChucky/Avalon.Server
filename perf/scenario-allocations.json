@@ -1,18 +1,18 @@
 {
-  "commit": "982735c5",
+  "commit": "7a40ed08",
   "date": "2026-10-09",
   "scenarios": {
     "many-instances": {
-      "bytesPerWindow": 14018368,
-      "bytesPerPlayerPerTick": 467.2789333333333
+      "bytesPerWindow": 13769728,
+      "bytesPerPlayerPerTick": 458.9909333333334
     },
     "town-idle": {
-      "bytesPerWindow": 9600,
-      "bytesPerPlayerPerTick": 5.333333333333333
+      "bytesPerWindow": 0,
+      "bytesPerPlayerPerTick": 0
     },
     "town-walk": {
-      "bytesPerWindow": 1581064,
-      "bytesPerPlayerPerTick": 878.3688888888888
+      "bytesPerWindow": 1570560,
+      "bytesPerPlayerPerTick": 872.5333333333333
     }
   }
 }

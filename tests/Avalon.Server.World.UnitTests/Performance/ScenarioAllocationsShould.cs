@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.World.Testing.Scenarios;
 using Xunit.Abstractions;
 
@@ -43,9 +44,8 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
         ScenarioReport report = ScenarioMeasurement.Run(Scenarios.Get(name), TimeSpan.FromSeconds(5), measureTicks: 0);
 
         AllocationBaseline.Verdict verdict = AllocationBaseline.Compare(report.BytesPerWindow, entry!.BytesPerWindow);
-        double change = (report.BytesPerWindow - entry.BytesPerWindow) * 100.0 / entry.BytesPerWindow;
         output.WriteLine($"{name}: {report.BytesPerWindow:N0} B per {ScenarioMeasurement.WindowTicks}-tick window, " +
-                         $"committed {entry.BytesPerWindow:N0} B ({change:+0.00;-0.00;0.00}%), {verdict}.");
+                         $"committed {entry.BytesPerWindow:N0} B ({Change(report.BytesPerWindow, entry.BytesPerWindow)}), {verdict}.");
 #if DEBUG
         output.WriteLine("Debug build: reported only; the allocation gate decides in Release, which CI builds.");
 #endif
@@ -64,6 +64,16 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
                                  $"Lower the committed baseline: {Regenerate}");
                 break;
         }
+    }
+
+    /// <summary>The change in percent, signed; from a committed 0 (<c>town-idle</c>) there is no percentage.</summary>
+    private static string Change(long current, long committed)
+    {
+        if (committed == 0)
+            return current == 0 ? "0.00%" : "from 0";
+
+        double percent = (current - committed) * 100.0 / committed;
+        return percent.ToString("+0.00;-0.00;0.00", CultureInfo.InvariantCulture) + "%";
     }
 
     private static string RepositoryFile(string relativePath) => Path.Combine(TownNavmesh.RepositoryRoot, relativePath);

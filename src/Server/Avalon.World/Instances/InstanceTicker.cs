@@ -45,7 +45,12 @@ public sealed class InstanceTicker
             "Instance updates that threw, by map type");
     }
 
-    public void Tick(IReadOnlyCollection<IMapInstance> instances, TimeSpan deltaTime)
+    /// <param name="instances">
+    /// The instances to tick, as a span so the walk allocates nothing (#851); <c>World.Update</c> passes
+    /// <see cref="InstanceRegistry.TickInstances" />.
+    /// </param>
+    /// <param name="deltaTime">The tick's delta, handed to each instance.</param>
+    public void Tick(ReadOnlySpan<IMapInstance> instances, TimeSpan deltaTime)
     {
         foreach (IMapInstance instance in instances)
         {
