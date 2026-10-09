@@ -198,7 +198,19 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private Histogram<double> _deadlineOvershoot;
     private Histogram<double> _worldUpdateDuration;
     private Histogram<double> _sessionUpdateDuration;
+    private Histogram<double> _postUpdateDuration;
     private double _ticksPerSecond;
+
+    // The stages after the world update (#875), one tag each, cached so timing a stage allocates nothing.
+    private static readonly KeyValuePair<string, object?> s_questsStage = new("stage", "quests");
+    private static readonly KeyValuePair<string, object?> s_inventoryStage = new("stage", "inventory");
+    private static readonly KeyValuePair<string, object?> s_sheetStage = new("stage", "sheet");
+    private static readonly KeyValuePair<string, object?> s_abilityAmountsStage = new("stage", "ability_amounts");
+    private static readonly KeyValuePair<string, object?> s_partyStatusStage = new("stage", "party_status");
+    private static readonly KeyValuePair<string, object?> s_presenceStage = new("stage", "presence");
+    private static readonly KeyValuePair<string, object?> s_pingsStage = new("stage", "pings");
+    private static readonly KeyValuePair<string, object?> s_outboxStage = new("stage", "outbox");
+    private static readonly KeyValuePair<string, object?> s_continuationsStage = new("stage", "continuations");
     private readonly TickHistogram _tickDurationHist = new();
     private readonly TickHistogram _deadlineOvershootHist = new();
     private readonly TickHistogram _worldUpdateHist = new();
@@ -282,6 +294,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             "Duration of the world update phase of the tick loop in microseconds");
         _sessionUpdateDuration = WorldHistograms.Microseconds(meter, "world.session_update.duration",
             "Duration of the session update phase of the tick loop in microseconds");
+        _postUpdateDuration = WorldHistograms.Microseconds(meter, "world.post_update.duration",
+            "Duration of one stage after the world update (flushers, pings, outbox flush, continuations) in microseconds, by stage",
+            WorldHistograms.StageMicroseconds);
 
         WorldGauges.Register(DiagnosticsConfig.World.Meter, () => Connections, () => _world.InstanceRegistry);
     }
@@ -644,6 +659,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _worldUpdateHist.Record((long)worldUs);
         _worldUpdateDuration.Record(worldUs);
 
+        // Each stage below is timed into world.post_update.duration by its stage tag (#875): StageDone records the
+        // time since the previous stage ended and returns now, the next stage's start.
+        long stageStart = t2;
+
         // Quest counts, log, updates, lines and markers (#433), before the inventory flush below clears the slot
         // changes the collect recount reads. Each step is contained inside the flush (a throwing recount still lets the
         // log and markers out), and the flush per connection: one character's throw costs nobody else.
@@ -662,11 +681,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             }
         }
 
+        stageStart = StageDone(stageStart, s_questsStage);
+
         // Inventory and money changed anywhere in this tick, in either pass, leave as one packet per
         // connection with each slot at its final value (spec #459 section 3). Before the ping below,
         // which has to be the last thing enqueued ahead of the flush.
         for (int i = 0; i < conns.Length; i++)
             InventoryUpdateFlusher.Flush(conns[i]);
+        stageStart = StageDone(stageStart, s_inventoryStage);
 
         // The character sheet (#506), to its owner only, when a value it shows changed this tick: a gear
         // change, a level-up, or a combat reload applied at the top of the world update that moved a cap.
@@ -674,10 +696,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         CombatFormula formula = _world.Data.Combat.Formula;
         for (int i = 0; i < conns.Length; i++)
             CharacterSheetFlusher.Flush(conns[i], formula);
+        stageStart = StageDone(stageStart, s_sheetStage);
 
         // Each ability's per-hit amount (#669), in the same flush as the sheet whose stats moved it.
         for (int i = 0; i < conns.Length; i++)
             AbilityAmountsFlusher.Flush(conns[i]);
+        stageStart = StageDone(stageStart, s_abilityAmountsStage);
 
         // Party members' pools (2026-09-30), to the members in their instance, at most four times a second each.
         // Contained: a throw must not cost every connection the ping, outbox and continuation flushes below.
@@ -689,6 +713,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             _memberStatusErrors.Failed(e);
         }
+
+        stageStart = StageDone(stageStart, s_partyStatusStage);
 
         // The admin view's presence (#639), about once a second: taken here, in the serial phase after the world
         // update, so the rosters are read on the tick that changes them; the Redis write stays off the tick.
@@ -703,6 +729,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                 _presenceErrors.Failed(e);
             }
         }
+
+        stageStart = StageDone(stageStart, s_presenceStage);
 
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
@@ -719,15 +747,27 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                 conns[i].SendTimeSyncPing();
         }
 
+        stageStart = StageDone(stageStart, s_pingsStage);
+
         for (int i = 0; i < conns.Length; i++)
             conns[i].FlushOutbox();
+        stageStart = StageDone(stageStart, s_outboxStage);
 
         foreach (IWorldConnection worldConnection in conns)
             worldConnection.FlushContinuations();
+        StageDone(stageStart, s_continuationsStage);
         long tickEnd = Stopwatch.GetTimestamp();
         double tickUs = TicksToUs(tickEnd - tickStart);
         _tickDurationHist.Record((long)tickUs);
         _tickDuration.Record(tickUs);
+    }
+
+    /// <summary>Records the stage that began at <paramref name="start" /> under its tag; returns now, the next stage's start.</summary>
+    private long StageDone(long start, KeyValuePair<string, object?> stage)
+    {
+        long now = Stopwatch.GetTimestamp();
+        _postUpdateDuration.Record(TicksToUs(now - start), stage);
+        return now;
     }
 
     private static readonly double s_usPerTick = 1_000_000.0 / Stopwatch.Frequency;
