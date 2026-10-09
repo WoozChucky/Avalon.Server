@@ -180,7 +180,7 @@ public static class ReportWriter
         }
         else if (result.ServerChangeDetails is { } duringRamp)
         {
-            md.AppendLine($"- The world server restarted during the ramp ({duringRamp}), or after its last judged step without proof that it was, so this run does not stand. Run again.");
+            md.AppendLine($"- The world server {result.RestartPhrase} ({duringRamp}), so this run does not stand. Run again.");
         }
         else if (result.RestartCheck != RestartCheck.Complete)
         {
@@ -285,8 +285,11 @@ public static class ReportWriter
                 result.ServerPodChanged,
                 result.ServerChange,
                 result.ServerRestarted,
-                result.RestartedDuringRamp,
+                result.RestartProvenDuringRamp,
                 result.RestartedAfterLastJudgedStep,
+                result.RestartNotProvenAfter,
+                result.RestartNotProvenReason,
+                result.KubeNotScrapedSinceDrain,
                 result.Stands,
                 result.DoesNotStandReason,
                 RestartCheck = RestartCheckText(result.RestartCheck),

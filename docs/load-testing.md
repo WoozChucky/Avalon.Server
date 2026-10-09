@@ -436,9 +436,11 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   was none) and its last start (`kube_pod_container_state_started`, by that uid and by `--pod`): `world restarted
   during the ramp (A → B; pod x → y; container restarted N times, last started 18:34:40 UTC)`, naming what showed
   it, when the pod differs, the restarts rose or the container started again, whatever the version, or `changed
-  during the ramp: A → B` when only the versions differ; `world restarted after the ramp's last judged step (...)`,
-  with `, while the bots left` when the old process ended after the stop began, when that is proven (see
-  [a world restart](#a-world-restart)). A version read only at the end is marked `(read at the end)`, and a check that could not be
+  during the ramp: A → B` when only the versions differ. `during the ramp` is said only when the restart is proven to
+  have come before the last judged window ended (the new process started by then, or the container ended by then);
+  `world restarted after the ramp's last judged step (...)`, with `, while the bots left` when the old process ended
+  after the stop began, when that is proven; otherwise `world restarted; not proven after the last judged step
+  (<the missing fact>): ...` (see [a world restart](#a-world-restart)). A version read only at the end is marked `(read at the end)`, and a check that could not be
   made whole says so: `(restart check: partial, ...)` or `(restart check: unknown, Prometheus gave nothing at the
   end)`. The tool warns when `target_info`'s pod name is not `--pod`. Then the run
   and its size, the API, the mix, the ramp settings (start, step, hold and judged window, max, sign-in concurrency),
@@ -446,7 +448,8 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   start (by which every query's time was corrected), and the limits, each marked when overridden.
 - **Result**: one of `capacity N bots`, `no limit reached up to N bots`, `bot PC saturated: capacity ≥ N bots`,
   `stopped: steps that could not be judged`, or `stopped (<reason>)`, followed by `; does not stand: <reason>` when the run does
-  not stand (`the world server restarted during the ramp`, or `the restart check was partial (...)`). When the
+  not stand (`the world server restarted during the ramp`, `the world server restarted; not proven after the last
+  judged step (<the missing fact>)`, or `the restart check was partial (...)`). When the
   finished report's reads change the line, the console prints it again. A stop reason is one of: Ctrl+C, an error, the
   run's accounts running out, or no further bot able to sign in. Each `stopped` result adds the last passing step's
   count, or says that no step passed. Then "failed first": each confirmed breach with its value and threshold
@@ -484,15 +487,19 @@ last judged step only when that is proven, by when the old process ended rather 
   `kube_pod_container_status_last_terminated_timestamp`, is after the window's end;
 - a replaced pod (its container's restart count unchanged): the old pod was still up after the window's end (its
   `kube_pod_deletion_timestamp`, which kube-state-metrics shows only while a pod terminates and so often never for a
-  quick one, or its process's last `target_info` export, over the ramp), and the new pod started after the window's
-  end and has not restarted.
+  quick one, or its process's last `target_info` export, over the ramp: exported every 60 seconds, that evidence is
+  up to 60 seconds older than the process's end), and the new pod started after the window's end and has not
+  restarted.
 
 Anything else, an unknown read included, does not stand and exits 1; so does a ramp whose restart check was partial or
 unknown even though no restart was seen. The last read can come early: a replaced pod starts at 0 players online, so
 the drain ends at once, and `target_info` (exported every 60 seconds) may still name the old process. The
 kube-state-metrics reads, by the pod's uid and by `--pod`, show the new one; before them the runner waits, at most
-45 seconds, for a kube-state-metrics sample taken after the drain ended. That read takes none of the earlier read's
-values: what it cannot read stays unknown. Every time is corrected by the clock offset measured at the start.
+45 seconds, for a kube-state-metrics sample taken after the drain ended, and when none comes the check is partial
+(`kube-state-metrics not scraped since the drain ended`). That read, given 10 seconds, takes none of the earlier
+read's values: what it cannot read stays unknown. Every time is corrected by the clock offset measured at the start.
+
+Without kube-state-metrics in Prometheus the restart check can never be complete, so every ramp fails: it exits 1 with `does not stand: the restart check was partial (...)`.
 
 ## Ctrl+C
 

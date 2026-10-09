@@ -16,7 +16,7 @@ public class RampResultShould
     {
         ["the same process throughout"] = (() => Result(), null, true),
         ["only the versions compared, and they differ"] = (() => Result(versionAtEnd: "1.1", pod: null, restartsAtStart: null, startedAtStart: null),
-            "changed during the ramp: 1.0 → 1.1", false),
+            "version changed; not proven after the last judged step (when the old process ended is unknown): 1.0 → 1.1", false),
         ["a pod replaced during the ramp"] = (() => Result(podAtEnd: "b", newestPod: "b", newestPodStarted: 300, oldPodLastUp: 290, startedAtEnd: 300),
             "world restarted during the ramp (1.0; pod a → b; container started 18:05:00 UTC)", false),
         ["a container crash before the window ended, its new start after it"] = (
@@ -30,13 +30,15 @@ public class RampResultShould
             "world restarted after the ramp's last judged step, while the bots left (1.0; container restarted once, last started 18:11:40 UTC)", true),
         ["a restart after the window with its restart count unknown"] = (
             () => Result(restartsAtEnd: null, terminated: 690, startedAtEnd: 700),
-            "world restarted during the ramp (1.0; container started 18:11:40 UTC)", false),
+            "world restarted; not proven after the last judged step (the container's restart count is unknown): 1.0; container started 18:11:40 UTC",
+            false),
         ["a pod replaced while the bots left, target_info still naming the old one"] = (
             () => Result(newestPod: "b", newestPodStarted: 645, oldPodLastUp: 640, startedAtEnd: 645),
             "world restarted after the ramp's last judged step, while the bots left (1.0; pod a → b; container started 18:10:45 UTC)", true),
-        ["a pod replaced during the ramp, then its container restarted while the bots left"] = (
-            () => Result(podAtEnd: "b", newestPod: "b", newestPodStarted: 300, newestRestarts: 1, oldPodLastUp: 290, startedAtEnd: 700),
-            "world restarted during the ramp (1.0; pod a → b; container started 18:11:40 UTC)", false),
+        ["a pod replaced while the bots left, then its new pod's container restarted"] = (
+            () => Result(podAtEnd: "b", newestPod: "b", newestPodStarted: 645, newestRestarts: 1, oldPodLastUp: 640, startedAtEnd: 700),
+            "world restarted; not proven after the last judged step (the new pod's container restarted): 1.0; pod a → b; container started 18:11:40 UTC",
+            false),
         ["nothing read at the end"] = (
             () => Result(versionAtEnd: null, podAtEnd: null, restartsAtEnd: null, startedAtEnd: null, newestPod: null,
                 newestPodStarted: null), null, false),

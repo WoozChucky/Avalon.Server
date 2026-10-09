@@ -186,7 +186,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
     /// </summary>
     public async Task<int?> ContainerRestartsAsync(string? podUid, TimeSpan? over, CancellationToken ct)
     {
-        string series = $"kube_pod_container_status_restarts_total{{namespace=\"avalon\",container=\"{Container}\",{(podUid is null ? $"pod=\"{pod}\"" : Uid(podUid))}}}";
+        string series = $"kube_pod_container_status_restarts_total{{namespace=\"avalon\",container=\"{Container}\",{(podUid is null ? $"pod=\"{pod}\"" : UidMatcher("uid", podUid))}}}";
         double? restarts = await ValueAsync(
             over is { } range ? $"max(max_over_time({series}[{Seconds(range)}]))" : $"max({series})", DateTimeOffset.UtcNow, ct);
         return restarts is { } value && double.IsFinite(value) ? (int)Math.Round(value) : null;
@@ -219,7 +219,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
     /// </summary>
     public async Task<DateTimeOffset?> ContainerLastTerminatedAsync(string podUid, CancellationToken ct) =>
         Instant(await ValueAsync(
-            $"max(kube_pod_container_status_last_terminated_timestamp{{namespace=\"avalon\",container=\"{Container}\",{Uid(podUid)}}})",
+            $"max(kube_pod_container_status_last_terminated_timestamp{{namespace=\"avalon\",container=\"{Container}\",{UidMatcher("uid", podUid)}}})",
             DateTimeOffset.UtcNow, ct));
 
     /// <summary>
@@ -232,8 +232,8 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
     {
         string range = Seconds(over);
         return Instant(await ValueAsync(
-            $"max(max_over_time(kube_pod_deletion_timestamp{{namespace=\"avalon\",{Uid(podUid)}}}[{range}]) or " +
-            $"max_over_time(timestamp(target_info{{{_world},k8s_pod_{Uid(podUid)}}})[{range}:15s]))",
+            $"max(max_over_time(kube_pod_deletion_timestamp{{namespace=\"avalon\",{UidMatcher("uid", podUid)}}}[{range}]) or " +
+            $"max_over_time(timestamp(target_info{{{_world},{UidMatcher("k8s_pod_uid", podUid)}}})[{range}:15s]))",
             DateTimeOffset.UtcNow, ct));
     }
 
@@ -272,11 +272,14 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
     private string StartedSeries(string? podUids)
     {
         string started = $"kube_pod_container_state_started{{namespace=\"avalon\",container=\"{Container}\"";
-        return podUids is null ? $"{started},pod=\"{pod}\"}}" : $"{started},{Uid(podUids)}}} or {started},pod=\"{pod}\"}}";
+        return podUids is null ? $"{started},pod=\"{pod}\"}}" : $"{started},{UidMatcher("uid", podUids)}}} or {started},pod=\"{pod}\"}}";
     }
 
-    /// <summary>A matcher for pod uids, comma-separated (a tie in <see cref="ServerAsync"/>); uids are hex and dashes, safe in a regex.</summary>
-    private static string Uid(string podUids) => $"uid=~\"{string.Join('|', podUids.Split(", "))}\"";
+    /// <summary>
+    /// A matcher of <paramref name="label"/> (kube-state-metrics' <c>uid</c>, <c>target_info</c>'s <c>k8s_pod_uid</c>)
+    /// against pod uids, comma-separated (a tie in <see cref="ServerAsync"/>); uids are hex and dashes, safe in a regex.
+    /// </summary>
+    private static string UidMatcher(string label, string podUids) => $"{label}=~\"{string.Join('|', podUids.Split(", "))}\"";
 
     private static string Seconds(TimeSpan span) => Math.Max(1, (int)Math.Ceiling(span.TotalSeconds)).ToString(CultureInfo.InvariantCulture) + "s";
 
