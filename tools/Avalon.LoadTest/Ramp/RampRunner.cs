@@ -70,6 +70,17 @@ public sealed record RampResult(
     /// </summary>
     public TimeSpan ClockOffset { get; init; }
 
+    /// <summary>
+    /// The world server's version read when the ramp ended (as <see cref="ServerVersion"/>, read before it started); one
+    /// that differs means the world restarted on another version during the ramp, and the run does not stand. Null when
+    /// Prometheus had none.
+    /// </summary>
+    public string? ServerVersionAtEnd { get; init; }
+
+    /// <summary>Whether the world's version read at the ramp's end differs from the one read before it (both known).</summary>
+    public bool ServerVersionChanged =>
+        ServerVersion is not null && ServerVersionAtEnd is not null && !string.Equals(ServerVersion, ServerVersionAtEnd, StringComparison.Ordinal);
+
     /// <summary>Failed sign-outs of game contexts over the ramp, its stop sequence's included.</summary>
     public int SignOutFailures { get; init; }
 
@@ -274,8 +285,18 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             Console.Error.WriteLine($"The ramp failed: {error}");
         }
 
+        // Read again before the stop sequence, without the ramp's token (a Ctrl+C has cancelled it; the client's own
+        // timeout bounds the read): a world restarted on another version during the ramp invalidates the run.
+        string? versionAtEnd = await prometheus.ServerVersionAsync(CancellationToken.None);
+        if (version is not null && versionAtEnd is not null && !string.Equals(version, versionAtEnd, StringComparison.Ordinal))
+        {
+            Console.Error.WriteLine(Invariant(
+                $"World {run.WorldId}'s version changed during the ramp: {version} → {versionAtEnd}. The world restarted; this run does not stand."));
+        }
+
         var partial = new RampResult(outcome, capacity, failedFirst, steps, version, SignInRate(), started, DateTimeOffset.UtcNow)
         {
+            ServerVersionAtEnd = versionAtEnd,
             StopReason = stopReason,
             SignIns = _signIns,
             SignInFailures = new Dictionary<string, int>(signInFailures, StringComparer.Ordinal),

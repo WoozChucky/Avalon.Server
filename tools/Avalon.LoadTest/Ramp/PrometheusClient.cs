@@ -116,21 +116,48 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             workingSet.Result is { } bytes ? bytes / (1024 * 1024) : null, gen2.Result, gcPause.Result, saveP95, instances.Result);
     }
 
-    /// <summary>The world server's version (<c>target_info</c>'s <c>service_version</c>); null when Prometheus has none.</summary>
+    /// <summary>
+    /// The world server's version now (<c>target_info</c>'s <c>service_version</c>); null when Prometheus has none. A
+    /// restarted world leaves the old process's series in the query's 5-minute lookback beside the new one, so the
+    /// version is the series with the newest sample's; several versions sharing that sample time are all named
+    /// (<c>0.18.7-dev.663, 0.18.7-dev.664</c>) rather than one guessed.
+    /// </summary>
     public async Task<string?> ServerVersionAsync(CancellationToken ct)
     {
+        JsonArray results;
         try
         {
-            JsonArray results = await QueryAsync($"target_info{{{_world}}}", DateTimeOffset.UtcNow, ct);
-            return results.Select(result => result is JsonObject { } series && series["metric"] is JsonObject metric
-                    ? metric["service_version"]?.ToString()
-                    : null)
-                .FirstOrDefault(version => !string.IsNullOrEmpty(version));
+            // timestamp() keeps every label but the metric name, so each series's version comes with its last sample time.
+            results = await QueryAsync($"timestamp(target_info{{{_world}}})", DateTimeOffset.UtcNow, ct);
         }
         catch (PrometheusException)
         {
             return null;
         }
+
+        double newest = double.NegativeInfinity;
+        var versions = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (JsonNode? result in results)
+        {
+            if (result is not JsonObject { } series || series["metric"] is not JsonObject metric ||
+                metric["service_version"]?.ToString() is not { Length: > 0 } version ||
+                series["value"] is not JsonArray { Count: 2 } pair ||
+                !double.TryParse(pair[1]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double sampled) ||
+                !double.IsFinite(sampled) || sampled < newest)
+            {
+                continue;
+            }
+
+            if (sampled > newest)
+            {
+                newest = sampled;
+                versions.Clear();
+            }
+
+            versions.Add(version);
+        }
+
+        return versions.Count == 0 ? null : string.Join(", ", versions);
     }
 
     /// <summary>The world's players online now.</summary>

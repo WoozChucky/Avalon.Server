@@ -424,7 +424,10 @@ no secret (no password, ticket or credential). If the report cannot be completed
 held open), the console says so and names the early report, which remains as it was saved (world drained: pending);
 the exit code still follows the verdict.
 
-- **Header**: the date and time, the world's server version (Prometheus `target_info`'s `service_version`), the run
+- **Header**: the date and time, the world's server version (Prometheus `target_info`'s `service_version`, from the
+  series with the newest sample: a world restarted within the last 5 minutes still has its old process's series in
+  Prometheus's lookback; versions sharing the newest sample are all named), read before the ramp and again at its end
+  (`changed during the ramp: A → B` when the two differ), the run
   and its size, the API, the mix, the ramp settings (start, step, hold and judged window, max, sign-in concurrency),
   Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its clock's offset from Prometheus's at the
   start (by which every query's time was corrected), and the limits, each marked when overridden.
@@ -442,7 +445,8 @@ the exit code still follows the verdict.
   - the bot PC's CPU and the driver's lateness p95;
   - the verdict: `pass`, `pass (blip)`, `re-hold (<breaches, or unknown: names>)`, `stop (...)`,
     `stop, unknown (...)`, or `pass, the last step`. A value Prometheus did not give reads `n/a`.
-- **Notes**: the blips; the steps whose drops may be the bot PC's; sign-ins, with their throughput (one every X s
+- **Notes**: a world version that changed during the ramp (the world restarted, so the run does not stand: run
+  again); the blips; the steps whose drops may be the bot PC's; sign-ins, with their throughput (one every X s
   with N at once, and per minute; identity's side, apart from the world) and the sign-in and refresh failures, by kind;
   whether the world drained after the stop; failed sign-outs; the stop's leave failures by kind; and the leaves and
   sign-outs the breakers skipped.
