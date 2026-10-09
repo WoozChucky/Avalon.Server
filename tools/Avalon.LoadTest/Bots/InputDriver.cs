@@ -2,14 +2,18 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.World;
 using Microsoft.Win32.SafeHandles;
 
 namespace Avalon.LoadTest.Bots;
 
 /// <summary>
 /// One loop at 60 Hz sending each in-world bot's next input, as the game client's fixed step does: idle bots a zero
-/// direction, walkers and churners their <see cref="Walker"/>'s heading. Steps are planned on a <see cref="Stopwatch"/>
-/// schedule from the start and recorded late by how far the step began after its planned time.
+/// direction, walkers and churners their <see cref="Walker"/>'s heading, fighters what their <see cref="Fighter"/>
+/// decides, with the one packet besides it a step may bring (an entry to a map, a cast, a respawn). Steps are planned on
+/// a <see cref="Stopwatch"/> schedule from the start and recorded late by how far the step began after its planned time.
 /// </summary>
 /// <remarks>
 /// The loop runs on its own thread and sleeps towards each step with a high-resolution waitable timer on Windows
@@ -17,14 +21,15 @@ namespace Avalon.LoadTest.Bots;
 /// a whole step late; the world server schedules its tick the same way), <see cref="Thread.Sleep(TimeSpan)"/>
 /// elsewhere, and yields through the last millisecond. Each step fires every bot's send without awaiting it, then
 /// waits for the sends still in flight until the next step is due; a bot whose last send is still in flight then is
-/// skipped until it completes, so one stalled socket never holds up the others. Per bot and step it allocates the
+/// skipped until it completes, so one stalled socket never holds up the others. A fighter's packet besides its input
+/// is sent the same way, and the fighter decides on another only once it has gone. Per bot and step it allocates the
 /// packet and nothing else unless the send has to wait.
 /// </remarks>
 public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
 {
     public const int StepsPerSecond = 60;
 
-    /// <summary>A walker whose ack reports less than 0.1 m/s while it asked to move was stopped (a wall).</summary>
+    /// <summary>A walker or fighter whose ack reports less than 0.1 m/s while it asked to move was stopped (a wall).</summary>
     private const float BlockedSpeedSquared = 0.01f;
 
     /// <summary>Fallen further behind than this, the loop drops the steps it missed rather than send them in a burst.</summary>
@@ -120,6 +125,7 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
     /// <summary>Builds and fires one input for every bot in the world whose previous send has completed.</summary>
     private void Step(CancellationToken ct)
     {
+        long now = Stopwatch.GetTimestamp();
         foreach (Bot bot in inWorld())
         {
             if (bot.State != BotState.InWorld) continue;
@@ -140,12 +146,14 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
             {
                 lane.Moving = false;
                 lane.Generation = generation;
+                bot.Fighter?.Reset();
             }
 
             uint seq = bot.NextSeq();
 
             float dirX = 0f;
             float dirZ = 0f;
+            FighterStep fighting = default;
             if (bot.Behaviour == BehaviourKind.Idle)
             {
                 lane.Moving = false;
@@ -157,10 +165,23 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
                 // turn report the old heading's wall.
                 bool blocked = lane.Moving && ack.Seq >= lane.HeadingFrom &&
                     ack.VelX * ack.VelX + ack.VelZ * ack.VelZ < BlockedSpeedSquared;
-                lane.Walker ??= new Walker();
-                (dirX, dirZ, lane.Yaw) = lane.Walker.Next(blocked, _rng);
-                if (blocked || !lane.Moving) lane.HeadingFrom = seq;
-                lane.Moving = true;
+                bool turned;
+                if (bot.Fighter is { } fighter)
+                {
+                    fighting = fighter.Step(ack, blocked, ActionGone(lane), bot.CharacterGuid, now, _rng);
+                    (dirX, dirZ, lane.Yaw, turned) = (fighting.DirX, fighting.DirZ, fighting.Yaw, fighting.NewHeading);
+                }
+                else
+                {
+                    lane.Walker ??= new Walker();
+                    (dirX, dirZ, lane.Yaw) = lane.Walker.Next(blocked, _rng);
+                    turned = blocked;
+                }
+
+                // A fighter stands still at times: then nothing it asks for can be blocked.
+                bool moving = dirX != 0f || dirZ != 0f;
+                if (moving && (turned || !lane.Moving)) lane.HeadingFrom = seq;
+                lane.Moving = moving;
             }
 
             ValueTask send;
@@ -175,12 +196,56 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
                 continue;
             }
 
-            if (send.IsCompletedSuccessfully) continue;
+            if (!send.IsCompletedSuccessfully)
+            {
+                Task task = send.AsTask();
+                lane.Pending = task;
+                _inFlight.Add(task);
+            }
 
-            Task task = send.AsTask();
-            lane.Pending = task;
-            _inFlight.Add(task);
+            if (fighting.Action != FighterAction.None) SendAction(bot, lane, fighting, ct);
         }
+    }
+
+    /// <summary>Whether the fighter's last packet besides its input has gone (or there was none), its lane then cleared.</summary>
+    private static bool ActionGone(InputLane lane)
+    {
+        if (lane.Action is not { } action) return true;
+        if (!action.IsCompleted) return false;
+
+        // A failed send is the connection's end, as for the input.
+        _ = action.Exception;
+        lane.Action = null;
+        return true;
+    }
+
+    /// <summary>Seals and fires the packet a fighter decided on besides its input, from the lane's reused messages.</summary>
+    private void SendAction(Bot bot, InputLane lane, FighterStep step, CancellationToken ct)
+    {
+        ValueTask send;
+        try
+        {
+            NetworkPacket packet = step.Action switch
+            {
+                FighterAction.EnterForest => bot.SealInWorld(lane.EnterMap(Fighter.ForestMapId), NetworkPacketType.CMSG_ENTER_MAP),
+                FighterAction.LeaveForest => bot.SealInWorld(lane.EnterMap(Fighter.TownMapId), NetworkPacketType.CMSG_ENTER_MAP),
+                FighterAction.Cast => bot.SealInWorld(lane.Cast(bot.Fighter!.AbilityId, step.AimX, step.AimY, step.AimZ),
+                    NetworkPacketType.CMSG_CAST_ABILITY),
+                _ => bot.SealInWorld(InputLane.Respawn, NetworkPacketType.CMSG_RESPAWN_AT_TOWN),
+            };
+            send = bot.SendAsync(packet, ct);
+        }
+        catch (InvalidOperationException)
+        {
+            // The bot left the world since it was looked at.
+            return;
+        }
+
+        if (send.IsCompletedSuccessfully) return;
+
+        Task task = send.AsTask();
+        lane.Action = task;
+        _inFlight.Add(task);
     }
 
     /// <summary>Waits for this step's sends still in flight, at most until <paramref name="deadline"/>.</summary>
@@ -309,4 +374,32 @@ internal sealed class InputLane
 
     /// <summary>The last send, while it had not completed when fired.</summary>
     public Task? Pending;
+
+    /// <summary>A fighter's last packet besides its input, while it had not completed when fired.</summary>
+    public Task? Action;
+
+    /// <summary>A respawn says nothing but that it is one.</summary>
+    public static readonly CRespawnAtTownPacket Respawn = new();
+
+    private CEnterMapPacket? _enterMap;
+    private CCastAbilityPacket? _cast;
+
+    /// <summary>The fighter's entry message, reused: a message is serialized when it is sealed, on this thread.</summary>
+    public CEnterMapPacket EnterMap(ushort mapId)
+    {
+        _enterMap ??= new CEnterMapPacket();
+        _enterMap.TargetMapId = mapId;
+        return _enterMap;
+    }
+
+    /// <summary>The fighter's cast message, reused, aimed at the ground point given.</summary>
+    public CCastAbilityPacket Cast(uint abilityId, float x, float y, float z)
+    {
+        _cast ??= new CCastAbilityPacket { GroundPos = new Vector3Dto() };
+        _cast.AbilityId = abilityId;
+        _cast.GroundPos!.X = x;
+        _cast.GroundPos.Y = y;
+        _cast.GroundPos.Z = z;
+        return _cast;
+    }
 }

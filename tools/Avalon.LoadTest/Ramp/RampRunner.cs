@@ -17,9 +17,10 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="Prometheus">The Prometheus HTTP API's origin.</param>
 /// <param name="Pod">The world server's pod, for its memory limit.</param>
 /// <param name="SignInConcurrency">Sign-ins at once, the runner's and the refresher's together.</param>
+/// <param name="ForestTime">How long a fighter's trip stays in the forest (<c>--forest-time</c>).</param>
 public sealed record RampOptions(
     string Mix, int Start, int Step, TimeSpan Hold, int Max, IReadOnlyList<Limit> Limits, string? Dial, Uri Prometheus,
-    string Pod, int SignInConcurrency);
+    string Pod, int SignInConcurrency, TimeSpan ForestTime);
 
 /// <summary>One held step: what was there, what was measured, and the decision on it.</summary>
 /// <param name="Index">The step's number from 1; a re-hold is a step of its own at the same count.</param>
@@ -832,6 +833,9 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             async (bot, token) =>
             {
                 bot.Behaviour = Bots.Mix.For(bot.Index, _mix);
+                // Before the entry: a fighter's connection keeps its table from the first add on.
+                if (bot.Behaviour == BehaviourKind.Fighter)
+                    bot.Fighter ??= new Fighter(bot.Index, metrics, options.ForestTime, Fighter.FirstTripJitter);
                 bool failed = false;
                 try
                 {
@@ -975,7 +979,10 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         };
     }
 
-    /// <summary>The judged window's acks with the whole step's entry, leave, sign-in, sign-out and disconnect counts.</summary>
+    /// <summary>
+    /// The judged window's acks with the whole step's entry, leave, sign-in, sign-out and disconnect counts, and its fighter
+    /// counts.
+    /// </summary>
     private static StepClientValues Merge(StepClientValues settle, StepClientValues judged)
     {
         var failures = new Dictionary<string, int>(settle.EntryFailures, StringComparer.Ordinal);
@@ -984,6 +991,10 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         AddCounts(leaveFailures, judged.LeaveFailures);
         var signInFailures = new Dictionary<string, int>(settle.SignInFailures, StringComparer.Ordinal);
         AddCounts(signInFailures, judged.SignInFailures);
+        var castsRefused = new Dictionary<string, int>(settle.CastsRefused, StringComparer.Ordinal);
+        AddCounts(castsRefused, judged.CastsRefused);
+        var fighterFailures = new Dictionary<string, int>(settle.FighterFailures, StringComparer.Ordinal);
+        AddCounts(fighterFailures, judged.FighterFailures);
 
         return judged with
         {
@@ -1000,6 +1011,15 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             GotInBots = settle.GotInBots.Union(judged.GotInBots).ToHashSet(),
             // Percentiles of two windows do not merge: the slower of the two, an upper bound.
             EntryP95 = MaxFinite(settle.EntryP95, judged.EntryP95),
+            ForestEntries = settle.ForestEntries + judged.ForestEntries,
+            ForestEntryP50 = MaxFinite(settle.ForestEntryP50, judged.ForestEntryP50),
+            ForestEntryP95 = MaxFinite(settle.ForestEntryP95, judged.ForestEntryP95),
+            ForestTrips = settle.ForestTrips + judged.ForestTrips,
+            CastsSent = settle.CastsSent + judged.CastsSent,
+            CastsRefused = castsRefused,
+            Kills = settle.Kills + judged.Kills,
+            OwnDeaths = settle.OwnDeaths + judged.OwnDeaths,
+            FighterFailures = fighterFailures,
         };
     }
 

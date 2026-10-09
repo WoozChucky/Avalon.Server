@@ -9,7 +9,9 @@ using Avalon.LoadTest.Api;
 using Avalon.LoadTest.Wire;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.World;
 using Org.BouncyCastle.Crypto;
 
 namespace Avalon.LoadTest.World;
@@ -20,7 +22,7 @@ namespace Avalon.LoadTest.World;
 /// its own task drains the socket the whole time, so the server's outbox never backs up behind a busy bot: it raises
 /// <see cref="Ack"/> for each <c>SMSG_PLAYER_STATE_ACK</c>, answers pings, queues the few packets the entry and leave
 /// code waits for on <see cref="Inbound"/>, applies the world-state packets to <see cref="State"/> when the bot keeps
-/// one, and drops everything else without decoding it.
+/// one (and with it hands over map transitions and cast refusals), and drops everything else without decoding it.
 /// </summary>
 /// <remarks>
 /// Sends are serialised by one lock, and sealing with the session by another (<see cref="Seal{T}"/>): the codec and the
@@ -100,6 +102,17 @@ public sealed class WorldConnection : IAsyncDisposable
 
     /// <summary>Each <c>SMSG_PLAYER_STATE_ACK</c>, still sealed, raised on the read loop: a handler must be quick.</summary>
     public event Action<NetworkPacket>? Ack;
+
+    /// <summary>
+    /// Each <c>SMSG_MAP_TRANSITION</c>'s result and map, raised on the read loop while <see cref="State"/> is set (left
+    /// unread otherwise). A success has cleared the table first: the world sends the new instance's objects only after
+    /// the transition, and the old one's only before it, so the table is emptied between the two on this loop, where
+    /// they arrive, and none of the new adds is lost.
+    /// </summary>
+    public event Action<MapTransitionResult, ushort>? MapTransition;
+
+    /// <summary>Each <c>SMSG_ABILITY_NOT_READY</c>'s reason, raised on the read loop while a handler is set (left unread otherwise).</summary>
+    public event Action<CastRejectReason>? CastRefused;
 
     /// <summary>
     /// Completes when the read loop ends: successfully when the server closed the connection or it was disposed,
@@ -304,6 +317,18 @@ public sealed class WorldConnection : IAsyncDisposable
                         // Applied first, so a fighter woken by the spawn signal already finds the first add.
                         _state?.Apply(packet, Codec);
                         if (_worldState is not null) Interlocked.Exchange(ref _worldState, null)?.TrySetResult();
+                        break;
+                    case NetworkPacketType.SMSG_MAP_TRANSITION:
+                        if (_state is { } table)
+                        {
+                            SMapTransitionPacket transition = Codec.Decode<SMapTransitionPacket>(packet);
+                            if (transition.Result == MapTransitionResult.Success) table.Clear();
+                            MapTransition?.Invoke(transition.Result, transition.MapId);
+                        }
+
+                        break;
+                    case NetworkPacketType.SMSG_ABILITY_NOT_READY:
+                        if (CastRefused is { } refused) refused(Codec.Decode<SAbilityNotReadyPacket>(packet).Reason);
                         break;
                     case NetworkPacketType.SMSG_DISCONNECT:
                         DisconnectReason = Codec.Decode<SDisconnectPacket>(packet).ReasonCode;

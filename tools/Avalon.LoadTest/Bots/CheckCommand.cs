@@ -8,8 +8,11 @@ namespace Avalon.LoadTest.Bots;
 /// <summary>
 /// <c>check</c>: one bot of a run end to end. It signs in, enters the run's world, sends input at 60 Hz for ten seconds
 /// through the <see cref="InputDriver"/> (idle, or walking with <c>--behaviour walker</c>), leaves and signs out,
-/// printing each step's duration, the input-ack latency and the driver's lateness. Exit 0 when every step passed, the
-/// leave and the sign-out included, 1 with the failing step and its reason otherwise.
+/// printing each step's duration, the input-ack latency and the driver's lateness. With <c>--behaviour fighter</c> it
+/// drives one forest trip instead, at once (no first-trip wait), printing each stage (to the portal, portal request to
+/// transition, the fight, to the exit, the exit), the casts sent and refused, the kills and any failure. Exit 0 when
+/// every step passed (for a fighter, its trip completed: it walked out into town), the leave and the sign-out
+/// included, 1 with the failing step and its reason otherwise.
 /// </summary>
 public static class CheckCommand
 {
@@ -23,6 +26,12 @@ public static class CheckCommand
     /// <summary>A leave after a failure or a cancel gets this long of its own.</summary>
     private static readonly TimeSpan s_cleanupTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// A fighter's trip ends within <c>--forest-time</c> and this: the walk to the portal (20 s), the entry (30 s), the
+    /// way out (60 s), a respawn (30 s), and a margin.
+    /// </summary>
+    private static readonly TimeSpan s_tripMargin = TimeSpan.FromMinutes(4);
+
     public static async Task<int> RunAsync(CheckOptions options, CancellationToken ct)
     {
         var run = RunFile.Load(options.RunId, forBots: true);
@@ -35,11 +44,21 @@ public static class CheckCommand
 
         using var api = new ApiClient(run.Api, s_apiTimeout);
         var metrics = new BotMetrics();
+        Action<string, TimeSpan> printStep = (step, took) => Console.WriteLine(Invariant($"  {step,-10} {took.TotalMilliseconds,8:0} ms"));
+        Action<string> printNote = line => Console.Error.WriteLine("  " + line);
+        Fighter? fighter = options.Behaviour == BehaviourKind.Fighter
+            ? new Fighter(options.Bot, metrics, options.ForestTime, firstTripJitter: TimeSpan.Zero)
+            {
+                StepTimed = printStep,
+                Note = printNote,
+            }
+            : null;
         using var bot = new Bot(options.Bot, account, run.BotPassword, api, run.WorldId, options.Dial, metrics)
         {
             Behaviour = options.Behaviour,
-            StepTimed = (step, took) => Console.WriteLine(Invariant($"  {step,-10} {took.TotalMilliseconds,8:0} ms")),
-            Note = line => Console.Error.WriteLine("  " + line),
+            Fighter = fighter,
+            StepTimed = printStep,
+            Note = printNote,
         };
 
         bool left = false;
@@ -50,14 +69,31 @@ public static class CheckCommand
 
             // The entry's idle probes are not the latency asked about.
             metrics.TakeWindow();
-            string step = options.Behaviour == BehaviourKind.Walker ? "walk" : "idle";
-            double latenessP95 = await DriveAsync(bot, step, ct);
+            string step = options.Behaviour switch
+            {
+                BehaviourKind.Walker => "walk",
+                BehaviourKind.Fighter => "forest",
+                _ => "idle",
+            };
+            (double latenessP95, TripEnd? trip) = fighter is null
+                ? (await DriveAsync(bot, step, ct), null)
+                : await TripAsync(bot, fighter, options.ForestTime, ct);
             StepClientValues values = metrics.TakeWindow();
             Console.WriteLine(Invariant(
                 $"  ack        p50 {Ms(values.AckP50)}, p95 {Ms(values.AckP95)}, p99 {Ms(values.AckP99)} over {values.AckSamples} inputs"));
             Console.WriteLine(Invariant($"  driver     lateness p95 {Ms(latenessP95)}"));
+            if (fighter is not null) PrintTrip(values);
             if (values.AckSamples == 0)
                 throw new BotStepException(step, $"{step}:no-acks", "no input was answered");
+
+            if (trip is TripEnd.Died)
+                throw new BotStepException(step, "forest:died", "the fighter died before it walked out (it respawned in town)");
+
+            if (trip is TripEnd.Failed)
+            {
+                throw new BotStepException(step, "forest:failed",
+                    $"a step of the trip failed: {string.Join(", ", values.FighterFailures.Keys.Order(StringComparer.Ordinal))}");
+            }
 
             left = true;
             await bot.LeaveAsync(ct);
@@ -127,6 +163,59 @@ public static class CheckCommand
         }
 
         return driver.LatenessP95Ms();
+    }
+
+    /// <summary>
+    /// Runs the input driver over this one fighter until its first trip ends, then waits for the last acks. Returns the
+    /// driver's lateness p95 and how the trip ended. A connection the world closes, or a trip that has not ended within
+    /// <c>--forest-time</c> and <see cref="s_tripMargin"/>, fails the check.
+    /// </summary>
+    private static async Task<(double LatenessP95, TripEnd? Trip)> TripAsync(Bot bot, Fighter fighter, TimeSpan forestTime,
+        CancellationToken ct)
+    {
+        const string Step = "forest";
+        var ended = new TaskCompletionSource<TripEnd>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fighter.TripEnded += end => ended.TrySetResult(end);
+        Bot[] inWorld = [bot];
+        var driver = new InputDriver(() => inWorld);
+        TimeSpan limit = forestTime + s_tripMargin;
+        long start = Stopwatch.GetTimestamp();
+
+        using (var stop = CancellationTokenSource.CreateLinkedTokenSource(ct))
+        {
+            Task driving = driver.RunAsync(stop.Token);
+            Task closed = bot.Closed;
+            Task first = await Task.WhenAny(ended.Task, closed, Task.Delay(limit, stop.Token));
+            await stop.CancelAsync();
+            await driving;
+            ct.ThrowIfCancellationRequested();
+            if (!ended.Task.IsCompleted)
+            {
+                throw first == closed
+                    ? new BotStepException(Step, $"{Step}:closed", "the world closed the connection during the trip")
+                    : new BotStepException(Step, $"{Step}:timeout",
+                        Invariant($"the trip had not ended {limit.TotalSeconds:0} s after it began"));
+            }
+        }
+
+        await Task.Delay(s_ackDrain, ct);
+        bot.StepTimed?.Invoke(Step, Stopwatch.GetElapsedTime(start));
+        return (driver.LatenessP95Ms(), await ended.Task);
+    }
+
+    /// <summary>What a fighter's trip counted.</summary>
+    private static void PrintTrip(StepClientValues values)
+    {
+        Console.WriteLine(Invariant(
+            $"  enter      {values.ForestEntries} forest entries, portal request to transition p50 {Ms(values.ForestEntryP50)}"));
+        string refused = values.CastsRefused.Count == 0
+            ? "none refused"
+            : $"refused {string.Join(", ", values.CastsRefused.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => Invariant($"{pair.Key} {pair.Value}")))}";
+        Console.WriteLine(Invariant($"  casts      {values.CastsSent} sent, {refused}"));
+        Console.WriteLine(Invariant($"  kills      {values.Kills} seen, {values.OwnDeaths} own deaths"));
+        Console.WriteLine(Invariant($"  exit       {values.ForestTrips} trips completed"));
+        foreach ((string kind, int count) in values.FighterFailures.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            Console.WriteLine(Invariant($"  failed     {kind} x{count}"));
     }
 
     /// <summary>Leaves and signs out after a failure or a cancel, so the account's session does not linger; best effort.</summary>

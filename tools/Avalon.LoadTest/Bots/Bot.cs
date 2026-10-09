@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
+using Avalon.Common;
 using Avalon.LoadTest.Api;
 using Avalon.LoadTest.World;
 using Avalon.Network.Packets.Abstractions;
@@ -118,6 +119,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     private BotAck _lastAck;
     private uint _seq;
     private int _connectionGeneration;
+    private ulong _characterGuid;
 
     /// <summary>The bot's index in the run: it picks the account, the class (<c>index % 4 + 1</c>) and the gender (<c>index % 2</c>).</summary>
     public int Index => index;
@@ -146,6 +148,16 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>What the bot does in the world; set before it enters.</summary>
     public BehaviourKind Behaviour { get; set; }
+
+    /// <summary>
+    /// A fighter's trip, set before the bot enters (with <see cref="Behaviour"/> <see cref="BehaviourKind.Fighter"/>):
+    /// every connection then keeps its <see cref="Bots.Fighter.Table"/> and hands it map transitions and cast refusals.
+    /// Null for every other behaviour, whose connections leave the world-state packets unread.
+    /// </summary>
+    public Fighter? Fighter { get; set; }
+
+    /// <summary>The guid of the bot's character in the world; 0 before its first select.</summary>
+    public ulong CharacterGuid => Volatile.Read(ref _characterGuid);
 
     /// <summary>The input driver's state for this bot.</summary>
     internal InputLane Lane { get; } = new();
@@ -420,6 +432,17 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         return SealInput(connection, seq, dirX, dirZ, yaw, noteSent: true);
     }
 
+    /// <summary>
+    /// <paramref name="message"/> sealed for the current connection, ready for <see cref="SendAsync"/>: a fighter's
+    /// packets besides its input. Only while <see cref="BotState.InWorld"/>, as <see cref="NextInput"/>.
+    /// </summary>
+    public NetworkPacket SealInWorld<T>(T message, NetworkPacketType type) where T : class
+    {
+        if (_state != BotState.InWorld) throw new InvalidOperationException($"Bot {index} is not in the world.");
+        WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} has no connection.");
+        return connection.Seal(message, type);
+    }
+
     /// <summary>Sends a packet on the current connection.</summary>
     public ValueTask SendAsync(NetworkPacket packet, CancellationToken ct) =>
         (_connection ?? throw new InvalidOperationException($"Bot {index} has no connection.")).SendAsync(packet, ct);
@@ -499,6 +522,14 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         metrics.ForgetPending(index);
         _onAck = packet => OnAck(connection, packet);
         connection.Ack += _onAck;
+        if (Fighter is { } fighter)
+        {
+            // Before the select: the world describes each object in full only in the add that brings it into view.
+            connection.State = fighter.Table;
+            connection.MapTransition += (result, mapId) => fighter.OnTransition(result, mapId, Stopwatch.GetTimestamp());
+            connection.CastRefused += fighter.OnCastRefused;
+        }
+
         _connection = connection;
         _noLeaveOn = connection;
         Interlocked.Increment(ref _connectionGeneration);
@@ -547,6 +578,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
 
         uint characterId = character.CharacterId;
+        Volatile.Write(ref _characterGuid, new ObjectGuid(ObjectType.Character, characterId).RawValue);
+        // A character spawning starts with an empty view: what the table held was another connection's or character's.
+        Fighter?.Table.Clear();
         // From the select on, the connection may hold a character: a disconnect sends the leave.
         _noLeaveOn = null;
         (Task spawned, long selectRead) = await StepAsync("select", s_characterTimeout, async token =>
