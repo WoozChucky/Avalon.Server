@@ -42,6 +42,6 @@ public static class ItemRequestReply
                 .ToArray();
         }
 
-        connection.Send(SItemResultPacket.Create(requestId, result, slots, connection.CryptoSession.Encrypt));
+        connection.Send(SItemResultPacket.Create(requestId, result, slots, connection.CryptoSession.Encryptor));
     }
 }

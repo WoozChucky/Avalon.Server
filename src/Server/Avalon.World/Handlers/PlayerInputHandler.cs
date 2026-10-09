@@ -80,6 +80,6 @@ public class PlayerInputHandler(
             newPosition.x, newPosition.y, newPosition.z,
             ch.Velocity.x, ch.Velocity.z,
             packet.YawDeg,
-            connection.CryptoSession.Encrypt));
+            connection.CryptoSession.Encryptor));
     }
 }

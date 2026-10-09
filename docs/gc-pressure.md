@@ -17,7 +17,7 @@ Each entry tracks its current status so they can be resolved one at a time.
 
 ## GC-001 — Outbound packet serialization: `MemoryStream` + `ToArray()` + encrypt copy
 
-**Status:** Resolved — `PacketSerializationHelper` + `PooledArrayBufferWriter` + `EncryptFunc(ReadOnlySpan<byte>)`; 1 alloc per packet (was 3)  
+**Status:** Resolved — `PacketSerializationHelper` + `PooledArrayBufferWriter` + `EncryptFunc(ReadOnlySpan<byte>)`; 1 alloc per packet (was 3). Every send passes the session's `Encryptor`, a delegate created once with the session, rather than the `Encrypt` method group, a new delegate per packet whenever the JIT did not keep it on the stack (#854).  
 **Severity:** Critical  
 **Files:** Every `SXxx.Create()` static factory across `src/Shared/Avalon.Network.Packets/**/*.cs`
 
@@ -222,9 +222,9 @@ slice of the rented stream buffer instead of calling `Serializer.Deserialize<Net
 `NetworkPacket` is now outbound-only. The last two allocations inside `AvalonCryptoSession.Decrypt`, a
 nonce `byte[]` and a ciphertext `byte[]` that BouncyCastle needed, went in #850: the session opens with
 the platform `AesGcm` straight from the frame's span into the rented buffer, and allocates nothing.
-Residual per encrypted inbound packet: the deserialized `Packet`, and a 64 B `DecryptFunc` delegate,
-because `Connection` passes `CryptoSession.Decrypt` as a method group to `IPacketReader.Read` on every
-packet (it escapes into the call, so the Release JIT cannot keep it on the stack).  
+The 64 B `DecryptFunc` delegate `Connection` made per packet, by passing `CryptoSession.Decrypt` as a
+method group to `IPacketReader.Read`, went in #854: the connection creates its decrypt delegate once, with
+its session. Residual per encrypted inbound packet: the deserialized `Packet`, and nothing else.  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.Hosting/Networking/PacketReader.cs:71`
 

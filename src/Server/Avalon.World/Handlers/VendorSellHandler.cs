@@ -44,6 +44,6 @@ public class VendorSellHandler(ILogger<VendorSellHandler> logger, IWorld world, 
             result = VendorResult.NotFound;
         }
 
-        connection.Send(SVendorResultPacket.Create(packet.RequestId, result, connection.CryptoSession.Encrypt));
+        connection.Send(SVendorResultPacket.Create(packet.RequestId, result, connection.CryptoSession.Encryptor));
     }
 }

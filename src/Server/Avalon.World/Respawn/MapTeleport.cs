@@ -99,7 +99,7 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
 
             if (PartyRefusal(character, target, partyId, capacity) is { } refusal)
             {
-                connection.Send(SMapTransitionPacket.CreateFailure(refusal, connection.CryptoSession.Encrypt));
+                connection.Send(SMapTransitionPacket.CreateFailure(refusal, connection.CryptoSession.Encryptor));
                 return;
             }
 
@@ -109,7 +109,7 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
                 logger.LogWarning("Teleport of {Name} to map {Map} refused: no walkable ground near {Position}",
                     character.Name, template.Id.Value, wanted);
                 connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.NoWalkableGround,
-                    connection.CryptoSession.Encrypt));
+                    connection.CryptoSession.Encryptor));
                 return;
             }
 

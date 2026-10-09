@@ -111,6 +111,6 @@ public sealed class PvpToggle(IOptions<GameConfiguration> configuration, TimePro
     {
         PvpStatus status = StatusOf(character);
         character.PvpOffAtTold = character.PvpOffAt;
-        connection.Send(SPvpStatePacket.Create(status.Enabled, status.OffInMs, connection.CryptoSession.Encrypt));
+        connection.Send(SPvpStatePacket.Create(status.Enabled, status.OffInMs, connection.CryptoSession.Encryptor));
     }
 }

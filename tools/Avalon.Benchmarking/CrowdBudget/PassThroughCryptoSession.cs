@@ -8,10 +8,13 @@ namespace Avalon.Benchmarking.CrowdBudget;
 /// </summary>
 internal sealed class PassThroughCryptoSession : IAvalonCryptoSession
 {
+    public PassThroughCryptoSession() => Encryptor = Encrypt;
+
     public void Initialize(byte[] otherEndPublicKeyBytes) { }
     public byte[] GetPublicKey() => Array.Empty<byte>();
     public byte[] GetOtherEndPublicKey() => Array.Empty<byte>();
     public byte[] Encrypt(ReadOnlySpan<byte> data) => data.ToArray();
+    public EncryptFunc Encryptor { get; }
     public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
     {
         data.CopyTo(output);

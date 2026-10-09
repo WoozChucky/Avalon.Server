@@ -57,6 +57,6 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
             });
         }
 
-        ctx.Connection.Send(SWorldListPacket.Create(worldsInfo.ToArray(), ctx.Connection.CryptoSession.Encrypt));
+        ctx.Connection.Send(SWorldListPacket.Create(worldsInfo.ToArray(), ctx.Connection.CryptoSession.Encryptor));
     }
 }

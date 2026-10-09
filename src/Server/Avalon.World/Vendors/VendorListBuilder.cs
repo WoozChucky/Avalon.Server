@@ -72,7 +72,7 @@ public static class VendorListBuilder
         StaticData data, IQuestProgress quests)
     {
         SVendorListPacket list = Build(vendor, stock, character, data, quests);
-        connection.Send(SVendorListPacket.Create(list.VendorGuid, list.Entries, list.Buyback, connection.CryptoSession.Encrypt));
+        connection.Send(SVendorListPacket.Create(list.VendorGuid, list.Entries, list.Buyback, connection.CryptoSession.Encryptor));
         character.VendorListOwed = false;
         character.VendorListQuestVersion = character.Quests.HeldVersion;
     }

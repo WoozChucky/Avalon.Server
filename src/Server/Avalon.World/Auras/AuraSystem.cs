@@ -498,7 +498,7 @@ public sealed class AuraSystem
     internal void Tell(IUnit target, string line)
     {
         if (_connectionOf(target.Guid) is { } connection)
-            connection.Send(SChatMessagePacket.System(line, _time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encrypt));
+            connection.Send(SChatMessagePacket.System(line, _time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encryptor));
     }
 
     /// <summary>The caster, only while it is alive in this instance: an aura outlives its caster, but its credit does not.</summary>

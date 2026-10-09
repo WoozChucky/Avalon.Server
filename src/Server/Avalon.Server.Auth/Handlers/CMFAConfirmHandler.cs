@@ -38,6 +38,6 @@ public class CMFAConfirmHandler : IAuthPacketHandler<CMFAConfirmPacket>
         ctx.Connection.Send(SMFAConfirmPacket.Create(
             result.RecoveryCodes ?? [],
             result.Status,
-            ctx.Connection.CryptoSession.Encrypt));
+            ctx.Connection.CryptoSession.Encryptor));
     }
 }

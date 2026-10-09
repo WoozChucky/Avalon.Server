@@ -178,7 +178,7 @@ public class DialogueChooseHandler(
 
                 entity.OpenBankNpc = npc.Guid;
                 connection.Send(SInventoryUpdatePacket.Create(
-                    BankAccess.Snapshot(entity), null, connection.CryptoSession.Encrypt));
+                    BankAccess.Snapshot(entity), null, connection.CryptoSession.Encryptor));
                 break;
 
             case DialogueOptionAction.OpenShop:

@@ -1,6 +1,6 @@
+using Avalon.Common.Cryptography;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
-using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using BenchmarkDotNet.Attributes;
 using ProtoBuf;

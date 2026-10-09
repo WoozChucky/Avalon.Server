@@ -136,7 +136,7 @@ public sealed class QuestService(
         connection.Send(SQuestOfferPacket.Create(questId, npc.Guid.RawValue,
             turnIn ? QuestOfferMode.TurnIn : QuestOfferMode.Offer,
             QuestDisplay.Build(quest, text, text.ContextFor(character, connection.Locale), completionText: turnIn),
-            connection.CryptoSession.Encrypt));
+            connection.CryptoSession.Encryptor));
         return true;
     }
 
@@ -942,7 +942,7 @@ public sealed class QuestService(
         {
             DateTime now = time.GetUtcNow().UtcDateTime;
             foreach (string line in log.PendingLines)
-                connection.Send(SChatMessagePacket.System(line, now, connection.CryptoSession.Encrypt));
+                connection.Send(SChatMessagePacket.System(line, now, connection.CryptoSession.Encryptor));
         }
 
         log.ClearClientChanges();
@@ -981,7 +981,7 @@ public sealed class QuestService(
             }
         }
 
-        return SQuestLogPacket.Create(entries, character.Quests.Completed.Order().ToList(), connection.CryptoSession.Encrypt);
+        return SQuestLogPacket.Create(entries, character.Quests.Completed.Order().ToList(), connection.CryptoSession.Encryptor);
     }
 
     private NetworkPacket? UpdatePacket(IWorldConnection connection, CharacterEntity character, uint questId, QuestClientChange change)
@@ -1012,7 +1012,7 @@ public sealed class QuestService(
                 break;
         }
 
-        return SQuestUpdatePacket.Create(update, connection.CryptoSession.Encrypt);
+        return SQuestUpdatePacket.Create(update, connection.CryptoSession.Encryptor);
     }
 
     /// <summary>Logged at Error at most once per quest per <see cref="ThrottledErrorLog.Interval" />, counting the throws left out.</summary>
@@ -1073,7 +1073,7 @@ public sealed class QuestService(
         log.MarkersSent = markers;
         connection.Send(SQuestMarkersPacket.Create(
             markers.Select(m => new QuestMarkerDto { CreatureGuid = m.Creature, Marker = (QuestMarker)m.Marker }).ToList(),
-            connection.CryptoSession.Encrypt));
+            connection.CryptoSession.Encryptor));
     }
 
     /// <summary>A ready turn-in outranks an available quest; a quest refused only by a full log still shows as available.</summary>

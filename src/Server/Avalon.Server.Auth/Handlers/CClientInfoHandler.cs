@@ -32,7 +32,7 @@ public class CClientInfoHandler : IAuthPacketHandler<CClientInfoPacket>
 
         byte[] data = ctx.Connection.GenerateHandshakeData();
 
-        NetworkPacket result = SHandshakePacket.Create(data, ctx.Connection.CryptoSession.Encrypt);
+        NetworkPacket result = SHandshakePacket.Create(data, ctx.Connection.CryptoSession.Encryptor);
 
         ctx.Connection.Send(result);
 

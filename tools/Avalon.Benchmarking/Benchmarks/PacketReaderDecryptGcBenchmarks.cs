@@ -1,3 +1,4 @@
+using Avalon.Common.Cryptography;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
@@ -25,6 +26,12 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// Both paths deserialize the same <c>CChatMessagePacket</c> payload (a realistic
 /// non-empty encrypted packet, unlike an empty packet whose 0-byte ToArray() allocates nothing).
 /// </para>
+///
+/// <para>
+/// <c>Session_MethodGroupPerPacket</c> and <c>Session_CachedDelegate</c> open a really sealed packet with a real
+/// <c>AvalonCryptoSession</c>, the way <c>Connection</c>'s read loop does: before #854 it passed the method group
+/// <c>CryptoSession.Decrypt</c> on every packet, a new delegate each time; since, a delegate it created once.
+/// </para>
 /// </summary>
 [MemoryDiagnoser]
 public class PacketReaderDecryptGcBenchmarks
@@ -32,6 +39,11 @@ public class PacketReaderDecryptGcBenchmarks
     private PacketReader _reader = null!;
     private byte[] _originalPayload = null!;
     private NetworkPacketHeader _header;
+    // Behind the interface, as Connection holds it.
+    private IPacketReader _connectionReader = null!;
+    private byte[] _sealedPayload = null!;
+    private IAvalonCryptoSession _server = null!;
+    private DecryptFunc _cachedDecrypt = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -46,6 +58,19 @@ public class PacketReaderDecryptGcBenchmarks
         _originalPayload = ms.ToArray();
 
         _header = new NetworkPacketHeader { Type = CChatMessagePacket.PacketType };
+
+        // Both ends of one exchange: the client seals, the server opens, as on a live connection.
+        var clientKeys = new CryptoManager();
+        var serverKeys = new CryptoManager();
+        var client = new AvalonCryptoSession(CryptoRole.Client, clientKeys.GetKeyPair());
+        var server = new AvalonCryptoSession(CryptoRole.Server, serverKeys.GetKeyPair());
+        client.Initialize(serverKeys.GetPublicKey());
+        server.Initialize(clientKeys.GetPublicKey());
+
+        _sealedPayload = client.Encrypt(_originalPayload);
+        _server = server;
+        _connectionReader = _reader;
+        _cachedDecrypt = server.Decrypt;
     }
 
     // -----------------------------------------------------------------------
@@ -83,5 +108,23 @@ public class PacketReaderDecryptGcBenchmarks
     {
         var frame = new InboundPacketFrame(_header, _originalPayload.AsMemory());
         return _reader.Read(frame, s_passthrough);
+    }
+
+    // -----------------------------------------------------------------------
+    // The real session, and the delegate handed to Read (#854)
+    // -----------------------------------------------------------------------
+
+    [Benchmark]
+    public object? Session_MethodGroupPerPacket()
+    {
+        var frame = new InboundPacketFrame(_header, _sealedPayload.AsMemory());
+        return _connectionReader.Read(frame, _server.Decrypt);
+    }
+
+    [Benchmark]
+    public object? Session_CachedDelegate()
+    {
+        var frame = new InboundPacketFrame(_header, _sealedPayload.AsMemory());
+        return _connectionReader.Read(frame, _cachedDecrypt);
     }
 }

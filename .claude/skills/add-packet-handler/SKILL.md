@@ -151,7 +151,7 @@ public class <HandlerName> : IAuthPacketHandler<<PacketName>>
     public async Task ExecuteAsync(AuthPacketContext<<PacketName>> ctx, CancellationToken token = default)
     {
         // implementation
-        // Send response: ctx.Connection.Send(S<ResponsePacket>.Create(..., ctx.Connection.CryptoSession.Encrypt));
+        // Send response: ctx.Connection.Send(S<ResponsePacket>.Create(..., ctx.Connection.CryptoSession.Encryptor));
     }
 }
 ```
@@ -248,7 +248,7 @@ public override void Execute(IWorldConnection connection, <PacketName> packet)
     {
         if (result == null) { connection.Close(); return; }
         // mutate game state safely here
-        connection.Send(S<ResponsePacket>.Create(result, connection.CryptoSession.Encrypt));
+        connection.Send(S<ResponsePacket>.Create(result, connection.CryptoSession.Encryptor));
     });
 }
 ```
@@ -278,12 +278,14 @@ public class <HandlerName>Should
 {
     private readonly I<Dep> _dep = Substitute.For<I<Dep>>();
     private readonly I<Auth|World>Connection _connection = Substitute.For<I<Auth|World>Connection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    // A hand-written fake, not a substitute: NSubstitute cannot stub the span-based Encrypt, and handlers seal
+    // through the session's cached Encryptor (#854). World handlers: Avalon.World.Testing.Fakes; auth handlers:
+    // the Auth tests' own FakeAvalonCryptoSession.
+    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly <HandlerName> _handler;
 
     public <HandlerName>Should()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _handler = new <HandlerName>(NullLoggerFactory.Instance, _dep);
     }

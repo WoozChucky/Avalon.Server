@@ -41,6 +41,6 @@ public class CMFAResetHandler : IAuthPacketHandler<CMFAResetPacket>
             return;
         }
 
-        ctx.Connection.Send(SMFAResetPacket.Create(result.Status, ctx.Connection.CryptoSession.Encrypt));
+        ctx.Connection.Send(SMFAResetPacket.Create(result.Status, ctx.Connection.CryptoSession.Encryptor));
     }
 }

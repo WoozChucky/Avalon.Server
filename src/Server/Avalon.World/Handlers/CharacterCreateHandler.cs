@@ -102,5 +102,5 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         });
     }
     private static void Answer(IWorldConnection connection, SCharacterCreateResult result) =>
-        connection.Send(SCharacterCreatedPacket.Create(result, connection.CryptoSession.Encrypt));
+        connection.Send(SCharacterCreatedPacket.Create(result, connection.CryptoSession.Encryptor));
 }

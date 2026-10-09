@@ -14,7 +14,7 @@ internal static class GameLoginCompletion
         if (account.Online)
         {
             connection.Send(SAuthResultPacket.Create(null, null, AuthResult.ALREADY_CONNECTED,
-                connection.CryptoSession.Encrypt));
+                connection.CryptoSession.Encryptor));
             connection.Server?.NoteOwnDisconnectPublish(account.Id);
             await cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.ToString());
 
@@ -38,7 +38,7 @@ internal static class GameLoginCompletion
         if (!await accounts.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, connection.Id, token))
         {
             logger.LogWarning("Account {AccountId} could not claim a game login", account.Id);
-            connection.Send(SAuthResultPacket.Create(null, null, guardFailure, connection.CryptoSession.Encrypt));
+            connection.Send(SAuthResultPacket.Create(null, null, guardFailure, connection.CryptoSession.Encryptor));
             return guardFailure;
         }
         return null;
@@ -60,6 +60,6 @@ internal static class GameLoginCompletion
 
         await cache.PublishAsync(CacheKeys.AuthAccountsOnlineChannel, account.Id.ToString());
         connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS,
-            connection.CryptoSession.Encrypt));
+            connection.CryptoSession.Encryptor));
     }
 }

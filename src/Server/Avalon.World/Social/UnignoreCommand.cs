@@ -30,7 +30,7 @@ public sealed class UnignoreCommand : ICommand
         }
 
         owner.Ignores.Remove(entry.Id);
-        ctx.Connection.Send(owner.Ignores.ToPacket(ctx.Connection.CryptoSession.Encrypt));
+        ctx.Connection.Send(owner.Ignores.ToPacket(ctx.Connection.CryptoSession.Encryptor));
         ctx.Reply(IgnoreLines.Removed(entry.Name));
     }
 }

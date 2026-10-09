@@ -49,7 +49,7 @@ public class CharacterDeleteHandler(
         connection.EnqueueContinuation(work, deleted =>
         {
             if (!connection.IsConnected || connection.IsClosing) return;
-            connection.Send(SCharacterDeletedPacket.Create(deleted ? SCharacterDeletedResult.Success : SCharacterDeletedResult.InternalError, connection.CryptoSession.Encrypt));
+            connection.Send(SCharacterDeletedPacket.Create(deleted ? SCharacterDeletedResult.Success : SCharacterDeletedResult.InternalError, connection.CryptoSession.Encryptor));
             if (deleted) ForgetIgnored(packet.CharacterId);
         });
 
@@ -74,7 +74,7 @@ public class CharacterDeleteHandler(
             {
                 CharacterEntity? entity = other.Character as CharacterEntity ?? other.PendingSpawn?.Character as CharacterEntity;
                 if (entity is not null && entity.Ignores.Remove(deletedId))
-                    other.Send(entity.Ignores.ToPacket(other.CryptoSession.Encrypt));
+                    other.Send(entity.Ignores.ToPacket(other.CryptoSession.Encryptor));
             }
         }
         catch (Exception e)

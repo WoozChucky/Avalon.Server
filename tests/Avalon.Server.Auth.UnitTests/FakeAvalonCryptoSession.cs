@@ -8,6 +8,8 @@ namespace Avalon.Server.Auth.UnitTests;
 /// </summary>
 internal sealed class FakeAvalonCryptoSession : IAvalonCryptoSession
 {
+    public FakeAvalonCryptoSession() => Encryptor = Encrypt;
+
     public int InitializeCallCount { get; private set; }
     public byte[]? LastInitializedKey { get; private set; }
 
@@ -20,6 +22,7 @@ internal sealed class FakeAvalonCryptoSession : IAvalonCryptoSession
     public byte[] GetPublicKey() => Array.Empty<byte>();
     public byte[] GetOtherEndPublicKey() => Array.Empty<byte>();
     public byte[] Encrypt(ReadOnlySpan<byte> data) => data.ToArray();
+    public EncryptFunc Encryptor { get; }
     public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
     {
         data.CopyTo(output);

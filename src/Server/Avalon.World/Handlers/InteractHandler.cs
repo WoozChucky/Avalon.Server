@@ -131,7 +131,7 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world, Ques
             node.Id.Value,
             text.Get(node.TextId, context),
             options,
-            connection.CryptoSession.Encrypt));
+            connection.CryptoSession.Encryptor));
     }
 
     /// <summary>

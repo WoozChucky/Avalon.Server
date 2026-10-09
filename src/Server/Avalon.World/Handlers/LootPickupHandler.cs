@@ -40,7 +40,7 @@ public class LootPickupHandler(
             character, host?.Drops, lootGuid, world.Configuration.LootPickupRange,
             time.GetUtcNow().UtcDateTime, economy, logger, quests);
 
-        connection.Send(SLootPickupResultPacket.Create(packet.LootGuid, outcome.Result, connection.CryptoSession.Encrypt));
+        connection.Send(SLootPickupResultPacket.Create(packet.LootGuid, outcome.Result, connection.CryptoSession.Encryptor));
 
         if (outcome.Removed)
         {

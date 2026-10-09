@@ -21,7 +21,7 @@ public class CHandshakeHandler : IAuthPacketHandler<CHandshakePacket>
             return Task.CompletedTask;
         }
 
-        NetworkPacket result = SHandshakeResultPacket.Create(true, ctx.Connection.CryptoSession.Encrypt);
+        NetworkPacket result = SHandshakeResultPacket.Create(true, ctx.Connection.CryptoSession.Encryptor);
 
         ctx.Connection.Send(result);
 

@@ -73,7 +73,7 @@ public class CharacterListHandler(
             characterInfo.Length,
             world.Configuration.MaxCharactersPerAccount,
             characterInfo,
-            connection.CryptoSession.Encrypt
+            connection.CryptoSession.Encryptor
         );
 
         connection.Send(result);

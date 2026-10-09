@@ -254,7 +254,7 @@ public sealed class WorldMaintenanceCoordinator(
             {
                 try
                 {
-                    connection.Send(SChatMessagePacket.System(message, nowUtc, connection.CryptoSession.Encrypt));
+                    connection.Send(SChatMessagePacket.System(message, nowUtc, connection.CryptoSession.Encryptor));
                 }
                 catch (Exception e)
                 {

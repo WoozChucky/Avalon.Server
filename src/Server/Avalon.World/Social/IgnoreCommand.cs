@@ -127,7 +127,7 @@ public sealed class IgnoreCommand(
         owner.Ignores.Add(id, name, time.GetUtcNow().UtcDateTime);
         // Owner decision: an invite from that character already pending ends silently, as one sent now would.
         parties.HideInviteFrom(owner.Guid.Id, id);
-        ctx.Connection.Send(owner.Ignores.ToPacket(ctx.Connection.CryptoSession.Encrypt));
+        ctx.Connection.Send(owner.Ignores.ToPacket(ctx.Connection.CryptoSession.Encryptor));
         ctx.Reply(IgnoreLines.Added(name));
     }
 }

@@ -139,7 +139,7 @@ public sealed class ThreatBroadcastService
             };
         }
 
-        conn.Send(SThreatListPacket.Create(targetGuid, entries, conn.CryptoSession.Encrypt));
+        conn.Send(SThreatListPacket.Create(targetGuid, entries, conn.CryptoSession.Encryptor));
         _state[conn] = new BroadcastState(creature, now, topPercent);
     }
 

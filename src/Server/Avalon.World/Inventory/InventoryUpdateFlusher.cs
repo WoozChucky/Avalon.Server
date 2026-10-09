@@ -46,6 +46,6 @@ public static class InventoryUpdateFlusher
         if (slots.Length == 0 && money is null)
             return;
 
-        connection.Send(SInventoryUpdatePacket.Create(slots, money, connection.CryptoSession.Encrypt));
+        connection.Send(SInventoryUpdatePacket.Create(slots, money, connection.CryptoSession.Encryptor));
     }
 }

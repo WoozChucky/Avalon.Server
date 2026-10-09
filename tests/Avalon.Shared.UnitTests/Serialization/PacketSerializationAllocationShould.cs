@@ -1,3 +1,4 @@
+using Avalon.Common.Cryptography;
 using Avalon.Common;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;

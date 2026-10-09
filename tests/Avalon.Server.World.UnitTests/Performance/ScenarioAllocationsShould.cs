@@ -17,13 +17,11 @@ public sealed class ScenarioAllocations;
 /// (<c>perf/scenario-allocations.json</c>) by <see cref="AllocationBaseline.Compare" />.
 /// </summary>
 /// <remarks>
-/// The gate decides in Release, which CI builds; the committed figures are CI's run, on a GitHub-hosted runner. There
-/// the per-send <c>Encrypt</c> delegate (64 B per walking player per tick) is still on the heap, because the warm-up
-/// ends before the optimised JIT tier applies; on faster machines in Release it is kept on the stack, and they read
-/// lower and print the improvement notice (do not lower the baseline from those). That difference is wider than the
-/// 5% band, and a Debug build always has the delegate on the heap (it matches CI), so a Debug build reports the
-/// comparison instead of failing on it. Every scenario still runs in Debug, so a scenario that stopped doing its work
-/// still fails its own check.
+/// The gate decides in Release, which CI builds; a Debug build reports the comparison instead of failing on it. Every
+/// scenario still runs in Debug, so a scenario that stopped doing its work still fails its own check. Since #854 the
+/// sends no longer create a delegate per packet, whose place (stack or heap) depended on how far the JIT had got by the
+/// end of the warm-up. A Debug build and a developer machine in Release now read the same figures within run-to-run
+/// noise; CI's runner is expected to as well, to be confirmed by its first run after #854.
 /// </remarks>
 [Collection(nameof(ScenarioAllocations))]
 public sealed class ScenarioAllocationsShould(ITestOutputHelper output)

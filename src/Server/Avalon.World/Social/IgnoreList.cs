@@ -1,7 +1,7 @@
+using Avalon.Common.Cryptography;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Persistence;
 using Avalon.World.Threading;
