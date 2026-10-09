@@ -29,6 +29,9 @@ dotnet run --project tools/Avalon.LocalDev -- login # a game ticket for the clie
 # Benchmarks (game-server performance work needs numbers from here)
 dotnet run -c Release --project tools/Avalon.Benchmarking
 
+# The scenario allocation gate (ScenarioAllocationsShould) decides in Release, CI's configuration
+dotnet test tests/Avalon.Server.World.UnitTests -c Release --filter "FullyQualifiedName~ScenarioAllocationsShould"
+
 # Wire schema, after ANY packet contract change (WireSchemaShould fails otherwise)
 dotnet run --project tools/Avalon.Exporter -- proto
 dotnet run --project tools/Avalon.Exporter -- opcodes
@@ -146,7 +149,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 - xUnit with NSubstitute; files are `<Subject>Should.cs`, methods `Should_<verb>_<condition>` or a descriptive sentence.
 - No real Redis or Postgres in unit tests: external dependencies are substituted (database tests use SQLite in memory).
 - Auth handler tests build handlers directly (`new CAuthHandler(...)` with `NullLoggerFactory` and substitutes).
-- Guard tests protect invariants that are easy to break silently: `ModelDriftShould`, `SeedIntegrityShould`, `WireSchemaShould`, the `*ConstructibilityShould` script tests, `WorldHostGraphShould`, `CommandsNeverBlockTheTickShould`, `ApiContractShould`, `CombatAssemblyShould`, `BalanceCoreAssemblyShould`, `SimulatorParityShould`, and the API split's (`RouteOwnershipShould`, `EveryRouteReachableShould`, `ApiHostGraphShould`, `ApiServiceBoundariesShould`, `CrossServiceAuthenticationShould`). Never delete one to make a change pass.
+- Guard tests protect invariants that are easy to break silently: `ModelDriftShould`, `SeedIntegrityShould`, `WireSchemaShould`, the `*ConstructibilityShould` script tests, `WorldHostGraphShould`, `CommandsNeverBlockTheTickShould`, `ApiContractShould`, `CombatAssemblyShould`, `BalanceCoreAssemblyShould`, `SimulatorParityShould`, `ScenarioAllocationsShould` (decides in Release), and the API split's (`RouteOwnershipShould`, `EveryRouteReachableShould`, `ApiHostGraphShould`, `ApiServiceBoundariesShould`, `CrossServiceAuthenticationShould`). Never delete one to make a change pass.
 
 ## Open work
 

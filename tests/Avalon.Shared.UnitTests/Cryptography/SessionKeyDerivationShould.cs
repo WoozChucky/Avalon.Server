@@ -217,8 +217,8 @@ public class SessionKeyDerivationShould
         byte[] plaintext = "which key sealed this"u8.ToArray();
 
         // Sealed by a bare AesGcm under the key the derivation names, outside the session, so this
-        // checks the key the session picked. The recorded vectors (sealed by BouncyCastle when they
-        // were generated) are what hold the cipher itself to a second implementation.
+        // checks the key the session picked. The recorded vectors (those recorded before #850, sealed
+        // by BouncyCastle) are what hold the cipher itself to a second implementation.
         Assert.Equal(PlatformSeal(clientToServer, SessionKeys.Nonce(0), plaintext), client.Encrypt(plaintext));
         Assert.Equal(PlatformSeal(serverToClient, SessionKeys.Nonce(0), plaintext), server.Encrypt(plaintext));
     }

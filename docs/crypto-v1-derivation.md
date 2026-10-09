@@ -126,7 +126,7 @@ caller's buffer and allocates nothing. A packet shorter than a nonce and a tag, 
 authenticate, is refused as a `CryptographicException` (the platform throws the derived
 `AuthenticationTagMismatchException` and clears what it had written). The key agreement and the
 derivation stay on BouncyCastle, which is also what sealed the vectors in the file, so the vectors
-hold the platform cipher to a second implementation.
+(those recorded before #850) hold the platform cipher to a second implementation.
 
 The two instances live as long as the session, which lives as long as its connection, and are not
 disposed: the tick thread may still seal for a connection that has just closed, and a disposed

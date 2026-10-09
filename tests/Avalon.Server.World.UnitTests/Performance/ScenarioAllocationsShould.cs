@@ -39,26 +39,28 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
 
         ScenarioReport report = ScenarioMeasurement.Run(Scenarios.Get(name), TimeSpan.FromSeconds(5), measureTicks: 0);
 
-#if DEBUG
-        double change = (report.BytesPerWindow - entry!.BytesPerWindow) * 100.0 / entry.BytesPerWindow;
+        AllocationBaseline.Verdict verdict = AllocationBaseline.Compare(report.BytesPerWindow, entry!.BytesPerWindow);
+        double change = (report.BytesPerWindow - entry.BytesPerWindow) * 100.0 / entry.BytesPerWindow;
         output.WriteLine($"{name}: {report.BytesPerWindow:N0} B per {ScenarioMeasurement.WindowTicks}-tick window, " +
-                         $"committed {entry.BytesPerWindow:N0} B ({change:+0.00;-0.00;0.00}%), " +
-                         $"{AllocationBaseline.Compare(report.BytesPerWindow, entry.BytesPerWindow)}. " +
-                         "Debug build: reported only; the allocation gate decides in Release, which CI builds.");
-#else
-        switch (AllocationBaseline.Compare(report.BytesPerWindow, entry!.BytesPerWindow))
+                         $"committed {entry.BytesPerWindow:N0} B ({change:+0.00;-0.00;0.00}%), {verdict}.");
+#if DEBUG
+        output.WriteLine("Debug build: reported only; the allocation gate decides in Release, which CI builds.");
+#endif
+
+        switch (verdict)
         {
+#if !DEBUG
             case AllocationBaseline.Verdict.Regressed:
                 Assert.Fail($"{name} allocates {report.BytesPerWindow:N0} B per {ScenarioMeasurement.WindowTicks}-tick window, " +
                             $"committed {entry.BytesPerWindow:N0} B (more than 5% and 256 B over). " +
                             $"If the increase is intended, regenerate the baseline and commit it: {Regenerate}");
                 break;
+#endif
             case AllocationBaseline.Verdict.Improved:
                 output.WriteLine($"{name} improved: {report.BytesPerWindow:N0} B per window, committed {entry.BytesPerWindow:N0} B. " +
                                  $"Lower the committed baseline: {Regenerate}");
                 break;
         }
-#endif
     }
 
     private static string RepositoryFile(string relativePath) => Path.Combine(TownNavmesh.RepositoryRoot, relativePath);
