@@ -224,20 +224,29 @@ public sealed partial class LoadTestAccountService
     }
 
     /// <summary>
-    /// The auth rows, in one transaction; returns the accounts deleted and those kept. The swept accounts' rows are locked first, so a
-    /// delete running beside this one waits for it, and the rows this one deletes are exactly those it returns. The
-    /// selection is then made again and only accounts still selected are deleted, so one that gained anything of a
-    /// person's since is kept, and one another delete removed meanwhile is neither counted nor disconnected here. One
-    /// that entered a game since stops it with a 409: the run's characters are gone by then, its accounts are not.
+    /// The auth rows, in one transaction; returns the accounts deleted and those kept. The swept accounts' rows are
+    /// locked first, in ascending id order, so a delete running beside this one waits for it, and the rows this one
+    /// deletes are exactly those it returns. The selection is then made again and only accounts still selected are
+    /// deleted, so one that gained anything of a person's since is kept, and one another delete removed meanwhile is
+    /// neither counted nor disconnected here. One that entered a game since stops it with a 409: the run's characters
+    /// are gone by then, its accounts are not.
     /// </summary>
     private static async Task<AuthDelete> DeleteAccountsAsync(AuthDbContext db, string? run, AccountId[] swept, DateTime now,
         CancellationToken ct)
     {
-        // A write that changes nothing takes the row locks, as AccountConsolidationRepository does for its roots; the
-        // rows still there after it are this delete's to keep or delete.
-        await db.Accounts.Where(a => swept.Contains(a.Id))
-            .ExecuteUpdateAsync(u => u.SetProperty(a => a.SessionEpoch, a => a.SessionEpoch), ct);
-        AccountId[] locked = await db.Accounts.Where(a => swept.Contains(a.Id)).Select(a => a.Id).ToArrayAsync(ct);
+        // A write that changes nothing takes each row's lock, as AccountConsolidationRepository does for its roots: one
+        // row at a time in ascending id order, so two deletes over the same accounts wait for each other rather than
+        // deadlock. A row the write still finds is this delete's to keep or delete; one already gone is not.
+        var locked = new List<AccountId>(swept.Length);
+        foreach (AccountId id in swept.OrderBy(id => id.Value))
+        {
+            if (await db.Accounts.Where(a => a.Id == id)
+                    .ExecuteUpdateAsync(u => u.SetProperty(a => a.SessionEpoch, a => a.SessionEpoch), ct) == 1)
+            {
+                locked.Add(id);
+            }
+        }
+
         Selection again = await SelectAsync(db, run, ct);
         var still = again.Accounts.Select(id => id.Value).ToHashSet();
         AccountId[] ids = locked.Where(id => still.Contains(id.Value)).ToArray();

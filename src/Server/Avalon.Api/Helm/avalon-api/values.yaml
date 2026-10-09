@@ -178,11 +178,12 @@ rateLimiting:
   exemptSources: []
 
 # Load-test bot accounts (Application:LoadTest), identity only: POST and DELETE
-# /admin/load-test/accounts, for admins. Disabled, both answer 404. maxAccounts caps the load-test
-# accounts that may exist at once (a whole number, at least 1).
+# /admin/load-test/accounts, for admins; disabled, an admin's request gets Not Found. maxAccounts caps
+# the load-test accounts that may exist at once (a whole number, at least 1). Each renders only when
+# set, into a release that runs identity; left empty, the API's defaults apply (off, 5000).
 loadTest:
-  enabled: false
-  maxAccounts: 5000
+  enabled:
+  maxAccounts:
 
 # The world public tooltip links read when they name none (Application:PublicWorldId): the id of the
 # live world in the auth Worlds table. Left empty, GET /public/world falls back to the first world the

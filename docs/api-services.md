@@ -312,8 +312,9 @@ go. `ci/test.sh` has a case for each mode (see [Guards](#guards)).
 Identity serves `POST` and `DELETE /admin/load-test/accounts` (`LoadTestAccountsController`,
 `LoadTestAccountService`), which create and remove runs of bot accounts for load tests. The controller is always
 mapped; while `Application:LoadTest:Enabled` is false
-([Configuration Reference](configuration-reference.md#rest-api-load-test-accounts)) both actions answer the standard
-Not Found response, whatever the request, before the body is even validated. Enabled, both need:
+([Configuration Reference](configuration-reference.md#rest-api-load-test-accounts)) an admin's request to either
+action gets the standard Not Found response, before its body is even validated (authorization still runs first: 401
+without a credential, 403 for a caller who is not an admin). Enabled, both need:
 
 - the `Admin` policy (Admin or Console);
 - an access token: a personal access token is refused with 403, as these accounts can enter PTR worlds;
@@ -349,7 +350,8 @@ the reply 200 `{ deleted, skipped }`.
   (409) while a configured world's characters database is unavailable, since that world's bot characters would be
   left behind. Stop the bots before deleting.
 - The order: in every configured world's characters database, the accounts' characters (their rows cascade) and
-  gameplay fences; then one auth transaction, which locks the accounts' rows, selects them again (keeping any that
+  gameplay fences; then one auth transaction, which locks the accounts' rows one at a time in ascending id order (so
+  two deletes over the same accounts wait for each other rather than deadlock), selects them again (keeping any that
   gained something of a person's meanwhile), and deletes the license observations and holds that point at their
   licenses, the licenses and the accounts (everything else cascades); then, once that has committed and whether or
   not the caller still waits, a world disconnect for each account deleted, and the world sweep again, best-effort,

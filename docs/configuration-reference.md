@@ -632,7 +632,7 @@ Section: `Application:LoadTest`, read by identity
 
 | Key           | Type | Default | Description |
 |---------------|------|---------|-------------|
-| `Enabled`     | bool | `false` | Turns on `POST` and `DELETE /admin/load-test/accounts`, which create and remove runs of load-test bot accounts ([API services](api-services.md#load-test-accounts)). Off, both answer the standard Not Found response, whatever the request |
+| `Enabled`     | bool | `false` | Turns on `POST` and `DELETE /admin/load-test/accounts`, which create and remove runs of load-test bot accounts ([API services](api-services.md#load-test-accounts)). Off, an admin's request to either gets the standard Not Found response (authorization still runs first) |
 | `MaxAccounts` | int  | `5000`  | The most load-test accounts that may exist at once, across every run; a create that would pass it is refused with 409. At least 1 |
 
 Bound as `IOptions<LoadTestOptions>` and validated at startup: a `MaxAccounts` below 1 stops identity, naming the
@@ -644,9 +644,9 @@ Application__LoadTest__Enabled=true
 Application__LoadTest__MaxAccounts=5000
 ```
 
-The Helm chart renders `loadTest.enabled` (default `false`) and `loadTest.maxAccounts` (default `5000`) into a
-release that runs identity, and into no other; a `maxAccounts` that is not a whole number of at least 1 refuses to
-render.
+The Helm chart renders `loadTest.enabled` and `loadTest.maxAccounts` into a release that runs identity, and into no
+other, each only when set (empty, the defaults above apply); a `maxAccounts` that is not a whole number of at least 1
+refuses to render.
 
 ---
 

@@ -345,17 +345,21 @@ spec:
             - name: {{ printf "Application__RateLimiting__ExemptSources__%d" $i }}
               value: {{ $source | toString | quote }}
             {{- end }}
-            {{- if $identity }}
+            {{- /* Identity's alone, each only when set, so the API's defaults (off, 5000) apply otherwise. */}}
             {{- $loadTest := .Values.loadTest | default dict }}
-            {{- $maxAccounts := "5000" }}
-            {{- if not (kindIs "invalid" $loadTest.maxAccounts) }}
-            {{- $maxAccounts = $loadTest.maxAccounts | toString }}
+            {{- if and $identity (not (kindIs "invalid" $loadTest.enabled)) }}
+            - name: Application__LoadTest__Enabled
+              value: {{ $loadTest.enabled | toString | quote }}
+            {{- end }}
+            {{- if and $identity (not (kindIs "invalid" $loadTest.maxAccounts)) }}
+            {{- $maxAccounts := $loadTest.maxAccounts | toString }}
+            {{- /* Helm reads a values-file number as a float, which prints a large one as 1e+06: a whole one as digits. */}}
+            {{- if and (kindIs "float64" $loadTest.maxAccounts) (eq ($loadTest.maxAccounts | int64 | float64) $loadTest.maxAccounts) }}
+            {{- $maxAccounts = $loadTest.maxAccounts | int64 | toString }}
             {{- end }}
             {{- if not (regexMatch "^[1-9][0-9]{0,8}$" $maxAccounts) }}
             {{- fail "loadTest.maxAccounts is a whole number, at least 1: how many load-test accounts may exist at once." }}
             {{- end }}
-            - name: Application__LoadTest__Enabled
-              value: {{ $loadTest.enabled | default false | toString | quote }}
             - name: Application__LoadTest__MaxAccounts
               value: {{ $maxAccounts | quote }}
             {{- end }}

@@ -152,18 +152,24 @@ for service in identity worlds commerce distribution; do
   grep -A1 "name: Application__RateLimiting__ExemptSources__1" <<<"$ex" | grep -q '"2001:db8::1"'    || { echo "exemptSources[1] missing for $service"; exit 1; }
   ! grep -q "Application__RateLimiting__ExemptSources__2" <<<"$ex"                                     || { echo "rendered an extra exempt source for $service"; exit 1; }
 done
-# Load-test accounts: identity's alone, off with a cap of 5000 unless set; nothing in a release without identity.
-grep -A1 "name: Application__LoadTest__Enabled" <<<"$out" | grep -q '"false"'                          || { echo "loadTest.enabled must default to false"; exit 1; }
-grep -A1 "name: Application__LoadTest__MaxAccounts" <<<"$out" | grep -q '"5000"'                       || { echo "loadTest.maxAccounts must default to 5000"; exit 1; }
+# Load-test accounts: identity's alone, each only when set, so the API's defaults (off, 5000) apply otherwise;
+# false is a set value, and a large cap renders as digits.
+! grep -q "Application__LoadTest__" <<<"$out"                                                          || { echo "loadTest env rendered without a value"; exit 1; }
 lt=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json 'services=["identity"]'   --set loadTest.enabled=true --set loadTest.maxAccounts=250)
 grep -A1 "name: Application__LoadTest__Enabled" <<<"$lt" | grep -q '"true"'                            || { echo "loadTest.enabled=true missing"; exit 1; }
 grep -A1 "name: Application__LoadTest__MaxAccounts" <<<"$lt" | grep -q '"250"'                         || { echo "loadTest.maxAccounts missing"; exit 1; }
+off=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set loadTest.enabled=false)
+grep -A1 "name: Application__LoadTest__Enabled" <<<"$off" | grep -q '"false"'                          || { echo "loadTest.enabled=false missing"; exit 1; }
+! grep -q "Application__LoadTest__MaxAccounts" <<<"$off"                                               || { echo "an unset loadTest.maxAccounts must not render"; exit 1; }
+big=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json 'loadTest={"maxAccounts":1000000}')
+grep -A1 "name: Application__LoadTest__MaxAccounts" <<<"$big" | grep -q '"1000000"'                    || { echo "a large loadTest.maxAccounts must render as digits"; exit 1; }
 for service in worlds commerce distribution; do
   nolt=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json "services=[\"$service\"]"     --set loadTest.enabled=true --set loadTest.maxAccounts=250)
   ! grep -q "Application__LoadTest__" <<<"$nolt"                                                       || { echo "loadTest rendered for $service, which does not serve it"; exit 1; }
 done
 must_fail "loadTest.maxAccounts=0 must fail"          --set existingSecret=x "${W1[@]}" --set loadTest.maxAccounts=0
 must_fail "a non-numeric loadTest.maxAccounts must fail" --set existingSecret=x "${W1[@]}" --set loadTest.maxAccounts=many
+must_fail "a fractional loadTest.maxAccounts must fail" --set existingSecret=x "${W1[@]}" --set loadTest.maxAccounts=2.5
 # Balance service (admin /balance proxy): the URL renders only when set; the secret is always a
 # secretKeyRef, optional, so an unset key leaves the admin endpoints answering 503.
 ! grep -q "Application__Balance__Url" <<<"$out"                                                || { echo "balance url rendered without a value"; exit 1; }
