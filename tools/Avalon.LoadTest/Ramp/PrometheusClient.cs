@@ -32,10 +32,10 @@ public sealed record ServerValues(
     double? Gen2PerMin, double? GcPauseFraction, double? SaveP95Ms, double? Instances);
 
 /// <summary>
-/// A world server process as Prometheus's <c>target_info</c> names it: its version and its pod's uid (null when the
-/// series carries none). A different pod uid is a restarted world, whatever its version.
+/// A world server process as Prometheus's <c>target_info</c> names it: its version, its pod's uid and its pod's name
+/// (null when the series carries none). A different pod uid is a restarted world, whatever its version.
 /// </summary>
-public sealed record ServerIdentity(string Version, string? PodUid);
+public sealed record ServerIdentity(string Version, string? PodUid, string? PodName);
 
 /// <summary>Prometheus could not answer a query the run needs.</summary>
 public sealed class PrometheusException(string message) : Exception(message);
@@ -123,8 +123,8 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
     }
 
     /// <summary>
-    /// The world server now: <c>target_info</c>'s <c>service_version</c> and <c>k8s_pod_uid</c>; null when Prometheus has
-    /// no version. A restarted world leaves the old process's series in the query's 5-minute lookback beside the new
+    /// The world server now: <c>target_info</c>'s <c>service_version</c>, <c>k8s_pod_uid</c> and <c>k8s_pod_name</c>;
+    /// null when Prometheus has no version. A restarted world leaves the old process's series in the query's 5-minute lookback beside the new
     /// one, so both come from the series with the newest sample; several series sharing that sample time are all named
     /// (<c>0.18.7-dev.663, 0.18.7-dev.664</c>) rather than one guessed.
     /// </summary>
@@ -144,6 +144,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         double newest = double.NegativeInfinity;
         var versions = new SortedSet<string>(StringComparer.Ordinal);
         var pods = new SortedSet<string>(StringComparer.Ordinal);
+        var podNames = new SortedSet<string>(StringComparer.Ordinal);
         foreach (JsonNode? result in results)
         {
             if (result is not JsonObject { } series || series["metric"] is not JsonObject metric ||
@@ -160,29 +161,34 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
                 newest = sampled;
                 versions.Clear();
                 pods.Clear();
+                podNames.Clear();
             }
 
             versions.Add(version);
             if (metric["k8s_pod_uid"]?.ToString() is { Length: > 0 } pod) pods.Add(pod);
+            if (metric["k8s_pod_name"]?.ToString() is { Length: > 0 } podName) podNames.Add(podName);
         }
 
         return versions.Count == 0
             ? null
-            : new ServerIdentity(string.Join(", ", versions), pods.Count == 0 ? null : string.Join(", ", pods));
+            : new ServerIdentity(string.Join(", ", versions), Joined(pods), Joined(podNames));
+
+        static string? Joined(SortedSet<string> values) => values.Count == 0 ? null : string.Join(", ", values);
     }
 
     /// <summary>
     /// How many times kube-state-metrics has seen the world server's container restart in its pod
-    /// (<c>kube_pod_container_status_restarts_total</c>), the pod named <paramref name="podUid"/> when given (a
-    /// <see cref="ServerIdentity.PodUid"/>): a pod recreated under the same name within the 5-minute lookback leaves the
-    /// old pod's series beside the new one. Null when Prometheus has none or cannot be reached.
+    /// (<c>kube_pod_container_status_restarts_total</c>): the pod whose uid is <paramref name="podUid"/> when given (a
+    /// <see cref="ServerIdentity.PodUid"/>, whatever its name), else the pod named by <c>--pod</c>, where a pod recreated
+    /// under the same name within the 5-minute lookback leaves the old pod's series beside the new one. Null when
+    /// Prometheus has none or cannot be reached.
     /// </summary>
     public async Task<int?> ContainerRestartsAsync(string? podUid, CancellationToken ct)
     {
         // Pod uids are hex and dashes, safe in a regex; several (a tie in ServerAsync) read as alternatives.
-        string uid = podUid is null ? "" : $",uid=~\"{string.Join('|', podUid.Split(", "))}\"";
+        string which = podUid is null ? $"pod=\"{pod}\"" : $"uid=~\"{string.Join('|', podUid.Split(", "))}\"";
         double? restarts = await ValueAsync(
-            $"max(kube_pod_container_status_restarts_total{{namespace=\"avalon\",pod=\"{pod}\",container=\"{Container}\"{uid}}})",
+            $"max(kube_pod_container_status_restarts_total{{namespace=\"avalon\",container=\"{Container}\",{which}}})",
             DateTimeOffset.UtcNow, ct);
         return restarts is { } value && double.IsFinite(value) ? (int)Math.Round(value) : null;
     }

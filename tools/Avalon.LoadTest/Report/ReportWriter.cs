@@ -94,9 +94,7 @@ public static class ReportWriter
         md.AppendLine(Invariant($"# Load-test ramp: world {run.WorldId}, run {run.RunId}"));
         md.AppendLine();
         md.AppendLine(Invariant($"- Date: {result.Started.ToLocalTime():yyyy-MM-dd HH:mm zzz} to {result.Ended.ToLocalTime():HH:mm zzz}"));
-        md.AppendLine(result.ServerChange is { } change
-            ? $"- World {run.WorldId} server version: {change}"
-            : $"- World {run.WorldId} server version: {result.ServerVersion ?? result.ServerVersionAtEnd ?? "unknown"}");
+        md.AppendLine($"- World {run.WorldId} server version: {ServerVersionText(result)}");
         md.AppendLine(Invariant($"- Run: {run.RunId} ({run.Bots.Count} bots) through {run.Api}"));
         md.AppendLine($"- Mix: {options.Mix}");
         md.AppendLine(Invariant(
@@ -173,9 +171,13 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Notes");
         md.AppendLine();
-        if (result.ServerChange is { } serverChange)
+        if (result.ServerChangeDetails is { } serverChange)
         {
-            md.AppendLine($"- World server {serverChange}: the world restarted during the ramp, so this run does not stand. Run again.");
+            md.AppendLine($"- The world server restarted during the ramp ({serverChange}), so this run does not stand. Run again.");
+        }
+        else if (result.RestartCheck != RestartCheck.Complete)
+        {
+            md.AppendLine($"- Restart check {RestartCheckText(result.RestartCheck)} ({result.RestartCheckReason}): a restart of the world server during the ramp may have gone unseen.");
         }
 
         StepRecord[] blips = [.. result.Steps.Where(step => step.Decision.Blip)];
@@ -231,6 +233,8 @@ public static class ReportWriter
             result.ServerVersionAtEnd,
             result.ServerPod,
             result.ServerPodAtEnd,
+            result.ContainerRestartsAtStart,
+            result.ContainerRestartsAtEnd,
             result.ContainerRestarts,
             RunId = run.RunId,
             RunBots = run.Bots.Count,
@@ -262,7 +266,11 @@ public static class ReportWriter
             Notes = new
             {
                 result.ServerVersionChanged,
+                result.ServerPodChanged,
+                result.ServerChange,
                 result.ServerRestarted,
+                RestartCheck = RestartCheckText(result.RestartCheck),
+                result.RestartCheckReason,
                 Blips = result.Steps.Where(step => step.Decision.Blip).Select(step => step.Index),
                 DropsMayBeGenerator = result.Steps.Where(step => step.Decision.DropsMayBeGenerator).Select(step => step.Index),
                 result.SignIns,
@@ -277,6 +285,28 @@ public static class ReportWriter
         };
         return JsonSerializer.Serialize(report, s_json);
     }
+
+    /// <summary>
+    /// The header's server version: the change during the ramp when one was seen; otherwise the version (marked when
+    /// read only at the end), with the restart check when it could not be made whole.
+    /// </summary>
+    private static string ServerVersionText(RampResult result)
+    {
+        if (result.ServerChange is { } change) return change;
+
+        string version = result.ServerVersion ??
+            (result.ServerVersionAtEnd is { } atEnd ? $"{atEnd} (read at the end)" : "unknown");
+        return result.RestartCheck == RestartCheck.Complete
+            ? version
+            : $"{version} (restart check: {RestartCheckText(result.RestartCheck)}, {result.RestartCheckReason})";
+    }
+
+    private static string RestartCheckText(RestartCheck check) => check switch
+    {
+        RestartCheck.Complete => "complete",
+        RestartCheck.Partial => "partial",
+        _ => "unknown",
+    };
 
     /// <summary>The bot PC's CPU model, or <c>unknown</c>.</summary>
     private static string CpuModel()
