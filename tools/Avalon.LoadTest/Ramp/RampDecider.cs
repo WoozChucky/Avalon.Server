@@ -17,18 +17,20 @@ public sealed record Breach(LimitName Name, double Value, double Threshold);
 /// </summary>
 /// <param name="Capacity">
 /// Set when the ramp stops: the last passing bot count (0 when no step passed); the count reached for
-/// <see cref="RampOutcome.NoLimitReached"/>; a lower bound for <see cref="RampOutcome.GeneratorSaturated"/>.
+/// <see cref="RampOutcome.NoLimitReached"/>; a lower bound for <see cref="RampOutcome.GeneratorSaturated"/>, and for
+/// <see cref="RampOutcome.Unknown"/> (null when no step passed).
 /// </param>
 /// <param name="Breaches">The limits this step breached; on a stop for a breach, the confirmed ones ("failed first").</param>
-/// <param name="Blip">This step passed the re-hold of a breached step.</param>
+/// <param name="Blip">This step passed the re-hold of a breached step (not of an unknown one).</param>
 /// <param name="DropsMayBeGenerator">Drops breached while the bot PC was busy, so the bots may be reading slowly.</param>
 public sealed record Decision(
     RampAction Action, RampOutcome Outcome, int? Capacity, IReadOnlyList<Breach> Breaches, bool Blip, bool DropsMayBeGenerator);
 
 /// <summary>
-/// The ramp's decision rule. A step that breaches a limit, or cannot be judged, is held once more at the same count; a
-/// second breach stops the ramp with the last passing count as its capacity (a lower bound if the bot PC was the limit),
-/// a second unknown verdict stops it as unknown, and a passing re-hold is a blip the ramp continues past.
+/// The ramp's decision rule. A step that breaches a limit, or cannot be judged, is held once more at the same count. A
+/// breach right after a breach stops the ramp with the last passing count as its capacity (a lower bound if the bot PC
+/// was the limit), an unknown verdict right after an unknown one stops it as unknown, and a different verdict re-holds
+/// again. A passing re-hold of a breach is a blip the ramp continues past.
 /// </summary>
 /// <remarks>Stateful: one decider per ramp, asked once per step, in order.</remarks>
 public sealed class RampDecider(IReadOnlyList<Limit> limits, int maxBots)
@@ -37,7 +39,13 @@ public sealed class RampDecider(IReadOnlyList<Limit> limits, int maxBots)
     private const double GeneratorBusyCpu = 0.60;
 
     private int? _lastPass;
-    private bool _reholding;
+
+    /// <summary>
+    /// The verdict the step being re-held got (<see cref="StepVerdict.Breach"/> or <see cref="StepVerdict.Unknown"/>), or
+    /// null when no re-hold is pending. Only the same verdict twice in a row stops the ramp: a breach needs a second breach
+    /// to be confirmed, an unknown step a second unknown one.
+    /// </summary>
+    private StepVerdict? _pending;
 
     /// <summary>Judges <paramref name="sample"/> and decides the ramp's next move.</summary>
     public Decision Decide(StepSample sample)
@@ -49,7 +57,15 @@ public sealed class RampDecider(IReadOnlyList<Limit> limits, int maxBots)
             double? value = sample.Values.TryGetValue(limit.Name, out double? v) ? v : null;
             if (value is null)
             {
+                // A missing drops series is no drops (its query maps empty to 0); any other missing series is unknown.
                 missing |= limit.Name != LimitName.Drops;
+                continue;
+            }
+
+            // NaN or infinity fails both comparisons and would read as a pass: the step cannot be judged on it.
+            if (!double.IsFinite(value.Value))
+            {
+                missing = true;
                 continue;
             }
 
@@ -64,23 +80,24 @@ public sealed class RampDecider(IReadOnlyList<Limit> limits, int maxBots)
 
         if (verdict == StepVerdict.Pass)
         {
-            bool blip = _reholding;
-            _reholding = false;
+            bool blip = _pending == StepVerdict.Breach;
+            _pending = null;
             _lastPass = sample.Bots;
             return sample.Bots >= maxBots
                 ? new Decision(RampAction.Stop, RampOutcome.NoLimitReached, sample.Bots, breaches, blip, dropsMayBeGenerator)
                 : new Decision(RampAction.NextStep, RampOutcome.Running, null, breaches, blip, dropsMayBeGenerator);
         }
 
-        if (!_reholding)
+        if (_pending != verdict)
         {
-            _reholding = true;
+            _pending = verdict;
             return new Decision(RampAction.Rehold, RampOutcome.Running, null, breaches, false, dropsMayBeGenerator);
         }
 
-        RampOutcome outcome = verdict == StepVerdict.Unknown ? RampOutcome.Unknown
-            : breaches.Exists(b => Limits.IsGenerator(b.Name)) ? RampOutcome.GeneratorSaturated
-            : RampOutcome.Capacity;
+        if (verdict == StepVerdict.Unknown)
+            return new Decision(RampAction.Stop, RampOutcome.Unknown, _lastPass, breaches, false, dropsMayBeGenerator);
+
+        RampOutcome outcome = breaches.Exists(b => Limits.IsGenerator(b.Name)) ? RampOutcome.GeneratorSaturated : RampOutcome.Capacity;
         return new Decision(RampAction.Stop, outcome, _lastPass ?? 0, breaches, false, dropsMayBeGenerator);
     }
 }

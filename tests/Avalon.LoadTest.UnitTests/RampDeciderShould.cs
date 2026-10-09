@@ -47,7 +47,25 @@ public class RampDeciderShould
 
         var blind = new RampDecider(Limits.Defaults, 500);
         Assert.Equal(RampAction.Rehold, blind.Decide(Sample(50, tickP99: null)).Action);
-        Assert.Equal((RampAction.Stop, RampOutcome.Unknown), (blind.Decide(Sample(50, tickP99: null)) is var u ? (u.Action, u.Outcome) : default));
+        Assert.Equal((RampAction.Stop, RampOutcome.Unknown, (int?)null), (blind.Decide(Sample(50, tickP99: null)) is var u ? (u.Action, u.Outcome, u.Capacity) : default));
+
+        // An unknown step between them does not confirm a breach, nor does a breach confirm an unknown step.
+        var unknownThenBreach = new RampDecider(Limits.Defaults, 500);
+        unknownThenBreach.Decide(Sample(50));
+        Assert.Equal(RampAction.Rehold, unknownThenBreach.Decide(Sample(100, tickP99: null)).Action);
+        Assert.Equal(RampAction.Rehold, unknownThenBreach.Decide(Sample(100, tickP99: 30)).Action);
+        Decision c = unknownThenBreach.Decide(Sample(100, tickP99: 30));
+        Assert.Equal((RampAction.Stop, RampOutcome.Capacity, (int?)50), (c.Action, c.Outcome, c.Capacity));
+
+        var breachThenUnknown = new RampDecider(Limits.Defaults, 500);
+        breachThenUnknown.Decide(Sample(50));
+        Assert.Equal(RampAction.Rehold, breachThenUnknown.Decide(Sample(100, tickP99: 30)).Action);
+        Assert.Equal(RampAction.Rehold, breachThenUnknown.Decide(Sample(100, tickP99: double.NaN)).Action);
+        Decision p = breachThenUnknown.Decide(Sample(100));
+        Assert.Equal((RampAction.NextStep, false), (p.Action, p.Blip));
+        breachThenUnknown.Decide(Sample(150, tickP99: 30));
+        Assert.Equal(RampAction.Rehold, breachThenUnknown.Decide(Sample(150, tickP99: null)).Action);
+        Assert.Equal(RampOutcome.Unknown, breachThenUnknown.Decide(Sample(150, tickP99: null)).Outcome);
 
         var drops = new RampDecider(Limits.Defaults, 500);
         Assert.True(drops.Decide(Sample(50, drops: 3, genCpu: 0.7)).DropsMayBeGenerator);

@@ -19,6 +19,8 @@ public sealed record Limit(LimitName Name, string CliName, double Threshold, boo
 /// <summary>The ramp's limits: the defaults, and those with the command line's overrides applied.</summary>
 public static class Limits
 {
+    private const string FractionUnit = "fraction";
+
     /// <summary>The default limits, in the order the report lists them.</summary>
     public static IReadOnlyList<Limit> Defaults { get; } =
     [
@@ -26,12 +28,12 @@ public static class Limits
         new(LimitName.Tps, "tps", 58, TripsAbove: false, "ticks/s"),
         new(LimitName.AckP95, "ack-p95", 150, TripsAbove: true, "ms"),
         new(LimitName.Drops, "drops", 0, TripsAbove: true, "count"),
-        new(LimitName.Admission, "admission", 0.01, TripsAbove: true, "fraction"),
-        new(LimitName.Memory, "memory", 0.85, TripsAbove: true, "fraction"),
+        new(LimitName.Admission, "admission", 0.01, TripsAbove: true, FractionUnit),
+        new(LimitName.Memory, "memory", 0.85, TripsAbove: true, FractionUnit),
         new(LimitName.Gen2, "gen2", 1, TripsAbove: true, "per minute"),
-        new(LimitName.GcPause, "gc-pause", 0.05, TripsAbove: true, "fraction"),
+        new(LimitName.GcPause, "gc-pause", 0.05, TripsAbove: true, FractionUnit),
         new(LimitName.SaveP95, "save-p95", 1000, TripsAbove: true, "ms"),
-        new(LimitName.GenCpu, "gen-cpu", 0.80, TripsAbove: true, "fraction"),
+        new(LimitName.GenCpu, "gen-cpu", 0.80, TripsAbove: true, FractionUnit),
         new(LimitName.GenLag, "gen-lag", 5, TripsAbove: true, "ms"),
     ];
 
@@ -61,6 +63,16 @@ public static class Limits
                 || !double.IsFinite(threshold))
             {
                 throw new CommandLineException($"--limit {entry}: '{entry[(equals + 1)..]}' is not a number.");
+            }
+
+            if (threshold < 0)
+            {
+                throw new CommandLineException($"--limit {entry}: {name} cannot be negative.");
+            }
+
+            if (limits[index].Unit == FractionUnit && threshold > 1)
+            {
+                throw new CommandLineException($"--limit {entry}: {name} is a fraction, e.g. 0.85.");
             }
 
             limits[index] = limits[index] with { Threshold = threshold };
