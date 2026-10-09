@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
 using Org.BouncyCastle.Crypto;
@@ -215,7 +216,9 @@ public class SessionKeyDerivationShould
 
         byte[] plaintext = "which key sealed this"u8.ToArray();
 
-        // Sealed independently of BouncyCastle, so agreement is not two copies of one mistake.
+        // Sealed by a bare AesGcm under the key the derivation names, outside the session, so this
+        // checks the key the session picked. The recorded vectors (those recorded before #850, sealed
+        // by BouncyCastle) are what hold the cipher itself to a second implementation.
         Assert.Equal(PlatformSeal(clientToServer, SessionKeys.Nonce(0), plaintext), client.Encrypt(plaintext));
         Assert.Equal(PlatformSeal(serverToClient, SessionKeys.Nonce(0), plaintext), server.Encrypt(plaintext));
     }
@@ -308,8 +311,8 @@ public class SessionKeyDerivationShould
     /// connection its own.
     /// </para>
     /// <para>
-    /// Nothing else catches this. BouncyCastle refuses a repeated nonce per cipher instance, and
-    /// each session owns its own, so its guard is silent across two of them.
+    /// Nothing else catches this. The platform's AES-GCM has no repeated-nonce guard at all, and
+    /// one per cipher instance would be silent across two sessions anyway.
     /// </para>
     /// </remarks>
     [Fact]
@@ -341,7 +344,8 @@ public class SessionKeyDerivationShould
         peerOfSecond.Initialize(second.GetPublicKey());
 
         Assert.Equal("connection one"u8.ToArray(), Open(a, peerOfFirst));
-        Assert.ThrowsAny<Exception>(() => Open(b, peerOfFirst));
+        // As a CryptographicException, the one type a packet that does not authenticate surfaces as.
+        Assert.ThrowsAny<CryptographicException>(() => Open(b, peerOfFirst));
     }
 
     /// <summary>
@@ -430,6 +434,46 @@ public class SessionKeyDerivationShould
 
         Assert.Throws<CryptographicException>(() => client.Decrypt(new byte[11], new byte[64]));
     }
+
+    /// <summary>
+    /// Every packet in both directions goes through here, so the cost is per packet: sealing
+    /// allocates the sealed packet and nothing else, and opening allocates nothing at all.
+    /// </summary>
+    [Fact]
+    public void AllocateOnlyTheSealedPacketToSealAndNothingToOpen()
+    {
+        const int Runs = 100;
+        (IAvalonCryptoSession client, IAvalonCryptoSession server) = Sessions(NewExchange());
+
+        byte[] plaintext = new byte[256];
+        byte[] output = new byte[plaintext.Length];
+        byte[] sealedPacket = client.Encrypt(plaintext);
+
+        // Past the first calls' one-time costs (JIT, type loading, the cipher's first use).
+        for (int i = 0; i < Runs; i++)
+            server.Decrypt(client.Encrypt(plaintext), output);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        byte[] reference = NewArray(sealedPacket.Length);
+        long packetBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < Runs; i++)
+            sealedPacket = client.Encrypt(plaintext);
+        long sealing = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < Runs; i++)
+            server.Decrypt(sealedPacket, output);
+        long opening = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        GC.KeepAlive(reference);
+        Assert.Equal(Runs * packetBytes, sealing);
+        Assert.Equal(0, opening);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static byte[] NewArray(int length) => new byte[length];
 
     private static byte[] PlatformSeal(byte[] key, byte[] nonce, byte[] plaintext)
     {

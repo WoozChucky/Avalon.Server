@@ -177,23 +177,23 @@ negotiates it.
 
 ### Session Cipher — `SessionCipherBenchmarks.cs`
 
-Compares the session cipher as the packet pipeline calls it — BouncyCastle AES-GCM behind
-`AvalonCryptoSession.Encrypt` / `Decrypt` — against the platform's
-`System.Security.Cryptography.AesGcm` over the same key and the same nonce + ciphertext + tag
-layout.
+Compares the session cipher as the packet pipeline calls it — `AvalonCryptoSession.Encrypt` /
+`Decrypt` — against a bare `System.Security.Cryptography.AesGcm` over the same key and the same
+nonce + ciphertext + tag layout. Since #850 the session is itself the platform `AesGcm`, keyed once
+per direction; before it, the session was BouncyCastle AES-GCM re-keyed per call, and its arms were
+named `BouncyCastle_Encrypt` / `BouncyCastle_Decrypt`.
 
 | Scenario | What it models |
 |---|---|
-| `BouncyCastle_Encrypt` | Production `AvalonCryptoSession.Encrypt` — lock, per-call cipher `Init`, freshly allocated result |
-| `BouncyCastle_Decrypt` | Production `AvalonCryptoSession.Decrypt` — lock, per-call cipher `Init`, caller-supplied output buffer |
-| `AesGcm_Encrypt` | Platform one-shot encrypt into an equivalently allocated result buffer |
-| `AesGcm_Decrypt` | Platform one-shot decrypt into the same caller-supplied output buffer |
+| `Session_Encrypt` | Production `AvalonCryptoSession.Encrypt` — lock, counter nonce, one freshly allocated result sealed in place |
+| `Session_Decrypt` | Production `AvalonCryptoSession.Decrypt` — lock, caller-supplied output buffer |
+| `AesGcm_Encrypt` | Bare platform encrypt into an equivalently allocated result buffer (random nonce) |
+| `AesGcm_Decrypt` | Bare platform decrypt into the same caller-supplied output buffer |
 
 `PayloadSize` is parameterised at 64, 256 and 1024 bytes. The key is a real P-256 ECDH agreement
-shared by both arms, so the two differ in cipher implementation and call shape only — never in
-key material.
+shared by both arms, so the two differ in call shape only — never in key material.
 
-**Status:** Baseline recorded 2026-09-10.
+**Status:** Baseline recorded 2026-09-10; re-measured 2026-10-09 before and after #850.
 
 ---
 
@@ -877,6 +877,63 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2/2025Update/HudsonValle
   close the per-byte half, which is a property of the implementation rather than of how it is
   called.
 
+The table above is the record from before #850, when the session arm was BouncyCastle (named
+`BouncyCastle_*`). The runs below are the production figures since.
+
+### Results — #850, before and after (2026-10-09)
+
+Same machine and toolchain as above (Windows 11 build 26200.9457, i9-12900K, .NET SDK 10.0.401,
+.NET 10.0.12, BenchmarkDotNet 0.15.8, DefaultJob, Release). Both runs on this date, one on `main` at
+`c18f8cd7` and one with #850 applied; the bare `AesGcm_*` arms are unchanged between them and agree
+within run-to-run noise, which is the control.
+
+Before — the session on BouncyCastle, re-keyed per call (`main`, `c18f8cd7`):
+
+| Method | PayloadSize | Mean | Error | StdDev | Gen0 | Gen1 | Allocated |
+|---|---|---|---|---|---|---|---|
+| `BouncyCastle_Encrypt` | 64 | 447.4 ns | 8.97 ns | 24.09 ns | 0.1040 | - | 1,632 B |
+| `BouncyCastle_Decrypt` | 64 | 494.3 ns | 12.97 ns | 38.25 ns | 0.0916 | - | 1,440 B |
+| `AesGcm_Encrypt` | 64 | 297.4 ns | 5.78 ns | 8.29 ns | 0.0076 | - | 120 B |
+| `AesGcm_Decrypt` | 64 | 219.3 ns | 4.31 ns | 4.03 ns | - | - | - |
+| `BouncyCastle_Encrypt` | 256 | 614.4 ns | 12.23 ns | 35.49 ns | 0.1402 | - | 2,208 B |
+| `BouncyCastle_Decrypt` | 256 | 622.0 ns | 16.18 ns | 47.71 ns | 0.1040 | - | 1,632 B |
+| `AesGcm_Encrypt` | 256 | 331.9 ns | 6.62 ns | 11.94 ns | 0.0196 | - | 312 B |
+| `AesGcm_Decrypt` | 256 | 250.1 ns | 3.84 ns | 3.60 ns | - | - | - |
+| `BouncyCastle_Encrypt` | 1024 | 1,247.5 ns | 29.90 ns | 88.15 ns | 0.2861 | 0.0019 | 4,512 B |
+| `BouncyCastle_Decrypt` | 1024 | 1,115.2 ns | 22.17 ns | 37.04 ns | 0.1526 | 0.0010 | 2,400 B |
+| `AesGcm_Encrypt` | 1024 | 489.8 ns | 9.73 ns | 17.29 ns | 0.0687 | - | 1,080 B |
+| `AesGcm_Decrypt` | 1024 | 336.2 ns | 6.59 ns | 10.83 ns | - | - | - |
+
+After — the session on the platform `AesGcm`, keyed once per direction (#850):
+
+| Method | PayloadSize | Mean | Error | StdDev | Gen0 | Allocated |
+|---|---|---|---|---|---|---|
+| `Session_Encrypt` | 64 | 257.1 ns | 2.53 ns | 2.25 ns | 0.0076 | 120 B |
+| `Session_Decrypt` | 64 | 232.5 ns | 4.53 ns | 5.22 ns | - | - |
+| `AesGcm_Encrypt` | 64 | 295.8 ns | 5.88 ns | 11.88 ns | 0.0076 | 120 B |
+| `AesGcm_Decrypt` | 64 | 216.5 ns | 2.62 ns | 2.45 ns | - | - |
+| `Session_Encrypt` | 256 | 292.9 ns | 5.58 ns | 6.20 ns | 0.0196 | 312 B |
+| `Session_Decrypt` | 256 | 257.9 ns | 5.14 ns | 8.00 ns | - | - |
+| `AesGcm_Encrypt` | 256 | 323.3 ns | 5.93 ns | 5.26 ns | 0.0196 | 312 B |
+| `AesGcm_Decrypt` | 256 | 236.8 ns | 4.50 ns | 3.99 ns | - | - |
+| `Session_Encrypt` | 1024 | 423.9 ns | 8.44 ns | 11.83 ns | 0.0687 | 1,080 B |
+| `Session_Decrypt` | 1024 | 337.8 ns | 6.76 ns | 13.51 ns | - | - |
+| `AesGcm_Encrypt` | 1024 | 450.8 ns | 8.50 ns | 15.33 ns | 0.0687 | 1,080 B |
+| `AesGcm_Decrypt` | 1024 | 321.4 ns | 6.42 ns | 11.25 ns | - | - |
+
+- **Sealing allocates the sealed packet and nothing else; opening allocates nothing.** 120, 312 and
+  1,080 B are exactly a `byte[]` of nonce + payload + tag at 64, 256 and 1,024 bytes, down from
+  1.6–4.5 KB; decrypt goes from 1.4–2.4 KB to zero. `SessionKeyDerivationShould` pins both.
+- **1.7–2.9× faster to seal and 2.1–3.3× faster to open**, the gain growing with the payload
+  (at 256 B: 614 → 293 ns and 622 → 258 ns). The session now runs within ~20 ns of the bare
+  primitive on decrypt (the lock and the length checks). It seals slightly faster than the bare
+  arm, because the bare arm draws a random nonce while the session copies its counter.
+- **The BouncyCastle "before" ran faster than on 2026-09-10** (447 against 776 ns at 64 B) and
+  with a much wider spread (a bimodal decrypt): treat it as one noisy run, not a trend. The
+  allocation columns are deterministic and are the solid comparison.
+- **At broadcast scale** — 50 connections × 60 Hz × 256 B, 3,000 encrypts/s — sealing now costs
+  ~0.9 ms/s of CPU and ~0.9 MB/s of Gen0, against ~1.8 ms/s and ~6.6 MB/s in the before run.
+
 
 ---
 
@@ -960,10 +1017,10 @@ town found two adjacent centres whose circle stays a metre clear of every wall, 
 
 ### The send path is real
 
-Every scenario player has a real `AvalonCryptoSession` (BouncyCastle AES-GCM) and a real `TickDrivenOutbox`, which
-writes to a stream that only counts bytes. So the per-packet encryption cost, and its allocations, are in the numbers;
-issue #850 replaces that cipher, and the [session cipher results](#session-cipher--benchmark-results) above show what
-it costs per call. Three things differ from production, all on the cost side only:
+Every scenario player has a real `AvalonCryptoSession` (the platform `AesGcm` since #850) and a real
+`TickDrivenOutbox`, which writes to a stream that only counts bytes. So the per-packet encryption cost, and its
+allocations, are in the numbers; the [session cipher results](#session-cipher--benchmark-results) above show what it
+costs per call. Three things differ from production, all on the cost side only:
 
 - The counting stream stands in for production's `SslStream`, so the TLS record layer is **not** in the numbers. The
   counting stream also completes every write at once, so the outbox's flush finishes synchronously on the tick thread;
@@ -1031,18 +1088,17 @@ and compares only against a baseline taken on the same machine.
 `perf/scenario-allocations.json` is the committed baseline: per scenario its `bytesPerWindow` (and, for reading,
 `bytesPerPlayerPerTick`), with the commit and date it was generated at. `perf/local/` holds per-machine runner
 baselines and is never committed. `ScenarioAllocationsShould` runs every scenario and compares its `bytesPerWindow`
-with the committed figure:
+with the committed figure (in a Release build; a Debug build reports it, see below):
 
 - **Fail** when the current figure is more than 5% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 5% and more than 256 B under.
 - **Detection floor.** The 5% band is relative, so in the moving scenarios it is wide in absolute terms. With the
   committed figures below, the gate fails only on a rise of about **8 B per tick** in `town-idle` (the 256 B floor is
-  below 5% of its 9,600 B, so 5% decides), **166 B per player per tick** in `town-walk` (298 KB per window), and
-  **104 B per player per tick** in `many-instances` (about 207 B per instance per tick, 3.1 MB per window). A smaller
-  regression, such as one new 64 B object per walking player per tick, passes. The floors shrink as the per-packet
-  cipher cost falls (#850) and the ratchet lowers the baseline; a follow-up may tighten the tolerance once CI's Linux
-  figures are known.
+  below 5% of its 9,600 B, so 5% decides), **44 B per player per tick** in `town-walk` (79 KB per window), and
+  **23 B per player per tick** in `many-instances` (about 47 B per instance per tick, 701 KB per window). One new
+  64 B object per walking player per tick now fails it; before #850 lowered the baseline (166 and 104 B per player per
+  tick) it passed.
 - **Ratchet.** The committed file goes down only by an explicit commit. When a change makes a scenario cheaper,
   regenerate and commit the lower figure, so the gain cannot be lost again unnoticed. When an increase is intended,
   regenerating is also the fix, and the JSON diff shows the reviewer what it costs.
@@ -1053,18 +1109,80 @@ Regenerate (every scenario, in Release; the runner refuses `--write-allocations`
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json
 ```
 
-The baseline is generated in Release and CI builds Release, so CI's run of the gate is the one that decides. A local
-`dotnet test` builds Debug and reads up to about 3% higher (`many-instances` +3.08%, `town-walk` +1.91%), so locally
-the gate has less headroom: under 2% on `many-instances`. The gate runs in a non-parallel xUnit collection, so no other
+**The gate decides in Release, on CI's figures.** CI builds Release on a GitHub-hosted runner, and since #850 the
+committed figures are CI's run rather than a local one (the first baseline was a run on the developer machine). In a Debug build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so
+a scenario that stopped doing its work still fails its `Verify` check, but it does not fail on the allocation figure:
+it writes the comparison (current, committed, change in percent, verdict) to the test output and says that the gate
+decides in Release. `dotnet test -c Release` runs the real gate locally.
+
+The reason is one object whose place depends on how far the JIT has got: the delegate each send creates for
+`CryptoSession.Encrypt`, about 64 B per walking player per tick (1.92 MB per window in `many-instances`, 116 KB in
+`town-walk`). The optimised JIT tier keeps it on the stack; until that tier applies, it is on the heap. The CI runner
+(a small, shared GitHub-hosted VM, with the other test assemblies running in parallel) ends the gate's 5 s warm-up
+before the optimised tier reaches the send path, so the committed figures include the delegate. On the developer
+machine (Windows) and on the homelab node (Linux), both in Release, it is gone by then, so they read about 7% lower in
+`town-walk` and 14% lower in `many-instances` and print the improvement notice: **do not lower the baseline from
+those runs.** A Debug build never optimises, so it matches CI. Running the Release runner with
+`DOTNET_JitObjectStackAllocation=0` reproduces CI's figure (`town-walk` 1,580,400 B against CI's 1,581,064 B). A
+long-running server on real hardware runs the optimised code. Before #850 the delegate was about 3% of the walking
+figures, inside the band, which is how a developer-machine baseline passed in CI; after it, the developer-machine
+figure fails in CI by +7.9% (`town-walk`) and +15.9% (`many-instances`). #854 caches the delegates, which removes the
+dependency on JIT tiering; after it every machine should read the lower figure, and the baseline follows it down. The gate runs in a non-parallel xUnit collection, so no other
 test in the World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in
 parallel processes under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds
 about 18 s to the World suite.
 
+### Results — after the platform cipher (#850, 2026-10-09)
+
+Allocations, from `perf/scenario-allocations.json`: CI's Release run of #850 on its GitHub-hosted runner
+(2026-10-09). "Fails from" is the first figure the gate fails on; "Notice at" the highest figure that prints the
+improvement notice. "Before #850" is the committed figure before it (the first baseline below, a Release run on the
+developer machine).
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at | Before #850 | Change |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 9,600 | 160 | 5.33 | 10,081 | 9,119 | 9,600 | 0 |
+| `town-walk` | 30 | 1,581,064 | 26,351 | 878.37 | 1,660,118 | 1,502,010 | 5,964,720 | −73.5% |
+| `many-instances` | 500 | 14,018,368 | 233,639 | 467.28 | 14,719,287 | 13,317,449 | 62,226,368 | −77.5% |
+
+The committed change mixes machines. Like for like, on the developer machine below, the walking scenarios fell to
+1,464,952 B (`town-walk`, −75.4%) and 12,098,368 B (`many-instances`, −80.6%); the difference is the `Encrypt`
+delegate described above, still on the heap when CI's warm-up ends.
+
+Timing and GC, from the developer machine's Release run (2026-10-09; the same machine as the first baseline:
+i9-12900K, Windows 11 Pro, .NET 10.0.12, Server GC; 10 s warm-up, 3600 timed ticks):
+
+| Scenario | Tick ms mean | p95 | p99 | max | % > 16.7 ms | gen0 | gen1 | gen2 | GC pause ms | GC pause % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 0.033 | 0.059 | 0.076 | 0.175 | 0.00 | 0 | 0 | 0 | 0.00 | 0.00 |
+| `town-walk` | 0.182 | 0.479 | 0.858 | 2.900 | 0.00 | 7 | 0 | 0 | 2.52 | 0.38 |
+| `many-instances` | 2.099 | 3.533 | 4.456 | 11.257 | 0.00 | 234 | 0 | 0 | 58.12 | 0.77 |
+
+The homelab k3s node, the machine the capacity runs will measure (2026-10-09; Linux, AMD Ryzen 9 5900X, 12 cores / 24
+threads, .NET 10.0.12, Server GC, Release, in the `dotnet/sdk:10.0` container, 0 players online on the node's worlds
+at the time). Its allocations match the developer machine's, not CI's:
+
+| Scenario | Players / instances | bytes/window | B/player/tick | Tick ms mean | p95 | p99 | max | % > 16.7 ms | gen0 | gen1 | gen2 | GC pause ms | GC pause % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 / 1 | 9,600 | 5.33 | 0.041 | 0.042 | 0.045 | 0.054 | 0.00 | 0 | 0 | 0 | 0.00 | 0.00 |
+| `town-walk` | 30 / 1 | 1,466,160 | 814.53 | 0.212 | 0.594 | 0.654 | 1.909 | 0.00 | 7 | 0 | 0 | 4.04 | 0.53 |
+| `many-instances` | 500 / 250 | 12,094,368 | 403.15 | 1.626 | 2.562 | 2.789 | 5.312 | 0.00 | 235 | 0 | 0 | 54.15 | 0.92 |
+
+- **The cipher was three quarters of what a walking player allocated.** `town-walk` falls from 3.3 KB to 814 B per
+  player per tick and `many-instances` from 2.1 KB to 403 B on the developer machine and the homelab node (878 B and
+  467 B in CI's figures);
+  `town-idle`, which sends nothing, is unchanged. What is
+  left per walker is the state acknowledgement itself (its serialization and the sealed `byte[]`) and the input path.
+- **GC follows.** `town-walk` ran 7 gen0 collections in its timed minute against 116, and spent 0.38% of the time in
+  GC pauses against 3.09%; `many-instances` 0.77% against 1.63%, with no gen1 or gen2 collection. Its gen0 count is
+  about the same (234 against 225) at a fifth of the allocation, which was not investigated. The mean and p95
+  tick fell (`town-walk` 0.220 → 0.182 ms mean, `many-instances` 2.564 → 2.099 ms); the max is one tick per run and
+  moves between runs (`many-instances` 11.3 ms here against 7.7 ms), so it is not read as a change.
+
 ### Results — first baseline (2026-10-08)
 
-Allocations, from `perf/scenario-allocations.json` (commit `9dec695b`, Release; regenerated when the scenario tick
-gained the registry's `PublishFinished`, which moved no figure beyond run-to-run noise). "Fails from" is the first
-figure the gate fails on; "Notice at" the highest figure that prints the improvement notice.
+Allocations, from `perf/scenario-allocations.json` at the time (commit `9dec695b`, Release; regenerated when the
+scenario tick gained the registry's `PublishFinished`, which moved no figure beyond run-to-run noise), before #850.
 
 | Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at |
 |---|---:|---:|---:|---:|---:|---:|
@@ -1089,8 +1207,8 @@ warm-up, 3600 timed ticks). Its allocation figures were within 0.01% of the comm
   It is small, but it is a fixed cost of every tick, and the floor the other scenarios stand on.
 - **Walking costs kilobytes per player per tick, and most of it is encryption.** About 3.3 KB per player per tick in
   `town-walk` and 2.1 KB in `many-instances`, dominated by the per-packet BouncyCastle encrypt (1.7–4.6 KB per call in
-  the session cipher results above) of the state acknowledgement each walker is sent every tick. Issue #850 is the
-  fix; this baseline is how its gain will be measured and then locked in.
+  the session cipher results above) of the state acknowledgement each walker is sent every tick. Issue #850 was the
+  fix, measured in the results above it.
 - **The allocation rate shows up as GC.** `town-walk` allocates about 6 MB per 60-tick window on the tick thread and
   ran 116 gen0 collections in its timed minute, 3.1% of the time in GC pauses; `many-instances` allocates about 62 MB
   per window, with 225 gen0, 2 gen1 and 2 gen2 collections. No tick went over the 16.7 ms budget, but the worst ticks

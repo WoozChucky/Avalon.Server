@@ -6,16 +6,18 @@ using Org.BouncyCastle.Crypto;
 namespace Avalon.Benchmarking.Benchmarks;
 
 /// <summary>
-/// Compares the session cipher as the packet pipeline calls it — BouncyCastle AES-GCM behind
-/// <c>AvalonCryptoSession.Encrypt</c> / <c>Decrypt</c> — against the platform's
-/// <c>System.Security.Cryptography.AesGcm</c> over the same key and the same
-/// nonce + ciphertext + tag layout.
+/// Compares the session cipher as the packet pipeline calls it — <c>AvalonCryptoSession.Encrypt</c>
+/// / <c>Decrypt</c> — against a bare <c>System.Security.Cryptography.AesGcm</c> over the same key
+/// and the same nonce + ciphertext + tag layout.
 ///
 /// <para>
 /// The key comes from a real P-256 ECDH agreement, so both arms run on identical 256-bit key
-/// material. The BouncyCastle arm keeps the production call shape: a lock, a per-call cipher
-/// <c>Init</c>, and a freshly allocated result. The platform arm allocates an equivalent result
-/// buffer, so the gap between them is per-call cipher overhead rather than buffer strategy.
+/// material. Since #850 the session is itself the platform <c>AesGcm</c>, keyed once per direction;
+/// the session arm keeps the production call shape (a lock, the counter nonce, a freshly allocated
+/// result). On decrypt the gap between the arms is what the session adds around the primitive; on
+/// encrypt the bare arm also draws a random nonce per call, so it is not a pure measure. Before
+/// #850 the session arm was BouncyCastle AES-GCM re-keyed per call (<c>docs/benchmarks.md</c>
+/// keeps those figures).
 /// </para>
 /// </summary>
 [MemoryDiagnoser]
@@ -77,10 +79,10 @@ public class SessionCipherBenchmarks
     public void Cleanup() => _aesGcm.Dispose();
 
     [Benchmark]
-    public byte[] BouncyCastle_Encrypt() => _client.Encrypt(_plaintext);
+    public byte[] Session_Encrypt() => _client.Encrypt(_plaintext);
 
     [Benchmark]
-    public int BouncyCastle_Decrypt() => _server.Decrypt(_encrypted, _output);
+    public int Session_Decrypt() => _server.Decrypt(_encrypted, _output);
 
     [Benchmark]
     public byte[] AesGcm_Encrypt()

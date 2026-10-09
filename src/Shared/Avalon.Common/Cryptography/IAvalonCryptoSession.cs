@@ -58,9 +58,24 @@ public interface IAvalonCryptoSession
 /// The vectors in <c>schema/crypto/session-v1.txt</c> pin all of this, so a non-.NET client can
 /// check its derivation without running a server.
 /// </para>
+/// <para>
+/// The AEAD is the platform's <see cref="AesGcm"/>, keyed once per direction in
+/// <see cref="Initialize"/> and reused for every packet; the key agreement and the derivation stay
+/// on BouncyCastle. Hosts check <c>AesGcm.IsSupported</c> before they serve (<c>ServerBase</c>),
+/// since this assembly's netstandard2.1 target cannot.
+/// </para>
+/// <para>
+/// The two <see cref="AesGcm"/> instances live as long as the session, which lives as long as its
+/// connection, and are not disposed: a tick-thread send may still seal for a connection that has
+/// just closed, and a disposed cipher would turn that into an exception on the tick. Their native
+/// key handles are released, and the key material destroyed, by the handles' finalizers when the
+/// session is collected.
+/// </para>
 /// </remarks>
 public class AvalonCryptoSession : IAvalonCryptoSession
 {
+    // AesGcm instances are not thread-safe, and a connection seals from the tick thread while its
+    // read loop opens; one lock serialises both directions, as it did with one shared cipher.
     private readonly object _lock = new object();
 
     private volatile bool _initialized;
@@ -69,12 +84,11 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     private readonly AsymmetricCipherKeyPair _ownKeyPair;
     private ECPublicKeyParameters _otherEndPublicKey;
     private ECPublicKeyParameters _ownPublicKey;
-    private IBufferedCipher _cipher;
     private byte[] _ownPublicKeyBytes;
     private byte[] _otherEndPublicKeyBytes;
     private readonly SecureRandom _secureRandom;
-    private KeyParameter _sendKey;
-    private KeyParameter _receiveKey;
+    private AesGcm _sealer;
+    private AesGcm _opener;
     private readonly byte[] _sendNonce = new byte[SessionKeys.NonceSize];
 
     public AvalonCryptoSession(CryptoRole role, AsymmetricCipherKeyPair? keyPair = null)
@@ -110,16 +124,17 @@ public class AvalonCryptoSession : IAvalonCryptoSession
             ? SessionKeys.Derive(sharedSecret, _ownPublicKeyBytes, _otherEndPublicKeyBytes)
             : SessionKeys.Derive(sharedSecret, _otherEndPublicKeyBytes, _ownPublicKeyBytes);
 
-        _sendKey = new KeyParameter(_role == CryptoRole.Client ? clientToServer : serverToClient);
-        _receiveKey = new KeyParameter(_role == CryptoRole.Client ? serverToClient : clientToServer);
+        // Keyed once, here, rather than per packet: re-keying GCM is most of a packet's cost. The
+        // tag length is not fixed by the instance on this target; every call passes a
+        // SessionKeys.TagSize span, which is what fixes it at 16 bytes.
+        _sealer = new AesGcm(_role == CryptoRole.Client ? clientToServer : serverToClient);
+        _opener = new AesGcm(_role == CryptoRole.Client ? serverToClient : clientToServer);
 
-        // KeyParameter copies, so these three are spent. Best effort only: a moving GC may
+        // AesGcm imports the key, so these three are spent. Best effort only: a moving GC may
         // already have left copies elsewhere.
         Array.Clear(sharedSecret, 0, sharedSecret.Length);
         Array.Clear(clientToServer, 0, clientToServer.Length);
         Array.Clear(serverToClient, 0, serverToClient.Length);
-
-        _cipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
     }
 
     public byte[] GetPublicKey()
@@ -136,48 +151,53 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     {
         if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
 
+        // The one allocation: the packet itself, [nonce][ciphertext][tag], sealed in place.
+        byte[] sealedPacket = new byte[SessionKeys.NonceSize + data.Length + SessionKeys.TagSize];
+        Span<byte> nonce = sealedPacket.AsSpan(0, SessionKeys.NonceSize);
+
         lock (_lock)
         {
-            // The counter is the nonce. It is sent anyway, so a peer never has to track ours.
-            byte[] nonce = (byte[])_sendNonce.Clone();
+            // The counter is the nonce. It is sent anyway, so a peer never has to track ours. It
+            // is copied out and advanced before sealing, so no two packets can share it.
+            _sendNonce.CopyTo(nonce);
             SessionKeys.IncrementNonce(_sendNonce);
 
-            var parameters = new ParametersWithIV(_sendKey, nonce);
-            _cipher.Init(true, parameters);
-
-            // Encrypt the data
-            byte[] ciphertext = _cipher.DoFinal(data.ToArray());
-
-            _cipher.Reset();
-
-            // Combine the nonce and ciphertext
-            byte[] encryptedData = new byte[nonce.Length + ciphertext.Length];
-            Buffer.BlockCopy(nonce, 0, encryptedData, 0, nonce.Length);
-            Buffer.BlockCopy(ciphertext, 0, encryptedData, nonce.Length, ciphertext.Length);
-
-            return encryptedData;
+            _sealer.Encrypt(
+                nonce,
+                data,
+                sealedPacket.AsSpan(SessionKeys.NonceSize, data.Length),
+                sealedPacket.AsSpan(SessionKeys.NonceSize + data.Length, SessionKeys.TagSize));
         }
+
+        return sealedPacket;
     }
 
+    /// <exception cref="CryptographicException">
+    /// The packet is shorter than a nonce and a tag, or it does not authenticate under this
+    /// session's receiving key (on .NET 8 and later the platform throws the derived
+    /// <c>AuthenticationTagMismatchException</c>, and clears what it had written to
+    /// <paramref name="output"/>).
+    /// </exception>
     public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
     {
         if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
-        if (data.Length < SessionKeys.NonceSize) throw new CryptographicException("Sealed packet is shorter than its nonce");
+        if (data.Length < SessionKeys.NonceSize + SessionKeys.TagSize)
+        {
+            throw new CryptographicException("Sealed packet is shorter than its nonce and tag");
+        }
+
+        int length = data.Length - SessionKeys.NonceSize - SessionKeys.TagSize;
 
         lock (_lock)
         {
-            ReadOnlySpan<byte> nonce = data[..SessionKeys.NonceSize];
-            byte[] ciphertext = data[SessionKeys.NonceSize..].ToArray(); // BouncyCastle 2.6.2 IBufferedCipher only provides byte[] overloads on netstandard2.0 — span input requires one copy here
-
-            var parameters = new ParametersWithIV(_receiveKey, nonce.ToArray());
-            _cipher.Init(false, parameters);
-
-            int len = _cipher.ProcessBytes(ciphertext, 0, ciphertext.Length, output, 0);
-            len += _cipher.DoFinal(output, len);
-            _cipher.Reset();
-
-            return len;
+            _opener.Decrypt(
+                data.Slice(0, SessionKeys.NonceSize),
+                data.Slice(SessionKeys.NonceSize, length),
+                data.Slice(SessionKeys.NonceSize + length, SessionKeys.TagSize),
+                output.AsSpan(0, length));
         }
+
+        return length;
     }
 
     public byte[] GenerateHandshakeData()

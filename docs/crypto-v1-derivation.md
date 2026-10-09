@@ -82,7 +82,8 @@ document.
 So the server now agrees every connection on a key pair of its own (`Connection`, not
 `ServerBase`), which closes it unilaterally: the salt and the secret differ per connection
 whatever the client does. Cost is one P-256 keygen per accepted connection — **0.23 ms**, measured
-in Release, against ~2 us per sealed 256-byte packet and against a TLS handshake on the same path.
+in Release, against well under a microsecond per sealed 256-byte packet and against a TLS handshake
+on the same path.
 It is per connection, not per packet.
 
 `ServerBase.Crypto` is gone rather than left unused, because a process-wide key pair within reach
@@ -94,8 +95,9 @@ holds only while **both** ends are ephemeral — a client that reuses its key pa
 nonce problem but gives that property up, so a client should generate a fresh pair per connection
 too.
 
-BouncyCastle will not catch a lapse here. Its `cannot reuse nonce for GCM encryption` guard is per
-cipher instance and each session owns its own, so it is silent across two sessions.
+The cipher will not catch a lapse here. The platform `AesGcm` the session seals with has no
+repeated-nonce guard at all, and one per cipher instance would be silent across two sessions anyway,
+since each session owns its own.
 
 **The nonce stays on the wire.** The format is unchanged:
 
@@ -113,6 +115,28 @@ Twelve bytes per packet is the price.
 so a replayed packet decrypts. That is a deliberate omission, not an oversight: the channel is a
 reliable ordered stream today and rejecting out-of-order nonces would be a behaviour change
 larger than this one. If it is wanted, it belongs with the transport decision in finding 2.
+
+## The cipher
+
+AES-256-GCM is the platform's `System.Security.Cryptography.AesGcm` (#850): one instance per
+direction, keyed once in `AvalonCryptoSession.Initialize` from the two derived keys and reused for
+every packet under the session's one lock (an instance is not thread-safe). Sealing allocates only
+the sealed packet and writes the nonce, ciphertext and tag straight into it; opening writes into the
+caller's buffer and allocates nothing. A packet shorter than a nonce and a tag, or one that does not
+authenticate, is refused as a `CryptographicException` (the platform throws the derived
+`AuthenticationTagMismatchException` and clears what it had written). The key agreement and the
+derivation stay on BouncyCastle, which is also what sealed the vectors in the file, so the vectors
+(those recorded before #850) hold the platform cipher to a second implementation.
+
+The two instances live as long as the session, which lives as long as its connection, and are not
+disposed: the tick thread may still seal for a connection that has just closed, and a disposed
+cipher would make that an exception on the tick. Their native key handles are released, and the
+key material destroyed, by the handles' finalizers when the session is collected.
+
+`AesGcm` has no fallback. `ServerBase` refuses to construct, so the auth and world servers refuse to
+start, when `AesGcm.IsSupported` is false (on Linux it needs OpenSSL, which the `aspnet:10.0`
+images carry), rather than failing at the first handshake. The check is in the host because
+`Avalon.Common` targets netstandard2.1, which has no `IsSupported`.
 
 ## Roles
 

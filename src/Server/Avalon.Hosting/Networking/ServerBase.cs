@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using Avalon.Configuration;
 using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets;
@@ -81,6 +82,16 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         IServiceProvider serviceProvider, IOptions<HostingConfiguration> hostingOptions,
         PacketDispatchTelemetry? packetTelemetry = null)
     {
+        // Every connection seals and opens its packets with the platform AesGcm (AvalonCryptoSession,
+        // #850). Refuse to start where it is unavailable rather than fail at the first handshake: the
+        // session layer has no fallback, and a server that cannot open a packet should not listen.
+        if (!AesGcm.IsSupported)
+        {
+            throw new PlatformNotSupportedException(
+                "AES-GCM (System.Security.Cryptography.AesGcm) is not supported on this platform, and the session " +
+                "cipher requires it. On Linux this needs a supported OpenSSL; the server will not start without it.");
+        }
+
         _logger = logger;
         _serviceProvider = serviceProvider;
         _connectionsStopping = _stoppingToken.Token;

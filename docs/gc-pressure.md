@@ -219,9 +219,12 @@ Eliminates the array and the boxing on every deserialization call.
 **Status:** Resolved (extended) — `NetworkPacket.Payload` Protobuf `byte[]` allocation eliminated.
 `PacketStream.EnumerateRawFramesAsync` now yields `InboundPacketFrame` with a zero-copy `ReadOnlyMemory<byte>`
 slice of the rented stream buffer instead of calling `Serializer.Deserialize<NetworkPacket>`.
-`NetworkPacket` is now outbound-only. Residual allocations per encrypted inbound packet:
-12-byte nonce `byte[]` (BouncyCastle `ParametersWithIV` requires `byte[]`) and ciphertext `byte[]`
-(BouncyCastle 2.6.2 netstandard2.0 has no Span overloads) — both inside `AvalonCryptoSession.Decrypt`.  
+`NetworkPacket` is now outbound-only. The last two allocations inside `AvalonCryptoSession.Decrypt`, a
+nonce `byte[]` and a ciphertext `byte[]` that BouncyCastle needed, went in #850: the session opens with
+the platform `AesGcm` straight from the frame's span into the rented buffer, and allocates nothing.
+Residual per encrypted inbound packet: the deserialized `Packet`, and a 64 B `DecryptFunc` delegate,
+because `Connection` passes `CryptoSession.Decrypt` as a method group to `IPacketReader.Read` on every
+packet (it escapes into the call, so the Release JIT cannot keep it on the stack).  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.Hosting/Networking/PacketReader.cs:71`
 
