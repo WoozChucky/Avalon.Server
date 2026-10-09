@@ -352,11 +352,13 @@ the reply 200 `{ deleted, skipped }`.
 - The order: in every configured world's characters database, the accounts' characters (their rows cascade) and
   gameplay fences; then one auth transaction, which locks the accounts' rows one at a time in ascending id order (so
   two deletes over the same accounts wait for each other rather than deadlock), selects them again (keeping any that
-  gained something of a person's meanwhile), and deletes the license observations and holds that point at their
-  licenses, the licenses and the accounts (everything else cascades); then, once that has committed and whether or
-  not the caller still waits, a world disconnect for each account deleted, and the world sweep again, best-effort,
-  for a character a bot still running created meanwhile. `deleted` is the number of accounts that transaction
-  removed; one a concurrent delete removed is in neither field.
+  gained something of a person's meanwhile; such an account is listed in `skipped`, but its characters are already
+  gone), and deletes the license observations and holds that point at their licenses, the licenses and the accounts
+  (everything else cascades); then, once that has committed and whether or not the caller still waits, a world
+  disconnect for each account deleted, and the world sweep again, best-effort, for a character a bot still running
+  created meanwhile. A bot admitted while the transaction runs can still deadlock with it (a 500, nothing half-done):
+  stop the bots and send the request again. `deleted` is the number of accounts that transaction removed; one a
+  concurrent delete removed is in neither field.
 - A 409 after the world sweep means a bot entered a game meanwhile: the run's characters are gone but its accounts
   are not. Stop the bots and send the same request again: a delete is re-runnable, and finishes what one before it
   left.

@@ -12,8 +12,8 @@ using Microsoft.Extensions.Primitives;
 namespace Avalon.Api.Identity.LoadTest;
 
 /// <summary>
-/// Load-test bot accounts, for admins. Always mapped; while <c>Application:LoadTest:Enabled</c> is false every action
-/// answers the standard Not Found response, whatever the body. A personal access token is refused, and the admin's own
+/// Load-test bot accounts, for admins. Always mapped; while <c>Application:LoadTest:Enabled</c> is false an admin's
+/// request answers the standard Not Found response, whatever the body (authorization runs first). A personal access token is refused, and the admin's own
 /// current password is required, as for <c>POST /pat/admin</c>: these accounts can enter PTR worlds.
 /// </summary>
 [ApiController]
