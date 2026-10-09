@@ -99,6 +99,7 @@ public static class IdentityServiceRegistration
             .Validate(o => o.MaxAccounts >= 1,
                 $"{LoadTestOptions.Section}:{nameof(LoadTestOptions.MaxAccounts)} must be at least 1.")
             .ValidateOnStart();
+        services.AddScoped<ILoadTestAccounts, LoadTestAccountService>();
         services.AddScoped<AccountLinkReauthentication>();
         services.AddScoped<StoreAccountRegistration>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.IGameAccountRegistration>(sp => sp.GetRequiredService<StoreAccountRegistration>());

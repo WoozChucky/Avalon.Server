@@ -59,6 +59,19 @@ public sealed class GameLicenseRepository(IDbContextFactory<AuthDbContext> facto
         }
     }
 
+    /// <summary>
+    /// Records new grants on a context the caller owns, so they commit with the accounts they are for, each validated as
+    /// <see cref="RecordGrantAsync"/> validates it. Unlike it, a reference already recorded is not matched against: the
+    /// unique reference refuses it, and the caller's transaction with it, so the caller's references must be new.
+    /// </summary>
+    public static async Task RecordNewGrantsAsync(AuthDbContext db, IReadOnlyList<GameLicense> licenses, CancellationToken ct = default)
+    {
+        foreach (GameLicense license in licenses)
+            Validate(license);
+        db.GameLicenses.AddRange(licenses);
+        await db.SaveChangesAsync(ct);
+    }
+
     public async Task<GameLicense?> ApplyDecisionAsync(Guid id, long expectedRevision, LicenseAuthorityDecision decision, CancellationToken ct = default)
     {
         if (decision.ObservedAt.Kind != DateTimeKind.Utc || decision.AuthorizedUntil.Kind != DateTimeKind.Utc ||

@@ -159,6 +159,19 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     }
 
     /// <summary>
+    /// Inserts new accounts on a context the caller owns, so they commit with what the caller writes beside them in its
+    /// transaction (a load-test run's licenses), and sets their ids. New rows only: no row that was read is written back.
+    /// A username already taken fails the save, and the caller's transaction with it.
+    /// </summary>
+    public static async Task InsertManyAsync(AuthDbContext context, IReadOnlyList<Account> accounts,
+        CancellationToken cancellationToken = default)
+    {
+        foreach (Account account in accounts)
+            context.TrackForInsert(account);
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Sets the access level and raises <c>CredentialsVersion</c> by one (#504), in one statement,
     /// on a context the caller owns, so the write joins that context's transaction (a role change
     /// revokes the account's tokens with it), and writes nothing else. Run it first in that

@@ -1,9 +1,10 @@
 using Avalon.Api.Hosting.Middlewares;
+using Avalon.Api.Identity.LoadTest;
 using Avalon.Api.Identity.Services.Email;
 
 namespace Avalon.Api.Identity.Exceptions;
 
-/// <summary>Identity's exceptions (#794): sign-in, refresh and email delivery.</summary>
+/// <summary>Identity's exceptions (#794): sign-in, refresh, email delivery and load-test accounts.</summary>
 public sealed class IdentityProblemMapper : IExceptionProblemMapper
 {
     public ExceptionProblem? Map(Exception exception, ILogger logger) => exception switch
@@ -23,6 +24,9 @@ public sealed class IdentityProblemMapper : IExceptionProblemMapper
             "Service unavailable", exception.Message),
         EmailVerificationUnavailableException => new ExceptionProblem(StatusCodes.Status501NotImplemented,
             "NotImplemented", "Email delivery unavailable", exception.Message),
+        // A load-test run past the cap, or under a run id already used.
+        LoadTestConflictException => new ExceptionProblem(StatusCodes.Status409Conflict, exception.GetType().Name,
+            "Conflict", exception.Message),
         _ => null,
     };
 }
