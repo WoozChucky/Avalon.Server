@@ -27,11 +27,6 @@ public interface IServerBase
     ProxyProtocolPolicy ProxyProtocol => ProxyProtocolPolicy.Disabled;
 }
 
-public class PacketHandlerCache
-{
-    public Func<IServiceProvider, object> HandlerFactory { get; set; }
-}
-
 public abstract class ServerBase<T> : BackgroundService, IServerBase where T : IConnection
 {
     /// <summary>The configured port (<c>Hosting:Port</c>); 0 asks the OS for a free one, which <see cref="BoundEndPoint" /> reports.</summary>
@@ -53,7 +48,6 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     protected TcpListener Listener { get; }
     public IPacketManager PacketManager { get; }
-    public readonly Dictionary<Type, PacketHandlerCache> HandlerCache = new();
 
     protected readonly ConcurrentDictionary<Guid, IConnection> Connections = new();
     private ImmutableArray<T> _typedConnections = ImmutableArray<T>.Empty;
@@ -61,7 +55,9 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     private readonly ILogger _logger;
 
-    private readonly List<Func<IConnection, bool>> _connectionListeners = new();
+    // Swapped whole, never mutated (#866): the auth server registers its listener in ExecuteAsync, after
+    // its port opened, while connections finishing their handshakes already enumerate the listeners.
+    private ImmutableArray<Func<IConnection, bool>> _connectionListeners = ImmutableArray<Func<IConnection, bool>>.Empty;
     private readonly Stopwatch _serverTimer = new();
     private readonly CancellationTokenSource _stoppingToken = new();
 
@@ -304,7 +300,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public void RegisterNewConnectionListener(Func<IConnection, bool> listener)
     {
-        _connectionListeners.Add(listener);
+        ImmutableInterlocked.Update(ref _connectionListeners, static (listeners, added) => listeners.Add(added), listener);
     }
 
     /// <summary>The stop has begun: the accept loop is cancelled first, the connections' token last.</summary>
@@ -321,20 +317,12 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             return;
         }
 
-        if (!PacketManager.TryGetPacketInfo(header.Type, out PacketInfo details) || details.PacketHandlerType is null)
+        // The handler's factory was built with the packet's info at startup (#866): nothing on this
+        // path writes shared state, so connections dispatching their first packets at once cannot race.
+        if (!PacketManager.TryGetPacketInfo(header.Type, out PacketInfo details) || details.HandlerFactory is not { } handlerFactory)
         {
             _logger.LogWarning("Could not find a handler for packet {PacketType}", header.Type);
             return;
-        }
-
-        if (!HandlerCache.TryGetValue(details.PacketType, out PacketHandlerCache? handlerCache))
-        {
-            ObjectFactory objectFactory = ActivatorUtilities.CreateFactory(details.PacketHandlerType, []);
-            handlerCache = new PacketHandlerCache
-            {
-                HandlerFactory = sp => objectFactory(sp, null)
-            };
-            HandlerCache[details.PacketType] = handlerCache;
         }
 
         object context = GetContextPacket(connection, payload, details.PacketType);
@@ -344,7 +332,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         {
             await using AsyncServiceScope scope = _serviceProvider.CreateAsyncScope();
 
-            object packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
+            object packetHandler = handlerFactory(scope.ServiceProvider, null);
             await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _connectionsStopping).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (IsStopping)

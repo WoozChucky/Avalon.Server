@@ -5,7 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.Hosting.Networking;
 
 /// <summary>
-/// Stores meta information about packets. This information should be only used for deserialization.
+/// Stores meta information about packets: each one's type and the handler it dispatches to. Built once, at
+/// startup, and read-only afterwards, so every connection reads it concurrently without a lock (#866).
 /// </summary>
 public interface IPacketManager
 {

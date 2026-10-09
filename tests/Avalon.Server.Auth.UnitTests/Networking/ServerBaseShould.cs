@@ -476,6 +476,67 @@ public class ServerBaseShould
         Assert.Empty(watchdog.Escaped);
     }
 
+    // ── Concurrent dispatch (#866) ──────────────────────────────────────────
+
+    /// <summary>A packet manager that only reads what it was built with, as the real one does.</summary>
+    private sealed class FixedPackets(IReadOnlyDictionary<NetworkPacketType, PacketInfo> infos) : IPacketManager
+    {
+        public bool TryGetPacketInfo(NetworkPacketType packetType, out PacketInfo info) =>
+            infos.TryGetValue(packetType, out info);
+    }
+
+    private sealed class CountingHandler(PacketProbe probe) : IPacketHandlerNew
+    {
+        public Task ExecuteAsync(object context, CancellationToken token)
+        {
+            probe.OnRun();
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// #866: the handler for a packet type used to be cached on its first dispatch, in a plain
+    /// dictionary written from every connection's receive path. Connections admitted together after
+    /// a restart sent their first packets at once, and the concurrent writes corrupted it: the
+    /// dispatch threw and the connection was closed. Here many connections send the first packet
+    /// of each type at the same moment, on a fresh server each round; every one must reach its handler.
+    /// </summary>
+    [Fact]
+    public async Task Dispatch_the_first_packets_of_a_type_from_many_connections_at_once()
+    {
+        const int Connections = 16;
+        const int Rounds = 10;
+        Type[] packetTypes = typeof(Packet).Assembly.GetExportedTypes().Take(128).ToArray();
+        var infos = new Dictionary<NetworkPacketType, PacketInfo>();
+        for (int i = 0; i < packetTypes.Length; i++)
+            infos[(NetworkPacketType)(10_000 + i)] = new PacketInfo(packetTypes[i], typeof(CountingHandler));
+        var packets = new FixedPackets(infos);
+        NetworkPacketHeader[] headers = infos.Keys.Select(type => new NetworkPacketHeader { Type = type }).ToArray();
+
+        for (int round = 0; round < Rounds; round++)
+        {
+            var probe = new PacketProbe();
+            var logger = new CapturingLogger();
+            await using ServiceProvider services = new ServiceCollection().AddSingleton(probe).BuildServiceProvider();
+            var server = new ProbeServer(services, AnyFreePort(), packets, logger);
+            using var start = new Barrier(Connections);
+
+            Task[] connections = Enumerable.Range(0, Connections).Select(_ => Task.Factory.StartNew(() =>
+            {
+                IConnection connection = Substitute.For<IConnection>();
+                start.SignalAndWait();
+                foreach (NetworkPacketHeader header in headers)
+                    server.CallListener(connection, header, null).GetAwaiter().GetResult();
+            }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default)).ToArray();
+
+            // A corrupted dictionary can also loop forever on a read, so a hang fails the test too.
+            await Task.WhenAll(connections).WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.Equal(Connections * headers.Length, probe.Runs);
+            Assert.Equal(0, logger.Count(Microsoft.Extensions.Logging.LogLevel.Error));
+        }
+    }
+
     // ── Accept failures outside a stop (#584) ───────────────────────────────
 
     private static SocketException SocketError(System.Net.Sockets.SocketError error) => new((int)error);
