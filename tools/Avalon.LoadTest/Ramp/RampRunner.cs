@@ -1174,12 +1174,19 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         }
     }
 
-    /// <summary>The console line of a step: <c>step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  → pass</c>.</summary>
+    /// <summary>
+    /// The console line of a step: <c>step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  → pass</c>; with fighters,
+    /// their count, forest instances per tick and trips before the verdict (<c>fighters 30  forest 9.8  trips 12</c>).
+    /// </summary>
     private string StepLine(StepRecord step)
     {
         string arrow = Console.OutputEncoding.CodePage == Encoding.UTF8.CodePage ? "→" : "->";
+        int fighters = step.ByBehaviour.GetValueOrDefault(BehaviourKind.Fighter);
+        string fighting = fighters == 0
+            ? ""
+            : Invariant($"  fighters {fighters}  forest {Number(step.Server.InstancesByMap.Forest, "0.0")}  trips {step.Client.ForestTrips}");
         return Invariant(
-            $"step {step.Index}  bots {step.Bots}  tick p99 {Number(step.Server.TickP99Ms, "0.0")} ms  ack p95 {Number(step.Client.AckP95, "0")} ms  ws {Percent(step.Server.WorkingSetFraction)}  {arrow} {Verdict(step, options.Limits)}");
+            $"step {step.Index}  bots {step.Bots}  tick p99 {Number(step.Server.TickP99Ms, "0.0")} ms  ack p95 {Number(step.Client.AckP95, "0")} ms  ws {Percent(step.Server.WorkingSetFraction)}{fighting}  {arrow} {Verdict(step, options.Limits)}");
     }
 
     /// <summary>A step's verdict in words: pass, a re-hold and why, or the end.</summary>
