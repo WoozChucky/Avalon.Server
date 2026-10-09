@@ -99,20 +99,34 @@ public static class SessionKeys
 
     /// <summary>96-bit big-endian increment, in place.</summary>
     /// <exception cref="OverflowException">
-    /// Every byte wrapped, so the next nonce would repeat one already used under this key. 2^96
-    /// packets on one session is not reachable; failing is still cheaper than the forgery a
+    /// Every byte is already 0xFF, so the next nonce would repeat one already used under this key.
+    /// The counter is left as it was rather than wrapped, so every later call fails too (#855).
+    /// 2^96 packets on one session is not reachable; failing is still cheaper than the forgery a
     /// reused GCM nonce permits.
     /// </exception>
     public static void IncrementNonce(byte[] nonce)
     {
+        if (!TryIncrementNonce(nonce)) throw new OverflowException("Session nonce counter exhausted");
+    }
+
+    /// <summary>
+    /// <see cref="IncrementNonce"/> without the throw: false, and the counter left as it was, when
+    /// every byte is already 0xFF.
+    /// </summary>
+    public static bool TryIncrementNonce(byte[] nonce)
+    {
         if (nonce == null) throw new ArgumentNullException(nameof(nonce));
 
-        for (int i = nonce.Length - 1; i >= 0; i--)
-        {
-            if (++nonce[i] != 0) return;
-        }
+        // The lowest byte that can take the carry, found before anything is written: wrapping the
+        // bytes below it and then finding there is none would leave the counter at zero.
+        int i = nonce.Length - 1;
+        while (i >= 0 && nonce[i] == 0xFF) i--;
 
-        throw new OverflowException("Session nonce counter exhausted");
+        if (i < 0) return false;
+
+        nonce[i]++;
+        for (int j = i + 1; j < nonce.Length; j++) nonce[j] = 0;
+        return true;
     }
 
     private static byte[] Expand(byte[] sharedSecret, byte[] salt, byte[] info)

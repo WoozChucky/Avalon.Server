@@ -79,6 +79,13 @@ public interface IAvalonCryptoSession
 /// key handles are released, and the key material destroyed, by the handles' finalizers when the
 /// session is collected.
 /// </para>
+/// <para>
+/// A session goes through <see cref="Initialize"/> once, and only a session whose exchange
+/// completed seals or opens anything (#855). An Initialize that throws (a peer key that does not
+/// parse, say) leaves the session failed for good: it refuses a second Initialize, and every
+/// Encrypt and Decrypt, as an <see cref="InvalidOperationException"/>. So does a session whose send
+/// counter is spent, since its next nonce would repeat one this key has already used.
+/// </para>
 /// </remarks>
 public class AvalonCryptoSession : IAvalonCryptoSession
 {
@@ -86,7 +93,17 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     // read loop opens; one lock serialises both directions, as it did with one shared cipher.
     private readonly object _lock = new object();
 
-    private volatile bool _initialized;
+    // New -> Initializing -> Ready, or Failed; Ready -> Exhausted. Ready is written only after both
+    // ciphers are published, and Failed and Exhausted are never left, so a session reads Ready only
+    // while it can seal and open. Checked before each packet, and again under the lock, where
+    // exhaustion is written.
+    private const int New = 0;
+    private const int Initializing = 1;
+    private const int Ready = 2;
+    private const int Failed = 3;
+    private const int Exhausted = 4;
+
+    private volatile int _state;
 
     private readonly CryptoRole _role;
     private readonly AsymmetricCipherKeyPair _ownKeyPair;
@@ -95,13 +112,13 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     private byte[] _ownPublicKeyBytes;
     private byte[] _otherEndPublicKeyBytes;
     private readonly SecureRandom _secureRandom;
-    private AesGcm _sealer;
-    private AesGcm _opener;
+    private AesGcm? _sealer;
+    private AesGcm? _opener;
     private readonly byte[] _sendNonce = new byte[SessionKeys.NonceSize];
 
     public AvalonCryptoSession(CryptoRole role, AsymmetricCipherKeyPair? keyPair = null)
     {
-        _initialized = false;
+        _state = New;
         Encryptor = Encrypt;
         _role = role;
         _secureRandom = new SecureRandom();
@@ -110,40 +127,69 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
     public void Initialize(byte[] otherEndPublicKeyBytes)
     {
-        if (_initialized) throw new InvalidOperationException("Crypto session already initialized");
-        _initialized = true;
+        // Claimed before anything else, so a second call, or a retry after a failed one, is
+        // refused whatever happened to the first.
+        if (Interlocked.CompareExchange(ref _state, Initializing, New) != New)
+            throw new InvalidOperationException("Crypto session already initialized");
 
-        if (otherEndPublicKeyBytes == null || otherEndPublicKeyBytes.Length == 0)
-            throw new ArgumentException("Invalid public key", nameof(otherEndPublicKeyBytes));
+        byte[]? sharedSecret = null;
+        byte[]? clientToServer = null;
+        byte[]? serverToClient = null;
+        AesGcm? sealer = null;
+        AesGcm? opener = null;
 
-        // Parsed for the agreement, and kept verbatim for the salt. The salt is over the bytes the
-        // two ends exchanged, so re-encoding here would make the derivation depend on this
-        // library and the peer's agreeing on one canonical DER rather than on the transcript.
-        _otherEndPublicKey = AsymmetricCipher.GetPublicKeyFromBytes(otherEndPublicKeyBytes);
-        _otherEndPublicKeyBytes = (byte[])otherEndPublicKeyBytes.Clone();
+        try
+        {
+            if (otherEndPublicKeyBytes == null || otherEndPublicKeyBytes.Length == 0)
+                throw new ArgumentException("Invalid public key", nameof(otherEndPublicKeyBytes));
 
-        _ownPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(_ownKeyPair);
-        _ownPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(_ownPublicKey);
+            // Parsed for the agreement, and kept verbatim for the salt. The salt is over the bytes the
+            // two ends exchanged, so re-encoding here would make the derivation depend on this
+            // library and the peer's agreeing on one canonical DER rather than on the transcript.
+            _otherEndPublicKey = AsymmetricCipher.GetPublicKeyFromBytes(otherEndPublicKeyBytes);
+            _otherEndPublicKeyBytes = (byte[])otherEndPublicKeyBytes.Clone();
 
-        byte[] sharedSecret = AsymmetricCipher.CalculateSharedSecret(_ownKeyPair, _otherEndPublicKey);
+            _ownPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(_ownKeyPair);
+            _ownPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(_ownPublicKey);
 
-        // Which array is the client's is the one thing the role decides here; the salt order
-        // itself is fixed, so both ends build the same bytes.
-        (byte[] clientToServer, byte[] serverToClient) = _role == CryptoRole.Client
-            ? SessionKeys.Derive(sharedSecret, _ownPublicKeyBytes, _otherEndPublicKeyBytes)
-            : SessionKeys.Derive(sharedSecret, _otherEndPublicKeyBytes, _ownPublicKeyBytes);
+            sharedSecret = AsymmetricCipher.CalculateSharedSecret(_ownKeyPair, _otherEndPublicKey);
 
-        // Keyed once, here, rather than per packet: re-keying GCM is most of a packet's cost. The
-        // tag length is not fixed by the instance on this target; every call passes a
-        // SessionKeys.TagSize span, which is what fixes it at 16 bytes.
-        _sealer = new AesGcm(_role == CryptoRole.Client ? clientToServer : serverToClient);
-        _opener = new AesGcm(_role == CryptoRole.Client ? serverToClient : clientToServer);
+            // Which array is the client's is the one thing the role decides here; the salt order
+            // itself is fixed, so both ends build the same bytes.
+            (clientToServer, serverToClient) = _role == CryptoRole.Client
+                ? SessionKeys.Derive(sharedSecret, _ownPublicKeyBytes, _otherEndPublicKeyBytes)
+                : SessionKeys.Derive(sharedSecret, _otherEndPublicKeyBytes, _ownPublicKeyBytes);
 
-        // AesGcm imports the key, so these three are spent. Best effort only: a moving GC may
-        // already have left copies elsewhere.
-        Array.Clear(sharedSecret, 0, sharedSecret.Length);
-        Array.Clear(clientToServer, 0, clientToServer.Length);
-        Array.Clear(serverToClient, 0, serverToClient.Length);
+            // Keyed once, here, rather than per packet: re-keying GCM is most of a packet's cost. The
+            // tag length is not fixed by the instance on this target; every call passes a
+            // SessionKeys.TagSize span, which is what fixes it at 16 bytes.
+            sealer = new AesGcm(_role == CryptoRole.Client ? clientToServer : serverToClient);
+            opener = new AesGcm(_role == CryptoRole.Client ? serverToClient : clientToServer);
+
+            // Both ciphers are published under the lock the packets take, and only then is the
+            // session Ready: no packet sees one cipher, or none.
+            lock (_lock)
+            {
+                _sealer = sealer;
+                _opener = opener;
+                _state = Ready;
+            }
+        }
+        catch
+        {
+            _state = Failed;
+            sealer?.Dispose();
+            opener?.Dispose();
+            throw;
+        }
+        finally
+        {
+            // AesGcm imports the key, so these three are spent, and after a failure they are never
+            // used. Best effort only: a moving GC may already have left copies elsewhere.
+            if (sharedSecret != null) Array.Clear(sharedSecret, 0, sharedSecret.Length);
+            if (clientToServer != null) Array.Clear(clientToServer, 0, clientToServer.Length);
+            if (serverToClient != null) Array.Clear(serverToClient, 0, serverToClient.Length);
+        }
     }
 
     public byte[] GetPublicKey()
@@ -158,9 +204,16 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
     public EncryptFunc Encryptor { get; }
 
+    /// <exception cref="InvalidOperationException">
+    /// The session never completed its exchange, or its send counter is spent.
+    /// </exception>
+    /// <exception cref="OverflowException">
+    /// This call spent the send counter. Nothing is sealed, and the session is closed for good:
+    /// every later call refuses rather than seal under a nonce this key has already used.
+    /// </exception>
     public byte[] Encrypt(ReadOnlySpan<byte> data)
     {
-        if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
+        if (_state != Ready) throw NotReady();
 
         // The one allocation: the packet itself, [nonce][ciphertext][tag], sealed in place.
         byte[] sealedPacket = new byte[SessionKeys.NonceSize + data.Length + SessionKeys.TagSize];
@@ -170,10 +223,16 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         {
             // The counter is the nonce. It is sent anyway, so a peer never has to track ours. It
             // is copied out and advanced before sealing, so no two packets can share it.
-            _sendNonce.CopyTo(nonce);
-            SessionKeys.IncrementNonce(_sendNonce);
+            if (_state != Ready) throw NotReady();
 
-            _sealer.Encrypt(
+            _sendNonce.CopyTo(nonce);
+            if (!SessionKeys.TryIncrementNonce(_sendNonce))
+            {
+                _state = Exhausted;
+                throw new OverflowException("Session nonce counter exhausted");
+            }
+
+            _sealer!.Encrypt(
                 nonce,
                 data,
                 sealedPacket.AsSpan(SessionKeys.NonceSize, data.Length),
@@ -189,9 +248,12 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     /// <c>AuthenticationTagMismatchException</c>, and clears what it had written to
     /// <paramref name="output"/>).
     /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// The session never completed its exchange, or its send counter is spent.
+    /// </exception>
     public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
     {
-        if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
+        if (_state != Ready) throw NotReady();
         if (data.Length < SessionKeys.NonceSize + SessionKeys.TagSize)
         {
             throw new CryptographicException("Sealed packet is shorter than its nonce and tag");
@@ -201,7 +263,9 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
         lock (_lock)
         {
-            _opener.Decrypt(
+            if (_state != Ready) throw NotReady();
+
+            _opener!.Decrypt(
                 data.Slice(0, SessionKeys.NonceSize),
                 data.Slice(SessionKeys.NonceSize, length),
                 data.Slice(SessionKeys.NonceSize + length, SessionKeys.TagSize),
@@ -210,6 +274,14 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
         return length;
     }
+
+    // Off the packet path: built only when a packet is refused.
+    private InvalidOperationException NotReady() => _state switch
+    {
+        Failed => new InvalidOperationException("Crypto session failed to initialize"),
+        Exhausted => new InvalidOperationException("Crypto session nonce counter exhausted"),
+        _ => new InvalidOperationException("Crypto session not initialized"),
+    };
 
     public byte[] GenerateHandshakeData()
     {
