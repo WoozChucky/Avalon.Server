@@ -69,6 +69,32 @@ public sealed class AuthServerStartupShould : IDisposable
         }
     }
 
+    /// <summary>
+    /// A stop that begins during the start-up reaches OnStoppingAsync's unsubscribe before the
+    /// subscription exists; the start-up's own subscription must still be removed.
+    /// </summary>
+    [Fact]
+    public async Task Unsubscribe_when_the_stop_began_before_the_subscription()
+    {
+        var reset = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _accounts.MarkAllOfflineAsync(Arg.Any<CancellationToken>()).Returns(reset.Task);
+        AuthServer server = Create(CertificatePassword);
+
+        await server.StartAsync(CancellationToken.None);
+        await UntilAsync(() => Task.FromResult(_accounts.ReceivedCalls().Any()), "the start-up reset never ran");
+
+        Task stopping = server.StopAsync(CancellationToken.None);
+        reset.SetResult();
+        await stopping.WaitAsync(s_limit);
+
+        var calls = _cache.ReceivedCalls().Select(c => c.GetMethodInfo().Name).ToList();
+        int subscribedAt = calls.IndexOf(nameof(IReplicatedCache.SubscribeAsync));
+        Assert.True(subscribedAt >= 0, "the start-up never subscribed");
+        Assert.True(calls.LastIndexOf(nameof(IReplicatedCache.UnsubscribeAsync)) > subscribedAt,
+            "the subscription made after the stop began was left live");
+        Assert.False(await AcceptsAsync(server), "the port opened after the stop began");
+    }
+
     [Fact]
     public async Task Never_open_the_port_when_the_certificate_cannot_be_loaded()
     {

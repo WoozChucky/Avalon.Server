@@ -35,12 +35,10 @@ Bootstrap sequence for each server component.
    auth database (its world row, maintenance) but never migrates it: the API's identity service or the auth server
    must have migrated it first, which is why the Aspire AppHost starts the world only once the API is healthy
 5. Connect Redis
-6. Run hosted loop. Neither server opens its TCP port at host start (`ListenOnStart` is false). The
-   Auth server opens it in `AuthServer.ExecuteAsync` (#867), once its certificate is loaded, the
-   start-up `MarkAllOfflineAsync` has run, the account disconnect channel is subscribed and the
-   connection listener is registered, before the liveness sweep starts; a step that fails ends the
-   start with the port never opened. The World server opens it only at the end of
-   `WorldServer.ExecuteAsync` (#665), once scripts and the world are loaded, the Redis disconnect
-   channel is subscribed, the connection listener is registered and the tick thread is running
-   (`StartListening` is called there). A load that fails ends the start with the port never opened; a stop during the
-   load leaves it shut.
+6. Run hosted loop. Neither server opens its TCP port at host start (`ListenOnStart` is false). The Auth server opens it
+   in `AuthServer.ExecuteAsync` (#867), once its certificate is loaded, the start-up `MarkAllOfflineAsync` has run, the
+   account disconnect channel is subscribed and the connection listener is registered, before the liveness sweep starts;
+   a step that fails ends the start with the port never opened. The World server opens it only at the end of
+   `WorldServer.ExecuteAsync` (#665), once scripts and the world are loaded, the Redis disconnect channel is subscribed,
+   the connection listener is registered and the tick thread is running (`StartListening` is called there). A world load
+   that fails ends the world server's start with the port never opened; a stop during the world load leaves it shut.
