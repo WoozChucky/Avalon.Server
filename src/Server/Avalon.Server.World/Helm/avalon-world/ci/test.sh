@@ -54,6 +54,11 @@ grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$dup" | grep -q '"avalon.world.id=
 ! grep -q "OTEL_METRIC_EXPORT_INTERVAL" <<<"$ot"                                                              || { echo "metric export interval rendered when unset"; exit 1; }
 mi=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set otel.endpoint=http://c:4317 --set otel.metricExportIntervalMs=10000)
 grep -A1 "name: OTEL_METRIC_EXPORT_INTERVAL" <<<"$mi" | grep -q '"10000"'                                      || { echo "metric export interval must render"; exit 1; }
+# A values file reads a number as a float; it must still render as digits, not 1e+04.
+for n in 10000 1000000; do
+  mj=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set otel.endpoint=http://c:4317 --set-json "otel.metricExportIntervalMs=$n") || { echo "a float metric export interval $n must render"; exit 1; }
+  grep -A1 "name: OTEL_METRIC_EXPORT_INTERVAL" <<<"$mj" | grep -q "\"$n\""                                  || { echo "a float metric export interval $n must render as digits"; exit 1; }
+done
 for bad in "otel.metricExportIntervalMs=0" "otel.metricExportIntervalMs=-1" "otel.metricExportIntervalMs=1.5" "otel.metricExportIntervalMs=10s"; do
   if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set otel.endpoint=http://c:4317 --set "$bad" >/dev/null 2>&1; then
     echo "rendering with $bad must fail"; exit 1
