@@ -1109,31 +1109,35 @@ Regenerate (every scenario, in Release; the runner refuses `--write-allocations`
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json
 ```
 
-**The gate decides in Release, on CI's Linux figures.** CI builds Release on Linux, and since #850 the committed
-figures are CI's run rather than a local one (the first baseline was a Windows run). In a Debug build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so
+**The gate decides in Release, on CI's figures.** CI builds Release on a GitHub-hosted runner, and since #850 the
+committed figures are CI's run rather than a local one (the first baseline was a run on the developer machine). In a Debug build (a plain local `dotnet test`) `ScenarioAllocationsShould` still runs every scenario, so
 a scenario that stopped doing its work still fails its `Verify` check, but it does not fail on the allocation figure:
 it writes the comparison (current, committed, change in percent, verdict) to the test output and says that the gate
 decides in Release. `dotnet test -c Release` runs the real gate locally.
 
-The reason is one object whose place depends on the build and the platform: the delegate each send creates for
+The reason is one object whose place depends on how far the JIT has got: the delegate each send creates for
 `CryptoSession.Encrypt`, about 64 B per walking player per tick (1.92 MB per window in `many-instances`, 116 KB in
-`town-walk`). On Linux it is on the heap even in Release, and in Debug it is on the heap everywhere; only the Windows
-Release JIT keeps it on the stack. So a Debug run matches the committed (Linux Release) figures, and a Windows Release
-run reads that much lower, about 7% in `town-walk` and 14% in `many-instances`, and prints the improvement notice
-rather than failing. Running the Release runner on Windows with `DOTNET_JitObjectStackAllocation=0` reproduces the
-Linux figure (`town-walk` 1,580,400 B against CI's 1,581,064 B). Before #850 that object was about 3% of the walking
-figures, inside the band, which is how a Windows baseline passed on Linux; against a Windows figure after #850, Linux
-reads +7.9% (`town-walk`) and +15.9% (`many-instances`). #854 caches the delegates and removes the difference; a
-lower baseline follows it. The gate runs in a non-parallel xUnit collection, so no other
+`town-walk`). The optimised JIT tier keeps it on the stack; until that tier applies, it is on the heap. The CI runner
+(a small, shared GitHub-hosted VM, with the other test assemblies running in parallel) ends the gate's 5 s warm-up
+before the optimised tier reaches the send path, so the committed figures include the delegate. On the developer
+machine (Windows) and on the homelab node (Linux), both in Release, it is gone by then, so they read about 7% lower in
+`town-walk` and 14% lower in `many-instances` and print the improvement notice: **do not lower the baseline from
+those runs.** A Debug build never optimises, so it matches CI. Running the Release runner with
+`DOTNET_JitObjectStackAllocation=0` reproduces CI's figure (`town-walk` 1,580,400 B against CI's 1,581,064 B). A
+long-running server on real hardware runs the optimised code. Before #850 the delegate was about 3% of the walking
+figures, inside the band, which is how a developer-machine baseline passed in CI; after it, the developer-machine
+figure fails in CI by +7.9% (`town-walk`) and +15.9% (`many-instances`). #854 caches the delegates, which removes the
+dependency on JIT tiering; after it every machine should read the lower figure, and the baseline follows it down. The gate runs in a non-parallel xUnit collection, so no other
 test in the World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in
 parallel processes under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds
 about 18 s to the World suite.
 
 ### Results — after the platform cipher (#850, 2026-10-09)
 
-Allocations, from `perf/scenario-allocations.json`: CI's Linux Release run of #850 (2026-10-09). "Fails from" is the
-first figure the gate fails on; "Notice at" the highest figure that prints the improvement notice. "Before #850" is the
-committed figure before it (the first baseline below, a Windows Release run).
+Allocations, from `perf/scenario-allocations.json`: CI's Release run of #850 on its GitHub-hosted runner
+(2026-10-09). "Fails from" is the first figure the gate fails on; "Notice at" the highest figure that prints the
+improvement notice. "Before #850" is the committed figure before it (the first baseline below, a Release run on the
+developer machine).
 
 | Scenario | Players | bytes/window | B/tick | B/player/tick | Fails from | Notice at | Before #850 | Change |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -1141,12 +1145,12 @@ committed figure before it (the first baseline below, a Windows Release run).
 | `town-walk` | 30 | 1,581,064 | 26,351 | 878.37 | 1,660,118 | 1,502,010 | 5,964,720 | −73.5% |
 | `many-instances` | 500 | 14,018,368 | 233,639 | 467.28 | 14,719,287 | 13,317,449 | 62,226,368 | −77.5% |
 
-The committed change mixes platforms. Like for like, on the Windows machine below, the walking scenarios fell to
+The committed change mixes machines. Like for like, on the developer machine below, the walking scenarios fell to
 1,464,952 B (`town-walk`, −75.4%) and 12,098,368 B (`many-instances`, −80.6%); the difference is the `Encrypt`
-delegate described above.
+delegate described above, still on the heap when CI's warm-up ends.
 
-Timing and GC, from the Windows Release run (2026-10-09; the same machine as the first baseline: i9-12900K, Windows 11
-Pro, .NET 10.0.12, Server GC; 10 s warm-up, 3600 timed ticks):
+Timing and GC, from the developer machine's Release run (2026-10-09; the same machine as the first baseline:
+i9-12900K, Windows 11 Pro, .NET 10.0.12, Server GC; 10 s warm-up, 3600 timed ticks):
 
 | Scenario | Tick ms mean | p95 | p99 | max | % > 16.7 ms | gen0 | gen1 | gen2 | GC pause ms | GC pause % |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -1154,8 +1158,19 @@ Pro, .NET 10.0.12, Server GC; 10 s warm-up, 3600 timed ticks):
 | `town-walk` | 0.182 | 0.479 | 0.858 | 2.900 | 0.00 | 7 | 0 | 0 | 2.52 | 0.38 |
 | `many-instances` | 2.099 | 3.533 | 4.456 | 11.257 | 0.00 | 234 | 0 | 0 | 58.12 | 0.77 |
 
+The homelab k3s node, the machine the capacity runs will measure (2026-10-09; Linux, AMD Ryzen 9 5900X, 12 cores / 24
+threads, .NET 10.0.12, Server GC, Release, in the `dotnet/sdk:10.0` container, 0 players online on the node's worlds
+at the time). Its allocations match the developer machine's, not CI's:
+
+| Scenario | Players / instances | bytes/window | B/player/tick | Tick ms mean | p95 | p99 | max | % > 16.7 ms | gen0 | gen1 | gen2 | GC pause ms | GC pause % |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 / 1 | 9,600 | 5.33 | 0.041 | 0.042 | 0.045 | 0.054 | 0.00 | 0 | 0 | 0 | 0.00 | 0.00 |
+| `town-walk` | 30 / 1 | 1,466,160 | 814.53 | 0.212 | 0.594 | 0.654 | 1.909 | 0.00 | 7 | 0 | 0 | 4.04 | 0.53 |
+| `many-instances` | 500 / 250 | 12,094,368 | 403.15 | 1.626 | 2.562 | 2.789 | 5.312 | 0.00 | 235 | 0 | 0 | 54.15 | 0.92 |
+
 - **The cipher was three quarters of what a walking player allocated.** `town-walk` falls from 3.3 KB to 814 B per
-  player per tick and `many-instances` from 2.1 KB to 403 B on Windows (878 B and 467 B in CI's Linux figures);
+  player per tick and `many-instances` from 2.1 KB to 403 B on the developer machine and the homelab node (878 B and
+  467 B in CI's figures);
   `town-idle`, which sends nothing, is unchanged. What is
   left per walker is the state acknowledgement itself (its serialization and the sealed `byte[]`) and the input path.
 - **GC follows.** `town-walk` ran 7 gen0 collections in its timed minute against 116, and spent 0.38% of the time in
