@@ -180,7 +180,7 @@ public static class ReportWriter
         }
         else if (result.ServerChange is { } change)
         {
-            md.AppendLine($"- World server: {change}. This run does not stand. Run again.");
+            md.AppendLine($"- {char.ToUpperInvariant(change[0])}{change[1..]}. This run does not stand. Run again.");
         }
         else if (result.RestartCheck != RestartCheck.Complete)
         {

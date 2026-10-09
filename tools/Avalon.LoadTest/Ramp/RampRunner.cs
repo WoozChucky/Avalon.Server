@@ -197,15 +197,15 @@ public sealed record RampResult(
 
     /// <summary>
     /// Whether the restart is proven to have come before the last judged window ended: the new process started by then
-    /// (the newest pod, which under a StatefulSet starts only once the old pod is gone, or the container), or a container
-    /// restart counted in the pod read before the ramp ended within the ramp by then (its last end alone could predate
-    /// the ramp, the series persisting).
+    /// (the newest pod, which under a StatefulSet starts only once the old pod is gone, or the container), or the
+    /// container in the pod read before the ramp last ended within the ramp by then (after the ramp started: the series
+    /// persists from earlier restarts), whether or not its restart count is known.
     /// </summary>
     public bool RestartProvenDuringRamp =>
         ServerRestarted && LastJudgedEnd is { } judged &&
         ((ServerPodChanged && Differ(ServerPod, NewestPod) && NewestPodStartedAt <= judged) ||
          (ContainerStartChanged && ContainerStartedAtEnd <= judged) ||
-         (ContainerRestarts > 0 && ContainerLastTerminatedAt is { } ended && ended > Started && ended <= judged));
+         (ContainerLastTerminatedAt is { } ended && ended > Started && ended <= judged));
 
     /// <summary>
     /// The first fact missing for <see cref="RestartedAfterLastJudgedStep"/> when the restart is neither proven after the

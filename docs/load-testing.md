@@ -437,17 +437,17 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   the ramp (A → B; pod x → y; container restarted N times, last started 18:34:40 UTC)`, naming what showed it, when
   the pod differs, the restarts rose or the container started again, whatever the version, or `changed during the
   ramp: A → B` when only the versions differ. `during the ramp` is said only when the restart is proven to have come
-  before the last judged window ended: the new process started by then, or a container restart counted in the pod
-  ended within the ramp by then. A new pod's start bounds the old one's end because the world runs as a StatefulSet,
-  whose pod is replaced under the same name only once the old pod is gone. `world restarted after the ramp's last
-  judged step (...)`, with `, while the bots left` when the old process ended after the stop began, when that is
-  proven; otherwise `world restarted; not proven after the last judged step (<the missing fact>): ...` (see [a world
-  restart](#a-world-restart)). A version read only at the end is marked `(read at the end)`, and a check that could
-  not be made whole says so: `(restart check: partial, ...)` or `(restart check: unknown, Prometheus gave nothing at
-  the end)`. The tool warns when `target_info`'s pod name is not `--pod`. Then the run and its size, the API, the mix,
-  the ramp settings (start, step, hold and judged window, max, sign-in concurrency), Prometheus, the pod, `--dial`,
-  the bot PC's CPU model and logical cores, its clock's offset from Prometheus's at the start (by which every query's
-  time was corrected), and the limits, each marked when overridden.
+  before the last judged window ended: the new process started by then, or the container in the pod read before the
+  ramp last ended within the ramp by then. A new pod's start bounds the old one's end because the world runs as a
+  StatefulSet, whose pod is replaced under the same name only once the old pod is gone. `world restarted after the
+  ramp's last judged step (...)`, with `, while the bots left` when the old process ended after the stop began, when
+  that is proven; otherwise `world restarted; not proven after the last judged step (<the missing fact>): ...` (see [a
+  world restart](#a-world-restart)). A version read only at the end is marked `(read at the end)`, and a check that
+  could not be made whole says so: `(restart check: partial, ...)` or `(restart check: unknown, Prometheus gave
+  nothing at the end)`. The tool warns when `target_info`'s pod name is not `--pod`. Then the run and its size, the
+  API, the mix, the ramp settings (start, step, hold and judged window, max, sign-in concurrency), Prometheus, the
+  pod, `--dial`, the bot PC's CPU model and logical cores, its clock's offset from Prometheus's at the start (by which
+  every query's time was corrected), and the limits, each marked when overridden.
 - **Result**: one of `capacity N bots`, `no limit reached up to N bots`, `bot PC saturated: capacity ≥ N bots`,
   `stopped: steps that could not be judged`, or `stopped (<reason>)`, followed by `; does not stand: <reason>` when
   the run does not stand (`the world server restarted during the ramp`, `the world server restarted; not proven after
