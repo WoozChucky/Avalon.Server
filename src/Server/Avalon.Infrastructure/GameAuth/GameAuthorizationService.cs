@@ -7,6 +7,8 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameTickets;
 using Avalon.Infrastructure.StoreAuth;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Infrastructure.GameAuth;
@@ -14,8 +16,11 @@ namespace Avalon.Infrastructure.GameAuth;
 public sealed partial class GameAuthorizationService(IGameContextStore store, AuthAttemptStore attempts, GameAuthCryptography crypto,
     IAccountRepository accounts, IRefreshTokenRepository refreshTokens, IExternalIdentityRepository identities,
     GameProviderRegistry providers, GameLicenseAuthorityService licenseAuthority,
-    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, IGameAccountRegistration? registration = null, IGameContextRevocations? revocations = null)
+    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, IGameAccountRegistration? registration = null, IGameContextRevocations? revocations = null,
+    ILogger<GameAuthorizationService>? logger = null)
 {
+    private readonly ILogger _logger = logger ?? NullLogger<GameAuthorizationService>.Instance;
+
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     private string Key(string kind, string id) => CacheKeys.GameAuth(options.Value.Environment, kind, id);
     private string ContextKey(Guid id) => Key("context", id.ToString("N"));
@@ -98,9 +103,9 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
 
     /// <summary>
     /// Whether the context is current. A license binding that could not be read is null. With
-    /// <paramref name="tolerateOutage"/>, so is a failed read of the account, its store link or its launcher family (the
-    /// auth database being down): the refresh answers an outage as unavailable, never as revoked (#862). Without it
-    /// those failures throw, as they always have for the other callers.
+    /// <paramref name="tolerateOutage"/>, so is a read of the account, its store link or its launcher family that failed
+    /// with a database outage (<see cref="DatabaseOutage"/>): the refresh answers an outage as unavailable, never as
+    /// revoked (#862). Any other failure, and every failure without it, throws as it always has.
     /// </summary>
     private async Task<bool?> CurrentStandingAsync(GameContextRecord context, bool tolerateOutage, CancellationToken cancellationToken)
     {
@@ -108,8 +113,9 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         {
             return await ReadStandingAsync(context, cancellationToken);
         }
-        catch (Exception error) when (tolerateOutage && !(error is OperationCanceledException && cancellationToken.IsCancellationRequested))
+        catch (Exception error) when (tolerateOutage && DatabaseOutage.Is(error))
         {
+            _logger.LogWarning(error, "Game context {ContextId} could not be checked: database outage", context.Id);
             return null;
         }
     }

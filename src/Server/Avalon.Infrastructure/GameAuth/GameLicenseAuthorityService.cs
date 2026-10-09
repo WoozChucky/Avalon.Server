@@ -4,6 +4,8 @@ using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.StoreAuth;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Infrastructure.GameAuth;
@@ -13,8 +15,11 @@ public sealed record GameLicenseAuthorityResult(GameLicenseCheckStatus Status, G
 
 /// <summary>Owns common source/revision binding and bounded authority; adapters cannot issue game contexts.</summary>
 public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, IGameLicenseRepository licenses,
-    ILicenseObservationRepository observations, IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock)
+    ILicenseObservationRepository observations, IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock,
+    ILogger<GameLicenseAuthorityService>? logger = null)
 {
+    private readonly ILogger _logger = logger ?? NullLogger<GameLicenseAuthorityService>.Instance;
+
     private static GameLicenseAuthorityResult Unavailable => new(GameLicenseCheckStatus.Unavailable);
     private static GameLicenseAuthorityResult Unlicensed => new(GameLicenseCheckStatus.Unlicensed);
 
@@ -146,7 +151,12 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 license.Authorizes(account, application.Product, application.Environment, now);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception) { return null; }
+        catch (Exception error) when (DatabaseOutage.Is(error))
+        {
+            _logger.LogWarning(error, "Game license {LicenseId} could not be read: database outage", licenseId);
+            return null;
+        }
+        catch (Exception) { return false; }
     }
 
     /// <summary>
@@ -167,7 +177,12 @@ public sealed class GameLicenseAuthorityService(GameProviderRegistry providers, 
                 row.ProviderSubject == subject && row.AuthorityKind == provider.AuthorityKind;
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-        catch (Exception) { return null; }
+        catch (Exception error) when (DatabaseOutage.Is(error))
+        {
+            _logger.LogWarning(error, "Game license {LicenseId} could not be read: database outage", licenseId);
+            return null;
+        }
+        catch (Exception) { return false; }
     }
 
     private bool Trusted(GameApplicationSelection app)
