@@ -84,7 +84,8 @@ public interface IAvalonCryptoSession
 /// completed seals or opens anything (#855). An Initialize that throws (a peer key that does not
 /// parse, say) leaves the session failed for good: it refuses a second Initialize, and every
 /// Encrypt and Decrypt, as an <see cref="InvalidOperationException"/>. So does a session whose send
-/// counter is spent, since its next nonce would repeat one this key has already used.
+/// counter is spent, since its next nonce would repeat one this key has already used. The two
+/// public keys are readable only once the exchange has completed.
 /// </para>
 /// </remarks>
 public class AvalonCryptoSession : IAvalonCryptoSession
@@ -192,14 +193,27 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         }
     }
 
+    /// <exception cref="InvalidOperationException">The exchange has not completed.</exception>
     public byte[] GetPublicKey()
     {
+        if (!HasExchanged()) throw NotReady();
         return _ownPublicKeyBytes;
     }
 
+    /// <exception cref="InvalidOperationException">The exchange has not completed.</exception>
     public byte[] GetOtherEndPublicKey()
     {
+        if (!HasExchanged()) throw NotReady();
         return _otherEndPublicKeyBytes;
+    }
+
+    // The two public keys are set during Initialize and fixed once it completes, so they are
+    // readable from Ready on, including after the send counter is spent: exhaustion ends what the
+    // session may seal, not which exchange it was. Before that they are null or half-set.
+    private bool HasExchanged()
+    {
+        int state = _state;
+        return state == Ready || state == Exhausted;
     }
 
     public EncryptFunc Encryptor { get; }

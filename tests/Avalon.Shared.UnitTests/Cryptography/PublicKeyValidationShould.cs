@@ -124,6 +124,8 @@ public class PublicKeyValidationShould
 
         Assert.Throws<InvalidOperationException>(() => session.Encrypt("after a failed exchange"u8));
         Assert.Throws<InvalidOperationException>(() => session.Decrypt(new byte[64], new byte[64]));
+        Assert.Throws<InvalidOperationException>(() => session.GetPublicKey());
+        Assert.Throws<InvalidOperationException>(() => session.GetOtherEndPublicKey());
         Assert.Throws<InvalidOperationException>(
             () => session.Initialize(PublicKeyOn(SecObjectIdentifiers.SecP256r1)));
     }

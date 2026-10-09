@@ -117,9 +117,9 @@ reliable ordered stream today and rejecting out-of-order nonces would be a behav
 larger than this one. If it is wanted, it belongs with the transport decision in finding 2.
 
 **An exhausted counter ends the session.** After 2^96 - 1 sealed packets the counter has no next
-value; `SessionKeys.IncrementNonce` checks for that before it writes anything, so it throws with the
-counter left where it was rather than wrapped to zero (#855), and the session that hit it marks
-itself spent: it never seals again, under nonce zero or any other, and opens nothing either. Not
+value; `SessionKeys.TryIncrementNonce`, which the session calls (`IncrementNonce` is its throwing
+form), checks for that before it writes anything, so it fails with the counter left where it was
+rather than wrapped to zero (#855), and the session that hit it marks itself spent: it never seals again, under nonce zero or any other, and opens nothing either. Not
 reachable in practice; what matters is that the failure cannot be followed by a packet sealed
 under a nonce the key has already used.
 
@@ -145,7 +145,9 @@ claims the session first, so a second call is refused even after a failed first 
 both ciphers, publishes them under the lock the packets take, and only then marks the session
 ready. An `Initialize` that throws (a peer key that does not parse, say) leaves the session failed
 for good, and every later `Encrypt` or `Decrypt` refuses with an `InvalidOperationException` rather
-than reaching a missing cipher. The ready check is one volatile read before each packet and one
+than reaching a missing cipher. `GetPublicKey` and `GetOtherEndPublicKey` refuse the same way
+until the exchange has completed; a spent session still returns them, since exhaustion ends what
+it may seal, not which exchange it was. The ready check is one volatile read before each packet and one
 more under the lock the packet already takes, so it adds no lock and no allocation.
 
 `AesGcm` has no fallback. `ServerBase` refuses to construct, so the auth and world servers refuse to
