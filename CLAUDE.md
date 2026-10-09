@@ -71,7 +71,7 @@ Target framework: .NET 10 (`global.json`). The long notes — the local run (the
 | Balance | `src/Server/Avalon.Balance.Core`, `.Balance.Data`, `.Balance.Contract`, `.Balance.Service` | Simulator library (Core references Combat and Domain only, `BalanceCoreAssemblyShould`), seed reader, DTOs, in-cluster service |
 | Aspire | `src/Server/Avalon`, `src/Server/Avalon.ServiceDefaults` | Local AppHost and shared service defaults |
 | Shared | `src/Shared/Avalon.Common`, `.Configuration`, `.Domain`, `.Metrics`, `.Network.Packets`, `.Network.Packets.Abstractions` | `ValueObject<T>` and utilities, options classes, the domain model, OpenTelemetry, packet contracts (protobuf-net) |
-| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking`, `Avalon.LocalDev` (local run: certificates and user-secrets, game tickets), `api-smoke` (read-only API smoke check), `release` (CI version and registry scripts) ([docs/tooling.md](docs/tooling.md)) |
+| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking`, `Avalon.LocalDev` (local run: certificates and user-secrets, game tickets), `Avalon.LoadTest` (load-test bots and the capacity ramp), `api-smoke` (read-only API smoke check), `release` (CI version and registry scripts) ([docs/tooling.md](docs/tooling.md)) |
 | Vendored | `vendor/DotRecast` | Navmesh (Recast/Detour); not ours to restyle |
 
 `src/Server/Avalon.PluginFramework` is an empty placeholder project.
@@ -136,6 +136,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 - [Configuration reference](docs/configuration-reference.md), [instrumentation](docs/instrumentation.md), [benchmarks](docs/benchmarks.md), [GC pressure](docs/gc-pressure.md), [DbContext lifetime](docs/dbcontext-lifetime.md), [tooling](docs/tooling.md), [decision log](docs/architecture-decisions.md).
 - [Balance simulator and service](docs/balance.md): `Simulation.Run` over the `HasData` seed; the in-cluster service behind the API's `/balance/*` proxy.
 - [Development setup](docs/development-setup.md): every command, EF design-time rules, the JWT signing key.
+- [Load testing](docs/load-testing.md): `tools/Avalon.LoadTest` against the homelab's load-test world 4: prerequisites, run files, the ramp, its limits and decision rule, the stop sequence, the report.
 
 ## Testing
 

@@ -8,6 +8,7 @@
 | `Avalon.Balance` | the balance simulator's command line ([balance](balance.md)) |
 | `Avalon.Benchmarking` | BenchmarkDotNet harnesses ([benchmarks](benchmarks.md)) |
 | `Avalon.ChunkGen` | generates the forest pieces and the town squares into the chunk catalog ([map generation](map-generation.md)) |
+| `Avalon.LoadTest` | load testing ([load testing](load-testing.md)): `provision` creates a run of bot accounts as an admin and keeps it in a local run file; `check` takes one bot end to end into the run's world; `ramp` adds headless bots in steps, judges each step against the limits (Prometheus, the bots, the bot PC) and writes a report with the capacity and what failed first; `cleanup` deletes the run |
 | `Avalon.LocalDev` | local runs ([development setup](development-setup.md#from-clone-to-client-in-world)): `setup` makes the world's three local TLS certificates and writes the API's and the world server's user-secrets for them; `login` signs in over the REST API and hands the game client its game ticket; `check` walks the client's REST chain up to a join ticket |
 | `Avalon.Scenarios` | the scenario runner (below): runs the world server's fixed scenarios in process and reports tick-thread allocations, tick times and GC |
 | `Avalon.Exporter`, `Avalon.Exporter.Emitters` | exports every artifact the client vendors, one subcommand per artifact |

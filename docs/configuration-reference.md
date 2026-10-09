@@ -407,6 +407,26 @@ The host's stop timeout is `DrainTime + SaveMargin` (30 s with the shipped value
 
 ---
 
+## World Metrics Export
+
+The world server exports traces, metrics and logs over OTLP (`UseOtlpExporter` in `Avalon.ServiceDefaults`) when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set. The OpenTelemetry SDK reads its `OTEL_*` settings through `IConfiguration`. The
+world chart renders them from `otel` values, and only when `otel.endpoint` is set:
+
+| Value | Renders | Default | Purpose |
+|---|---|---|---|
+| `otel.endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | empty: nothing is exported | The collector, e.g. `http://otel-collector:4317` (OTLP gRPC) |
+| `otel.serviceName` | `OTEL_SERVICE_NAME` | the release's full name | The `service.name` resource attribute |
+| `otel.resourceAttributes` | `OTEL_RESOURCE_ATTRIBUTES` | `{}` | Extra resource attributes, e.g. `{deployment.environment: production}`. `avalon.world.id` always comes first, from `server.game.worldId`, and a value for it here is ignored |
+| `otel.metricExportIntervalMs` | `OTEL_METRIC_EXPORT_INTERVAL` | empty: the SDK's 60000 | How often metrics are exported, in milliseconds. A positive integer; with `otel.endpoint` set, anything else refuses to render (with no endpoint the value is not read) |
+
+The load-test world sets `otel.metricExportIntervalMs: 10000`, so each 60-second window of a
+[load-test ramp](load-testing.md) holds six samples of every series. A rate needs two samples in its window, and with
+the default 60 seconds a 60-second window has one. Leave it unset elsewhere: a shorter interval multiplies what every
+world pushes to the collector and stores in Prometheus.
+
+---
+
 ## REST API JWT Signing Key
 
 Sections: `Application:Authentication` and `Application:GameAuth` (**the private keys are never committed to source
