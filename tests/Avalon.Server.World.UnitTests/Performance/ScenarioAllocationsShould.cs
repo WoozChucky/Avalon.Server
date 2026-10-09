@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using Avalon.World.Testing.Scenarios;
 using Xunit.Abstractions;
 
@@ -66,9 +67,10 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// On GitHub Actions (<c>GITHUB_STEP_SUMMARY</c> set), appends this scenario's row to the run's summary page, pass or
-    /// fail: the console logger prints no output of a passing test, so this is where CI's figures can be read. The table
-    /// header goes in before the first row of the process. A summary that cannot be written is skipped, never a failure.
+    /// On GitHub Actions (<c>GITHUB_STEP_SUMMARY</c> set), appends every measured scenario's row to the run's summary
+    /// page: the console logger prints no output of a passing test, so this is where CI's figures can be read. The table
+    /// header, with the runtime and OS that measured it, goes in before the first row of the process. A summary that
+    /// cannot be written is skipped, never a failure.
     /// </summary>
     private void AppendToStepSummary(string name, long committed, long measured, AllocationBaseline.Verdict verdict)
     {
@@ -87,8 +89,10 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
                 if (!s_summaryHeaderWritten)
                 {
                     File.AppendAllText(path,
-                        $"\n### Scenario allocation gate\n\n" +
-                        $"Bytes per {ScenarioMeasurement.WindowTicks}-tick window against `perf/scenario-allocations.json`.\n\n" +
+                        "\n### Scenario allocation gate\n\n" +
+                        $"Bytes per {ScenarioMeasurement.WindowTicks}-tick window against `perf/scenario-allocations.json`, " +
+                        $"measured on {RuntimeInformation.FrameworkDescription}, {RuntimeInformation.OSDescription} " +
+                        $"({RuntimeInformation.ProcessArchitecture}).\n\n" +
                         "| Scenario | Committed | Measured | Change | Tolerance | Verdict |\n" +
                         "|---|---:|---:|---:|---|---|\n");
                     s_summaryHeaderWritten = true;

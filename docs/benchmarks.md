@@ -1141,8 +1141,8 @@ with the committed figure, in every build (Debug and Release, see below):
   11,705,626 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
   one per instance per tick in `many-instances`; one object per tick for the whole town (about 1.4 KB per window) does
   not fail `town-walk`. Under the 5% band before #852 the floors were 40 and 19 B per player per tick.
-- **Why 1%.** Every run measured after #854 reads within −0.03% and +0.05% of the committed figures (the table
-  below), and CI's runner, before #854, read within 0.09% of the developer machine once the per-send delegate it alone
+- **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
+  CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
   widest of these.
 - **Ratchet.** The committed file goes down only by an explicit commit. When a change makes a scenario cheaper,
@@ -1154,6 +1154,11 @@ Regenerate (every scenario, in Release; the runner refuses `--write-allocations`
 ```bash
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-allocations perf/scenario-allocations.json
 ```
+
+**A red gate with no code change: check the runtime, then regenerate.** CI installs the latest .NET 10 SDK and runtime
+(`dotnet-version: 10.0.x`), and `global.json` lets the SDK roll forward (`rollForward: latestMajor`), so a new runtime
+patch can move the figures with no change in this repository. The CI run's summary table names the runtime and OS that measured it; when they differ from the run that
+committed the baseline and the code did not change, regenerate the baseline on the new runtime and commit it.
 
 **The gate decides in every build, and every machine reads the same figures.** CI builds Release on a GitHub-hosted
 runner; a plain local `dotnet test` builds Debug. Since #854 the committed figures are a plain Release run on the
@@ -1179,7 +1184,8 @@ A Debug build never optimises, so it never keeps an object on the stack; a Relea
 optimised JIT tier applies. That Debug reads the same as Release shows that nothing on the measured path allocates
 differently depending on how far the JIT has got, which is what made the CI runner read higher before #854 (below).
 **Escape hatch:** should a change make Debug and Release diverge again (an allocation the optimised JIT keeps on the
-stack and unoptimised code does not), the gate goes back to deciding in Release only, as #856 had it: put the
+stack and unoptimised code does not), or should another machine or architecture read differently in Debug (arm64,
+for one, has not been measured), the gate goes back to deciding in Release only, as #856 had it: put the
 `Regressed` branch of `ScenarioAllocationsShould` under `#if !DEBUG` and write the comparison in Debug instead. A
 scenario that stopped doing its work still fails its `Verify` check in every build.
 

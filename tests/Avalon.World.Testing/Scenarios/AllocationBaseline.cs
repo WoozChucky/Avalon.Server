@@ -10,8 +10,8 @@ public static class AllocationBaseline
 {
     /// <summary>
     /// The relative band, in percent. Every run since #854 (Debug and Release, Windows and Linux, alone and beside the
-    /// other test assemblies) reads within 0.05% of the committed figures, and CI's runner read within 0.09% of them once
-    /// the per-send delegate it paid was accounted for; 1% is ten times the widest of those.
+    /// other test assemblies) reads within 0.05% of the committed figures, and CI's runner read within about 0.1% of
+    /// them once the per-send delegate it paid was accounted for; 1% is ten times the widest of those.
     /// </summary>
     public const int TolerancePercent = 1;
 
