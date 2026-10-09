@@ -262,11 +262,12 @@ public static class CheckCommand
     }
 
     /// <summary>
-    /// The most a fighter's way out may take: 60 s, or twice the walk back along its trail, which is at most as long as
-    /// its walk in, at most <c>--forest-time</c> at the walk speed: so at most twice <c>--forest-time</c>.
+    /// The most a fighter's way out may take: 60 s, or twice the walk back along its trail, then by the entry spawn to the
+    /// back portal. The trail is at most as long as its walk in, at most <c>--forest-time</c> at the walk speed, and the
+    /// entry spawn is 10 m (2.5 s) from the back portal: so at most twice <c>--forest-time</c> plus 5 s.
     /// </summary>
     private static TimeSpan ExitBudget(TimeSpan forestTime) =>
-        TimeSpan.FromSeconds(Math.Max(60, 2 * forestTime.TotalSeconds));
+        TimeSpan.FromSeconds(Math.Max(60, 2 * forestTime.TotalSeconds + 5));
 
     /// <summary>What a fighter's trip counted.</summary>
     private static void PrintTrip(StepClientValues values)

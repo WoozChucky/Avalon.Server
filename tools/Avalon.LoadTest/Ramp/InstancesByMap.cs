@@ -44,15 +44,16 @@ public sealed record InstancesByMap(InstancesReadout Readout, double? Town, doub
     /// ticks and no instance update, null when Prometheus has nothing from the world at all), and the updates per tick by
     /// map type (null when that query failed). A count of 0 is <see cref="InstancesReadout.NotExported"/>. A failed or
     /// empty count, a failed or empty rate, or a rate that is not a finite number (no tick in the window) is
-    /// <see cref="InstancesReadout.Unknown"/>. With a rate for some map type (the town's, which ticks as long as the world
-    /// does), one the result lacks reads 0: no instance of it has ticked since the world started, or its first did so
-    /// only in the window's last sample, too late for a rate.
+    /// <see cref="InstancesReadout.Unknown"/>, as is a rate without the town's (which ticks as long as the world does).
+    /// With the town's rate, a map type the result lacks reads 0: no instance of it has ticked since the world started,
+    /// or its first did so only in the window's last sample, too late for a rate.
     /// </summary>
     public static InstancesByMap From(bool exportedAnswered, double? exportedSeries, IReadOnlyDictionary<string, double>? perTick)
     {
         if (!exportedAnswered || exportedSeries is null) return Unknown;
         if (exportedSeries is not > 0) return new(InstancesReadout.NotExported, null, null);
         if (perTick is null || perTick.Count == 0 || perTick.Values.Any(value => !double.IsFinite(value))) return Unknown;
+        if (!perTick.ContainsKey(TownType)) return Unknown;
 
         return new(InstancesReadout.Reported, perTick.GetValueOrDefault(TownType), perTick.GetValueOrDefault(ForestType));
     }

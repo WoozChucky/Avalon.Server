@@ -157,8 +157,9 @@ is in sight for a minute), back out along its trail, and into town. It prints ea
 and its own deaths, the trips completed, and each failed step by kind. It passes only when the trip completed: the
 fighter walked out into town. A death fails it (`forest:died`: it respawned in town before it walked out), and so
 does a failed step (`forest:failed`, with the [failure kinds](#failure-kinds)); a trip that has not ended within
-`--forest-time`, plus the most its exit budget can be (60 seconds or twice `--forest-time`, whichever is longer),
-plus 3 minutes, fails as `forest:timeout`; a connection the world closes during it as `forest:closed`.
+`--forest-time`, plus the most its exit budget can be (60 seconds or twice `--forest-time` plus 5 seconds (the 10 m
+from the entry spawn to the back portal), whichever is longer), plus 3 minutes, fails as `forest:timeout`; a
+connection the world closes during it as `forest:closed`.
 
 With `--party-size N` above 1 (fighters only; any other behaviour refuses it), the N bots from `--bot` on enter
 together, form one party with the party packets once all are in (it prints how long that took; a party that did not
@@ -362,9 +363,10 @@ In the forest a fighter drops a crumb each time it is 4 m from the last one; wal
 cuts the loop since out of the trail. The trail holds 256 crumbs: full, every other one is dropped (the oldest and the
 newest kept), so a longer walk keeps a coarser trail rather than none. On the way out it steers at the crumbs newest
 first, passing each within 1.5 m, then at the entry spawn and the back portal. The way out has an **exit budget**, set
-when the fighter turns for the exit: the longer of 60 seconds and twice the walk back along its trail at the base
-walk speed of 4 m/s. The trail is never longer than the walk in, so the budget is at most the longer of 60 seconds and
-twice `--forest-time`. A fighter not back in town within it reconnects (`forest:exit-timeout`).
+when the fighter turns for the exit: the longer of 60 seconds and twice the walk back along its trail, then by the
+entry spawn to the back portal, at the base walk speed of 4 m/s. The trail is never longer than the walk in, so the
+budget is at most 60 seconds or twice `--forest-time` plus 5 seconds (the 10 m from the entry spawn to the back
+portal), whichever is longer. A fighter not back in town within it reconnects (`forest:exit-timeout`).
 
 **Death.** The fighter's table holds its own character too, by the guid of the character it selected. When the table
 shows that character dead, the fighter counts an **own death**, drops whatever it was doing and sends

@@ -19,6 +19,9 @@ public class InstancesByMapShould
         Assert.Equal(InstancesByMap.Unknown, InstancesByMap.From(true, 2, new Dictionary<string, double>()));
         Assert.Equal(InstancesByMap.Unknown,
             InstancesByMap.From(true, 2, new Dictionary<string, double> { ["Town"] = double.PositiveInfinity }));
+        // Without the town's rate, a missing map type cannot be told from a missing answer.
+        Assert.Equal(InstancesByMap.Unknown,
+            InstancesByMap.From(true, 1, new Dictionary<string, double> { ["Normal"] = 4.5 }));
 
         Assert.Equal(new InstancesByMap(InstancesReadout.Reported, 7, 4.5), InstancesByMap.From(true, 2, both));
         // The town ticks as long as the world does; a forest never entered has no series to rate: none, not unknown.

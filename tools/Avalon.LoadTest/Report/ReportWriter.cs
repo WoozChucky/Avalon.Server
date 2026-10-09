@@ -245,7 +245,7 @@ public static class ReportWriter
         string settings = Invariant($"--forest-time {options.ForestTime.TotalSeconds:0} s, {parties}");
         bool inMix = Mix.Parse(options.Mix).Any(entry => entry.Kind == BehaviourKind.Fighter && entry.Weight > 0);
         return inMix
-            ? $"{settings}; a fighter's first trip (a party's, together) waits a random 0 to {Fighter.FirstTripJitter.TotalSeconds:0} s"
+            ? Invariant($"{settings}; a fighter's first trip (a party's, together) waits a random 0 to {Fighter.FirstTripJitter.TotalSeconds:0} s")
             : $"none in the mix ({settings})";
     }
 
