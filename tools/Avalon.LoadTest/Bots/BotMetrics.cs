@@ -15,8 +15,8 @@ namespace Avalon.LoadTest.Bots;
 /// whole: a recorder registers on the window it read (<see cref="Enter"/>) and moves to the new one if that was
 /// swapped meanwhile, and <see cref="TakeWindow"/> waits for the recorders still registered on the window it closed
 /// before reading it. Entry attempts are not a counter of their own but successes plus failures, so the two always
-/// agree. Latency samples (acks, entry times) are not gated: they feed percentiles, and a sample landing in the
-/// closed window just after it was read is one sample fewer, not a miscount.
+/// agree. Ack samples are not gated: they feed percentiles, and a sample landing in the closed window just after it
+/// was read is one sample fewer, not a miscount. An entry time is written with its success, inside the gate.
 /// </para>
 /// <para>
 /// An input's send time is kept per bot in a ring of <see cref="RingSize"/> slots indexed by <c>seq % 64</c>; its ack
@@ -67,9 +67,15 @@ public sealed class BotMetrics
     public void EntrySucceeded(TimeSpan ticketToFirstAck)
     {
         Window window = Enter();
-        Interlocked.Increment(ref window.EntrySuccesses);
-        window.Entries.Add(ticketToFirstAck.TotalMilliseconds);
-        Exit(window);
+        try
+        {
+            Interlocked.Increment(ref window.EntrySuccesses);
+            window.Entries.Add(ticketToFirstAck.TotalMilliseconds);
+        }
+        finally
+        {
+            Exit(window);
+        }
     }
 
     /// <summary>
@@ -79,16 +85,28 @@ public sealed class BotMetrics
     public void EntryFailed(string kind)
     {
         Window window = Enter();
-        window.EntryFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
-        Exit(window);
+        try
+        {
+            window.EntryFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
+        }
+        finally
+        {
+            Exit(window);
+        }
     }
 
     /// <summary>A sign-in or a context refresh failed; <paramref name="kind"/> names the REST step.</summary>
     public void SignInFailed(string kind)
     {
         Window window = Enter();
-        Interlocked.Increment(ref window.SignInFailures);
-        Exit(window);
+        try
+        {
+            Interlocked.Increment(ref window.SignInFailures);
+        }
+        finally
+        {
+            Exit(window);
+        }
     }
 
     /// <summary>
@@ -98,24 +116,42 @@ public sealed class BotMetrics
     public void LeaveFailed(string kind)
     {
         Window window = Enter();
-        window.LeaveFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
-        Exit(window);
+        try
+        {
+            window.LeaveFailures.AddOrUpdate(kind, 1, static (_, n) => n + 1);
+        }
+        finally
+        {
+            Exit(window);
+        }
     }
 
     /// <summary>A game context's sign-out failed (no reply, a 5xx, another error, or its own timeout).</summary>
     public void SignOutFailed()
     {
         Window window = Enter();
-        Interlocked.Increment(ref window.SignOutFailures);
-        Exit(window);
+        try
+        {
+            Interlocked.Increment(ref window.SignOutFailures);
+        }
+        finally
+        {
+            Exit(window);
+        }
     }
 
     /// <summary>A bot in the world lost its connection without asking to.</summary>
     public void Disconnected(int bot)
     {
         Window window = Enter();
-        Interlocked.Increment(ref window.Disconnects);
-        Exit(window);
+        try
+        {
+            Interlocked.Increment(ref window.Disconnects);
+        }
+        finally
+        {
+            Exit(window);
+        }
     }
 
     /// <summary>
