@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
