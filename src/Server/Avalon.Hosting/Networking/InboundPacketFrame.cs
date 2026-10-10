@@ -62,8 +62,9 @@ public readonly struct InboundPacketFrame
     }
 
     /// <summary>
-    /// The header's four fields, each an int32 varint (sign-extended to ten bytes when negative). Like protobuf-net, a
-    /// value outside int32 is refused, and so is one outside <see cref="short"/> for the three enums declared on it.
+    /// The header's four fields, each an int32 varint, read the way protobuf-net 3.4.30 reads one (see
+    /// <see cref="ToInt32"/>); the three enums are declared on <see cref="short"/>, and a value outside it is refused,
+    /// as protobuf-net refuses it.
     /// </summary>
     private static NetworkPacketHeader ReadHeader(ReadOnlySpan<byte> span)
     {
@@ -80,30 +81,42 @@ public readonly struct InboundPacketFrame
                 continue;
             }
 
-            long value = unchecked((long)ReadVarint(span, ref pos));
+            int start = pos;
+            ulong raw = ReadVarint(span, ref pos);
+            int value = ToInt32(raw, pos - start, fieldNumber);
             switch (fieldNumber)
             {
                 case 1: header.Type = (NetworkPacketType)ToShort(value, fieldNumber); break;
                 case 2: header.Flags = (NetworkPacketFlags)ToShort(value, fieldNumber); break;
                 case 3: header.Protocol = (NetworkProtocol)ToShort(value, fieldNumber); break;
-                case 4: header.Version = ToInt(value, fieldNumber); break;
+                case 4: header.Version = value; break;
             }
         }
 
         return header;
     }
 
-    private static short ToShort(long value, int fieldNumber) =>
+    /// <summary>
+    /// An int32 varint as protobuf-net 3.4.30 reads it (measured): in up to five bytes, a uint32 taken as its bits
+    /// (so -1 may come as <c>FF FF FF FF 0F</c>); in more, only the ten-byte sign-extended form, whose top 32 bits are
+    /// all set and whose low 32 are the value. Anything else, a zero-padded encoding past five bytes included, is
+    /// refused.
+    /// </summary>
+    private static int ToInt32(ulong raw, int length, int fieldNumber)
+    {
+        if (raw >> 32 == uint.MaxValue)
+            return unchecked((int)raw);
+        if (length <= 5 && raw <= uint.MaxValue)
+            return unchecked((int)(uint)raw);
+        throw new InvalidDataException(
+            $"Header field {fieldNumber} holds {raw} in {length} bytes, not an int32, in a NetworkPacket frame.");
+    }
+
+    private static short ToShort(int value, int fieldNumber) =>
         value is >= short.MinValue and <= short.MaxValue
             ? (short)value
             : throw new InvalidDataException(
                 $"Header field {fieldNumber} holds {value}, outside its 16-bit range, in a NetworkPacket frame.");
-
-    private static int ToInt(long value, int fieldNumber) =>
-        value is >= int.MinValue and <= int.MaxValue
-            ? (int)value
-            : throw new InvalidDataException(
-                $"Header field {fieldNumber} holds {value}, outside its 32-bit range, in a NetworkPacket frame.");
 
     private static void SkipField(ReadOnlySpan<byte> span, ref int pos, int wireType, int fieldNumber)
     {
@@ -145,6 +158,8 @@ public readonly struct InboundPacketFrame
             if (pos >= span.Length)
                 throw new InvalidDataException("A varint in a NetworkPacket frame is cut short.");
             b = span[pos++];
+            if (shift == 63 && b > 1)
+                throw new InvalidDataException("A varint in a NetworkPacket frame carries past 64 bits.");
             result |= (ulong)(b & 0x7F) << shift;
             shift += 7;
         } while ((b & 0x80) != 0);

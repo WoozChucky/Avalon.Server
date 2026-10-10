@@ -38,10 +38,11 @@ public class InboundPacketFrameShould
     }
 
     /// <summary>
-    /// Raw frames as a peer could send them. Expected header as { type, flags, protocol, version }, or null when the
-    /// frame must be refused.
+    /// Raw frames as a peer could send them. Expected header as { type, flags, protocol, version } and payload, or both
+    /// null when the frame must be refused. Header values follow protobuf-net 3.4.30's int32 reading: up to five bytes
+    /// as a uint32, beyond that only the ten-byte sign-extended form.
     /// </summary>
-    public static TheoryData<string, byte[], int[]?> RawFrames() => new()
+    public static TheoryData<string, byte[], int[]?, byte[]?> RawFrames() => new()
     {
         {
             "out of order, with unknown field 5 as varint and as length-delimited",
@@ -57,17 +58,34 @@ public class InboundPacketFrameShould
                 0x2A, 0x02, 0xFF, 0xFF,       //   field 5, length-delimited
                 0x08, 0x86, 0x40,             //   type CMSG_PONG (0x2006)
             ],
-            [(int)NetworkPacketType.CMSG_PONG, (int)NetworkPacketFlags.Encrypted, (int)NetworkProtocol.Tcp, 7]
+            [(int)NetworkPacketType.CMSG_PONG, (int)NetworkPacketFlags.Encrypted, (int)NetworkProtocol.Tcp, 7],
+            [0xAA]
+        },
+        {
+            "-1 sent as five bytes, a uint32",
+            [0x0A, 0x0C, 0x08, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F, 0x20, 0xFF, 0xFF, 0xFF, 0xFF, 0x0F],
+            [(int)NetworkPacketType.ERROR, 0, 0, -1],
+            []
+        },
+        // Sign-extended: only the top 32 bits have to be set, and the low 32 are the value.
+        {
+            "version sign-extended above int.MaxValue",
+            [0x0A, 0x0B, 0x20, 0xFF, 0xFF, 0xFF, 0xFF, 0xF7, 0xFF, 0xFF, 0xFF, 0xFF, 0x01],
+            [0, 0, 0, int.MaxValue],
+            []
         },
         // The header claims two bytes; its type varint goes on past them.
-        { "truncated varint", [0x0A, 0x02, 0x08, 0x86, 0x40], null },
-        { "eleven-byte varint", [0x0A, 0x0C, 0x08, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01], null },
-        { "header length past the end", [0x0A, 0x05, 0x08, 0x01], null },
-        { "wire type 3", [0x0B, 0x00], null },
-        { "type above short.MaxValue", [0x0A, 0x04, 0x08, 0x80, 0x80, 0x02], null },
-        { "version above int.MaxValue", [0x0A, 0x06, 0x20, 0x80, 0x80, 0x80, 0x80, 0x10], null },
-        { "unknown length-delimited field longer than what remains", [0x2A, 0x05, 0x00], null },
-        { "fixed64 field cut short", [0x29, 0x00, 0x00], null },
+        { "truncated varint", [0x0A, 0x02, 0x08, 0x86, 0x40], null, null },
+        { "eleven-byte varint", [0x0A, 0x0C, 0x08, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01], null, null },
+        { "ten-byte varint whose last byte carries past 64 bits", [0x0A, 0x0B, 0x20, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x7F], null, null },
+        { "zero padded past five bytes", [0x0A, 0x07, 0x20, 0x80, 0x80, 0x80, 0x80, 0x80, 0x00], null, null },
+        { "header length past the end", [0x0A, 0x05, 0x08, 0x01], null, null },
+        { "wire type 3", [0x0B, 0x00], null, null },
+        { "type above short.MaxValue", [0x0A, 0x04, 0x08, 0x80, 0x80, 0x02], null, null },
+        { "version above uint32 in five bytes", [0x0A, 0x06, 0x20, 0x80, 0x80, 0x80, 0x80, 0x10], null, null },
+        // The header's length fits; inside it, field 5 claims five bytes with one left.
+        { "unknown length-delimited field longer than what remains", [0x0A, 0x03, 0x2A, 0x05, 0x00], null, null },
+        { "fixed64 field cut short", [0x29, 0x00, 0x00], null, null },
     };
 
     /// <summary>
@@ -77,9 +95,9 @@ public class InboundPacketFrameShould
     /// </summary>
     [Theory]
     [MemberData(nameof(RawFrames))]
-    public void Read_or_refuse_a_raw_frame(string because, byte[] raw, int[]? expected)
+    public void Read_or_refuse_a_raw_frame(string because, byte[] raw, int[]? expected, byte[]? payload)
     {
-        if (expected is null)
+        if (expected is null || payload is null)
         {
             Assert.Throws<InvalidDataException>(() => InboundPacketFrame.ParseFrame(raw));
             return;
@@ -90,6 +108,7 @@ public class InboundPacketFrameShould
         Assert.True(
             expected.SequenceEqual([(int)frame.Header.Type, (int)frame.Header.Flags, (int)frame.Header.Protocol, frame.Header.Version]),
             because);
+        Assert.Equal(payload, frame.Payload.ToArray());
     }
 
     [Fact]
