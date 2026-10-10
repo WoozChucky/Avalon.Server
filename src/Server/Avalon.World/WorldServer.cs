@@ -782,7 +782,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         stageStart = StageDone(stageStart, s_pingsStage);
 
         // The tick never writes (#875): each connection's packets are already queued on its sender, and one signal per
-        // send thread wakes it to seal, frame and write them.
+        // send thread wakes it to frame them (sealing them too while Network:PacketEncryption is on) and write them.
         _sendScheduler.SignalAll();
         stageStart = StageDone(stageStart, s_outboxStage);
 

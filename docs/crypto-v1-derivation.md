@@ -146,7 +146,7 @@ platform cipher to a second implementation.
 The session holds one `AesGcm` per direction and no lock (#875). Seals (`Encrypt`, `Encryptor`,
 `SealInto`) must be totally ordered, each happening after the last (one thread, a lock, a queue
 hand-off or an await); the same applies to opens (`Decrypt`). On the world server the connection's
-send thread seals while its read loop opens; on the auth server the drain task seals while the read
+send thread seals (with `Network:PacketEncryption` on) while its read loop opens; on the auth server the drain task seals while the read
 loop opens. A seal and an open may run at once, since each direction has its own cipher and its own
 state (the send counter is the sealer's alone). A client must likewise order its seals, and its
 opens: the load-test tool takes locks of its own for both, since a bot opens both on its read loop
