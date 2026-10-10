@@ -9,19 +9,19 @@ namespace Avalon.World.Handlers;
 /// </summary>
 internal static partial class HighRatePacketLog
 {
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {PacketType} on connection {Connection}: character {Name} is dead")]
-    public static partial void DroppedFromDeadCharacter(ILogger logger, NetworkPacketType packetType, Guid connection, string name);
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {PacketType} on connection {ConnectionId}: character {Name} is dead")]
+    public static partial void DroppedFromDeadCharacter(ILogger logger, NetworkPacketType packetType, Guid connectionId, string name);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "{PacketType} on connection {Connection}: no instance {InstanceId}")]
-    public static partial void InstanceNotFound(ILogger logger, NetworkPacketType packetType, Guid connection, Guid instanceId);
+    [LoggerMessage(Level = LogLevel.Error, Message = "{PacketType} on connection {ConnectionId}: no instance {InstanceId}")]
+    public static partial void InstanceNotFound(ILogger logger, NetworkPacketType packetType, Guid connectionId, Guid instanceId);
 
     [LoggerMessage(Level = LogLevel.Information,
-        Message = "[{CharName}] Latency changed: {Latency}ms -> {NewLatency}ms ({PacketType} on connection {Connection})")]
+        Message = "[{CharName}] Latency changed: {Latency}ms -> {NewLatency}ms ({PacketType} on connection {ConnectionId})")]
     public static partial void LatencyChanged(ILogger logger, string? charName, long latency, long newLatency,
-        NetworkPacketType packetType, Guid connection);
+        NetworkPacketType packetType, Guid connectionId);
 
     [LoggerMessage(Level = LogLevel.Trace,
-        Message = "[{CharName}] RTT: {Rtt}ticks, Latency: {Latency}ms ({PacketType} on connection {Connection})")]
+        Message = "[{CharName}] RTT: {Rtt}ticks, Latency: {Latency}ms ({PacketType} on connection {ConnectionId})")]
     public static partial void RoundTrip(ILogger logger, string? charName, long rtt, long latency,
-        NetworkPacketType packetType, Guid connection);
+        NetworkPacketType packetType, Guid connectionId);
 }

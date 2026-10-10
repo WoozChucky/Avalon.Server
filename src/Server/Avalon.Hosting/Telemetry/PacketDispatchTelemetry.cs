@@ -32,7 +32,14 @@ public sealed class PacketDispatchTelemetry
     private static readonly FrozenDictionary<NetworkPacketType, string> s_names =
         Enum.GetValues<NetworkPacketType>().Distinct().ToFrozenDictionary(t => t, t => t.ToString());
 
+    // The span names too, built once: a string per packet even when nothing traces it (#875).
+    private static readonly FrozenDictionary<NetworkPacketType, string> s_spanNames =
+        s_names.ToFrozenDictionary(p => p.Key, p => $"packet {p.Value}");
+
     internal static string NameOf(NetworkPacketType type) => s_names.TryGetValue(type, out string? name) ? name : type.ToString();
+
+    private static string SpanNameOf(NetworkPacketType type) =>
+        s_spanNames.TryGetValue(type, out string? name) ? name : $"packet {type}";
 
     private readonly ActivitySource _source;
     private readonly HashSet<NetworkPacketType> _noSpan;
@@ -100,7 +107,7 @@ public sealed class PacketDispatchTelemetry
 
     private Activity? StartSpan(NetworkPacketType type, PacketTags tags)
     {
-        Activity? activity = _source.StartActivity($"packet {type}", ActivityKind.Server);
+        Activity? activity = _source.StartActivity(SpanNameOf(type), ActivityKind.Server);
         if (activity is null)
             return null;
 

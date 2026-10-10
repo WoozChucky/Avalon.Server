@@ -300,7 +300,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
                 catch (Exception ex)
                 {
                     dispatch.Fail(ex);
-                    _logger.LogError(ex, "Error processing packet {PacketType}", packet.Type);
+                    _logger.LogError(ex, "Error processing packet {PacketType} on connection {ConnectionId}", packet.Type, Id);
                 }
                 finally
                 {
