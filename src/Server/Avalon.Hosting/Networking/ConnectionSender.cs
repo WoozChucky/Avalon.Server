@@ -15,8 +15,9 @@ namespace Avalon.Hosting.Networking;
 /// seals what this connection seals, frames it and writes it, with one write in flight at a time. Nothing is dropped.
 /// </summary>
 /// <remarks>
-/// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the burst buffer, <c>_finishedFlag</c> and
-/// <c>_doomHandled</c>. Every other field is read and written with <see cref="Interlocked" /> or <see cref="Volatile" />.
+/// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the burst buffer, <c>_finishedFlag</c>,
+/// <c>_doomHandled</c> and <c>_noticeWritten</c>. Every other field is read and written with <see cref="Interlocked" />
+/// or <see cref="Volatile" />.
 /// </remarks>
 public sealed class ConnectionSender : IOutbox
 {
@@ -28,6 +29,10 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>What a connection closed past the byte cap is told.</summary>
     public const string SlowConnectionMessage = "Your connection could not keep up with the server.";
+
+    // The time-sync ping's place in the queue: no payload, since the owner encodes the ping as it writes it.
+    private static readonly OutboundPacket s_pingMarker = new(
+        new NetworkPacketHeader { Type = NetworkPacketType.SMSG_PING, Protocol = NetworkProtocol.Tcp }, payload: null);
 
     private readonly ConcurrentQueue<OutboundPacket> _queue = new();
     private readonly NetworkSendScheduler _scheduler;
@@ -54,8 +59,13 @@ public sealed class ConnectionSender : IOutbox
     private int _faulted;
     private int _closeRequested;
     private int _doomed;
+    private long _pingClientTicks;
+    private long _pingRoundTrip;
+    private long _pingOffset;
+    private long _lastPingServerTicks;
     private bool _finishedFlag;
     private bool _doomHandled; // owner thread only
+    private bool _noticeWritten; // owner thread only: a disconnect notice went out, so no ping follows it
 
     internal ConnectionSender(NetworkSendScheduler scheduler, int ownerThread, Guid connectionId, ILogger logger,
         IAvalonCryptoSession? sealer, PacketEncoder encoder, Action close, TimeProvider time, long maxPendingBytes)
@@ -85,6 +95,9 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>True once the connection was found too slow; it is closing.</summary>
     public bool IsDoomed => Volatile.Read(ref _doomed) != 0;
+
+    /// <summary>The server timestamp of the last ping written, in UTC ticks; 0 before the first.</summary>
+    public long LastPingServerTicks => Interlocked.Read(ref _lastPingServerTicks);
 
     internal bool IsWriteInFlight => Volatile.Read(ref _writeInFlight) != 0;
 
@@ -135,6 +148,20 @@ public sealed class ConnectionSender : IOutbox
 
         MarkDirty();
         return true;
+    }
+
+    /// <summary>
+    /// Queues a time-sync ping. Its server timestamp is taken by the owner send thread as the ping's burst is written
+    /// (#875), so the round trip a pong reports holds no queueing or tick wait. A second ping queued before the first
+    /// went out carries the latest values. A ping still queued when the connection closes, or found too slow, is dropped
+    /// unstamped, and none follows a disconnect notice.
+    /// </summary>
+    public void EnqueuePing(long clientTicks, long roundTrip, long offset)
+    {
+        Volatile.Write(ref _pingClientTicks, clientTicks);
+        Volatile.Write(ref _pingRoundTrip, roundTrip);
+        Volatile.Write(ref _pingOffset, offset);
+        Enqueue(s_pingMarker);
     }
 
     /// <summary>
@@ -231,10 +258,20 @@ public sealed class ConnectionSender : IOutbox
         int packets = 0;
         int payloadBytes = 0;
         int length = 0;
+        bool ping = false;
         try
         {
             while (_queue.TryDequeue(out OutboundPacket packet))
             {
+                if (packet.Payload is null)
+                {
+                    ping = true; // the ping's marker: the ping itself goes last, below
+                    continue;
+                }
+
+                if (packet.Header.Type == NetworkPacketType.SMSG_DISCONNECT)
+                    _noticeWritten = true;
+
                 length = packet.PayloadLength;
                 try
                 {
@@ -247,6 +284,26 @@ public sealed class ConnectionSender : IOutbox
 
                 payloadBytes += length;
                 length = 0;
+                packets++;
+            }
+
+            // Stamped as the burst leaves, just before its write; never once the close began or a disconnect notice went
+            // out: the notice stays last. Clear text, and outside the pending bytes: its marker carried none.
+            if (ping && Volatile.Read(ref _completed) == 0 && !_noticeWritten)
+            {
+                long serverTicks = _time.GetUtcNow().UtcTicks;
+                OutboundPacket stamped = SPingPacket.Create(serverTicks, Volatile.Read(ref _pingClientTicks),
+                    Volatile.Read(ref _pingRoundTrip), Volatile.Read(ref _pingOffset), _encoder);
+                try
+                {
+                    PacketEnvelope.Append(_burst, stamped, _sealer);
+                }
+                finally
+                {
+                    stamped.Release();
+                }
+
+                Interlocked.Exchange(ref _lastPingServerTicks, serverTicks);
                 packets++;
             }
         }

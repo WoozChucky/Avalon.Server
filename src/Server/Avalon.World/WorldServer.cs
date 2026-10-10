@@ -749,14 +749,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
         // Phase MUST come from a monotonic counter — _tickCount above resets every ~1s.
-        // ENQUEUED BEFORE THE WAKE-UP BELOW, because SendTimeSyncPing stamps the send time it will
-        // later measure the round trip against. Sent a tick later, that stamp is ~16 ms old
-        // before the packet leaves, and every reported round trip carries the difference.
+        // Each ping is stamped by its send thread as it is written (#875), so where the tick queues
+        // it does not move the round trip.
         long phase = _pingTickCounter++ % TimeSyncTicksPeriod;
         for (int i = 0; i < conns.Length; i++)
         {
-            // A connection that has just handshaken pings on this tick whatever its phase, so the
-            // FIRST round trip a client is told is stamped beside the flush like every other one.
+            // A connection that has just handshaken pings on this tick whatever its phase, so its
+            // client learns its first round trip at once rather than up to a period later.
             if (conns[i].TakeInitialTimeSyncPingRequest() || i % TimeSyncTicksPeriod == phase)
                 conns[i].SendTimeSyncPing();
         }

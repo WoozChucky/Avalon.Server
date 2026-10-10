@@ -66,6 +66,7 @@ public sealed class ConnectionSenderShould
 
         for (long stamp = 1; stamp <= 3; stamp++)
             sender.Enqueue(Numbered(stamp));
+        sender.EnqueuePing(clientTicks: 7, roundTrip: 8, offset: 9); // a ping queued before the close is not written after the notice
         sender.Enqueue(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown, _encoder));
         await CloseAsync(scheduler, sender);
 
@@ -239,6 +240,49 @@ public sealed class ConnectionSenderShould
 
         await CloseAsync(scheduler, sender);
         Assert.Equal(0, _pool.Outstanding);
+    }
+
+    /// <summary>
+    /// Review Focus 3: a ping queued on a connection then found too slow is discarded with the rest of its queue.
+    /// The disconnect notice stays its only packet, and nothing is stamped.
+    /// </summary>
+    [Fact]
+    public async Task Discard_a_queued_ping_when_the_connection_is_closed_as_too_slow()
+    {
+        NetworkSendScheduler scheduler = Scheduler(maxPendingBytes: 65_536);
+        var wire = new MemoryStream();
+        ConnectionSender sender = Open(scheduler, wire);
+
+        sender.EnqueuePing(clientTicks: 1, roundTrip: 2, offset: 3);
+        while (sender.Enqueue(Payload(4_096))) { }
+        scheduler.RunPass(sender.OwnerThread);
+
+        (NetworkPacketHeader header, byte[] payload) = Assert.Single(await Frames(wire.ToArray()));
+        Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, header.Type);
+        Assert.Equal(DisconnectReason.SlowConnection, Serializer.Deserialize<SDisconnectPacket>(payload.AsSpan()).ReasonCode);
+        Assert.Equal(0, sender.LastPingServerTicks);
+    }
+
+    /// <summary>
+    /// A notice and its close are two calls, and the owner can write the notice before the close begins: a ping queued
+    /// with it, or after it, is never written behind it.
+    /// </summary>
+    [Fact]
+    public async Task Write_no_ping_after_a_disconnect_notice_that_went_out_before_the_close()
+    {
+        NetworkSendScheduler scheduler = Scheduler();
+        var wire = new MemoryStream();
+        ConnectionSender sender = Open(scheduler, wire);
+
+        sender.EnqueuePing(clientTicks: 1, roundTrip: 2, offset: 3);
+        sender.Enqueue(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown, _encoder));
+        scheduler.RunPass(sender.OwnerThread);
+        sender.EnqueuePing(clientTicks: 4, roundTrip: 5, offset: 6);
+        scheduler.RunPass(sender.OwnerThread);
+
+        (NetworkPacketHeader header, byte[] _) = Assert.Single(await Frames(wire.ToArray()));
+        Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, header.Type);
+        Assert.Equal(0, sender.LastPingServerTicks);
     }
 
     [Fact]
