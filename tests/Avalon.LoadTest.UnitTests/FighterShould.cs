@@ -125,13 +125,12 @@ public class FighterShould
 
         // A move to town it did not ask for (its party fell apart, and the world returns it from the party's forest)
         // ends the trip as a failure, even when it reached the back portal as the move began: the portal's refusal
-        // (a move is under way) is not a failure of its own.
+        // (a move is under way) is not a failure of its own, and the move landing within the same step as that refusal
+        // is still told apart from the answer to its ask.
         wizard.RunUntil(s => s.Action == FighterAction.EnterForest);
         wizard.Transition(Fighter.ForestMapId, _now);
         wizard.RunUntil(s => s.Action == FighterAction.LeaveForest);
         wizard.Fighter.OnTransition(MapTransitionResult.MoveInProgress, 0, _now);
-        wizard.Step();
-        Assert.Equal(FighterState.Leaving, wizard.Fighter.State);
         wizard.Transition(Fighter.TownMapId, _now);
         wizard.Step();
         Assert.Equal(FighterState.Town, wizard.Fighter.State);

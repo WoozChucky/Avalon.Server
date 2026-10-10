@@ -224,6 +224,13 @@ public sealed class Fighter
 
     private const int NoTransition = -1;
 
+    /// <summary>
+    /// The transition slot's mark of a <see cref="MapTransitionResult.MoveInProgress"/> refusal handed over since the step
+    /// last took the slot, above the result's byte: kept when a success replaces the refusal, set on a success still
+    /// pending, so the step tells the world's own move from the answer to the fighter's ask however close they land.
+    /// </summary>
+    private const int MoveRefused = 1 << 24;
+
     private readonly BotMetrics _metrics;
     private readonly long _forestTime;
     private readonly long _firstTripJitter;
@@ -243,7 +250,10 @@ public sealed class Fighter
 
     private volatile TaskCompletionSource _reconnect = NewReconnect();
 
-    /// <summary>The last transition the read loop handed over and not yet taken: <c>result &lt;&lt; 16 | map</c>.</summary>
+    /// <summary>
+    /// The last transition the read loop handed over and not yet taken: <c>result &lt;&lt; 16 | map</c>, with
+    /// <see cref="MoveRefused"/>; <see cref="NoTransition"/> when none is.
+    /// </summary>
     private int _transition = NoTransition;
     private long _transitionAt;
     private int _trail;
@@ -268,8 +278,9 @@ public sealed class Fighter
     private bool _pastEntry;
 
     /// <summary>
-    /// The back portal was refused because another move is under way (<see cref="MapTransitionResult.MoveInProgress"/>):
-    /// the move to town that follows is that one, not the fighter's. Cleared as it asks the portal.
+    /// The back portal was refused because another move is under way (<see cref="MapTransitionResult.MoveInProgress"/>,
+    /// <see cref="MoveRefused"/>): the move to town that follows is that one, not the fighter's. Cleared as it asks the
+    /// portal.
     /// </summary>
     private bool _unaskedMove;
 
@@ -348,25 +359,49 @@ public sealed class Fighter
     /// its read loop after it cleared the table for a success. Taken on the next step.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A success not yet taken is never overwritten by a refusal: the move happened, and a refusal arriving right after it
     /// (a repeated respawn answered <c>MoveInProgress</c>, say) answers an ask the move has made moot.
+    /// </para>
+    /// <para>
+    /// A <c>MoveInProgress</c> refusal is still remembered (<see cref="MoveRefused"/>), whichever lands first and however
+    /// close: the back portal refused because the world was moving the character itself, so the move into town that
+    /// comes with it is not the portal's answer. The world refuses the ask before that move lands, and both may be
+    /// handed over before the next step.
+    /// </para>
     /// </remarks>
     public void OnTransition(MapTransitionResult result, ushort mapId, long at)
     {
         int transition = ((int)result << 16) | mapId;
-        if (result == MapTransitionResult.Success)
-        {
-            Volatile.Write(ref _transitionAt, at);
-            Volatile.Write(ref _transition, transition);
-            return;
-        }
+        bool success = result == MapTransitionResult.Success;
+        int refused = result == MapTransitionResult.MoveInProgress ? MoveRefused : 0;
+        if (success) Volatile.Write(ref _transitionAt, at);
 
-        // Only the step takes the slot (back to NoTransition) meanwhile: retried until it holds no success.
+        // Only the step takes the slot (back to NoTransition) meanwhile: retried until the write holds.
         int pending = Volatile.Read(ref _transition);
-        while (!IsSuccess(pending))
+        while (true)
         {
-            int seen = Interlocked.CompareExchange(ref _transition, transition, pending);
+            int mark = pending == NoTransition ? 0 : pending & MoveRefused;
+            int next;
+            if (success)
+            {
+                next = transition | mark;
+            }
+            else if (IsSuccess(pending))
+            {
+                // The success stands; a MoveInProgress only marks it.
+                if (refused == 0) return;
+
+                next = pending | refused;
+            }
+            else
+            {
+                next = transition | mark | refused;
+            }
+
+            int seen = Interlocked.CompareExchange(ref _transition, next, pending);
             if (seen == pending) return;
+
             pending = seen;
         }
     }
@@ -637,9 +672,13 @@ public sealed class Fighter
         int transition = Interlocked.Exchange(ref _transition, NoTransition);
         if (transition == NoTransition) return;
 
-        var result = (MapTransitionResult)(transition >> 16);
+        var result = (MapTransitionResult)((transition >> 16) & 0xff);
         ushort mapId = (ushort)transition;
         long at = Volatile.Read(ref _transitionAt);
+        // The back portal was refused for a move of the world's own, before or with whatever is taken now: the move into
+        // town that lands is that one (cleared as the fighter next asks the portal).
+        if ((transition & MoveRefused) != 0 && _state == FighterState.Leaving) _unaskedMove = true;
+
         if (result == MapTransitionResult.Success)
         {
             // A new instance, a new view: the connection cleared the table, and nothing cast at is in it any more. The
@@ -696,8 +735,8 @@ public sealed class Fighter
         }
         else if (_state == FighterState.Leaving && result == MapTransitionResult.MoveInProgress)
         {
-            // Another move is under way: the world's, which ends the trip when it lands (or the exit budget does).
-            _unaskedMove = true;
+            // Another move is under way: the world's (marked above), which ends the trip when it lands (or the exit
+            // budget does).
             Note?.Invoke("The back portal refused: another move is under way; waiting for it.");
         }
         else if (_state == FighterState.Leaving)
@@ -826,7 +865,7 @@ public sealed class Fighter
         MathF.Sqrt((x - fromX) * (x - fromX) + (z - fromZ) * (z - fromZ));
 
     private static bool IsSuccess(int transition) =>
-        transition != NoTransition && (MapTransitionResult)(transition >> 16) == MapTransitionResult.Success;
+        transition != NoTransition && (MapTransitionResult)((transition >> 16) & 0xff) == MapTransitionResult.Success;
 
     /// <summary>
     /// The trail, from the acked position: a crumb once the fighter is <see cref="CrumbSpacing"/> from the last; back at
