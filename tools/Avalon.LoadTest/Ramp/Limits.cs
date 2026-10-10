@@ -30,8 +30,9 @@ public static class Limits
         new(LimitName.Drops, "drops", 0, TripsAbove: true, "count"),
         new(LimitName.Admission, "admission", 0.01, TripsAbove: true, FractionUnit),
         new(LimitName.Memory, "memory", 0.85, TripsAbove: true, FractionUnit),
-        // The most GC pause the world added between two of its samples: above one tick. A gen2 count would also count
-        // background collections, which barely pause the process.
+        // The worst average pause per collection in one of the world's sample intervals: above one tick. A gen2 count
+        // would also count background collections, which barely pause the process, and a sum would count a few ordinary
+        // collections as one stall.
         new(LimitName.GcStall, "gc-stall", 16.7, TripsAbove: true, "ms"),
         new(LimitName.GcPause, "gc-pause", 0.05, TripsAbove: true, FractionUnit),
         new(LimitName.SaveP95, "save-p95", 1000, TripsAbove: true, "ms"),

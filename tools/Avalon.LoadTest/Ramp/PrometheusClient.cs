@@ -46,7 +46,10 @@ public sealed record ServerValues(
     /// </summary>
     public InstancesByMap InstancesByMap { get; init; } = InstancesByMap.Unknown;
 
-    /// <summary>The most GC pause the world added between two of its samples in the window: the <c>gc-stall</c> limit's value.</summary>
+    /// <summary>
+    /// The worst average GC pause per collection in one of the world's sample intervals within the window: the
+    /// <c>gc-stall</c> limit's value.
+    /// </summary>
     public GcStall GcStall { get; init; } = GcStall.Unknown;
 }
 
@@ -115,14 +118,20 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             $"sum(increase(dotnet_gc_collections_total{{{world},gc_heap_generation=\"gen2\"}}{range})) * 60 / {w.ToString(CultureInfo.InvariantCulture)}",
             at, ct);
         Task<double?> gcPause = ValueAsync($"sum(rate(dotnet_gc_pause_time_seconds_total{{{world}}}{range}))", at, ct);
-        // The worst stall: the pause time's raw samples, each one's increase over the one before it. rate() and increase()
-        // extrapolate to the range's edges, so they are not used here. The range reaches one minute further back than
-        // the window, so the window's first sample has the one before it; only samples within the window are judged.
+        // The GC stall, the worst average pause per collection in one export interval: the raw samples of the pause time
+        // and of the collections, each one's increase over the one before it (rate() and increase() extrapolate to the
+        // range's edges). The range reaches one minute further back than the window, so the window's first sample has
+        // the one before it; only intervals ending within the window are judged. Whether the world exports both is
+        // anchored on the tick histogram, as the stages' is.
         const string GcPauseTime = "dotnet_gc_pause_time_seconds_total";
-        Task<Answer> gcPauseSeries = AnswerAsync(
-            $"count({GcPauseTime}{{{world}}}) or (0 * count(world_tick_duration_microseconds_count{{{world}}}))", at, ct);
-        Task<IReadOnlyList<IReadOnlyList<CounterSample>>?> gcPauseSamples = SamplesAsync(
-            $"{GcPauseTime}{{{world}}}[{(w + 60).ToString(CultureInfo.InvariantCulture)}s]", at, ct);
+        const string GcCollections = "dotnet_gc_collections_total";
+        string samplesRange = $"[{(w + 60).ToString(CultureInfo.InvariantCulture)}s]";
+        Task<Answer> gcSeries = AnswerAsync(
+            $"(count({GcPauseTime}{{{world}}}) and count({GcCollections}{{{world}}})) or (0 * count(world_tick_duration_microseconds_count{{{world}}}))",
+            at, ct);
+        Task<IReadOnlyList<CounterSeries>?> gcPauseSamples = SamplesAsync($"{GcPauseTime}{{{world}}}{samplesRange}", null, at, ct);
+        Task<IReadOnlyList<CounterSeries>?> gcCollectionSamples =
+            SamplesAsync($"{GcCollections}{{{world}}}{samplesRange}", "gc_heap_generation", at, ct);
         Task<double?> save = ValueAsync(
             $"histogram_quantile(0.95, sum by (le)(rate(world_character_save_duration_milliseconds_bucket{{{world}}}{range})))",
             at, ct);
@@ -161,7 +170,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
         await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saveIncrease,
             saveSamples, savesAtStart, newSaveSeries, instances, postUpdateSeries, stageMean, stageP99, instanceUpdateSeries,
-            instancesPerTick, gcPauseSeries, gcPauseSamples);
+            instancesPerTick, gcSeries, gcPauseSamples, gcCollectionSamples);
 
         double? saveP95 = SaveP95(tick.Result, save.Result, saveIncrease.Result, saveSamples.Result, savesAtStart.Result,
             newSaveSeries.Result);
@@ -174,8 +183,8 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
                 stageMean.Result, stageP99.Result),
             InstancesByMap = InstancesByMap.From(instanceUpdateSeries.Result.Answered, instanceUpdateSeries.Result.Value,
                 instancesPerTick.Result),
-            GcStall = GcStall.From(gcPauseSeries.Result.Answered, gcPauseSeries.Result.Value, gcPauseSamples.Result,
-                PrometheusSeconds(at) - w),
+            GcStall = GcStall.From(gcSeries.Result.Answered, gcSeries.Result.Value, gcPauseSamples.Result,
+                gcCollectionSamples.Result, PrometheusSeconds(at) - w),
         };
     }
 
@@ -501,9 +510,10 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
     /// <summary>
     /// The raw samples of a range-vector query, by series, oldest first (a sample whose value is not a number or NaN is
-    /// passed over); null when the query failed.
+    /// passed over), each series named by its process: its labels other than <c>__name__</c> and
+    /// <paramref name="summedLabel"/>. Null when the query failed.
     /// </summary>
-    private async Task<IReadOnlyList<IReadOnlyList<CounterSample>>?> SamplesAsync(string query, DateTimeOffset at,
+    private async Task<IReadOnlyList<CounterSeries>?> SamplesAsync(string query, string? summedLabel, DateTimeOffset at,
         CancellationToken ct)
     {
         JsonArray results;
@@ -516,10 +526,17 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             return null;
         }
 
-        var series = new List<IReadOnlyList<CounterSample>>();
+        var series = new List<CounterSeries>();
         foreach (JsonNode? result in results)
         {
             if (result is not JsonObject { } matrix || matrix["values"] is not JsonArray values) continue;
+
+            string process = matrix["metric"] is JsonObject metric
+                ? string.Join(',', metric
+                    .Where(label => label.Key != "__name__" && label.Key != summedLabel)
+                    .OrderBy(label => label.Key, StringComparer.Ordinal)
+                    .Select(label => $"{label.Key}={label.Value}"))
+                : "";
 
             var samples = new List<CounterSample>(values.Count);
             foreach (JsonNode? value in values)
@@ -533,7 +550,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
                 }
             }
 
-            series.Add(samples);
+            series.Add(new CounterSeries(process, samples));
         }
 
         return series;

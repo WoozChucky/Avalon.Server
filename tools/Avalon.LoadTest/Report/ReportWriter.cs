@@ -205,7 +205,7 @@ public static class ReportWriter
         StepRecord[] noGcPause = [.. result.Steps.Where(step => step.Server.GcStall.Readout == GcStallReadout.NotExported)];
         if (noGcPause.Length > 0)
         {
-            md.AppendLine($"- GC pause time not exported by this world build: gc-stall was not judged on steps {string.Join(", ", noGcPause.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
+            md.AppendLine($"- GC pause time or collections not exported by this world build: gc-stall was not judged on steps {string.Join(", ", noGcPause.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
         }
 
         int signInFailures = result.SignInFailures.Values.Sum();

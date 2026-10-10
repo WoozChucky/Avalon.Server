@@ -807,7 +807,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
 
     /// <summary>
     /// The limits a step is not judged on because the world build does not export their series: the GC stall when the
-    /// world reports its ticks and no GC pause time.
+    /// world reports its ticks and not both its GC pause time and its collections.
     /// </summary>
     public static IReadOnlySet<LimitName> NotJudged(ServerValues server) =>
         server.GcStall.Readout == GcStallReadout.NotExported ? new HashSet<LimitName> { LimitName.GcStall } : new HashSet<LimitName>();
