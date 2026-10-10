@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using Avalon.Common.Cryptography;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
 
@@ -14,8 +15,8 @@ namespace Avalon.Hosting.Networking;
 /// seals what this connection seals, frames it and writes it, with one write in flight at a time. Nothing is dropped.
 /// </summary>
 /// <remarks>
-/// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the burst buffer and <c>_finishedFlag</c>. Every
-/// other field is read and written with <see cref="Interlocked" /> or <see cref="Volatile" />.
+/// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the burst buffer, <c>_finishedFlag</c> and
+/// <c>_doomHandled</c>. Every other field is read and written with <see cref="Interlocked" /> or <see cref="Volatile" />.
 /// </remarks>
 public sealed class ConnectionSender : IOutbox
 {
@@ -24,6 +25,9 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>Past <see cref="CloseBudget" /> the write in flight is cancelled; how long it is given to unwind.</summary>
     public static readonly TimeSpan CancelGrace = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>What a connection closed past the byte cap is told.</summary>
+    public const string SlowConnectionMessage = "Your connection could not keep up with the server.";
 
     private readonly ConcurrentQueue<OutboundPacket> _queue = new();
     private readonly NetworkSendScheduler _scheduler;
@@ -36,6 +40,7 @@ public sealed class ConnectionSender : IOutbox
     private readonly CancellationTokenSource _cts = new();
     private readonly TaskCompletionSource _finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Action _onPendingWriteCompleted;
+    private readonly long _maxPendingBytes;
 
     private PacketStream? _stream;
     private ConfiguredValueTaskAwaitable.ConfiguredValueTaskAwaiter _pendingWrite;
@@ -48,10 +53,12 @@ public sealed class ConnectionSender : IOutbox
     private int _activeEnqueues;
     private int _faulted;
     private int _closeRequested;
+    private int _doomed;
     private bool _finishedFlag;
+    private bool _doomHandled; // owner thread only
 
     internal ConnectionSender(NetworkSendScheduler scheduler, int ownerThread, Guid connectionId, ILogger logger,
-        IAvalonCryptoSession? sealer, PacketEncoder encoder, Action close, TimeProvider time)
+        IAvalonCryptoSession? sealer, PacketEncoder encoder, Action close, TimeProvider time, long maxPendingBytes)
     {
         _scheduler = scheduler;
         OwnerThread = ownerThread;
@@ -62,6 +69,7 @@ public sealed class ConnectionSender : IOutbox
         _close = close;
         _time = time;
         _onPendingWriteCompleted = OnPendingWriteCompleted;
+        _maxPendingBytes = maxPendingBytes;
     }
 
     public Guid ConnectionId { get; }
@@ -74,6 +82,9 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>Payload bytes queued plus those of the burst being written.</summary>
     public long PendingBytes => Interlocked.Read(ref _pendingBytes);
+
+    /// <summary>True once the connection was found too slow; it is closing.</summary>
+    public bool IsDoomed => Volatile.Read(ref _doomed) != 0;
 
     internal bool IsWriteInFlight => Volatile.Read(ref _writeInFlight) != 0;
 
@@ -90,20 +101,31 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>
     /// Takes the packet's payload reference. O(1); never blocks, throws or allocates. A closed connection refuses the
-    /// packet and releases it at once.
+    /// packet and releases it at once, as does one found too slow: a packet that would take it past
+    /// <c>Network:MaxPendingBytes</c> is refused, and the connection closed with <c>DisconnectReason.SlowConnection</c>.
     /// </summary>
     public bool Enqueue(OutboundPacket packet)
     {
         Interlocked.Increment(ref _activeEnqueues);
         try
         {
-            if (Volatile.Read(ref _completed) != 0 || Volatile.Read(ref _faulted) != 0)
+            if (Volatile.Read(ref _completed) != 0 || Volatile.Read(ref _doomed) != 0 || Volatile.Read(ref _faulted) != 0)
             {
                 packet.Release();
                 return false;
             }
 
-            Interlocked.Add(ref _pendingBytes, packet.PayloadLength);
+            int length = packet.PayloadLength;
+            if (Interlocked.Add(ref _pendingBytes, length) > _maxPendingBytes)
+            {
+                // Never a drop: past the cap the connection is closed as too slow. This packet and every later one are
+                // released at once, and the owner sends the notice.
+                Interlocked.Add(ref _pendingBytes, -length);
+                packet.Release();
+                Doom(SlowKickReason.Bytes);
+                return false;
+            }
+
             _queue.Enqueue(packet);
         }
         finally
@@ -113,6 +135,16 @@ public sealed class ConnectionSender : IOutbox
 
         MarkDirty();
         return true;
+    }
+
+    /// <summary>Marks the connection too slow (once) and wakes its owner, which discards its queue and closes it.</summary>
+    internal void Doom(SlowKickReason reason)
+    {
+        if (Interlocked.CompareExchange(ref _doomed, (int)reason, 0) != 0)
+            return;
+
+        _scheduler.Metrics.SlowKick(reason);
+        MarkDirty();
     }
 
     /// <summary>The send threads write as they are woken: there is nothing to flush. <c>IOutbox.Flush</c> goes with the tick's flush.</summary>
@@ -158,6 +190,14 @@ public sealed class ConnectionSender : IOutbox
         if (_finishedFlag)
         {
             ReleaseQueued();
+            return;
+        }
+
+        // Before the write-in-flight check: a doomed connection gives back what it queued even while a write it will never
+        // finish holds the stream, and later visits release what enqueues that raced the doom still pushed.
+        if (Volatile.Read(ref _doomed) is var reason and not 0)
+        {
+            ServiceDoomed((SlowKickReason)reason);
             return;
         }
 
@@ -222,6 +262,45 @@ public sealed class ConnectionSender : IOutbox
 
         _burstPayloadBytes = payloadBytes;
         StartWrite(packets);
+    }
+
+    /// <summary>
+    /// The owner's visit to a connection found too slow: what is queued is released, never written. The first visit sends
+    /// the notice, past the byte cap and with no write in flight, and requests the close; the visit after the close
+    /// finishes it once no write is in flight.
+    /// </summary>
+    private void ServiceDoomed(SlowKickReason reason)
+    {
+        ReleaseQueued();
+        if (!_doomHandled)
+        {
+            _doomHandled = true;
+            _logger.LogInformation("Closing connection {Id}: it reads too slowly ({Reason})", ConnectionId, reason);
+
+            // Past the byte cap the notice is its only packet, when nothing is still being written. A stalled write gets
+            // none: a peer that is not reading the last burst would not read the notice either. The in-flight flag is
+            // read before the fault flag, as in Service: a write that just failed is never followed by the notice.
+            if (reason == SlowKickReason.Bytes && _stream is not null && !IsWriteInFlight && Volatile.Read(ref _faulted) == 0)
+            {
+                _burst.Reset();
+                OutboundPacket notice = SDisconnectPacket.Create(SlowConnectionMessage, DisconnectReason.SlowConnection, _encoder);
+                try
+                {
+                    PacketEnvelope.Append(_burst, notice, _sealer);
+                }
+                finally
+                {
+                    notice.Release();
+                }
+
+                _burstPayloadBytes = 0;
+                StartWrite(packets: 1);
+            }
+
+            RequestClose();
+        }
+
+        FinishIfIdle();
     }
 
     /// <summary>A failure inside the owner's pass (a payload that cannot be sealed): this connection only is closed.</summary>

@@ -8,12 +8,15 @@ public sealed class NetworkSendMetrics
     private static readonly double[] s_passMicroseconds = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 16667, 50000, 250000];
     private static readonly long[] s_pendingBytes = [1024, 4096, 16384, 65536, 131072, 262144, 524288, 1048576];
     private static readonly int[] s_burstPackets = [1, 2, 4, 8, 16, 32, 64, 128, 256];
+    private static readonly KeyValuePair<string, object?> s_bytesReason = new("reason", "bytes");
+    private static readonly KeyValuePair<string, object?> s_stallReason = new("reason", "stall");
 
     private readonly Histogram<double> _passDuration;
     private readonly Histogram<long> _pendingBytes;
     private readonly Counter<long> _bytes;
     private readonly Histogram<int> _burstPackets;
     private readonly Counter<long> _threadFaults;
+    private readonly Counter<long> _slowKicks;
 
     public NetworkSendMetrics(Meter meter)
     {
@@ -28,6 +31,8 @@ public sealed class NetworkSendMetrics
             tags: null, advice: new InstrumentAdvice<int> { HistogramBucketBoundaries = s_burstPackets });
         _threadFaults = meter.CreateCounter<long>("network.send.thread_faults", "{faults}",
             "Failures that escaped a send pass, by thread; the thread goes on");
+        _slowKicks = meter.CreateCounter<long>("network.out.slow_kicks", "{connections}",
+            "Connections closed as too slow, by reason: bytes (Network:MaxPendingBytes) or stall (Network:MaxWriteStall)");
     }
 
     /// <summary>Records into a meter nothing listens to.</summary>
@@ -46,4 +51,7 @@ public sealed class NetworkSendMetrics
     }
 
     internal void ThreadFault(KeyValuePair<string, object?> thread) => _threadFaults.Add(1, thread);
+
+    internal void SlowKick(SlowKickReason reason) =>
+        _slowKicks.Add(1, reason == SlowKickReason.Bytes ? s_bytesReason : s_stallReason);
 }

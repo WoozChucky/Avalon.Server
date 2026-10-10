@@ -72,6 +72,7 @@ Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 | 6     | `Maintenance`    | A maintenance cutoff, or an entry refused by it                |
 | 7     | `Banned`         | The account was banned (`world:accounts:status`, #882)         |
 | 8     | `Deactivated`    | The account was deactivated (`world:accounts:status`, #882)    |
+| 9     | `SlowConnection` | The connection could not keep up: past `Network:MaxPendingBytes` queued (#875). Its only packet, before the close. A write stalled past `Network:MaxWriteStall` closes without it |
 
 ### Factory method
 

@@ -27,6 +27,8 @@ public sealed class NetworkSendScheduler : IDisposable
     private readonly ILogger _logger;
     private readonly TimeProvider _time;
     private readonly PacketEncoder _encoder;
+    private readonly long _maxPendingBytes;
+    private readonly TimeSpan _maxWriteStall;
     private long _created;
     private int _started;
     private volatile bool _stopping;
@@ -39,6 +41,8 @@ public sealed class NetworkSendScheduler : IDisposable
         _time = time;
         Metrics = metrics;
         _encoder = encoder ?? PacketEncoder.Shared;
+        _maxPendingBytes = options.MaxPendingBytes;
+        _maxWriteStall = options.MaxWriteStall;
         _threads = new SendThread[options.SendThreads];
         for (int i = 0; i < _threads.Length; i++)
             _threads[i] = new SendThread(i);
@@ -79,7 +83,7 @@ public sealed class NetworkSendScheduler : IDisposable
     public ConnectionSender CreateSender(Guid connectionId, ILogger logger, IAvalonCryptoSession? sealer, Action close)
     {
         int owner = (int)((ulong)Interlocked.Increment(ref _created) % (ulong)_threads.Length);
-        return new ConnectionSender(this, owner, connectionId, logger, sealer, _encoder, close, _time);
+        return new ConnectionSender(this, owner, connectionId, logger, sealer, _encoder, close, _time, _maxPendingBytes);
     }
 
     /// <summary>The tick's one wake-up per send thread, at its end (the <c>outbox</c> stage).</summary>
@@ -101,14 +105,26 @@ public sealed class NetworkSendScheduler : IDisposable
         int serviced = 0;
         long maxPending = 0;
 
-        // A connection whose pending write has ended leaves the list its stall clock is read from.
-        for (int i = owner.Writing.Count - 1; i >= 0; i--)
+        // The stall clock, on every wake (at least every WakeInterval, and once per tick): a connection whose pending
+        // write has ended leaves the list, and one whose write has been pending past the limit is closed as too slow.
+        if (owner.Writing.Count > 0)
         {
-            ConnectionSender writing = owner.Writing[i];
-            if (!writing.IsWriteInFlight)
+            long now = _time.GetTimestamp();
+            for (int i = owner.Writing.Count - 1; i >= 0; i--)
             {
-                writing.Tracked = false;
-                owner.Writing.RemoveAt(i);
+                ConnectionSender writing = owner.Writing[i];
+                if (!writing.IsWriteInFlight)
+                {
+                    writing.Tracked = false;
+                    owner.Writing.RemoveAt(i);
+                }
+                else if (_time.GetElapsedTime(writing.WriteStartedTimestamp, now) > _maxWriteStall)
+                {
+                    writing.Tracked = false;
+                    owner.Writing.RemoveAt(i);
+                    // Doomed now, and serviced below in this same pass: it is on the dirty list from here.
+                    writing.Doom(SlowKickReason.Stall);
+                }
             }
         }
 

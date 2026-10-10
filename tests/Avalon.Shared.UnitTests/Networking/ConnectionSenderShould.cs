@@ -188,6 +188,81 @@ public sealed class ConnectionSenderShould
         }
     }
 
+    [Fact]
+    public async Task Close_a_connection_past_the_byte_cap_with_a_slow_connection_notice_as_its_only_packet()
+    {
+        NetworkSendScheduler scheduler = Scheduler(maxPendingBytes: 65_536);
+        var wire = new MemoryStream();
+        int closes = 0;
+        ConnectionSender sender = Open(scheduler, wire, () => closes++);
+
+        int accepted = 0;
+        while (sender.Enqueue(Payload(4_096)))
+            accepted++;
+        Assert.Equal(16, accepted);                // 16 x 4 KiB is the cap; the 17th crosses it and is never queued
+        Assert.False(sender.Enqueue(Payload(10))); // doomed: released at once, never dropped from a queue
+        scheduler.RunPass(sender.OwnerThread);
+
+        (NetworkPacketHeader header, byte[] payload) = Assert.Single(await Frames(wire.ToArray()));
+        Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, header.Type);
+        Assert.Equal(DisconnectReason.SlowConnection, Serializer.Deserialize<SDisconnectPacket>(payload.AsSpan()).ReasonCode);
+        Assert.Equal(1, closes);
+
+        await CloseAsync(scheduler, sender);
+        Assert.Equal(0, _pool.Outstanding);
+    }
+
+    [Fact]
+    public async Task Close_a_connection_whose_write_stalls_without_a_notice()
+    {
+        NetworkSendScheduler scheduler = Scheduler();
+        var stalled = new PendingStream();
+        int closes = 0;
+        ConnectionSender sender = Open(scheduler, stalled, () => closes++);
+
+        sender.Enqueue(Payload(100));
+        scheduler.RunPass(sender.OwnerThread);   // the write goes pending
+        _time.Advance(TimeSpan.FromSeconds(9));
+        scheduler.RunPass(sender.OwnerThread);
+        Assert.Equal(0, closes);                 // under the 10 s stall limit
+        _time.Advance(TimeSpan.FromSeconds(2));
+        scheduler.RunPass(sender.OwnerThread);   // over it: doomed and serviced in the same pass
+
+        Assert.Equal(1, closes);
+        Assert.True(sender.IsDoomed);
+        Assert.Equal(1, stalled.Writes);         // no notice behind a write the peer is not reading
+
+        stalled.Fail(new IOException("the socket closed under the write"));
+        await CloseAsync(scheduler, sender);
+        Assert.Equal(0, _pool.Outstanding);
+    }
+
+    /// <summary>
+    /// Review Focus 5: shutdown meets a connection already doomed whose write never ends. Its shutdown notice is refused,
+    /// its close is bounded by the close budget, the threads stop, and every queued segment is back in the pool.
+    /// </summary>
+    [Fact]
+    public async Task Finish_closing_a_slow_connection_whose_write_never_ends_and_stop_the_threads()
+    {
+        NetworkSendScheduler scheduler = Scheduler(maxPendingBytes: 65_536);
+        scheduler.Start();
+        var stalled = new PendingStream();
+        ConnectionSender sender = Open(scheduler, stalled);
+
+        sender.Enqueue(Payload(100));
+        await WaitUntil(() => stalled.Writes == 1, s_guard);   // pending: the peer stopped reading
+        while (sender.Enqueue(Payload(4_096))) { }               // the queue grows past the cap: doomed
+
+        Assert.False(sender.Enqueue(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown, _encoder)));
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        await sender.DisposeAsync().AsTask().WaitAsync(s_guard);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"the close took {watch.Elapsed}");
+
+        Assert.True(scheduler.Stop(TimeSpan.FromSeconds(5)));
+        Assert.Equal(1, stalled.Writes);
+        await WaitUntil(() => _pool.Outstanding == 0, s_guard);
+    }
+
     private NetworkSendScheduler Scheduler(int threads = 1, int maxPendingBytes = 512 * 1024)
     {
         var options = new NetworkConfiguration
