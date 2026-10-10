@@ -23,8 +23,8 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*GetConte
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallListenerGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThreadGuard*"
 
-# Not BenchmarkDotNet: the outbox flush over real loopback sockets, plain and TLS (#875)
-dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 200 1 1800
+# Not BenchmarkDotNet: the send path over real loopback sockets, the tick against the send threads (#875)
+dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200,500,1000 1 1800 memory,tcp,tls both
 ```
 
 ---
@@ -1140,39 +1140,170 @@ Windows 11, 12th Gen Intel Core i9-12900K, .NET 10.0.12, BenchmarkDotNet 0.15.8,
 
 ---
 
-## Outbox flush — the send path over real sockets (#875)
+## The send path (#875)
 
-`OutboxFlush/OutboxFlushHarness.cs`, run as `outbox-flush [connections] [packets] [ticks] [modes]` (defaults 200, 1,
-1800 and every mode). Not a BenchmarkDotNet suite: like `crowd-budget`, it is a steady state timed tick by tick.
+`OutboxFlush/OutboxFlushHarness.cs`, run as `outbox-flush [connections] [packets] [ticks] [modes] [seal] [wakes]`
+(defaults `50,200,500,1000`, 1, 1800, `memory,tcp,tls`, `both` and 1). Not a BenchmarkDotNet suite: like
+`crowd-budget`, it is a steady state timed tick by tick.
 
 The first capacity ramp (#875) held about 150 players. At 200, about two thirds of a median tick (some 4.2 ms of
 6.2 ms) was spent after the world update, where no histogram looked; `world.post_update.duration` now times each stage
-of it ([instrumentation](instrumentation.md#tick-and-instance-time)). The [scenario baseline](#scenario-baseline)
-cannot show that cost: its outbox writes to a stream that only counts bytes. This harness puts the world's real
-`TickDrivenOutbox` (capacity 100) in front of each kind of stream and times what `WorldServer.Update`'s outbox stage
-does: flush every connection's outbox, one after the other, on one thread.
+of it ([instrumentation](instrumentation.md#tick-and-instance-time)). Most of it was the outbox stage writing every
+connection's packets on the tick. Since #875 the send threads do that, and the tick's outbox stage only wakes them
+(`NetworkSendScheduler.SignalAll`). The [scenario baseline](#scenario-baseline) cannot show this split: its connections
+write to a stream that only counts bytes, and its tick runs the send passes itself.
 
-For each mode it opens the connections over loopback (the server end is what the world holds; the client end is read
-and discarded on the thread pool, as a peer would), then ticks at 60 Hz: each tick queues `packets` movement
-acknowledgements (a frame of about 70 B, the size of the world's acks and state updates) on every connection and
-times the loop that flushes every outbox. Since #875 each outbox has its own sealer, so the timed flush includes sealing
-every ack; the 2026-10-09 results below were taken with the acks sealed before they were queued, outside the flush.
-It reports the flush time per tick, per connection, the tick thread's allocations per tick and the collections over the
-measured ticks, after 300 warm-up ticks.
+For each mode, connection count and seal setting, the harness opens the connections over loopback. The server end sits
+behind the world's real `ConnectionSender`, of one started `NetworkSendScheduler` with the default thread count
+(`Network:SendThreads`, half the processors, 1 to 8); the client end is read and discarded on the thread pool, as a
+peer would. It then ticks at 60 Hz on a thread of its own at the world tick thread's priority (`Highest`; at normal
+priority, on Windows, a send thread it wakes can take its core and run its pass inside the outbox stage). Each tick
+encodes `packets` movement acknowledgements (a frame of about 70 B, the size of the world's acks and state updates) per
+connection and queues them (**enqueue**, which includes the encode and the payload pool's rent), then wakes the send
+threads (**outbox stage**). It reports both, mean and p99; the send threads' busy time per tick and per connection (the
+sum of `network.send.pass.duration`, read through a `MeterListener`); and the bytes the tick thread allocated per tick.
+300 warm-up ticks come first.
 
-| Mode | Stream behind the outbox |
+| Mode | Stream behind the sender |
 |---|---|
 | `memory` | The scenario runner's counting stream: no socket, no TLS |
 | `tcp` | A plain `NetworkStream` |
 | `tls` | An `SslStream` over the socket (TLS 1.2 or 1.3, a self-signed P-256 certificate), as the world serves |
-| `tls-pool` | Prototype: the same, with each write started on the thread pool; the tick frames the packets and queues the write |
-| `tls-parallel` | Prototype: the same streams, the flush split among four thread-pool workers that the tick waits for |
 | `receive` | The other direction, off the tick: each client sends one frame per tick, and the server end reads it through `PacketStream.EnumerateRawFramesAsync` and `InboundPacketFrame.ParseFrame`; reports the bytes allocated per frame read |
 
-The two prototypes measure what the tick would pay if the write left it; they allocate (a `Task.Run` per write, a
-`Parallel.For` per tick), and the server does neither.
+`seal`: `on` gives every connection its own initialised session, which seals each ack (they are flagged Encrypted);
+`off` gives none, so every packet goes plain inside the stream. `wakes` splits the tick's sends into that many slices
+with a wake-up after each (default 1, the world's tick): above 1 the send threads drain, and give their payload segments
+back to the pool, while the tick goes on encoding, as they do when a write completion or an off-tick send wakes them
+during a tick.
 
-### Results — 200 connections, one packet each per tick (2026-10-09)
+The `tls-pool` and `tls-parallel` prototypes are gone: they measured ways to take the old outbox's write off the tick,
+which is now how it works.
+
+### Results — the send threads (#875, 2026-10-10)
+
+i9-12900K (24 logical processors). Windows 11 (10.0.26200), .NET 10.0.12, workstation GC, 8 send threads. Linux:
+Ubuntu 24.04 in a `dotnet/sdk:10.0` container limited to 4 CPUs (`--cpus 4`, Docker on WSL2), the same binaries, 2
+send threads. Release, dynamic PGO on (the default). `tls`, one packet per connection per tick, seal off (the setting
+PR 4 makes the default), 1800 measured ticks. Before is `67aa604e` (`TickDrivenOutbox`, its flush timed on the tick, the harness
+of that build run with no sealer and at the tick thread's priority); after is this change. Windows: three runs per side,
+interleaved, means of the three. Linux: one run of the after build at 1,000 connections only.
+
+| Tick's outbox stage, µs | Before mean | Before p99 | After mean | After p99 |
+|---|---:|---:|---:|---:|
+| Windows, 200 connections | 3,271 | 5,807 | 30.8 | 62.9 |
+| Windows, 1,000 connections | 17,383 | 26,101 | 30.3 | 50.8 |
+| Linux, 1,000 connections | not measured | | 44.9 | 71.8 |
+
+| After, the rest of the tick and the send threads | Enqueue mean | p99 | Send threads µs/tick | µs/conn | B/tick on the tick |
+|---|---:|---:|---:|---:|---:|
+| Windows, 200 | 110.6 | 192.6 | 5,597 | 28.0 | 0 |
+| Windows, 1,000 | 462.6 | 631.7 | 24,546 | 24.5 | 0 |
+| Linux, 1,000 | 592.8 | 785.2 | 6,429 | 6.4 | 0 |
+
+- **The outbox stage is flat**: about 30 µs on Windows at 200 and at 1,000 connections, where the flush it replaced
+  took 3.3 and 17.4 ms (at 1,000 longer than the 16.7 ms tick). What is left is the wake-ups themselves: one
+  `ManualResetEventSlim.Set` per send thread, about 3 to 4 µs each on Windows (8 threads) and about 20 µs each in the
+  WSL2 container (2 threads), whatever the connection count. It is not the "few µs" the design hoped for; a probe of
+  the bare primitive (8 waiting threads set at 60 Hz, nothing else running) gave the same: 26 µs median on Windows,
+  80 µs on Linux in the container. Waking one thread that wakes the next would leave the tick one wake-up, at the cost
+  of the later threads starting later; not done here.
+- **The tick keeps the encode and the queue**: 0.46 µs per connection on Windows at 1,000 (0.55 µs at 200), 0 B
+  allocated. The before harness did not time that part (it was the same work).
+- **The send threads carry the write**: about 25 to 28 µs of thread time per connection per tick over TLS on Windows
+  loopback, spread over 8 threads (3.1 ms per thread per tick at 1,000), against 17.4 µs per connection on the tick
+  before; 6.4 µs on Linux.
+- **Not measured**: 50 and 500 connections, seal on, and `memory` and `tcp` in this before-and-after table (the
+  measurement was cut to these rows); the Linux before side. The pool and sender sections below have seal-on, `memory`
+  and `tls` rows at 1,000 connections, after only.
+
+### The payload pool under the send threads (#875, 2026-10-10)
+
+The tick rents payload segments and the send threads give them back, so each size class's lock is shared between them
+(B2's world-performance review measured the tick's rent at 85 to 105 ns, p99 about 235 ns, under a worst-case
+micro-benchmark, against 10 to 12 ns for a `ConcurrentQueue`). Three builds of the same tree, all with this harness,
+1,000 connections × 4 packets per tick, seal on, Release, dynamic PGO on (the default), three runs each, interleaved:
+
+- **lock**: `aeb6134e`, each release takes the size class's lock;
+- **queue**: the same with the `ConcurrentQueue` free lists of `96feac8a`, as a control (it allocates after bursts,
+  which is why the pool left it);
+- **batched**: the change. A send pass holds back what it gives back (`PayloadSegmentPool.BeginReturnBatch`) and
+  returns it with one lock per size class per pass (or per 256 segments of a class), and each size class's stack sits
+  on cache lines of its own.
+
+Means of the three runs; enqueue is the tick's encode, rent and queue of 4,000 packets, in µs.
+
+| Windows (8 send threads) | wakes | enqueue mean | enqueue p99 | send threads µs/conn |
+|---|---:|---:|---:|---:|
+| `memory`, lock | 1 | 876.3 | 1,363.3 | 5.89 |
+| `memory`, queue | 1 | 862.0 | 1,228.4 | 3.33 |
+| `memory`, batched | 1 | 842.7 | 1,260.0 | 2.01 |
+| `memory`, lock | 4 | 1,516.7 | 1,932.2 | 6.66 |
+| `memory`, queue | 4 | 909.5 | 1,391.4 | 2.96 |
+| `memory`, batched | 4 | 842.6 | 1,192.8 | 2.03 |
+| `tls`, lock | 4 | 1,402.5 | 1,716.8 | 27.00 |
+| `tls`, queue | 4 | 1,315.4 | 1,645.4 | 26.44 |
+| `tls`, batched | 4 | 1,334.8 | 1,652.8 | 27.21 |
+
+| Linux, 4-CPU container (2 send threads) | wakes | enqueue mean | enqueue p99 | send threads µs/conn |
+|---|---:|---:|---:|---:|
+| `memory`, lock | 1 | 1,278.5 | 1,526.9 | 2.40 |
+| `memory`, queue | 1 | 1,302.1 | 1,542.6 | 2.42 |
+| `memory`, batched | 1 | 1,219.6 | 1,520.6 | 2.24 |
+| `memory`, lock | 4 | 1,467.2 | 1,660.9 | 2.46 |
+| `memory`, queue | 4 | 1,263.2 | 1,481.0 | 2.27 |
+| `memory`, batched | 4 | 1,192.4 | 1,497.6 | 2.13 |
+| `tls`, lock | 4 | 1,570.8 | 1,907.6 | 10.87 |
+| `tls`, queue | 4 | 1,477.3 | 1,770.2 | 10.74 |
+| `tls`, batched | 4 | 1,490.9 | 1,855.2 | 10.18 |
+
+- **With the world's one wake-up per tick there is little to contend for**: the send threads run after the tick's sends,
+  not during them, and the three builds are within a few percent of each other on the tick (`tls` at one wake-up, not
+  shown: 1,105.8, 1,133.9 and 1,166.6 µs on Windows, within the runs' spread).
+- **When the send threads drain during the tick's sends (4 wake-ups), the lock shows**: on Windows the tick's enqueue
+  went from about 860 to 1,517 µs mean (1,932 µs p99) for 4,000 packets, about 160 ns more per packet; on Linux from
+  1,220 to 1,467 µs. Batched, it is back at the one-wake-up figure, at or below the queue control on both.
+- **The send threads gain most**: in `memory`, where nothing else slows them, eight threads taking one lock per
+  packet spent 5.9 to 6.7 µs per connection on Windows; batched, 2.0 µs, below the queue's 3.0 to 3.3.
+- Over TLS the write dominates and the builds are within noise.
+- The tick-local free list (taking the shared stack in one exchange) was not needed and was not built.
+- Allocation: `PayloadSegmentPoolShould` and the scenario gate are unchanged (0 B for the town scenarios, 16,252 B for
+  `forest-combat`).
+
+**The cap.** The free stacks never shrank, so a network blip that left a thousand connections each holding up to
+`Network:MaxPendingBytes` (512 KiB) could have pinned about 512 MB of segments for good, the 1 MiB ones on the large
+object heap. Each size class now keeps at most `PayloadSegmentPool.MaxFreeBytesPerSizeClass`, 4 MiB of segment
+capacity (65,536 segments of 64 B, four of 1 MiB; 60 MiB over the 15 classes, plus about 64 B of object per segment);
+past it a segment given back is left to the GC. The steady state never reaches it: 1,000 connections × 4 packets keep
+about 4,000 segments of one class in flight.
+
+### The connection sender's fields (#875, 2026-10-10)
+
+Each enqueue makes about four atomic operations, and the fields the tick writes (`_activeEnqueues`, `_dirty`,
+`_pendingBytes`) shared cache lines with those the owner send thread writes (`_writeInFlight`, `_writeStarted`, the
+burst's byte count). A build with the two groups on cache lines of their own (padded structs) was measured against the
+current layout with the harness changed to time the enqueues alone (the packets encoded beforehand, untimed): 1,000
+connections × 4 packets, seal on, three interleaved runs each, means in µs for 4,000 enqueues.
+
+| | Windows `memory` | Windows `tls` | Linux `memory` | Linux `tls` |
+|---|---:|---:|---:|---:|
+| Current layout, 1 wake-up | 225.2 (p99 404.7) | 460.5 (648.5) | 266.1 (346.4) | 510.9 (658.9) |
+| Padded, 1 wake-up | 268.6 (438.9) | 477.6 (677.0) | 266.2 (413.1) | 527.5 (673.8) |
+| Current layout, 4 wake-ups | 225.8 (360.7) | 528.8 (690.0) | 230.9 (364.6) | 477.3 (625.5) |
+| Padded, 4 wake-ups | 244.5 (403.4) | 573.1 (757.3) | 235.5 (378.8) | 521.2 (650.6) |
+
+An enqueue costs about 55 to 130 ns, and padding made it no faster anywhere, so the layout stays. The tick and the
+owner rarely touch one connection at the same moment: the owner's pass comes after the tick's sends, and `_dirty` and
+`_pendingBytes`, which both write, move between their cores once per tick whatever the layout.
+
+### Before: the outbox flushed on the tick
+
+Until #875 the world's `TickDrivenOutbox` (capacity 100) flushed every connection's packets in the tick's outbox stage,
+one connection after the other, on the tick thread. The harness then timed that flush; the results below are that
+baseline. The `tls-pool` and `tls-parallel` rows were the prototypes of taking the write off the tick; they allocated
+(a `Task.Run` per write, a `Parallel.For` per tick).
+
+#### Results — 200 connections, one packet each per tick (2026-10-09)
 
 i9-12900K. Linux: a container limited to 4 CPUs (Docker on WSL2, Ubuntu 24.04, .NET 10.0.5, workstation GC). Windows
 11, .NET 10.0.12, workstation GC. 1800 measured ticks; flush time per tick in ms, and per connection in µs.
@@ -1201,7 +1332,7 @@ The TLS flush on Linux by connection count (µs per connection): 50, 0.533 ms (1
   leave the tick is an open decision (#875): it changes when a packet leaves relative to the tick and puts the TLS
   and socket work on other threads.
 
-### Results — the seal inside the flush (#875, 2026-10-10)
+#### Results — the seal inside the flush (#875, 2026-10-10)
 
 Since the outbound packets (#875) each outbox seals its packets as it frames them, so this harness's timed flush now
 includes one AES-GCM seal per connection per tick, which the 2026-10-09 run above did before queueing, outside the
@@ -1279,14 +1410,15 @@ town found two adjacent centres whose circle stays a metre clear of every wall, 
 ### The send path is real
 
 Every scenario player has a real `AvalonCryptoSession` (the platform `AesGcm` since #850) and a real
-`TickDrivenOutbox`, which writes to a stream that only counts bytes. So the per-packet encryption cost, and its
+`ConnectionSender` (#875), which writes to a stream that only counts bytes; the scenario tick runs the send passes on
+its own thread after the wake-up, so they count as tick work here. So the per-packet encryption cost, and its
 allocations, are in the numbers; the [session cipher results](#session-cipher--benchmark-results) above show what it
 costs per call. Three things differ from production, all on the cost side only:
 
 - The counting stream stands in for production's `SslStream`, so the TLS record layer and the socket send are **not**
-  in the numbers: [outbox flush](#outbox-flush--the-send-path-over-real-sockets-875) measures them, about 10 µs per
+  in the numbers: [the send path](#the-send-path-875) measures them, about 10 µs per
   connection per tick on Linux loopback against 0.3 µs here. The counting stream completes every write at once, as a
-  socket with room in its send buffer does; the outbox then reads the write's outcome inline (#875), so a flush over
+  socket with room in its send buffer does; the sender then reads the write's outcome inline (#875), so a pass over
   either allocates nothing on the tick thread.
 - Scenario connections share key material. The point is the cost of sealing, not the secrecy of the result.
 - The `DiagnosticsConfig` counters (bytes, packets sent and dropped) are skipped, so their cost is **excluded** from the
@@ -1598,8 +1730,8 @@ developer machine, i9-12900K, Windows 11, .NET 10.0.12, Release, BenchmarkDotNet
   frame plain 224.4 against 212.5 ns and 3,296 against 3,449 ns. About 12 to 36 ns more for one packet, within noise
   for 30, and 0 B allocated in every case.
 
-No contention today: rent and return both run on the tick. Network PR 3's send threads return segments from their own
-threads; its Task 3.8 measures that and may batch the returns per pass. The lock-free alternatives allocate
+Rent runs on the tick and, since #875, the send threads give segments back from their own threads; a send pass returns
+them with one lock per size class ([the payload pool under the send threads](#the-payload-pool-under-the-send-threads-875-2026-10-10)). The lock-free alternatives allocate
 (`ConcurrentStack` creates a node per push), which is what the pool exists to avoid.
 
 Of the 975 KB a measured minute allocates, measured with allocation counters around the steps of the tick (Release):
@@ -1669,7 +1801,7 @@ developer machine (i9-12900K, Windows 11, .NET 10.0.12, Server GC). Tick ms per 
 
 The mean tick falls by 8% in `town-walk` and 12% in `many-instances`, and p99 by 26% and 18%: the scenario tick both
 builds and flushes the packets, so it shows the net of the seal leaving `Create` and entering the outbox flush (see
-[outbox flush](#outbox-flush--the-send-path-over-real-sockets-875) for the flush alone), and no collection runs at all.
+[outbox flush](#the-send-path-875) for the flush alone), and no collection runs at all.
 
 ### Results — server packets encoded into pooled segments, sealed at the drain (#875, 2026-10-10)
 
@@ -1747,7 +1879,7 @@ Like for like on the same machine (Release, the runner, 5 s warm-up, 3600 timed 
 | `town-walk` | 1,440,960 | 1,238,640 | 0.142 | 0.143 | 0.573 | 0.469 | 33 | 27 |
 | `many-instances` | 11,589,728 | 8,233,728 | 1.278 | 1.209 | 2.292 | 2.239 | 239 | 42 |
 
-Over real sockets ([outbox flush](#outbox-flush--the-send-path-over-real-sockets-875), 200 connections), the tick
+Over real sockets ([outbox flush](#the-send-path-875), 200 connections), the tick
 thread allocated 22,400 B per tick before, in every mode, TLS included, and 0 B after, on Linux and Windows. The flush
 time does not move by more than run-to-run noise: the task was cheap to run, only not to collect. At 200 players with
 something to send each tick, that is about 1.3 MB/s less garbage from the tick thread.
