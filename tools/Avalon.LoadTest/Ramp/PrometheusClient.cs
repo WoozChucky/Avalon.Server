@@ -94,9 +94,12 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
     /// <summary>
     /// The server values over <paramref name="window"/> (whole seconds) ending at <paramref name="at"/>. The rates need
     /// two samples of a series in the window: with the exporter's default 60 s interval a 60 s window has one, and those
-    /// values come back null.
+    /// values come back null. The slow kicks are counted from <paramref name="stepStart"/> (the step's settle began) up
+    /// to <paramref name="readAt"/> (the hold's end plus the export lag, no later than now), so a kick in the window's
+    /// last export interval is seen in the first sample after the hold's end.
     /// </summary>
-    public async Task<ServerValues> SampleAsync(DateTimeOffset at, TimeSpan window, CancellationToken ct)
+    public async Task<ServerValues> SampleAsync(DateTimeOffset at, TimeSpan window, DateTimeOffset stepStart,
+        DateTimeOffset readAt, CancellationToken ct)
     {
         int w = Math.Max(1, (int)window.TotalSeconds);
         string range = $"[{w.ToString(CultureInfo.InvariantCulture)}s]";
@@ -109,14 +112,18 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         // The send threads (#875): whether the world exports their passes at all, anchored on the tick histogram as the
         // stages' is (0: a build from before them, which judges no slow kick); the raw samples of the slow kicks, each
         // one's increase over the one before it (increase() extrapolates to the range's edges, and a reason's series is
-        // born with its first kick). The range reaches as far back as Prometheus's own lookback, so a series already there
-        // has a sample before the window and only one born within it counts its whole value. Then the threads' busy time
-        // in cores, by thread, and the 99th percentile of a pass's largest pending bytes.
+        // born with its first kick), read at the read horizon so the window's last interval has its closing sample. The
+        // range reaches from there to Prometheus's own lookback before the step's start, so a series already there has a
+        // sample before the window and only one born within it counts its whole value. Then the threads' busy time in
+        // cores, by thread, and the 99th percentile of a pass's largest pending bytes.
         const string SendPasses = "network_send_pass_duration_microseconds";
         Task<Answer> sendSeries = AnswerAsync(
             $"count({SendPasses}_count{{{world}}}) or (0 * count(world_tick_duration_microseconds_count{{{world}}}))", at, ct);
+        var kickSpan = new KickSpan(PrometheusSeconds(stepStart), PrometheusSeconds(at) - w, PrometheusSeconds(at),
+            PrometheusSeconds(readAt));
+        int kickRange = (int)Math.Ceiling(kickSpan.ReadHorizon - kickSpan.StepStart) + 300;
         Task<IReadOnlyList<CounterSeries>?> slowKickSamples = SamplesAsync(
-            $"network_out_slow_kicks_total{{{world}}}[{(w + 300).ToString(CultureInfo.InvariantCulture)}s]", null, at, ct);
+            $"network_out_slow_kicks_total{{{world}}}[{kickRange.ToString(CultureInfo.InvariantCulture)}s]", null, readAt, ct);
         Task<IReadOnlyDictionary<string, double>?> sendBusy = ByLabelAsync(
             $"sum by (thread)(rate({SendPasses}_sum{{{world}}}{range})) / 1000000", "thread", at, ct);
         Task<double?> pendingP99 = ValueAsync(
@@ -197,8 +204,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
                 instancesPerTick.Result),
             GcStall = GcStall.From(gcSeries.Result.Answered, gcSeries.Result.Value, gcPauseSamples.Result,
                 gcCollectionSamples.Result, PrometheusSeconds(at) - w),
-            SlowKicks = SlowKicks.From(sendSeries.Result.Answered, sendSeries.Result.Value, slowKickSamples.Result,
-                PrometheusSeconds(at) - w),
+            SlowKicks = SlowKicks.From(sendSeries.Result.Answered, sendSeries.Result.Value, slowKickSamples.Result, kickSpan),
             SendThreads = SendThreads.From(sendSeries.Result.Answered, sendSeries.Result.Value, sendBusy.Result,
                 pendingP99.Result),
         };

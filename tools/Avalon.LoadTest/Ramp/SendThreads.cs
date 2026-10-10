@@ -35,16 +35,24 @@ public sealed record SlowKicks(SendReadout Readout, double? Count)
     /// The kicks from two answers. Whether the world exports its send passes (<paramref name="exportedAnswered"/> false
     /// when that query failed; <paramref name="exportedSeries"/> the pass histogram's series count, 0 for a world that
     /// reports its ticks and no send pass, null when Prometheus has nothing from the world at all), and the raw samples
-    /// of every reason's kick counter (null when their query failed), reaching back before the window so its first
-    /// sample has one before it.
+    /// of every reason's kick counter (null when their query failed), read up to <see cref="KickSpan.ReadHorizon"/> and
+    /// reaching back before the step so its first sample in the window has one before it.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The kicks are the increases of the samples within the window (after <paramref name="windowStart"/>, Unix seconds
-    /// on Prometheus's clock), each over the sample before it, summed over every series. A reason's series exists only
-    /// from its first kick, so a series' first sample within the window (a reason's first kick, or a new process) counts
-    /// from 0: its whole value. A sample below the one before it is a restarted process counting again from 0, and
-    /// counts its whole value.
+    /// A sample counts when its interval, from the sample before it, overlaps the window: it is after the window's start
+    /// and the sample before it is before the window's end. A kick in the window's last export interval is then counted
+    /// from the first sample after the hold's end, read by <see cref="KickSpan.ReadHorizon"/>; until that read the step's
+    /// bots are all that is connected, as the next step's entries start after it. Each counts its increase over the
+    /// sample before it, summed over every series; a sample below the one before it is a restarted process counting again
+    /// from 0, and counts its whole value. A reason's series exists only from its first kick, so a series' first sample
+    /// after the window's start and within the read horizon (a reason's first kick, or a new process) counts its whole
+    /// value.
+    /// </para>
+    /// <para>
+    /// An interval reaching back before the window holds kicks from before the window: within the step's settle, at the
+    /// same bot count, they count. One whose sample before it predates the step's start (an export gap longer than the
+    /// settle) and that added kicks cannot be placed in this step: the count is <see cref="SendReadout.Unknown"/>.
     /// </para>
     /// <para>
     /// A count of 0 is <see cref="SendReadout.NotExported"/>: the step is not judged on slow kicks. A failed or empty
@@ -53,7 +61,7 @@ public sealed record SlowKicks(SendReadout Readout, double? Count)
     /// </para>
     /// </remarks>
     public static SlowKicks From(bool exportedAnswered, double? exportedSeries, IReadOnlyList<CounterSeries>? kicks,
-        double windowStart)
+        KickSpan span)
     {
         if (!exportedAnswered || exportedSeries is null) return Unknown;
         if (exportedSeries is not > 0) return new(SendReadout.NotExported, null);
@@ -65,16 +73,34 @@ public sealed record SlowKicks(SendReadout Readout, double? Count)
             IReadOnlyList<CounterSample> samples = series.Samples;
             for (int i = 0; i < samples.Count; i++)
             {
-                if (samples[i].Time <= windowStart) continue;
+                CounterSample sample = samples[i];
+                if (sample.Time <= span.WindowStart || sample.Time > span.ReadHorizon) continue;
 
-                double before = i == 0 ? 0 : samples[i - 1].Value;
-                count += samples[i].Value < before ? samples[i].Value : samples[i].Value - before;
+                if (i == 0)
+                {
+                    count += sample.Value;
+                    continue;
+                }
+
+                CounterSample before = samples[i - 1];
+                if (before.Time >= span.WindowEnd) continue;
+
+                double added = sample.Value < before.Value ? sample.Value : sample.Value - before.Value;
+                if (added > 0 && before.Time < span.StepStart) return Unknown;
+
+                count += added;
             }
         }
 
         return new(SendReadout.Reported, count);
     }
 }
+
+/// <summary>
+/// The times a step's slow kicks are counted over, Unix seconds on Prometheus's clock: the step's start (its settle's),
+/// the judged window, and the read horizon, the hold's end plus the export lag the read waits for.
+/// </summary>
+public readonly record struct KickSpan(double StepStart, double WindowStart, double WindowEnd, double ReadHorizon);
 
 /// <summary>
 /// The send threads over a step's judged window (#875), for the report only: no limit reads them. Their busy time is

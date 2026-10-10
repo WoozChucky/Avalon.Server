@@ -1026,7 +1026,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         int inWorld = live.Count(bot => bot.State == BotState.InWorld);
 
         await Task.Delay(s_exportLag, ct);
-        ServerValues server = await prometheus.SampleAsync(end, window, ct);
+        ServerValues server = await prometheus.SampleAsync(end, window, end - options.Hold, end + s_exportLag, ct);
         int? playersAdded = null;
         try
         {

@@ -538,7 +538,7 @@ A step breaches a limit when its value is on the tripping side of the threshold.
 | `tick-p99` | 16.7 | ms | above | Prometheus: `histogram_quantile(0.99, sum by (le)(rate(world_tick_duration_microseconds_bucket[w]))) / 1000` |
 | `tps` | 58 | ticks/s | below | Prometheus: `avg_over_time(world_tick_rate_tps[w])` |
 | `ack-p95` | 150 | ms | above | Bots: the 95th percentile of input-to-ack latency over the judged window, over the input driver's inputs (an entry's `first-ack` probes are not samples). An input still unanswered when its slot is reused, about a second later, counts at its age then |
-| `slow-kicks` | 0 | count | above | Prometheus: the raw samples of `network_out_slow_kicks_total[w+300s]` (every `reason`), the connections the world closed as too slow to read (#875; it never drops a packet). Each sample within the window counts its increase over the sample before it, summed over every series. A reason's series exists only from its first kick, so a series' first sample within the window (its first kick, or a new process) counts its whole value; the range reaches back as far as Prometheus's own 5-minute lookback, so a series already there has a sample before the window. A sample below the one before it is a restarted process and counts its whole value. The world's export is checked with `count(network_send_pass_duration_microseconds_count) or (0 * count(world_tick_duration_microseconds_count))` (see below) |
+| `slow-kicks` | 0 | count | above | Prometheus: the raw samples of `network_out_slow_kicks_total` (every `reason`), read at the hold's end plus the 15 s export lag over a range reaching 300 s before the step's start, the connections the world closed as too slow to read (#875; it never drops a packet). A sample counts when its interval, from the sample before it, overlaps the window: its increase over the sample before it, summed over every series. A reason's series exists only from its first kick, so a series' first sample after the window's start (its first kick, or a new process) counts its whole value; the range reaches back as far as Prometheus's own 5-minute lookback before the step, so a series already there has a sample before the window. A sample below the one before it is a restarted process and counts its whole value. An interval that added kicks from a sample before the step's start reads unknown. The world's export is checked with `count(network_send_pass_duration_microseconds_count) or (0 * count(world_tick_duration_microseconds_count))` (see below) |
 | `admission` | 0.01 | fraction | above | Bots: the bots that could not get into the world during the step ÷ the bots that tried, over the whole step, settle included. Each bot counts once: it tried when any entry attempt of its ended in the step, and got in when any of those succeeded, so a failure followed by a success in the step is a bot that got in, and a bot that only failed counts once however many retries it made. An attempt counts in the step its outcome lands in. Entries are first entries, re-entries, reconnects and character changes; sign-in and leave failures are not part of it. The step row also gives the attempts, the failed ones and the failures by kind |
 | `memory` | 0.85 | fraction | above | Prometheus: `max(dotnet_process_memory_working_set_bytes)` ÷ `kube_pod_container_resource_limits{namespace="avalon",pod=<--pod>,container="avalon-world",resource="memory"}`, at the hold's end |
 | `gc-stall` | 16.7 | ms | above | Prometheus: the raw samples of `dotnet_gc_pause_time_seconds_total[w+60s]` and `dotnet_gc_collections_total[w+60s]` (every `gc_heap_generation`). For each export interval ending within the window (10 s on world 4), the pause the world added in it ÷ the collections it added in it, summed over the generations. Intervals pair per process (a series' labels except `gc_heap_generation`) by sample time, and the value is the worst interval's average over every process. A series' first sample within the window (a new world, or a gap of more than 60 s before the window) counts from 0. An interval with no collection has no average, and a window with no collection reads 0. The tool takes each sample's increase over the one before it itself, because `increase` and `rate` extrapolate to the range's edges; a process with any counter below the sample before it restarted within that interval, and every one of its counters counts its whole value there. The world's export of both is checked with `(count(dotnet_gc_pause_time_seconds_total) and count(dotnet_gc_collections_total)) or (0 * count(world_tick_duration_microseconds_count))` (see below) |
@@ -569,7 +569,11 @@ pending past `Network:MaxWriteStall` (`reason="stall"`). A bot kicked that way m
 it, or the bot PC did not read its sockets: [the slow-kicks flag](#the-decision-rule) marks the steps where the bot PC
 was busy. The tool takes each sample's increase over the one before it itself, because `increase` and `rate`
 extrapolate to the range's edges and would read a single kick as a fraction more. A kick counts in the export interval
-whose sample first shows it, so one just before the window's start can count in the window. The kick counter's series
+whose sample first shows it, so the window's edges are those of its intervals. At the leading edge, a kick counts from
+at most one export interval (10 s on world 4) before the window, within the step's settle at the same bot count; a longer
+gap, one whose sample before it predates the step's start, reads unknown. At the trailing edge, a kick in the window's
+last interval is counted from the first sample after the hold's end: the read waits the 15 s export lag, and until it
+the step's bots are all that is connected, as the next step's entries start after it. The kick counter's series
 appear only with a first kick, so whether the world exports it is asked of the send passes, which every build with send
 threads records while bots are connected: a world build that reports its ticks and no send pass (the count reads 0, a
 build from before #875) has `slow-kicks` read `not exported` on its steps and in the notes, and the step is not judged
@@ -697,15 +701,16 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   - map instances at the hold's end, every map together (`avalon_world_instances_active` carries no map type; the
     [fighters' section](#the-fighters-section) splits them); tick p99; average TPS; ack p50, p95 and p99; slow kicks
     (`not exported` when the world build has no send threads); the deepest receive backlog of any connection; the send
-    threads' busy time and the p99 of the pending bytes (below); working set (MB and % of the limit); GC stall (`not exported` when the
-    world build has no pause time or collections); GC pause; gen2 per minute (background collections included, not
-    judged); save p95. The JSON has the stall under each step's `server.gcStall`: `readout` (`Reported`, `NotExported`
-    or `Unknown`) and `ms` (null unless reported), and the kicks under `server.slowKicks`: `readout` and `count` (null
-    unless reported);
+    threads' busy time and the p99 of the pending bytes (below); working set (MB and % of the limit); GC stall
+    (`not exported` when the world build has no pause time or collections); GC pause; gen2 per minute (background
+    collections included, not judged); save p95. The JSON has the stall under each step's `server.gcStall`: `readout`
+    (`Reported`, `NotExported` or `Unknown`) and `ms` (null unless reported), and the kicks under `server.slowKicks`:
+    `readout` and `count` (null unless reported);
   - the send threads (#875, for reading only): their busy time, all threads together in cores, with the busiest
-    thread's share of one core in brackets (`0.42 (31 %)`), from `sum by (thread)(rate(network_send_pass_duration_microseconds_sum[w])) / 1e6`
-    (the share of the window each thread spent in passes); and the p99 of a pass's largest pending bytes, the most any
-    one connection it visited had queued or being written, from `histogram_quantile(0.99, sum by (le)(rate(network_out_pending_bytes_bucket[w])))`
+    thread's share of one core in brackets (`0.42 (31 %)`), from
+    `sum by (thread)(rate(network_send_pass_duration_microseconds_sum[w])) / 1e6` (the share of the window each thread
+    spent in passes); and the p99 of a pass's largest pending bytes, the most any one connection it visited had queued
+    or being written, from `histogram_quantile(0.99, sum by (le)(rate(network_out_pending_bytes_bucket[w])))`
     (interpolated within the buckets, which end at 1 MiB; `Network:MaxPendingBytes` kicks at 512 KiB by default). Both
     read `not exported` for a world build without send threads (the export check of `slow-kicks`) and `n/a` when not
     read. The JSON has them under each step's `server.sendThreads`: `readout`, `threads` (the threads that ran a pass in
