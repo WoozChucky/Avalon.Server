@@ -1285,15 +1285,12 @@ with the committed figure, in every build (Debug and Release, see below):
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
-- **Detection floor.** With the committed figures (regenerated at `6eafe191`, #875: `town-walk` 92,160 and
-  `many-instances` 1,536,000 B per window), the gate fails on a rise of more than **256 B per window** in
-  `town-idle` (about 4 B per tick: it allocates nothing since #851, so the floor decides, and any one object allocated
-  every tick fails it), **0.5 B per player per tick** in `town-walk` (921.6 B per window: it fails from 93,082 B),
-  and **0.5 B per player per tick** in `many-instances` (1 B per instance per tick, 15,360 B per window: it fails
-  from 1,551,361 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
-  one per instance per tick in `many-instances`; since the outbound packets stopped allocating their payloads, so does
-  one object per tick for the whole town (about 1.4 KB per window) in `town-walk`. Under the 5% band before #852 the
-  floors were 40 and 19 B per player per tick.
+- **Detection floor.** Every committed figure is 0 (regenerated at `75a16697`, #875: no scenario allocates on the
+  tick thread since server packets are built in per-thread messages), so the 256 B floor decides in every scenario:
+  the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
+  allocated every tick, anywhere on the measured path, fails all three (the smallest, 24 B, is 1,440 B per window).
+  Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
+  before #852.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
   CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
@@ -1359,6 +1356,27 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 18 s to the World
 suite.
+
+### Results — packets encoded into pooled segments (#875, 2026-10-10)
+
+The last allocation on the send path was the message object each server packet's `Create` built: 24 B for a state
+update, 48 B for a movement acknowledgement. `Create` now fills the calling thread's instance of its message type
+(`PacketEncoder.Scratch<T>()`, reset to a new message's values on every take) and encodes it before it returns, and
+`SInstanceStateRemovePacket` keeps its id list per thread too. With the payload already a pooled segment and the seal
+written in place at the drain, a packet sent costs the tick thread nothing, and no scenario allocates on it at all.
+
+Allocations, from `perf/scenario-allocations.json` regenerated at `75a16697` (the developer machine's Release run,
+i9-12900K, Windows 11, .NET 10.0.12), against the committed figures before this change (`6eafe191`) and before #875's
+outbound work (#854's results, regenerated after the flush's continuation went):
+
+| Scenario | Players | bytes/window | B/player/tick | Before | B/player/tick before | Before #875's outbound work |
+|---|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 0 | 0.00 | 0 | 0.00 | 0.00 |
+| `town-walk` | 30 | 0 | 0.00 | 92,160 | 51.20 | 688.40 |
+| `many-instances` | 500 | 0 | 0.00 | 1,536,000 | 51.20 | 274.46 |
+
+The gate passes on the new figures in Debug and in Release. In the same run the tick took 0.144 ms on average in
+`town-walk` (p99 0.576) and 1.972 ms in `many-instances` (p99 3.135), with no collection in the timed minute of either.
 
 ### Results — server packets encoded into pooled segments, sealed at the drain (#875, 2026-10-10)
 
