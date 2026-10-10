@@ -440,9 +440,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (_maintenanceCoordinator is not null && _tickRunning && _tickThread is { IsAlive: true })
             await _maintenanceCoordinator.DrainForRestartAsync(stoppingToken).ConfigureAwait(false);
 
-        // The tick goes first. Closing an outbox does its own final flush, so the tick has nothing
-        // left to contribute, and letting it keep flushing outboxes that are mid-teardown would
-        // put a second writer on buffers the close is about to hand back to the pool.
+        // The tick goes first. It no longer writes to sockets (#875), but a despawn it would start must not race the
+        // shutdown's own pass below.
         _tickRunning = false;
         if (_tickThread is not null && _tickThread.IsAlive)
             _tickThread.Join(TimeSpan.FromSeconds(5));
@@ -494,6 +493,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // SaveDrainLimit, because a write that never returns must not hold the process up forever.
         await WaitForSavesAsync(stoppingToken).ConfigureAwait(false);
 
+        // Last (#875): the send threads outlived the tick, so the shutdown notices and every reply the despawns sent have
+        // gone out. Background threads: one that does not stop in time does not hold the process up.
+        if (!_sendScheduler.Stop(SendThreadsStopLimit))
+            _logger.LogWarning("A send thread did not stop within {Limit}", SendThreadsStopLimit);
+
         if (_waitableTimer != IntPtr.Zero)
         {
             CloseHandle(_waitableTimer);
@@ -506,6 +510,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     /// <summary>The production <see cref="SaveDrainLimit" />; <c>World:Shutdown:SaveMargin</c> must cover it.</summary>
     public static readonly TimeSpan DefaultSaveDrainLimit = TimeSpan.FromSeconds(20);
+
+    /// <summary>How long the shutdown waits, in all, for the send threads to stop once everything else has (#875).</summary>
+    public static readonly TimeSpan SendThreadsStopLimit = TimeSpan.FromSeconds(2);
 
     private async Task WaitForSavesAsync(CancellationToken stoppingToken)
     {
