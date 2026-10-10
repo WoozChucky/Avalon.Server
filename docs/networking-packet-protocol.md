@@ -32,6 +32,14 @@ loses the Encrypted flag, so the client opens nothing. The outbox frames the pac
 `[varint length][NetworkPacket{1: header, 2: payload}]`, written by hand, byte for byte what protobuf-net writes for a
 `NetworkPacket`, then releases the segment to its pool: no `byte[]` per packet.
 
+A broadcast whose bytes are the same for every recipient (a hit, a cast, a death, a heal, loot spawned or despawned,
+instance and party chat, a party member's status) is encoded once, for the first recipient that hears it, and each
+recipient takes a reference of its own (`OutboundPacket.Share`); the broadcaster releases its own after the loop (#875).
+Each send thread copies the payload into its own connection's burst, sealing it there when its connection seals, and
+releases its reference as it frames it, or at once when its connection refuses the packet; the segment is never sealed
+in place, and it returns to its pool after the last reference. World-state packets (`SInstanceStateAdd/Update/Remove`,
+the aura list and updates) stay per recipient: each recipient sees its own set.
+
 Nor a message object per packet. `Create` fills the calling thread's instance of its message type
 (`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that
 type. A resetter compiled once per type, at the world server's startup (`PacketEncoder.PrepareServerPackets`, before

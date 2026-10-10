@@ -57,14 +57,23 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         }
 
         rateLimiter.Record(sender.Guid.Id);
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket line = default;
         foreach (IWorldConnection target in instance.Connections)
         {
             // A listener ignoring the sender does not hear it (#723); nobody is told.
             if (Ignoring.Hides(target, sender.Guid.Id))
                 continue;
 
-            target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
-                PacketEncoder.Shared, characterClass: (ushort)sender.Class));
+            if (line.Payload is null)
+            {
+                line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
+                    PacketEncoder.Shared, characterClass: (ushort)sender.Class);
+            }
+
+            target.Send(line.Share());
         }
+
+        line.Release();
     }
 }

@@ -1649,16 +1649,16 @@ Release and reported in Debug (#890):
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
-  since server packets are built in per-thread messages; the file was last regenerated at `11896cd1`), so the 256 B
+  since server packets are built in per-thread messages; the file was last regenerated at `8ca86346`), so the 256 B
   floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
   per window).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the one figure above 0 (16,252 B per window since #888), and at that size the 256 B floor
-  decides for it too (1% is 162 B): it fails above 16,508 B, about 4 B per tick for the whole fight, so one 24 B
-  object every six ticks fails it. Its Debug run reads 225 B per window above Release (16,477 B: what the optimised
+  `forest-combat` is the one figure above 0 (16,244 B per window since #875's shared broadcasts), and at that size the
+  256 B floor decides for it too (1% is 162 B): it fails above 16,500 B, about 4 B per tick for the whole fight, so one
+  24 B object every six ticks fails it. Its Debug run reads 225 B per window above Release (16,469 B: what the optimised
   JIT keeps off the heap, among it in the vendored navmesh code, which a Debug build compiles unoptimised too), and a
   whole World suite run reads 80 B per window more or less than the test alone (Release 16,172, Debug 16,557; the cause
   is not found), so its Debug figure can cross the floor with no change. The escape hatch below applies to it alone
@@ -1765,20 +1765,24 @@ no character reaches level 2. `ForestCombatScenarioShould` runs the scenario twi
 same kills and the same bytes per window; the second run's creatures carry higher ids (the process-wide object id
 counter), which changes neither.
 
-**Gate.** Committed at **16,252 B per window** (22.6 B per player per tick, 271 B per tick), a hard gate like the town
+**Gate.** Committed at **16,244 B per window** (22.6 B per player per tick, 271 B per tick), a hard gate like the town
 scenarios: see [The allocation gate](#the-allocation-gate) for the floor. Recorded on the developer machine, Release,
-dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)) and
-#888 took the send path off the tick thread's bill. The same figure every run: five two-run checks in Release on the
-developer machine, and the gate and the check in a Linux container (4 CPUs, 16 GB).
+dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)), #888
+took the send path off the tick thread's bill, and #875 encoded each broadcast once
+([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)). The same figure every run: at 16,252, five two-run
+checks in Release on the developer machine, and the gate and the check in a Linux container (4 CPUs, 16 GB); at 16,244,
+three runner runs, the run that wrote it and the Release gate on the developer machine.
 
 | `forest-combat`, bytes per window | |
 |---|---:|
 | First committed (PGO off, before #880's fix) | 362,459 |
 | After #880's fix (PGO on) | 201,643 |
-| After #888's outbound packets (PGO on), now | 16,252 |
-| Debug, now | 16,477 |
+| After #888's outbound packets (PGO on) | 16,252 |
+| After shared broadcasts (#875, PGO on), now | 16,244 |
+| Debug, now | 16,469 |
 
-No tick-time change is claimed for either step: tick time was not measured like for like.
+No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
+was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
 
 Four forests of about 840 creatures and twelve fighters cost about as much per tick as `town-walk`'s 30 walkers: most
 creatures are far from any player, and an idle creature's AI looks for players once a second rather than every tick.
@@ -1840,6 +1844,52 @@ scenario a `List<IAbility>`) and the closures on the combat path this scenario r
 and `147_0` cannot be matched by name from a profile; any left on paths the forest does not take stay open). It does
 not touch `MapId`, which no forest tick allocates, nor the network-layer items. The driver itself allocates nothing: it
 holds its packets and its ability, and reads the ability's cooldown itself rather than asking the character.
+
+### Results — shared broadcasts (#875, 2026-10-10)
+
+A broadcast whose bytes are the same for every recipient (a hit, a cast's start, finish or interruption, an ability
+fired, a death, a revive, an attack animation, a heal, an aura's periodic tick, the three item-cast broadcasts, loot
+spawned and despawned, the owed loot snapshots, the party health-scale notice, instance and party chat, a party
+member's status) is now encoded once, for the first recipient that hears it, and each recipient takes a reference
+(`OutboundPacket.Share`); see [Sending a packet](networking-packet-protocol.md#sending-a-packet). World-state packets
+and aura updates stay per recipient.
+
+i9-12900K (24 logical processors), Windows 11 (10.0.26200), .NET 10.0.12, Release, dynamic PGO on (the default). Before
+is `8ca86346`, after is this change on it; three runs per side, interleaved (before, after, before, after, before,
+after), each a `forest-combat` runner run (`--scenario forest-combat`, its defaults) and a `crowd-budget` run (its
+defaults: 4 players, 900 warm-up and 3,600 measured ticks, N = 10, 25, 50, 100). Medians of the three.
+
+| `forest-combat` | Before | After |
+|---|---:|---:|
+| Bytes per window (every run) | 16,252 | 16,244 |
+| Tick ms, mean | 0.125 | 0.127 |
+| p95 | 0.236 | 0.264 |
+| p99 | 0.318 | 0.329 |
+
+| `crowd-budget`, update ms | N | Before mean | After mean | Before p95 | After p95 |
+|---|---:|---:|---:|---:|---:|
+| Waypoint | 10 | 0.099 | 0.077 | 0.276 | 0.221 |
+| Crowd | 10 | 0.286 | 0.314 | 0.415 | 0.392 |
+| CrowdPlayers | 10 | 0.130 | 0.124 | 0.217 | 0.218 |
+| Waypoint | 25 | 0.062 | 0.060 | 0.123 | 0.144 |
+| Crowd | 25 | 0.222 | 0.228 | 0.355 | 0.351 |
+| CrowdPlayers | 25 | 0.251 | 0.242 | 0.394 | 0.386 |
+| Waypoint | 50 | 0.060 | 0.064 | 0.145 | 0.148 |
+| Crowd | 50 | 0.553 | 0.561 | 0.736 | 0.758 |
+| CrowdPlayers | 50 | 0.580 | 0.580 | 0.778 | 0.788 |
+| Waypoint | 100 | 0.091 | 0.090 | 0.223 | 0.223 |
+| Crowd | 100 | 1.130 | 1.122 | 1.404 | 1.366 |
+| CrowdPlayers | 100 | 1.142 | 1.179 | 1.410 | 1.475 |
+
+- **Allocation: 8 B less per window** in `forest-combat` (16,252 to 16,244, every run on both sides), now the committed
+  figure; the town scenarios and `many-instances` stay at 0. Sharing allocates nothing (`Share` is one interlocked
+  increment). The fall is small because a forest has three listeners, so a broadcast's factory ran at most three times
+  before, and the factories that still allocate per call (revive, ability fired, loot despawned, the owed loot
+  snapshot's list) are rare there.
+- **Tick time: no measurable change.** In `forest-combat` and in most `crowd-budget` rows the interleaved pairs
+  disagree; the rows where all three pairs agree go both ways (after faster: Waypoint 10, CrowdPlayers 25; after
+  slower: Crowd 10, CrowdPlayers 100), within the runs' spread. Four listeners encode at most four packets per broadcast
+  either way; the saving grows with the number of listeners, which neither harness models.
 
 ### Results — server packets built in per-thread messages (#875, 2026-10-10)
 
