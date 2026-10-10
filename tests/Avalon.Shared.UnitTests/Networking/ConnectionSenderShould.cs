@@ -103,10 +103,43 @@ public sealed class ConnectionSenderShould
     }
 
     /// <summary>
+    /// A packet the session cannot seal (one that never completed its exchange, or spent its counter): the burst it was
+    /// in is discarded, nothing of it reaches the wire, and the connection closes, refusing what is sent after.
+    /// </summary>
+    [Fact]
+    public async Task Discard_the_burst_and_close_when_a_packet_cannot_be_sealed()
+    {
+        NetworkSendScheduler scheduler = Scheduler();
+        var wire = new MemoryStream();
+        int closes = 0;
+        ConnectionSender sender = scheduler.CreateSender(Guid.NewGuid(), NullLogger.Instance, new RefusingSealer(), () => closes++);
+        sender.Connect(new PacketStream(wire));
+        var sealedHeader = new NetworkPacketHeader
+        {
+            Type = NetworkPacketType.SMSG_WORLD_STATE_UPDATE,
+            Flags = NetworkPacketFlags.Encrypted,
+            Protocol = NetworkProtocol.Tcp,
+        };
+
+        sender.Enqueue(Numbered(1));
+        sender.Enqueue(new OutboundPacket(sealedHeader, _pool.Rent(new byte[10])));
+        sender.Enqueue(Numbered(2));
+        scheduler.RunPass(sender.OwnerThread);
+
+        Assert.Equal(0, wire.Length);
+        Assert.Equal(1, closes);
+        Assert.Equal(0, sender.PendingBytes);
+        Assert.False(sender.Enqueue(Numbered(3)));
+        await CloseAsync(scheduler, sender);
+        Assert.Equal(0, _pool.Outstanding);
+    }
+
+    /// <summary>
     /// Review Focus 4: sends from other threads racing the tick's signal on running send threads. No packet may be
     /// left behind a dirty flag cleared at the wrong moment: the writers stop together at the end of each round, and
     /// everything they queued must go out with no further send (the tick's signals and the threads' timed wakes only
-    /// drain the dirty lists, which a stranded connection is not on).
+    /// drain the dirty lists, which a stranded connection is not on). Every third write ends asynchronously, as a socket
+    /// with a full buffer does, so the end of a pending write races the sends too.
     /// </summary>
     [Fact]
     public async Task Deliver_every_send_from_off_the_tick_while_the_tick_signals_running_send_threads()
@@ -117,7 +150,7 @@ public sealed class ConnectionSenderShould
         scheduler.Start();
         try
         {
-            MemoryStream[] wires = [new(), new()];
+            SometimesPendingStream[] wires = [new(3), new(3)];
             ConnectionSender[] senders = [Open(scheduler, wires[0]), Open(scheduler, wires[1])];
             using var stop = new CancellationTokenSource();
             using var round = new Barrier(4);
@@ -230,6 +263,44 @@ public sealed class ConnectionSenderShould
         using var timeout = new CancellationTokenSource(limit);
         while (!condition())
             await Task.Delay(10, timeout.Token);
+    }
+
+    /// <summary>A stream whose every <c>k</c>-th write ends asynchronously, on the thread pool; the others end inline.</summary>
+    private sealed class SometimesPendingStream(int k) : Stream
+    {
+        private readonly MemoryStream _written = new();
+        private int _writes;
+
+        public byte[] ToArray() => _written.ToArray();
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            // One write in flight at a time (the sender's rule), so the count and the buffer need no lock.
+            if (++_writes % k != 0)
+            {
+                _written.Write(buffer.Span);
+                return ValueTask.CompletedTask;
+            }
+
+            return WriteLaterAsync(buffer);
+        }
+
+        private async ValueTask WriteLaterAsync(ReadOnlyMemory<byte> buffer)
+        {
+            await Task.Yield();
+            _written.Write(buffer.Span);
+        }
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>A stream whose writes stay pending until the test ends them, as a socket whose peer stopped reading.</summary>

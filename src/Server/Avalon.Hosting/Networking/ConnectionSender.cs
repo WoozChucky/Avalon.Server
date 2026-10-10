@@ -161,16 +161,18 @@ public sealed class ConnectionSender : IOutbox
             return;
         }
 
+        // A write in flight marks this connection dirty again when it ends, and the rest goes then. Read before the fault
+        // flag: a write that fails sets that flag before it clears this one, so a visit that reads no write in flight
+        // also reads the fault, and never starts another write on a stream that has failed.
+        if (IsWriteInFlight)
+            return;
+
         if (Volatile.Read(ref _faulted) != 0)
         {
             ReleaseQueued();
             FinishIfIdle();
             return;
         }
-
-        // A write in flight marks this connection dirty again when it ends, and the rest goes then.
-        if (IsWriteInFlight)
-            return;
 
         // Never connected: nothing can be written, but a close still finishes and gives back what was queued.
         if (_stream is null)
@@ -245,7 +247,7 @@ public sealed class ConnectionSender : IOutbox
         }
         catch (Exception e)
         {
-            WriteEnded(e);
+            WriteEndedInline(e);
             return;
         }
 
@@ -264,7 +266,7 @@ public sealed class ConnectionSender : IOutbox
                 error = e;
             }
 
-            WriteEnded(error);
+            WriteEndedInline(error);
             return;
         }
 
@@ -291,6 +293,32 @@ public sealed class ConnectionSender : IOutbox
 
         _pendingWrite = default;
         WriteEnded(error);
+
+        // What was queued meanwhile, a close waiting for the queue to empty, or a fault's leftovers: the owner's next
+        // visit. After the in-flight flag cleared, so that visit can start the next write.
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// A write that ended inside <see cref="StartWrite" />, on the owner thread: it is not marked dirty again, which
+    /// would wake this thread for a burst of one or two packets and split the tick's sends into several records. What
+    /// was enqueued, or a close requested, since this visit cleared the dirty flag pushed the connection itself.
+    /// </summary>
+    private void WriteEndedInline(Exception? error)
+    {
+        WriteEnded(error);
+        if (error is not null)
+        {
+            ReleaseQueued();
+            FinishIfIdle();
+        }
+        else if (Volatile.Read(ref _completed) != 0)
+        {
+            // Closing: one more visit writes what was enqueued after this burst was drained, or finishes. It cannot finish
+            // here, since an enqueue that began before the close may still be adding the last packet; and the close's
+            // own mark may have found the connection already listed, for this visit, and pushed nothing.
+            MarkDirty();
+        }
     }
 
     private void WriteEnded(Exception? error)
@@ -314,9 +342,6 @@ public sealed class ConnectionSender : IOutbox
                 _logger.LogError(error, "Write faulted for connection {Id}; closing", ConnectionId);
             RequestClose();
         }
-
-        // What was queued meanwhile, a close waiting for the queue to empty, or a fault's leftovers: the owner's next visit.
-        MarkDirty();
     }
 
     private void MarkDirty()
@@ -327,8 +352,18 @@ public sealed class ConnectionSender : IOutbox
 
     private void RequestClose()
     {
-        if (Interlocked.Exchange(ref _closeRequested, 1) == 0)
+        if (Interlocked.Exchange(ref _closeRequested, 1) != 0)
+            return;
+
+        try
+        {
             _close();
+        }
+        catch (Exception e)
+        {
+            // It runs on a send thread or where a write completed: a throw would end the pass, or the process.
+            _logger.LogCritical(e, "Closing connection {Id} after a send failure threw; the connection may stay open", ConnectionId);
+        }
     }
 
     private void FinishIfIdle()

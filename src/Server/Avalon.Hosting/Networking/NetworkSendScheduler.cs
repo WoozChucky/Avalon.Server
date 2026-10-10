@@ -69,7 +69,13 @@ public sealed class NetworkSendScheduler : IDisposable
         }
     }
 
-    /// <summary>A sender for a new connection, owned by the next thread in turn. <paramref name="sealer" /> null: plain inside TLS.</summary>
+    /// <summary>A sender for a new connection, owned by the next thread in turn.</summary>
+    /// <param name="sealer">Seals each packet flagged Encrypted; null, every packet goes plain inside TLS.</param>
+    /// <param name="close">
+    /// Closes the connection after a send failure (a payload that cannot be sealed, a write that failed). Called at most
+    /// once, on a send thread or where a write completed (an I/O completion): it must neither block nor throw. A throw is
+    /// logged at Critical and swallowed.
+    /// </param>
     public ConnectionSender CreateSender(Guid connectionId, ILogger logger, IAvalonCryptoSession? sealer, Action close)
     {
         int owner = (int)((ulong)Interlocked.Increment(ref _created) % (ulong)_threads.Length);
