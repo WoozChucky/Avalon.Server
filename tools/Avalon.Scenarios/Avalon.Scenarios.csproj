@@ -8,12 +8,6 @@
     <!-- The world server's own GC settings, so the timings and collections it reports are the server's. -->
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-    <!--
-      Dynamic PGO off, as in the gate's test process (Avalon.Server.World.UnitTests), so the allocations written to
-      perf/scenario-allocations.json are the ones the gate measures: with it on, how many boxed enumerators and closures
-      the JIT keeps off the heap depends on the profile it gathered (docs/benchmarks.md, "Dynamic PGO is off").
-    -->
-    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
 
   <ItemGroup>

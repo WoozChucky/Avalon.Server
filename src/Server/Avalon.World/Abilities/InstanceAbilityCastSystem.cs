@@ -341,7 +341,21 @@ public class InstanceAbilityCastSystem(
 
     public void DropFinished() => _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished);
 
-    public IWorldObject? GetAbility(ObjectGuid guid) => _activeAbilities.Find(a => a.Script.Guid == guid)?.Script;
+    /// <summary>
+    /// The active script of that guid. A plain loop: the state broadcast asks for every spell object each viewer is
+    /// sent, and a <c>Find</c> over a lambda on the guid allocated its closure and delegate on every call (#880).
+    /// </summary>
+    public IWorldObject? GetAbility(ObjectGuid guid)
+    {
+        for (int i = 0; i < _activeAbilities.Count; i++)
+        {
+            AbilityScript script = _activeAbilities[i].Script;
+            if (script.Guid == guid)
+                return script;
+        }
+
+        return null;
+    }
 
     private static void ResetCast(IAbility ability)
     {

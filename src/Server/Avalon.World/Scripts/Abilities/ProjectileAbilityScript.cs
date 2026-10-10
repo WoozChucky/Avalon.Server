@@ -66,8 +66,11 @@ public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, Abil
         float moved = HitShapes.Distance2D(_ground, end);
         bool blocked = moved < step - Epsilon;
 
-        foreach (IUnit unit in arena.Hits.OnSegment(_ground, end))
+        // By index: a foreach through the interface boxes the list's enumerator on every step of the flight (#880).
+        IReadOnlyList<IUnit> units = arena.Hits.OnSegment(_ground, end);
+        for (int i = 0; i < units.Count; i++)
         {
+            IUnit unit = units[i];
             if (_hit.Contains(unit.Guid) || !AbilityEffect.Qualifies(arena, Caster, Ability, unit))
             {
                 continue;

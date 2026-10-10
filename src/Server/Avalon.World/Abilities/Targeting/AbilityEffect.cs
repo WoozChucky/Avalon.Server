@@ -45,8 +45,11 @@ public static class AbilityEffect
     public static int ApplyToAll(IAbilityArena arena, IUnit caster, IAbility ability, IReadOnlyList<IUnit> candidates)
     {
         int affected = 0;
-        foreach (IUnit unit in candidates)
+
+        // By index: a foreach through the interface boxes the list's enumerator on every cast (#880).
+        for (int i = 0; i < candidates.Count; i++)
         {
+            IUnit unit = candidates[i];
             if (!Qualifies(arena, caster, ability, unit))
                 continue;
 

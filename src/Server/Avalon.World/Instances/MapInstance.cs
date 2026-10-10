@@ -776,6 +776,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>The position of a connection with no character: not finite, so never near an effect.</summary>
     private static readonly Vector3 s_unplaced = new(float.NaN, float.NaN, float.NaN);
 
+    /// <summary>The guid of nobody (0), for a periodic tick whose caster is gone. Never written: only its raw value is read.</summary>
+    private static readonly ObjectGuid s_nobody = new();
+
     public GroundLootStore Drops => _groundLoot;
 
     public VendorStocks Vendors => _vendors;
@@ -834,12 +837,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                         : allocator!.Allocate(instanceOwner: null, instanceParty: null, []),
                 GetNavigatorForPosition(creature.Position), IObject.GenerateId);
 
-            foreach (GroundLoot drop in drops)
+            for (int i = 0; i < drops.Count; i++)
             {
-                _groundLoot.Add(drop);
+                _groundLoot.Add(drops[i]);
             }
 
-            SendLootSpawned(_connections.Values, drops);
+            // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
+            List<LootDropDto> dtos = LootDtos(drops);
+            foreach (IWorldConnection connection in _connections.Values)
+            {
+                connection.Send(SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared));
+            }
         }
         catch (Exception e)
         {
@@ -881,7 +889,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             {
                 if (_connections.TryGetValue(guid, out IWorldConnection? connection))
                 {
-                    SendLootSpawned([connection], _groundLoot.All);
+                    connection.Send(SLootSpawnedPacket.Create(LootDtos(_groundLoot.All), PacketEncoder.Shared));
                 }
             }
         }
@@ -907,19 +915,27 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _pvpStateOwed.Clear();
     }
 
-    private static void SendLootSpawned(IEnumerable<IWorldConnection> recipients, IReadOnlyCollection<GroundLoot> drops)
+    /// <summary>The drops as the loot packet carries them: built once for every connection the drop is sent to.</summary>
+    private static List<LootDropDto> LootDtos(IReadOnlyCollection<GroundLoot> drops)
     {
-        // Built once; each connection serializes it under its own session key.
-        var dtos = drops.Select(LootDropMapper.ToDto).ToList();
-
-        foreach (IWorldConnection connection in recipients)
+        var dtos = new List<LootDropDto>(drops.Count);
+        if (drops is IReadOnlyList<GroundLoot> list)
         {
-            connection.Send(SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared));
+            for (int i = 0; i < list.Count; i++)
+                dtos.Add(LootDropMapper.ToDto(list[i]));
+            return dtos;
         }
+
+        foreach (GroundLoot drop in drops)
+            dtos.Add(LootDropMapper.ToDto(drop));
+        return dtos;
     }
 
     public void Update(TimeSpan deltaTime)
     {
+        // Every hit list the last tick handed out was read within it: the hit query may reuse them (#880).
+        _hits.Recycle();
+
         if (_characters.Count == 0)
         {
             StandStillWhileEmpty();
@@ -1595,7 +1611,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
-        ObjectGuid from = caster?.Guid ?? new ObjectGuid();
+        // A tick whose caster is gone is from nobody: one shared empty guid, only read, rather than a new one per tick (#880).
+        ObjectGuid from = caster?.Guid ?? s_nobody;
         if (!heal && target is CharacterEntity character && _connections.TryGetValue(character.Guid, out IWorldConnection? own))
         {
             own.Send(SCharacterDamagePacket.Create(from.RawValue, character.Guid.RawValue, character.CurrentHealth, amount,
@@ -1803,7 +1820,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>This character's share of the kill's experience, scaled by this map's level band.</summary>
     private uint ScaledExperience(ICharacter character, uint experience)
     {
-        MapTemplate? mapTemplate = _world.MapTemplates.FirstOrDefault(map => map.Id == TemplateId);
+        // A plain walk: a lambda over this instance allocated its delegate for every share of every kill (#880).
+        MapTemplate? mapTemplate = null;
+        IReadOnlyList<MapTemplate> templates = _world.MapTemplates;
+        for (int i = 0; i < templates.Count; i++)
+        {
+            if (templates[i].Id == TemplateId)
+            {
+                mapTemplate = templates[i];
+                break;
+            }
+        }
 
         double bandScale = BandScale(
             character.Level,

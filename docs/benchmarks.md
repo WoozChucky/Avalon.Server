@@ -1284,40 +1284,74 @@ instance pass, and leaves out:
   the next. A fight is not: creatures die, players die and are revived, loot drops, and a wall-clock warm-up would end
   at a different point of the fight on every machine. So a scenario can name a fixed length (`IScenario.Length`;
   `forest-combat`: 600 warm-up ticks, then 3,600 measured ticks) and is then measured another way. First a
-  **rehearsal**: the scenario built and ticked on a world of its own for its whole length, and on until the wall-clock
-  warm-up has passed, so the JIT's tiering, first-use caches and pools settle on the code the fight takes. Then a
-  **fresh world**, ticked for its warm-up ticks and then its measured ticks, every one counted: the gated
-  `bytesPerWindow` is their **mean** per 60-tick window, so every kill, death and drop of the minute is in it (the
-  least window would keep only the quietest second). Its timing is that of the same measured ticks (none with
+  **rehearsal**: the whole run on a world of its own, again on a new world each time, until the wall-clock warm-up has
+  passed and two rehearsals in a row allocated the same over their measured ticks (at most 12), with a 250 ms pause
+  after each for the JIT's background promotions to finish, so its tiering, first-use caches and pools settle on the
+  code the fight takes; see [Dynamic PGO](#dynamic-pgo). Then a **fresh world**, ticked for its warm-up ticks and
+  then its measured ticks, every one counted: the gated `bytesPerWindow` is their **mean** per 60-tick window, so
+  every kill, death and drop of the minute is in it (the least window would keep only the quietest second). Its timing is that of the same measured ticks (none with
   `--measure-ticks 0`). Its check (`Verify`) requires every player present and sent to, every fighter casting and
   every forest losing creatures during the measured ticks.
 
-#### Dynamic PGO is off
+#### Dynamic PGO
 
-The gate's test process (`Avalon.Server.World.UnitTests`) and the runner run with dynamic PGO off
-(`<TieredPGO>false</TieredPGO>` in both projects). With it on, the optimised JIT tier devirtualises interface calls
-from the profile it gathered at run time, and can then keep the boxed enumerator, closure or delegate such a call would
-allocate on the stack. How many it keeps depends on that profile, which differs between runs and between machines.
-The town scenarios do not depend on it (their figures are the same with it on or off), but `forest-combat` does.
-Bytes per window on the developer machine, at `00ae7557` with this change:
+The world server runs with dynamic PGO on (the runtime's default), and so do the gate and the runner. The optimised JIT
+tier devirtualises an interface call from the profile it gathered at run time and can then keep on the stack the boxed
+enumerator, closure, delegate or box the call would have allocated. How much it keeps depends on the profile and on
+when a method reached that tier, so an allocation of that kind is a figure that moves: between runs, between machines,
+and between Debug (never optimised) and Release. The town scenarios have none on their path. `forest-combat` had many
+when it was added, all in combat, AI and kill code, and the fight's rarer paths (a kill's drop, an aura's tick) reach
+the optimised tier late, so its first figure was not reproducible:
+
+| `forest-combat`, bytes per window, before the fix (`ddfa6db7`) | |
+|---|---:|
+| Release, PGO on, the runner (Server GC), two runs | 351,215 / 351,215 |
+| Release, PGO on, the test process, two runs in one process | 322,415 / 322,412; with an earlier driver, pairs up to 0.3% apart |
+| Release, PGO off (`DOTNET_TieredPGO=0`) | 362,459 / 362,459 |
+| Debug | 363,733 / 363,733 |
+
+#880 removed the allocations rather than the profile (owner, 2026-10-10: PGO stays on everywhere). Each was found by
+diffing the per-tick allocations of two runs, then narrowing with allocation counters around the steps of the tick:
+
+- `CharacterAbilityContainer`: `Update` (every character, every tick), the ability lookup (`Spells[id]`) and
+  `IsCasting` walked an `IReadOnlyCollection<IAbility>` through its interface, with a lambda for the last two. They walk
+  the loaded collection by index when it is a list (always, in production); this was #880's `Enumerator[GameAbility]`.
+- `CreatureRangeDetectorScript`: each idle creature's search (once a second) walked `Context.Characters.Values` as an
+  `IEnumerable<ICharacter>`. It walks the instance's own `Dictionary` with its struct enumerator.
+- `UnitHitQuery` (every cone swung and every step of every projectile): a new result list, an overlap lambda and a sort
+  lambda, both over closures, the boxed enumerators of both dictionaries, and the `Comparison` delegate `List.Sort`
+  makes of an `IComparer`. It now walks the concrete dictionaries, tests the shape with a struct, sorts with a
+  `Comparison` made once, and fills a list it keeps: every list handed out stays valid until the instance's next tick
+  (`Recycle`, at the start of `MapInstance.Update`), so a query asked while another's result is still being walked
+  never overwrites it. The order (nearest first, ties by raw guid) is unchanged. Its callers (`AbilityEffect.ApplyToAll`,
+  the projectile's step) read the result by index.
+- `InstanceAbilityCastSystem.GetAbility` (the state broadcast, for each projectile each viewer is sent): `Find` over a
+  lambda on the guid; a plain loop.
+- The kill: `LootRoller` walked its tables' lists through their interfaces and found each dropped item with a lambda;
+  the drop then walked the placed drops and the connections through interfaces and built the packet's list with
+  `Select`. All are loops now. The experience award's level-row and map-template lookups used lambdas; loops.
+- A periodic tick whose caster is gone allocated a new empty `ObjectGuid` (a class) per tick; one shared, read-only
+  instance. `CastAbilityHandler` tested its two flags with `Enum.HasFlag`, which boxes in unoptimised code; bit tests.
+
+After the fix, bytes per window (developer machine, i9-12900K, Windows 11, .NET 10.0.12, and the Linux container used
+for CI's runner size):
 
 | Run | `forest-combat` |
 |---|---:|
-| Release, dynamic PGO on (the runtime's default), two runs in one process | 322,415 / 322,412 |
-| Release, dynamic PGO off, two runs in one process | 362,459 / 362,459 |
-| Debug (never optimised), two runs in one process | 363,733 / 363,733 |
-| Linux container (4 CPUs, 16 GB, CI's runner size), Release, dynamic PGO off: the gate, then two runs | 362,459, then 362,459 / 362,459 |
+| Release, PGO on, the runner (Server GC) | 201,643 |
+| Release, PGO on, the test process, two runs in one process, five times | 201,643 / 201,643, every time |
+| Release, PGO on, the same under load (the World suite running beside it), five times | 201,643 / 201,643, every time |
+| Release, PGO off | 201,916 / 201,916 |
+| Debug | 202,116 / 202,116 |
+| Linux container (4 CPUs, 16 GB), Release, PGO on: the gate and the two-run check, twice | 201,643, and 201,643 / 201,643 |
 
-With PGO on, the figure moves from run to run and reads 11% under Debug, so the gate could neither require two runs to
-match nor decide in Debug, and a machine whose profile kept fewer objects on the stack would fail it. With PGO off every
-run reads the same figure, and Debug reads 0.35% above Release (what the optimised tier keeps on the stack without a
-profile), inside the 1% band. The gate therefore counts the allocations the code makes, which is also what production
-pays wherever its own profile does not remove them: the trace of the load-test world in #880 found
-`Enumerator[GameAbility]`, one of the enumerators PGO removes here, at 84 MB in 4.4 minutes.
-
-The cost is in the runner's timings, which are slower without PGO than the server's: on the developer machine, one
-run each, `town-walk` 0.201 ms mean against 0.143 ms with it (#875's table below), `many-instances` 1.450 against
-1.209, `forest-combat` 0.191 against 0.108 (with an earlier version of its driver). Compare timings only with runs made since this change.
+The figure falls by 42.6% against the runner's 351,215 (44.4% against the 362,459 first committed), 150 KB per window
+of the tick thread's garbage. PGO on and off now read within 0.14%, and Debug 0.23% above Release, inside the 1% band.
+What PGO still keeps on the stack is spread thin, on paths the rehearsal settles. Before the pause after each
+rehearsal, a busy machine could still finish a promotion during the first measured run of a process (201,681 against
+201,643 once in three runs under load); with it, none did in five. Should a later change bring back an allocation of
+this kind, the two-run check (`ForestCombatScenarioShould`) or the Debug gate shows it: find it by diffing the
+per-tick bytes of two runs, as above.
 
 ### Running it and reading the table
 
@@ -1357,9 +1391,9 @@ with the committed figure, in every build (Debug and Release, see below):
   allocated every tick, anywhere on the measured path, fails all three (the smallest, 24 B, is 1,440 B per window).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` (362,459 B per window) fails above 366,083 B: 3,624 B per window, 60 B per tick, **5 B per player
-  per tick**, so one 64 B object per tick for the whole world fails it. Its Debug run reads 0.35% above Release, so in
-  Debug the band left is 0.65%.
+  `forest-combat` (201,643 B per window) fails above 203,659 B: 2,016 B per window, 34 B per tick, **2.8 B per player
+  per tick**, so one 40 B object per tick for the whole world fails it. Its Debug run reads 0.23% above Release, so in
+  Debug the band left is 0.77%.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
   CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
@@ -1424,7 +1458,7 @@ be committed. #854 passes the session's `Encryptor`, a delegate created once wit
 got no longer changes what a send allocates. The gate runs in a non-parallel xUnit collection, so no other test in the
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 23 s to the World
-suite (`forest-combat` about 8 s of it), and `ForestCombatScenarioShould`, the forest's two-run check, about 12 s more.
+suite (`forest-combat` about 8 s of it), and `ForestCombatScenarioShould`, the forest's two-run check, about 15 s more.
 
 ### The forest-combat scenario
 
@@ -1459,23 +1493,32 @@ no character reaches level 2. `ForestCombatScenarioShould` runs the scenario twi
 same kills and the same bytes per window; the second run's creatures carry higher ids (the process-wide object id
 counter), which changes neither.
 
-**Gate.** Committed at 362,459 B per window (503.4 B per player per tick, 6,041 B per tick), a hard gate like the town
+**Gate.** Committed at 201,643 B per window (280.1 B per player per tick, 3,361 B per tick), a hard gate like the town
 scenarios: see [The allocation gate](#the-allocation-gate) for the floor. Recorded on the developer machine, Release,
-at `00ae7557`, with dynamic PGO off ([why](#dynamic-pgo-is-off)).
+dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)).
 
-Timing, from the same Release run of the runner (i9-12900K, Windows 11, .NET 10.0.12, Server GC, 10 s rehearsal; the
-3,600 measured ticks):
+Timing, from the runner (Release, i9-12900K, Windows 11, .NET 10.0.12, Server GC, PGO on; the 3,600 measured ticks), two
+runs each before and after #880's fix:
 
-| Scenario | Tick ms mean | p95 | p99 | max | % > 16.7 ms | gen0 | gen1 | gen2 | GC pause ms |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `forest-combat` | 0.191 | 0.272 | 0.380 | 0.759 | 0.00 | 0 | 0 | 0 | 0.00 |
+| `forest-combat` | Tick ms mean | p95 | p99 | max | gen0 |
+|---|---:|---:|---:|---:|---:|
+| Before (351,215 B per window) | 0.147 / 0.152 | 0.209 / 0.238 | 0.284 / 0.355 | 0.825 / 0.546 | 0 / 0 |
+| After (201,643 B per window) | 0.135 / 0.142 | 0.182 / 0.196 | 0.229 / 0.257 | 0.438 / 0.430 | 0 / 0 |
+
+The town scenarios, in the same runs, did not move beyond run-to-run noise: `town-walk` 0.142 / 0.141 ms mean before,
+0.142 / 0.145 after (1,123,680-1,124,880 B per window throughout); `many-instances` 1.582 / 1.339 before, 1.321 / 1.221
+after (6,325,728-6,329,728 B); `town-idle` 0 B.
 
 Four forests of about 840 creatures and twelve fighters cost about as much per tick as `town-walk`'s 30 walkers: most
 creatures are far from any player, and an idle creature's AI looks for players once a second rather than every tick.
-The minute allocates 21.7 MB on the tick thread, too little for a gen0 collection under Server GC on this machine.
+The minute allocates 12.1 MB on the tick thread, too little for a gen0 collection under Server GC on this machine.
 
-**What dominates its allocations.** A sampled allocation profile of the measured ticks (the runtime's
-`GCAllocationTick` events, about 800 samples over four runs, dynamic PGO off; read by type, so a share is approximate):
+**What dominates its allocations.** After #880's fix the send path is about 85% of it: `byte[]` (sealed payloads and
+serialization buffers) about 53%, `NetworkPacket` 18%, `SPlayerStateAckPacket` 15%, which the network-layer work
+(#875's next phase) takes on. The rest is spread thin: the packets combat sends, ability scripts and their aim and
+metadata copies per cast, the state broadcast's lists, each under about 1%. Before the fix, a sampled allocation profile
+of the measured ticks (the runtime's `GCAllocationTick` events, about 800 samples over four runs, PGO off; read by
+type, so a share is approximate) read:
 
 | Share | Type | Where |
 |---:|---|---|
@@ -1490,13 +1533,12 @@ The minute allocates 21.7 MB on the tick thread, too little for a gen0 collectio
 | 3% | `Predicate<ActiveScript>` | `InstanceAbilityCastSystem.GetAbility`: `Find(a => a.Script.Guid == guid)`, from the state broadcast, for each projectile each viewer is sent |
 | 2% | `List<IUnit>` | `UnitHitQuery`: a new list of hits per query |
 
-Of #880's suspects, the scenario exposes the boxed ability enumerator (#880 traced it as `Enumerator[GameAbility]`:
-production loads a `List<GameAbility>` into the same `IReadOnlyCollection<IAbility>`, the scenario a `List<IAbility>`)
-and closures (#880's `<>c__DisplayClass3_1` and `147_0` cannot be matched by name from this profile). It does not
-expose `MapId`, which no forest tick here allocates. Dynamic PGO, when on, removes most of the ability enumerators and
-none of the character enumerators. The driver itself allocates nothing: it holds its packets and its ability, since the
-character's own ability lookups (`Spells[id]`, `Spells.IsCasting`) allocate a closure, a delegate and an enumerator
-each, which an earlier version of the driver paid every tick.
+Of #880's suspects (its section 2), this resolves the boxed ability enumerator (#880 traced it as
+`Enumerator[GameAbility]`: production loads a `List<GameAbility>` into the same `IReadOnlyCollection<IAbility>`, the
+scenario a `List<IAbility>`) and the closures on the combat path this scenario reaches (#880's `<>c__DisplayClass3_1`
+and `147_0` cannot be matched by name from a profile; any left on paths the forest does not take stay open). It does
+not touch `MapId`, which no forest tick allocates, nor the network-layer items. The driver itself allocates nothing: it
+holds its packets and its ability, and reads the ability's cooldown itself rather than asking the character.
 
 ### Results — server packets built in per-thread messages (#875, 2026-10-10)
 
