@@ -36,10 +36,14 @@ public class WireRoundTripShould
         var codec = new PacketCodec(client) { Seals = packetEncryption };
 
         // Client → server: many frames through the bot's writer, read by the server's own frame loop, opened by header.
+        // All are built before any is written, so a packet that shared the codec's buffer would read as a later one.
+        var outgoing = new List<NetworkPacket>(500);
+        for (uint seq = 1; seq <= 500; seq++)
+            outgoing.Add(codec.Outgoing(new CPlayerInputPacket { Seq = seq, DirX = 1 }, NetworkPacketType.CMSG_PLAYER_INPUT));
         var wire = new MemoryStream();
         var writer = new FrameWriter(wire);
-        for (uint seq = 1; seq <= 500; seq++)
-            await writer.WriteAsync(codec.Outgoing(new CPlayerInputPacket { Seq = seq, DirX = 1 }, NetworkPacketType.CMSG_PLAYER_INPUT), ct);
+        foreach (NetworkPacket packet in outgoing)
+            await writer.WriteAsync(packet, ct);
         wire.Position = 0;
         uint expected = 1;
         await foreach (ReadOnlyMemory<byte> raw in new PacketStream(wire).EnumerateRawFramesAsync(256, ct))

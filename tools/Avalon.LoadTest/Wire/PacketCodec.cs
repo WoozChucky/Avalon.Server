@@ -22,9 +22,9 @@ public sealed class PacketCodec(IAvalonCryptoSession session)
     private readonly Lock _openLock = new();
 
     /// <summary>
-    /// Whether this connection seals what it sends: what the world's admission reply said (#875,
-    /// <c>SGameAdmissionPacket.PacketEncryption</c>), set before anything else is sent. A world from before the flag never
-    /// says, reads false, and opens each packet by its header.
+    /// Whether this connection seals what it sends, every packet but the pong, which the world takes plain: what the
+    /// world's admission reply said (#875, <c>SGameAdmissionPacket.PacketEncryption</c>), set before anything else is
+    /// sent. A world from before the flag never says, reads false, and opens each packet by its header.
     /// </summary>
     public bool Seals { get; set; }
 
@@ -37,14 +37,6 @@ public sealed class PacketCodec(IAvalonCryptoSession session)
         return Seals
             ? new NetworkPacket { Header = Header(type, NetworkPacketFlags.Encrypted), Payload = session.Encryptor(written) }
             : new NetworkPacket { Header = Header(type, NetworkPacketFlags.None), Payload = written.ToArray() };
-    }
-
-    /// <summary>A packet whose payload is the serialized message as is, before or outside the session.</summary>
-    public static NetworkPacket Clear<T>(T message, NetworkPacketType type, NetworkPacketFlags flags) where T : class
-    {
-        using var stream = new MemoryStream();
-        Serializer.Serialize(stream, message);
-        return new NetworkPacket { Header = Header(type, flags), Payload = stream.ToArray() };
     }
 
     /// <summary>The message a packet carries, opened with the session's receiving key when the packet is encrypted.</summary>

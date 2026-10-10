@@ -110,7 +110,7 @@ public static class CheckCommand
             Console.WriteLine(Invariant(
                 $"  ack        p50 {Ms(values.AckP50)}, p95 {Ms(values.AckP95)}, p99 {Ms(values.AckP99)} over {values.AckSamples} inputs"));
             Console.WriteLine(Invariant($"  driver     lateness p95 {Ms(latenessP95)}"));
-            Console.WriteLine(Invariant($"  encryption {(metrics.Admissions.Sealed > 0 ? "on (sealed inside TLS)" : "off (TLS alone)")}"));
+            Console.WriteLine($"  encryption {BotMetrics.EncryptionText(metrics.Admissions)}");
             if (options.Behaviour == BehaviourKind.Fighter) PrintTrip(values);
             if (values.AckSamples == 0)
                 throw new BotStepException(step, $"{step}:no-acks", "no input was answered");

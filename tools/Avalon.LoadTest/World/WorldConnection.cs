@@ -77,8 +77,11 @@ public sealed class WorldConnection : IAsyncDisposable
     /// </summary>
     public PacketCodec Codec { get; }
 
-    /// <summary>What the world's admission reply said (#875): whether this connection seals what it sends.</summary>
-    public bool PacketEncryption { get; private set; }
+    /// <summary>
+    /// What the world's admission reply said (#875): whether this connection seals what it sends, every packet but the
+    /// pong, which the world takes plain. The codec's <see cref="PacketCodec.Seals"/>, the one place the mode is kept.
+    /// </summary>
+    public bool PacketEncryption => Codec.Seals;
 
     /// <summary>
     /// The packets the entry and leave code waits for (admission, handshake, character list, create, select and leave
@@ -197,8 +200,9 @@ public sealed class WorldConnection : IAsyncDisposable
 
     /// <summary>
     /// Sends the join ticket and the client's public key in the clear and waits for the answer. Accepted: the session
-    /// is keyed with the server's key, and every later packet is sealed or plain, as the reply says. Otherwise an
-    /// <see cref="AdmissionRefusedException"/>, and the server closes the connection.
+    /// is keyed with the server's key, and every later packet but the pong, which the world takes plain, is sealed or
+    /// plain, as the reply says. Otherwise an <see cref="AdmissionRefusedException"/>, and the server closes the
+    /// connection.
     /// </summary>
     public async Task AdmitAsync(string joinTicket, CancellationToken ct)
     {
@@ -208,7 +212,6 @@ public sealed class WorldConnection : IAsyncDisposable
         if (admission.Result != GameAdmissionResult.Accepted)
             throw new AdmissionRefusedException(admission.Result);
 
-        PacketEncryption = admission.PacketEncryption;
         Codec.Seals = admission.PacketEncryption;
         try
         {

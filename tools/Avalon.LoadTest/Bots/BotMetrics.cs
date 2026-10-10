@@ -170,6 +170,19 @@ public sealed class BotMetrics
     /// <summary>Every admission so far, by mode: sealed (Network:PacketEncryption on) and plain (TLS alone).</summary>
     public (long Sealed, long Plain) Admissions => (Interlocked.Read(ref _admittedSealed), Interlocked.Read(ref _admittedPlain));
 
+    /// <summary>
+    /// The packet encryption <paramref name="admissions"/> name (<see cref="Admissions"/>): on, off, or both with their
+    /// counts when the world changed mode between them. The ramp report's header and <c>check</c> print it alike.
+    /// </summary>
+    public static string EncryptionText((long Sealed, long Plain) admissions) => admissions switch
+    {
+        (Sealed: 0, Plain: 0) => "no bot was admitted",
+        (Sealed: > 0, Plain: 0) => "on (sealed inside TLS, Network:PacketEncryption)",
+        (Sealed: 0, Plain: > 0) => "off (TLS alone)",
+        var (sealedCount, plainCount) => FormattableString.Invariant(
+            $"mixed: {sealedCount} admissions sealed, {plainCount} plain (the world changed mode in between)"),
+    };
+
     /// <summary>A bot in the world lost its connection without asking to.</summary>
     public void Disconnected(int bot)
     {

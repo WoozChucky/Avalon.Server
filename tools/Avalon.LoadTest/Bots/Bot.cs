@@ -21,7 +21,7 @@ public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, flo
 /// One load-test bot: one account, signed in once, entering the run's world as the game client does (join ticket,
 /// TLS, admission, handshake, character list, create on first entry, select, load report) and leaving it. Its
 /// character is named after the account, with the class and gender its index gives. Entry and leave are driven by one
-/// caller at a time; <see cref="NextInput"/>, <see cref="SendAsync"/> and the properties may be used by others while
+/// caller at a time; <see cref="SendInput"/>, <see cref="SendInWorld{T}"/> and the properties may be used by others while
 /// the bot is <see cref="BotState.InWorld"/>: the input driver, and its party's formation (<see cref="PartyFormer"/>),
 /// which sends through it as an <see cref="IPartyMember"/>. Disposed once nothing uses it any more: after its leave,
 /// its life loop and the refresher are done.
@@ -429,33 +429,33 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     public uint NextSeq() => Interlocked.Increment(ref _seq);
 
     /// <summary>
-    /// A <c>CMSG_PLAYER_INPUT</c> for the current connection, sealed or plain as its admission said, its send time noted
-    /// for the ack latency: send it at once with <see cref="SendAsync"/>. Only while <see cref="BotState.InWorld"/>, so
-    /// the input driver is the only sender of inputs: entry and Change Character send their own, and an
-    /// <see cref="InvalidOperationException"/> here means the bot left the world since the caller looked.
+    /// Sends a <c>CMSG_PLAYER_INPUT</c> on the current connection, sealed or plain as its admission said, its send time
+    /// noted for the ack latency. Only while <see cref="BotState.InWorld"/>, so the input driver is the only sender of
+    /// inputs: entry and Change Character send their own, and an <see cref="InvalidOperationException"/>, thrown before
+    /// anything is sent, means the bot left the world since the caller looked.
     /// </summary>
-    public NetworkPacket NextInput(uint seq, float dirX, float dirZ, ushort yaw)
+    /// <remarks>
+    /// Built and sent on one connection, taken once: a reconnect in between would send a packet sealed for one session
+    /// on another, which the world refuses by closing it.
+    /// </remarks>
+    public ValueTask SendInput(uint seq, float dirX, float dirZ, ushort yaw, CancellationToken ct)
     {
         if (_state != BotState.InWorld) throw new InvalidOperationException($"Bot {index} is not in the world.");
         WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} has no connection.");
-        return OutgoingInput(connection, seq, dirX, dirZ, yaw, noteSent: true);
+        return connection.SendAsync(OutgoingInput(connection, seq, dirX, dirZ, yaw, noteSent: true), ct);
     }
 
     /// <summary>
-    /// <paramref name="message"/> for the current connection, sealed or plain, as the connection's admission said, ready
-    /// for <see cref="SendAsync"/>: a fighter's packets besides its input. Only while <see cref="BotState.InWorld"/>, as
-    /// <see cref="NextInput"/>.
+    /// Sends <paramref name="message"/> on the current connection, sealed or plain, as the connection's admission said:
+    /// a fighter's packets besides its input. Only while <see cref="BotState.InWorld"/>, and built and sent on one
+    /// connection, as <see cref="SendInput"/>.
     /// </summary>
-    public NetworkPacket OutgoingInWorld<T>(T message, NetworkPacketType type) where T : class
+    public ValueTask SendInWorld<T>(T message, NetworkPacketType type, CancellationToken ct) where T : class
     {
         if (_state != BotState.InWorld) throw new InvalidOperationException($"Bot {index} is not in the world.");
         WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} has no connection.");
-        return connection.Outgoing(message, type);
+        return connection.SendAsync(connection.Outgoing(message, type), ct);
     }
-
-    /// <summary>Sends a packet on the current connection.</summary>
-    public ValueTask SendAsync(NetworkPacket packet, CancellationToken ct) =>
-        (_connection ?? throw new InvalidOperationException($"Bot {index} has no connection.")).SendAsync(packet, ct);
 
     string IPartyMember.Name => account;
 

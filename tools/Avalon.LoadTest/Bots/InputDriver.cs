@@ -187,8 +187,7 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
             ValueTask send;
             try
             {
-                NetworkPacket packet = bot.NextInput(seq, dirX, dirZ, lane.Yaw);
-                send = bot.SendAsync(packet, ct);
+                send = bot.SendInput(seq, dirX, dirZ, lane.Yaw, ct);
             }
             catch (InvalidOperationException)
             {
@@ -225,15 +224,14 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
         ValueTask send;
         try
         {
-            NetworkPacket packet = step.Action switch
+            send = step.Action switch
             {
-                FighterAction.EnterForest => bot.OutgoingInWorld(lane.EnterMap(Fighter.ForestMapId), NetworkPacketType.CMSG_ENTER_MAP),
-                FighterAction.LeaveForest => bot.OutgoingInWorld(lane.EnterMap(Fighter.TownMapId), NetworkPacketType.CMSG_ENTER_MAP),
-                FighterAction.Cast => bot.OutgoingInWorld(lane.Cast(bot.Fighter!.AbilityId, step.AimX, step.AimY, step.AimZ),
-                    NetworkPacketType.CMSG_CAST_ABILITY),
-                _ => bot.OutgoingInWorld(InputLane.Respawn, NetworkPacketType.CMSG_RESPAWN_AT_TOWN),
+                FighterAction.EnterForest => bot.SendInWorld(lane.EnterMap(Fighter.ForestMapId), NetworkPacketType.CMSG_ENTER_MAP, ct),
+                FighterAction.LeaveForest => bot.SendInWorld(lane.EnterMap(Fighter.TownMapId), NetworkPacketType.CMSG_ENTER_MAP, ct),
+                FighterAction.Cast => bot.SendInWorld(lane.Cast(bot.Fighter!.AbilityId, step.AimX, step.AimY, step.AimZ),
+                    NetworkPacketType.CMSG_CAST_ABILITY, ct),
+                _ => bot.SendInWorld(InputLane.Respawn, NetworkPacketType.CMSG_RESPAWN_AT_TOWN, ct),
             };
-            send = bot.SendAsync(packet, ct);
         }
         catch (InvalidOperationException)
         {
