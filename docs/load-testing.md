@@ -538,7 +538,7 @@ A step breaches a limit when its value is on the tripping side of the threshold.
 | `tick-p99` | 16.7 | ms | above | Prometheus: `histogram_quantile(0.99, sum by (le)(rate(world_tick_duration_microseconds_bucket[w]))) / 1000` |
 | `tps` | 58 | ticks/s | below | Prometheus: `avg_over_time(world_tick_rate_tps[w])` |
 | `ack-p95` | 150 | ms | above | Bots: the 95th percentile of input-to-ack latency over the judged window, over the input driver's inputs (an entry's `first-ack` probes are not samples). An input still unanswered when its slot is reused, about a second later, counts at its age then |
-| `drops` | 0 | count | above | Prometheus: `(sum(increase(network_out_dropped_total[w]) and network_out_dropped_total offset w) or vector(0)) + (sum(network_out_dropped_total unless network_out_dropped_total offset w) or vector(0))`, the packets a full outbox evicted. A packet type's series exists only from its first drop, and `increase` alone misses a new series' first sample, so a series already there at the window's start counts its increase and one first seen within the window counts its whole value |
+| `slow-kicks` | 0 | count | above | Prometheus: the raw samples of `network_out_slow_kicks_total[w+300s]` (every `reason`), the connections the world closed as too slow to read (#875; it never drops a packet). Each sample within the window counts its increase over the sample before it, summed over every series. A reason's series exists only from its first kick, so a series' first sample within the window (its first kick, or a new process) counts its whole value; the range reaches back as far as Prometheus's own 5-minute lookback, so a series already there has a sample before the window. A sample below the one before it is a restarted process and counts its whole value. The world's export is checked with `count(network_send_pass_duration_microseconds_count) or (0 * count(world_tick_duration_microseconds_count))` (see below) |
 | `admission` | 0.01 | fraction | above | Bots: the bots that could not get into the world during the step ÷ the bots that tried, over the whole step, settle included. Each bot counts once: it tried when any entry attempt of its ended in the step, and got in when any of those succeeded, so a failure followed by a success in the step is a bot that got in, and a bot that only failed counts once however many retries it made. An attempt counts in the step its outcome lands in. Entries are first entries, re-entries, reconnects and character changes; sign-in and leave failures are not part of it. The step row also gives the attempts, the failed ones and the failures by kind |
 | `memory` | 0.85 | fraction | above | Prometheus: `max(dotnet_process_memory_working_set_bytes)` ÷ `kube_pod_container_resource_limits{namespace="avalon",pod=<--pod>,container="avalon-world",resource="memory"}`, at the hold's end |
 | `gc-stall` | 16.7 | ms | above | Prometheus: the raw samples of `dotnet_gc_pause_time_seconds_total[w+60s]` and `dotnet_gc_collections_total[w+60s]` (every `gc_heap_generation`). For each export interval ending within the window (10 s on world 4), the pause the world added in it ÷ the collections it added in it, summed over the generations. Intervals pair per process (a series' labels except `gc_heap_generation`) by sample time, and the value is the worst interval's average over every process. A series' first sample within the window (a new world, or a gap of more than 60 s before the window) counts from 0. An interval with no collection has no average, and a window with no collection reads 0. The tool takes each sample's increase over the one before it itself, because `increase` and `rate` extrapolate to the range's edges; a process with any counter below the sample before it restarted within that interval, and every one of its counters counts its whole value there. The world's export of both is checked with `(count(dotnet_gc_pause_time_seconds_total) and count(dotnet_gc_collections_total)) or (0 * count(world_tick_duration_microseconds_count))` (see below) |
@@ -563,6 +563,19 @@ has `gc-stall` read `not exported` on its steps and in the notes, and the step i
 world at all, a failed query, or no interval in the window with both counters reads `n/a` and makes the step unknown, as
 any missing value does.
 
+**Why slow kicks.** Since the send threads (#875) the world drops no packet: a client that cannot keep up is closed
+instead, past `Network:MaxPendingBytes` queued (`reason="bytes"`, sent `SDisconnect(SlowConnection)`) or with a write
+pending past `Network:MaxWriteStall` (`reason="stall"`). A bot kicked that way means the world could not keep up with
+it, or the bot PC did not read its sockets: [the slow-kicks flag](#the-decision-rule) marks the steps where the bot PC
+was busy. The tool takes each sample's increase over the one before it itself, because `increase` and `rate`
+extrapolate to the range's edges and would read a single kick as a fraction more. A kick counts in the export interval
+whose sample first shows it, so one just before the window's start can count in the window. The kick counter's series
+appear only with a first kick, so whether the world exports it is asked of the send passes, which every build with send
+threads records while bots are connected: a world build that reports its ticks and no send pass (the count reads 0, a
+build from before #875) has `slow-kicks` read `not exported` on its steps and in the notes, and the step is not judged
+on it: it neither reads 0 nor makes the step unknown. Nothing from the world at all or a failed query reads `n/a` and
+makes the step unknown. A world that exports its send passes and has no kick series has kicked no one: 0, judged.
+
 `gen-cpu` and `gen-lag` measure the bot PC, not the server. When the bot PC is saturated, it sends late and reads
 late, so the server's numbers from that step are not trusted.
 
@@ -572,10 +585,10 @@ Each step gets one verdict:
 
 - **breach**: at least one limit tripped. A breach wins over a missing value in the same step.
 - **unknown**: nothing tripped, but at least one value is missing or not a finite number: an empty series, a failed
-  query, Prometheus unreachable. A missing `drops` value is not unknown, since its query already reads no series as
-  0. A failed `drops` query is unknown.
-- **pass**: every limit was judged and none tripped. A limit the world build does not export (`gc-stall` reading
-  `not exported`) is not judged at all: it neither trips nor makes the step unknown.
+  query, Prometheus unreachable. A `slow-kicks` value is 0 when the world exports its send passes and has kicked no
+  one; a failed query is unknown.
+- **pass**: every limit was judged and none tripped. A limit the world build does not export (`gc-stall` or
+  `slow-kicks` reading `not exported`) is not judged at all: it neither trips nor makes the step unknown.
 
 Then:
 
@@ -589,9 +602,9 @@ Then:
 | breach after an unknown, or unknown after a breach | Re-hold again. The earlier verdict is neither confirmed nor cleared, and the newer one is now the one pending |
 | after three re-holds in a row at one count, a verdict that does not confirm the pending one | **Stop, unknown** (inconclusive). At most three re-holds are made at one count, so a series that keeps alternating between breach and unknown ends here (breach, unknown, breach, unknown), with the last passing count as a lower bound. A fourth verdict that does confirm the pending one stops as the rows above say |
 
-**The drops flag.** A `drops` breach in a step where the bot PC was above 60 % CPU is flagged in the report's notes: a
-busy bot PC reads its sockets slowly, so the drops may be the bots' doing rather than the server's. The flag does not
-change the decision.
+**The slow-kicks flag.** A `slow-kicks` breach in a step where the bot PC was above 60 % CPU is flagged in the report's
+notes: a busy bot PC reads its sockets slowly, so the world may close bots as too slow through the bots' doing rather
+than the server's. The flag does not change the decision.
 
 ## Stopping
 
@@ -682,11 +695,21 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   - live bots, by behaviour (idle / walker / churner / fighter); bots in the world at the hold's end; players online
     less the count before the ramp;
   - map instances at the hold's end, every map together (`avalon_world_instances_active` carries no map type; the
-    [fighters' section](#the-fighters-section) splits them); tick p99; average TPS; ack p50, p95 and p99; drops; the
-    deepest receive backlog of any connection; working set (MB and % of the limit); GC stall (`not exported` when the
+    [fighters' section](#the-fighters-section) splits them); tick p99; average TPS; ack p50, p95 and p99; slow kicks
+    (`not exported` when the world build has no send threads); the deepest receive backlog of any connection; the send
+    threads' busy time and the p99 of the pending bytes (below); working set (MB and % of the limit); GC stall (`not exported` when the
     world build has no pause time or collections); GC pause; gen2 per minute (background collections included, not
     judged); save p95. The JSON has the stall under each step's `server.gcStall`: `readout` (`Reported`, `NotExported`
-    or `Unknown`) and `ms` (null unless reported);
+    or `Unknown`) and `ms` (null unless reported), and the kicks under `server.slowKicks`: `readout` and `count` (null
+    unless reported);
+  - the send threads (#875, for reading only): their busy time, all threads together in cores, with the busiest
+    thread's share of one core in brackets (`0.42 (31 %)`), from `sum by (thread)(rate(network_send_pass_duration_microseconds_sum[w])) / 1e6`
+    (the share of the window each thread spent in passes); and the p99 of a pass's largest pending bytes, the most any
+    one connection it visited had queued or being written, from `histogram_quantile(0.99, sum by (le)(rate(network_out_pending_bytes_bucket[w])))`
+    (interpolated within the buckets, which end at 1 MiB; `Network:MaxPendingBytes` kicks at 512 KiB by default). Both
+    read `not exported` for a world build without send threads (the export check of `slow-kicks`) and `n/a` when not
+    read. The JSON has them under each step's `server.sendThreads`: `readout`, `threads` (the threads that ran a pass in
+    the window), `busyCores`, `busiestThread` (a fraction of one core) and `pendingBytesP99` (bytes), null unless read;
   - admission as bots that never got in ÷ bots that tried; entry attempts and failed attempts, and failures by kind;
     leave failures by kind and sign-in failures by kind (both apart from admission); disconnects;
   - the bot PC's CPU and the driver's lateness p95;
@@ -710,8 +733,9 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   `server.postUpdate`: `readout` (`Reported`, `NotExported` or `Unknown`) and `stages` (`stage`, `meanUs`, `p99Us`).
 - **Notes**: a world that restarted during the ramp, or after its last judged step without proof (the run does not
   stand: run again); one proven to have restarted after the last judged step (in bold; the verdict stands); or a restart
-  check that was partial or unknown (the run does not stand); the blips; the steps whose drops may be the bot PC's; the
-  steps not judged on `gc-stall` because the world build does not export its GC pause time or collections; sign-ins,
+  check that was partial or unknown (the run does not stand); the blips; the steps whose slow kicks may be the bot PC's
+  (`slowKicksMayBeGenerator` in the JSON); the steps not judged on `gc-stall` because the world build does not export
+  its GC pause time or collections, and those not judged on `slow-kicks` because it exports no send pass; sign-ins,
   with their throughput (one every X s with N at once, and per minute; identity's side, apart from the world) and the
   sign-in and refresh failures, by kind; whether the world drained after the stop; failed sign-outs; the stop's leave
   failures by kind; and the leaves and sign-outs the breakers skipped.

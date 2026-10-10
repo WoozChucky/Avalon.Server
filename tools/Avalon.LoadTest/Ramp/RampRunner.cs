@@ -794,7 +794,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             [LimitName.TickP99] = server.TickP99Ms,
             [LimitName.Tps] = server.Tps,
             [LimitName.AckP95] = client.AckP95,
-            [LimitName.Drops] = server.Drops,
+            [LimitName.SlowKicks] = server.SlowKicks.Count,
             [LimitName.Admission] = client.BotsTried == 0 ? 0 : (double)client.BotsFailing / client.BotsTried,
             [LimitName.Memory] = server.WorkingSetFraction,
             [LimitName.GcStall] = server.GcStall.Ms,
@@ -807,23 +807,27 @@ public sealed class RampRunner(RunFile run, RampOptions options)
 
     /// <summary>
     /// The limits a step is not judged on because the world build does not export their series: the GC stall when the
-    /// world reports its ticks and not both its GC pause time and its collections.
+    /// world reports its ticks and not both its GC pause time and its collections, and the slow kicks when it reports its
+    /// ticks and no send pass (a build from before the send threads, #875).
     /// </summary>
-    public static IReadOnlySet<LimitName> NotJudged(ServerValues server) =>
-        server.GcStall.Readout == GcStallReadout.NotExported ? new HashSet<LimitName> { LimitName.GcStall } : new HashSet<LimitName>();
+    public static IReadOnlySet<LimitName> NotJudged(ServerValues server)
+    {
+        var notJudged = new HashSet<LimitName>();
+        if (server.GcStall.Readout == GcStallReadout.NotExported) notJudged.Add(LimitName.GcStall);
+        if (server.SlowKicks.Readout == SendReadout.NotExported) notJudged.Add(LimitName.SlowKicks);
+        return notJudged;
+    }
 
     /// <summary>
-    /// The limits a step could not be judged on: a missing or non-finite value (a missing drops value is no drops). A
-    /// limit the world does not export (<see cref="NotJudged"/>) is not unknown: it is not judged at all.
+    /// The limits a step could not be judged on: a missing or non-finite value. A limit the world does not export
+    /// (<see cref="NotJudged"/>) is not unknown: it is not judged at all.
     /// </summary>
     public static IReadOnlyList<Limit> Unknowns(StepRecord step, IReadOnlyList<Limit> limits)
     {
         IReadOnlyDictionary<LimitName, double?> values = Values(step.Server, step.Client, step.GeneratorCpu, step.GeneratorLagP95Ms);
         IReadOnlySet<LimitName> notJudged = NotJudged(step.Server);
         return limits.Where(limit => !notJudged.Contains(limit.Name))
-            .Where(limit => values.TryGetValue(limit.Name, out double? value) && value is { } v
-                ? !double.IsFinite(v)
-                : limit.Name != LimitName.Drops)
+            .Where(limit => !values.TryGetValue(limit.Name, out double? value) || value is not { } v || !double.IsFinite(v))
             .ToList();
     }
 

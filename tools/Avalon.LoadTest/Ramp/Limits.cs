@@ -3,7 +3,7 @@ using System.Globalization;
 namespace Avalon.LoadTest.Ramp;
 
 /// <summary>A value a ramp step is judged on.</summary>
-public enum LimitName { TickP99, Tps, AckP95, Drops, Admission, Memory, GcStall, GcPause, SaveP95, GenCpu, GenLag }
+public enum LimitName { TickP99, Tps, AckP95, SlowKicks, Admission, Memory, GcStall, GcPause, SaveP95, GenCpu, GenLag }
 
 /// <summary>
 /// One limit: a step breaches it when its value is above <see cref="Threshold"/> (<see cref="TripsAbove"/>), or below it.
@@ -27,7 +27,8 @@ public static class Limits
         new(LimitName.TickP99, "tick-p99", 16.7, TripsAbove: true, "ms"),
         new(LimitName.Tps, "tps", 58, TripsAbove: false, "ticks/s"),
         new(LimitName.AckP95, "ack-p95", 150, TripsAbove: true, "ms"),
-        new(LimitName.Drops, "drops", 0, TripsAbove: true, "count"),
+        // The connections the world closed as too slow (#875): it drops no packet, it closes a client that cannot keep up.
+        new(LimitName.SlowKicks, "slow-kicks", 0, TripsAbove: true, "count"),
         new(LimitName.Admission, "admission", 0.01, TripsAbove: true, FractionUnit),
         new(LimitName.Memory, "memory", 0.85, TripsAbove: true, FractionUnit),
         // The worst average pause per collection in one of the world's sample intervals: above one tick. A gen2 count

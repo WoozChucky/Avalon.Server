@@ -10,7 +10,7 @@ namespace Avalon.LoadTest.Report;
 
 /// <summary>
 /// A ramp's report, as Markdown to read and JSON with the same data: the settings, the result and what failed first,
-/// one row per step, and notes (blips, drops that may be the bots' own, identity's sign-in rate). Kept in
+/// one row per step, and notes (blips, slow kicks that may be the bots' own, identity's sign-in rate). Kept in
 /// <see cref="Directory"/>, never in the repository, and holding no secret: no password, ticket or credential.
 /// </summary>
 public static class ReportWriter
@@ -131,8 +131,8 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | GC stall | GC pause | Gen2 / min (not judged) | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Slow kicks | Receive backlog | Send threads busy: cores (busiest thread) | Pending bytes p99 | Working set | GC stall | GC pause | Gen2 / min (not judged) | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
             ServerValues s = step.Server;
@@ -155,8 +155,10 @@ public static class ReportWriter
                 Ms(s.TickP99Ms, "0.0"),
                 Number(s.Tps, "0.0"),
                 double.IsFinite(c.AckP95) ? $"{Number(c.AckP50, "0")} / {Number(c.AckP95, "0")} / {Number(c.AckP99, "0")} ms" : "n/a",
-                Number(s.Drops, "0"),
+                s.SlowKicks.Readout == SendReadout.NotExported ? "not exported" : Number(s.SlowKicks.Count, "0"),
                 Number(s.ReceiveBacklogMax, "0"),
+                SendBusy(s.SendThreads),
+                s.SendThreads.Readout == SendReadout.NotExported ? "not exported" : Bytes(s.SendThreads.PendingBytesP99),
                 workingSet,
                 s.GcStall.Readout == GcStallReadout.NotExported ? "not exported" : Ms(s.GcStall.Ms, "0.0"),
                 Percent(s.GcPauseFraction, "0.##"),
@@ -196,16 +198,22 @@ public static class ReportWriter
         md.AppendLine(blips.Length == 0
             ? "- Blips: none."
             : $"- Blips (a breach that passed its re-hold): steps {string.Join(", ", blips.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
-        StepRecord[] slowReaders = [.. result.Steps.Where(step => step.Decision.DropsMayBeGenerator)];
+        StepRecord[] slowReaders = [.. result.Steps.Where(step => step.Decision.SlowKicksMayBeGenerator)];
         if (slowReaders.Length > 0)
         {
-            md.AppendLine($"- Drops while the bot PC was above 60 % CPU, possibly the bots reading slowly rather than the server: steps {string.Join(", ", slowReaders.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
+            md.AppendLine($"- Slow kicks while the bot PC was above 60 % CPU, possibly the bots reading slowly rather than the server: steps {string.Join(", ", slowReaders.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
         }
 
         StepRecord[] gcStallNotExported = [.. result.Steps.Where(step => step.Server.GcStall.Readout == GcStallReadout.NotExported)];
         if (gcStallNotExported.Length > 0)
         {
             md.AppendLine($"- GC pause time or collections not exported by this world build: gc-stall was not judged on steps {string.Join(", ", gcStallNotExported.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
+        }
+
+        StepRecord[] sendNotExported = [.. result.Steps.Where(step => step.Server.SlowKicks.Readout == SendReadout.NotExported)];
+        if (sendNotExported.Length > 0)
+        {
+            md.AppendLine($"- Send passes not exported by this world build (one from before the send threads, #875): slow-kicks was not judged on steps {string.Join(", ", sendNotExported.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
         }
 
         int signInFailures = result.SignInFailures.Values.Sum();
@@ -418,7 +426,7 @@ public static class ReportWriter
                 RestartCheck = RestartCheckText(result.RestartCheck),
                 result.RestartCheckReason,
                 Blips = result.Steps.Where(step => step.Decision.Blip).Select(step => step.Index),
-                DropsMayBeGenerator = result.Steps.Where(step => step.Decision.DropsMayBeGenerator).Select(step => step.Index),
+                SlowKicksMayBeGenerator = result.Steps.Where(step => step.Decision.SlowKicksMayBeGenerator).Select(step => step.Index),
                 result.SignIns,
                 SecondsPerSignIn = result.SignInRate.TotalSeconds,
                 result.SignInFailures,
@@ -484,6 +492,23 @@ public static class ReportWriter
     private static string Kinds(IReadOnlyDictionary<string, int> counts) =>
         string.Join(", ", counts.OrderByDescending(f => f.Value).ThenBy(f => f.Key, StringComparer.Ordinal)
             .Select(f => Invariant($"{f.Key} {f.Value}")));
+
+    /// <summary>
+    /// The send threads' busy time: <c>0.42 (31 %)</c>, all threads together in cores and the busiest one's share of a
+    /// core; <c>not exported</c> for a world build from before the send threads; <c>n/a</c> when not read.
+    /// </summary>
+    private static string SendBusy(SendThreads send) => send switch
+    {
+        { Readout: SendReadout.NotExported } => "not exported",
+        { BusyCores: { } cores, BusiestThread: { } busiest } => $"{Number(cores, "0.00")} ({Percent(busiest)})",
+        _ => "n/a",
+    };
+
+    /// <summary>A byte count: <c>512 B</c> below a KiB, <c>12.5 KiB</c> from there; <c>n/a</c> when not read.</summary>
+    private static string Bytes(double? bytes) =>
+        bytes is not { } b || !double.IsFinite(b) ? "n/a"
+        : b < 1024 ? Invariant($"{b:0} B")
+        : Invariant($"{b / 1024:0.#} KiB");
 
     private static string Number(double? value, string format) =>
         value is { } v && double.IsFinite(v) ? v.ToString(format, CultureInfo.InvariantCulture) : "n/a";

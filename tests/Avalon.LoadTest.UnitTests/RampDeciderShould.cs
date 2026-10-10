@@ -37,7 +37,7 @@ public class RampDeciderShould
     }
 
     [Fact]
-    public void Judge_saturation_unknown_steps_and_drops_and_refuse_invalid_limits()
+    public void Judge_saturation_unknown_steps_and_slow_kicks_and_refuse_invalid_limits()
     {
         var saturated = new RampDecider(Limits.Defaults, 500);
         saturated.Decide(Sample(50, genCpu: 0.5));
@@ -74,13 +74,13 @@ public class RampDeciderShould
         Assert.Equal([rehold, rehold, rehold, (RampAction.Stop, RampOutcome.Unknown, 50)],
             new double?[] { 30, null, 30, null }.Select(t => alternating.Decide(Sample(100, tickP99: t))).Select(d => (d.Action, d.Outcome, d.Capacity)));
 
-        var drops = new RampDecider(Limits.Defaults, 500);
-        Assert.True(drops.Decide(Sample(50, drops: 3, genCpu: 0.7)).DropsMayBeGenerator);
+        var slowKicks = new RampDecider(Limits.Defaults, 500);
+        Assert.True(slowKicks.Decide(Sample(50, slowKicks: 3, genCpu: 0.7)).SlowKicksMayBeGenerator);
 
-        // A drops value that is not finite cannot be judged on, unlike a missing one (no drops): the step is unknown.
-        var nanDrops = new RampDecider(Limits.Defaults, 500);
-        Assert.Equal(RampAction.Rehold, nanDrops.Decide(Sample(50, drops: double.PositiveInfinity)).Action);
-        Assert.Equal(RampOutcome.Unknown, nanDrops.Decide(Sample(50, drops: double.NaN)).Outcome);
+        // A slow-kicks value that is missing or not finite cannot be judged on: the step is unknown.
+        var unreadKicks = new RampDecider(Limits.Defaults, 500);
+        Assert.Equal(RampAction.Rehold, unreadKicks.Decide(Sample(50, slowKicks: double.PositiveInfinity)).Action);
+        Assert.Equal(RampOutcome.Unknown, unreadKicks.Decide(Sample(50, slowKicks: null)).Outcome);
 
         // A limit the world build does not export is not judged: its missing value makes no unknown step.
         StepSample passing = Sample(50);
@@ -96,7 +96,7 @@ public class RampDeciderShould
             Assert.Throws<CommandLineException>(() => Limits.WithOverrides([refused]));
     }
 
-    private static StepSample Sample(int bots, double? tickP99 = 5, double genCpu = 0.2, double drops = 0)
+    private static StepSample Sample(int bots, double? tickP99 = 5, double genCpu = 0.2, double? slowKicks = 0)
     {
         // Every other limit at a passing value.
         var values = new Dictionary<LimitName, double?>
@@ -104,7 +104,7 @@ public class RampDeciderShould
             [LimitName.TickP99] = tickP99,
             [LimitName.Tps] = 60,
             [LimitName.AckP95] = 20,
-            [LimitName.Drops] = drops,
+            [LimitName.SlowKicks] = slowKicks,
             [LimitName.Admission] = 0,
             [LimitName.Memory] = 0.3,
             [LimitName.GcStall] = 5,
