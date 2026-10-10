@@ -26,9 +26,9 @@ public class SAbilityNotReadyPacket : Packet
     /// <summary>Why the cast was refused. <see cref="CastRejectReason.Unknown" /> when absent.</summary>
     [ProtoMember(3)] public CastRejectReason Reason { get; set; }
 
-    public static NetworkPacket Create(uint abilityId, CastRejectReason reason, uint cooldownMs,
-        EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(uint abilityId, CastRejectReason reason, uint cooldownMs,
+        PacketEncoder encoder)
+        => encoder.Encode(
             new SAbilityNotReadyPacket { AbilityId = abilityId, CooldownMs = cooldownMs, Reason = reason },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

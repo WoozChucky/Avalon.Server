@@ -16,10 +16,10 @@ public class SInstanceStateAddPacket : Packet
 
     [ProtoMember(1)] public List<ObjectState> Adds { get; set; }
 
-    public static NetworkPacket Create(List<ObjectState> adds, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(List<ObjectState> adds, PacketEncoder encoder)
+        => encoder.Encode(
             new SInstanceStateAddPacket { Adds = adds },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }
 
 [ProtoContract]
@@ -31,10 +31,10 @@ public class SInstanceStateUpdatePacket : Packet
 
     [ProtoMember(1)] public List<ObjectState> Updates { get; set; }
 
-    public static NetworkPacket Create(List<ObjectState> updates, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(List<ObjectState> updates, PacketEncoder encoder)
+        => encoder.Encode(
             new SInstanceStateUpdatePacket { Updates = updates },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }
 
 [ProtoContract]
@@ -46,16 +46,16 @@ public class SInstanceStateRemovePacket : Packet
 
     [ProtoMember(1)] public List<ulong> Removes { get; set; }
 
-    public static NetworkPacket Create(IReadOnlyList<ObjectGuid> removes, EncryptFunc encryptFunc)
+    public static OutboundPacket Create(IReadOnlyList<ObjectGuid> removes, PacketEncoder encoder)
     {
         // Sized and indexed rather than built by LINQ, which added an iterator to every remove (#640).
         var ids = new List<ulong>(removes.Count);
         for (int i = 0; i < removes.Count; i++)
             ids.Add(removes[i].RawValue);
 
-        return PacketSerializationHelper.Serialize(
+        return encoder.Encode(
             new SInstanceStateRemovePacket { Removes = ids },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
     }
 }
 

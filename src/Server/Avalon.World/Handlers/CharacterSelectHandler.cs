@@ -14,6 +14,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.World.Abilities;
@@ -570,7 +571,7 @@ public class CharacterSelectHandler(
             Description = townTemplate.Description
         };
 
-        connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encryptor));
+        connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, PacketEncoder.Shared));
 
         // Send chunk layout so the client can compose the stitched map
         // and bake its local navmesh. Town + normal both flow through
@@ -600,7 +601,7 @@ public class CharacterSelectHandler(
                 dtos,
                 layout.EntrySpawnWorldPos,
                 portalDtos,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
 
         Step(connection, select, _databaseWork.Run(() => characterRepository.UpdateForGameplayAsync(entity.GameplayAuthority!, character, CancellationToken.None)), _ =>
@@ -670,7 +671,7 @@ public class CharacterSelectHandler(
             .. ToDtos(InventoryType.Bag, entity[InventoryType.Bag].Items),
         ];
 
-        connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encryptor));
+        connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, PacketEncoder.Shared));
 
         Step(connection, select, _databaseWork.Run(() => characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None)),
             spells => OnSpellsReceived(connection, select, entity, instance, spells));
@@ -744,7 +745,7 @@ public class CharacterSelectHandler(
             AmountMax = amounts[i].Max,
         }).ToArray();
 
-        connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encryptor));
+        connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, PacketEncoder.Shared));
 
         // #433: the quest log, then the pending spawn. No repository (tests that build the handler without one) is
         // an empty log, as a character that never took a quest has.
@@ -770,7 +771,7 @@ public class CharacterSelectHandler(
     {
         if (ignoreRepository is null)
         {
-            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encryptor));
+            connection.Send(entity.Ignores.ToPacket(PacketEncoder.Shared));
             LoadAuras(connection, select, entity, instance);
             return;
         }
@@ -778,7 +779,7 @@ public class CharacterSelectHandler(
         Step(connection, select, _databaseWork.Run(() => ignoreRepository.GetByCharacterIdAsync(entity.Data!.Id, CancellationToken.None)), rows =>
         {
             entity.Ignores.Load(rows);
-            connection.Send(entity.Ignores.ToPacket(connection.CryptoSession.Encryptor));
+            connection.Send(entity.Ignores.ToPacket(PacketEncoder.Shared));
             LoadAuras(connection, select, entity, instance);
         });
     }

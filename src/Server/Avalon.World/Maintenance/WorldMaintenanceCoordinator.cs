@@ -3,6 +3,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Configuration;
 using Avalon.World.Persistence;
@@ -254,7 +255,7 @@ public sealed class WorldMaintenanceCoordinator(
             {
                 try
                 {
-                    connection.Send(SChatMessagePacket.System(message, nowUtc, connection.CryptoSession.Encryptor));
+                    connection.Send(SChatMessagePacket.System(message, nowUtc, PacketEncoder.Shared));
                 }
                 catch (Exception e)
                 {

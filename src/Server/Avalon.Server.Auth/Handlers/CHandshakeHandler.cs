@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Handshake;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Server.Auth.Handlers;
 
@@ -21,7 +22,7 @@ public class CHandshakeHandler : IAuthPacketHandler<CHandshakePacket>
             return Task.CompletedTask;
         }
 
-        NetworkPacket result = SHandshakeResultPacket.Create(true, ctx.Connection.CryptoSession.Encryptor);
+        OutboundPacket result = SHandshakeResultPacket.Create(true, PacketEncoder.Shared);
 
         ctx.Connection.Send(result);
 

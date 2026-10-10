@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Runtime.InteropServices;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -33,7 +34,7 @@ public class ChannelOutboxShould
 
         outbox.Connect(stream);
 
-        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
+        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
         await outbox.DisposeAsync();
 
         Assert.True(sink.BytesWritten > 0, "Expected the queued packet to reach the stream before the outbox closed");
@@ -53,7 +54,7 @@ public class ChannelOutboxShould
 
         outbox.Connect(stream);
 
-        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
+        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
         await outbox.DisposeAsync();
 
         // The fault continuation runs after the loop ends. Wait on the error itself rather than
@@ -80,7 +81,7 @@ public class ChannelOutboxShould
         try
         {
             outbox.Connect(stream);
-            outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
+            outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
 
             // The write the close has to abandon must actually be under way first, or the close
             // has nothing to give up on and the test passes for the wrong reason.
@@ -119,7 +120,7 @@ public class ChannelOutboxShould
             flushTimeout: TimeSpan.FromMilliseconds(50), cancelGrace: TimeSpan.FromSeconds(10));
 
         outbox.Connect(stream);
-        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
+        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
 
         // The write is in flight and holding the buffer before disposal starts.
         await sink.WriteStarted;
@@ -146,7 +147,7 @@ public class ChannelOutboxShould
         try
         {
             outbox.Connect(stream);
-            outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
+            outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
 
             await sink.WriteStarted;
             await outbox.DisposeAsync();

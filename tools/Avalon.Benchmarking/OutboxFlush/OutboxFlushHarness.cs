@@ -6,10 +6,13 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Common.Cryptography;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
+using Org.BouncyCastle.Crypto;
 
 namespace Avalon.Benchmarking.OutboxFlush;
 
@@ -18,9 +21,9 @@ namespace Avalon.Benchmarking.OutboxFlush;
 /// the world's real <see cref="TickDrivenOutbox" /> in front of each kind of stream. The scenario runner writes to a
 /// stream that only counts bytes, so the TLS record layer and the socket send are not in its numbers; here they are.
 /// Each mode opens <c>connections</c> loopback connections (the server end is what the world holds, the client end is
-/// read and discarded on the thread pool, as a peer would), then ticks at 60 Hz: <c>packets</c> movement acks queued on
-/// every connection, then every outbox flushed, the flush timed. Not a BenchmarkDotNet benchmark: a steady state,
-/// timed tick by tick.
+/// read and discarded on the thread pool, as a peer would), then ticks at 60 Hz: <c>packets</c> movement acks encoded and
+/// queued on every connection, then every outbox flushed (each packet sealed by the connection's own session as it is
+/// framed), the flush timed. Not a BenchmarkDotNet benchmark: a steady state, timed tick by tick.
 /// </summary>
 /// <remarks>
 /// Modes: <c>memory</c> (the scenario runner's counting stream), <c>tcp</c> (a plain socket), <c>tls</c> (an
@@ -38,6 +41,15 @@ public static class OutboxFlushHarness
 
     // tls-parallel's workers: the tick splits the flush among them and waits for all of them.
     private const int ParallelWorkers = 4;
+
+    // Key generation is setup cost: one ECDH pair per end for the whole process, as the scenario runner does. Each
+    // outbox's session still runs its own agreement and key derivation, so no two share cipher state.
+    private static readonly Lazy<(AsymmetricCipherKeyPair Server, byte[] ClientPublicKey)> s_keys = new(() =>
+    {
+        AsymmetricCipherKeyPair server = AsymmetricCipher.GenerateECDHKeyPair(256);
+        AsymmetricCipherKeyPair client = AsymmetricCipher.GenerateECDHKeyPair(256);
+        return (server, AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(client)));
+    });
 
     public static void Run(string[] args)
     {
@@ -96,12 +108,12 @@ public static class OutboxFlushHarness
                 pairs.Add((ends.Server!, ends.Client!, reader));
             }
 
-            // One framed movement-sized packet: what a client's input is on the wire.
-            NetworkPacket packet = SPlayerStateAckPacket.Create(1, 45.25f, 10.5f, 12.75f, 3.5f, -1.25f, 270,
-                data => RandomNumberGenerator.GetBytes(data.Length + 28));
-            using var burst = new Avalon.Network.Packets.Serialization.PooledArrayBufferWriter();
-            using var temp = new Avalon.Network.Packets.Serialization.PooledArrayBufferWriter();
-            OutboxSerializer.AppendPacket(burst, temp, packet);
+            // One framed, sealed movement-sized packet: what a client's input is on the wire.
+            using var burst = new PooledArrayBufferWriter();
+            OutboundPacket packet = SPlayerStateAckPacket.Create(1, 45.25f, 10.5f, 12.75f, 3.5f, -1.25f, 270,
+                PacketEncoder.Shared);
+            PacketEnvelope.Append(burst, packet, Sealer());
+            packet.Release();
             byte[] frame = burst.WrittenSpan.ToArray();
 
             int warmup = Math.Min(300, ticks);
@@ -155,10 +167,6 @@ public static class OutboxFlushHarness
             for (int i = 0; i < count; i++)
                 ends.Add(await Open(mode, listener, port, certificate, stop.Token));
 
-            // One sealed-sized movement ack per packet: about the size the world's acks and state updates are.
-            NetworkPacket packet = SPlayerStateAckPacket.Create(1, 45.25f, 10.5f, 12.75f, 3.5f, -1.25f, 270,
-                data => RandomNumberGenerator.GetBytes(data.Length + 28));
-
             int warmup = Math.Min(300, ticks);
             double[] flushMs = new double[ticks];
             long[] bytes = new long[ticks];
@@ -173,10 +181,15 @@ public static class OutboxFlushHarness
                     gen2 = GC.CollectionCount(2);
                 }
 
+                // A movement ack per packet, about the size the world's acks and state updates are; each write consumes
+                // its own segment.
                 foreach (ConnectionEnds end in ends)
                 {
                     for (int p = 0; p < packets; p++)
-                        end.Outbox.Enqueue(packet);
+                    {
+                        end.Outbox.Enqueue(SPlayerStateAckPacket.Create(1, 45.25f, 10.5f, 12.75f, 3.5f, -1.25f, 270,
+                            PacketEncoder.Shared));
+                    }
                 }
 
                 long allocated = GC.GetAllocatedBytesForCurrentThread();
@@ -227,7 +240,8 @@ public static class OutboxFlushHarness
     private static async Task<ConnectionEnds> Open(string mode, TcpListener listener, int port, X509Certificate2 certificate,
         CancellationToken stop)
     {
-        var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 100, onFault: () => { });
+        var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 100, onFault: () => { },
+            sealer: Sealer());
         if (mode == "memory")
         {
             outbox.Connect(new PacketStream(new CountingStream()));
@@ -276,6 +290,15 @@ public static class OutboxFlushHarness
             while (await stream.ReadAsync(buffer, stop) > 0) { }
         }
         catch (Exception e) when (e is OperationCanceledException or IOException or ObjectDisposedException) { }
+    }
+
+    /// <summary>An initialised server-role session, as an admitted world connection holds.</summary>
+    private static AvalonCryptoSession Sealer()
+    {
+        (AsymmetricCipherKeyPair serverKeys, byte[] clientPublicKey) = s_keys.Value;
+        var session = new AvalonCryptoSession(CryptoRole.Server, serverKeys);
+        session.Initialize(clientPublicKey);
+        return session;
     }
 
     private static void WaitUntil(long deadline)

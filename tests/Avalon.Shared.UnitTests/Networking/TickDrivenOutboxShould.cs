@@ -3,6 +3,7 @@ using System.Diagnostics.Metrics;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -26,8 +27,8 @@ public class TickDrivenOutboxShould
     /// </summary>
     private static readonly TimeSpan s_deadlockGuard = TimeSpan.FromSeconds(30);
 
-    private static NetworkPacket MakePacket() =>
-        SPingPacket.Create(0L, 0L, 0L, 0L);
+    private static OutboundPacket MakePacket() =>
+        SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared);
 
     private static (PacketStream stream, MemoryStream underlying) MakeSyncStream()
     {

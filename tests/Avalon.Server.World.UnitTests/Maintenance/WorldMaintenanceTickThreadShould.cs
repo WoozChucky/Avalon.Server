@@ -47,7 +47,7 @@ public sealed class WorldMaintenanceTickThreadShould
         coordinator.Advance(s_start, [player]);
 
         Assert.Equal(enabled, coordinator.CurrentState);
-        player.Received(1).Send(Arg.Any<NetworkPacket>());
+        player.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]

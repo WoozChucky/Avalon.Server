@@ -4,6 +4,7 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Auras;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
@@ -498,7 +499,7 @@ public sealed class AuraSystem
     internal void Tell(IUnit target, string line)
     {
         if (_connectionOf(target.Guid) is { } connection)
-            connection.Send(SChatMessagePacket.System(line, _time.GetUtcNow().UtcDateTime, connection.CryptoSession.Encryptor));
+            connection.Send(SChatMessagePacket.System(line, _time.GetUtcNow().UtcDateTime, PacketEncoder.Shared));
     }
 
     /// <summary>The caster, only while it is alive in this instance: an aura outlives its caster, but its credit does not.</summary>

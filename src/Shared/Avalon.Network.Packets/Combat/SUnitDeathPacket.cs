@@ -17,8 +17,8 @@ public class SUnitDeathPacket : Packet
     [ProtoMember(1)] public ulong UnitGuid { get; set; }
     [ProtoMember(2)] public ulong? KillerGuid { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid unit, ObjectGuid? killer, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ObjectGuid unit, ObjectGuid? killer, PacketEncoder encoder)
+        => encoder.Encode(
             new SUnitDeathPacket { UnitGuid = unit.RawValue, KillerGuid = killer?.RawValue },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

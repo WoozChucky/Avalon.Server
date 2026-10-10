@@ -370,28 +370,25 @@ public class CharacterLeaveShould : IDisposable
     }
 
     /// <summary>
-    /// A real connection whose crypto session is paired with a client's, so what it sends can be
-    /// read back. Sends are recorded instead of written to the socket.
+    /// A real connection whose sends are recorded instead of written to the socket. A packet is sealed only as the
+    /// outbox frames it, so what was sent is read back as encoded.
     /// </summary>
     private sealed class RecordingConnection : Avalon.World.WorldConnection
     {
-        private readonly AvalonCryptoSession _client;
-        private readonly List<NetworkPacket> _sent = [];
+        private readonly List<OutboundPacket> _sent = [];
 
         public RecordingConnection(IWorldServer server, TcpClient client)
             : base(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>())
         {
             // A session reports its public key only once initialized, so each end's is taken from its pair.
             AsymmetricCipherKeyPair clientKeys = AsymmetricCipher.GenerateECDHKeyPair();
-            _client = new AvalonCryptoSession(CryptoRole.Client, clientKeys);
             CryptoSession.Initialize(PublicKey(clientKeys));
-            _client.Initialize(PublicKey(ServerCrypto.GetKeyPair()));
         }
 
         private static byte[] PublicKey(Org.BouncyCastle.Crypto.AsymmetricCipherKeyPair keys) =>
             AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(keys));
 
-        public override void Send(NetworkPacket packet)
+        public override void Send(OutboundPacket packet)
         {
             lock (_sent)
                 _sent.Add(packet);
@@ -399,21 +396,13 @@ public class CharacterLeaveShould : IDisposable
 
         public List<T> Read<T>(NetworkPacketType type)
         {
-            List<NetworkPacket> sent;
+            List<OutboundPacket> sent;
             lock (_sent)
                 sent = _sent.Where(p => p.Header.Type == type).ToList();
 
             return sent.Select(p =>
             {
-                byte[] payload = p.Payload;
-                if (p.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
-                {
-                    byte[] plain = new byte[p.Payload.Length];
-                    int length = _client.Decrypt(p.Payload, plain);
-                    payload = plain[..length];
-                }
-
-                using var stream = new MemoryStream(payload);
+                using var stream = new MemoryStream(p.PayloadMemory.ToArray());
                 return Serializer.Deserialize<T>(stream);
             }).ToList();
         }

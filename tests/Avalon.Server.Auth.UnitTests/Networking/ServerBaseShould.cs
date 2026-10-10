@@ -42,7 +42,7 @@ public class ServerBaseShould
         public ICryptoManager ServerCrypto => null!;
         public void Close(bool expected = true) { }
         public Task CloseAsync(bool expected = true) => Task.CompletedTask;
-        public void Send(NetworkPacket packet) { }
+        public void Send(OutboundPacket packet) { }
         public new Task StartAsync(CancellationToken token = default) => Task.CompletedTask;
         protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
     }
@@ -177,7 +177,7 @@ public class ServerBaseShould
             return Task.CompletedTask;
         }
 
-        public void Send(NetworkPacket packet) { }
+        public void Send(OutboundPacket packet) { }
 
         public new Task StartAsync(CancellationToken token = default)
         {

@@ -93,7 +93,7 @@ public sealed class PostLoginGuardShould
     private async Task AssertRefusedAsync()
     {
         _connection.Received(1).Close();
-        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        _connection.DidNotReceive().Send(Arg.Any<OutboundPacket>());
         Assert.Empty(_mfa.ReceivedCalls());
         await _cache.DidNotReceiveWithAnyArgs().SetAsync(default!, default!, default);
     }
@@ -155,6 +155,6 @@ public sealed class PostLoginGuardShould
         await RunAsync(handler);
 
         _connection.DidNotReceive().Close();
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 }

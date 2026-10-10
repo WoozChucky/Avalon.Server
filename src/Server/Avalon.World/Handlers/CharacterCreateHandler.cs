@@ -6,6 +6,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -102,5 +103,5 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         });
     }
     private static void Answer(IWorldConnection connection, SCharacterCreateResult result) =>
-        connection.Send(SCharacterCreatedPacket.Create(result, connection.CryptoSession.Encryptor));
+        connection.Send(SCharacterCreatedPacket.Create(result, PacketEncoder.Shared));
 }

@@ -17,8 +17,8 @@ public class SDialogueEndPacket : Packet
 
     [ProtoMember(1)] public ulong SpeakerGuid { get; set; }
 
-    public static NetworkPacket Create(ulong speakerGuid, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ulong speakerGuid, PacketEncoder encoder)
+        => encoder.Encode(
             new SDialogueEndPacket { SpeakerGuid = speakerGuid },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

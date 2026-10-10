@@ -74,9 +74,9 @@ public class SItemResultPacket : Packet
     /// </summary>
     [ProtoMember(3)] public InventorySlotUpdateDto[] Slots { get; set; } = [];
 
-    public static NetworkPacket Create(uint requestId, ItemRequestResult result, InventorySlotUpdateDto[] slots,
-        EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(uint requestId, ItemRequestResult result, InventorySlotUpdateDto[] slots,
+        PacketEncoder encoder)
+        => encoder.Encode(
             new SItemResultPacket { RequestId = requestId, Result = result, Slots = slots },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }

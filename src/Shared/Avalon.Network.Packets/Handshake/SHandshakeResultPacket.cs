@@ -13,8 +13,8 @@ public class SHandshakeResultPacket : Packet
 
     [ProtoMember(1)] public bool Verified { get; set; }
 
-    public static NetworkPacket Create(bool verified, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(bool verified, PacketEncoder encoder)
+        => encoder.Encode(
             new SHandshakeResultPacket { Verified = verified },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

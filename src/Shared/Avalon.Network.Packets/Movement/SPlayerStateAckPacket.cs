@@ -19,8 +19,8 @@ public class SPlayerStateAckPacket : Packet
     [ProtoMember(6)] public float VelZ { get; set; }
     [ProtoMember(7)] public ushort YawDeg { get; set; }
 
-    public static NetworkPacket Create(uint seq, float x, float y, float z, float velX, float velZ, ushort yawDeg, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(uint seq, float x, float y, float z, float velX, float velZ, ushort yawDeg, PacketEncoder encoder)
+        => encoder.Encode(
             new SPlayerStateAckPacket
             {
                 Seq = seq,
@@ -31,5 +31,5 @@ public class SPlayerStateAckPacket : Packet
                 VelZ = velZ,
                 YawDeg = yawDeg,
             },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

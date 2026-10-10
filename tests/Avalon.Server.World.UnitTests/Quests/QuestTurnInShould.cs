@@ -246,7 +246,7 @@ public class QuestTurnInShould
     {
         var log = new TestLog();
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(log: log);
-        c.Connection.When(x => x.Send(Arg.Is<Avalon.Network.Packets.Abstractions.NetworkPacket>(
+        c.Connection.When(x => x.Send(Arg.Is<Avalon.Network.Packets.Abstractions.OutboundPacket>(
                 p => p.Header.Type == Avalon.Network.Packets.Abstractions.NetworkPacketType.SMSG_DIALOGUE_NODE)))
             .Do(_ => throw new InvalidOperationException("root unavailable"));
 

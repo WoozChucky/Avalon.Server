@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Instances;
@@ -173,7 +174,7 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
                 spawnX, spawnY, spawnZ,
                 townTemplate.Name,
                 townTemplate.Description,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
 
             // Mirror EnterMapHandler.OnInstanceReceived: every chunk-layout-built instance ships
             // its layout to the client, which bakes the same navmesh from it and builds the map's
@@ -203,7 +204,7 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
                     dtos,
                     layout.EntrySpawnWorldPos,
                     portalDtos,
-                    connection.CryptoSession.Encryptor));
+                    PacketEncoder.Shared));
             }
 
             logger.LogInformation("Character {Name} returned to town {Map} instance {Instance}",

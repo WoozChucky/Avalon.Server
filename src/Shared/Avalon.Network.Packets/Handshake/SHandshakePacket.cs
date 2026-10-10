@@ -13,8 +13,8 @@ public class SHandshakePacket : Packet
 
     [ProtoMember(1)] public byte[] HandshakeData { get; set; }
 
-    public static NetworkPacket Create(byte[] handshakeData, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(byte[] handshakeData, PacketEncoder encoder)
+        => encoder.Encode(
             new SHandshakePacket { HandshakeData = handshakeData },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

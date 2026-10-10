@@ -55,7 +55,7 @@ public class SChunkLayoutPacket : Packet
     [ProtoMember(6)] public List<PortalPlacementDto> Portals { get; set; } = new();
     [ProtoMember(7)] public ushort MapId { get; set; }
 
-    public static NetworkPacket Create(
+    public static OutboundPacket Create(
         int seed,
         Guid instanceId,
         ushort mapId,
@@ -63,7 +63,7 @@ public class SChunkLayoutPacket : Packet
         IReadOnlyList<PlacedChunkDto> chunks,
         Vector3 entrySpawn,
         IReadOnlyList<PortalPlacementDto> portals,
-        EncryptFunc encrypt)
+        PacketEncoder encoder)
     {
         var pkt = new SChunkLayoutPacket
         {
@@ -75,6 +75,6 @@ public class SChunkLayoutPacket : Packet
             EntrySpawn = Vector3Dto.From(entrySpawn),
             Portals = portals.ToList(),
         };
-        return PacketSerializationHelper.Serialize(pkt, PacketType, Flags, Protocol, encrypt);
+        return encoder.Encode(pkt, PacketType, Flags, Protocol);
     }
 }

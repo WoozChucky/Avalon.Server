@@ -52,6 +52,6 @@ public class SCharacterStatsPacket : Packet
     /// </summary>
     [ProtoMember(14)] public float MovementSpeed { get; set; }
 
-    public static NetworkPacket Create(SCharacterStatsPacket sheet, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(sheet, PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(SCharacterStatsPacket sheet, PacketEncoder encoder)
+        => encoder.Encode(sheet, PacketType, Flags, Protocol);
 }

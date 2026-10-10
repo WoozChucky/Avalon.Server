@@ -31,10 +31,10 @@ public class SVendorListPacket : Packet
     /// </summary>
     [ProtoMember(3)] public VendorBuybackDto[] Buyback { get; set; } = [];
 
-    public static NetworkPacket Create(ulong vendorGuid, VendorEntryDto[] entries, VendorBuybackDto[] buyback, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ulong vendorGuid, VendorEntryDto[] entries, VendorBuybackDto[] buyback, PacketEncoder encoder)
+        => encoder.Encode(
             new SVendorListPacket { VendorGuid = vendorGuid, Entries = entries, Buyback = buyback },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }
 
 /// <summary>One row the shop sells.</summary>

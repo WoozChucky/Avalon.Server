@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -80,6 +81,6 @@ public class PlayerInputHandler(
             newPosition.x, newPosition.y, newPosition.z,
             ch.Velocity.x, ch.Velocity.z,
             packet.YawDeg,
-            connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
     }
 }

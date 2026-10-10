@@ -8,6 +8,7 @@ using Avalon.Network.Packets.Auras;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.Party;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
@@ -359,7 +360,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                       + $"Creatures now have {percent}% health ({players} {(players == 1 ? "player" : "players")}).";
         DateTime now = _time.GetUtcNow().UtcDateTime;
         foreach (IWorldConnection connection in _connections.Values)
-            connection.Send(SChatMessagePacket.System(text, now, connection.CryptoSession.Encryptor));
+            connection.Send(SChatMessagePacket.System(text, now, PacketEncoder.Shared));
     }
 
     public bool IsExpired(TimeSpan expiry) =>
@@ -445,7 +446,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         {
             IReadOnlyList<ObjectGuid> forgotten = arriving.CharacterGameState.Reset();
             if (forgotten.Count > 0)
-                connection.Send(SInstanceStateRemovePacket.Create(forgotten, connection.CryptoSession.Encryptor));
+                connection.Send(SInstanceStateRemovePacket.Create(forgotten, PacketEncoder.Shared));
 
             // #526: every instance move comes through here (map entry, respawn at a town, a portal), and
             // each one starts with no Fury. Mana and Energy are kept.
@@ -686,7 +687,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
-                currentHealth, damage, connection.CryptoSession.Encryptor, result));
+                currentHealth, damage, PacketEncoder.Shared, result));
         }
     }
 
@@ -710,7 +711,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             // #627: the time the cast system just set, haste included, so every cast bar ends when the cast does.
             connection.Send(SUnitStartCastPacket.Create(caster.Guid, ability.CastTimeTimer,
-                ability.AbilityId.Value, castId, dto, connection.CryptoSession.Encryptor));
+                ability.AbilityId.Value, castId, dto, PacketEncoder.Shared));
         }
     }
 
@@ -730,7 +731,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, _castInFlight,
-                dto, connection.CryptoSession.Encryptor));
+                dto, PacketEncoder.Shared));
         }
     }
 
@@ -744,7 +745,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SUnitDeathPacket.Create(unit.Guid, killer?.Guid,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
     }
 
@@ -758,7 +759,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SUnitRevivePacket.Create(unit.Guid, position, health,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
     }
 
@@ -783,7 +784,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
         {
-            connection.Send(SLootDespawnedPacket.Create(lootGuids, connection.CryptoSession.Encryptor));
+            connection.Send(SLootDespawnedPacket.Create(lootGuids, PacketEncoder.Shared));
         }
     }
 
@@ -913,7 +914,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         foreach (IWorldConnection connection in recipients)
         {
-            connection.Send(SLootSpawnedPacket.Create(dtos, connection.CryptoSession.Encryptor));
+            connection.Send(SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared));
         }
     }
 
@@ -1218,7 +1219,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         if (state.AddedObjects.Count > 0)
-            connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, connection.CryptoSession.Encryptor));
+            connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, PacketEncoder.Shared));
 
         // Auras: a list for every unit that came into view this tick, and the changes of every other unit in view. After
         // the add, so the client knows the unit before it hears its auras.
@@ -1228,12 +1229,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // _frameDirtyFields is populated only on broadcast ticks (see Step 5a in Update),
         // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
         if (state.UpdatedObjects.Count > 0)
-            connection.Send(SInstanceStateUpdatePacket.Create(state.UpdatedObjects, connection.CryptoSession.Encryptor));
+            connection.Send(SInstanceStateUpdatePacket.Create(state.UpdatedObjects, PacketEncoder.Shared));
 
         if (character.CharacterGameState.RemovedObjects.Count > 0)
         {
             connection.Send(SInstanceStateRemovePacket.Create(
-                character.CharacterGameState.RemovedObjects, connection.CryptoSession.Encryptor));
+                character.CharacterGameState.RemovedObjects, PacketEncoder.Shared));
         }
     }
 
@@ -1253,7 +1254,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
 
             connection.Send(SAuraListPacket.Create(guid.RawValue, AuraWire.List(auras, _time.GetUtcNow()),
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
     }
 
@@ -1288,7 +1289,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         connection.Send(SAuraUpdatePacket.Create(unit.Guid.RawValue, AuraWire.Updates(auras.Changes),
-            connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
     }
 
     /// <summary>
@@ -1405,7 +1406,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, animationId,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
     }
 
@@ -1436,7 +1437,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
     }
 
@@ -1457,7 +1458,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
     }
 
@@ -1469,7 +1470,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         {
             if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
             connection.Send(SUnitStartCastPacket.CreateForItem(caster.Guid, castTimeSeconds, item.Value, castId,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
     }
 
@@ -1480,7 +1481,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
-            connection.Send(SUnitFinishCastPacket.CreateForItem(caster.Guid, item.Value, castId, connection.CryptoSession.Encryptor));
+            connection.Send(SUnitFinishCastPacket.CreateForItem(caster.Guid, item.Value, castId, PacketEncoder.Shared));
         }
     }
 
@@ -1492,7 +1493,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         {
             if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
             connection.Send(SCharacterInterruptedCastPacket.CreateForItem(caster.Guid, item.Value, castId,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
     }
 
@@ -1531,7 +1532,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
         {
             connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, character.Guid.RawValue,
-                character.CurrentHealth, damage, abilityId?.Value, connection.CryptoSession.Encryptor, result));
+                character.CurrentHealth, damage, abilityId?.Value, PacketEncoder.Shared, result));
         }
 
         if (_characters.ContainsKey(character.Guid))
@@ -1578,7 +1579,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SUnitHealedPacket.Create(healer.Guid.RawValue, target.Guid.RawValue, restored,
-                target.CurrentHealth, abilityId?.Value, result, connection.CryptoSession.Encryptor));
+                target.CurrentHealth, abilityId?.Value, result, PacketEncoder.Shared));
         }
     }
 
@@ -1598,7 +1599,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (!heal && target is CharacterEntity character && _connections.TryGetValue(character.Guid, out IWorldConnection? own))
         {
             own.Send(SCharacterDamagePacket.Create(from.RawValue, character.Guid.RawValue, character.CurrentHealth, amount,
-                null, own.CryptoSession.Encryptor, result, aura.Value));
+                null, PacketEncoder.Shared, result, aura.Value));
         }
 
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
@@ -1610,9 +1611,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             connection.Send(heal
                 ? SUnitHealedPacket.Create(from.RawValue, target.Guid.RawValue, amount, target.CurrentHealth, null, result,
-                    connection.CryptoSession.Encryptor, aura.Value)
+                    PacketEncoder.Shared, aura.Value)
                 : SUnitDamagePacket.Create(from, target.Guid.RawValue, target.CurrentHealth, amount,
-                    connection.CryptoSession.Encryptor, result, aura.Value));
+                    PacketEncoder.Shared, result, aura.Value));
         }
     }
 

@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
@@ -178,7 +179,7 @@ public class DialogueChooseHandler(
 
                 entity.OpenBankNpc = npc.Guid;
                 connection.Send(SInventoryUpdatePacket.Create(
-                    BankAccess.Snapshot(entity), null, connection.CryptoSession.Encryptor));
+                    BankAccess.Snapshot(entity), null, PacketEncoder.Shared));
                 break;
 
             case DialogueOptionAction.OpenShop:

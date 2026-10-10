@@ -75,7 +75,7 @@ public class CMFAVerifyHandlerShould
         await CreateHandler().ExecuteAsync(ctx);
 
         Assert.True(account.Online);
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         _connection.Received().AccountId = accountId;
         await _cache.Received(1).PublishAsync(CacheKeys.AuthAccountsOnlineChannel, Arg.Any<string>());
         // The login is recorded as this connection's session (#487).
@@ -140,7 +140,7 @@ public class CMFAVerifyHandlerShould
 
         await CreateHandler().ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         await _mfaService.Received(1).VerifyMFAAsync("valid-hash", "wrong");
     }
 
@@ -159,7 +159,7 @@ public class CMFAVerifyHandlerShould
 
         await CreateHandler().ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
         await _cache.DidNotReceive().PublishAsync(Arg.Any<string>(), Arg.Any<string>());
     }
@@ -198,7 +198,7 @@ public class CMFAVerifyHandlerShould
 
         await CreateHandler().ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         await _cache.Received(1).PublishAsync("world:accounts:disconnect", Arg.Any<string>());
         Assert.False(account.Online);
         // Only the Online flag, never the whole row (#484).
@@ -231,11 +231,11 @@ public class CMFAVerifyHandlerShould
             Connection = _connection
         });
 
-        var sent = (NetworkPacket)_connection.ReceivedCalls()
+        var sent = (OutboundPacket)_connection.ReceivedCalls()
             .Single(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
             .GetArguments()[0]!;
-        // FakeAvalonCryptoSession.Encrypt is a pass-through, so the payload is the plain protobuf.
-        using var stream = new MemoryStream(sent.Payload);
+        // A packet is sealed only as the outbox frames it, so the payload is the plain protobuf.
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         SAuthResultPacket packet = Serializer.Deserialize<SAuthResultPacket>(stream);
         Assert.Equal(expected, packet.Result);
         Assert.Equal(0, packet.AccountId);
@@ -294,10 +294,10 @@ public class CMFAVerifyHandlerShould
 
     private SAuthResultPacket SentPacket()
     {
-        var sent = (NetworkPacket)_connection.ReceivedCalls()
+        var sent = (OutboundPacket)_connection.ReceivedCalls()
             .Single(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
             .GetArguments()[0]!;
-        using var stream = new MemoryStream(sent.Payload);
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         return Serializer.Deserialize<SAuthResultPacket>(stream);
     }
 
@@ -434,7 +434,7 @@ public class CMFAVerifyHandlerShould
             (DateTime?)null, Arg.Any<CancellationToken>());
         Received.InOrder(() =>
         {
-            _connection.Send(Arg.Any<NetworkPacket>());
+            _connection.Send(Arg.Any<OutboundPacket>());
             _accountRepository.RecordFailedLoginAsync(accountId, Arg.Any<string>(), Arg.Any<DateTime>(),
                 Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
         });

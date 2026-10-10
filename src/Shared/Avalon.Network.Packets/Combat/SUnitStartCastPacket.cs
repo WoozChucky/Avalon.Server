@@ -42,15 +42,15 @@ public class SUnitStartCastPacket : Packet
     [ProtoMember(6)] public ulong ItemTemplateId { get; set; }
 
     /// <summary>An item's cast bar: no ability, no footprint.</summary>
-    public static NetworkPacket CreateForItem(ObjectGuid caster, float castTime, ulong itemTemplateId, uint castId,
-        EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket CreateForItem(ObjectGuid caster, float castTime, ulong itemTemplateId, uint castId,
+        PacketEncoder encoder)
+        => encoder.Encode(
             new SUnitStartCastPacket { Caster = caster.RawValue, CastTime = castTime, CastId = castId, ItemTemplateId = itemTemplateId },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 
-    public static NetworkPacket Create(ObjectGuid caster, float castTime, uint abilityId, uint castId,
-        AbilityFootprintDto? footprint, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ObjectGuid caster, float castTime, uint abilityId, uint castId,
+        AbilityFootprintDto? footprint, PacketEncoder encoder)
+        => encoder.Encode(
             new SUnitStartCastPacket
             {
                 Caster = caster.RawValue,
@@ -59,5 +59,5 @@ public class SUnitStartCastPacket : Packet
                 CastId = castId,
                 Footprint = footprint,
             },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

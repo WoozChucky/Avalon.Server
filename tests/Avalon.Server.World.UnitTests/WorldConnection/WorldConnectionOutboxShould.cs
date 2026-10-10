@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -55,7 +56,7 @@ public class WorldConnectionOutboxShould : IDisposable
         var stream = new PacketStream(mem);
         _connection.InitOutboxForTest(stream);
 
-        _connection.Send(SPingPacket.Create(0L, 0L, 0L, 0L));
+        _connection.Send(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
         _connection.FlushOutbox();
 
         // TickDrivenOutbox.Flush schedules an async WriteAsync continuation.

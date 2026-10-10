@@ -7,6 +7,7 @@ using Avalon.Infrastructure;
 using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Telemetry;
 using Microsoft.Extensions.Options;
@@ -39,7 +40,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
     {
         if (string.IsNullOrWhiteSpace(ctx.Packet.Username) || string.IsNullOrWhiteSpace(ctx.Packet.Password))
         {
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, ctx.Connection.CryptoSession.Encryptor));
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, PacketEncoder.Shared));
             Record(ctx, LoginTelemetry.Tag(AuthResult.INVALID_CREDENTIALS), null);
             return;
         }
@@ -55,7 +56,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
 
         if (attempt.Refused)
         {
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encryptor));
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, PacketEncoder.Shared));
             Record(ctx, LoginTelemetry.RateLimited, null);
             return;
         }
@@ -77,7 +78,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         {
             _logger.LogWarning("Account {AccountId} refused at login while {Status}", account.Id, account.Status);
             AuthResult refusal = account.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, refusal, ctx.Connection.CryptoSession.Encryptor));
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, refusal, PacketEncoder.Shared));
             Record(ctx, LoginTelemetry.Tag(refusal), account.Id);
             return;
         }
@@ -89,7 +90,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             // accepted, and each password login makes a fresh hash with fresh code attempts.
             await _policy.GiveBackAsync(attempt);
             string mfaHash = await _mfaHashService.GenerateHashAsync(account);
-            ctx.Connection.Send(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED, ctx.Connection.CryptoSession.Encryptor));
+            ctx.Connection.Send(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED, PacketEncoder.Shared));
             Record(ctx, LoginTelemetry.Tag(AuthResult.MFA_REQUIRED), account.Id);
             return;
         }
@@ -133,7 +134,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
     /// </summary>
     private async Task FailAsync(AuthPacketContext<CAuthPacket> ctx, PasswordAttempt attempt, CancellationToken token)
     {
-        ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), ctx.Connection.CryptoSession.Encryptor));
+        ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), PacketEncoder.Shared));
         Record(ctx, LoginTelemetry.Tag(FailureResult(attempt)), attempt.Account?.Id);
         await _policy.RecordFailureAsync(attempt, token);
     }

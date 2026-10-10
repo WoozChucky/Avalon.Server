@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Vendor;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
@@ -44,6 +45,6 @@ public class VendorBuybackHandler(ILogger<VendorBuybackHandler> logger, IWorld w
             result = VendorResult.NotFound;
         }
 
-        connection.Send(SVendorResultPacket.Create(packet.RequestId, result, connection.CryptoSession.Encryptor));
+        connection.Send(SVendorResultPacket.Create(packet.RequestId, result, PacketEncoder.Shared));
     }
 }

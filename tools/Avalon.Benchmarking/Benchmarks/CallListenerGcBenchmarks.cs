@@ -59,7 +59,7 @@ public class CallListenerGcBenchmarks
         public AuthServer Server => null!;
         public void Close(bool expected = true) { }
         public Task CloseAsync(bool expected = true) => Task.CompletedTask;
-        public void Send(NetworkPacket packet) { }
+        public void Send(OutboundPacket packet) => packet.Release();
         public Task StartAsync(CancellationToken token = default) => Task.CompletedTask;
         public byte[] GenerateHandshakeData() => [];
         public bool VerifyHandshakeData(byte[] handshakeData) => false;

@@ -25,7 +25,11 @@ internal sealed class BenchConnection(CharacterEntity character) : IWorldConnect
 
     public IAvalonCryptoSession CryptoSession { get; } = new FakeAvalonCryptoSession();
 
-    public void Send(NetworkPacket packet) => Sent++;
+    public void Send(OutboundPacket packet)
+    {
+        Sent++;
+        packet.Release();
+    }
 
     public Guid Id => throw new NotSupportedException();
     public Task? ExecuteTask => throw new NotSupportedException();

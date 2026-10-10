@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.Entities;
 using Avalon.World.Items;
@@ -188,5 +189,5 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
     private static void Refuse(IWorldConnection connection, CCastAbilityPacket packet, CastRejectReason reason,
         uint cooldownMs = 0u) =>
         connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, reason, cooldownMs,
-            connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
 }

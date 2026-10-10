@@ -13,10 +13,10 @@ public class SLogoutPacket : Packet
 
     [ProtoMember(1)] public LogoutResult Result { get; set; }
 
-    public static NetworkPacket Create(LogoutResult result, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(LogoutResult result, PacketEncoder encoder)
+        => encoder.Encode(
             new SLogoutPacket { Result = result },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }
 
 public enum LogoutResult : short

@@ -39,12 +39,12 @@ internal sealed class PartyTestWorld
         character.Level = level;
         character.InstanceId = instance ?? Guid.Empty;
 
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.AccountId.Returns(new AccountId(id));
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         Parties.CharacterOnline(connection);
         return new PartyClient(connection, character, sent);
@@ -65,7 +65,7 @@ internal sealed class PartyTestWorld
     }
 }
 
-internal sealed record PartyClient(IWorldConnection Connection, CharacterEntity Character, List<NetworkPacket> Sent)
+internal sealed record PartyClient(IWorldConnection Connection, CharacterEntity Character, List<OutboundPacket> Sent)
 {
     public uint Id => Character.Guid.Id;
 
@@ -73,7 +73,7 @@ internal sealed record PartyClient(IWorldConnection Connection, CharacterEntity 
         .Where(p => p.Header.Type == type)
         .Select(p =>
         {
-            using var stream = new MemoryStream(p.Payload);
+            using var stream = new MemoryStream(p.PayloadMemory.ToArray());
             return Serializer.Deserialize<T>(stream);
         })
         .ToList();

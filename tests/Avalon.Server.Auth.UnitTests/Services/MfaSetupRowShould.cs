@@ -164,14 +164,14 @@ public sealed class MfaSetupRowShould : IDisposable
             Connection = connection,
         });
 
-        NetworkPacket? sent = connection.ReceivedCalls()
+        OutboundPacket sent = connection.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
             .Select(c => c.GetArguments()[0])
-            .OfType<NetworkPacket>()
+            .OfType<OutboundPacket>()
             .LastOrDefault();
-        if (sent == null) return null;
+        if (sent.Payload is null) return null;
 
-        using var stream = new MemoryStream(sent.Payload);
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         return Serializer.Deserialize<SAuthResultPacket>(stream).Result;
     }
 

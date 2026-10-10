@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Chat;
 using Avalon.World.Instances;
@@ -25,7 +26,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
             if (!commandDispatcher.Dispatch(connection, packet))
             {
                 connection.Send(SChatMessagePacket.System("Unknown command.", packet.DateTime,
-                    connection.CryptoSession.Encryptor));
+                    PacketEncoder.Shared));
             }
 
             return;
@@ -40,7 +41,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
         {
             connection.Send(SChatMessagePacket.System(ChatRateLimiter.TooFast(retryAfter), packet.DateTime,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
@@ -50,7 +51,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         {
             // Nowhere to say it: the sender still sees its own line.
             connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
-                connection.CryptoSession.Encryptor, characterClass: (ushort)sender.Class));
+                PacketEncoder.Shared, characterClass: (ushort)sender.Class));
             rateLimiter.Record(sender.Guid.Id);
             return;
         }
@@ -63,7 +64,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
                 continue;
 
             target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
-                target.CryptoSession.Encryptor, characterClass: (ushort)sender.Class));
+                PacketEncoder.Shared, characterClass: (ushort)sender.Class));
         }
     }
 }

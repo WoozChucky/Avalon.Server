@@ -3,6 +3,10 @@ using ProtoBuf;
 
 namespace Avalon.Network.Packets.Serialization;
 
+/// <summary>
+/// Serializes the client-to-server packets (<c>C*Packet.Create</c>), which only clients send: the load-test tool, the
+/// benchmarks and the tests. Server packets go through <see cref="PacketEncoder" />.
+/// </summary>
 internal static class PacketSerializationHelper
 {
     /// <summary>

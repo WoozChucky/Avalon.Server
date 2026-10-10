@@ -17,7 +17,7 @@ public class SIgnoreListPacket : Packet
 
     [ProtoMember(1)] public List<IgnoredCharacterDto> Characters { get; set; } = [];
 
-    public static NetworkPacket Create(List<IgnoredCharacterDto> characters, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(new SIgnoreListPacket { Characters = characters },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(List<IgnoredCharacterDto> characters, PacketEncoder encoder)
+        => encoder.Encode(new SIgnoreListPacket { Characters = characters },
+            PacketType, Flags, Protocol);
 }

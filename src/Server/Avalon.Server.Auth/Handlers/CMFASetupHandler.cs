@@ -2,6 +2,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -35,6 +36,6 @@ public class CMFASetupHandler : IAuthPacketHandler<CMFASetupPacket>
         ctx.Connection.Send(SMFASetupPacket.Create(
             result.OtpUri ?? string.Empty,
             result.Status,
-            ctx.Connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
     }
 }

@@ -20,6 +20,16 @@ and a client pins the world's leaf named in its join reply. Ordering guaranteed 
 Encryption: inside TLS, session crypto negotiated via ephemeral public key exchange during handshake stages.  
 Size calculation uses fixed field lengths; header marshaled first enabling preallocation.
 
+## Sending a packet
+
+A server packet's `Create` (`S*Packet.Create`) returns an `OutboundPacket`: its header, and its message encoded, plain,
+into a pooled `PayloadSegment` by `PacketEncoder` (#875). `IConnection.Send` takes the packet's payload reference. The
+connection's outbox seals the payload if the header is flagged Encrypted (the world's outbox as the tick flushes it, the
+auth server's as its drain task writes) and frames it with `PacketEnvelope`: `[varint length][NetworkPacket{1: header,
+2: payload}]`, written by hand, byte for byte what protobuf-net writes for a `NetworkPacket`. The outbox then releases
+the segment to its pool: no `byte[]` per packet. The client-to-server packets' `C*Packet.Create`, which only
+clients send (the load-test tool, the benchmarks and the tests), still build a `NetworkPacket`, sealed as it is created.
+
 ## Auth Phase Lifecycle
 
 1. `CRequestServerInfoPacket` — client sends its version; `SServerInfoPacket` answers with the server's version and

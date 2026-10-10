@@ -74,7 +74,7 @@ public partial class CAuthHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         await _accountRepository.DidNotReceive().FindByUserNameAsync(Arg.Any<string>());
     }
 
@@ -109,7 +109,7 @@ public partial class CAuthHandlerShould
         await _handler.ExecuteAsync(ctx);
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(),
             (DateTime?)null, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
@@ -190,7 +190,7 @@ public partial class CAuthHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         await _cache.Received(1).PublishAsync("world:accounts:disconnect", Arg.Any<string>());
         // No session found => only the Online flag is cleared, never the whole row (#484)
         Assert.False(account.Online);
@@ -217,7 +217,7 @@ public partial class CAuthHandlerShould
 
         Assert.True(account.Online);
         Assert.Equal(0, account.FailedLogins);
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         // The login is recorded as this connection's session (#487).
         await _accountRepository.Received(1).TryRecordLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(),
             _connection.Id, Arg.Any<CancellationToken>());
@@ -275,22 +275,22 @@ public partial class CAuthHandlerShould
 
         await handler.ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         await _mfaHashService.Received(1).GenerateHashAsync(account);
         await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
     }
 
     private AuthResult? SentResult()
     {
-        NetworkPacket? sent = _connection.ReceivedCalls()
+        OutboundPacket sent = _connection.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
             .Select(c => c.GetArguments()[0])
-            .OfType<NetworkPacket>()
+            .OfType<OutboundPacket>()
             .LastOrDefault();
-        if (sent == null) return null;
+        if (sent.Payload is null) return null;
 
-        // FakeAvalonCryptoSession.Encrypt is a pass-through, so the payload is the plain protobuf.
-        using var stream = new MemoryStream(sent.Payload);
+        // A packet is sealed only as the outbox frames it, so the payload is the plain protobuf.
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         return Serializer.Deserialize<SAuthResultPacket>(stream).Result;
     }
 
@@ -320,7 +320,7 @@ public partial class CAuthHandlerShould
             Connection = _connection
         });
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         AuthResult? result = SentResult();
         Assert.NotEqual(AuthResult.SUCCESS, result);
         Assert.NotEqual(AuthResult.MFA_REQUIRED, result);
@@ -693,7 +693,7 @@ public partial class CAuthHandlerShould
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         Received.InOrder(() =>
         {
-            _connection.Send(Arg.Any<NetworkPacket>());
+            _connection.Send(Arg.Any<OutboundPacket>());
             _accountRepository.RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
                 Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
         });

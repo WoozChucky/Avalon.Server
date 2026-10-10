@@ -14,8 +14,8 @@ public class SPlayerConnectedPacket : Packet
     [ProtoMember(2)] public ulong CharacterId { get; set; }
     [ProtoMember(3)] public string Name { get; set; }
 
-    public static NetworkPacket Create(ulong accountId, ulong characterId, string name, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ulong accountId, ulong characterId, string name, PacketEncoder encoder)
+        => encoder.Encode(
             new SPlayerConnectedPacket { AccountId = accountId, CharacterId = characterId, Name = name },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

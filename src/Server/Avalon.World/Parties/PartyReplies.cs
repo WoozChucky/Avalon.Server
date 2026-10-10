@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging;
@@ -36,7 +37,7 @@ public static class PartyReplies
     }
 
     public static void Answer(IWorldConnection connection, PartyResult result, string? name) =>
-        connection.Send(SPartyResultPacket.Create(result, name, connection.CryptoSession.Encryptor));
+        connection.Send(SPartyResultPacket.Create(result, name, PacketEncoder.Shared));
 
     public static string? Describe(PartyResult result, string? name) => result switch
     {

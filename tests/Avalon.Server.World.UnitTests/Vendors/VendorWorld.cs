@@ -65,7 +65,7 @@ internal sealed class VendorWorld
 
         public required IWorldConnection Connection { get; init; }
 
-        public List<NetworkPacket> Sent { get; } = [];
+        public List<OutboundPacket> Sent { get; } = [];
 
         public List<T> Read<T>(NetworkPacketType type) => TestTown.Read<T>(Sent, type);
 

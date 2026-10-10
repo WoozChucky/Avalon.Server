@@ -26,7 +26,8 @@ public interface IConnection
     /// </summary>
     Task CloseAsync(bool expected = true);
 
-    void Send(NetworkPacket packet);
+    /// <summary>Takes the packet's payload reference: the connection writes and releases it, or releases it at once.</summary>
+    void Send(OutboundPacket packet);
     Task StartAsync(CancellationToken token = default);
 }
 
@@ -151,11 +152,18 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
         }
     }
 
-    public virtual void Send(NetworkPacket packet)
+    public virtual void Send(OutboundPacket packet)
     {
-        if (_outbox is null) return;
+        if (_outbox is null)
+        {
+            packet.Release();
+            return;
+        }
+
+        // Read before the outbox has it: once queued, another thread may write it and release it.
+        int size = packet.Size;
         if (!_outbox.Enqueue(packet)) return;
-        Interlocked.Add(ref BytesSentCount, packet.Size);
+        Interlocked.Add(ref BytesSentCount, size);
         Interlocked.Increment(ref PacketSentCount);
     }
 
@@ -167,7 +175,7 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
     }
 
     protected virtual IOutbox OnCreateOutbox() =>
-        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity);
+        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity, CryptoSession);
 
     protected abstract void OnHandshakeFinished();
 

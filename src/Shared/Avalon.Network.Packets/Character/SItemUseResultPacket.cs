@@ -23,9 +23,9 @@ public class SItemUseResultPacket : Packet
     /// <summary>On Refused, the line to show the player; absent otherwise.</summary>
     [ProtoMember(4)] public string? Message { get; set; }
 
-    public static NetworkPacket Create(uint requestId, ItemUseResult result, uint cooldownMs, string? message,
-        EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(uint requestId, ItemUseResult result, uint cooldownMs, string? message,
+        PacketEncoder encoder)
+        => encoder.Encode(
             new SItemUseResultPacket { RequestId = requestId, Result = result, CooldownMs = cooldownMs, Message = message },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }

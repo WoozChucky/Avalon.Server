@@ -80,8 +80,8 @@ public class CWorldListHandlerShould
             MakeWorld(4, AccountAccessLevel.Tournament),
         });
 
-        NetworkPacket? sent = null;
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent = ci.Arg<NetworkPacket>());
+        OutboundPacket sent = default;
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent = ci.Arg<OutboundPacket>());
 
         await _handler.ExecuteAsync(new AuthPacketContext<CWorldListPacket>
         {
@@ -89,9 +89,9 @@ public class CWorldListHandlerShould
             Connection = _connection
         });
 
-        // FakeAvalonCryptoSession.Encrypt is a pass-through, so the payload is the plain protobuf.
-        Assert.NotNull(sent);
-        using var stream = new MemoryStream(sent!.Payload);
+        // A packet is sealed only as the outbox frames it, so the payload is the plain protobuf.
+        Assert.NotNull(sent.Payload);
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         SWorldListPacket list = Serializer.Deserialize<SWorldListPacket>(stream);
         Assert.Equal(expected, (list.Worlds ?? []).Select(w => w.Id).Order().ToArray());
     }
@@ -112,7 +112,7 @@ public class CWorldListHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         _connection.DidNotReceive().Close();
     }
 
@@ -131,13 +131,13 @@ public class CWorldListHandlerShould
         _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(true);
         _readiness.IsReadyAsync(2, Arg.Any<CancellationToken>()).Returns(true);
         _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(false);
-        NetworkPacket? sent = null;
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(call => sent = call.Arg<NetworkPacket>());
+        OutboundPacket sent = default;
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(call => sent = call.Arg<OutboundPacket>());
 
         await _handler.ExecuteAsync(new AuthPacketContext<CWorldListPacket>
         { Packet = new CWorldListPacket(), Connection = _connection });
 
-        using var stream = new MemoryStream(sent!.Payload);
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         Dictionary<ushort, short> statuses = Serializer.Deserialize<SWorldListPacket>(stream).Worlds!.ToDictionary(w => w.Id, w => w.Status);
         Assert.Equal((short)WorldStatus.Maintenance, statuses[1]);
         Assert.Equal((short)WorldStatus.Online, statuses[2]);
@@ -155,13 +155,13 @@ public class CWorldListHandlerShould
         scheduled.MaintenanceDeadlineUtc = DateTime.UtcNow.AddMinutes(10);
         _worldRepository.FindAllAsync().Returns(new List<AvalonWorld> { scheduled });
         _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(true);
-        NetworkPacket? sent = null;
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(call => sent = call.Arg<NetworkPacket>());
+        OutboundPacket sent = default;
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(call => sent = call.Arg<OutboundPacket>());
 
         await _handler.ExecuteAsync(new AuthPacketContext<CWorldListPacket>
         { Packet = new CWorldListPacket(), Connection = _connection });
 
-        using var stream = new MemoryStream(sent!.Payload);
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         Assert.Equal((short)WorldStatus.Online,
             Assert.Single(Serializer.Deserialize<SWorldListPacket>(stream).Worlds!).Status);
     }

@@ -223,7 +223,7 @@ public class InterestReplicationShould
     private static List<string> Sequence(MapInstanceClient client)
     {
         List<string> seen = [];
-        foreach (NetworkPacket packet in client.Sent)
+        foreach (OutboundPacket packet in client.Sent)
         {
             var single = new MapInstanceClient(client.Connection, client.Character, [packet]);
             seen.AddRange(single.Added().Where(s => IsProjectile(s.Guid)).Select(_ => "add"));

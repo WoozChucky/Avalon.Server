@@ -13,10 +13,10 @@ public class SWorldListPacket : Packet
 
     [ProtoMember(1)] public WorldInfo[] Worlds { get; set; }
 
-    public static NetworkPacket Create(WorldInfo[] worlds, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(WorldInfo[] worlds, PacketEncoder encoder)
+        => encoder.Encode(
             new SWorldListPacket { Worlds = worlds },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }
 
 [ProtoContract]

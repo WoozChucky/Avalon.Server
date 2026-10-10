@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Public;
 
 namespace Avalon.World.Items;
@@ -8,5 +9,5 @@ public static class ItemUseReply
 {
     public static void Send(IWorldConnection connection, uint requestId, ItemUseAnswer answer) =>
         connection.Send(SItemUseResultPacket.Create(requestId, answer.Result, answer.CooldownMs, answer.Message,
-            connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
 }

@@ -1,5 +1,5 @@
-using Avalon.Common.Cryptography;
 using Avalon.Common;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
@@ -16,12 +16,8 @@ namespace Avalon.Shared.UnitTests.Serialization;
 /// </summary>
 public class PacketSerializationAllocationShould
 {
-    private static readonly byte[] s_discarded = [];
-
-    /// <summary>An encryption that keeps nothing, so only the serialization's own allocations count.</summary>
-    private static readonly EncryptFunc s_discard = static _ => s_discarded;
-
-    private static readonly EncryptFunc s_identity = static span => span.ToArray();
+    /// <summary>An encoder over a pool of its own: each payload released goes back to it for the next packet.</summary>
+    private static readonly PacketEncoder s_encoder = new(new PayloadSegmentPool());
 
     private static readonly DateTime s_when = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -51,7 +47,7 @@ public class PacketSerializationAllocationShould
     public void Serialize_nested_messages_without_allocating_per_message()
     {
         var packet = new SInstanceStateUpdatePacket { Updates = States(100, "Bench Wolf") };
-        SInstanceStateUpdatePacket.Create(packet.Updates, s_discard);
+        SInstanceStateUpdatePacket.Create(packet.Updates, s_encoder).Release();
 
         // The fewest bytes over three windows, as WaypointRepathAllocationShould takes them.
         long fewest = long.MaxValue;
@@ -59,13 +55,13 @@ public class PacketSerializationAllocationShould
         {
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int create = 0; create < 10; create++)
-                SInstanceStateUpdatePacket.Create(packet.Updates, s_discard);
+                SInstanceStateUpdatePacket.Create(packet.Updates, s_encoder).Release();
 
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
-        // What remains is what every packet costs, however much it holds: the packet, the
-        // NetworkPacket and its header. The payload is the encryption's, and is discarded here.
+        // What remains is what every packet costs, however much it holds: the message and what encoding it
+        // takes. The payload's segment goes back to the pool for the next one.
         Assert.InRange(fewest / 10, 0, 256);
     }
 
@@ -86,9 +82,10 @@ public class PacketSerializationAllocationShould
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        byte[] written = SInstanceStateUpdatePacket.Create(packet.Updates, s_identity).Payload;
+        OutboundPacket written = SInstanceStateUpdatePacket.Create(packet.Updates, s_encoder);
 
-        Assert.Equal(reference.WrittenSpan.ToArray(), written);
+        Assert.Equal(reference.WrittenSpan.ToArray(), written.PayloadMemory.ToArray());
+        written.Release();
     }
 
     [Fact]
@@ -105,9 +102,10 @@ public class PacketSerializationAllocationShould
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        byte[] written = SChatMessagePacket.Create(42, 7, "Alice", new string('m', 300), s_when, s_identity).Payload;
+        OutboundPacket written = SChatMessagePacket.Create(42, 7, "Alice", new string('m', 300), s_when, s_encoder);
 
-        Assert.Equal(reference.WrittenSpan.ToArray(), written);
+        Assert.Equal(reference.WrittenSpan.ToArray(), written.PayloadMemory.ToArray());
+        written.Release();
     }
 
     private static List<ObjectGuid> Guids(int count)
@@ -129,9 +127,10 @@ public class PacketSerializationAllocationShould
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, expected);
 
-        byte[] written = SInstanceStateRemovePacket.Create(guids, s_identity).Payload;
+        OutboundPacket written = SInstanceStateRemovePacket.Create(guids, s_encoder);
 
-        Assert.Equal(reference.WrittenSpan.ToArray(), written);
+        Assert.Equal(reference.WrittenSpan.ToArray(), written.PayloadMemory.ToArray());
+        written.Release();
     }
 
     /// <summary>The id list is built at its final size in one pass, with no LINQ iterator or regrowth.</summary>
@@ -139,31 +138,34 @@ public class PacketSerializationAllocationShould
     public void Build_a_remove_list_at_its_size()
     {
         List<ObjectGuid> guids = Guids(100);
-        SInstanceStateRemovePacket.Create(guids, s_discard);
+        SInstanceStateRemovePacket.Create(guids, s_encoder).Release();
 
         long fewest = long.MaxValue;
         for (int window = 0; window < 3; window++)
         {
             long before = GC.GetAllocatedBytesForCurrentThread();
-            SInstanceStateRemovePacket.Create(guids, s_discard);
+            SInstanceStateRemovePacket.Create(guids, s_encoder).Release();
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
         // Only what the packet holds: the id list (32 bytes) and its array of 100 ulongs (824), plus the
-        // packet, NetworkPacket and header (120). LINQ added its iterator on top, 1,048 in all.
+        // packet itself (120 allowed). LINQ added its iterator on top, 1,048 in all.
         Assert.InRange(fewest, 0, 32 + 824 + 120);
     }
 
     [Fact]
     public void Start_each_packet_afresh_after_a_larger_one()
     {
-        SInstanceStateUpdatePacket.Create(States(400, new string('w', 200)), s_identity);
+        SInstanceStateUpdatePacket.Create(States(400, new string('w', 200)), s_encoder).Release();
 
         List<ObjectState> small = States(1, "Wolf");
         var packet = new SInstanceStateUpdatePacket { Updates = small };
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        Assert.Equal(reference.WrittenSpan.ToArray(), SInstanceStateUpdatePacket.Create(small, s_identity).Payload);
+        OutboundPacket written = SInstanceStateUpdatePacket.Create(small, s_encoder);
+
+        Assert.Equal(reference.WrittenSpan.ToArray(), written.PayloadMemory.ToArray());
+        written.Release();
     }
 }

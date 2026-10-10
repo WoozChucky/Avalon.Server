@@ -53,12 +53,12 @@ public class IgnoreDeletedCharacterShould
         // Selected and waiting on its load report: the list is loaded, the character not yet in the world.
         CharacterEntity selecting = Inventory.TestCharacters.New(4);
         selecting.Ignores.Add(2, "Kaela", s_now);
-        var pendingSent = new List<NetworkPacket>();
+        var pendingSent = new List<OutboundPacket>();
         IWorldConnection pending = Substitute.For<IWorldConnection>();
         pending.Character.Returns((ICharacter?)null);
         pending.PendingSpawn.Returns(new PendingSpawn(selecting, Substitute.For<IMapInstance>(), 0));
         pending.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        pending.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => pendingSent.Add(ci.Arg<NetworkPacket>()));
+        pending.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => pendingSent.Add(ci.Arg<OutboundPacket>()));
 
         IWorldServer server = Substitute.For<IWorldServer>();
         server.Connections.Returns([aren.Connection, tom.Connection, pending, deleter]);

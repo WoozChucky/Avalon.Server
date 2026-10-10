@@ -15,8 +15,8 @@ public class SLootDespawnedPacket : Packet
 
     [ProtoMember(1)] public List<ulong> LootGuids { get; set; } = [];
 
-    public static NetworkPacket Create(IEnumerable<ObjectGuid> lootGuids, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(IEnumerable<ObjectGuid> lootGuids, PacketEncoder encoder)
+        => encoder.Encode(
             new SLootDespawnedPacket { LootGuids = lootGuids.Select(g => g.RawValue).ToList() },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }

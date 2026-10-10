@@ -1,4 +1,5 @@
 using Avalon.Common.Accounts;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
@@ -74,7 +75,7 @@ public sealed class CommandDispatcher : ICommandDispatcher
         {
             // Type name only — the message and stack stay in the log.
             connection.Send(SChatMessagePacket.System($"Command /{command.Name} failed: {ex.GetType().Name}.",
-                packet.DateTime, connection.CryptoSession.Encryptor));
+                packet.DateTime, PacketEncoder.Shared));
         }
     }
 }

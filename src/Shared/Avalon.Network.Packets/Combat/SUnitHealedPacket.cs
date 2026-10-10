@@ -31,9 +31,9 @@ public class SUnitHealedPacket : Packet
     /// <summary>The aura whose tick healed (auras); absent for an ability's or an item's heal.</summary>
     [ProtoMember(7)] public uint? AuraId { get; set; }
 
-    public static NetworkPacket Create(ulong healer, ulong target, uint amount, uint currentHealth, uint? abilityId,
-        HitResult result, EncryptFunc encrypt, uint? auraId = null)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ulong healer, ulong target, uint amount, uint currentHealth, uint? abilityId,
+        HitResult result, PacketEncoder encoder, uint? auraId = null)
+        => encoder.Encode(
             new SUnitHealedPacket
             {
                 Healer = healer,
@@ -44,5 +44,5 @@ public class SUnitHealedPacket : Packet
                 Result = result,
                 AuraId = auraId,
             },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }

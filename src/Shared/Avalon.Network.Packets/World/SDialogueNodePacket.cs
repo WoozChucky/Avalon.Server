@@ -40,14 +40,14 @@ public class SDialogueNodePacket : Packet
     [ProtoMember(4)] public string Text { get; set; } = string.Empty;
     [ProtoMember(5)] public List<SDialogueOptionInfo> Options { get; set; } = [];
 
-    public static NetworkPacket Create(
+    public static OutboundPacket Create(
         ulong speakerGuid,
         string speakerName,
         int nodeId,
         string text,
         List<SDialogueOptionInfo> options,
-        EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+        PacketEncoder encoder)
+        => encoder.Encode(
             new SDialogueNodePacket
             {
                 SpeakerGuid = speakerGuid,
@@ -56,5 +56,5 @@ public class SDialogueNodePacket : Packet
                 Text = text,
                 Options = options
             },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

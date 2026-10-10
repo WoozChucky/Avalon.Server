@@ -20,7 +20,7 @@ public class GracefulShutdownHelperShould
 
         Received.InOrder(() =>
         {
-            _connection.Send(Arg.Is<NetworkPacket>(p => p.Header.Type == NetworkPacketType.SMSG_DISCONNECT));
+            _connection.Send(Arg.Is<OutboundPacket>(p => p.Header.Type == NetworkPacketType.SMSG_DISCONNECT));
             _connection.Close();
         });
     }
@@ -37,7 +37,7 @@ public class GracefulShutdownHelperShould
 
         Task notify = GracefulShutdownHelper.NotifyAndCloseAsync(_connection, "Server is shutting down", DisconnectReason.ServerShutdown);
 
-        _connection.Received(1).Send(Arg.Is<NetworkPacket>(p => p.Header.Type == NetworkPacketType.SMSG_DISCONNECT));
+        _connection.Received(1).Send(Arg.Is<OutboundPacket>(p => p.Header.Type == NetworkPacketType.SMSG_DISCONNECT));
         Assert.False(notify.IsCompleted, "Expected the caller to still be waiting on the close");
 
         closed.SetResult();
@@ -47,7 +47,7 @@ public class GracefulShutdownHelperShould
     [Fact]
     public void Close_EvenWhenSendThrows()
     {
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Throw<InvalidOperationException>();
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Throw<InvalidOperationException>();
 
         GracefulShutdownHelper.NotifyAndClose(_connection, "Server is shutting down", DisconnectReason.ServerShutdown);
 
@@ -58,7 +58,7 @@ public class GracefulShutdownHelperShould
     public void LogWarning_WhenSendThrows()
     {
         ILogger logger = Substitute.For<ILogger>();
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Throw<InvalidOperationException>();
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Throw<InvalidOperationException>();
 
         GracefulShutdownHelper.NotifyAndClose(_connection, "Server is shutting down", DisconnectReason.ServerShutdown, logger);
 

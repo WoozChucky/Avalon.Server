@@ -31,7 +31,7 @@ public class ItemUseContextShould
     private readonly IRespawnTargetResolver _resolver = Substitute.For<IRespawnTargetResolver>();
     private readonly ICreaturePlacementService _placement = Substitute.For<ICreaturePlacementService>();
     private readonly IWorld _world = Substitute.For<IWorld>();
-    private readonly List<NetworkPacket> _sent = [];
+    private readonly List<OutboundPacket> _sent = [];
     private readonly InventoryItem _stack;
 
     public ItemUseContextShould()

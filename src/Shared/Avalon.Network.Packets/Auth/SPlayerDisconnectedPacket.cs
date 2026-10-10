@@ -14,8 +14,8 @@ public class SPlayerDisconnectedPacket : Packet
     [ProtoMember(1)] public ulong AccountId { get; set; }
     [ProtoMember(2)] public ulong CharacterId { get; set; }
 
-    public static NetworkPacket Create(ulong accountId, ulong characterId, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ulong accountId, ulong characterId, PacketEncoder encoder)
+        => encoder.Encode(
             new SPlayerDisconnectedPacket { AccountId = accountId, CharacterId = characterId },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auras;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -39,6 +40,6 @@ public class AuraCancelHandler(IWorld world, ILogger<AuraCancelHandler> logger) 
             result = AuraCancelResult.NotFound;
         }
 
-        connection.Send(SAuraCancelResultPacket.Create(packet.AuraId, result, connection.CryptoSession.Encryptor));
+        connection.Send(SAuraCancelResultPacket.Create(packet.AuraId, result, PacketEncoder.Shared));
     }
 }

@@ -18,8 +18,8 @@ public class SDisconnectPacket : Packet
     [ProtoMember(1)] public string Reason { get; set; } = string.Empty;
     [ProtoMember(2)] public DisconnectReason ReasonCode { get; set; }
 
-    public static NetworkPacket Create(string reason, DisconnectReason reasonCode)
-        => PacketSerializationHelper.SerializeUnencrypted(
+    public static OutboundPacket Create(string reason, DisconnectReason reasonCode, PacketEncoder encoder)
+        => encoder.Encode(
             new SDisconnectPacket { Reason = reason, ReasonCode = reasonCode },
             PacketType, Flags, Protocol);
 }

@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Party;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Chat;
 using Avalon.World.Social;
@@ -180,7 +181,7 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
             if (parties.OnlineConnection(member.Id.Value) is { } target && !Ignoring.Hides(target, sender.Guid.Id))
             {
                 target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
-                    target.CryptoSession.Encryptor, ChatChannel.Party, characterClass: (ushort)sender.Class));
+                    PacketEncoder.Shared, ChatChannel.Party, characterClass: (ushort)sender.Class));
             }
         }
 

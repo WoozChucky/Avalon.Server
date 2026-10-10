@@ -39,7 +39,7 @@ public class DialogueChooseHandlerShould
         fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
 
         Assert.Equal((s_npcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
-        NetworkPacket sent = Assert.Single(fixture.SentPackets);
+        OutboundPacket sent = Assert.Single(fixture.SentPackets);
         Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_NODE, sent.Header.Type);
     }
 
@@ -103,7 +103,7 @@ public class DialogueChooseHandlerShould
         fixture.Handler.Execute(fixture.Connection, Choose(node, option: reason == "unknown next node" ? 3 : 1));
 
         Assert.Null(fixture.Connection.CurrentDialogue);
-        NetworkPacket sent = Assert.Single(fixture.SentPackets);
+        OutboundPacket sent = Assert.Single(fixture.SentPackets);
         Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_END, sent.Header.Type);
     }
 
@@ -116,7 +116,7 @@ public class DialogueChooseHandlerShould
         public ICharacter Character = null!;
         public ICreature Npc = null!;
         public DialogueChooseHandler Handler = null!;
-        public List<NetworkPacket> SentPackets = null!;
+        public List<OutboundPacket> SentPackets = null!;
 
         public static Fixture Build(bool npcInInstance = true)
         {
@@ -245,9 +245,9 @@ public class DialogueChooseHandlerShould
             fixture.Connection.Locale.Returns(AccountLocale.enUS);
             fixture.Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
-            var sentPackets = new List<NetworkPacket>();
-            fixture.Connection.When(c => c.Send(Arg.Any<NetworkPacket>()))
-                .Do(ci => sentPackets.Add(ci.Arg<NetworkPacket>()));
+            var sentPackets = new List<OutboundPacket>();
+            fixture.Connection.When(c => c.Send(Arg.Any<OutboundPacket>()))
+                .Do(ci => sentPackets.Add(ci.Arg<OutboundPacket>()));
             fixture.SentPackets = sentPackets;
 
             fixture.Handler = new DialogueChooseHandler(NullLogger<DialogueChooseHandler>.Instance, world);

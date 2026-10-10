@@ -49,9 +49,9 @@ public class SAbilityFiredPacket : Packet
     /// </summary>
     [ProtoMember(7)] public AbilityFootprintDto? Footprint { get; set; }
 
-    public static NetworkPacket Create(ulong caster, uint abilityId, uint castId, AbilityFootprintDto footprint,
-        EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ulong caster, uint abilityId, uint castId, AbilityFootprintDto footprint,
+        PacketEncoder encoder)
+        => encoder.Encode(
             new SAbilityFiredPacket
             {
                 CasterGuid = caster,
@@ -62,5 +62,5 @@ public class SAbilityFiredPacket : Packet
                 CastId = castId,
                 Footprint = footprint,
             },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }

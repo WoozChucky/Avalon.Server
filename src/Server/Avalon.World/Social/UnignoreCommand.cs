@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Chat;
 using Avalon.World.Entities;
 
@@ -30,7 +31,7 @@ public sealed class UnignoreCommand : ICommand
         }
 
         owner.Ignores.Remove(entry.Id);
-        ctx.Connection.Send(owner.Ignores.ToPacket(ctx.Connection.CryptoSession.Encryptor));
+        ctx.Connection.Send(owner.Ignores.ToPacket(PacketEncoder.Shared));
         ctx.Reply(IgnoreLines.Removed(entry.Name));
     }
 }

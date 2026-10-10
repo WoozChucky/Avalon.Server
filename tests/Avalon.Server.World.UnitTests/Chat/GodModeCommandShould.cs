@@ -85,7 +85,7 @@ public class GodModeCommandShould
     private sealed class Fixture
     {
         private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
-        private readonly List<NetworkPacket> _sent = [];
+        private readonly List<OutboundPacket> _sent = [];
         private readonly CommandDispatcher _dispatcher;
 
         public Fixture(AccountAccessLevel level)
@@ -95,8 +95,8 @@ public class GodModeCommandShould
             _connection.Character.Returns(Character);
             _connection.AccessLevel.Returns(level);
             _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-            _connection.When(c => c.Send(Arg.Any<NetworkPacket>()))
-                .Do(call => _sent.Add(call.Arg<NetworkPacket>()));
+            _connection.When(c => c.Send(Arg.Any<OutboundPacket>()))
+                .Do(call => _sent.Add(call.Arg<OutboundPacket>()));
             _dispatcher = new CommandDispatcher(
                 [new GodModeCommand(NullLogger<GodModeCommand>.Instance)],
                 NullLogger<CommandDispatcher>.Instance);
@@ -113,7 +113,7 @@ public class GodModeCommandShould
             .Where(packet => packet.Header.Type == NetworkPacketType.SMSG_CHAT_MESSAGE)
             .Select(packet =>
             {
-                using var stream = new MemoryStream(packet.Payload);
+                using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
                 return Serializer.Deserialize<SChatMessagePacket>(stream).Message;
             })
             .ToList();

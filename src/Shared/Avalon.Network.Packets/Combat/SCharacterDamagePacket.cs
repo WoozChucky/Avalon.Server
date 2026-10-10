@@ -23,9 +23,9 @@ public class SCharacterDamagePacket : Packet
     /// <summary>The aura whose tick this was (auras); absent for every other hit.</summary>
     [ProtoMember(7)] public uint? AuraId { get; set; }
 
-    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? abilityId,
-        EncryptFunc encryptFunc, HitResult result = HitResult.None, uint? auraId = null)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? abilityId,
+        PacketEncoder encoder, HitResult result = HitResult.None, uint? auraId = null)
+        => encoder.Encode(
             new SCharacterDamagePacket
             {
                 Attacker = attacker,
@@ -36,5 +36,5 @@ public class SCharacterDamagePacket : Packet
                 Result = result,
                 AuraId = auraId,
             },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

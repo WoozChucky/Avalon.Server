@@ -11,13 +11,13 @@ namespace Avalon.Server.World.UnitTests.Chat;
 internal sealed class CommandConnection
 {
     public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection>();
-    public List<NetworkPacket> Sent { get; } = [];
+    public List<OutboundPacket> Sent { get; } = [];
 
     public CommandConnection(AccountAccessLevel level = AccountAccessLevel.Player)
     {
         Connection.AccessLevel.Returns(level);
         Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        Connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => Sent.Add(ci.Arg<NetworkPacket>()));
+        Connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => Sent.Add(ci.Arg<OutboundPacket>()));
 
         // What the tick does a tick later, done now: the task settles, then the callback runs.
         Connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
@@ -28,12 +28,12 @@ internal sealed class CommandConnection
             });
     }
 
-    /// <summary>Every chat line this connection was sent, oldest first. The crypto session is a pass-through.</summary>
+    /// <summary>Every chat line this connection was sent, oldest first, as encoded (plain).</summary>
     public List<string> Messages() => Sent
         .Where(p => p.Header.Type == NetworkPacketType.SMSG_CHAT_MESSAGE)
         .Select(p =>
         {
-            using var stream = new MemoryStream(p.Payload);
+            using var stream = new MemoryStream(p.PayloadMemory.ToArray());
             return Serializer.Deserialize<SChatMessagePacket>(stream).Message;
         })
         .ToList();

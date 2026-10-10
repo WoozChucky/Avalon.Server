@@ -28,10 +28,10 @@ public class SInventorySnapshotPacket : Packet
     /// </summary>
     [ProtoMember(2)] public ulong Money { get; set; }
 
-    public static NetworkPacket Create(ItemSlotDto[] items, ulong money, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ItemSlotDto[] items, ulong money, PacketEncoder encoder)
+        => encoder.Encode(
             new SInventorySnapshotPacket { Items = items, Money = money },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }
 
 [ProtoContract]

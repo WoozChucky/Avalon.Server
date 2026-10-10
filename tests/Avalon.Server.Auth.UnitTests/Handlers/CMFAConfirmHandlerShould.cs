@@ -52,7 +52,7 @@ public class CMFAConfirmHandlerShould
 
         await CreateHandler().ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class CMFAConfirmHandlerShould
 
         await CreateHandler().ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 
     /// <summary>
@@ -90,6 +90,6 @@ public class CMFAConfirmHandlerShould
         });
 
         _connection.Received(1).Close();
-        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        _connection.DidNotReceive().Send(Arg.Any<OutboundPacket>());
     }
 }

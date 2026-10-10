@@ -114,9 +114,9 @@ public class CastAbilityHandlerShould
 
         public void Cast(CCastAbilityPacket packet) => _handler.Execute(Connection, packet);
 
-        public List<NetworkPacket> SentPackets() => Connection.ReceivedCalls()
+        public List<OutboundPacket> SentPackets() => Connection.ReceivedCalls()
             .Where(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
-            .Select(call => (NetworkPacket)call.GetArguments()[0]!)
+            .Select(call => (OutboundPacket)call.GetArguments()[0]!)
             .ToList();
 
         public SAbilityNotReadyPacket SingleRefusal() => Decode(Assert.Single(SentPackets()));
@@ -384,13 +384,13 @@ public class CastAbilityHandlerShould
     }
 
     /// <summary>
-    /// Payload bytes are unencrypted: FakeAvalonCryptoSession.Encrypt is a pass-through, so what
+    /// Payload bytes are unencrypted: a packet is sealed only as the outbox frames it, so what
     /// SAbilityNotReadyPacket.Create wrote is exactly what protobuf-net reads back here.
     /// </summary>
-    private static SAbilityNotReadyPacket Decode(NetworkPacket packet)
+    private static SAbilityNotReadyPacket Decode(OutboundPacket packet)
     {
         Assert.Equal(NetworkPacketType.SMSG_ABILITY_NOT_READY, packet.Header.Type);
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<SAbilityNotReadyPacket>(stream);
     }
 
@@ -444,10 +444,10 @@ public class CastAbilityHandlerShould
             return ability;
         }
 
-        public List<NetworkPacket> SentPackets() =>
+        public List<OutboundPacket> SentPackets() =>
             Connection.ReceivedCalls()
                 .Where(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
-                .Select(call => (NetworkPacket)call.GetArguments()[0]!)
+                .Select(call => (OutboundPacket)call.GetArguments()[0]!)
                 .ToList();
 
         /// <summary>Exactly one packet was sent, and it is a refusal; decoded.</summary>

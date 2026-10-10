@@ -150,7 +150,7 @@ public class QuestAcceptShould
         QuestClient c = w.Join();
         Creature giver = w.Place(Giver);
         w.Talk(c, giver);
-        c.Connection.When(x => x.Send(Arg.Is<NetworkPacket>(p => p.Header.Type == NetworkPacketType.SMSG_DIALOGUE_NODE)))
+        c.Connection.When(x => x.Send(Arg.Is<OutboundPacket>(p => p.Header.Type == NetworkPacketType.SMSG_DIALOGUE_NODE)))
             .Do(_ => throw new InvalidOperationException("root unavailable"));
 
         QuestResult result = w.Quests.Accept(c.Connection, c.Character, Hunt, giver.Guid.RawValue);

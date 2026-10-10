@@ -1,6 +1,7 @@
 using System.Diagnostics.Metrics;
 using System.Net.Sockets;
 using System.Threading.Channels;
+using Avalon.Common.Cryptography;
 using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
@@ -10,13 +11,13 @@ namespace Avalon.Hosting.Networking;
 
 public sealed class TickDrivenOutbox : IOutbox
 {
-    private readonly Channel<NetworkPacket> _queue;
+    private readonly Channel<OutboundPacket> _queue;
     private readonly PooledArrayBufferWriter _burstWriter = new();
-    private readonly PooledArrayBufferWriter _tempWriter = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly ILogger _logger;
     private readonly Guid _connectionId;
     private readonly Action _onFault;
+    private readonly IAvalonCryptoSession? _sealer;
 
     // 0 = idle, 1 = write in flight. Set by Flush via CompareExchange; cleared on success.
     // Stays at 1 after fault — connection is dead, no more writes.
@@ -50,32 +51,42 @@ public sealed class TickDrivenOutbox : IOutbox
     /// capacity evictions are counted: an <see cref="Enqueue"/> refused because the outbox is
     /// closed is not a drop.
     /// </param>
+    /// <param name="sealer">
+    /// Seals each packet flagged Encrypted as the flush frames it; with none, every packet goes plain (inside TLS).
+    /// </param>
     public TickDrivenOutbox(Guid connectionId, ILogger logger, int capacity, Action onFault,
-        TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null, Counter<long>? dropped = null)
+        IAvalonCryptoSession? sealer = null, TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null,
+        Counter<long>? dropped = null)
     {
         _connectionId = connectionId;
         _logger = logger;
         _onFault = onFault;
+        _sealer = sealer;
         _flushTimeout = flushTimeout ?? DefaultFlushTimeout;
         _cancelGrace = cancelGrace ?? DefaultCancelGrace;
-        _queue = Channel.CreateBounded<NetworkPacket>(new BoundedChannelOptions(capacity)
+        _queue = Channel.CreateBounded<OutboundPacket>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
             SingleReader = true,
             SingleWriter = false
-        }, dropped is null ? null : packet => dropped.Add(1,
-            new KeyValuePair<string, object?>("avalon.packet.type", PacketDispatchTelemetry.NameOf(packet.Header.Type))));
+        }, packet =>
+        {
+            packet.Release();
+            dropped?.Add(1, new KeyValuePair<string, object?>("avalon.packet.type",
+                PacketDispatchTelemetry.NameOf(packet.Header.Type)));
+        });
     }
 
     public void Connect(PacketStream stream) => _stream = stream;
 
-    public bool Enqueue(NetworkPacket packet)
+    public bool Enqueue(OutboundPacket packet)
     {
         if (!_queue.Writer.TryWrite(packet))
         {
             // A full queue drops its oldest entry and takes this one, so a refusal means the
             // outbox is closing and this packet has missed it.
             _logger.LogDebug("Outbox closed for connection {Id}; dropped {Type}", _connectionId, packet.Header.Type);
+            packet.Release();
             return false;
         }
         return true;
@@ -93,10 +104,32 @@ public sealed class TickDrivenOutbox : IOutbox
 
         _burstWriter.Reset();
         int count = 0;
-        while (_queue.Reader.TryRead(out NetworkPacket packet))
+        try
         {
-            OutboxSerializer.AppendPacket(_burstWriter, _tempWriter, packet);
-            count++;
+            while (_queue.Reader.TryRead(out OutboundPacket packet))
+            {
+                try
+                {
+                    PacketEnvelope.Append(_burstWriter, packet, _sealer);
+                }
+                finally
+                {
+                    packet.Release();
+                }
+
+                count++;
+            }
+        }
+        catch (Exception e)
+        {
+            // A packet that cannot be sealed (a session that never completed its exchange, or spent its counter, #855)
+            // closes this connection only: the tick goes on to flush every other one.
+            _logger.LogError(e, "Could not frame a packet for connection {Id}; closing", _connectionId);
+            while (_queue.Reader.TryRead(out OutboundPacket left))
+                left.Release();
+            Volatile.Write(ref _writeInFlight, 0);
+            _onFault();
+            return;
         }
 
         if (count == 0)
@@ -183,14 +216,15 @@ public sealed class TickDrivenOutbox : IOutbox
         if (!idle)
             idle = await WaitForWriteAsync(_cancelGrace).ConfigureAwait(false);
 
-        // The writers rent from ArrayPool and the write still names the cancellation source, so
+        // The writer rents from ArrayPool and the write still names the cancellation source, so
         // release neither while a write that ignored the cancel could still be reading out of
         // them: whichever connection rents that array next would put these bytes on its own
         // socket. A rental that is dropped instead of returned is just collected.
         if (idle)
         {
+            while (_queue.Reader.TryRead(out OutboundPacket left))
+                left.Release();
             _burstWriter.Dispose();
-            _tempWriter.Dispose();
             _cts.Dispose();
         }
     }

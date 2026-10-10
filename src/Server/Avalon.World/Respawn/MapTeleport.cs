@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
@@ -130,13 +131,13 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
                 logger.LogWarning("Teleport of {Name} to map {Map}: instance {Instance} was released again before the arrival",
                     character.Name, template.Id.Value, target.InstanceId);
                 connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                    connection.CryptoSession.Encryptor));
+                    PacketEncoder.Shared));
                 return;
             }
 
             if (PartyRefusal(character, target, partyId, capacity) is { } refusal)
             {
-                connection.Send(SMapTransitionPacket.CreateFailure(refusal, connection.CryptoSession.Encryptor));
+                connection.Send(SMapTransitionPacket.CreateFailure(refusal, PacketEncoder.Shared));
                 return;
             }
 
@@ -146,7 +147,7 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
                 logger.LogWarning("Teleport of {Name} to map {Map} refused: no walkable ground near {Position}",
                     character.Name, template.Id.Value, wanted);
                 connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.NoWalkableGround,
-                    connection.CryptoSession.Encryptor));
+                    PacketEncoder.Shared));
                 return;
             }
 

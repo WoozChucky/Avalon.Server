@@ -14,10 +14,10 @@ public class SCharacterSelectedPacket : Packet
     [ProtoMember(1)] public CharacterInfo Character { get; set; }
     [ProtoMember(2)] public MapInfo Map { get; set; }
 
-    public static NetworkPacket Create(CharacterInfo character, MapInfo map, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(CharacterInfo character, MapInfo map, PacketEncoder encoder)
+        => encoder.Encode(
             new SCharacterSelectedPacket { Character = character, Map = map },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }
 
 [ProtoContract]

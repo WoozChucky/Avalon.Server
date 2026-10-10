@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using ProtoBuf;
 using Xunit;
@@ -7,20 +8,18 @@ namespace Avalon.Shared.UnitTests.Packets;
 
 public class DialoguePacketsShould
 {
-    private static byte[] Plain(ReadOnlySpan<byte> bytes) => bytes.ToArray();
-
     [Fact]
     public void Carry_Each_Options_Kind_Through_A_Round_Trip()
     {
-        NetworkPacket packet = SDialogueNodePacket.Create(7, "Marta", 1, "Coin and keepsakes.",
+        OutboundPacket packet = SDialogueNodePacket.Create(7, "Marta", 1, "Coin and keepsakes.",
             [
                 new SDialogueOptionInfo { OptionId = 1, Text = "Open my bank.", Kind = DialogueOptionKind.OpenBank },
                 new SDialogueOptionInfo { OptionId = 2, Text = "Show me your wares.", Kind = DialogueOptionKind.OpenShop },
                 new SDialogueOptionInfo { OptionId = 3, Text = "Farewell.", Kind = DialogueOptionKind.Conversation },
             ],
-            Plain);
+            PacketEncoder.Shared);
 
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         SDialogueNodePacket read = Serializer.Deserialize<SDialogueNodePacket>(stream);
 
         Assert.Equal(

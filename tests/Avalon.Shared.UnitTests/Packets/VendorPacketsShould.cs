@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Vendor;
 using ProtoBuf;
 using Xunit;
@@ -14,8 +15,6 @@ namespace Avalon.Shared.UnitTests.Packets;
 /// </summary>
 public class VendorPacketsShould
 {
-    private static byte[] Plain(ReadOnlySpan<byte> bytes) => bytes.ToArray();
-
     private static string Hex<T>(T message)
     {
         using var stream = new MemoryStream();
@@ -152,7 +151,7 @@ public class VendorPacketsShould
     [Fact]
     public void Carry_A_Whole_List_Through_Its_Factory()
     {
-        NetworkPacket packet = SVendorListPacket.Create(
+        OutboundPacket packet = SVendorListPacket.Create(
             92,
             [
                 new VendorEntryDto { Sequence = 1, ItemTemplateId = 700, Price = 10 },
@@ -163,10 +162,10 @@ public class VendorPacketsShould
                 },
             ],
             [new VendorBuybackDto { Index = 0, Price = 20, Item = new ItemSlotDto { Container = 1, ItemTemplateId = 700, Count = 5 } }],
-            Plain);
+            PacketEncoder.Shared);
 
         Assert.Equal(NetworkPacketType.SMSG_VENDOR_LIST, packet.Header.Type);
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         SVendorListPacket read = Serializer.Deserialize<SVendorListPacket>(stream);
 
         Assert.Equal(92UL, read.VendorGuid);
@@ -180,10 +179,10 @@ public class VendorPacketsShould
     [Fact]
     public void Carry_A_Result_Through_Its_Factory()
     {
-        NetworkPacket packet = SVendorResultPacket.Create(9, VendorResult.OutOfStock, Plain);
+        OutboundPacket packet = SVendorResultPacket.Create(9, VendorResult.OutOfStock, PacketEncoder.Shared);
 
         Assert.Equal(NetworkPacketType.SMSG_VENDOR_RESULT, packet.Header.Type);
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         SVendorResultPacket read = Serializer.Deserialize<SVendorResultPacket>(stream);
         Assert.Equal((9u, VendorResult.OutOfStock), (read.RequestId, read.Result));
     }

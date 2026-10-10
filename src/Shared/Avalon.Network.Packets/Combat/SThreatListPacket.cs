@@ -24,8 +24,8 @@ public class SThreatListPacket : Packet
     [ProtoMember(1)] public ulong TargetGuid { get; set; }
     [ProtoMember(2)] public ThreatEntry[] Entries { get; set; } = System.Array.Empty<ThreatEntry>();
 
-    public static NetworkPacket Create(ObjectGuid target, ThreatEntry[] entries, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ObjectGuid target, ThreatEntry[] entries, PacketEncoder encoder)
+        => encoder.Encode(
             new SThreatListPacket { TargetGuid = target.RawValue, Entries = entries },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

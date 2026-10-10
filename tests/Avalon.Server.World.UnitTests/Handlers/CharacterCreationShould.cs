@@ -351,12 +351,12 @@ public class CharacterCreationShould : IDisposable
 
     private static SCharacterCreateResult SentResult(IWorldConnection connection)
     {
-        var sent = (NetworkPacket)connection.ReceivedCalls()
+        var sent = (OutboundPacket)connection.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
             .GetArguments()[0]!;
 
         // FakeAvalonCryptoSession leaves the payload as serialized.
-        return Serializer.Deserialize<SCharacterCreatedPacket>(new MemoryStream(sent.Payload)).Result;
+        return Serializer.Deserialize<SCharacterCreatedPacket>(new MemoryStream(sent.PayloadMemory.ToArray())).Result;
     }
 
     private static MemoryStream Serialize<T>(T value)

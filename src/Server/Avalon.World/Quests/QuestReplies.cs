@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
@@ -33,6 +34,6 @@ public static class QuestReplies
             result = QuestResult.Error;
         }
 
-        connection.Send(SQuestResultPacket.Create(result, questId, connection.CryptoSession.Encryptor));
+        connection.Send(SQuestResultPacket.Create(result, questId, PacketEncoder.Shared));
     }
 }

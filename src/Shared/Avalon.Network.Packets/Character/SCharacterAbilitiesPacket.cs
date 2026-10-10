@@ -15,10 +15,10 @@ public class SCharacterAbilitiesPacket : Packet
 
     [ProtoMember(1)] public AbilityInfo[] Abilities { get; set; }
 
-    public static NetworkPacket Create(AbilityInfo[] abilities, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(AbilityInfo[] abilities, PacketEncoder encoder)
+        => encoder.Encode(
             new SCharacterAbilitiesPacket { Abilities = abilities },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }
 
 [ProtoContract]

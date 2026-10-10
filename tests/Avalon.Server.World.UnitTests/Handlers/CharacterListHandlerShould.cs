@@ -58,10 +58,10 @@ public class CharacterListHandlerShould : IDisposable
         Assert.NotNull(query);
         callback!(await query!);
 
-        var sent = (NetworkPacket)connection.ReceivedCalls()
+        var sent = (OutboundPacket)connection.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
             .GetArguments()[0]!;
-        SCharacterListPacket list = Serializer.Deserialize<SCharacterListPacket>(new MemoryStream(sent.Payload));
+        SCharacterListPacket list = Serializer.Deserialize<SCharacterListPacket>(new MemoryStream(sent.PayloadMemory.ToArray()));
 
         Assert.Equal(["Oldest", "TieEarlier", "TieLater", "Newest"], list.Characters.Select(c => c.Name));
     }

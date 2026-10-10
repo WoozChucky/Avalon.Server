@@ -1,6 +1,6 @@
 using System.Net.Sockets;
-using System.Text.Json;
 using System.Threading.Channels;
+using Avalon.Common.Cryptography;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
@@ -9,12 +9,12 @@ namespace Avalon.Hosting.Networking;
 
 public sealed class ChannelOutbox : IOutbox
 {
-    private readonly Channel<NetworkPacket> _queue;
+    private readonly Channel<OutboundPacket> _queue;
     private readonly PooledArrayBufferWriter _burstWriter = new();
-    private readonly PooledArrayBufferWriter _tempWriter = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly ILogger _logger;
     private readonly Guid _connectionId;
+    private readonly IAvalonCryptoSession? _sealer;
     private PacketStream? _stream;
     private Task? _bgTask;
 
@@ -31,19 +31,24 @@ public sealed class ChannelOutbox : IOutbox
     /// The two budgets are settable so a test can bound itself against the value it passed in
     /// rather than against a wall clock it does not control. Production leaves them alone.
     /// </remarks>
-    public ChannelOutbox(Guid connectionId, ILogger logger, int capacity,
+    /// <param name="sealer">
+    /// Seals each packet flagged Encrypted as the drain task frames it, in the order the frames are written; with none,
+    /// every packet goes plain.
+    /// </param>
+    public ChannelOutbox(Guid connectionId, ILogger logger, int capacity, IAvalonCryptoSession? sealer = null,
         TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null)
     {
         _connectionId = connectionId;
         _logger = logger;
+        _sealer = sealer;
         _flushTimeout = flushTimeout ?? DefaultFlushTimeout;
         _cancelGrace = cancelGrace ?? DefaultCancelGrace;
-        _queue = Channel.CreateBounded<NetworkPacket>(new BoundedChannelOptions(capacity)
+        _queue = Channel.CreateBounded<OutboundPacket>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
             SingleReader = true,
             SingleWriter = false
-        });
+        }, packet => packet.Release());
     }
 
     public void Connect(PacketStream stream)
@@ -65,13 +70,14 @@ public sealed class ChannelOutbox : IOutbox
             TaskScheduler.Default);
     }
 
-    public bool Enqueue(NetworkPacket packet)
+    public bool Enqueue(OutboundPacket packet)
     {
         if (!_queue.Writer.TryWrite(packet))
         {
             // A full queue drops its oldest entry and takes this one, so a refusal means the
             // outbox is closing and this packet has missed it.
             _logger.LogDebug("Outbox closed for connection {Id}; dropped {Type}", _connectionId, packet.Header.Type);
+            packet.Release();
             return false;
         }
         return true;
@@ -100,14 +106,16 @@ public sealed class ChannelOutbox : IOutbox
             await Task.WhenAny(_bgTask, Task.Delay(_cancelGrace)).ConfigureAwait(false);
 #pragma warning restore MA0040
 
-        // The writers rent from ArrayPool and the loop still names the cancellation source, so
+        // The writer rents from ArrayPool and the loop still names the cancellation source, so
         // release neither while a write that ignored the cancel could still be reading out of
         // them: whichever connection rents that array next would put these bytes on its own
         // socket. A rental that is dropped instead of returned is just collected.
         if (_bgTask is null || _bgTask.IsCompleted)
         {
+            // What the abandoned loop never wrote goes back to its pool.
+            while (_queue.Reader.TryRead(out OutboundPacket left))
+                left.Release();
             _burstWriter.Dispose();
-            _tempWriter.Dispose();
             _cts.Dispose();
         }
     }
@@ -118,25 +126,33 @@ public sealed class ChannelOutbox : IOutbox
         {
             try
             {
-                NetworkPacket packet = await _queue.Reader.ReadAsync(_cts.Token).ConfigureAwait(false);
+                OutboundPacket packet = await _queue.Reader.ReadAsync(_cts.Token).ConfigureAwait(false);
                 try
                 {
                     if (_stream is null)
                     {
                         _logger.LogCritical("Stream unexpectedly null in ChannelOutbox {Id}", _connectionId);
+                        packet.Release();
                         break;
                     }
 
                     _burstWriter.Reset();
                     do
                     {
-                        OutboxSerializer.AppendPacket(_burstWriter, _tempWriter, packet);
                         if (_logger.IsEnabled(LogLevel.Trace) &&
                             packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
                             packet.Header.Type != NetworkPacketType.SMSG_PING)
                         {
-                            _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
-                                JsonSerializer.Serialize(packet));
+                            _logger.LogTrace("OUT: {Type} ({Length} B)", packet.Header.Type, packet.PayloadLength);
+                        }
+
+                        try
+                        {
+                            PacketEnvelope.Append(_burstWriter, packet, _sealer);
+                        }
+                        finally
+                        {
+                            packet.Release();
                         }
                     } while (_queue.Reader.TryRead(out packet));
 

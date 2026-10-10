@@ -1,6 +1,5 @@
-using Avalon.Common.Cryptography;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Testing.Scenarios;
 
@@ -12,16 +11,14 @@ public class ScenarioConnectionShould
     private const int NonceSize = 12;
     private const int TagSize = 16;
 
-    private static NetworkPacket Ack(EncryptFunc encrypt) => SPlayerStateAckPacket.Create(1, 2f, 3f, 4f, 0f, 0f, 90, encrypt);
-
     [Fact]
     public void Encrypt_frame_and_write_what_it_sends()
     {
         var sealedConnection = new ScenarioConnection(TestCharacters.New(650_001));
-        var plainConnection = new ScenarioConnection(TestCharacters.New(650_002));
+        var plainConnection = new ScenarioConnection(TestCharacters.New(650_002), sealPayloads: false);
 
-        sealedConnection.Send(Ack(sealedConnection.CryptoSession.Encryptor));
-        plainConnection.Send(Ack(plaintext => plaintext.ToArray()));
+        sealedConnection.Send(SPlayerStateAckPacket.Create(1, 2f, 3f, 4f, 0f, 0f, 90, PacketEncoder.Shared));
+        plainConnection.Send(SPlayerStateAckPacket.Create(1, 2f, 3f, 4f, 0f, 0f, 90, PacketEncoder.Shared));
         Assert.Equal(0, sealedConnection.BytesWritten); // queued, not written
 
         sealedConnection.FlushOutbox();

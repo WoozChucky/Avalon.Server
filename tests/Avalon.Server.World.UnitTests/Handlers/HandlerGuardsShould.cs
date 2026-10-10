@@ -115,7 +115,7 @@ public class HandlerGuardsShould
                 throw new ArgumentOutOfRangeException(nameof(request), request, null);
         }
 
-        connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        connection.DidNotReceive().Send(Arg.Any<OutboundPacket>());
     }
 
     /// <summary>

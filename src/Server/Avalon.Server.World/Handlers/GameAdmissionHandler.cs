@@ -1,6 +1,7 @@
 using Avalon.Common.GameAuth;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World;
 using Avalon.World.GameAuth;
 using Avalon.World.Persistence;
@@ -15,7 +16,7 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             !GameAuthCryptography.IsToken(ctx.Packet.JoinTicket) || ctx.Packet.PublicKey.Length != connection.ServerCrypto.GetValidKeySize() ||
             !connection.TryBeginAdmission())
         {
-            ctx.Connection.Send(SGameAdmissionPacket.Create([], GameAdmissionResult.InvalidRequest));
+            ctx.Connection.Send(SGameAdmissionPacket.Create([], PacketEncoder.Shared, GameAdmissionResult.InvalidRequest));
             return ctx.Connection.CloseAsync(false);
         }
         byte[] publicKey = ctx.Packet.PublicKey.ToArray();
@@ -26,7 +27,7 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             if (!connection.IsConnected || connection.IsClosing) return;
             if (reply.Lease is null || !reply.Lease.IsActive)
             {
-                connection.Send(SGameAdmissionPacket.Create([], reply.Error == GameAuthErrors.ServiceUnavailable || reply.Error == GameAuthErrors.BarrierPending
+                connection.Send(SGameAdmissionPacket.Create([], PacketEncoder.Shared, reply.Error == GameAuthErrors.ServiceUnavailable || reply.Error == GameAuthErrors.BarrierPending
                     ? GameAdmissionResult.ServiceUnavailable : GameAdmissionResult.AuthorizationRequired));
 #pragma warning disable MA0045 // Tick continuations must not await socket cleanup.
                 connection.Close(false);
@@ -37,7 +38,7 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             {
                 connection.CryptoSession.Initialize(publicKey);
                 connection.PublishAdmission(reply.Lease);
-                connection.Send(SGameAdmissionPacket.Create(connection.ServerCrypto.GetPublicKey()));
+                connection.Send(SGameAdmissionPacket.Create(connection.ServerCrypto.GetPublicKey(), PacketEncoder.Shared));
             }
             catch (Exception)
             {

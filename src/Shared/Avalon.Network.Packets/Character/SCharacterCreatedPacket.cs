@@ -13,10 +13,10 @@ public class SCharacterCreatedPacket : Packet
 
     [ProtoMember(1)] public SCharacterCreateResult Result { get; set; }
 
-    public static NetworkPacket Create(SCharacterCreateResult result, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(SCharacterCreateResult result, PacketEncoder encoder)
+        => encoder.Encode(
             new SCharacterCreatedPacket { Result = result },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }
 
 /// <summary>The answer to a character create. Append-only: the values cross the wire.</summary>

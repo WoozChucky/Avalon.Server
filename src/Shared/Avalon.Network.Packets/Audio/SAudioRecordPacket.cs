@@ -13,13 +13,13 @@ public class SAudioRecordPacket : Packet
 
     [ProtoMember(1)] public byte[] SoundBuffer { get; set; }
 
-    public static NetworkPacket Create(byte[] soundBuffer)
+    public static OutboundPacket Create(byte[] soundBuffer, PacketEncoder encoder)
     {
         var packet = new SAudioRecordPacket
         {
             SoundBuffer = soundBuffer
         };
 
-        return PacketSerializationHelper.SerializeUnencrypted(packet, PacketType, Flags, Protocol);
+        return encoder.Encode(packet, PacketType, Flags, Protocol);
     }
 }

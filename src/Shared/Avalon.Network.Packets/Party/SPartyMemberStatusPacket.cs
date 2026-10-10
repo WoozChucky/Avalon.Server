@@ -21,9 +21,9 @@ public class SPartyMemberStatusPacket : Packet
     [ProtoMember(6)] public PowerType PowerType { get; set; }
     [ProtoMember(7)] public bool IsDead { get; set; }
 
-    public static NetworkPacket Create(uint characterId, uint health, uint maxHealth, uint power, uint maxPower,
-        PowerType powerType, bool isDead, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(uint characterId, uint health, uint maxHealth, uint power, uint maxPower,
+        PowerType powerType, bool isDead, PacketEncoder encoder)
+        => encoder.Encode(
             new SPartyMemberStatusPacket
             {
                 CharacterId = characterId,
@@ -34,5 +34,5 @@ public class SPartyMemberStatusPacket : Packet
                 PowerType = powerType,
                 IsDead = isDead
             },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }

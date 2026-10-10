@@ -10,6 +10,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Handlers;
@@ -200,7 +201,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     public void SendTimeSyncPing()
     {
         _lastServerTicks = _time.GetUtcNow().UtcTicks;
-        Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, TimeSyncOffset));
+        Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, TimeSyncOffset, PacketEncoder.Shared));
     }
 
     public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp,
@@ -331,7 +332,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         AccessLevel = level;
     }
 
-    public override void Send(NetworkPacket packet)
+    public override void Send(OutboundPacket packet)
     {
         DiagnosticsConfig.World.BytesSent.Add(packet.Size);
         DiagnosticsConfig.World.PacketsSent.Add(1);
@@ -343,6 +344,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 #pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
             onFault: () => Close(false),
 #pragma warning restore MA0045
+            sealer: CryptoSession,
             dropped: DiagnosticsConfig.World.PacketsDropped);
 
     public void FlushOutbox() => _outbox?.Flush();

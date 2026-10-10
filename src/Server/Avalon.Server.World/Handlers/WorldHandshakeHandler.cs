@@ -1,5 +1,6 @@
 using Avalon.Common.Utils;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World;
 
 namespace Avalon.Server.World.Handlers;
@@ -15,7 +16,7 @@ public sealed class WorldHandshakeHandler(IWorld world) : IWorldPacketHandler<CW
             return ctx.Connection.CloseAsync(false);
         }
 
-        connection.Send(SWorldHandshakePacket.Create(connection.AccountId!, true, connection.CryptoSession.Encryptor));
+        connection.Send(SWorldHandshakePacket.Create(connection.AccountId!, true, PacketEncoder.Shared));
         connection.RequestInitialTimeSyncPing();
         return Task.CompletedTask;
     }

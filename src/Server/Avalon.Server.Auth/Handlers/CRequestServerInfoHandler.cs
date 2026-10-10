@@ -1,6 +1,7 @@
 using Avalon.Common.Utils;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Handshake;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -26,12 +27,14 @@ public class CRequestServerInfoHandler : IAuthPacketHandler<CRequestServerInfoPa
         {
             _logger.LogWarning("Client {EndPoint} version {ClientVersion} is below minimum required {MinClientVersion}",
                 ctx.Connection.Id, ctx.Packet.ClientVersion, _authConfig.MinClientVersion);
-            ctx.Connection.Send(SServerInfoPacket.CreateRejected(ServerInfoResult.ClientVersionTooOld, serverVersion));
+            ctx.Connection.Send(SServerInfoPacket.CreateRejected(ServerInfoResult.ClientVersionTooOld, serverVersion,
+                PacketEncoder.Shared));
             ctx.Connection.Close();
             return Task.CompletedTask;
         }
 
-        NetworkPacket result = SServerInfoPacket.Create(serverVersion, ctx.Connection.ServerCrypto.GetPublicKey());
+        OutboundPacket result = SServerInfoPacket.Create(serverVersion, ctx.Connection.ServerCrypto.GetPublicKey(),
+            PacketEncoder.Shared);
 
         ctx.Connection.Send(result);
 

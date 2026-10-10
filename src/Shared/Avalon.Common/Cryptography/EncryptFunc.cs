@@ -1,7 +1,7 @@
 namespace Avalon.Common.Cryptography;
 
 /// <summary>
-/// Seals one serialized packet for the wire. Every packet's <c>Create</c> takes one; on a
-/// connection it is <see cref="IAvalonCryptoSession.Encryptor" />, the session's delegate created once.
+/// Seals one serialized client-to-server packet for the wire: each <c>C*Packet.Create</c> takes one, from the session's
+/// <c>Encryptor</c>, a delegate created once. Server packets are sealed as they are framed (<c>SealInto</c>), not here.
 /// </summary>
 public delegate byte[] EncryptFunc(ReadOnlySpan<byte> plaintext);

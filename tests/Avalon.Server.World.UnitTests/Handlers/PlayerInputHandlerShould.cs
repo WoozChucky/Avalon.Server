@@ -96,7 +96,7 @@ public class PlayerInputHandlerShould
 
         handler.Execute(conn, new CPlayerInputPacket { Seq = 7, DirX = 1, DirZ = 0, YawDeg = 90 });
 
-        conn.Received(1).Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.NetworkPacket>());
+        conn.Received(1).Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.OutboundPacket>());
         conn.Received(1).LastInputSeq = 7u;
     }
 
@@ -113,6 +113,6 @@ public class PlayerInputHandlerShould
         handler.Execute(conn, new CPlayerInputPacket { Seq = seq, DirX = 1, DirZ = 0 });
 
         ch.DidNotReceive().Position = Arg.Any<Vector3>();
-        conn.DidNotReceive().Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.NetworkPacket>());
+        conn.DidNotReceive().Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.OutboundPacket>());
     }
 }

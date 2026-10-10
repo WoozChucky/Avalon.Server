@@ -18,7 +18,7 @@ public class SPartyResultPacket : Packet
     [ProtoMember(1)] public PartyResult Result { get; set; }
     [ProtoMember(2)] public string? Name { get; set; }
 
-    public static NetworkPacket Create(PartyResult result, string? name, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(new SPartyResultPacket { Result = result, Name = name },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(PartyResult result, string? name, PacketEncoder encoder)
+        => encoder.Encode(new SPartyResultPacket { Result = result, Name = name },
+            PacketType, Flags, Protocol);
 }

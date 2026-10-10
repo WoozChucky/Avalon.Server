@@ -2,6 +2,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Server.Auth.Handlers;
 
@@ -38,6 +39,6 @@ public class CMFAConfirmHandler : IAuthPacketHandler<CMFAConfirmPacket>
         ctx.Connection.Send(SMFAConfirmPacket.Create(
             result.RecoveryCodes ?? [],
             result.Status,
-            ctx.Connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
     }
 }

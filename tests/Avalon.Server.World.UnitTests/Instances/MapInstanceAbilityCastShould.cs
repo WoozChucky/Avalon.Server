@@ -159,7 +159,7 @@ public class MapInstanceAbilityCastShould
         }
 
         List<(string Kind, ObjectState? State)> seen = [];
-        foreach (NetworkPacket packet in watcher.Sent)
+        foreach (OutboundPacket packet in watcher.Sent)
         {
             if (packet.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_ADD)
             {
@@ -321,9 +321,9 @@ public class MapInstanceAbilityCastShould
         Assert.Single(wizard.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED), f => f.AbilityId == 201u);
     }
 
-    private static T Decode<T>(NetworkPacket packet)
+    private static T Decode<T>(OutboundPacket packet)
     {
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<T>(stream);
     }
 }

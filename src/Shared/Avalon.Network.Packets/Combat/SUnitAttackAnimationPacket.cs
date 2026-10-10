@@ -17,8 +17,8 @@ public class SUnitAttackAnimationPacket : Packet
     [ProtoMember(1)] public ulong Attacker { get; set; }
     [ProtoMember(2)] public ushort AnimationId { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid attacker, ushort animationId, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(ObjectGuid attacker, ushort animationId, PacketEncoder encoder)
+        => encoder.Encode(
             new SUnitAttackAnimationPacket { Attacker = attacker.RawValue, AnimationId = animationId },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }

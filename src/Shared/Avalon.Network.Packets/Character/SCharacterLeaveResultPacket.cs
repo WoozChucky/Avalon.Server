@@ -46,8 +46,8 @@ public class SCharacterLeaveResultPacket : Packet
 
     [ProtoMember(1)] public CharacterLeaveResult Result { get; set; }
 
-    public static NetworkPacket Create(CharacterLeaveResult result, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(CharacterLeaveResult result, PacketEncoder encoder)
+        => encoder.Encode(
             new SCharacterLeaveResultPacket { Result = result },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }

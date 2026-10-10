@@ -17,9 +17,9 @@ public class SPartyInvitePacket : Packet
     [ProtoMember(3)] public ushort InviterLevel { get; set; }
     [ProtoMember(4)] public uint ExpiresInMs { get; set; }
 
-    public static NetworkPacket Create(string inviterName, ushort inviterClass, ushort inviterLevel, uint expiresInMs,
-        EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(string inviterName, ushort inviterClass, ushort inviterLevel, uint expiresInMs,
+        PacketEncoder encoder)
+        => encoder.Encode(
             new SPartyInvitePacket
             {
                 InviterName = inviterName,
@@ -27,5 +27,5 @@ public class SPartyInvitePacket : Packet
                 InviterLevel = inviterLevel,
                 ExpiresInMs = expiresInMs
             },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }

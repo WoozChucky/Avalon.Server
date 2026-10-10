@@ -15,7 +15,7 @@ public class SAuraCancelResultPacket : Packet
     [ProtoMember(1)] public uint AuraId { get; set; }
     [ProtoMember(2)] public AuraCancelResult Result { get; set; }
 
-    public static NetworkPacket Create(uint auraId, AuraCancelResult result, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(new SAuraCancelResultPacket { AuraId = auraId, Result = result },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(uint auraId, AuraCancelResult result, PacketEncoder encoder)
+        => encoder.Encode(new SAuraCancelResultPacket { AuraId = auraId, Result = result },
+            PacketType, Flags, Protocol);
 }

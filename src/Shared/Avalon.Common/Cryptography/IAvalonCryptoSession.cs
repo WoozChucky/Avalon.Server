@@ -28,9 +28,9 @@ public interface IAvalonCryptoSession
     byte[] Encrypt(ReadOnlySpan<byte> data);
 
     /// <summary>
-    /// <see cref="Encrypt" /> as an <see cref="EncryptFunc" />, created once with the session. Every send passes this
-    /// rather than the method group <c>Encrypt</c>: a method group is a new delegate each time it is converted, and
-    /// whether the JIT keeps that on the stack depends on how far it has optimised the caller (#854).
+    /// <see cref="Encrypt" /> as an <see cref="EncryptFunc" />, created once with the session. A client-to-server packet's
+    /// <c>Create</c> takes this rather than the method group <c>Encrypt</c>: a method group is a new delegate each time it
+    /// is converted, and whether the JIT keeps that on the stack depends on how far it has optimised the caller (#854).
     /// </summary>
     EncryptFunc Encryptor { get; }
 

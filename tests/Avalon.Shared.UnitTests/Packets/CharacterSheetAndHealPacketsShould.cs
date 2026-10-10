@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 using Xunit;
 
@@ -12,11 +13,9 @@ namespace Avalon.Shared.UnitTests.Packets;
 /// </summary>
 public class CharacterSheetAndHealPacketsShould
 {
-    private static byte[] Plain(ReadOnlySpan<byte> bytes) => bytes.ToArray();
-
-    private static T Read<T>(NetworkPacket packet)
+    private static T Read<T>(OutboundPacket packet)
     {
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<T>(stream);
     }
 
@@ -48,7 +47,7 @@ public class CharacterSheetAndHealPacketsShould
             MovementSpeed = 4.4f,
         };
 
-        NetworkPacket packet = SCharacterStatsPacket.Create(sheet, Plain);
+        OutboundPacket packet = SCharacterStatsPacket.Create(sheet, PacketEncoder.Shared);
         SCharacterStatsPacket read = Read<SCharacterStatsPacket>(packet);
 
         Assert.Equal(NetworkPacketType.SMSG_CHARACTER_STATS, packet.Header.Type);
@@ -84,7 +83,7 @@ public class CharacterSheetAndHealPacketsShould
     [InlineData(HitResult.Crit, 232u)]
     public void Round_trip_the_heal(HitResult result, uint? abilityId)
     {
-        NetworkPacket packet = SUnitHealedPacket.Create(5, 9, 40, 65, abilityId, result, Plain);
+        OutboundPacket packet = SUnitHealedPacket.Create(5, 9, 40, 65, abilityId, result, PacketEncoder.Shared);
         SUnitHealedPacket read = Read<SUnitHealedPacket>(packet);
 
         Assert.Equal(NetworkPacketType.SMSG_UNIT_HEALED, packet.Header.Type);

@@ -42,14 +42,14 @@ public class CharacterSheetShould
         new() { Class = CharacterClass.Warrior, Level = 2, BaseHp = 40, BaseMana = 0, Stamina = 24, Strength = 25, Agility = 21, Intellect = 20 },
     ];
 
-    private static IWorldConnection Recording(CharacterEntity character, List<NetworkPacket> sent)
+    private static IWorldConnection Recording(CharacterEntity character, List<OutboundPacket> sent)
     {
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         TestTown.Record(connection, character, sent);
         return connection;
     }
 
-    private static List<SCharacterStatsPacket> Sheets(List<NetworkPacket> sent) =>
+    private static List<SCharacterStatsPacket> Sheets(List<OutboundPacket> sent) =>
         TestTown.Read<SCharacterStatsPacket>(sent, NetworkPacketType.SMSG_CHARACTER_STATS);
 
     private static DerivedCharacterStats Stats(float crit = 5f, float dodge = 4f, float block = 3f, uint strength = 23) =>
@@ -61,11 +61,11 @@ public class CharacterSheetShould
     {
         CharacterEntity character = New();
         character.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = PendingSpawnConnection.Create(
             new PendingSpawn(character, Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks));
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         CharacterSheetFlusher.Flush(connection, s_seeded);
         Assert.Empty(sent);
@@ -86,7 +86,7 @@ public class CharacterSheetShould
     {
         CharacterEntity character = New();
         character.ApplyStats(Stats() with { HastePct = 80f, MovementSpeedPct = 10f }, CurrentValues.EnterWorld, s_seeded);
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
 
         CharacterSheetFlusher.Flush(Recording(character, sent), s_seeded);
 
@@ -103,7 +103,7 @@ public class CharacterSheetShould
     {
         CharacterEntity character = New();
         character.ApplyStats(Stats(), CurrentValues.EnterWorld, s_seeded);
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Recording(character, sent);
         CharacterSheetFlusher.Flush(connection, s_seeded);
 
@@ -120,7 +120,7 @@ public class CharacterSheetShould
     [Fact]
     public void Send_nothing_for_a_character_with_no_stats_yet()
     {
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
 
         CharacterSheetFlusher.Flush(Recording(New(), sent), s_seeded);
 
@@ -180,7 +180,7 @@ public class CharacterSheetShould
         using MapInstance instance = TestMapInstances.Build(world);
         CharacterEntity killer = New();
         CharacterStatsRefresh.Apply(killer, data, CurrentValues.EnterWorld);
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Recording(killer, sent);
         CharacterSheetFlusher.Flush(connection, data.Combat.Formula);
         Assert.Equal(23u, Assert.Single(Sheets(sent)).Strength);
@@ -205,7 +205,7 @@ public class CharacterSheetShould
     {
         CharacterEntity character = New();
         character.ApplyStats(Stats(crit: 80f, dodge: 45f, block: 70f), CurrentValues.EnterWorld, TestCombat.Formula);
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
 
         CharacterSheetFlusher.Flush(Recording(character, sent), s_seeded);
 
@@ -224,8 +224,8 @@ public class CharacterSheetShould
         keen.ApplyStats(Stats(crit: 30f), CurrentValues.EnterWorld, TestCombat.Formula);
         CharacterEntity dull = New(2);
         dull.ApplyStats(Stats(crit: 5f), CurrentValues.EnterWorld, TestCombat.Formula);
-        var keenSent = new List<NetworkPacket>();
-        var dullSent = new List<NetworkPacket>();
+        var keenSent = new List<OutboundPacket>();
+        var dullSent = new List<OutboundPacket>();
         IWorldConnection keenConnection = Recording(keen, keenSent);
         IWorldConnection dullConnection = Recording(dull, dullSent);
         CharacterSheetFlusher.Flush(keenConnection, data.Combat.Formula);
@@ -251,8 +251,8 @@ public class CharacterSheetShould
         owner.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         CharacterEntity other = New(2);
         other.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
-        var ownerSent = new List<NetworkPacket>();
-        var otherSent = new List<NetworkPacket>();
+        var ownerSent = new List<OutboundPacket>();
+        var otherSent = new List<OutboundPacket>();
         IWorldConnection ownerConnection = Recording(owner, ownerSent);
         IWorldConnection otherConnection = Recording(other, otherSent);
         CharacterSheetFlusher.Flush(ownerConnection, s_seeded);
@@ -273,7 +273,7 @@ public class CharacterSheetShould
     {
         CharacterEntity character = New();
         character.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Recording(character, sent);
         CharacterSheetFlusher.Flush(connection, s_seeded);
         sent.Clear();

@@ -51,19 +51,19 @@ internal static class TestTown
     }
 
     /// <summary>Makes <paramref name="connection" /> hold <paramref name="character" /> and record every packet into <paramref name="sent" />.</summary>
-    public static void Record(IWorldConnection connection, CharacterEntity character, List<NetworkPacket> sent)
+    public static void Record(IWorldConnection connection, CharacterEntity character, List<OutboundPacket> sent)
     {
         connection.Character.Returns(character);
         connection.Locale.Returns(AccountLocale.enUS);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
     }
 
     /// <summary>Every recorded packet of <paramref name="type" />, deserialized.</summary>
-    public static List<T> Read<T>(IEnumerable<NetworkPacket> sent, NetworkPacketType type) =>
+    public static List<T> Read<T>(IEnumerable<OutboundPacket> sent, NetworkPacketType type) =>
         sent.Where(p => p.Header.Type == type).Select(p =>
         {
-            using var stream = new MemoryStream(p.Payload);
+            using var stream = new MemoryStream(p.PayloadMemory.ToArray());
             return Serializer.Deserialize<T>(stream);
         }).ToList();
 }

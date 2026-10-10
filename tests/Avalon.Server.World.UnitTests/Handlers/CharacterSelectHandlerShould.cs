@@ -57,7 +57,7 @@ public class CharacterSelectHandlerShould
         public required IWorld World { get; init; }
         public required IMapInstance Instance { get; init; }
         public required List<NetworkPacketType> Sent { get; init; }
-        public required List<NetworkPacket> SentPackets { get; init; }
+        public required List<OutboundPacket> SentPackets { get; init; }
     }
 
     private static async Task<Fixture> BuildAsync(
@@ -138,14 +138,14 @@ public class CharacterSelectHandlerShould
         world.Data.Returns(staticData);
 
         var sent = new List<NetworkPacketType>();
-        var sentPackets = new List<NetworkPacket>();
+        var sentPackets = new List<OutboundPacket>();
         IWorldConnection connection = PendingSpawnConnection.Create();
         connection.AccountId.Returns(s_theAccount);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>()))
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>()))
             .Do(ci =>
             {
-                NetworkPacket packet = ci.Arg<NetworkPacket>();
+                OutboundPacket packet = ci.Arg<OutboundPacket>();
                 sent.Add(packet.Header.Type);
                 sentPackets.Add(packet);
             });
@@ -231,14 +231,14 @@ public class CharacterSelectHandlerShould
     }
 
     /// <summary>
-    /// Payload bytes are unencrypted: FakeAvalonCryptoSession.Encrypt is a pass-through, so what
+    /// Payload bytes are unencrypted: a packet is sealed only as the outbox frames it, so what
     /// SInventorySnapshotPacket.Create wrote is exactly what protobuf-net reads back here.
     /// </summary>
     private static SInventorySnapshotPacket DeserializeInventorySnapshot(Fixture f)
     {
-        NetworkPacket packet = Assert.Single(
+        OutboundPacket packet = Assert.Single(
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_INVENTORY_SNAPSHOT);
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<SInventorySnapshotPacket>(stream);
     }
 
@@ -357,8 +357,8 @@ public class CharacterSelectHandlerShould
 
         f.Connection.Received(1).SetPendingSpawn(
             Arg.Is<ICharacter>(c => ((CharacterEntity)c).Ignores.Contains(9)), f.Instance, Arg.Any<long>());
-        NetworkPacket list = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_IGNORE_LIST);
-        using var stream = new MemoryStream(list.Payload);
+        OutboundPacket list = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_IGNORE_LIST);
+        using var stream = new MemoryStream(list.PayloadMemory.ToArray());
         IgnoredCharacterDto dto = Assert.Single(Serializer.Deserialize<Avalon.Network.Packets.Social.SIgnoreListPacket>(stream).Characters);
         Assert.Equal((9u, "Borin"), (dto.CharacterId, dto.Name));
     }
@@ -435,9 +435,9 @@ public class CharacterSelectHandlerShould
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
-        NetworkPacket sent = Assert.Single(
+        OutboundPacket sent = Assert.Single(
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
-        using var stream = new MemoryStream(sent.Payload);
+        using var stream = new MemoryStream(sent.PayloadMemory.ToArray());
         AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
         AbilityInfo cone = Assert.Single(abilities, a => a.AbilityId == 1);
         Assert.Equal((AbilityAmountKind.Damage, 10u, 10u), (cone.AmountKind, cone.AmountMin, cone.AmountMax));
@@ -445,7 +445,7 @@ public class CharacterSelectHandlerShould
         Assert.Equal((AbilityAmountKind.Healing, 40u, 40u), (heal.AmountKind, heal.AmountMin, heal.AmountMax));
 
         // In the world, the flusher finds what select already said and sends nothing.
-        var afterSpawn = new List<NetworkPacket>();
+        var afterSpawn = new List<OutboundPacket>();
         IWorldConnection inWorld = Substitute.For<IWorldConnection>();
         TestTown.Record(inWorld, Assert.IsType<CharacterEntity>(built), afterSpawn);
         AbilityAmountsFlusher.Flush(inWorld);
@@ -580,8 +580,8 @@ public class CharacterSelectHandlerShould
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
 
-        NetworkPacket packet = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_SELECTED);
-        using var stream = new MemoryStream(packet.Payload);
+        OutboundPacket packet = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_SELECTED);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         Assert.Equal(4f, Serializer.Deserialize<SCharacterSelectedPacket>(stream).Character.MovementSpeed);
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
         Assert.Equal(4.4f, entity.GetMovementSpeed(), precision: 5);

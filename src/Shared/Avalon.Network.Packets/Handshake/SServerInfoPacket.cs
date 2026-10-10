@@ -20,13 +20,13 @@ public class SServerInfoPacket : Packet
     [ProtoMember(2)] public byte[] PublicKey { get; set; }
     [ProtoMember(3)] public ServerInfoResult Result { get; set; }
 
-    public static NetworkPacket Create(uint serverVersion, byte[] publicKey)
-        => PacketSerializationHelper.SerializeUnencrypted(
+    public static OutboundPacket Create(uint serverVersion, byte[] publicKey, PacketEncoder encoder)
+        => encoder.Encode(
             new SServerInfoPacket { Result = ServerInfoResult.Success, ServerVersion = serverVersion, PublicKey = publicKey },
             PacketType, NetworkPacketFlags.ClearText, Protocol);
 
-    public static NetworkPacket CreateRejected(ServerInfoResult result, uint serverVersion)
-        => PacketSerializationHelper.SerializeUnencrypted(
+    public static OutboundPacket CreateRejected(ServerInfoResult result, uint serverVersion, PacketEncoder encoder)
+        => encoder.Encode(
             new SServerInfoPacket { Result = result, ServerVersion = serverVersion, PublicKey = Array.Empty<byte>() },
             PacketType, NetworkPacketFlags.ClearText, Protocol);
 }

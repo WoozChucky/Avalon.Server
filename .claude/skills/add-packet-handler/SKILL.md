@@ -151,7 +151,7 @@ public class <HandlerName> : IAuthPacketHandler<<PacketName>>
     public async Task ExecuteAsync(AuthPacketContext<<PacketName>> ctx, CancellationToken token = default)
     {
         // implementation
-        // Send response: ctx.Connection.Send(S<ResponsePacket>.Create(..., ctx.Connection.CryptoSession.Encryptor));
+        // Send response: ctx.Connection.Send(S<ResponsePacket>.Create(..., PacketEncoder.Shared));
     }
 }
 ```
@@ -248,7 +248,7 @@ public override void Execute(IWorldConnection connection, <PacketName> packet)
     {
         if (result == null) { connection.Close(); return; }
         // mutate game state safely here
-        connection.Send(S<ResponsePacket>.Create(result, connection.CryptoSession.Encryptor));
+        connection.Send(S<ResponsePacket>.Create(result, PacketEncoder.Shared));
     });
 }
 ```
@@ -278,9 +278,9 @@ public class <HandlerName>Should
 {
     private readonly I<Dep> _dep = Substitute.For<I<Dep>>();
     private readonly I<Auth|World>Connection _connection = Substitute.For<I<Auth|World>Connection>();
-    // A hand-written fake, not a substitute: NSubstitute cannot stub the span-based Encrypt, and handlers seal
-    // through the session's cached Encryptor (#854). World handlers: Avalon.World.Testing.Fakes; auth handlers:
-    // the Auth tests' own FakeAvalonCryptoSession.
+    // A hand-written fake, not a substitute: NSubstitute cannot stub the session's span-based methods. A handler
+    // never seals (the outbox does, as it frames the packet, #875), so a test reads the sent packet's plain payload.
+    // World handlers: Avalon.World.Testing.Fakes; auth handlers: the Auth tests' own FakeAvalonCryptoSession.
     private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly <HandlerName> _handler;
 

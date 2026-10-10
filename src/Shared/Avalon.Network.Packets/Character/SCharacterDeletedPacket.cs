@@ -13,10 +13,10 @@ public class SCharacterDeletedPacket : Packet
 
     [ProtoMember(1)] public SCharacterDeletedResult Result { get; set; }
 
-    public static NetworkPacket Create(SCharacterDeletedResult result, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(SCharacterDeletedResult result, PacketEncoder encoder)
+        => encoder.Encode(
             new SCharacterDeletedPacket { Result = result },
-            PacketType, Flags, Protocol, encryptFunc);
+            PacketType, Flags, Protocol);
 }
 
 public enum SCharacterDeletedResult : short

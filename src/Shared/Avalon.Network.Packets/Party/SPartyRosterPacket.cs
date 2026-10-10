@@ -38,12 +38,12 @@ public class SPartyRosterPacket : Packet
 
     [ProtoMember(4)] public List<PartyMemberDto> Members { get; set; } = [];
 
-    public static NetworkPacket Create(uint partyId, PartyExperienceMode mode, uint modeLockedForMs,
-        List<PartyMemberDto> members, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(uint partyId, PartyExperienceMode mode, uint modeLockedForMs,
+        List<PartyMemberDto> members, PacketEncoder encoder)
+        => encoder.Encode(
             new SPartyRosterPacket { PartyId = partyId, ExperienceMode = mode, ModeLockedForMs = modeLockedForMs, Members = members },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 
     /// <summary>The recipient is in no party.</summary>
-    public static NetworkPacket Empty(EncryptFunc encrypt) => Create(0, PartyExperienceMode.Unknown, 0, [], encrypt);
+    public static OutboundPacket Empty(PacketEncoder encoder) => Create(0, PartyExperienceMode.Unknown, 0, [], encoder);
 }

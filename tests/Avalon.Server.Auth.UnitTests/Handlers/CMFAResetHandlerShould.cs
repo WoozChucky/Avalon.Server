@@ -51,7 +51,7 @@ public class CMFAResetHandlerShould
 
         await CreateHandler().ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -68,7 +68,7 @@ public class CMFAResetHandlerShould
 
         await CreateHandler().ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 
     /// <summary>
@@ -89,6 +89,6 @@ public class CMFAResetHandlerShould
         });
 
         _connection.Received(1).Close();
-        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        _connection.DidNotReceive().Send(Arg.Any<OutboundPacket>());
     }
 }

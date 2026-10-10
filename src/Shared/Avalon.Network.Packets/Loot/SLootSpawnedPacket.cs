@@ -28,8 +28,8 @@ public class SLootSpawnedPacket : Packet
 
     [ProtoMember(1)] public List<LootDropDto> Drops { get; set; } = [];
 
-    public static NetworkPacket Create(List<LootDropDto> drops, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
+    public static OutboundPacket Create(List<LootDropDto> drops, PacketEncoder encoder)
+        => encoder.Encode(
             new SLootSpawnedPacket { Drops = drops },
-            PacketType, Flags, Protocol, encrypt);
+            PacketType, Flags, Protocol);
 }

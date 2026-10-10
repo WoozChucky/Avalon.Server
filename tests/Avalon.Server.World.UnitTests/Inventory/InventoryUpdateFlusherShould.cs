@@ -19,21 +19,21 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 /// </summary>
 public class InventoryUpdateFlusherShould
 {
-    private readonly List<NetworkPacket> _sent = [];
+    private readonly List<OutboundPacket> _sent = [];
 
     private IWorldConnection ConnectionFor(CharacterEntity character)
     {
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(call => _sent.Add(call.Arg<NetworkPacket>()));
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(call => _sent.Add(call.Arg<OutboundPacket>()));
         return connection;
     }
 
-    private static SInventoryUpdatePacket Read(NetworkPacket packet)
+    private static SInventoryUpdatePacket Read(OutboundPacket packet)
     {
         Assert.Equal(NetworkPacketType.SMSG_INVENTORY_UPDATE, packet.Header.Type);
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<SInventoryUpdatePacket>(stream);
     }
 

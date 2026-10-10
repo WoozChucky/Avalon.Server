@@ -27,12 +27,12 @@ public sealed class AccountDisconnectShould
 
     private static SDisconnectPacket Sent(IWorldConnection connection)
     {
-        NetworkPacket packet = connection.ReceivedCalls()
+        OutboundPacket packet = connection.ReceivedCalls()
             .Where(c => c.GetMethodInfo().Name == nameof(IWorldConnection.Send))
             .Select(c => c.GetArguments()[0])
-            .OfType<NetworkPacket>()
+            .OfType<OutboundPacket>()
             .Single();
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<SDisconnectPacket>(stream);
     }
 

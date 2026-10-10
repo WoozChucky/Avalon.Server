@@ -30,7 +30,7 @@ public class LootPickupHandlerShould
     private readonly GroundLootStore _store = new();
     private readonly IMapInstance _instance = Substitute.For<IMapInstance, IGroundLootHost>();
     private readonly CharacterEntity _character = New(id: 7);
-    private readonly List<NetworkPacket> _sent = [];
+    private readonly List<OutboundPacket> _sent = [];
     private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
     private readonly LootPickupHandler _handler;
 
@@ -55,7 +55,7 @@ public class LootPickupHandlerShould
 
         _connection.Character.Returns(_character);
         _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => _sent.Add(ci.Arg<NetworkPacket>()));
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => _sent.Add(ci.Arg<OutboundPacket>()));
 
         _handler = new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world, economy, new FixedTimeProvider(s_now));
     }
@@ -73,8 +73,8 @@ public class LootPickupHandlerShould
 
     private SLootPickupResultPacket Result()
     {
-        NetworkPacket packet = Assert.Single(_sent, p => p.Header.Type == NetworkPacketType.SMSG_LOOT_PICKUP_RESULT);
-        using var stream = new MemoryStream(packet.Payload);
+        OutboundPacket packet = Assert.Single(_sent, p => p.Header.Type == NetworkPacketType.SMSG_LOOT_PICKUP_RESULT);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<SLootPickupResultPacket>(stream);
     }
 
@@ -167,8 +167,8 @@ public class LootPickupHandlerShould
 
         InventoryUpdateFlusher.Flush(_connection);
 
-        NetworkPacket packet = Assert.Single(_sent, p => p.Header.Type == NetworkPacketType.SMSG_INVENTORY_UPDATE);
-        using var stream = new MemoryStream(packet.Payload);
+        OutboundPacket packet = Assert.Single(_sent, p => p.Header.Type == NetworkPacketType.SMSG_INVENTORY_UPDATE);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<SInventoryUpdatePacket>(stream);
     }
 
