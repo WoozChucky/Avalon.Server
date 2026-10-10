@@ -168,12 +168,12 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
     }
 
     /// <summary>
-    /// What a packet puts on the wire, as the byte counters count it (#875): its header and payload, and the seal's
-    /// nonce and tag when the outbox seals it, as both outboxes do with <see cref="CryptoSession" /> for a packet flagged
-    /// Encrypted. Read it before the packet is handed on.
+    /// What a packet puts on the wire, as the byte counters count it (#875): its header and payload, and the seal's nonce
+    /// and tag when the packet is flagged Encrypted and the outbox seals (<see cref="IOutbox.Seals" />: always on the auth
+    /// server, on a world connection only with Network:PacketEncryption). Read it before the packet is handed on.
     /// </summary>
     protected int SentSize(in OutboundPacket packet) =>
-        packet.Size + (CryptoSession is not null && (packet.Header.Flags & NetworkPacketFlags.Encrypted) != 0
+        packet.Size + (_outbox is { Seals: true } && (packet.Header.Flags & NetworkPacketFlags.Encrypted) != 0
             ? PacketEnvelope.SealOverhead
             : 0);
 

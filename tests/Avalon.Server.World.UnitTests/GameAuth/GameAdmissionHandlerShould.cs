@@ -1,17 +1,25 @@
 using Avalon.Common.Cryptography;
+using Avalon.Hosting.Networking;
 using Avalon.Infrastructure.GameAuth;
+using Avalon.Network.Packets.Auth;
 using Avalon.Server.World.Handlers;
+using Avalon.World;
 using Avalon.World.GameAuth;
 using NSubstitute;
+using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.GameAuth;
 
 public sealed class GameAdmissionHandlerShould
 {
-    [Fact]
-    public async Task Publish_only_active_trusted_identity_on_a_tick_continuation()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Publish_only_active_trusted_identity_on_a_tick_continuation(bool packetEncryption)
     {
-        using var connection = WorldAdmissionConnection.Create();
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
+        server.PacketEncryption.Returns(packetEncryption);
+        using var connection = WorldAdmissionConnection.Create(server);
         IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>(); GameSessionLease lease = WorldAdmissionConnection.Lease();
         api.AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new WorldAdmissionResult(lease, null));
         await new GameAdmissionHandler(api).ExecuteAsync(new()
@@ -25,7 +33,11 @@ public sealed class GameAdmissionHandlerShould
         Assert.Equal(lease.Authority.AccountId, connection.AccountId);
         Assert.Same(lease.Authority, connection.GameplayAuthority);
         Assert.False(connection.IsGameplayAuthorized); // The supported-version handshake still must finish.
-        Assert.Single(connection.Sent);
+
+        // The reply tells the client how to send (#875): sealed exactly when this world seals.
+        SGameAdmissionPacket reply = Serializer.Deserialize<SGameAdmissionPacket>(Assert.Single(connection.Sent).PayloadMemory);
+        Assert.Equal(GameAdmissionResult.Accepted, reply.Result);
+        Assert.Equal(packetEncryption, reply.PacketEncryption);
     }
     [Fact]
     public async Task Reject_a_second_admission_before_spending_its_ticket()

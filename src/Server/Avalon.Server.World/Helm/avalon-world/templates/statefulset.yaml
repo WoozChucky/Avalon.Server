@@ -116,6 +116,10 @@ spec:
               value: {{ include "avalon-server.timeSpan" (include "avalon-server.drainSeconds" .) | quote }}
             - name: World__Shutdown__SaveMargin
               value: {{ include "avalon-server.timeSpan" (include "avalon-server.saveMarginSeconds" .) | quote }}
+            {{- $encryption := .Values.server.network.packetEncryption }}
+            {{- if not (kindIs "bool" $encryption) }}{{ fail (printf "server.network.packetEncryption must be true or false, got %v" $encryption) }}{{ end }}
+            - name: Network__PacketEncryption
+              value: {{ $encryption | quote }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
             {{- with .Values.otel.endpoint }}

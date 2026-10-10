@@ -34,6 +34,11 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private readonly IWorldServer _server;
 
+    // Network:PacketEncryption (#875), the world's, fixed for this connection's life: its sender seals with the session or
+    // sends plain inside TLS, its admission reply names the mode, and its read path refuses a plain gameplay packet while
+    // it seals (Task 4.2).
+    private readonly bool _packetEncryption;
+
     private CharacterEntity? _characterEntity;
 
     private long _lastClientTicks;
@@ -48,6 +53,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
     {
         _server = server;
+        _packetEncryption = server.PacketEncryption;
         _time = time ?? TimeProvider.System;
         _receiveQueue = new ConcurrentQueue<WorldPacket>();
         _worldSessionFilter = new WorldSessionFilter(this);
@@ -350,17 +356,23 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>
     /// The connection's sender on its send thread (#875). Its close action runs on that thread or where a write completed:
     /// <see cref="Connection.Close" /> only starts the teardown (the sender's close is awaited off that thread, then the
-    /// socket closes), so it neither blocks nor throws there, and a close already started makes it a no-op.
+    /// socket closes), so it neither blocks nor throws there, and a close already started makes it a no-op. It seals with
+    /// the session only while the world seals (Network:PacketEncryption); otherwise every packet goes plain inside TLS,
+    /// its Encrypted flag cleared.
     /// </summary>
     protected override IOutbox OnCreateOutbox()
     {
         NetworkSendScheduler scheduler = _server.SendScheduler
             ?? throw new InvalidOperationException("The world server has no send scheduler");
 #pragma warning disable MA0045 // a slow connection's close starts on its send thread, which must not wait on it
-        _sender = scheduler.CreateSender(Id, _logger, CryptoSession, close: () => Close(false), onPingWritten: CountPing);
+        _sender = scheduler.CreateSender(Id, _logger, _packetEncryption ? CryptoSession : null, close: () => Close(false),
+            onPingWritten: CountPing);
 #pragma warning restore MA0045
         return _sender;
     }
+
+    /// <summary>Whether this connection's gameplay packets are sealed both ways (Network:PacketEncryption, #875).</summary>
+    public bool PacketEncryption => _packetEncryption;
 
     public void InitOutboxForTest(PacketStream stream)
     {

@@ -4,6 +4,10 @@
 **Vectors:** `schema/crypto/session-v1.txt`
 **Addresses:** findings 3, 4, 5 and 6 of `docs/security-review-network-crypto.md`.
 
+Since #875 the per-packet session layer is a per-world setting on the world server, `Network:PacketEncryption`, off by
+default: a world that leaves it off relies on its pinned TLS alone, and its admission reply tells the client so. The
+derivation, the vectors and the key exchange below are unchanged, and the exchange still runs on every connection.
+
 Both ends of a connection derive the same two keys independently and never compare them. A
 derivation that disagrees therefore fails as a packet that will not open — on a live connection,
 at the first sealed packet, with nothing on the wire saying which end is wrong. That is what the

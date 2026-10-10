@@ -980,6 +980,7 @@ message SDisconnectPacket {
 message SGameAdmissionPacket {
    optional bytes PublicKey = 1;
    GameAdmissionResult Result = 2;
+   bool PacketEncryption = 3;
 }
 message SHandshakePacket {
    optional bytes HandshakeData = 1;

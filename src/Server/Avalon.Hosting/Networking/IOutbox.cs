@@ -16,4 +16,10 @@ public interface IOutbox : IAsyncDisposable
 
     /// <summary>Takes the packet's payload reference: queues the packet, or refuses it and releases it.</summary>
     bool Enqueue(OutboundPacket packet);
+
+    /// <summary>
+    /// Whether this outbox seals the packets flagged Encrypted (it was given a sealer); the byte counters add the seal's
+    /// overhead then.
+    /// </summary>
+    bool Seals { get; }
 }

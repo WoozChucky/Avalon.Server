@@ -24,4 +24,11 @@ public sealed class NetworkConfiguration
     /// <summary>How long one write may stay pending before the connection is closed as stalled, without a notice. Default 10 s.</summary>
     [Range(typeof(TimeSpan), "00:00:01", "00:05:00")]
     public TimeSpan MaxWriteStall { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Seal every gameplay payload with the session layer (AES-GCM) inside TLS (#875). Off, the default: TLS alone protects
+    /// the world's traffic. Read at startup: each connection takes it when it is created and keeps it, and its admission
+    /// reply tells the client. A change needs a restart.
+    /// </summary>
+    public bool PacketEncryption { get; set; }
 }

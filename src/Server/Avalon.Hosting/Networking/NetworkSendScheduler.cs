@@ -44,12 +44,19 @@ public sealed class NetworkSendScheduler : IDisposable
         _encoder = encoder ?? PacketEncoder.Shared;
         _maxPendingBytes = options.MaxPendingBytes;
         _maxWriteStall = options.MaxWriteStall;
+        PacketEncryption = options.PacketEncryption;
         _threads = new SendThread[options.SendThreads];
         for (int i = 0; i < _threads.Length; i++)
             _threads[i] = new SendThread(i);
     }
 
     public int ThreadCount => _threads.Length;
+
+    /// <summary>
+    /// <c>Network:PacketEncryption</c> (#875): whether the world's connections seal. Carried here, the world's one object
+    /// built from <see cref="NetworkConfiguration" />; a connection passes its session, or none, to <see cref="CreateSender" />.
+    /// </summary>
+    public bool PacketEncryption { get; }
 
     /// <summary>True from <see cref="Start" /> until <see cref="Stop" />.</summary>
     public bool IsRunning => Volatile.Read(ref _started) == 1 && !_stopping;

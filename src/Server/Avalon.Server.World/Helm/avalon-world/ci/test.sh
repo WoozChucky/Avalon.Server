@@ -90,6 +90,14 @@ for bad in "server.game.abandonedInstanceLifetimeMinutes=-1" "server.game.abando
   fi
 done
 
+# Packet encryption (#875): false unless set; true renders; anything but a boolean fails.
+grep -A1 "name: Network__PacketEncryption" <<<"$off" | grep -q '"false"'                       || { echo "packet encryption must default to false"; exit 1; }
+pe=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.network.packetEncryption=true)
+grep -A1 "name: Network__PacketEncryption" <<<"$pe" | grep -q '"true"'                          || { echo "packet encryption true must render"; exit 1; }
+if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-string server.network.packetEncryption=yes >/dev/null 2>&1; then
+  echo "a non-boolean packet encryption must fail"; exit 1
+fi
+
 # Each required transport setting refuses omission for its own reason.
 for setting in server.transport.existingSecret server.admission.apiUrl server.admission.serverId server.admission.apiCertificateSecret server.admission.apiCertificateKey; do
   if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-string "$setting=" 2>&1); then

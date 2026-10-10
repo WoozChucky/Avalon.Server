@@ -79,6 +79,12 @@ public interface IWorldServer
 
     /// <summary>The send threads every connection's packets leave on (#875).</summary>
     NetworkSendScheduler SendScheduler { get; }
+
+    /// <summary>
+    /// <c>Network:PacketEncryption</c> (#875), read once at startup: whether this world's connections seal every gameplay
+    /// packet with the session layer inside TLS. A connection reads it when it is created and keeps it.
+    /// </summary>
+    bool PacketEncryption { get; }
 }
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
@@ -317,6 +323,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     public IWorld World => _world;
 
     public NetworkSendScheduler SendScheduler => _sendScheduler;
+
+    public bool PacketEncryption => _sendScheduler.PacketEncryption;
 
     public IReadOnlyList<IWorldConnection> SessionsOf(AccountId accountId, IWorldConnection except)
     {
