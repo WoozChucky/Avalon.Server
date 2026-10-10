@@ -38,6 +38,23 @@ public sealed class AccountDisconnectShould
         return connection;
     }
 
+    /// <summary>
+    /// #882: a ban or a deactivation is published on the status channel, with its reason, instead of the bare
+    /// disconnect; the auth server closes the account's logged-in connections from it too.
+    /// </summary>
+    [Fact]
+    public void Close_a_banned_account_from_its_status_notice()
+    {
+        IAuthConnection target = Connection(7);
+        IAuthConnection other = Connection(8);
+
+        int closed = AuthServer.CloseBannedOrDeactivated([target, other], "7|BANNED", NullLogger.Instance);
+
+        Assert.Equal(1, closed);
+        target.Received(1).Close();
+        other.DidNotReceiveWithAnyArgs().Close();
+    }
+
     [Fact]
     public async Task Listen_on_the_account_disconnect_channel()
     {

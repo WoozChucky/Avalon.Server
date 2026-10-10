@@ -89,6 +89,29 @@ public sealed class AccountDisconnectShould
         other.DidNotReceiveWithAnyArgs().Close();
     }
 
+    /// <summary>
+    /// #882 review: anyone who can publish on the status channel chooses the notice, so only the canonical form closes a
+    /// session; anything else is ignored and the heartbeat, refused by the ban's moved epoch, ends the session instead.
+    /// </summary>
+    [Theory]
+    [InlineData("07|BANNED")]
+    [InlineData("+7|BANNED")]
+    [InlineData("-7|BANNED")]
+    [InlineData("0|BANNED")]
+    [InlineData("7|banned")]
+    [InlineData("7|LOCKED")]
+    [InlineData("7")]
+    [InlineData("7||BANNED")]
+    [InlineData("7|BANNED|7")]
+    [InlineData("7|BANNEDBANNEDBANNEDBANNEDBANNED")]
+    public void Ignore_a_status_notice_that_is_not_canonical(string notice)
+    {
+        IWorldConnection connection = Connection(7);
+
+        Assert.Equal(0, WorldServer.CloseBannedOrDeactivated([connection], notice, NullLogger.Instance));
+        connection.DidNotReceiveWithAnyArgs().Close();
+    }
+
     [Fact]
     public void Close_the_others_when_one_throws_while_closing()
     {

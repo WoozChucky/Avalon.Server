@@ -293,7 +293,7 @@ Setup and rotation: [Development setup](development-setup.md#rest-api-signing-ke
 | Ban and lock landing during an API account write     | Both survive (`ApiWriteRaceShould`) |
 | Banned, deactivated or consolidating account on a game route | 403 naming it after a current proof; generic before it or with a stale one (`AvalonGameAuthorizationShould`) |
 | Ban lifted while a game context is live              | The context stays void: the ban moved the epoch (`AccountStatusChangeShould`) |
-| Password lock while a player is in the world         | The heartbeat renews the session (`GameSessionFenceServiceShould`) |
+| Password lock while a player is in the world         | Reservation, activation and heartbeat still renew the session (`GameSessionFenceServiceShould`, `GameSessionRenewalShould`) |
 | X-Forwarded-For from a trusted / untrusted peer      | Source is the client / the peer, warned once a minute (`ForwardedHeadersShould`) |
 | Replayed right MFA code                              | Refused, hash kept, not counted (`TotpReplayShould`, `CMFAVerifyHandlerShould`, `RestMfaVerifyShould`) |
 | Locked account at login                              | One dummy BCrypt verify, as an unknown username (`CAuthHandlerShould`, `RestLoginPolicyShould`) |

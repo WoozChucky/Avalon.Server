@@ -70,13 +70,16 @@ public readonly record struct OnlineSession(AccountId AccountId, Guid? SessionId
 public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     : EntityFrameworkRepository<Account, AccountId, AuthDbContext>(contextFactory), IAccountRepository
 {
-    /// <summary>Holds the account row until the caller's transaction ends, under current game authority.</summary>
+    /// <summary>
+    /// Holds the account row until the caller's transaction ends, under current game authority. The password lock is not
+    /// asked (#882): it guards the password steps only, so a guesser who locks the account can neither refuse a join
+    /// ticket nor end a session in progress.
+    /// </summary>
     internal static async Task<bool> HoldGameAuthorityAsync(AuthDbContext db, AccountId accountId,
-        int credentialsVersion, long sessionEpoch, DateTime now, CancellationToken cancellationToken) =>
+        int credentialsVersion, long sessionEpoch, CancellationToken cancellationToken) =>
         await db.Accounts.Where(a => a.Id == accountId && a.CredentialsVersion == credentialsVersion &&
             a.SessionEpoch == sessionEpoch && a.Status == AccountStatus.Active && a.GameplayConsolidationId == null &&
-            (a.AccessLevel & AccountAccessLevel.Player) == AccountAccessLevel.Player &&
-            (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
+            (a.AccessLevel & AccountAccessLevel.Player) == AccountAccessLevel.Player)
             .ExecuteUpdateAsync(u => u.SetProperty(a => a.SessionEpoch, a => a.SessionEpoch), cancellationToken) == 1;
 
     public async Task<Account?> FindByUserNameAsync(string userName, CancellationToken cancellationToken = default)

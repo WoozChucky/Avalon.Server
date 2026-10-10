@@ -26,42 +26,52 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
     private string ContextKey(Guid id) => Key("context", id.ToString("N"));
     private string TokenKey(string secret) => Key("token", GameAuthCryptography.Digest(secret));
 
-    public Task<AuthAttemptReply?> CreateAttemptAsync(string channel, string protocolVersion, Guid clientRunId,
+    /// <summary>
+    /// The channel form of <see cref="CreateProviderAttemptAsync"/>: the attempt, or null when none was created, whatever
+    /// the reason (an attempt refused for its context's account standing included).
+    /// </summary>
+    public async Task<AuthAttemptReply?> CreateAttemptAsync(string channel, string protocolVersion, Guid clientRunId,
         string linkChallenge, string? contextCredential, uint? steamAppId, CancellationToken cancellationToken)
     {
         SteamApplicationSelection? selection = options.Value.ResolveSteamApplication(steamAppId);
         if (selection is null || (channel == GameLaunchChannels.Avalon && selection.AppId != options.Value.SteamAppId) ||
             channel is not (GameLaunchChannels.Avalon or GameLaunchChannels.Steam))
         {
-            return Task.FromResult<AuthAttemptReply?>(null);
+            return null;
         }
 
         string key = channel == GameLaunchChannels.Avalon ? "avalon.base" : selection.Restricted ? "steam.playtest" : "steam.main";
-        return CreateProviderAttemptAsync(key, protocolVersion, clientRunId, linkChallenge, contextCredential, selection.AppId, cancellationToken);
+        return (await CreateProviderAttemptAsync(key, protocolVersion, clientRunId, linkChallenge, contextCredential, selection.AppId,
+            cancellationToken)).Attempt;
     }
 
-    public async Task<AuthAttemptReply?> CreateProviderAttemptAsync(string applicationKey, string protocolVersion, Guid clientRunId,
+    public async Task<ProviderAttemptResult> CreateProviderAttemptAsync(string applicationKey, string protocolVersion, Guid clientRunId,
         string linkChallenge, string? contextCredential, uint legacySteamAppId, CancellationToken cancellationToken)
     {
         GameApplicationSelection? application = options.Value.ResolveApplication(applicationKey);
-        if (application is null) return null;
+        if (application is null) return default;
         IGameIdentityProvider? identityProvider = providers.Identity(application.Provider);
-        if (identityProvider is null && providers.License(application.Provider)?.AuthorityKind != LicenseAuthorityKind.StoredGrant) return null;
+        if (identityProvider is null && providers.License(application.Provider)?.AuthorityKind != LicenseAuthorityKind.StoredGrant) return default;
         GameContextRecord? context = null;
         if (contextCredential is not null)
         {
-            GameContextStanding standing = await GetContextStandingAsync(contextCredential, false, cancellationToken);
-            if (standing.AccountRefusal is { } refusal) return AuthAttemptReply.Refused(refusal);
-            context = standing.Context;
-            if (context is null || context.ClientRunId != clientRunId || context.ProtocolVersion != protocolVersion ||
-                (context.ApplicationKey != application.Key && !(context.LauncherFamilyId is not null && !application.Restricted)))
+            // The credential and its bindings to this run, protocol and application come first; only then is the
+            // account's standing read, and named (#882).
+            GameContextRecord? presented = await CredentialContextAsync(contextCredential, cancellationToken);
+            if (presented is null || presented.ClientRunId != clientRunId || presented.ProtocolVersion != protocolVersion ||
+                (presented.ApplicationKey != application.Key && !(presented.LauncherFamilyId is not null && !application.Restricted)))
             {
-                return null;
+                return default;
             }
+
+            GameContextStanding standing = await StandingOfAsync(presented, false, cancellationToken);
+            if (standing.AccountRefusal is { } refusal) return new(null, refusal);
+            context = standing.Context;
+            if (context is null) return default;
         }
         string challenge = identityProvider?.CreateChallenge(application) ?? GameAuthCryptography.NewToken();
-        return await attempts.CreateAsync(application, protocolVersion, clientRunId, linkChallenge, context?.Id,
-            legacySteamAppId, challenge, cancellationToken);
+        return new(await attempts.CreateAsync(application, protocolVersion, clientRunId, linkChallenge, context?.Id,
+            legacySteamAppId, challenge, cancellationToken), null);
     }
 
     public async Task<GameContextRecord?> GetContextAsync(string credential, bool requireLicense, CancellationToken cancellationToken) =>
@@ -74,7 +84,12 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
     public async Task<GameContextStanding> GetContextStandingAsync(string credential, bool requireLicense, CancellationToken cancellationToken)
     {
         GameContextRecord? context = await CredentialContextAsync(credential, cancellationToken);
-        if (context is null) return default;
+        return context is null ? default : await StandingOfAsync(context, requireLicense, cancellationToken);
+    }
+
+    /// <summary>The standing of <paramref name="context"/>, read through a current credential (<see cref="CredentialContextAsync"/>).</summary>
+    private async Task<GameContextStanding> StandingOfAsync(GameContextRecord context, bool requireLicense, CancellationToken cancellationToken)
+    {
         Standing standing = await CurrentStandingAsync(context, false, cancellationToken);
         if (standing.Current != true) return new(null, false, standing.Refusal);
         return requireLicense && !await HasCurrentLicenseAsync(context, cancellationToken) ? default : new(context, false);
@@ -286,6 +301,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             if (application is null || application.Provider != provider || claim.Record.ProviderChallenge is null)
                 return await FinishErrorAsync(claim, GameAuthErrors.InvalidAttempt, cancellationToken);
             GameContextRecord? existing = null;
+            string? existingRefusal = null;
             if (claim.Record.ContextId is { } contextId)
             {
                 GameContextStanding standing = await GetContextStandingByIdAsync(contextId, false, cancellationToken);
@@ -296,10 +312,11 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                     return GameAuthReply.Failure(GameAuthErrors.ProviderUnavailable);
                 }
 
-                if (standing.AccountRefusal is { } refusal) return await FinishErrorAsync(claim, refusal, cancellationToken);
+                // An account that may not play is named only once this proof is verified too (#882), below.
+                existingRefusal = standing.AccountRefusal;
                 existing = standing.Context;
-                if (existing is null || (existing.ApplicationKey != application.Key &&
-                    !(existing.LauncherFamilyId is not null && !application.Restricted)))
+                if (existingRefusal is null && (existing is null || (existing.ApplicationKey != application.Key &&
+                    !(existing.LauncherFamilyId is not null && !application.Restricted))))
                 {
                     return await FinishErrorAsync(claim, GameAuthErrors.ContextRevoked, cancellationToken);
                 }
@@ -317,6 +334,9 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             {
                 return await FinishErrorAsync(claim, GameAuthErrors.InvalidProof, cancellationToken);
             }
+
+            // The attempt's context is current, but its account may not play: named now that the proof is verified.
+            if (existingRefusal is not null) return await FinishErrorAsync(claim, existingRefusal, cancellationToken, proofDigest);
 
             ExternalIdentity? linked = await identities.FindAsync(provider, identity.ProviderSubject, cancellationToken);
             if (linked is not null && existing?.AccountId is { } expected && linked.AccountId.Value != expected)

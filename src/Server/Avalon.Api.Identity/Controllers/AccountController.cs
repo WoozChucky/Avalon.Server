@@ -182,6 +182,7 @@ public class AccountController : BaseController
     [HttpPatch("{id:long}/status")]
     [Authorize(Policy = AvalonRoles.Admin)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateStatus(
         [FromRoute] long id,

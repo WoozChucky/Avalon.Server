@@ -52,7 +52,7 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
         // Lock the account before looking at the head, including on the first insert. Revocation and two
         // first reservations therefore serialize on a row that already exists, rather than on a missing head.
         if (!await AccountRepository.HoldGameAuthorityAsync(db, reservation.AccountId, reservation.CredentialsVersion,
-                reservation.SessionEpoch, now, cancellationToken))
+                reservation.SessionEpoch, cancellationToken))
         {
             return null;
         }
@@ -117,7 +117,7 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
         GameSession? head = await db.GameSessions.AsNoTracking().SingleOrDefaultAsync(x => x.AccountId == accountId, cancellationToken);
         if (head is null || leaseUntil <= now || leaseUntil > now.Add(GameAuthPolicy.SessionLeaseLifetime) || leaseUntil > head.LicenseUntil) return false;
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        if (!await AccountRepository.HoldGameAuthorityAsync(db, accountId, head.CredentialsVersion, head.SessionEpoch, now, cancellationToken))
+        if (!await AccountRepository.HoldGameAuthorityAsync(db, accountId, head.CredentialsVersion, head.SessionEpoch, cancellationToken))
             return false;
         await db.GameSessions.Where(h => h.AccountId == accountId)
             .ExecuteUpdateAsync(u => u.SetProperty(h => h.FencingToken, h => h.FencingToken), cancellationToken);

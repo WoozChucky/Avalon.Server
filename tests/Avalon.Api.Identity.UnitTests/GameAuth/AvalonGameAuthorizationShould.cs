@@ -65,10 +65,11 @@ public sealed class AvalonGameAuthorizationShould
         };
         _licenses.Rows.Add(row); return row;
     }
-    private async Task<(GameAuthReply Reply, string Attempt, string Ticket, Guid Request)> Handoff(GameAuthorizationService? service = null)
+    private async Task<(GameAuthReply Reply, string Attempt, string Ticket, Guid Request)> Handoff(GameAuthorizationService? service = null,
+        string protocol = "1")
     {
         service ??= Service();
-        AuthAttemptReply attempt = (await service.CreateAttemptAsync("avalon", "1", _run, new string('A', 43), null, null, default))!;
+        AuthAttemptReply attempt = (await service.CreateAttemptAsync("avalon", protocol, _run, new string('A', 43), null, null, default))!;
         string ticket = GameAuthCryptography.NewToken(); var request = Guid.NewGuid();
         _store.Seed(RedisGameTicketStore.Key(ticket), $"7|{_family:D}|0|0|production");
         return (await service.RedeemHandoffAsync(attempt.AttemptCredential, ticket, request, default), attempt.AttemptCredential, ticket, request);
@@ -116,7 +117,7 @@ public sealed class AvalonGameAuthorizationShould
         GameAuthorizationService service = TestGameAuthorization.Create(_store, new(_store, _crypto, _options, _clock), _crypto,
             _accounts, _families, _identities, _observations, proof, ownership, _options, _clock, gameLicenses: _licenses);
         AuthAttemptReply attempt = (await service.CreateProviderAttemptAsync("steam.main", "1", _run, new string('A', 43),
-            initial.GameContextCredential, 2499460, default))!;
+            initial.GameContextCredential, 2499460, default)).Attempt!;
         GameAuthReply switched = await service.AuthenticateProviderAsync("steam", attempt.AttemptCredential, "ABCD", Guid.NewGuid(), default);
         GameContextRecord replacement = (await service.GetContextAsync(switched.GameContextCredential!, true, default))!;
         Assert.NotEqual(worldSession.GameContextId, replacement.Id);
@@ -343,6 +344,8 @@ public sealed class AvalonGameAuthorizationShould
     [InlineData("handoff", "deactivated", 403, "ACCOUNT_DEACTIVATED")]
     [InlineData("handoff", "consolidating", 403, "ACCOUNT_CONSOLIDATING")]
     [InlineData("steam", "banned", 403, "ACCOUNT_BANNED")]
+    [InlineData("steam-carried", "banned", 403, "ACCOUNT_BANNED")]
+    [InlineData("join", "banned", 403, "ACCOUNT_BANNED")]
     [InlineData("refresh", "banned", 403, "ACCOUNT_BANNED")]
     [InlineData("refresh", "consolidating", 403, "ACCOUNT_CONSOLIDATING")]
     [InlineData("attempt", "deactivated", 403, "ACCOUNT_DEACTIVATED")]
@@ -350,6 +353,10 @@ public sealed class AvalonGameAuthorizationShould
     [InlineData("handoff", "banned-after-password-change", 401, "INVALID_HANDOFF")]
     [InlineData("handoff", "banned-unknown-ticket", 401, "INVALID_HANDOFF")]
     [InlineData("steam", "banned-unverified-proof", 401, "INVALID_PROOF")]
+    [InlineData("steam-carried", "banned-unverified-proof", 401, "INVALID_PROOF")]
+    [InlineData("attempt", "banned-after-password-change", 400, "INVALID_ATTEMPT")]
+    [InlineData("attempt", "banned-wrong-run", 400, "INVALID_ATTEMPT")]
+    [InlineData("worlds", "banned-after-password-change", 401, "ACCOUNT_REQUIRED")]
     [InlineData("refresh", "banned-after-password-change", 401, "CONTEXT_REVOKED")]
     [InlineData("refresh", "banned-after-logout", 401, "CONTEXT_REVOKED")]
     [InlineData("refresh", "banned-after-reuse", 401, "REFRESH_REUSE")]
@@ -384,13 +391,17 @@ public sealed class AvalonGameAuthorizationShould
         admission.Request.Scheme = "https";
 
         // A context signed in before the change, for the routes that present one.
-        GameAuthReply? context = route is "refresh" or "attempt" or "worlds" ? (await Handoff(service)).Reply : null;
+        const string Protocol = GameWorkloadConfiguration.ClientProtocolVersion;
+        GameAuthReply? context = route is "refresh" or "attempt" or "worlds" or "join" or "steam-carried"
+            ? (await Handoff(service, Protocol)).Reply : null;
         if (change == "banned-after-logout") await service.LogoutAsync(context!.GameContextCredential!, default);
         if (change == "banned-after-reuse") await service.RefreshAsync(context!.GameContextRefreshToken!, Guid.NewGuid(), default);
         AuthAttemptReply? attempt = route switch
         {
-            "handoff" => await service.CreateAttemptAsync("avalon", "1", _run, new string('A', 43), null, null, default),
-            "steam" => await service.CreateAttemptAsync("steam", "1", _run, new string('A', 43), null, null, default),
+            "handoff" => await service.CreateAttemptAsync("avalon", Protocol, _run, new string('A', 43), null, null, default),
+            "steam" => await service.CreateAttemptAsync("steam", Protocol, _run, new string('A', 43), null, null, default),
+            // An attempt carrying the signed-in context, made while the account could still play.
+            "steam-carried" => await service.CreateAttemptAsync("steam", Protocol, _run, new string('A', 43), context!.GameContextCredential, null, default),
             _ => null,
         };
         string ticket = GameAuthCryptography.NewToken();
@@ -416,13 +427,14 @@ public sealed class AvalonGameAuthorizationShould
         IActionResult result = route switch
         {
             "handoff" => await auth.Handoff(new GameHandoffRequest { AttemptCredential = attempt!.AttemptCredential, HandoffTicket = ticket }, Guid.NewGuid(), default),
-            "steam" => await auth.ProviderProof(new GameProviderProofRequest { Provider = "steam", AttemptCredential = attempt!.AttemptCredential, Proof = "ABCD" }, Guid.NewGuid(), default),
+            "steam" or "steam-carried" => await auth.ProviderProof(new GameProviderProofRequest { Provider = "steam", AttemptCredential = attempt!.AttemptCredential, Proof = "ABCD" }, Guid.NewGuid(), default),
+            "join" => await admission.Join(new GameJoinRequest { GameContextCredential = context!.GameContextCredential!, WorldId = 1 }, Guid.NewGuid(), default),
             "refresh" => await auth.Refresh(new GameContextRefreshRequest { GameContextRefreshToken = context!.GameContextRefreshToken! }, Guid.NewGuid(), default),
             "attempt" => await auth.ProviderAttempt(new GameProviderAttemptRequest
             {
                 ApplicationKey = "steam.main",
-                ProtocolVersion = GameWorkloadConfiguration.ClientProtocolVersion,
-                ClientRunId = _run,
+                ProtocolVersion = Protocol,
+                ClientRunId = change == "banned-wrong-run" ? Guid.NewGuid() : _run,
                 LinkChallenge = new string('A', 43),
                 GameContextCredential = context!.GameContextCredential,
             }, default),
@@ -440,7 +452,7 @@ public sealed class AvalonGameAuthorizationShould
         var registry = new GameProviderRegistry([], []);
         var service = new GameAuthorizationService(_store, new(_store, _crypto, _options, _clock), _crypto, _accounts, _families, _identities,
             registry, new(registry, _licenses, _observations, _options, _clock), _options, _clock);
-        Assert.Null(await service.CreateProviderAttemptAsync("avalon.base", "1", _run, new string('A', 43), null, 0, default));
+        Assert.Null((await service.CreateProviderAttemptAsync("avalon.base", "1", _run, new string('A', 43), null, 0, default)).Attempt);
     }
 
     [Fact]

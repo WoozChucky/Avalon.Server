@@ -5,11 +5,14 @@ namespace Avalon.Infrastructure.GameAuth;
 
 public sealed record AuthAttemptReply(string AttemptCredential, string ExpectedSteamIdentity, DateTime ExpiresAt)
 {
-    /// <summary>Set, with no attempt, when the context credential the attempt names belongs to an account that may not play (#882).</summary>
-    public string? Error { get; init; }
-    public static AuthAttemptReply Refused(string error) => new(string.Empty, string.Empty, default) { Error = error };
     public override string ToString() => "Game authentication attempt (credential redacted)";
 }
+
+/// <summary>
+/// A provider attempt: <see cref="Attempt"/> when one was created. Otherwise <see cref="Error"/> names the account's
+/// standing when the presented context's account may not play (#882), and is null for every other refusal.
+/// </summary>
+public readonly record struct ProviderAttemptResult(AuthAttemptReply? Attempt, string? Error);
 
 public sealed record GameAuthReply
 {

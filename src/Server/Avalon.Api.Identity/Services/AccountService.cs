@@ -686,6 +686,11 @@ public class AccountService : IAccountService
     public async Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason,
         AccountId actorId, CancellationToken cancellationToken = default)
     {
+        // An undefined status is refused before anything is written (#882): it would be stored, and, not being Active,
+        // would also move the session epoch.
+        if (!Enum.IsDefined(state))
+            throw new BusinessException("Invalid account status");
+
         // A repository call creates its own context, so a repository call cannot join a
         // transaction opened elsewhere. The three writes run on the one context this opens:
         // a ban that revoked no credentials would leave the banned account a live session.
@@ -712,20 +717,27 @@ public class AccountService : IAccountService
             // the reason this names. Then every world holding a session of the account is asked for a heartbeat now,
             // which the moved epoch refuses; a server that missed the notice ends the session there. Both are best
             // effort: the change is committed, and the epoch already voided the sessions.
-            await PublishStatusAsync(accountId, notice, state.ToString());
+            // A server that cannot hear the status (its Redis user may not publish there yet) still gets the bare
+            // disconnect, as before: the player is told only that the session ended, but the connections close now.
+            if (!await PublishStatusAsync(accountId, notice, state.ToString()))
+                await PublishDisconnectAsync(accountId, "its status changed to " + state);
             if (_contextRevocations is not null) await _contextRevocations.PublishAsync(accountId, Guid.Empty);
         }
     }
 
-    private async Task PublishStatusAsync(AccountId accountId, string notice, string state)
+    /// <summary>Publishes the status notice; false, logged, when it could not be published.</summary>
+    private async Task<bool> PublishStatusAsync(AccountId accountId, string notice, string state)
     {
         try
         {
             await _cache.PublishAsync(CacheKeys.WorldAccountsStatusChannel, notice);
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Could not publish the status change of account {AccountId} to {Status}", accountId.Value, state);
+            _logger.LogWarning(ex, "Could not publish the status change of account {AccountId} to {Status}; publishing the bare disconnect",
+                accountId.Value, state);
+            return false;
         }
     }
 

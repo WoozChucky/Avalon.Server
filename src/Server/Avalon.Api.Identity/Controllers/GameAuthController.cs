@@ -28,10 +28,10 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
             return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol)), nameof(ProviderAttempt));
         try
         {
-            AuthAttemptReply? reply = await authorization.CreateProviderAttemptAsync(request.ApplicationKey, request.ProtocolVersion,
-                request.ClientRunId, request.LinkChallenge, request.GameContextCredential, 0, cancellationToken);
+            (AuthAttemptReply? reply, string? refusal) = await authorization.CreateProviderAttemptAsync(request.ApplicationKey,
+                request.ProtocolVersion, request.ClientRunId, request.LinkChallenge, request.GameContextCredential, 0, cancellationToken);
             // A context credential naming an account that may not play: 403 with its standing (#882).
-            if (reply?.Error is { } refusal) return LogResult(StatusCode(StatusCodes.Status403Forbidden, GameAuthReply.Failure(refusal)), nameof(ProviderAttempt));
+            if (refusal is not null) return LogResult(StatusCode(StatusCodes.Status403Forbidden, GameAuthReply.Failure(refusal)), nameof(ProviderAttempt));
             return LogResult(reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) :
                 Ok(new ProviderAuthAttemptReply(reply.AttemptCredential, reply.ExpectedSteamIdentity, reply.ExpiresAt)), nameof(ProviderAttempt));
         }

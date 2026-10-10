@@ -185,7 +185,7 @@ World server (WorldServer.DelayedDisconnect → CloseAccountSessions)
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldAccountsStatusChannel` |
-| **Publisher** | API, identity — `AccountService.UpdateStatusAsync`, after the ban or deactivation commits (best effort) |
+| **Publisher** | API, identity — `AccountService.UpdateStatusAsync`, after the ban or deactivation commits (best effort; when this publish fails, the bare id goes on `world:accounts:disconnect` instead) |
 | **Subscriber** | World server — `WorldServer.CacheSubscribeAsync` (`CloseBannedOrDeactivated`); Auth server — `AuthServer.SubscribeToAccountDisconnectsAsync` (`CloseBannedOrDeactivated`) |
 | **Message format** | `{accountId}|BANNED` or `{accountId}|DEACTIVATED` (`AccountStatusNotice`; an id that is not canonical, another status or a longer message is ignored) |
 
