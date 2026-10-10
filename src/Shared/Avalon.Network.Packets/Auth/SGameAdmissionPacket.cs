@@ -17,7 +17,8 @@ public sealed class SGameAdmissionPacket : Packet
     /// <summary>
     /// Whether this world seals every gameplay payload with the session layer inside TLS (<c>Network:PacketEncryption</c>,
     /// #875). True: the client seals every gameplay packet it sends; one the world runs (the handshake, and every packet
-    /// after it but the pong) that arrives plain closes the connection. False: TLS alone, and the client sends plain.
+    /// a session filter names but the pong) that arrives plain closes the connection, and an opcode the world never runs
+    /// is dropped, whatever its flags. False: TLS alone, and the client sends plain; plain and sealed are both accepted.
     /// Absent, from a server before #875, reads false; such a server opens a packet by its header, sealed or not. A
     /// refusal says false: the connection closes.
     /// </summary>

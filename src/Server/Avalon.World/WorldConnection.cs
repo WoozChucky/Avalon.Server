@@ -402,6 +402,16 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         if (_maintenanceBlocked || IsClosing) return ValueTask.CompletedTask;
         if (header.Type == NetworkPacketType.CMSG_GAME_ADMISSION)
             return new ValueTask(Server.CallListener(this, header, payload));
+        // Network:PacketEncryption on (#875): a client that follows its admission reply seals every packet the world runs,
+        // so a plain one is a protocol violation and closes the connection.
+        if (_packetEncryption && (header.Flags & NetworkPacketFlags.Encrypted) == 0 && MustArriveSealed(header.Type))
+        {
+            ReceiveLog.PlainPacketRefused(_logger, header.Type);
+#pragma warning disable MA0045 // the read loop must not wait on the close it starts
+            Close(false);
+#pragma warning restore MA0045
+            return ValueTask.CompletedTask;
+        }
         if (header.Type == NetworkPacketType.CMSG_WORLD_HANDSHAKE && GameSessionLease?.IsActive == true)
             return new ValueTask(Server.CallListener(this, header, payload));
         if (!IsGameplayAuthorized) return ValueTask.CompletedTask;
@@ -447,8 +457,23 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         }
     }
 
+    /// <summary>
+    /// A packet the world runs in some state, so one a client sealing as told seals (#875): the version handshake and every
+    /// filtered packet but the pong, which is plain by design. Admission is handled before this is asked. An opcode no world
+    /// filter takes (CMSG_PING, CMSG_AUDIO_RECORD, the auth server's) is dropped by <see cref="DropUnaccepted" /> whatever
+    /// its flags, as the client contract (Avalon.Client#213) promises for the opcodes declared ClearText.
+    /// </summary>
+    private static bool MustArriveSealed(NetworkPacketType type) =>
+        type != NetworkPacketType.CMSG_PONG
+        && (type == NetworkPacketType.CMSG_WORLD_HANDSHAKE || WorldSessionFilter.IsSessionPacket(type)
+            || MapSessionFilter.IsMapPacket(type));
+
     private static partial class ReceiveLog
     {
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closed the connection: {PacketType} arrived unsealed while this world seals packets (Network:PacketEncryption)")]
+        public static partial void PlainPacketRefused(ILogger logger, NetworkPacketType packetType);
+
         [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
         public static partial void DroppedForState(ILogger logger, NetworkPacketType packetType);
 

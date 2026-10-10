@@ -82,6 +82,11 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
 16. Subsequent packets (character list, selection, movement, chat) proceed under the admitted session. A connection
     keeps the mode it was created and admitted under for its life; a change of the setting needs a restart.
 
+Strictness of the mode (#875). With `Network:PacketEncryption` on, a plain packet the world runs (the version
+handshake, and every packet a session filter names but the pong) closes the connection as a protocol violation, at arrival, before
+any filter is asked (`WorldConnection.OnReceive`). Admission and pong are plain by design and accepted plain. An opcode
+no world filter takes is dropped as before, whatever its flags. With the flag off, plain and sealed are both accepted.
+
 Compatibility of the mode (#875). A server opens a client packet by its header, sealed or not; a client opens a server
 packet by its header too.
 
