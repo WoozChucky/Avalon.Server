@@ -1105,11 +1105,15 @@ second). It now returns the new end, or -1 once the stream ended, and its state 
 |---|---:|---:|
 | Before, B allocated per frame read | 208.1 | 208.2 |
 | After | 64.1 | 64.2 |
+| After the header struct (#875, 2026-10-10) | 0.0 to 0.1 | 0.0 to 0.1 |
 
-What is left per frame is mostly the frame's `NetworkPacketHeader`, which `InboundPacketFrame.ParseFrame` creates;
-the decrypt and deserialize that follow allocate the `Packet` (80 B, see
+On 2026-10-10 (#875) `NetworkPacketHeader` became a struct, and `InboundPacketFrame.ParseFrame` reads its four
+fields by hand rather than through protobuf-net (which allocates for a struct it deserializes too): before, 64.1 B per
+frame read on Linux and 64.3 to 64.6 B on Windows; after, 0.0 to 0.1 B on both (two runs each, Linux in a 4-CPU
+`dotnet/sdk:10.0` container, .NET 10.0.12). The read loop itself no longer allocates per frame; what is left is the
+`Packet` the decrypt and deserialize that follow create (80 B, see
 [GC-008](#packet-reader-decrypt-gc-008--benchmark-results)). This is off the tick, on the connection's read loop: at
-the ramp's 12,000 packets a second in, about 1.7 MB/s less garbage.
+the ramp's 12,000 packets a second in, the two changes together leave about 2.5 MB/s less garbage.
 
 ---
 

@@ -1,5 +1,4 @@
 using Avalon.Network.Packets.Abstractions;
-using ProtoBuf;
 
 namespace Avalon.Hosting.Networking;
 
@@ -22,41 +21,33 @@ public readonly struct InboundPacketFrame
     }
 
     /// <summary>
-    /// Parses a raw protobuf-encoded NetworkPacket frame without allocating a byte[]
-    /// for the payload. Field order is fixed (field 1 = header, field 2 = payload)
-    /// because we own both ends of the wire.
+    /// Parses a raw protobuf-encoded NetworkPacket frame without allocating: the payload is a slice of the buffer,
+    /// and the header is read field by field (#875), since protobuf-net allocates for a struct it deserializes.
+    /// Field order is fixed (field 1 = header, field 2 = payload) because we own both ends of the wire.
     /// </summary>
     public static InboundPacketFrame ParseFrame(ReadOnlyMemory<byte> buffer)
     {
         ReadOnlySpan<byte> span = buffer.Span;
         int pos = 0;
-        NetworkPacketHeader header = new();
+        NetworkPacketHeader header = default;
         ReadOnlyMemory<byte> payload = ReadOnlyMemory<byte>.Empty;
 
         while (pos < span.Length)
         {
-            int tag = ReadVarint(span, ref pos);
-            int fieldNumber = tag >> 3;
-            int wireType = tag & 0x07;
+            ulong tag = ReadVarint(span, ref pos);
+            int fieldNumber = (int)(tag >> 3);
+            int wireType = (int)(tag & 0x07);
             if (wireType != 2)
             {
                 // Skip non-LEN-typed fields gracefully (forward-compatibility with schema additions).
-                switch (wireType)
-                {
-                    case 0: ReadVarint(span, ref pos); break;          // varint
-                    case 1: pos += 8; break;                           // 64-bit
-                    case 5: pos += 4; break;                           // 32-bit
-                    default:
-                        throw new InvalidDataException(
-                        $"Unsupported protobuf wire type {wireType} for field {fieldNumber} in NetworkPacket frame.");
-                }
+                SkipField(span, ref pos, wireType, fieldNumber);
                 continue;
             }
 
-            int len = ReadVarint(span, ref pos);
+            int len = checked((int)ReadVarint(span, ref pos));
 
             if (fieldNumber == 1)
-                header = Serializer.Deserialize<NetworkPacketHeader>(buffer.Slice(pos, len));
+                header = ReadHeader(span.Slice(pos, len));
             else if (fieldNumber == 2)
                 payload = buffer.Slice(pos, len);
             // else: skip unknown field — pos += len advances past it
@@ -67,15 +58,60 @@ public readonly struct InboundPacketFrame
         return new InboundPacketFrame(header, payload);
     }
 
-    private static int ReadVarint(ReadOnlySpan<byte> span, ref int pos)
+    /// <summary>The header's four fields, each an int32 varint (sign-extended to ten bytes when negative).</summary>
+    private static NetworkPacketHeader ReadHeader(ReadOnlySpan<byte> span)
     {
-        int result = 0;
+        NetworkPacketHeader header = default;
+        int pos = 0;
+        while (pos < span.Length)
+        {
+            ulong tag = ReadVarint(span, ref pos);
+            int fieldNumber = (int)(tag >> 3);
+            int wireType = (int)(tag & 0x07);
+            if (wireType != 0)
+            {
+                SkipField(span, ref pos, wireType, fieldNumber);
+                continue;
+            }
+
+            int value = unchecked((int)ReadVarint(span, ref pos));
+            switch (fieldNumber)
+            {
+                case 1: header.Type = (NetworkPacketType)value; break;
+                case 2: header.Flags = (NetworkPacketFlags)value; break;
+                case 3: header.Protocol = (NetworkProtocol)value; break;
+                case 4: header.Version = value; break;
+            }
+        }
+
+        return header;
+    }
+
+    private static void SkipField(ReadOnlySpan<byte> span, ref int pos, int wireType, int fieldNumber)
+    {
+        switch (wireType)
+        {
+            case 0: ReadVarint(span, ref pos); break;                          // varint
+            case 1: pos += 8; break;                                           // 64-bit
+            case 2: pos += checked((int)ReadVarint(span, ref pos)); break;     // length-delimited
+            case 5: pos += 4; break;                                           // 32-bit
+            default:
+                throw new InvalidDataException(
+                    $"Unsupported protobuf wire type {wireType} for field {fieldNumber} in NetworkPacket frame.");
+        }
+    }
+
+    private static ulong ReadVarint(ReadOnlySpan<byte> span, ref int pos)
+    {
+        ulong result = 0;
         int shift = 0;
         byte b;
         do
         {
+            if (shift > 63)
+                throw new InvalidDataException("A varint in a NetworkPacket frame runs past ten bytes.");
             b = span[pos++];
-            result |= (b & 0x7F) << shift;
+            result |= (ulong)(b & 0x7F) << shift;
             shift += 7;
         } while ((b & 0x80) != 0);
         return result;

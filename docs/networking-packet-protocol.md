@@ -11,6 +11,9 @@ Custom TCP layer with Protobuf-net serialization. Every client↔server message 
 | `Protocol` | `NetworkProtocol` | Logical channel grouping (Authentication, World, Social, Character) |
 | `Version` | `int` | Protocol version for backward compatibility |
 
+The header is a struct (`NetworkPacketHeader`), read by hand from each frame by `InboundPacketFrame.ParseFrame`, so a
+received frame allocates nothing for it (#875); the wire is unchanged.
+
 Transport: TCP inside TLS, one connection per phase (Auth, then World). The auth server wraps every accepted socket in
 TLS 1.2 with its certificate, the world server in TLS 1.2 or 1.3 with its own (both `Hosting:Security:CertificatePath`),
 and a client pins the world's leaf named in its join reply. Ordering guaranteed by TCP.  
