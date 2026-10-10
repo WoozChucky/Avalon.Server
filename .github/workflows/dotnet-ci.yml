@@ -14,6 +14,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
 
@@ -39,7 +40,9 @@ jobs:
       - name: Build
         run: dotnet build -c Release --no-restore
       - name: Test
-        run: dotnet test -c Release --no-build --logger trx --results-directory TestResults
+        # A hung test fails after 5 minutes and names itself (blame Sequence file in TestResults), not hours later.
+        timeout-minutes: 20
+        run: dotnet test -c Release --no-build --logger trx --results-directory TestResults --blame-hang-timeout 5m --blame-hang-dump-type none
       - name: Test channel versions
         run: bash tools/release/test.sh
       - name: Test registry cleanup selection

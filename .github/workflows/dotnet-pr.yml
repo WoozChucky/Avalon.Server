@@ -12,6 +12,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
 
@@ -41,7 +42,9 @@ jobs:
       - name: Check formatting
         run: dotnet format whitespace --verify-no-changes --no-restore
       - name: Test
-        run: dotnet test -c Release --no-build --logger trx --results-directory TestResults
+        # A hung test fails after 5 minutes and names itself (blame Sequence file in TestResults), not hours later.
+        timeout-minutes: 20
+        run: dotnet test -c Release --no-build --logger trx --results-directory TestResults --blame-hang-timeout 5m --blame-hang-dump-type none
       # Keeps each test's name, message and stack when the run fails, so a rare flaky failure is not lost (#572).
       - name: Upload test results
         if: failure()
