@@ -20,7 +20,9 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         Guid requestId, bool confirmTakeover, bool reconnect, CancellationToken cancellationToken)
     {
         if (requestId == Guid.Empty || worldId == 0 || characterId == 0) return new(GameAuthErrors.InvalidRequest);
-        GameContextRecord? context = await authorization.GetContextAsync(credential, true, cancellationToken);
+        GameContextStanding standing = await authorization.GetContextStandingAsync(credential, true, cancellationToken);
+        if (standing.AccountRefusal is { } refusal) return new(refusal);
+        GameContextRecord? context = standing.Context;
         if (context?.AccountId is not { } accountId) return new(GameAuthErrors.AuthorizationRequired);
         if (!applications.AllowsWorld(context.ApplicationKey, worldId)) return new(GameAuthErrors.WorldUnavailable);
         string issueKey = Key("join-issue", context.Id.ToString("N") + ":" + requestId.ToString("N"));

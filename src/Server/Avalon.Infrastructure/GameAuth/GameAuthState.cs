@@ -8,6 +8,12 @@ public sealed record AuthAttemptReply(string AttemptCredential, string ExpectedS
     public override string ToString() => "Game authentication attempt (credential redacted)";
 }
 
+/// <summary>
+/// A provider attempt: <see cref="Attempt"/> when one was created. Otherwise <see cref="Error"/> names the account's
+/// standing when the presented context's account may not play (#882), and is null for every other refusal.
+/// </summary>
+public readonly record struct ProviderAttemptResult(AuthAttemptReply? Attempt, string? Error);
+
 public sealed record GameAuthReply
 {
     public required string State { get; init; }

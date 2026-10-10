@@ -86,14 +86,14 @@ public sealed partial class ExternalIdentityRepository(IDbContextFactory<AuthDbC
             operation.ProofExpiresAt <= (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
         bool current = await AccountRepository.HoldGameAuthorityAsync(db, operation.AccountId,
-            operation.CredentialsVersion, operation.SessionEpoch, now, cancellationToken);
+            operation.CredentialsVersion, operation.SessionEpoch, cancellationToken);
         if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
         if (!current)
         {
             // A response can be lost after PostgreSQL commits and before Redis publishes the result.
             // Only the exact durable operation may finish that link at the epoch it advanced.
             bool retry = await AccountRepository.HoldGameAuthorityAsync(db, operation.AccountId,
-                operation.CredentialsVersion, operation.SessionEpoch + 1, now, cancellationToken);
+                operation.CredentialsVersion, operation.SessionEpoch + 1, cancellationToken);
             if (ProofExpired()) return new(IdentityLinkStatus.AuthorityChanged, null);
             ExternalIdentity? completed = retry ? await db.ExternalIdentities.AsNoTracking().SingleOrDefaultAsync(
                 x => x.Id == operation.OperationId && x.AccountId == operation.AccountId &&

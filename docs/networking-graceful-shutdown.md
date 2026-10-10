@@ -65,10 +65,12 @@ Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 | 0     | `Unknown`        | Default/unspecified                                            |
 | 1     | `ServerShutdown` | Server stopping gracefully                                     |
 | 2     | `DuplicateLogin` | Second authentication for the same account                     |
-| 3     | `Kicked`         | The account's sessions were ended (`world:accounts:disconnect`: a ban, a credentials or role change, a duplicate login on the auth server, a refresh-token reuse) |
+| 3     | `Kicked`         | The account's sessions were ended (`world:accounts:disconnect`: a credentials or role change, a duplicate login on the auth server, a refresh-token reuse) |
 | 4     | `SelectTimeout`  | A character select that never completed                        |
 | 5     | `CharacterSaveFailed` | A Change Character whose logout save failed (#663)        |
 | 6     | `Maintenance`    | A maintenance cutoff, or an entry refused by it                |
+| 7     | `Banned`         | The account was banned (`world:accounts:status`, #882)         |
+| 8     | `Deactivated`    | The account was deactivated (`world:accounts:status`, #882)    |
 
 ### Factory method
 
@@ -97,12 +99,15 @@ see [world maintenance](world-maintenance.md)), then closes every connection wit
 ### Forced kick notification
 
 `DelayedDisconnect` runs when an account is published on `world:accounts:disconnect` (a duplicate login on the auth
-server, a ban, a password, email or role change, an MFA reset or removal, a refresh-token reuse). It calls
+server, a password, email or role change, an MFA reset or removal, a refresh-token reuse). It calls
 `WorldServer.CloseAccountSessions`, which closes **every** connection of that account, each with
 `SDisconnectPacket(Kicked)` and the neutral "Your session has ended. Please log in again.", since the message is the
 bare account id and cannot say why; one connection that throws while closing is logged and the rest are still closed.
 Only the world server's own duplicate-login kick at character select uses `DuplicateLogin` and "Your account has been
-logged in from another location.".
+logged in from another location.". A ban or a deactivation is published on `world:accounts:status` instead (#882), with
+the status: `AccountStatusChanged` calls `WorldServer.CloseBannedOrDeactivated`, which closes every connection of the
+account the same way, with `Banned` and "Your account has been banned." or `Deactivated` and "Your account has been
+deactivated.".
 
 ---
 

@@ -20,6 +20,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
 {
     [HttpPost("provider-attempts", Name = "CreateProviderGameAuthAttempt")]
     [ProducesResponseType(typeof(ProviderAuthAttemptReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> ProviderAttempt(GameProviderAttemptRequest request, CancellationToken cancellationToken)
     {
         if (!Request.IsHttps) return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired)), nameof(ProviderAttempt));
@@ -27,8 +28,10 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
             return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol)), nameof(ProviderAttempt));
         try
         {
-            AuthAttemptReply? reply = await authorization.CreateProviderAttemptAsync(request.ApplicationKey, request.ProtocolVersion,
-                request.ClientRunId, request.LinkChallenge, request.GameContextCredential, 0, cancellationToken);
+            (AuthAttemptReply? reply, string? refusal) = await authorization.CreateProviderAttemptAsync(request.ApplicationKey,
+                request.ProtocolVersion, request.ClientRunId, request.LinkChallenge, request.GameContextCredential, 0, cancellationToken);
+            // A context credential naming an account that may not play: 403 with its standing (#882).
+            if (refusal is not null) return LogResult(StatusCode(StatusCodes.Status403Forbidden, GameAuthReply.Failure(refusal)), nameof(ProviderAttempt));
             return LogResult(reply is null ? BadRequest(GameAuthReply.Failure(GameAuthErrors.InvalidAttempt)) :
                 Ok(new ProviderAuthAttemptReply(reply.AttemptCredential, reply.ExpectedSteamIdentity, reply.ExpiresAt)), nameof(ProviderAttempt));
         }
@@ -37,18 +40,21 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
 
     [HttpPost("store/proof", Name = "AuthenticateProviderGame")]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> ProviderProof(GameProviderProofRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(() => authorization.AuthenticateProviderAsync(request.Provider,
             request.AttemptCredential, request.Proof, requestId, cancellationToken, HttpContext.Connection.RemoteIpAddress?.ToString()));
 
     [HttpPost("handoffs/redeem", Name = "RedeemGameAuthHandoff")]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Handoff(GameHandoffRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(() => authorization.RedeemHandoffAsync(
             request.AttemptCredential, request.HandoffTicket, requestId, cancellationToken));
 
     [HttpPost("game-context/refresh", Name = "RefreshGameAuthContext")]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Refresh(GameContextRefreshRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(() => authorization.RefreshAsync(request.GameContextRefreshToken, requestId, cancellationToken));
 
@@ -85,6 +91,7 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
 
     [HttpPost("links/complete", Name = "CompleteGameAccountLink")]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> CompleteLink(GameLinkCompleteRequest request, [FromServices] PendingLinkStore links,
         [FromServices] ILogger<GameAuthController> logger, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(async () =>
@@ -108,6 +115,8 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
                 GameAuthErrors.InProgress => StatusCode(409, reply),
                 GameAuthErrors.ProviderUnavailable => StatusCode(503, reply),
                 GameAuthErrors.AccountMismatch => Conflict(reply),
+                // The caller proved who they are; the account may not play (#882).
+                _ when GameAuthErrors.IsAccountStanding(reply.Error) => StatusCode(StatusCodes.Status403Forbidden, reply),
                 _ => Unauthorized(reply),
             }, operation);
         }

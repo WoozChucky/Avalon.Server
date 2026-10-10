@@ -199,6 +199,7 @@ public sealed class ClientAuthController : BaseController
     [Authorize(Policy = AvalonRoles.Player)]
     [EnableRateLimiting(ClientAuthRateLimiting.Policy)]
     [ProducesResponseType(typeof(ClientGameTicketResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GameTicket()
     {
         if (CallerIsPat || !Guid.TryParse(User.FindFirstValue(JwtUtils.LauncherFamilyClaim), out Guid familyId)
@@ -210,6 +211,13 @@ public sealed class ClientAuthController : BaseController
         Account account = Account ?? throw new InvalidOperationException("Account not loaded");
         if (!AccountAccessCheck.MayHoldSession(account) || !AccessLevels.Player.Allows(account.AccessLevel))
             return StatusCode(StatusCodes.Status403Forbidden);
+        // A consolidating account keeps its website session (the website drives the consolidation), but no handoff: the
+        // game could not redeem it until the consolidation finishes (#882). Checked here, not in MayHoldSession.
+        if (account.GameplayConsolidationId is not null)
+        {
+            return Problem(title: "Account consolidating", detail: GameAuthErrors.AccountConsolidating,
+                statusCode: StatusCodes.Status403Forbidden);
+        }
         if (!await _refreshTokens.IsLiveLauncherFamilyAsync(account.Id, familyId, _clock.GetUtcNow().UtcDateTime, CancellationToken))
             return Unauthorized();
         long issues;

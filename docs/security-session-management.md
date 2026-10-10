@@ -64,8 +64,16 @@ their guarantees:
 - **One session per account.** Redeeming a ticket reserves the account's game session with a fencing token; a live
   session elsewhere refuses a new ticket (`ActiveGameSession`) unless the client confirms the takeover, and every
   character save checks the fence, so a replaced session can no longer write.
-- **Current access.** Issue and redemption both re-read the account (Active, unlocked, at the context's credentials
-  version), the world's access level and maintenance cutoff, and the world's readiness.
+- **Current access.** Issue and redemption both re-read the account (Active, not being consolidated, at the context's
+  credentials version), the world's access level and maintenance cutoff, and the world's readiness. A password lock is
+  not asked: it guards the password steps only (#882), so a guesser cannot keep a player out of the game.
+- **Named refusals, after the proof.** An account that may not play is answered 403 `ACCOUNT_BANNED`,
+  `ACCOUNT_DEACTIVATED` or `ACCOUNT_CONSOLIDATING` only once the caller's proof is current and the account still at
+  its credentials version; a stale or missing proof keeps the generic answer (#882,
+  [REST API authentication](api-authentication.md)).
+- **A ban ends the game.** It raises the account's session epoch in its own transaction, which voids every game
+  context and session of the account for good, and the servers close its connections with `DisconnectReason.Banned`
+  or `Deactivated` (`world:accounts:status`).
 
 [Auth server: World entry](auth-server.md#world-entry) has the client's steps, and
 [game server admission](steam-authentication-workloads.md) the session lease, heartbeat and save fencing.
@@ -223,8 +231,9 @@ A missing or wrong password is 401 `Invalid current password`; a spent budget or
 - A password change writes the new verifier by column and revokes every refresh token and every personal
   access token in the same transaction (#483), then publishes the account on `world:accounts:disconnect`.
 - An MFA reset with the recovery codes does the same (see [MFA Flow](#security-notes)).
-- An admin's MFA removal and a ban already did (#475, #480).
-- The publish is best-effort: the change is committed, so a Redis failure is logged and the call succeeds.
+- An admin's MFA removal and a ban already did (#475, #480). A ban or a deactivation also raises the session epoch,
+  voiding every game context and session, and publishes on `world:accounts:status` instead (#882).
+- The publish is best-effort: the change is committed, so a Redis failure is logged and the call succeeds. When the status notice on `world:accounts:status` cannot be published, the bare id goes on `world:accounts:disconnect` instead, so connections still close (#882).
 
 The access JWT in use is not revoked by any of these; it lives out its `AccessTokenLifetimeMinutes`.
 
@@ -282,6 +291,9 @@ Setup and rotation: [Development setup](development-setup.md#rest-api-signing-ke
 | MFA setup or PAT mint without the current password   | 401, nothing issued (`SensitiveActionReauthenticationShould`) |
 | PAT minted before a password change or an MFA reset  | Refused afterwards (`CredentialRevocationShould`) |
 | Ban and lock landing during an API account write     | Both survive (`ApiWriteRaceShould`) |
+| Banned, deactivated or consolidating account on a game route | 403 naming it after a current proof; generic before it or with a stale one (`AvalonGameAuthorizationShould`) |
+| Ban lifted while a game context is live              | The context stays void: the ban moved the epoch (`AccountStatusChangeShould`) |
+| Password lock while a player is in the world         | Reservation, activation and heartbeat still renew the session (`GameSessionFenceServiceShould`, `GameSessionRenewalShould`) |
 | X-Forwarded-For from a trusted / untrusted peer      | Source is the client / the peer, warned once a minute (`ForwardedHeadersShould`) |
 | Replayed right MFA code                              | Refused, hash kept, not counted (`TotpReplayShould`, `CMFAVerifyHandlerShould`, `RestMfaVerifyShould`) |
 | Locked account at login                              | One dummy BCrypt verify, as an unknown username (`CAuthHandlerShould`, `RestLoginPolicyShould`) |

@@ -19,12 +19,16 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
 {
     [HttpPost("worlds", Name = "GetGameWorlds")]
     [ProducesResponseType(typeof(IReadOnlyList<GameWorldDestination>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Worlds(GameContextCredentialRequest request, CancellationToken cancellationToken)
     {
         if (!Request.IsHttps) return BadRequest(new GameJoinReply(GameAuthErrors.HttpsRequired));
         try
         {
-            GameContextRecord? context = await authorization.GetContextAsync(request.GameContextCredential, false, cancellationToken);
+            GameContextStanding standing = await authorization.GetContextStandingAsync(request.GameContextCredential, false, cancellationToken);
+            // A current credential whose account may not play: 403 with its standing (#882).
+            if (standing.AccountRefusal is { } refusal) return StatusCode(StatusCodes.Status403Forbidden, new GameJoinReply(refusal));
+            GameContextRecord? context = standing.Context;
             if (context?.AccountId is null) return Unauthorized(new GameJoinReply(GameAuthErrors.AccountRequired));
             if (applications.RequiresLicenseForWorldListing(context.ApplicationKey))
             {
@@ -39,11 +43,13 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
 
     [HttpPost("join-tickets", Name = "CreateGameJoinTicket")]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Join(GameJoinRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Issue(request, requestId, false, cancellationToken);
 
     [HttpPost("reconnect-tickets", Name = "CreateGameReconnectTicket")]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Reconnect(GameJoinRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Issue(request, requestId, true, cancellationToken);
 
@@ -60,6 +66,7 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
                 GameAuthErrors.InvalidRequest => BadRequest(reply),
                 GameAuthErrors.ActiveGameSession or GameAuthErrors.IdempotencyConflict or GameAuthErrors.ContextChanged => Conflict(reply),
                 GameAuthErrors.WorldUnavailable => StatusCode(503, reply),
+                _ when GameAuthErrors.IsAccountStanding(reply.Error) => StatusCode(StatusCodes.Status403Forbidden, reply),
                 _ => Unauthorized(reply),
             };
         }

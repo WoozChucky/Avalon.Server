@@ -33,7 +33,7 @@ process uses all of them.
 
 | Service | Keys it reads and writes | Channels |
 |---|---|---|
-| identity | the login and registration budgets (`auth:source:{source}:failedLogins`, `auth:username:{sha256}:failedLogins`, `auth:source:{source}:accountsCreated`), MFA state (`auth:account:{accountId}:mfa`, `auth:mfa:hash:{sha256}`), email change (`auth:emailChange:{sha256}`, `auth:account:{accountId}:emailChangePending`, `auth:account:{accountId}:emailChangeSends`, `auth:email:{sha256}:emailChangeSends`), the email-verification send budgets (`email-verification:*`), launcher codes (`auth:launcherCode:{hash}`), game tickets (`auth:gameTicket:{hash}`, `auth:gameTicketIssue:{familyId}`), the game-auth records (`game-auth:{environment}:*`), the Steam web link's transactions and nonces (`steam-web:transaction:{id}`, `steam-web:nonce:{sha256}`); reads `world:{worldId}:ready` | publishes `world:accounts:disconnect` and `world:game-context:revoke` |
+| identity | the login and registration budgets (`auth:source:{source}:failedLogins`, `auth:username:{sha256}:failedLogins`, `auth:source:{source}:accountsCreated`), MFA state (`auth:account:{accountId}:mfa`, `auth:mfa:hash:{sha256}`), email change (`auth:emailChange:{sha256}`, `auth:account:{accountId}:emailChangePending`, `auth:account:{accountId}:emailChangeSends`, `auth:email:{sha256}:emailChangeSends`), the email-verification send budgets (`email-verification:*`), launcher codes (`auth:launcherCode:{hash}`), game tickets (`auth:gameTicket:{hash}`, `auth:gameTicketIssue:{familyId}`), the game-auth records (`game-auth:{environment}:*`), the Steam web link's transactions and nonces (`steam-web:transaction:{id}`, `steam-web:nonce:{sha256}`); reads `world:{worldId}:ready` | publishes `world:accounts:disconnect`, `world:accounts:status` and `world:game-context:revoke` |
 | worlds | reads `world:{worldId}:ready`, `world:{worldId}:presence`, `presence:world:{worldId}:character:{characterId}` and `world:{worldId}:scripts` | publishes `world:{worldId}:maintenance` and `world:{worldId}:reload`; subscribes to `world:{worldId}:reload:result` |
 | commerce | the checkout budget (`commerce:{environment}:checkout:*`) | none |
 | distribution | none: it runs without `Application:Cache` and holds no Redis password | none |
@@ -50,7 +50,7 @@ servers sign in as the default user, with full access; the balance service uses 
 
 | User | Keys | Channels | Commands |
 |---|---|---|---|
-| `api-identity` | read and write `auth:source:*`, `auth:username:*`, `auth:account:*`, `auth:mfa:hash:*`, `auth:emailChange:*`, `auth:email:*`, `auth:launcherCode:*`, `auth:gameTicket:*`, `auth:gameTicketIssue:*`, `email-verification:*`, `game-auth:*`, `steam-web:*`; read `world:*:ready` | `world:accounts:disconnect`, `world:game-context:revoke` | `get set setex psetex getdel del unlink exists expire pexpire incr decr hget hset hmset hincrby multi exec discard eval evalsha script\|load publish` |
+| `api-identity` | read and write `auth:source:*`, `auth:username:*`, `auth:account:*`, `auth:mfa:hash:*`, `auth:emailChange:*`, `auth:email:*`, `auth:launcherCode:*`, `auth:gameTicket:*`, `auth:gameTicketIssue:*`, `email-verification:*`, `game-auth:*`, `steam-web:*`; read `world:*:ready` | `world:accounts:disconnect`, `world:accounts:status`, `world:game-context:revoke` | `get set setex psetex getdel del unlink exists expire pexpire incr decr hget hset hmset hincrby multi exec discard eval evalsha script\|load publish` |
 | `api-worlds` | read `world:*:ready`, `world:*:presence`, `world:*:scripts`, `presence:world:*` | `world:*:maintenance`, `world:*:reload`, `world:*:reload:result` | `get publish subscribe unsubscribe` |
 | `api-commerce` | read and write `commerce:*` | none | `eval evalsha script\|load exists get incr expire set` |
 
@@ -158,7 +158,7 @@ subscribers active at the time of publish.
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldAccountsDisconnectChannel` |
-| **Publisher** | Auth server — `GameLoginCompletion` (duplicate login path); the API's identity service on a credentials change, a ban or refresh-token reuse (`AccountService`, `AccountRefreshController`, `ClientAuthController`); `MFAService` on an MFA reset, on either server |
+| **Publisher** | Auth server — `GameLoginCompletion` (duplicate login path); the API's identity service on a credentials change or refresh-token reuse (`AccountService`, `AccountRefreshController`, `ClientAuthController`); `MFAService` on an MFA reset, on either server. A ban or a deactivation publishes on [`world:accounts:status`](#worldaccountsstatus) instead (#882), and falls back to the bare id here when that publish fails |
 | **Subscriber** | World server — `WorldServer.CacheSubscribeAsync`; Auth server — `AuthServer` |
 | **Message format** | Account ID as a decimal string |
 
@@ -176,6 +176,37 @@ World server (WorldServer.DelayedDisconnect → CloseAccountSessions)
   ← message received
   → every IWorldConnection where AccountId == accountId
   → GracefulShutdownHelper.NotifyAndClose(connection, "Your session has ended. Please log in again.", Kicked)
+```
+
+---
+
+### `world:accounts:status`
+
+| Field | Value |
+|---|---|
+| **`CacheKeys` member** | `CacheKeys.WorldAccountsStatusChannel` |
+| **Publisher** | API, identity — `AccountService.UpdateStatusAsync`, after the ban or deactivation commits (best effort; when this publish fails, the bare id goes on `world:accounts:disconnect` instead) |
+| **Subscriber** | World server — `WorldServer.CacheSubscribeAsync` (`CloseBannedOrDeactivated`); Auth server — `AuthServer.SubscribeToAccountDisconnectsAsync` (`CloseBannedOrDeactivated`) |
+| **Message format** | `{accountId}|BANNED` or `{accountId}|DEACTIVATED` (`AccountStatusNotice`; an id that is not canonical, another status or a longer message is ignored) |
+
+**Purpose:** The bare disconnect for a status change, with the reason (#882). A ban or a deactivation publishes here
+instead of `world:accounts:disconnect`, so the servers can tell the player why: every connection of the account is
+closed with `DisconnectReason.Banned` (7) and "Your account has been banned.", or `Deactivated` (8) and "Your account
+has been deactivated.". The same commit moved the account's session epoch, and the API then publishes
+`world:game-context:revoke` with an empty context id, which asks every world holding a session of the account for a
+heartbeat at once; the heartbeat is refused. So a server that missed this notice (or one from before #882, which does
+not subscribe) still ends the session at its next heartbeat, silently, and a lost hint at most 15 seconds later.
+
+**Flow:**
+```
+API identity (AccountService.UpdateStatusAsync) — status, epoch + 1, token revocations committed
+  → PUBLISH world:accounts:status  {accountId}|BANNED
+  → PUBLISH world:game-context:revoke  {accountId}|00000000000000000000000000000000
+
+World server (WorldServer.AccountStatusChanged → CloseBannedOrDeactivated)
+  ← message received
+  → every IWorldConnection where AccountId == accountId
+  → GracefulShutdownHelper.NotifyAndClose(connection, "Your account has been banned.", Banned)
 ```
 
 ---
@@ -205,6 +236,7 @@ API-layer invalidation of cached account state.
 | `auth:gameTicket:{hash}` | String | 60 s | API identity / `RedisGameTicketStore` | API identity / `GameAuthorizationService` |
 | `game-auth:{env}:*` | String | per record | API identity / `RedisGameContextStore` | API identity |
 | `world:accounts:disconnect` | Pub/Sub channel | — | Auth / `GameLoginCompletion`; API identity; `MFAService` | World / `WorldServer`; Auth / `AuthServer` |
+| `world:accounts:status` | Pub/Sub channel | — | API identity / `AccountService` | World / `WorldServer`; Auth / `AuthServer` |
 | `auth:accounts:online` | Pub/Sub channel | — | Auth / `GameLoginCompletion` | *(reserved)* |
 
 ---

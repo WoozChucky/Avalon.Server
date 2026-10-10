@@ -133,6 +133,7 @@ public class AuthServer(
     public const string SessionEndedMessage = "Your session has ended. Please log in again.";
 
     private Action<RedisChannel, RedisValue>? _accountDisconnectHandler;
+    private Action<RedisChannel, RedisValue>? _accountStatusHandler;
 
     /// <summary>
     /// How long this server remembers publishing a duplicate-login disconnect for an account
@@ -227,11 +228,14 @@ public class AuthServer(
     /// ban, a refresh-token reuse, a duplicate login), and a logged-in connection here is a session
     /// too: left open, it would go on as a session of the old credentials.
     /// </summary>
-    public Task SubscribeToAccountDisconnectsAsync()
+    public async Task SubscribeToAccountDisconnectsAsync()
     {
         _accountDisconnectHandler ??= (_, message) =>
             HandleAccountDisconnect(message, System.Diagnostics.Stopwatch.GetTimestamp());
-        return cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, _accountDisconnectHandler);
+        _accountStatusHandler ??= (_, message) => CloseBannedOrDeactivated(Connections, message, _logger);
+        await cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, _accountDisconnectHandler);
+        // A ban or a deactivation publishes here instead (#882), naming the status the connection is closed with.
+        await cache.SubscribeAsync(CacheKeys.WorldAccountsStatusChannel, _accountStatusHandler);
     }
 
     /// <summary>Stops listening on the account disconnect channel; best effort, a failure is logged.</summary>
@@ -243,6 +247,8 @@ public class AuthServer(
         try
         {
             await cache.UnsubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, handler).ConfigureAwait(false);
+            if (_accountStatusHandler is { } statusHandler)
+                await cache.UnsubscribeAsync(CacheKeys.WorldAccountsStatusChannel, statusHandler).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -302,6 +308,40 @@ public class AuthServer(
             {
                 logger.LogError(ex, "Could not close auth connection {EndPoint} of account {AccountId}",
                     connection.RemoteEndPoint, id);
+            }
+        }
+
+        return closed;
+    }
+
+    /// <summary>
+    /// Closes every logged-in connection of the account a <see cref="CacheKeys.WorldAccountsStatusChannel"/> notice
+    /// names (#882), with the reason it gives, and returns how many. Never spared as this server's own publish: only the
+    /// API publishes a status. A notice that does not parse is ignored; the post-login guard still refuses the session.
+    /// </summary>
+    public static int CloseBannedOrDeactivated(IEnumerable<IAuthConnection> connections, RedisValue message, ILogger logger)
+    {
+        if (!AccountStatusNotice.TryParse(message.ToString(), out Avalon.Common.ValueObjects.AccountId? accountId,
+                out DisconnectReason reason, out string? text))
+        {
+            logger.LogWarning("Ignored an account status notice that does not parse");
+            return 0;
+        }
+
+        int closed = 0;
+        foreach (IAuthConnection connection in connections.Where(c => c.AccountId == accountId).ToList())
+        {
+            try
+            {
+                logger.LogInformation("Closing auth connection {EndPoint} of account {AccountId}: {Reason}",
+                    connection.RemoteEndPoint, accountId.Value, reason);
+                GracefulShutdownHelper.NotifyAndClose(connection, text, reason, logger);
+                closed++;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not close auth connection {EndPoint} of account {AccountId}",
+                    connection.RemoteEndPoint, accountId.Value);
             }
         }
 

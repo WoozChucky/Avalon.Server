@@ -21,7 +21,7 @@ public sealed partial class GameSessionRepository
 
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         await using IDbContextTransaction transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        if (!await AccountRepository.HoldGameAuthorityAsync(db, accountId, credentialsVersion, sessionEpoch, now, cancellationToken)) return false;
+        if (!await AccountRepository.HoldGameAuthorityAsync(db, accountId, credentialsVersion, sessionEpoch, cancellationToken)) return false;
         // End and other head writes may hold this row independently of the account lock.
         // Acquire it before taking the time used by the admission predicate.
         await db.GameSessions.Where(h => h.AccountId == accountId)

@@ -63,6 +63,55 @@ public sealed class AccountDisconnectShould
         Assert.Equal("Your session has ended. Please log in again.", sent.Reason);
     }
 
+    /// <summary>
+    /// #882: a ban reached the world as the bare disconnect, so the player was told only that the session ended. A
+    /// status notice closes every connection of the account with the reason it names.
+    /// </summary>
+    [Theory]
+    [InlineData("7|BANNED", DisconnectReason.Banned, "Your account has been banned.")]
+    [InlineData("7|DEACTIVATED", DisconnectReason.Deactivated, "Your account has been deactivated.")]
+    public void Close_a_banned_or_deactivated_account_with_its_reason(string notice, DisconnectReason reason, string text)
+    {
+        IWorldConnection first = Connection(7);
+        IWorldConnection second = Connection(7);
+        IWorldConnection other = Connection(8);
+
+        int closed = WorldServer.CloseBannedOrDeactivated([first, other, second], notice, NullLogger.Instance);
+
+        Assert.Equal(2, closed);
+        Assert.All(new[] { first, second }, connection =>
+        {
+            SDisconnectPacket sent = Sent(connection);
+            Assert.Equal(reason, sent.ReasonCode);
+            Assert.Equal(text, sent.Reason);
+            connection.Received(1).Close();
+        });
+        other.DidNotReceiveWithAnyArgs().Close();
+    }
+
+    /// <summary>
+    /// #882 review: anyone who can publish on the status channel chooses the notice, so only the canonical form closes a
+    /// session; anything else is ignored and the heartbeat, refused by the ban's moved epoch, ends the session instead.
+    /// </summary>
+    [Theory]
+    [InlineData("07|BANNED")]
+    [InlineData("+7|BANNED")]
+    [InlineData("-7|BANNED")]
+    [InlineData("0|BANNED")]
+    [InlineData("7|banned")]
+    [InlineData("7|LOCKED")]
+    [InlineData("7")]
+    [InlineData("7||BANNED")]
+    [InlineData("7|BANNED|7")]
+    [InlineData("7|BANNEDBANNEDBANNEDBANNEDBANNED")]
+    public void Ignore_a_status_notice_that_is_not_canonical(string notice)
+    {
+        IWorldConnection connection = Connection(7);
+
+        Assert.Equal(0, WorldServer.CloseBannedOrDeactivated([connection], notice, NullLogger.Instance));
+        connection.DidNotReceiveWithAnyArgs().Close();
+    }
+
     [Fact]
     public void Close_the_others_when_one_throws_while_closing()
     {

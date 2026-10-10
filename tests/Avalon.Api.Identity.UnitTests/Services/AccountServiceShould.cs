@@ -18,6 +18,8 @@ public class AccountServiceShould
 {
     private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
+    private readonly Avalon.Infrastructure.GameAuth.IGameContextRevocations _revocations =
+        Substitute.For<Avalon.Infrastructure.GameAuth.IGameContextRevocations>();
 
     private readonly IDbTransactionRunner<AuthDbContext> _transaction =
         Substitute.For<IDbTransactionRunner<AuthDbContext>>();
@@ -34,7 +36,8 @@ public class AccountServiceShould
         _transaction,
         new AuthenticationConfig(),
         TestLogin.Password(_accountRepository, _cache),
-        TestLogin.Reauthentication(_accountRepository, _cache));
+        TestLogin.Reauthentication(_accountRepository, _cache),
+        contextRevocations: _revocations);
 
     /// <summary>
     /// The substituted runner never invokes the body, so anything a collaborator still receives is
@@ -82,13 +85,47 @@ public class AccountServiceShould
         await CreateService().UpdateStatusAsync(new AccountId(7), Contract.AccountStatus.Banned, "spam", new AccountId(1));
     }
 
-    [Fact]
-    public async Task Tell_the_world_server_to_drop_a_banned_account()
+    /// <summary>
+    /// #882: a ban is published with its status, instead of the bare disconnect, so the servers can tell the player
+    /// why; and every world holding a session of the account is asked for a heartbeat at once.
+    /// </summary>
+    [Theory]
+    [InlineData(Contract.AccountStatus.Banned, "7|BANNED")]
+    [InlineData(Contract.AccountStatus.Deactivated, "7|DEACTIVATED")]
+    public async Task Tell_the_servers_why_an_account_was_dropped(Contract.AccountStatus status, string notice)
     {
         AccountService service = CreateService();
 
-        await service.UpdateStatusAsync(new AccountId(7), Contract.AccountStatus.Banned, "spam", new AccountId(1));
+        await service.UpdateStatusAsync(new AccountId(7), status, "spam", new AccountId(1));
+
+        await _cache.Received(1).PublishAsync(CacheKeys.WorldAccountsStatusChannel, notice);
+        await _cache.DidNotReceive().PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, Arg.Any<string>());
+        await _revocations.Received(1).PublishAsync(new AccountId(7), Guid.Empty);
+    }
+
+    /// <summary>
+    /// #882 review: a status notice the cache refuses (a Redis user not yet allowed on the channel) fell back to nothing,
+    /// so the auth server's connections of a banned account stayed open. The bare disconnect is published instead.
+    /// </summary>
+    [Fact]
+    public async Task Fall_back_to_the_bare_disconnect_when_the_status_notice_cannot_be_published()
+    {
+        _cache.PublishAsync(CacheKeys.WorldAccountsStatusChannel, Arg.Any<string>())
+            .Returns<Task>(_ => throw new StackExchange.Redis.RedisConnectionException(
+                StackExchange.Redis.ConnectionFailureType.UnableToConnect, StackExchange.Redis.CommandFlags.CommandRetryNever, "NOPERM"));
+
+        await CreateService().UpdateStatusAsync(new AccountId(7), Contract.AccountStatus.Banned, "spam", new AccountId(1));
 
         await _cache.Received(1).PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, "7");
+    }
+
+    /// <summary>#882 review: an undefined status was stored, and, not being Active, moved the session epoch too.</summary>
+    [Fact]
+    public async Task Refuse_an_undefined_status_before_writing_anything()
+    {
+        await Assert.ThrowsAsync<BusinessException>(() => CreateService().UpdateStatusAsync(new AccountId(7),
+            (Contract.AccountStatus)9, "spam", new AccountId(1)));
+
+        await _transaction.DidNotReceiveWithAnyArgs().ExecuteAsync(default(Func<AuthDbContext, CancellationToken, Task>)!, default);
     }
 }

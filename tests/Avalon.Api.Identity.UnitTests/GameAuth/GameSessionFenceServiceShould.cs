@@ -159,6 +159,27 @@ public sealed class GameSessionFenceServiceShould
         _h.Account.SessionEpoch++;
         Assert.NotNull((await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None)).Error);
     }
+    /// <summary>
+    /// #882: five wrong website passwords locked the row, and the next heartbeat ended the player's session. The lock
+    /// guards the password steps only; a session proven otherwise keeps its lease.
+    /// </summary>
+    [Fact]
+    public async Task Keep_a_session_whose_account_a_password_guesser_locked()
+    {
+        await Arrange();
+        Assert.Null((await Activate()).Error);
+        _h.Account.Locked = true;
+        _h.Account.LockedUntil = _h.Clock.GetUtcNow().UtcDateTime.AddMinutes(15);
+        _h.Sessions.TryRenewAsync(_head.AccountId, _head.GameSessionId, 2, "world-1", 0, 0,
+            Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+        _target.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        GameSessionLeaseReply renewed = await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None);
+
+        Assert.Null(renewed.Error);
+        Assert.Equal("active", renewed.State);
+    }
+
     [Fact]
     public async Task Never_publish_a_lease_when_the_character_database_cannot_renew_its_guard()
     {

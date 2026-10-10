@@ -127,7 +127,8 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         }
 
         Account? root = await accounts.FindByIdAsync(accountId, false, cancellationToken);
-        if (root is null || root.Status != AccountStatus.Active || root.GameplayConsolidationId is not null || root.IsLockedAt(Now) ||
+        // The password lock is not asked (#882): it guards the password steps only, so a guesser cannot end a session.
+        if (root is null || root.Status != AccountStatus.Active || root.GameplayConsolidationId is not null ||
             (root.AccessLevel & AccountAccessLevel.Player) == 0 || root.CredentialsVersion != head.CredentialsVersion || root.SessionEpoch != head.SessionEpoch)
         {
             return default;
