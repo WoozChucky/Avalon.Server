@@ -27,13 +27,21 @@ into a pooled `PayloadSegment` by `PacketEncoder` (#875). `IConnection.Send` tak
 connection's outbox seals the payload if the header is flagged Encrypted (the world's outbox as the tick flushes it, the
 auth server's as its drain task writes) and frames it with `PacketEnvelope`: `[varint length][NetworkPacket{1: header,
 2: payload}]`, written by hand, byte for byte what protobuf-net writes for a `NetworkPacket`. The outbox then releases
-the segment to its pool: no `byte[]` per packet. Nor a message object: `Create` fills the calling thread's instance
-of its message type (`PacketEncoder.Scratch<T>()`, every member reset to a new message's values on every take by a
-resetter compiled once per type) and encodes it before it returns, so one instance per thread serves every packet of
-that type; a factory assigns each collection it sends and never adds to one the scratch holds, since a reset copies the
-template's own. `PacketEncoderScratchShould` dirties every member of every server packet and checks that the next take
-comes back as a new message. The client-to-server packets' `C*Packet.Create`, which only
-clients send (the load-test tool, the benchmarks and the tests), still build a `NetworkPacket`, sealed as it is created.
+the segment to its pool: no `byte[]` per packet.
+
+Nor a message object per packet. `Create` fills the calling thread's instance of its message type
+(`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that
+type. A resetter compiled once per type, at the world server's startup (`PacketEncoder.PrepareServerPackets`, before
+the port opens), sets every field back to a new message's value on every take and again once the message is written,
+so no value of one packet reaches the next or stays referenced after it. A collection comes back null (protobuf-net
+writes a null repeated field as it writes an empty one), so a factory assigns each collection it sends; a nested
+message the template creates is shared by every thread, so a factory assigns it whole and never writes into it. A
+member the reset cannot assign (a read-only field, a property without a setter) makes the type refuse to start.
+`PacketEncoderScratchShould` dirties every member of every server packet and checks that the next take comes back as a
+new message, and runs every factory and checks that a new thread's scratch still encodes as a new message does.
+
+The client-to-server packets' `C*Packet.Create`, which only clients send (the load-test tool, the benchmarks and the
+tests), still build a `NetworkPacket`, sealed as it is created.
 
 ## Auth Phase Lifecycle
 

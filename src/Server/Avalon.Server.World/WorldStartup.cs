@@ -2,6 +2,7 @@ using Avalon.Database.Character;
 using Avalon.Database.World;
 using Avalon.Database.World.Seeding;
 using Avalon.Infrastructure;
+using Avalon.Network.Packets.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -22,6 +23,9 @@ public static class WorldStartup
     public static async Task PrepareAsync(IHost host)
     {
         host.Services.GetRequiredService<IStartupValidator>().Validate();
+
+        // Every server packet's scratch reset is compiled here, before the port opens, and never on the tick (#875).
+        PacketEncoder.PrepareServerPackets();
 
         ILogger logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(Program));
         await using AsyncServiceScope scope = host.Services.CreateAsyncScope();

@@ -1005,14 +1005,17 @@ Windows 11, 12th Gen Intel Core i9-12900K, .NET 10.0.12, BenchmarkDotNet 0.15.8,
 
 | Method | Entities | Mean | StdDev | Allocated |
 |---|---:|---:|---:|---:|
-| `Encode` (tick) | 1 | 216.4 ns | 13.61 ns | - |
-| `EncodeSealFrame` (tick and drain) | 1 | 727.9 ns | 7.78 ns | - |
-| `EncodeFramePlain` (TLS only) | 1 | 221.7 ns | 2.23 ns | - |
-| `Encode` (tick) | 30 | 3,714.2 ns | 252.73 ns | - |
-| `EncodeSealFrame` (tick and drain) | 30 | 3,935.1 ns | 117.93 ns | - |
-| `EncodeFramePlain` (TLS only) | 30 | 3,535.2 ns | 35.26 ns | - |
+| `Encode` (tick) | 1 | 191.6 ns | 1.76 ns | - |
+| `EncodeSealFrame` (tick and drain) | 1 | 461.1 ns | 2.88 ns | - |
+| `EncodeFramePlain` (TLS only) | 1 | 218.1 ns | 2.13 ns | - |
+| `Encode` (tick) | 30 | 3,261.6 ns | 14.56 ns | - |
+| `EncodeSealFrame` (tick and drain) | 30 | 3,687.8 ns | 32.20 ns | - |
+| `EncodeFramePlain` (TLS only) | 30 | 3,292.4 ns | 13.19 ns | - |
 
-`SessionCipherBenchmarks` in the same run, the seal the drain does since #875 (Task 2.1's `SealInto`) beside the
+These rows include the second reset, once the message is written (the scratch lets go of the packet's lists); a run
+before it read 216 / 728 / 222 ns at one entity and 3,714 / 3,935 / 3,535 ns at thirty, within this machine's spread.
+
+`SessionCipherBenchmarks` in an earlier run of the same day, the seal the drain does since #875 (Task 2.1's `SealInto`) beside the
 `Encrypt` it replaced on the send path:
 
 | Method | PayloadSize | Mean | StdDev | Allocated |
@@ -1028,9 +1031,8 @@ Windows 11, 12th Gen Intel Core i9-12900K, .NET 10.0.12, BenchmarkDotNet 0.15.8,
   (`PacketEncoder.Scratch<T>()`), the payload a pooled segment returned by `Release`, the frame written into a reused
   burst buffer, and the seal written in place. Before the scratch, every `Create` allocated its message (24 B for a
   state update, 48 B for a movement acknowledgement), the only allocation left on the send path.
-- **Encoding is protobuf-net's own cost**, about 120 ns per entity in view: framing plain adds nothing measurable. The
-  seal costs what `SealInto` costs alone at the larger size (about 220 ns at 30 entities, some 1.3 KB); at one entity
-  this run measured about 510 ns for it, against 218 ns for `SealInto` alone at 64 B.
+- **Encoding is protobuf-net's own cost**, about 105 ns per entity in view: framing plain adds little (about 25 ns).
+  The seal adds about what `SealInto` costs alone: some 270 ns at one entity and 400 ns at thirty (about 1.3 KB).
 - `SealInto` matches `Encrypt` in time and drops its array: 120, 312 and 1,080 B per sealed packet, the nonce, the
   payload and the tag.
 
