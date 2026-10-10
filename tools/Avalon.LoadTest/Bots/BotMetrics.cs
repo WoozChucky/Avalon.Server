@@ -41,6 +41,8 @@ public sealed class BotMetrics
 
     private readonly ConcurrentDictionary<int, PendingRing> _pending = new();
     private Window _window = new();
+    private long _admittedSealed;
+    private long _admittedPlain;
 
     /// <summary>
     /// Notes input <paramref name="seq"/> of <paramref name="bot"/> sent at <paramref name="timestamp"/>
@@ -160,6 +162,13 @@ public sealed class BotMetrics
             Exit(window);
         }
     }
+
+    /// <summary>An admission, by the mode the world's reply named (#875).</summary>
+    public void Admitted(bool packetEncryption) =>
+        Interlocked.Increment(ref packetEncryption ? ref _admittedSealed : ref _admittedPlain);
+
+    /// <summary>Every admission so far, by mode: sealed (Network:PacketEncryption on) and plain (TLS alone).</summary>
+    public (long Sealed, long Plain) Admissions => (Interlocked.Read(ref _admittedSealed), Interlocked.Read(ref _admittedPlain));
 
     /// <summary>A bot in the world lost its connection without asking to.</summary>
     public void Disconnected(int bot)

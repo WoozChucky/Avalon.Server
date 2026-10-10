@@ -137,8 +137,9 @@ dotnet run -c Release --project tools/Avalon.LoadTest -- check --behaviour fight
 ticket, TLS, admission, handshake, character list, create on the first entry, select, load report, spawn, first
 answered input), sends input at 60 Hz for 10 seconds through the same input driver the ramp uses, then leaves and
 signs out. It prints each step's duration, the input-to-ack latency (p50, p95 and p99), the driver's lateness p95,
-and for a walker how far it walked from the spawn point. Run it before the first ramp of a run, and after anything
-changed on the server or the network: it is the quickest way to see that the whole chain works.
+the packet encryption the admission reply named (`encryption on (sealed inside TLS)` or `encryption off (TLS alone)`,
+#875), and for a walker how far it walked from the spawn point. Run it before the first ramp of a run, and after
+anything changed on the server or the network: it is the quickest way to see that the whole chain works.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -302,7 +303,7 @@ Entering is the client's sequence. Each step has its own timeout:
 |---|---|---|
 | `join` | 60 s | The join ticket. A timeout, a 5xx or `CONTEXT_CHANGED` is retried twice under the same idempotency key. A reply for any world but the run's is refused (`join:wrong-world`) and never dialled |
 | `connect` | 10 s | TCP and TLS, pinned to the SHA-256 of the certificate the join reply names |
-| `admission` | 20 s | The join ticket and the client's session key |
+| `admission` | 20 s | The join ticket and the client's session key, in the clear. The reply's `PacketEncryption` (#875) sets the connection's mode, as the game client is to follow it (Avalon.Client#213): on, the bot seals every packet it sends after it with the session; off, it sends them plain inside TLS. Either way it opens what the world sends by each packet's header |
 | `handshake` | 10 s | The protocol version, `0.2.0` |
 | `list`, `create`, `select` | 30 s each | `create` only when the list lacks the character |
 | `spawn` | 35 s from the select reply | Inputs start only after the first world-state frame, the sign the character has spawned |
@@ -683,10 +684,12 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   could not be made whole says so: `(restart check: partial, ...)` or `(restart check: unknown, Prometheus gave
   nothing at the end)`. The tool warns when `target_info`'s pod name is not `--pod`. Then the run and its size, the
   API, the mix, the fighters' settings (`--forest-time` and `--party-size`, with the 0 to 30 second first-trip wait, or
-  `none in the mix` when the mix gives fighters no weight), the ramp settings (start, step, hold and judged window,
-  max, sign-in concurrency), Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its clock's
-  offset from Prometheus's at the start (by which every query's time was corrected), and the limits, each marked when
-  overridden.
+  `none in the mix` when the mix gives fighters no weight), the packet encryption the world's admission replies named
+  over the ramp (#875: `on (sealed inside TLS, Network:PacketEncryption)`, `off (TLS alone)`, or `mixed` with the
+  sealed and plain admissions counted when the world changed mode during the ramp; `packetEncryption.sealed` and
+  `packetEncryption.plain` in the JSON), the ramp settings (start, step, hold and judged window, max, sign-in
+  concurrency), Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its clock's offset from
+  Prometheus's at the start (by which every query's time was corrected), and the limits, each marked when overridden.
 - **Result**: one of `capacity N bots`, `no limit reached up to N bots`, `bot PC saturated: capacity ≥ N bots`,
   `stopped: steps that could not be judged`, or `stopped (<reason>)`, followed by `; does not stand: <reason>` when
   the run does not stand (`the world server restarted during the ramp`, `the world server restarted; not proven after
@@ -750,6 +753,10 @@ before it show how that value climbed. A `bot PC saturated` result is a lower bo
 (fewer walkers and churners) or a stronger bot PC. A ramp that stopped unknown usually means a missing metric: check
 [the export interval](#before-a-run) and Prometheus. If the bot count and the two cross-checks disagree, bots were
 not where the tool thought they were. Look at the failure kinds and the disconnects.
+
+**Pricing the session layer.** The bots seal or send plain as the world asks, so one world measures both modes: ramp
+it with `server.network.packetEncryption` on (the homelab values), then again with it off, and compare the two
+reports. Each report's header names the mode its admissions were given, so a ramp that ran in the wrong one shows.
 
 ### The fighters' section
 

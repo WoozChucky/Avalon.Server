@@ -219,7 +219,7 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
         return true;
     }
 
-    /// <summary>Seals and fires the packet a fighter decided on besides its input, from the lane's reused messages.</summary>
+    /// <summary>Builds and fires the packet a fighter decided on besides its input, from the lane's reused messages.</summary>
     private void SendAction(Bot bot, InputLane lane, FighterStep step, CancellationToken ct)
     {
         ValueTask send;
@@ -227,11 +227,11 @@ public sealed class InputDriver(Func<IReadOnlyCollection<Bot>> inWorld)
         {
             NetworkPacket packet = step.Action switch
             {
-                FighterAction.EnterForest => bot.SealInWorld(lane.EnterMap(Fighter.ForestMapId), NetworkPacketType.CMSG_ENTER_MAP),
-                FighterAction.LeaveForest => bot.SealInWorld(lane.EnterMap(Fighter.TownMapId), NetworkPacketType.CMSG_ENTER_MAP),
-                FighterAction.Cast => bot.SealInWorld(lane.Cast(bot.Fighter!.AbilityId, step.AimX, step.AimY, step.AimZ),
+                FighterAction.EnterForest => bot.OutgoingInWorld(lane.EnterMap(Fighter.ForestMapId), NetworkPacketType.CMSG_ENTER_MAP),
+                FighterAction.LeaveForest => bot.OutgoingInWorld(lane.EnterMap(Fighter.TownMapId), NetworkPacketType.CMSG_ENTER_MAP),
+                FighterAction.Cast => bot.OutgoingInWorld(lane.Cast(bot.Fighter!.AbilityId, step.AimX, step.AimY, step.AimZ),
                     NetworkPacketType.CMSG_CAST_ABILITY),
-                _ => bot.SealInWorld(InputLane.Respawn, NetworkPacketType.CMSG_RESPAWN_AT_TOWN),
+                _ => bot.OutgoingInWorld(InputLane.Respawn, NetworkPacketType.CMSG_RESPAWN_AT_TOWN),
             };
             send = bot.SendAsync(packet, ct);
         }
@@ -384,7 +384,7 @@ internal sealed class InputLane
     private CEnterMapPacket? _enterMap;
     private CCastAbilityPacket? _cast;
 
-    /// <summary>The fighter's entry message, reused: a message is serialized when it is sealed, on this thread.</summary>
+    /// <summary>The fighter's entry message, reused: a message is serialized when its packet is built, on this thread.</summary>
     public CEnterMapPacket EnterMap(ushort mapId)
     {
         _enterMap ??= new CEnterMapPacket();

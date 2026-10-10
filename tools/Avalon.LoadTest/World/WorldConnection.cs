@@ -26,9 +26,9 @@ namespace Avalon.LoadTest.World;
 /// party packets over, and drops everything else without decoding it.
 /// </summary>
 /// <remarks>
-/// Sends are serialised by one lock, and sealing with the session by another (<see cref="Seal{T}"/>): the codec and the
-/// frame writer each reuse one buffer, and the frames of two senders must not interleave. Disposing closes the socket,
-/// which is what ends the read loop.
+/// Sends are serialised by one lock, and building an outgoing packet by another (<see cref="Outgoing{T}"/>): the codec
+/// and the frame writer each reuse one buffer, the session refuses overlapping seals, and the frames of two senders must
+/// not interleave. Disposing closes the socket, which is what ends the read loop.
 /// </remarks>
 public sealed class WorldConnection : IAsyncDisposable
 {
@@ -42,7 +42,7 @@ public sealed class WorldConnection : IAsyncDisposable
     private readonly byte[] _publicKey;
     private readonly Channel<NetworkPacket> _inbound;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
-    private readonly Lock _sealLock = new();
+    private readonly Lock _outgoingLock = new();
     private readonly CancellationTokenSource _lifetime = new();
     private int _disposed;
     private volatile string? _closeReason;
@@ -73,9 +73,12 @@ public sealed class WorldConnection : IAsyncDisposable
 
     /// <summary>
     /// The connection's codec. <see cref="PacketCodec.Decode{T}"/> may be called from any thread;
-    /// <see cref="PacketCodec.Encrypted{T}"/> only through <see cref="Seal{T}"/>, which serialises it.
+    /// <see cref="PacketCodec.Outgoing{T}"/> only through the connection's <see cref="Outgoing{T}"/>, which serialises it.
     /// </summary>
     public PacketCodec Codec { get; }
+
+    /// <summary>What the world's admission reply said (#875): whether this connection seals what it sends.</summary>
+    public bool PacketEncryption { get; private set; }
 
     /// <summary>
     /// The packets the entry and leave code waits for (admission, handshake, character list, create, select and leave
@@ -101,7 +104,7 @@ public sealed class WorldConnection : IAsyncDisposable
         set => _state = value;
     }
 
-    /// <summary>Each <c>SMSG_PLAYER_STATE_ACK</c>, still sealed, raised on the read loop: a handler must be quick.</summary>
+    /// <summary>Each <c>SMSG_PLAYER_STATE_ACK</c>, undecoded, raised on the read loop: a handler must be quick.</summary>
     public event Action<NetworkPacket>? Ack;
 
     /// <summary>
@@ -123,7 +126,7 @@ public sealed class WorldConnection : IAsyncDisposable
     public event Action<ulong, uint>? CharacterDamaged;
 
     /// <summary>
-    /// Each <c>SMSG_PARTY_INVITE</c>, <c>SMSG_PARTY_RESULT</c> and <c>SMSG_PARTY_ROSTER</c>, still sealed, raised on the
+    /// Each <c>SMSG_PARTY_INVITE</c>, <c>SMSG_PARTY_RESULT</c> and <c>SMSG_PARTY_ROSTER</c>, undecoded, raised on the
     /// read loop while a handler is set (a fighter); left unread otherwise, as every
     /// <c>SMSG_PARTY_MEMBER_STATUS</c> is.
     /// </summary>
@@ -194,7 +197,7 @@ public sealed class WorldConnection : IAsyncDisposable
 
     /// <summary>
     /// Sends the join ticket and the client's public key in the clear and waits for the answer. Accepted: the session
-    /// is keyed with the server's key, and every later packet is sealed. Otherwise an
+    /// is keyed with the server's key, and every later packet is sealed or plain, as the reply says. Otherwise an
     /// <see cref="AdmissionRefusedException"/>, and the server closes the connection.
     /// </summary>
     public async Task AdmitAsync(string joinTicket, CancellationToken ct)
@@ -205,6 +208,8 @@ public sealed class WorldConnection : IAsyncDisposable
         if (admission.Result != GameAdmissionResult.Accepted)
             throw new AdmissionRefusedException(admission.Result);
 
+        PacketEncryption = admission.PacketEncryption;
+        Codec.Seals = admission.PacketEncryption;
         try
         {
             _session.Initialize(admission.PublicKey);
@@ -218,21 +223,20 @@ public sealed class WorldConnection : IAsyncDisposable
     /// <summary>Sends the client version and waits for the server to verify it; a refusal is a <see cref="WorldRefusedException"/>.</summary>
     public async Task HandshakeAsync(string version, CancellationToken ct)
     {
-        // Under the seal lock like every other seal: the session refuses a seal that overlaps another (#875).
-        NetworkPacket request;
-        lock (_sealLock)
-            request = CWorldHandshakePacket.Create(version, _session.Encryptor);
-
+        NetworkPacket request = Outgoing(new CWorldHandshakePacket { Version = version },
+            NetworkPacketType.CMSG_WORLD_HANDSHAKE);
         NetworkPacket reply = await RequestAsync(request, NetworkPacketType.SMSG_WORLD_HANDSHAKE, ct);
         if (!Codec.Decode<SWorldHandshakePacket>(reply).Verified)
             throw new WorldRefusedException($"the server did not verify client version {version}");
     }
 
-    /// <summary>A message sealed with the session's sending key, ready for <see cref="SendAsync"/>; safe from any thread.</summary>
-    public NetworkPacket Seal<T>(T message, NetworkPacketType type) where T : class
+    /// <summary>
+    /// A message sealed or plain, as the admission reply said, ready for <see cref="SendAsync"/>; safe from any thread.
+    /// </summary>
+    public NetworkPacket Outgoing<T>(T message, NetworkPacketType type) where T : class
     {
-        lock (_sealLock)
-            return Codec.Encrypted(message, type);
+        lock (_outgoingLock)
+            return Codec.Outgoing(message, type);
     }
 
     /// <summary>Writes one frame; frames from concurrent callers are written one after the other, never interleaved.</summary>
