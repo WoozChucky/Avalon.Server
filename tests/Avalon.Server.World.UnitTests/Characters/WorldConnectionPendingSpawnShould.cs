@@ -22,7 +22,6 @@ public class WorldConnectionPendingSpawnShould : IDisposable
     public WorldConnectionPendingSpawnShould()
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();

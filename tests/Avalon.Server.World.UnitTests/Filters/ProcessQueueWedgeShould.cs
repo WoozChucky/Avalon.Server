@@ -39,7 +39,6 @@ public class ProcessQueueWedgeShould : IDisposable
         listener.Stop();
 
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
         server.PacketHandlers.Returns(new Dictionary<NetworkPacketType, IWorldPacketHandler>
         {
             [NetworkPacketType.CMSG_CHARACTER_LIST] = new Recorder(NetworkPacketType.CMSG_CHARACTER_LIST, _dispatched),

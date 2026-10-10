@@ -178,16 +178,13 @@ public interface IWorldConnection : IConnection
     bool RespawnInFlight { get; set; }
 
     /// <summary>
-    ///     Sends a single time-synchronization ping to the client.
+    ///     Queues a time-sync ping; its send thread stamps it as it writes it (#875).
     ///     Driven by <c>WorldServer</c>'s tick loop on a fixed cadence.
     /// </summary>
     void SendTimeSyncPing();
 
     /// <summary>
-    ///     Asks for a time-sync ping on the next tick, whatever this connection's phase. A handler
-    ///     cannot send one itself: SendTimeSyncPing stamps the send time the round trip is measured
-    ///     against, and a handler runs at the top of a tick while the outbox is flushed at the bottom,
-    ///     so the stamp would carry the world update between them.
+    ///     Asks for a time-sync ping on the next tick, whatever this connection's phase.
     /// </summary>
     void RequestInitialTimeSyncPing();
 
@@ -222,13 +219,6 @@ public interface IWorldConnection : IConnection
     ///     run exactly once per tick per connection.
     /// </summary>
     void FlushContinuations();
-
-    /// <summary>
-    ///     Serializes all queued outbound packets and writes them to the socket in one burst.
-    ///     Called by <c>WorldServer.Update</c> once per tick after <c>_world.Update</c>.
-    ///     No-op if no packets are queued or a write is already in flight.
-    /// </summary>
-    void FlushOutbox();
 
     /// <summary>Queues an async result for safe execution on the tick thread.</summary>
     void EnqueueContinuation<T>(Task<T> task, Action<T> callback);

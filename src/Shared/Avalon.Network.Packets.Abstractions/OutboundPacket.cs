@@ -19,7 +19,10 @@ public readonly struct OutboundPacket
 
     public NetworkPacketHeader Header { get; }
 
-    /// <summary>The encoded message. <c>PacketEncoder.Encode</c> always sets it; only a <c>default</c> packet has none.</summary>
+    /// <summary>
+    /// The encoded message. <c>PacketEncoder.Encode</c> always sets it; it is null only for a marker the send path fills in
+    /// itself (the time-sync ping, <c>ConnectionSender.EnqueuePing</c>), and on a <c>default</c> packet.
+    /// </summary>
     public PayloadSegment? Payload { get; }
 
     public int PayloadLength => Payload?.Length ?? 0;

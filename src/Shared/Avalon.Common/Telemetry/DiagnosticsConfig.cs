@@ -22,10 +22,6 @@ public static class DiagnosticsConfig
         public static Counter<long> BytesSent =
             Meter.CreateCounter<long>("network.out.bytes", "bytes", "Number of bytes sent");
 
-        public static readonly Counter<long> PacketsDropped =
-            Meter.CreateCounter<long>("network.out.dropped", "{packets}",
-                "Packets dropped from a full outbox, oldest first, by packet type");
-
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
         public static ActivitySource Source = new(ServiceName);

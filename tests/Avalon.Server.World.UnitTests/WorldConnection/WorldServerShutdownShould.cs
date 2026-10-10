@@ -4,6 +4,8 @@ using Avalon.Configuration;
 using Avalon.Database.Character.Repositories;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Generic;
 using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Parties;
@@ -17,6 +19,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 
@@ -165,6 +168,34 @@ public class WorldServerShutdownShould : IDisposable
         await cancelled.CancelAsync();
 
         await server.Stop(cancelled.Token).WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>
+    /// The shutdown notice goes out after the tick has stopped (#875): the send threads outlive the tick, so the close
+    /// still writes it, and they stop last.
+    /// </summary>
+    [Fact]
+    public async Task Send_the_shutdown_notice_after_the_tick_stops_and_stop_the_send_threads_last()
+    {
+        var server = new TestWorldServer(Substitute.For<IWorld>());
+        server.SendScheduler.Start();
+        Avalon.World.WorldConnection connection = Connect(server);
+        var wire = new MemoryStream();
+        connection.InitOutboxForTest(new PacketStream(wire));
+
+        await server.Stop().WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.False(server.SendScheduler.IsRunning);
+        SDisconnectPacket? notice = null;
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire.ToArray())).EnumerateRawFramesAsync(256, guard.Token))
+        {
+            var frame = InboundPacketFrame.ParseFrame(raw);
+            if (frame.Header.Type == NetworkPacketType.SMSG_DISCONNECT)
+                notice = Serializer.Deserialize<SDisconnectPacket>(frame.Payload);
+        }
+
+        Assert.Equal(DisconnectReason.ServerShutdown, notice?.ReasonCode);
     }
 
     private Avalon.World.WorldConnection Connect(TestWorldServer server)

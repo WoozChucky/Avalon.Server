@@ -9,8 +9,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Generic;
-using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Handlers;
@@ -39,9 +37,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     private CharacterEntity? _characterEntity;
 
     private long _lastClientTicks;
-    private long _lastServerTicks;
 
-    // The world's clock (#820): the time-sync pings, packet arrival stamps, and the admission and heartbeat timings.
+    // The world's clock (#820): packet arrival stamps, and the admission and heartbeat timings. The time-sync ping is
+    // stamped on its send thread, by the send scheduler's clock, as it is written (#875).
     private readonly TimeProvider _time;
     private volatile bool _maintenanceBlocked;
 
@@ -198,11 +196,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         return true;
     }
 
-    public void SendTimeSyncPing()
-    {
-        _lastServerTicks = _time.GetUtcNow().UtcTicks;
-        Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, TimeSyncOffset, PacketEncoder.Shared));
-    }
+    public void SendTimeSyncPing() => _sender?.EnqueuePing(_lastClientTicks, RoundTripTime, TimeSyncOffset);
 
     public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp,
         long serverReceivedTicks)
@@ -215,7 +209,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         long latency = rtt / TimeSpan.TicksPerMillisecond;
 
         // Every term from THIS exchange. _lastClientTicks still holds the previous pong's stamp here
-        // (it is assigned below), and _lastServerTicks can already have advanced if a ping went out
+        // (it is assigned below), and the sender's last ping stamp can already have advanced if a ping went out
         // before this pong landed -- either one turns the offset into the gap between pings.
         TimeSyncOffset = lastServerTimestamp + rtt / 2 - clientReceivedTimestamp;
 
@@ -339,15 +333,34 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         base.Send(packet);
     }
 
-    protected override IOutbox OnCreateOutbox() =>
-        new TickDrivenOutbox(Id, _logger, Server.SendBufferCapacity,
-#pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
-            onFault: () => Close(false),
-#pragma warning restore MA0045
-            sealer: CryptoSession,
-            dropped: DiagnosticsConfig.World.PacketsDropped);
+    /// <summary>
+    /// A time-sync ping its send thread wrote (#875): encoded there, it never passed <see cref="Send" />, so it is counted
+    /// here, on that thread. Clear text, so its size has no seal overhead.
+    /// </summary>
+    private void CountPing(int size)
+    {
+        Interlocked.Add(ref BytesSentCount, size);
+        Interlocked.Increment(ref PacketSentCount);
+        DiagnosticsConfig.World.BytesSent.Add(size);
+        DiagnosticsConfig.World.PacketsSent.Add(1);
+    }
 
-    public void FlushOutbox() => _outbox?.Flush();
+    private ConnectionSender? _sender;
+
+    /// <summary>
+    /// The connection's sender on its send thread (#875). Its close action runs on that thread or where a write completed:
+    /// <see cref="Connection.Close" /> only starts the teardown (the sender's close is awaited off that thread, then the
+    /// socket closes), so it neither blocks nor throws there, and a close already started makes it a no-op.
+    /// </summary>
+    protected override IOutbox OnCreateOutbox()
+    {
+        NetworkSendScheduler scheduler = _server.SendScheduler
+            ?? throw new InvalidOperationException("The world server has no send scheduler");
+#pragma warning disable MA0045 // a slow connection's close starts on its send thread, which must not wait on it
+        _sender = scheduler.CreateSender(Id, _logger, CryptoSession, close: () => Close(false), onPingWritten: CountPing);
+#pragma warning restore MA0045
+        return _sender;
+    }
 
     public void InitOutboxForTest(PacketStream stream)
     {

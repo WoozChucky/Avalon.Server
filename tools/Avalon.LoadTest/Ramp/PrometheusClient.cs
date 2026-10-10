@@ -6,16 +6,10 @@ namespace Avalon.LoadTest.Ramp;
 
 /// <summary>
 /// The server-side values a ramp step is judged on, read from Prometheus at the step's end. Null is a value
-/// Prometheus could not give (an empty result, the server unreachable, NaN), so the step cannot be judged on it;
-/// <see cref="Drops"/> reads an empty series as 0 and is NaN only when its query failed.
+/// Prometheus could not give (an empty result, the server unreachable, NaN), so the step cannot be judged on it.
 /// </summary>
 /// <param name="TickP99Ms">The 99th percentile of tick duration, in milliseconds.</param>
 /// <param name="Tps">The average tick rate, ticks per second.</param>
-/// <param name="Drops">
-/// Outbound packets the server dropped (a client's outbox full) over the window. A packet type's series exists only
-/// from its first drop, so one that first appears within the window counts whole (its value then), the others by
-/// their increase.
-/// </param>
 /// <param name="ReceiveBacklogMax">The deepest the receive queue got over the window.</param>
 /// <param name="WorkingSetFraction">The world process's working set as a fraction of its pod's memory limit.</param>
 /// <param name="WorkingSetMb">The world process's working set, in MiB.</param>
@@ -31,7 +25,7 @@ namespace Avalon.LoadTest.Ramp;
 /// </param>
 /// <param name="Instances">Map instances active at the step's end, every map type together (the gauge has no map type).</param>
 public sealed record ServerValues(
-    double? TickP99Ms, double? Tps, double Drops, double? ReceiveBacklogMax, double? WorkingSetFraction, double? WorkingSetMb,
+    double? TickP99Ms, double? Tps, double? ReceiveBacklogMax, double? WorkingSetFraction, double? WorkingSetMb,
     double? Gen2PerMin, double? GcPauseFraction, double? SaveP95Ms, double? Instances)
 {
     /// <summary>
@@ -51,6 +45,15 @@ public sealed record ServerValues(
     /// <c>gc-stall</c> limit's value.
     /// </summary>
     public GcStall GcStall { get; init; } = GcStall.Unknown;
+
+    /// <summary>The connections the world closed as too slow over the window (#875): the <c>slow-kicks</c> limit's value.</summary>
+    public SlowKicks SlowKicks { get; init; } = SlowKicks.Unknown;
+
+    /// <summary>
+    /// The send threads' busy time and the pending bytes' p99 over the window (#875), for the report only: no limit reads
+    /// them.
+    /// </summary>
+    public SendThreads SendThreads { get; init; } = SendThreads.Unknown;
 }
 
 /// <summary>
@@ -91,9 +94,12 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
     /// <summary>
     /// The server values over <paramref name="window"/> (whole seconds) ending at <paramref name="at"/>. The rates need
     /// two samples of a series in the window: with the exporter's default 60 s interval a 60 s window has one, and those
-    /// values come back null.
+    /// values come back null. The slow kicks are counted from <paramref name="stepStart"/> (the step's settle began) up
+    /// to <paramref name="readAt"/> (the hold's end plus the export lag, no later than now), so a kick in the window's
+    /// last export interval is seen in the first sample after the hold's end.
     /// </summary>
-    public async Task<ServerValues> SampleAsync(DateTimeOffset at, TimeSpan window, CancellationToken ct)
+    public async Task<ServerValues> SampleAsync(DateTimeOffset at, TimeSpan window, DateTimeOffset stepStart,
+        DateTimeOffset readAt, CancellationToken ct)
     {
         int w = Math.Max(1, (int)window.TotalSeconds);
         string range = $"[{w.ToString(CultureInfo.InvariantCulture)}s]";
@@ -103,12 +109,25 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             $"histogram_quantile(0.99, sum by (le)(rate(world_tick_duration_microseconds_bucket{{{world}}}{range}))) / 1000", at, ct);
         Task<double?> tps = ValueAsync($"avg_over_time(world_tick_rate_tps{{{world}}}{range})", at, ct, lowerIsWorse: true);
         string windowSeconds = $"{w.ToString(CultureInfo.InvariantCulture)}s";
-        // A packet type's series is born with its first drop: a series there at the window's start counts its increase,
-        // one first seen within the window its whole value (the increase alone would miss its first sample's drops).
-        string dropped = $"network_out_dropped_total{{{world}}}";
-        Task<double?> drops = ValueAsync(
-            $"(sum(increase({dropped}{range}) and {dropped} offset {windowSeconds}) or vector(0)) + " +
-            $"(sum({dropped} unless {dropped} offset {windowSeconds}) or vector(0))", at, ct);
+        // The send threads (#875): whether the world exports their passes at all, anchored on the tick histogram as the
+        // stages' is (0: a build from before them, which judges no slow kick); the raw samples of the slow kicks, each
+        // one's increase over the one before it (increase() extrapolates to the range's edges, and a reason's series is
+        // born with its first kick), read at the read horizon so the window's last interval has its closing sample. The
+        // range reaches from there to Prometheus's own lookback before the step's start, so a series already there has a
+        // sample before the window and only one born within it counts its whole value. Then the threads' busy time in
+        // cores, by thread, and the 99th percentile of a pass's largest pending bytes.
+        const string SendPasses = "network_send_pass_duration_microseconds";
+        Task<Answer> sendSeries = AnswerAsync(
+            $"count({SendPasses}_count{{{world}}}) or (0 * count(world_tick_duration_microseconds_count{{{world}}}))", at, ct);
+        var kickSpan = new KickSpan(PrometheusSeconds(stepStart), PrometheusSeconds(at) - w, PrometheusSeconds(at),
+            PrometheusSeconds(readAt));
+        int kickRange = (int)Math.Ceiling(kickSpan.ReadHorizon - kickSpan.StepStart) + 300;
+        Task<IReadOnlyList<CounterSeries>?> slowKickSamples = SamplesAsync(
+            $"network_out_slow_kicks_total{{{world}}}[{kickRange.ToString(CultureInfo.InvariantCulture)}s]", null, readAt, ct);
+        Task<IReadOnlyDictionary<string, double>?> sendBusy = ByLabelAsync(
+            $"sum by (thread)(rate({SendPasses}_sum{{{world}}}{range})) / 1000000", "thread", at, ct);
+        Task<double?> pendingP99 = ValueAsync(
+            $"histogram_quantile(0.99, sum by (le)(rate(network_out_pending_bytes_bucket{{{world}}}{range})))", at, ct);
         Task<double?> backlog = ValueAsync($"max_over_time(world_receive_queue_depth{{{world},stat=\"max\"}}{range})", at, ct);
         Task<double?> workingSet = ValueAsync($"max(dotnet_process_memory_working_set_bytes{{{world}}})", at, ct);
         Task<double?> workingSetFraction = ValueAsync(
@@ -168,15 +187,15 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             $"sum by (map_type)(rate({InstanceUpdates}{{{world}}}{range})) / scalar(sum(rate({Ticks}{{{world}}}{range})))",
             "map_type", at, ct);
 
-        await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saveIncrease,
+        await Task.WhenAll(tick, tps, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saveIncrease,
             saveSamples, savesAtStart, newSaveSeries, instances, postUpdateSeries, stageMean, stageP99, instanceUpdateSeries,
-            instancesPerTick, gcSeries, gcPauseSamples, gcCollectionSamples);
+            instancesPerTick, gcSeries, gcPauseSamples, gcCollectionSamples, sendSeries, slowKickSamples, sendBusy, pendingP99);
 
         double? saveP95 = SaveP95(tick.Result, save.Result, saveIncrease.Result, saveSamples.Result, savesAtStart.Result,
             newSaveSeries.Result);
 
         return new ServerValues(
-            tick.Result, tps.Result, drops.Result ?? double.NaN, backlog.Result, workingSetFraction.Result,
+            tick.Result, tps.Result, backlog.Result, workingSetFraction.Result,
             workingSet.Result is { } bytes ? bytes / (1024 * 1024) : null, gen2.Result, gcPause.Result, saveP95, instances.Result)
         {
             PostUpdate = PostUpdateStages.From(postUpdateSeries.Result.Answered, postUpdateSeries.Result.Value,
@@ -185,6 +204,9 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
                 instancesPerTick.Result),
             GcStall = GcStall.From(gcSeries.Result.Answered, gcSeries.Result.Value, gcPauseSamples.Result,
                 gcCollectionSamples.Result, PrometheusSeconds(at) - w),
+            SlowKicks = SlowKicks.From(sendSeries.Result.Answered, sendSeries.Result.Value, slowKickSamples.Result, kickSpan),
+            SendThreads = SendThreads.From(sendSeries.Result.Answered, sendSeries.Result.Value, sendBusy.Result,
+                pendingP99.Result),
         };
     }
 

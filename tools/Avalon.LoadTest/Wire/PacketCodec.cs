@@ -11,10 +11,15 @@ namespace Avalon.LoadTest.Wire;
 /// </summary>
 /// <remarks>
 /// <see cref="Encrypted{T}"/> reuses one stream, so a connection calls it from one sender at a time.
+/// <see cref="Decode{T}"/> may be called from any thread: the session opens on one thread at a time only (#875), and a
+/// connection opens on two, its read loop and the bot that awaited a reply, so the codec serialises its opens itself.
 /// </remarks>
 public sealed class PacketCodec(IAvalonCryptoSession session)
 {
     private readonly MemoryStream _stream = new(512);
+
+    // Held only for the open, not the deserialisation: the session's receiving cipher is not thread-safe.
+    private readonly Lock _openLock = new();
 
     /// <summary>A packet sealed with the session's sending key.</summary>
     public NetworkPacket Encrypted<T>(T message, NetworkPacketType type) where T : class
@@ -45,7 +50,10 @@ public sealed class PacketCodec(IAvalonCryptoSession session)
         byte[] plain = ArrayPool<byte>.Shared.Rent(packet.Payload.Length);
         try
         {
-            int length = session.Decrypt(packet.Payload, plain);
+            int length;
+            lock (_openLock)
+                length = session.Decrypt(packet.Payload, plain);
+
             return Serializer.Deserialize<T>(new ReadOnlySpan<byte>(plain, 0, length));
         }
         finally

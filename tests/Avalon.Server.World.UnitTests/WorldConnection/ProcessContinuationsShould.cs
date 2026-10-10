@@ -17,7 +17,6 @@ public sealed class ProcessContinuationsShould : IDisposable
         // Build a mock that satisfies both IWorldServer and IServerBase (WorldConnection
         // casts its first arg to IServerBase in the base constructor).
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         (TcpClient? clientSide, TcpClient? serverSide) = CreateLoopbackPair();
         _serverSide = serverSide;

@@ -55,7 +55,6 @@ public class ConnectionKeyPairShould : IDisposable
     public void DifferFromEveryOtherConnectionOnTheSameServer()
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         IConnection first = NewConnection(server);
         IConnection second = NewConnection(server);
@@ -81,7 +80,6 @@ public class ConnectionKeyPairShould : IDisposable
     public void SealDifferentlyOnTwoConnectionsFromOnePeerKeyPair()
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         // One client key pair, presented twice.
         var peer = new Avalon.Common.Cryptography.CryptoManager();

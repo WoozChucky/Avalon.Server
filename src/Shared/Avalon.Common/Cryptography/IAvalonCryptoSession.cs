@@ -20,6 +20,13 @@ public enum CryptoRole
     Server,
 }
 
+/// <remarks>
+/// Seals (<see cref="Encrypt" />, <see cref="Encryptor" />, <see cref="SealInto" />) must be totally ordered, each
+/// happening after the last (one thread, a lock, a queue hand-off or an await); the same applies to opens
+/// (<see cref="Decrypt" />). A seal that overlaps another is refused with an <see cref="InvalidOperationException" />
+/// before it takes a nonce. A seal and an open may run at once: each direction has its own cipher and its own state
+/// (#875).
+/// </remarks>
 public interface IAvalonCryptoSession
 {
     void Initialize(byte[] otherEndPublicKeyBytes);
@@ -80,11 +87,22 @@ public interface IAvalonCryptoSession
 /// since this assembly's netstandard2.1 target cannot.
 /// </para>
 /// <para>
-/// The two <see cref="AesGcm"/> instances live as long as the session, which lives as long as its
-/// connection, and are not disposed: a tick-thread send may still seal for a connection that has
-/// just closed, and a disposed cipher would turn that into an exception on the tick. Their native
-/// key handles are released, and the key material destroyed, by the handles' finalizers when the
-/// session is collected.
+/// Seals (Encrypt, Encryptor, SealInto) must be totally ordered, each happening after the last (one thread, a lock, a
+/// queue hand-off or an await); the same applies to opens (Decrypt) (#875). On the world server the connection's send
+/// thread seals and its read loop opens; on the auth server its drain task seals and its read loop opens; a client
+/// orders its own seals, and its own opens. Each direction has its own <see cref="AesGcm"/>, so the two need no lock
+/// between them, and the session takes none.
+/// </para>
+/// <para>
+/// A seal that overlaps another fails closed, in every build: it is refused with an
+/// <see cref="InvalidOperationException"/> before a nonce is copied or the counter moves, so an overlap can never seal
+/// two packets under one nonce. Opens are checked only in a Debug build, by an assert. That check is an interlocked
+/// operation, which orders opens of its own accord, so a Debug run that passes does not prove a caller orders its opens.
+/// </para>
+/// <para>
+/// Neither cipher is disposed: a send thread may still seal for a connection that has just closed, and a disposed
+/// cipher would turn that into an exception on it. Their native key handles are released, and the key material
+/// destroyed, by the handles' finalizers when the session is collected.
 /// </para>
 /// <para>
 /// A session goes through <see cref="Initialize"/> once, and only a session whose exchange
@@ -97,14 +115,10 @@ public interface IAvalonCryptoSession
 /// </remarks>
 public class AvalonCryptoSession : IAvalonCryptoSession
 {
-    // AesGcm instances are not thread-safe, and a connection seals from the tick thread while its
-    // read loop opens; one lock serialises both directions, as it did with one shared cipher.
-    private readonly object _lock = new object();
-
     // New -> Initializing -> Ready, or Failed; Ready -> Exhausted. Ready is written only after both
     // ciphers are published, and Failed and Exhausted are never left, so a session reads Ready only
-    // while it can seal and open. Checked before each packet, and again under the lock, where
-    // exhaustion is written.
+    // while it can seal and open. Checked once before each packet. Exhaustion is written only by the
+    // one thread sealing, so no seal can pass the check once its counter is spent.
     private const int New = 0;
     private const int Initializing = 1;
     private const int Ready = 2;
@@ -127,6 +141,16 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     private AesGcm? _sealer;
     private AesGcm? _opener;
     private readonly byte[] _sendNonce = new byte[SessionKeys.NonceSize];
+
+    // Set while a seal is under way. A seal that finds it set overlaps another, which would copy the same nonce: it is
+    // refused instead, in every build (#875). An in-use flag rather than an owning thread's id, since an ordered caller
+    // (a drain task, a read loop) may resume on another pool thread after each await.
+    private int _sealing;
+
+#if DEBUG
+    // The same for opens, checked only in a Debug build: an overlapping open trips an assert.
+    private int _opening;
+#endif
 
     public AvalonCryptoSession(CryptoRole role, AsymmetricCipherKeyPair? keyPair = null)
     {
@@ -178,14 +202,11 @@ public class AvalonCryptoSession : IAvalonCryptoSession
             sealer = new AesGcm(_role == CryptoRole.Client ? clientToServer : serverToClient);
             opener = new AesGcm(_role == CryptoRole.Client ? serverToClient : clientToServer);
 
-            // Both ciphers are published under the lock the packets take, and only then is the
-            // session Ready: no packet sees one cipher, or none.
-            lock (_lock)
-            {
-                _sealer = sealer;
-                _opener = opener;
-                _state = Ready;
-            }
+            // Both ciphers are written before the state: a volatile write publishes them, so a packet that reads Ready
+            // sees both.
+            _sealer = sealer;
+            _opener = opener;
+            _state = Ready;
         }
         catch
         {
@@ -230,7 +251,8 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     public EncryptFunc Encryptor { get; }
 
     /// <exception cref="InvalidOperationException">
-    /// The session never completed its exchange, or its send counter is spent.
+    /// The session never completed its exchange, or its send counter is spent; or this seal overlapped another, and
+    /// was refused before it took a nonce (seals must be ordered).
     /// </exception>
     /// <exception cref="OverflowException">
     /// This call spent the send counter. Nothing is sealed, and the session is closed for good:
@@ -288,12 +310,17 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         Span<byte> ciphertext = destination.Slice(CiphertextOffset, plaintext.Length);
         Span<byte> tag = destination.Slice(CiphertextOffset + plaintext.Length, SessionKeys.TagSize);
 
-        lock (_lock)
+        // Taken before the nonce is copied: an overlapping seal is refused before it can reuse one, and the flag is
+        // cleared below only by the call that took it.
+        if (Interlocked.CompareExchange(ref _sealing, 1, 0) != 0)
+        {
+            throw new InvalidOperationException("Two seals overlapped on one session: seals must be ordered (#875)");
+        }
+
+        try
         {
             // The counter is the nonce. It is sent anyway, so a peer never has to track ours. It
             // is copied out and advanced before sealing, so no two packets can share it.
-            if (_state != Ready) throw NotReady();
-
             _sendNonce.CopyTo(nonce);
             if (!SessionKeys.TryIncrementNonce(_sendNonce))
             {
@@ -302,6 +329,10 @@ public class AvalonCryptoSession : IAvalonCryptoSession
             }
 
             _sealer!.Encrypt(nonce, plaintext, ciphertext, tag);
+        }
+        finally
+        {
+            Volatile.Write(ref _sealing, 0);
         }
 
         return sealedLength;
@@ -326,15 +357,23 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
         int length = data.Length - SessionKeys.NonceSize - SessionKeys.TagSize;
 
-        lock (_lock)
+#if DEBUG
+        bool owned = Interlocked.Exchange(ref _opening, 1) == 0;
+        System.Diagnostics.Debug.Assert(owned, "Two opens overlapped on one session: opens must be ordered (#875)");
+#endif
+        try
         {
-            if (_state != Ready) throw NotReady();
-
             _opener!.Decrypt(
                 data.Slice(0, SessionKeys.NonceSize),
                 data.Slice(SessionKeys.NonceSize, length),
                 data.Slice(SessionKeys.NonceSize + length, SessionKeys.TagSize),
                 output.AsSpan(0, length));
+        }
+        finally
+        {
+#if DEBUG
+            if (owned) Volatile.Write(ref _opening, 0);
+#endif
         }
 
         return length;

@@ -1,9 +1,14 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Configuration;
 using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Generic;
 using Avalon.World;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
+using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 
@@ -27,7 +32,6 @@ public class WorldConnectionTimeSyncShould : IDisposable
     public WorldConnectionTimeSyncShould()
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         (TcpClient? clientSide, TcpClient? serverSide) = CreateLoopbackPair();
         _serverSide = serverSide;
@@ -145,5 +149,51 @@ public class WorldConnectionTimeSyncShould : IDisposable
 
         // Ten milliseconds out and ten back, whatever the clocks say.
         Assert.InRange(_connection.RoundTripTime, 20 * TicksPerMs - ToleranceTicks, 20 * TicksPerMs + ToleranceTicks);
+    }
+
+    /// <summary>
+    /// The ping is stamped as its send thread writes it, not as the tick queues it (#875): a ping that waited 50 ms for
+    /// its send thread carries the time it left, so the round trip a pong reports holds none of that wait.
+    /// </summary>
+    [Fact]
+    public async Task StampThePing_WhenItIsWritten()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 10, 12, 0, 0, TimeSpan.Zero));
+        using var scheduler = new NetworkSendScheduler(new NetworkConfiguration { SendThreads = 1 },
+            NullLoggerFactory.Instance, clock, NetworkSendMetrics.Disabled);
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
+        server.SendScheduler.Returns(scheduler);
+        (TcpClient clientSide, TcpClient serverSide) = CreateLoopbackPair();
+        using (serverSide)
+        {
+            var connection = new Avalon.World.WorldConnection(server, clientSide, NullLoggerFactory.Instance,
+                Substitute.For<IPacketReader>(), clock);
+            var wire = new MemoryStream();
+            connection.InitOutboxForTest(new PacketStream(wire));
+
+            long queuedAt = clock.GetUtcNow().UtcTicks;
+            connection.SendTimeSyncPing();
+            clock.Advance(TimeSpan.FromMilliseconds(50));   // the ping waits for its send thread
+            long leftAt = clock.GetUtcNow().UtcTicks;
+            scheduler.RunAllPasses();
+
+            var frames = new List<byte[]>();
+            using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire.ToArray())).EnumerateRawFramesAsync(256, guard.Token))
+                frames.Add(raw.ToArray());
+            var ping = InboundPacketFrame.ParseFrame(Assert.Single(frames));
+            Assert.Equal(NetworkPacketType.SMSG_PING, ping.Header.Type);
+            long stamp = Serializer.Deserialize<SPingPacket>(ping.Payload).ServerTimestamp;
+            Assert.Equal(queuedAt + 50 * TicksPerMs, stamp);
+
+            // The client has it a millisecond after it left and answers at once; the pong lands a millisecond later.
+            // The round trip is those two milliseconds, not the 50 the ping spent queued.
+            connection.OnPongReceived(stamp, leftAt + TicksPerMs, leftAt + TicksPerMs, leftAt + 2 * TicksPerMs);
+            Assert.Equal(2 * TicksPerMs, connection.RoundTripTime);
+
+            connection.Close();
+            scheduler.RunAllPasses();   // the close's last visit, so the sender finishes and gives back its buffers
+            connection.Dispose();
+        }
     }
 }

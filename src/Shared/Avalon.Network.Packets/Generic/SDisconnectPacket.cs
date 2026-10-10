@@ -44,4 +44,11 @@ public enum DisconnectReason : ushort
 
     /// <summary>The account was deactivated (#882).</summary>
     Deactivated = 8,
+
+    /// <summary>
+    /// The connection could not keep up (#875): past <c>Network:MaxPendingBytes</c> queued for it. Sent as its only
+    /// packet before the close, when no write is still in flight; a connection found past the cap while a write is in
+    /// flight, or whose write stalled past <c>Network:MaxWriteStall</c>, is closed without it.
+    /// </summary>
+    SlowConnection = 9,
 }

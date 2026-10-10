@@ -16,9 +16,10 @@ Both TCP servers run on one code path:
 - **`AuthServer : ServerBase<AuthConnection>`** — the auth server.
 - **`WorldServer : ServerBase<WorldConnection>`** (`src/Server/Avalon.World/WorldServer.cs`) — the world server.
 - Connections implement **`IConnection`** (in `Avalon.Hosting.Networking`), which exposes:
-  - `void Send(OutboundPacket)` — takes the packet's payload reference: a synchronous enqueue onto the connection's
-    bounded outbox (`ChannelOutbox`; a world connection's is a `TickDrivenOutbox`), at most `Hosting:SendBufferCapacity`
-    packets, the oldest dropped (and released) when full; a packet the outbox refuses is released at once.
+  - `void Send(OutboundPacket)` — takes the packet's payload reference and queues it: on the auth server onto its
+    `ChannelOutbox` (at most `Hosting:SendBufferCapacity`, oldest dropped); on the world server onto the connection's
+    `ConnectionSender`, written by its send thread, never dropped (past `Network:MaxPendingBytes` the connection is
+    closed with `SlowConnection`, #875). A packet the outbox refuses is released at once.
   - `void Close(bool expected = true)` and `Task CloseAsync(bool expected = true)` — terminate the connection.
 
 The standalone TCP server library that once sat beside it (`Avalon.Network.Tcp`, with its development test client) is
@@ -72,6 +73,7 @@ Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 | 6     | `Maintenance`    | A maintenance cutoff, or an entry refused by it                |
 | 7     | `Banned`         | The account was banned (`world:accounts:status`, #882)         |
 | 8     | `Deactivated`    | The account was deactivated (`world:accounts:status`, #882)    |
+| 9     | `SlowConnection` | The connection could not keep up: past `Network:MaxPendingBytes` queued (#875). Its only packet, before the close, when no write is still in flight; one found past the cap while a write is in flight, or a write stalled past `Network:MaxWriteStall`, closes without it |
 
 ### Factory method
 
@@ -94,9 +96,22 @@ by the close.
 
 ### Graceful stop
 
-`WorldServer.OnStoppingAsync` first runs the restart drain (`WorldMaintenanceCoordinator.DrainForRestartAsync`, #768,
-see [world maintenance](world-maintenance.md)), then closes every connection with
-`GracefulShutdownHelper.NotifyAndCloseAsync` (`ServerShutdown`), despawns and saves.
+`WorldServer.OnStoppingAsync` runs, in order:
+
+1. Stop accepting: the listener is already stopped when it starts.
+2. The restart drain (`WorldMaintenanceCoordinator.DrainForRestartAsync`, #768, see
+   [world maintenance](world-maintenance.md)), while the tick still runs.
+3. Stop the tick and join its thread (5 s).
+4. `GracefulShutdownHelper.NotifyAndCloseAsync` (`ServerShutdown`) on every connection, all at once and awaited. The
+   tick no longer writes to sockets (#875): each connection's send thread writes what is queued, the notice last, and
+   each close waits up to 500 ms (`ConnectionSender.CloseBudget`) for it. A peer that stopped reading cannot hold the
+   close open past that budget and its 100 ms grace.
+5. The despawns the closes queued, run on this thread, which write the characters back.
+6. The wait for character saves still in flight (`SaveDrainLimit`, 20 s, and the host's stop timeout).
+7. The send threads stop last: they outlive the tick and the closes, so each close's notice goes out (or its budget
+   runs out) while its owner still runs, and no close is left waiting on a stopped owner. A send after the closes, a
+   despawn's among them, is refused, since its connection is already closed. They are background threads, joined within one shared `WorldServer.SendThreadsStopLimit` (2 s); one that does not
+   stop in time is logged and does not hold the process up.
 
 ### Forced kick notification
 
@@ -135,5 +150,6 @@ Tests: `tests/Avalon.Server.Auth.UnitTests/Networking/GracefulShutdownHelperShou
 | `StopAsync` with 3 connections       | All 3 receive disconnect packet then are closed  |
 | One `Send` throws                    | Other 2 still closed; exception logged           |
 | `StopAsync` with 0 connections       | No-op; no exceptions                             |
+| World stop, tick stopped, one connection | Its send thread writes the `ServerShutdown` notice; the send threads stop last (`WorldServerShutdownShould`) |
 | Account disconnect, account connected | Every connection of the account sent the kick packet and closed |
 | Account disconnect, no such account  | No-op; no exception                              |

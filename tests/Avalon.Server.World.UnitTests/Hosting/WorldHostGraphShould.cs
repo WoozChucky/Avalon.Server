@@ -158,6 +158,11 @@ public class WorldHostGraphShould
                 CapturedOfType<Avalon.World.Maintenance.WorldMaintenanceCoordinator>(ActivatorUtilities.CreateInstance(
                     host.Services, typeof(Avalon.World.Handlers.CharacterLoadedHandler))));
 
+            // The send threads (#875). WorldServer takes the scheduler with GetService and would otherwise build its own
+            // with the defaults, ignoring Network:*, so only this proves production hands it the container's.
+            Assert.Same(host.Services.GetRequiredService<NetworkSendScheduler>(),
+                host.Services.GetRequiredService<WorldServer>().SendScheduler);
+
             // The chat rate limit (#722): one singleton, with the shipped default from appsettings.json.
             Assert.Same(host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>(),
                 host.Services.GetRequiredService<Avalon.World.Chat.ChatRateLimiter>());

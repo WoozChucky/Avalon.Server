@@ -79,7 +79,6 @@ public class CharacterSelectChainShould : IDisposable
         listener.Stop();
 
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
         _connection = new Avalon.World.WorldConnection(
             server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>())
         {

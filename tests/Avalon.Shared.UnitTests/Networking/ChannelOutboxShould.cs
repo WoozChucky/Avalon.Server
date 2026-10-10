@@ -1,6 +1,5 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
-using Avalon.Common.Cryptography;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
@@ -182,7 +181,7 @@ public class ChannelOutboxShould
     [Fact]
     public async Task DiscardTheBurstAndFault_WhenAPacketCannotBeSealed()
     {
-        var encoder = new PacketEncoder(new PayloadSegmentPool());
+        var encoder = new PacketEncoder(new PayloadSegmentPool(countOutstanding: true));
         var sink = new SlowStream(TimeSpan.Zero);
         var faulted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64, sealer: new RefusingSealer(),
@@ -199,22 +198,6 @@ public class ChannelOutboxShould
         Assert.True(ReferenceEquals(finished, faulted.Task), "Expected the outbox to report the fault");
         Assert.Equal(0, sink.BytesWritten);
         Assert.Equal(0, encoder.Pool.Outstanding);
-    }
-
-    /// <summary>A session whose every seal fails, as a spent or uninitialised one does.</summary>
-    private sealed class RefusingSealer : IAvalonCryptoSession
-    {
-        public EncryptFunc Encryptor => throw new NotSupportedException();
-        public void Initialize(byte[] otherEndPublicKeyBytes) => throw new NotSupportedException();
-        public byte[] GetPublicKey() => throw new NotSupportedException();
-        public byte[] GetOtherEndPublicKey() => throw new NotSupportedException();
-        public byte[] Encrypt(ReadOnlySpan<byte> data) => throw new NotSupportedException();
-
-        public int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination) =>
-            throw new InvalidOperationException("The session cannot seal");
-
-        public int Decrypt(ReadOnlySpan<byte> data, byte[] output) => throw new NotSupportedException();
-        public byte[] GenerateHandshakeData() => throw new NotSupportedException();
     }
 
     /// <summary>Writes complete, but only after a delay — a socket write that is not instantaneous.</summary>
