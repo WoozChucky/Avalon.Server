@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
 
@@ -151,20 +152,31 @@ public sealed class NetworkSendScheduler : IDisposable
             }
         }
 
-        while (owner.Dirty.TryDequeue(out ConnectionSender? sender))
+        // The payloads this pass frames go back to their pool together at its end, one lock per size class rather than one
+        // per packet: the tick rents from the same stacks.
+        PayloadSegmentPool pool = _encoder.Pool;
+        pool.BeginReturnBatch();
+        try
         {
-            serviced++;
-            try
+            while (owner.Dirty.TryDequeue(out ConnectionSender? sender))
             {
-                sender.Service();
-            }
-            catch (Exception e)
-            {
-                // One connection's failure (a payload that cannot be sealed, a broken stream) closes that connection only.
-                sender.Fault(e);
-            }
+                serviced++;
+                try
+                {
+                    sender.Service();
+                }
+                catch (Exception e)
+                {
+                    // One connection's failure (a payload that cannot be sealed, a broken stream) closes that connection only.
+                    sender.Fault(e);
+                }
 
-            maxPending = Math.Max(maxPending, sender.PendingBytes);
+                maxPending = Math.Max(maxPending, sender.PendingBytes);
+            }
+        }
+        finally
+        {
+            pool.EndReturnBatch();
         }
 
         if (serviced > 0)

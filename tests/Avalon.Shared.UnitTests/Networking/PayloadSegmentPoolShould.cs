@@ -36,4 +36,46 @@ public class PayloadSegmentPoolShould
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
     }
+
+    /// <summary>
+    /// A blip that left a thousand connections each holding their pending bytes must not pin those segments for good: a
+    /// size class keeps at most <see cref="PayloadSegmentPool.MaxFreeBytesPerSizeClass" /> of free segments, whether they
+    /// come back one by one or in a send pass's batch, and the rest go to the GC.
+    /// </summary>
+    [Theory]
+    [InlineData(40, false)] // the 64 B class: 65,536 kept
+    [InlineData(40, true)]
+    [InlineData(1024 * 1024, false)] // the 1 MiB class: 4 kept
+    public void Keep_no_more_free_segments_of_a_size_than_its_cap(int payloadLength, bool batched)
+    {
+        var pool = new PayloadSegmentPool(countOutstanding: true);
+        int capacity = Math.Max(64, payloadLength);
+        int kept = PayloadSegmentPool.MaxFreeBytesPerSizeClass / capacity;
+        byte[] payload = new byte[payloadLength];
+
+        var burst = new OutboundPacket[kept + 3];
+        var given = new HashSet<PayloadSegment>(ReferenceEqualityComparer.Instance);
+        for (int i = 0; i < burst.Length; i++)
+        {
+            burst[i] = new OutboundPacket(default, pool.Rent(payload));
+            given.Add(burst[i].Payload!);
+        }
+
+        if (batched)
+            pool.BeginReturnBatch();
+        foreach (OutboundPacket packet in burst)
+            packet.Release();
+        if (batched)
+            pool.EndReturnBatch();
+
+        Assert.Equal(0, pool.Outstanding);
+        int reused = 0;
+        for (int i = 0; i < burst.Length; i++)
+        {
+            if (given.Contains(pool.Rent(payload)))
+                reused++;
+        }
+
+        Assert.Equal(kept, reused);
+    }
 }
