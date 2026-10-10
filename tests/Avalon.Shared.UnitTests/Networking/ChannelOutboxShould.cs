@@ -1,7 +1,10 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
+using Avalon.Common.Cryptography;
 using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -169,6 +172,49 @@ public class ChannelOutboxShould
                 ArrayPool<byte>.Shared.Return(array);
             sink.Release();
         }
+    }
+
+    /// <summary>
+    /// A packet the session cannot seal (a session never initialised, or one that spent its counter) discards the whole
+    /// burst, plain packets in front of it included, and closes the connection: nothing goes out of order under a broken
+    /// session, and every segment goes back to its pool.
+    /// </summary>
+    [Fact]
+    public async Task DiscardTheBurstAndFault_WhenAPacketCannotBeSealed()
+    {
+        var encoder = new PacketEncoder(new PayloadSegmentPool());
+        var sink = new SlowStream(TimeSpan.Zero);
+        var faulted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64, sealer: new RefusingSealer(),
+            flushTimeout: TimeSpan.FromSeconds(30), onFault: () => faulted.TrySetResult());
+
+        // Queued before the drain starts, so both are framed into one burst.
+        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, encoder));
+        outbox.Enqueue(SPlayerStateAckPacket.Create(1, 2f, 3f, 4f, 0f, 0f, 90, encoder));
+        outbox.Connect(new PacketStream(sink));
+
+        Task finished = await Task.WhenAny(faulted.Task, Task.Delay(s_deadlockGuard));
+        await outbox.DisposeAsync();
+
+        Assert.True(ReferenceEquals(finished, faulted.Task), "Expected the outbox to report the fault");
+        Assert.Equal(0, sink.BytesWritten);
+        Assert.Equal(0, encoder.Pool.Outstanding);
+    }
+
+    /// <summary>A session whose every seal fails, as a spent or uninitialised one does.</summary>
+    private sealed class RefusingSealer : IAvalonCryptoSession
+    {
+        public EncryptFunc Encryptor => throw new NotSupportedException();
+        public void Initialize(byte[] otherEndPublicKeyBytes) => throw new NotSupportedException();
+        public byte[] GetPublicKey() => throw new NotSupportedException();
+        public byte[] GetOtherEndPublicKey() => throw new NotSupportedException();
+        public byte[] Encrypt(ReadOnlySpan<byte> data) => throw new NotSupportedException();
+
+        public int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination) =>
+            throw new InvalidOperationException("The session cannot seal");
+
+        public int Decrypt(ReadOnlySpan<byte> data, byte[] output) => throw new NotSupportedException();
+        public byte[] GenerateHandshakeData() => throw new NotSupportedException();
     }
 
     /// <summary>Writes complete, but only after a delay — a socket write that is not instantaneous.</summary>

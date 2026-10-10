@@ -15,6 +15,7 @@ public sealed class ChannelOutbox : IOutbox
     private readonly ILogger _logger;
     private readonly Guid _connectionId;
     private readonly IAvalonCryptoSession? _sealer;
+    private readonly Action? _onFault;
     private PacketStream? _stream;
     private Task? _bgTask;
 
@@ -35,12 +36,17 @@ public sealed class ChannelOutbox : IOutbox
     /// Seals each packet flagged Encrypted as the drain task frames it, in the order the frames are written; with none,
     /// every packet goes plain.
     /// </param>
+    /// <param name="onFault">
+    /// Called once when a burst cannot be framed (a packet the sealer refuses): the burst is discarded and the connection
+    /// has to close, since its session can seal nothing more in order.
+    /// </param>
     public ChannelOutbox(Guid connectionId, ILogger logger, int capacity, IAvalonCryptoSession? sealer = null,
-        TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null)
+        TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null, Action? onFault = null)
     {
         _connectionId = connectionId;
         _logger = logger;
         _sealer = sealer;
+        _onFault = onFault;
         _flushTimeout = flushTimeout ?? DefaultFlushTimeout;
         _cancelGrace = cancelGrace ?? DefaultCancelGrace;
         _queue = Channel.CreateBounded<OutboundPacket>(new BoundedChannelOptions(capacity)
@@ -106,15 +112,17 @@ public sealed class ChannelOutbox : IOutbox
             await Task.WhenAny(_bgTask, Task.Delay(_cancelGrace)).ConfigureAwait(false);
 #pragma warning restore MA0040
 
+        // What the loop never wrote goes back to its pool. The queue is not what an in-flight write reads (that is the
+        // burst buffer, below), so this holds whether or not the loop has ended.
+        while (_queue.Reader.TryRead(out OutboundPacket left))
+            left.Release();
+
         // The writer rents from ArrayPool and the loop still names the cancellation source, so
         // release neither while a write that ignored the cancel could still be reading out of
         // them: whichever connection rents that array next would put these bytes on its own
         // socket. A rental that is dropped instead of returned is just collected.
         if (_bgTask is null || _bgTask.IsCompleted)
         {
-            // What the abandoned loop never wrote goes back to its pool.
-            while (_queue.Reader.TryRead(out OutboundPacket left))
-                left.Release();
             _burstWriter.Dispose();
             _cts.Dispose();
         }
@@ -137,24 +145,39 @@ public sealed class ChannelOutbox : IOutbox
                     }
 
                     _burstWriter.Reset();
-                    do
+                    try
                     {
-                        if (_logger.IsEnabled(LogLevel.Trace) &&
-                            packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
-                            packet.Header.Type != NetworkPacketType.SMSG_PING)
+                        do
                         {
-                            _logger.LogTrace("OUT: {Type} ({Length} B)", packet.Header.Type, packet.PayloadLength);
-                        }
+                            if (_logger.IsEnabled(LogLevel.Trace) &&
+                                packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
+                                packet.Header.Type != NetworkPacketType.SMSG_PING)
+                            {
+                                _logger.LogTrace("OUT: {Type} ({Length} B)", packet.Header.Type, packet.PayloadLength);
+                            }
 
-                        try
-                        {
-                            PacketEnvelope.Append(_burstWriter, packet, _sealer);
-                        }
-                        finally
-                        {
-                            packet.Release();
-                        }
-                    } while (_queue.Reader.TryRead(out packet));
+                            try
+                            {
+                                PacketEnvelope.Append(_burstWriter, packet, _sealer);
+                            }
+                            finally
+                            {
+                                packet.Release();
+                            }
+                        } while (_queue.Reader.TryRead(out packet));
+                    }
+                    catch (Exception e) when (e is not OperationCanceledException)
+                    {
+                        // A packet that cannot be sealed (a session that never completed its exchange, or spent its
+                        // counter, #855): the burst is discarded and the connection closes. Going on would send what
+                        // follows out of order, and spend nonces, under a session that has already failed.
+                        _logger.LogError(e, "Could not frame a packet for connection {Id}; closing", _connectionId);
+                        _queue.Writer.TryComplete();
+                        while (_queue.Reader.TryRead(out OutboundPacket left))
+                            left.Release();
+                        _onFault?.Invoke();
+                        break;
+                    }
 
                     await _stream.WriteAsync(_burstWriter.WrittenMemory, _cts.Token).ConfigureAwait(false);
                 }

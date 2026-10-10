@@ -62,17 +62,18 @@ Scale parameter `CreatureCount` runs at 50 / 100 / 200 to validate O(n) behaviou
 
 ### Packet Serialization GC-001 — `PacketSerializationGcBenchmarks.cs`
 
-Before/after allocation comparison for the GC-001 fix: `MemoryStream + ToArray` versus
-`PacketSerializationHelper` + `PooledArrayBufferWriter`.
+Before/after allocation comparison for the GC-001 fix: `MemoryStream + ToArray` versus `PacketEncoder.Encode` into a
+pooled segment, released after the call (#875).
 
 | Scenario | What it models |
 |---|---|
 | `Legacy_SmallPacket` | Old pattern — `MemoryStream + Serializer.Serialize + ms.ToArray() + encrypt` on a small packet (one field) — **baseline** |
-| `Pooled_SmallPacket` | New pattern — `PacketSerializationHelper.Serialize` on the same packet |
+| `Pooled_SmallPacket` | New pattern — `PacketEncoder.Encode` into a pooled segment on the same packet, released after the call |
 | `Legacy_MediumPacket` | Old pattern on `SChatMessagePacket` (two `ulong`s, two `string`s, `DateTime`) |
 | `Pooled_MediumPacket` | New pattern on the same medium packet |
 
-Both encrypt delegates are identity copies (`span => span.ToArray()`) to isolate serialization cost from crypto cost.
+Only the legacy path has an encrypt delegate now, an identity (`bytes => bytes`), to isolate serialization cost from
+crypto cost; the pooled path does not seal (the send path does, as it frames the packet).
 
 ---
 
@@ -168,7 +169,7 @@ session layer.
 | Scenario | What it models |
 |---|---|
 | `Serialize_NoEncryption` | Serialize `CClientInfoPacket` — no encryption |
-| `Serialize_Encrypted` | Serialize `CCharacterListPacket` through the session's `Encryptor`, as every send does (the `Encrypt` method group before #854) |
+| `Serialize_Encrypted` | Serialize `CCharacterListPacket` through the session's `Encryptor`, as every client-to-server packet does (the `Encrypt` method group before #854) |
 | `Deserialize_Encrypted` | Deserialize + decrypt + inner-deserialize an encrypted packet |
 | `Deserialize_NoEncryption` | Deserialize an unencrypted `NetworkPacket` |
 
@@ -1048,8 +1049,10 @@ does: flush every connection's outbox, one after the other, on one thread.
 For each mode it opens the connections over loopback (the server end is what the world holds; the client end is read
 and discarded on the thread pool, as a peer would), then ticks at 60 Hz: each tick queues `packets` movement
 acknowledgements (a frame of about 70 B, the size of the world's acks and state updates) on every connection and
-times the loop that flushes every outbox. It reports the flush time per tick, per connection, the tick thread's
-allocations per tick and the collections over the measured ticks, after 300 warm-up ticks.
+times the loop that flushes every outbox. Since #875 each outbox has its own sealer, so the timed flush includes sealing
+every ack; the 2026-10-09 results below were taken with the acks sealed before they were queued, outside the flush.
+It reports the flush time per tick, per connection, the tick thread's allocations per tick and the collections over the
+measured ticks, after 300 warm-up ticks.
 
 | Mode | Stream behind the outbox |
 |---|---|

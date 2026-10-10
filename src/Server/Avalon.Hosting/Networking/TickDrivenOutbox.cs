@@ -216,14 +216,17 @@ public sealed class TickDrivenOutbox : IOutbox
         if (!idle)
             idle = await WaitForWriteAsync(_cancelGrace).ConfigureAwait(false);
 
+        // What the close could not deliver goes back to its pool. The queue is not what an in-flight write reads (that is
+        // the burst buffer, below), so this holds whether or not the write has ended.
+        while (_queue.Reader.TryRead(out OutboundPacket left))
+            left.Release();
+
         // The writer rents from ArrayPool and the write still names the cancellation source, so
         // release neither while a write that ignored the cancel could still be reading out of
         // them: whichever connection rents that array next would put these bytes on its own
         // socket. A rental that is dropped instead of returned is just collected.
         if (idle)
         {
-            while (_queue.Reader.TryRead(out OutboundPacket left))
-                left.Release();
             _burstWriter.Dispose();
             _cts.Dispose();
         }

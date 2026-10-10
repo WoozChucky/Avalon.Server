@@ -90,6 +90,7 @@ Template for a **server packet** (sent by server — needs a static `Create` fac
 ```csharp
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.<Group>;
@@ -104,22 +105,9 @@ public class <PacketName> : Packet
 
     [ProtoMember(1)] public <Type> <Field> { get; set; }
 
-    public static NetworkPacket Create(<params>, Func<byte[], byte[]> encryptFunc)
-    {
-        using var ms = new MemoryStream();
-        Serializer.Serialize(ms, new <PacketName> { <Field> = <param> });
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = encryptFunc(ms.ToArray())
-        };
-    }
+    // Encoded, plain, into a pooled segment; the connection's outbox seals it (Flags) as it frames it (#875).
+    public static OutboundPacket Create(<params>, PacketEncoder encoder)
+        => encoder.Encode(new <PacketName> { <Field> = <param> }, PacketType, Flags, Protocol);
 }
 ```
 

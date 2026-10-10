@@ -175,7 +175,10 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
     }
 
     protected virtual IOutbox OnCreateOutbox() =>
-        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity, CryptoSession);
+        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity, CryptoSession,
+#pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
+            onFault: () => Close(false));
+#pragma warning restore MA0045
 
     protected abstract void OnHandshakeFinished();
 

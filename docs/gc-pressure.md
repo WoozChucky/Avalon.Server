@@ -17,7 +17,7 @@ Each entry tracks its current status so they can be resolved one at a time.
 
 ## GC-001 — Outbound packet serialization: `MemoryStream` + `ToArray()` + encrypt copy
 
-**Status:** Resolved — `PacketSerializationHelper` + `PooledArrayBufferWriter` + `EncryptFunc(ReadOnlySpan<byte>)`; 1 alloc per packet (was 3). Every send passes the session's `Encryptor`, a delegate created once with the session, rather than the `Encrypt` method group, a new delegate per packet whenever the JIT did not keep it on the stack (#854).  
+**Status:** Superseded by #875: server packets encode into pooled `PayloadSegment`s (`PacketEncoder`) and are sealed at the drain (`PacketEnvelope`, `SealInto`); `Encryptor` serves client-to-server packets only.  
 **Severity:** Critical  
 **Files:** Every `SXxx.Create()` static factory across `src/Shared/Avalon.Network.Packets/**/*.cs`
 
