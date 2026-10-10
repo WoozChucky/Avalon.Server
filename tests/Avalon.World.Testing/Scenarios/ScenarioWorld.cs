@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
@@ -18,6 +19,7 @@ using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -34,15 +36,17 @@ using Microsoft.Extensions.Time.Testing;
 namespace Avalon.World.Testing.Scenarios;
 
 /// <summary>
-/// A world of real <see cref="MapInstance" />s over the shared town navmesh, held by a real
-/// <see cref="InstanceRegistry" /> and ticked by a real <see cref="InstanceTicker" />, as <c>World.Update</c> ticks them,
-/// with every player behind a <see cref="ScenarioConnection" />. Deterministic: everything the tick reads is real or
-/// hand-written, never a substitute, and times by <see cref="Clock" /> and rolls by a seeded random, never the
-/// system clock or <see cref="Random.Shared" />.
+/// A world of real <see cref="MapInstance" />s, over the shared town navmesh or, in a world with reference data, a
+/// forest's own (<see cref="NewForestInstance" />), held by a real <see cref="InstanceRegistry" /> and ticked by a real
+/// <see cref="InstanceTicker" />, as <c>World.Update</c> ticks them, with every player behind a
+/// <see cref="ScenarioConnection" />. Deterministic: everything the tick reads is real or hand-written, never a
+/// substitute, and times by <see cref="Clock" /> and rolls by a seeded random, never the system clock or
+/// <see cref="Random.Shared" />.
 /// </summary>
 /// <remarks>
 /// <para>
-/// What an instance resolves from the container, and what it gets here: <see cref="TimeProvider" /> (the
+/// A world made by the constructor holds no reference data. What an instance resolves from the container, and what it
+/// gets there: <see cref="TimeProvider" /> (the
 /// <see cref="Clock" />), <see cref="CombatConfig" /> (the defaults, as production), <see cref="IScriptManager" />
 /// (a real <see cref="ScriptManager" />, not loaded: a cast's script lookup finds nothing, and only a cast looks),
 /// <see cref="ICombatRandom" /> (a <see cref="CombatRandom" /> over a seeded <see cref="Random" />) and
@@ -53,9 +57,12 @@ namespace Avalon.World.Testing.Scenarios;
 /// A world made by <see cref="CreateWithReferenceData" /> holds the World server's reference data
 /// (<see cref="ScenarioReferenceData" />) and builds forests (<see cref="NewForestInstance" />) and characters of a
 /// class (<see cref="NewCharacter(CharacterClass)" />) from it. Its container adds what those resolve in production:
-/// the loaded script manager, the world itself (<see cref="IWorld" />, which a creature's AI reads its abilities
-/// through), the loggers, the aura scripts, and the loot roller and allocator, each roll seeded. Still left out:
-/// the periodic save, quests and parties.
+/// the loaded script manager (so creatures fight with their AI and casts run their ability scripts), the world itself
+/// (<see cref="IWorld" />, which a creature's AI reads its abilities through), the aura scripts, the loot roller and
+/// allocator, each roll seeded, and the <see cref="PartyService" /> (<see cref="FormParty" />), which <see cref="Tick" />
+/// ticks and flushes as the World server does. Its loggers all write to one <see cref="ErrorLog" />: an error logged
+/// while a forest is built or ticked, which the instance contains and goes on without, ends the scenario instead.
+/// Still left out: the periodic save and quests.
 /// </para>
 /// </remarks>
 public sealed class ScenarioWorld : IDisposable
@@ -82,13 +89,14 @@ public sealed class ScenarioWorld : IDisposable
     private readonly CreaturePlacementService? _placement;
     private readonly PortalPlacementService _portals = new();
     private readonly ServiceProvider _services;
+    private readonly PartyService? _parties;
     private readonly List<MapTemplate> _templates = [];
     private readonly ScenarioInstanceFactory _factory = new();
     private readonly InstanceRegistry _registry;
     private readonly Meter _meter = new("scenario");
     private readonly InstanceTicker _ticker;
     private readonly TickFailures _failures = new();
-    private readonly SetupLog _setupLog = new();
+    private readonly ErrorLog _errorLog = new();
     private readonly List<ScenarioConnection> _connections = [];
     private readonly List<MapInstance> _instances = [];
     private uint _nextOwner = 1;
@@ -129,8 +137,12 @@ public sealed class ScenarioWorld : IDisposable
         _formula = reference?.Data.Combat.Formula ?? s_formula;
         if (reference is not null)
         {
-            _placement = new CreaturePlacementService(new CreatureSpawner(_setupLog, _world), reference.Chunks,
-                reference.SpawnTables, reference.AuthoredSpawns, reference.Scripts, _services, _setupLog);
+            // As World attaches it once its registry exists: a party's forest is found through the registry.
+            _parties = _services.GetRequiredService<PartyService>();
+            _parties.AttachInstances(_registry);
+
+            _placement = new CreaturePlacementService(new CreatureSpawner(_errorLog, _world), reference.Chunks,
+                reference.SpawnTables, reference.AuthoredSpawns, reference.Scripts, _services, _errorLog);
         }
     }
 
@@ -153,17 +165,20 @@ public sealed class ScenarioWorld : IDisposable
         // world it reads its abilities from; ChunkLayoutInstanceFactory resolves the world too. The world is built after
         // the container, and resolved only once an instance is built.
         services.AddSingleton<IWorld>(_ => _world);
-        services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
-        services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
+        services.AddSingleton<ILoggerFactory>(_errorLog);
+        services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
         services.AddSingleton(provider =>
-            new AuraScripts(reference.Scripts, provider, Clock, NullLogger<AuraScripts>.Instance));
+            new AuraScripts(reference.Scripts, provider, Clock, new Logger<AuraScripts>(_errorLog)));
 
         // As production registers them (ServiceExtensions.AddWorldServices), each roll seeded; the allocator shares the
         // combat rolls, as it does there.
         services.AddSingleton<ILootRoller>(new LootRoller(new LootRandom(new Random(unchecked(seed + LootSeedOffset))),
-            NullLogger<LootRoller>.Instance));
+            new Logger<LootRoller>(_errorLog)));
         services.AddSingleton<ILootAllocator>(provider =>
             new PartyLootAllocator(Options.Create(configuration), Clock, provider.GetRequiredService<ICombatRandom>()));
+
+        // Parties (FormParty): an instance reads who shares a kill, its loot and its experience from it.
+        services.AddSingleton(new PartyService(Options.Create(configuration), Clock, new Logger<PartyService>(_errorLog)));
     }
 
     /// <summary>The world's clock: every instance, character and timer here reads it, and <see cref="Tick" /> advances it.</summary>
@@ -183,11 +198,12 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>
     /// One world tick, in <c>World.Update</c>'s order for the registry: the builds finished since the last tick
-    /// published, then every instance through the registry's tick snapshot (<c>TickInstances</c>); then, as
-    /// <c>WorldServer</c> runs them after the world update, the inventory, sheet and ability-amount flushers and every
-    /// connection's outbox; then the clock moves on a tick.
+    /// published, the parties (in a world with reference data), then every instance through the registry's tick
+    /// snapshot (<c>TickInstances</c>); then, as <c>WorldServer</c> runs them after the world update, the inventory,
+    /// sheet and ability-amount flushers, the party members' status and every connection's outbox; then the clock moves
+    /// on a tick.
     /// The ticker contains an instance's throw, as it does in production; here it ends the scenario instead, since a
-    /// tick cut short would be measured as a cheap one.
+    /// tick cut short would be measured as a cheap one. So does an error logged to the <see cref="ErrorLog" />.
     /// </summary>
     /// <remarks>
     /// Left out: <c>World.Update</c>'s last step, <c>InstanceRegistry.ProcessExpiredInstances</c>. Its walk of the
@@ -200,9 +216,16 @@ public sealed class ScenarioWorld : IDisposable
     {
         _registry.PublishFinished();
 
+        // World.TickParties: invite expiry, leadership and the leave countdowns. A countdown that ran out would move a
+        // character to town, which a scenario cannot do.
+        if (_parties is not null && _parties.Tick().Count > 0)
+            throw new NotSupportedException("A party leave countdown ran out: a scenario cannot return a character to town");
+
         _ticker.Tick(_registry.TickInstances(), Dt);
         if (_failures.First is { } failure)
             throw new InvalidOperationException("An instance threw during a scenario tick", failure);
+        if (_errorLog.First is { } error)
+            throw new InvalidOperationException("A forest instance logged an error during a tick", error);
 
         // The flushers that need no service, in WorldServer's order after the world update (#875). Nothing a town
         // scenario does changes an inventory, the stats or the abilities, so there they send nothing, and must allocate
@@ -214,6 +237,9 @@ public sealed class ScenarioWorld : IDisposable
             CharacterSheetFlusher.Flush(_connections[i], _formula);
         for (int i = 0; i < _connections.Count; i++)
             AbilityAmountsFlusher.Flush(_connections[i]);
+
+        // The party members' pools, at most four times a second each, after the flushers as WorldServer sends them.
+        _parties?.FlushMemberStatus();
 
         for (int i = 0; i < _connections.Count; i++)
             _connections[i].FlushOutbox();
@@ -282,13 +308,13 @@ public sealed class ScenarioWorld : IDisposable
             : _registry.GetOrCreateNormalInstanceAsync(owner!.Value, template.Id);
 
         var cached = new CachedForest(forest);
-        var factory = new ChunkLayoutInstanceFactory(_setupLog, new ChunkLayoutSourceResolver(cached, cached), cached,
+        var factory = new ChunkLayoutInstanceFactory(_errorLog, new ChunkLayoutSourceResolver(cached, cached), cached,
             _placement!, _portals, _services);
         MapInstance instance = factory.BuildAsync(template, owner, CancellationToken.None, party).GetAwaiter().GetResult();
 
-        // The factory and the placement contain a failure to one creature and log it; here it ends the scenario, since a
-        // forest short of creatures, or with a creature short of its AI, measures cheaper than it is.
-        if (_setupLog.First is { } failure)
+        // The factory and the placement contain a failure to one creature and log it to the error log; here it ends the
+        // scenario, since a forest short of creatures, or with a creature short of its AI, measures cheaper than it is.
+        if (_errorLog.First is { } failure)
             throw new InvalidOperationException($"Building the forest on seed {seed} logged an error", failure);
         foreach (ICreature creature in instance.Creatures.Values)
         {
@@ -394,15 +420,69 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>Puts the character in the instance at the position, behind a new <see cref="ScenarioConnection" />.</summary>
     public ScenarioConnection Join(MapInstance instance, CharacterEntity character, Vector3 position,
-        Action<ScenarioConnection>? onUpdateMap = null)
+        Action<ScenarioConnection>? onUpdateMap = null) =>
+        Join(instance, Connect(character, onUpdateMap), position);
+
+    /// <summary>
+    /// A new <see cref="ScenarioConnection" /> for the character, in the world but in no instance yet, as a character is
+    /// once it has entered the world: in a world with reference data the party service counts it online
+    /// (<c>World.SpawnInInstance</c>), so it can be invited (<see cref="FormParty" />) before it joins an instance.
+    /// </summary>
+    public ScenarioConnection Connect(CharacterEntity character, Action<ScenarioConnection>? onUpdateMap = null)
     {
+        var connection = new ScenarioConnection(character, onUpdateMap);
+        _parties?.CharacterOnline(connection);
+        return connection;
+    }
+
+    /// <summary>
+    /// Puts a connection made by <see cref="Connect" /> in the instance at the position. In a world with reference data
+    /// the party service is told, as <c>World.TransferPlayer</c> tells it, since who shares an instance changed.
+    /// </summary>
+    public ScenarioConnection Join(MapInstance instance, ScenarioConnection connection, Vector3 position)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        ArgumentNullException.ThrowIfNull(connection);
+        ICharacter character = connection.Character
+                               ?? throw new ArgumentException("The connection has no character", nameof(connection));
         character.InstanceId = instance.InstanceId;
         character.Position = position;
 
-        var connection = new ScenarioConnection(character, onUpdateMap);
         instance.AddCharacter(connection);
         _connections.Add(connection);
+        _parties?.InstanceChanged(connection);
         return connection;
+    }
+
+    /// <summary>
+    /// Forms a party of <paramref name="members" /> through the real <see cref="PartyService" />, on the tick thread as
+    /// its mutators require: the first invites each of the others by name, and each accepts, as the party packets do.
+    /// Every member must be connected (<see cref="Connect" />, or a join) and in no party. Returns the party, for
+    /// <see cref="NewForestInstance" /> to build its forest. Only a world with reference data has parties.
+    /// </summary>
+    public PartyId FormParty(params ScenarioConnection[] members)
+    {
+        ArgumentNullException.ThrowIfNull(members);
+        PartyService parties = _parties ?? throw new InvalidOperationException(
+            $"{nameof(FormParty)} needs reference data: build the world with {nameof(ScenarioWorld)}.{nameof(CreateWithReferenceData)}");
+        if (members.Length < 2)
+            throw new ArgumentException("A party needs at least two members", nameof(members));
+
+        uint leader = members[0].Character!.Guid.Id;
+        for (int i = 1; i < members.Length; i++)
+        {
+            ICharacter member = members[i].Character!;
+            RequirePartyOk(parties.Invite(leader, member.Name), $"inviting {member.Name}");
+            RequirePartyOk(parties.Respond(member.Guid.Id, accept: true), $"{member.Name} accepting");
+        }
+
+        return parties.PartyOf(leader)!.Id;
+    }
+
+    private static void RequirePartyOk(PartyResult result, string step)
+    {
+        if (result != PartyResult.Ok)
+            throw new InvalidOperationException($"Forming the party failed {step}: {result}");
     }
 
     /// <summary>
@@ -530,11 +610,14 @@ public sealed class ScenarioWorld : IDisposable
     }
 
     /// <summary>
-    /// The log of a forest's build (the instance factory, the creature placement and the spawner): an error there is a
-    /// creature or a map the build contained and went on without, and the first one is kept for
-    /// <see cref="NewForestInstance" /> to raise. Setup only.
+    /// The log of everything in a world with reference data: a forest's build (the instance factory, the creature
+    /// placement, the spawner), its instances for their whole life (their loot, aura and cast failures among them), the
+    /// scripts and the services the container builds. An error there is one the code contained and went on without; the
+    /// first one is kept, and <see cref="NewForestInstance" /> or <see cref="Tick" /> raises it, since a scenario that
+    /// goes on without would measure cheaper than it is. Never written in a world without reference data, whose instances
+    /// log nowhere.
     /// </summary>
-    private sealed class SetupLog : ILoggerFactory, ILogger
+    private sealed class ErrorLog : ILoggerFactory, ILogger
     {
         public Exception? First { get; private set; }
 

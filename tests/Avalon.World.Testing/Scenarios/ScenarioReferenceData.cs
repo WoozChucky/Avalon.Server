@@ -131,9 +131,18 @@ public sealed class ScenarioReferenceData
                                                .FindByTemplateIdAsync(ForestMap).GetAwaiter().GetResult()
                                            ?? throw new InvalidOperationException($"Map {ForestMap.Value} has no procedural config");
 
-        // The one random draw on the forest's build path that no seed reaches: an authored spawn is placed without a
-        // level, so CreatureSpawner.RollLevel draws it from Random.Shared. The forest has none today, so its creatures
-        // are the seeded roll's alone; refuse, rather than measure a forest whose levels change from run to run.
+        // The one random draw on the forest's build path that no seed reaches: a creature placed without a level has it
+        // drawn by CreatureSpawner.RollLevel from Random.Shared. An authored spawn is always placed so, and a rolled one
+        // when its depth falls in no band (DepthBandLevels.For answers null). The forest has no authored spawn and bands
+        // that cover every depth from 1 on, so its creatures are the seeded roll's alone; refuse, rather than measure a
+        // forest whose levels change from run to run. ForestLayouts checks each layout's own depths too.
+        if (BandProblem(forestConfig.DepthBands) is { } problem)
+        {
+            throw new InvalidOperationException(
+                $"Map {ForestMap.Value}'s depth bands {problem}: a creature at a depth no band covers has its level drawn " +
+                "from Random.Shared by CreatureSpawner.RollLevel, and a forest scenario would no longer be deterministic.");
+        }
+
         int authored = repositories.GetRequiredService<IMapCreatureSpawnRepository>().FindByMapAsync(ForestMap)
             .GetAwaiter().GetResult().Count;
         if (authored > 0)
@@ -145,6 +154,28 @@ public sealed class ScenarioReferenceData
 
         return new ScenarioReferenceData(keepAlive, repositories, data, scripts, chunks, forestTemplate, forestConfig,
             Stopwatch.GetElapsedTime(start));
+    }
+
+    /// <summary>
+    /// Why the bands leave a depth from 1 on to no band, or null: none at all, a first band from another depth than 1, a
+    /// gap or an overlap between two, or a last band with an end.
+    /// </summary>
+    private static string? BandProblem(IReadOnlyList<ProceduralDepthBand> bands)
+    {
+        if (bands.Count == 0)
+            return "are empty";
+
+        var ordered = bands.OrderBy(b => b.MinDepth).ToList();
+        if (ordered[0].MinDepth != 1)
+            return $"start at depth {ordered[0].MinDepth}, not 1";
+
+        for (int i = 0; i + 1 < ordered.Count; i++)
+        {
+            if (ordered[i].MaxDepth is not { } end || end + 1 != ordered[i + 1].MinDepth)
+                return $"do not meet between the band from depth {ordered[i].MinDepth} and the one from {ordered[i + 1].MinDepth}";
+        }
+
+        return ordered[^1].MaxDepth is { } last ? $"end at depth {last}" : null;
     }
 
     /// <summary>The repositories' contexts, each over its own connection to the named in-memory database.</summary>
