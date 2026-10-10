@@ -15,9 +15,16 @@ namespace Avalon.Hosting.Networking;
 /// seals what this connection seals, frames it and writes it, with one write in flight at a time. Nothing is dropped.
 /// </summary>
 /// <remarks>
-/// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the burst buffer, <c>_finishedFlag</c>,
-/// <c>_doomHandled</c> and <c>_noticeWritten</c>. Every other field is read and written with <see cref="Interlocked" />
-/// or <see cref="Volatile" />.
+/// Two burst buffers: the one being written, and the next. While a write is in flight the owner frames what is queued
+/// into the next one and gives each payload back at once ("frame ahead"), so a client that reads slowly holds its bytes
+/// there, on the send thread, rather than in the queue and the payload pool the tick fills: the queue holds about one
+/// tick's packets, and neither grows on the tick. The next write sends the next buffer. Only the owner seals and frames,
+/// and its writes are sequential, so the nonce order is still the wire order.
+/// <para>
+/// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the next buffer and its counts, the swap of the two
+/// buffers (only while no write is in flight), <c>_finishedFlag</c>, <c>_doomHandled</c>, <c>_noticeWritten</c> and
+/// <c>_pingPending</c>. Every other field is read and written with <see cref="Interlocked" /> or <see cref="Volatile" />.
+/// </para>
 /// </remarks>
 public sealed class ConnectionSender : IOutbox
 {
@@ -41,7 +48,6 @@ public sealed class ConnectionSender : IOutbox
     private readonly PacketEncoder _encoder;
     private readonly Action _close;
     private readonly TimeProvider _time;
-    private readonly PooledArrayBufferWriter _burst = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly TaskCompletionSource _finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Action _onPendingWriteCompleted;
@@ -49,6 +55,10 @@ public sealed class ConnectionSender : IOutbox
     private readonly Action<int>? _onPingWritten;
 
     private PacketStream? _stream;
+    private PooledArrayBufferWriter _burst = new(); // the burst being written; read by the write in flight
+    private PooledArrayBufferWriter _next = new();  // the next burst, framed ahead while a write is in flight
+    private int _nextPackets;
+    private int _nextPayloadBytes;
     private ConfiguredValueTaskAwaitable.ConfiguredValueTaskAwaiter _pendingWrite;
     private long _pendingBytes;
     private long _writeStarted;
@@ -67,6 +77,7 @@ public sealed class ConnectionSender : IOutbox
     private bool _finishedFlag;
     private bool _doomHandled; // owner thread only
     private bool _noticeWritten; // owner thread only: a disconnect notice went out, so no ping follows it
+    private bool _pingPending; // owner thread only: a ping's marker was drained; the ping is stamped as its burst leaves
 
     internal ConnectionSender(NetworkSendScheduler scheduler, int ownerThread, Guid connectionId, ILogger logger,
         IAvalonCryptoSession? sealer, PacketEncoder encoder, Action close, TimeProvider time, long maxPendingBytes,
@@ -93,7 +104,10 @@ public sealed class ConnectionSender : IOutbox
     /// <summary>Whether this connection seals what is flagged Encrypted (the session layer inside TLS).</summary>
     public bool Seals => _sealer is not null;
 
-    /// <summary>Payload bytes queued plus those of the burst being written.</summary>
+    /// <summary>
+    /// Payload bytes held: queued, framed ahead into the next burst, or in the burst being written. What
+    /// <c>Network:MaxPendingBytes</c> caps.
+    /// </summary>
     public long PendingBytes => Interlocked.Read(ref _pendingBytes);
 
     /// <summary>True once the connection was found too slow; it is closing.</summary>
@@ -237,15 +251,23 @@ public sealed class ConnectionSender : IOutbox
             return;
         }
 
-        // A write in flight marks this connection dirty again when it ends, and the rest goes then. Read before the fault
-        // flag: a write that fails sets that flag before it clears this one, so a visit that reads no write in flight
-        // also reads the fault, and never starts another write on a stream that has failed.
+        // A write in flight marks this connection dirty again when it ends, and the next burst goes then; meanwhile what
+        // is queued is framed ahead into it. Read before the fault flag: a write that fails sets that flag before it
+        // clears this one, so a visit that reads no write in flight also reads the fault, and never starts another write
+        // on a stream that has failed.
         if (IsWriteInFlight)
+        {
+            // A session that failed to seal frames nothing more. A write failing meanwhile only wastes this framing: the
+            // visit after it discards the next burst.
+            if (Volatile.Read(ref _faulted) == 0)
+                FrameQueued();
             return;
+        }
 
         if (Volatile.Read(ref _faulted) != 0)
         {
             ReleaseQueued();
+            DiscardNext();
             FinishIfIdle();
             return;
         }
@@ -257,18 +279,49 @@ public sealed class ConnectionSender : IOutbox
             return;
         }
 
-        _burst.Reset();
-        int packets = 0;
-        int payloadBytes = 0;
+        // Nothing framed ahead: frame into the buffer the last write used (it has ended), so a connection whose writes
+        // never go pending uses, and grows, one buffer only; the other is for framing ahead.
+        if (_next.Written == 0)
+        {
+            (_burst, _next) = (_next, _burst);
+            _next.Reset();
+        }
+
+        if (!FrameQueued())
+            return;
+
+        // Stamped as the burst leaves, just before its write; never once the close began or a disconnect notice went out:
+        // the notice stays last. Clear text, and outside the pending bytes: its marker carried none.
+        if (_pingPending)
+        {
+            _pingPending = false;
+            if (Volatile.Read(ref _completed) == 0 && !_noticeWritten && !AppendPing())
+                return;
+        }
+
+        if (_nextPackets == 0)
+        {
+            FinishIfIdle();
+            return;
+        }
+
+        StartWrite();
+    }
+
+    /// <summary>
+    /// Owner thread: drains the queue into the next burst, sealing and framing each packet in queue order and giving its
+    /// payload back at once. False when a packet could not be sealed: the connection was faulted.
+    /// </summary>
+    private bool FrameQueued()
+    {
         int length = 0;
-        bool ping = false;
         try
         {
             while (_queue.TryDequeue(out OutboundPacket packet))
             {
                 if (packet.Payload is null)
                 {
-                    ping = true; // the ping's marker: the ping itself goes last, below
+                    _pingPending = true; // the ping's marker: the ping itself goes last, as its burst leaves
                     continue;
                 }
 
@@ -278,58 +331,69 @@ public sealed class ConnectionSender : IOutbox
                 length = packet.PayloadLength;
                 try
                 {
-                    PacketEnvelope.Append(_burst, packet, _sealer);
+                    PacketEnvelope.Append(_next, packet, _sealer);
                 }
                 finally
                 {
                     packet.Release();
                 }
 
-                payloadBytes += length;
+                _nextPayloadBytes += length;
                 length = 0;
-                packets++;
+                _nextPackets++;
             }
 
-            // Stamped as the burst leaves, just before its write; never once the close began or a disconnect notice went
-            // out: the notice stays last. Clear text, and outside the pending bytes: its marker carried none.
-            if (ping && Volatile.Read(ref _completed) == 0 && !_noticeWritten)
-            {
-                long serverTicks = _time.GetUtcNow().UtcTicks;
-                OutboundPacket stamped = SPingPacket.Create(serverTicks, Volatile.Read(ref _pingClientTicks),
-                    Volatile.Read(ref _pingRoundTrip), Volatile.Read(ref _pingOffset), _encoder);
-                int size = stamped.Size; // read before the release gives the payload back
-                try
-                {
-                    PacketEnvelope.Append(_burst, stamped, _sealer);
-                }
-                finally
-                {
-                    stamped.Release();
-                }
-
-                Interlocked.Exchange(ref _lastPingServerTicks, serverTicks);
-                _onPingWritten?.Invoke(size);
-                packets++;
-            }
+            return true;
         }
         catch (Exception e)
         {
             // A packet that cannot be sealed (a session that never completed its exchange, or spent its counter, #855):
-            // the burst is discarded and the connection closes. Going on would send what follows out of order, and spend
-            // nonces, under a session that has already failed.
-            Interlocked.Add(ref _pendingBytes, -(payloadBytes + length));
+            // the next burst is discarded and the connection closes. Going on would send what follows out of order, and
+            // spend nonces, under a session that has already failed.
+            Interlocked.Add(ref _pendingBytes, -length);
             Fault(e);
-            return;
+            return false;
         }
+    }
 
-        if (packets == 0)
+    /// <summary>Owner thread: the time-sync ping, stamped now, at the end of the next burst. False when it faulted.</summary>
+    private bool AppendPing()
+    {
+        try
         {
-            FinishIfIdle();
-            return;
-        }
+            long serverTicks = _time.GetUtcNow().UtcTicks;
+            OutboundPacket stamped = SPingPacket.Create(serverTicks, Volatile.Read(ref _pingClientTicks),
+                Volatile.Read(ref _pingRoundTrip), Volatile.Read(ref _pingOffset), _encoder);
+            int size = stamped.Size; // read before the release gives the payload back
+            try
+            {
+                PacketEnvelope.Append(_next, stamped, _sealer);
+            }
+            finally
+            {
+                stamped.Release();
+            }
 
-        _burstPayloadBytes = payloadBytes;
-        StartWrite(packets);
+            Interlocked.Exchange(ref _lastPingServerTicks, serverTicks);
+            _onPingWritten?.Invoke(size);
+            _nextPackets++;
+            return true;
+        }
+        catch (Exception e)
+        {
+            Fault(e);
+            return false;
+        }
+    }
+
+    /// <summary>Owner thread: the next burst, never to be written, is dropped and its payload bytes stop counting.</summary>
+    private void DiscardNext()
+    {
+        Interlocked.Add(ref _pendingBytes, -_nextPayloadBytes);
+        _nextPayloadBytes = 0;
+        _nextPackets = 0;
+        _pingPending = false;
+        _next.Reset();
     }
 
     /// <summary>
@@ -340,6 +404,7 @@ public sealed class ConnectionSender : IOutbox
     private void ServiceDoomed(SlowKickReason reason)
     {
         ReleaseQueued();
+        DiscardNext();
         if (!_doomHandled)
         {
             _doomHandled = true;
@@ -352,19 +417,18 @@ public sealed class ConnectionSender : IOutbox
             // read before the fault flag, as in Service: a write that just failed is never followed by the notice.
             if (reason == SlowKickReason.Bytes && _stream is not null && !IsWriteInFlight && Volatile.Read(ref _faulted) == 0)
             {
-                _burst.Reset();
                 OutboundPacket notice = SDisconnectPacket.Create(SlowConnectionMessage, DisconnectReason.SlowConnection, _encoder);
                 try
                 {
-                    PacketEnvelope.Append(_burst, notice, _sealer);
+                    PacketEnvelope.Append(_next, notice, _sealer);
                 }
                 finally
                 {
                     notice.Release();
                 }
 
-                _burstPayloadBytes = 0;
-                StartWrite(packets: 1);
+                _nextPackets = 1; // outside the pending bytes: it was never queued
+                StartWrite();
             }
 
             RequestClose();
@@ -379,13 +443,24 @@ public sealed class ConnectionSender : IOutbox
         _logger.LogError(error, "Send failed for connection {Id}; closing it", ConnectionId);
         Volatile.Write(ref _faulted, 1);
         ReleaseQueued();
+        DiscardNext();
         RequestClose();
         FinishIfIdle();
     }
 
-    private void StartWrite(int packets)
+    /// <summary>
+    /// Owner thread, no write in flight: the next burst becomes the one written, and the buffer the last write used, which
+    /// nothing reads any more, becomes the next.
+    /// </summary>
+    private void StartWrite()
     {
-        _scheduler.Metrics.Burst(packets, _burst.Written);
+        (_burst, _next) = (_next, _burst);
+        _next.Reset();
+        _burstPayloadBytes = _nextPayloadBytes;
+        _scheduler.CountWrite(this, _nextPackets, _burst.Written);
+        _nextPayloadBytes = 0;
+        _nextPackets = 0;
+
         Volatile.Write(ref _writeStarted, _time.GetTimestamp());
         Volatile.Write(ref _writeInFlight, 1);
 
@@ -459,6 +534,7 @@ public sealed class ConnectionSender : IOutbox
         if (error is not null)
         {
             ReleaseQueued();
+            DiscardNext();
             FinishIfIdle();
         }
         else if (Volatile.Read(ref _completed) != 0)
@@ -530,8 +606,10 @@ public sealed class ConnectionSender : IOutbox
 
         _finishedFlag = true;
         ReleaseQueued();
-        // No write reads the burst any more: it goes back to the array pool.
+        DiscardNext();
+        // No write reads either burst any more: both go back to the array pool.
         _burst.Dispose();
+        _next.Dispose();
         _finished.TrySetResult();
     }
 

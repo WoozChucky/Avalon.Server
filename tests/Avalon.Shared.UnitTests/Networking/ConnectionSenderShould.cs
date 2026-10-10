@@ -96,6 +96,7 @@ public sealed class ConnectionSenderShould
 
         Assert.Equal(2, (await Frames(wire.ToArray())).Count);
         Assert.Equal(1, stalled.Writes);  // one write in flight: the second packet waits for it ...
+        Assert.Equal(0, _pool.Outstanding); // ... framed ahead, its payload back in the pool, not held by the queue ...
         stalled.Complete();
         // The write's end runs where the stream completes it (the thread pool, under the test's context), which marks
         // the connection for its owner's next pass.

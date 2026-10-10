@@ -239,6 +239,9 @@ public sealed class NetworkSendScheduler : IDisposable
             _threads[sender.OwnerThread].Wake.Set();
     }
 
+    /// <summary>Owner thread only: a write of <paramref name="sender" /> starts, of <paramref name="packets" /> packets.</summary>
+    internal void CountWrite(ConnectionSender sender, int packets, int bytes) => Metrics.Burst(packets, bytes);
+
     /// <summary>Owner thread only: a write of <paramref name="sender" /> is pending, so its stall clock is read each pass.</summary>
     internal void TrackWriting(ConnectionSender sender)
     {

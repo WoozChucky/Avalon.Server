@@ -138,7 +138,7 @@ Section in `appsettings.json`: `"Network"` (world server). Read once at startup 
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `SendThreads` | int | about half the processors, 1 to 8 | Dedicated send threads (`Network.Send.<i>`); each connection belongs to one for its life |
-| `MaxPendingBytes` | int | `524288` (512 KiB) | Bytes one connection may have queued or being written; past it the connection is sent `SDisconnect(SlowConnection)` and closed. Nothing is ever dropped |
+| `MaxPendingBytes` | int | `524288` (512 KiB) | Payload bytes one connection may hold, queued, framed ahead while a write is in flight, or being written; past it the connection is sent `SDisconnect(SlowConnection)` and closed. Nothing is ever dropped |
 | `MaxWriteStall` | TimeSpan | `00:00:10` | How long one write may stay pending; past it the connection is closed without a notice |
 
 **Validation rules:** `SendThreads` 1 to 64; `MaxPendingBytes` 65536 to 67108864; `MaxWriteStall` 1 s to 5 min. Checked at startup, which names the setting.

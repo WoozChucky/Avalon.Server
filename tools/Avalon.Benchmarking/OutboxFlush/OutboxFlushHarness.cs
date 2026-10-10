@@ -37,13 +37,26 @@ namespace Avalon.Benchmarking.OutboxFlush;
 /// above 1 the send threads drain, and give their segments back to the pool, while the tick goes on encoding, as they do
 /// when a write completion or an off-tick send wakes them during a tick.
 /// <c>receive</c> measures the other direction instead: what the read loop allocates per frame it reads over TLS.
+/// <c>slow-tcp</c> and <c>slow-tls</c> stall one connection in twenty (small socket buffers both ends, its reader paused
+/// for <see cref="StallTicks" /> ticks after the first <see cref="StallTicks" />) and report what the tick thread
+/// allocates before, during and after the stall: a client that stops reading must not make the tick allocate.
 ///
 /// Run: dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush [connections] [packets] [ticks] [modes]
+/// (a slow mode needs more than 2 x <see cref="StallTicks" /> ticks)
 /// [seal] [wakes]; defaults 50,200,500,1000, 1, 1800, memory,tcp,tls, both, 1.
 /// </remarks>
 public static class OutboxFlushHarness
 {
     private static readonly long s_ticksPerFrame = Stopwatch.Frequency / 60;
+
+    /// <summary>A slow mode's stall: this many ticks of normal reading, then this many with the stalled readers paused.</summary>
+    private const int StallTicks = 180;
+
+    /// <summary>A slow mode stalls one connection in this many.</summary>
+    private const int StalledOneIn = 20;
+
+    /// <summary>A stalled connection's socket buffers, each end: small, so its writes go pending within a few ticks.</summary>
+    private const int StalledBufferBytes = 4096;
 
     // Key generation is setup cost: one ECDH pair per end for the whole process, as the scenario runner does. Each
     // connection's session still runs its own agreement and key derivation, so no two share cipher state.
@@ -112,6 +125,8 @@ public static class OutboxFlushHarness
             TimeProvider.System, new NetworkSendMetrics(meter));
         scheduler.Start();
 
+        bool slow = mode.StartsWith("slow-", StringComparison.Ordinal);
+        ReadGate? gate = slow ? new ReadGate() : null;
         var ends = new List<ConnectionEnds>(count);
         using var stop = new CancellationTokenSource();
         try
@@ -121,7 +136,9 @@ public static class OutboxFlushHarness
             int port = ((IPEndPoint)listenerSocket.LocalEndpoint).Port;
             for (int i = 0; i < count; i++)
             {
-                (Stream server, Stream? client, Task reader) = await OpenStreams(mode, listenerSocket, port, certificate, stop.Token);
+                bool stalled = slow && i % StalledOneIn == 0;
+                (Stream server, Stream? client, Task reader) = await OpenStreams(slow ? mode["slow-".Length..] : mode,
+                    listenerSocket, port, certificate, stop.Token, gate: stalled ? gate : null);
                 ConnectionSender sender = scheduler.CreateSender(Guid.NewGuid(), NullLogger.Instance, seal ? Sealer() : null,
                     close: () => { });
                 sender.Connect(new PacketStream(server));
@@ -131,7 +148,7 @@ public static class OutboxFlushHarness
             // The ticks run on a thread of their own at the world tick thread's priority, which defers its wake-ups as that
             // thread does and whose allocations are the tick's. At normal priority, on Windows, a send thread it wakes can
             // take its core and run its pass inside the outbox stage.
-            var tick = new Thread(() => Tick(ends, packets, ticks, wakes, scheduler, mode, count, seal, busyNanoseconds))
+            var tick = new Thread(() => Tick(ends, packets, ticks, wakes, scheduler, mode, count, seal, busyNanoseconds, gate))
             {
                 Name = "OutboxFlush.Tick",
                 Priority = ThreadPriority.Highest,
@@ -148,7 +165,7 @@ public static class OutboxFlushHarness
     }
 
     private static void Tick(List<ConnectionEnds> ends, int packets, int ticks, int wakes, NetworkSendScheduler scheduler,
-        string mode, int count, bool seal, StrongBox<long> busyNanoseconds)
+        string mode, int count, bool seal, StrongBox<long> busyNanoseconds, ReadGate? gate)
     {
         NetworkSendScheduler.DeferSignalsOnCurrentThread();
         try
@@ -164,6 +181,10 @@ public static class OutboxFlushHarness
             {
                 if (t == 0)
                     busyAtStart = Interlocked.Read(ref busyNanoseconds.Value);
+                if (gate is not null && t == StallTicks)
+                    gate.Close();
+                if (gate is not null && t == 2 * StallTicks)
+                    gate.Open();
 
                 long allocated = GC.GetAllocatedBytesForCurrentThread();
                 long enqueueTicks = 0;
@@ -209,6 +230,11 @@ public static class OutboxFlushHarness
             Array.Sort(signalUs);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
                 $"{mode,-6} {count,6} {(seal ? "on " : "off")}  | {enqueueMean,15:F1} {P(enqueueUs, 0.99),6:F1} | {signalMean,20:F1} {P(signalUs, 0.99),5:F1} | {busyUsPerTick,20:F1} ({busyUsPerTick / count,6:F2}) | {bytes.Average(),18:F0}"));
+            if (gate is not null)
+            {
+                Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                    $"  {(count + StalledOneIn - 1) / StalledOneIn} stalled for {StallTicks} ticks | tick B/tick mean (largest tick): before {Window(bytes, 0, StallTicks)} | during {Window(bytes, StallTicks, 2 * StallTicks)} | after {Window(bytes, 2 * StallTicks, ticks)}"));
+            }
         }
         finally
         {
@@ -305,16 +331,20 @@ public static class OutboxFlushHarness
     /// that reads and discards what it is sent, as a peer would (unless <paramref name="drainClient" /> is false).
     /// </summary>
     private static async Task<(Stream Server, Stream? Client, Task Reader)> OpenStreams(string mode, TcpListener listener,
-        int port, X509Certificate2 certificate, CancellationToken stop, bool drainClient = true)
+        int port, X509Certificate2 certificate, CancellationToken stop, bool drainClient = true, ReadGate? gate = null)
     {
         if (mode == "memory")
             return (new CountingStream(), null, Task.CompletedTask);
 
         var client = new TcpClient { NoDelay = true };
+        if (gate is not null)
+            client.ReceiveBufferSize = StalledBufferBytes; // before the connect, so the window starts small
         Task<TcpClient> accept = listener.AcceptTcpClientAsync(stop).AsTask();
         await client.ConnectAsync(IPAddress.Loopback, port, stop);
         TcpClient server = await accept;
         server.NoDelay = true;
+        if (gate is not null)
+            server.SendBufferSize = StalledBufferBytes;
 
         Stream serverStream = new NetworkStream(server.Client, ownsSocket: true);
         Stream clientStream = new NetworkStream(client.Client, ownsSocket: true);
@@ -336,21 +366,36 @@ public static class OutboxFlushHarness
         }
         else if (mode != "tcp")
         {
-            throw new ArgumentException($"Unknown mode {mode}: memory, tcp, tls or receive");
+            throw new ArgumentException($"Unknown mode {mode}: memory, tcp, tls, slow-tcp, slow-tls or receive");
         }
 
-        Task reader = drainClient ? Task.Run(() => Drain(clientStream, stop), stop) : Task.CompletedTask;
+        Task reader = drainClient ? Task.Run(() => Drain(clientStream, gate, stop), stop) : Task.CompletedTask;
         return (serverStream, clientStream, reader);
     }
 
-    private static async Task Drain(Stream stream, CancellationToken stop)
+    private static async Task Drain(Stream stream, ReadGate? gate, CancellationToken stop)
     {
         byte[] buffer = new byte[64 * 1024];
         try
         {
-            while (await stream.ReadAsync(buffer, stop) > 0) { }
+            do
+            {
+                if (gate is not null)
+                    await gate.WaitOpenAsync().WaitAsync(stop);
+            }
+            while (await stream.ReadAsync(buffer, stop) > 0);
         }
         catch (Exception e) when (e is OperationCanceledException or IOException or ObjectDisposedException) { }
+    }
+
+    /// <summary>The mean and the largest of <paramref name="values" /> from <paramref name="from" /> to before <paramref name="to" />.</summary>
+    private static string Window(long[] values, int from, int to)
+    {
+        if (from >= Math.Min(to, values.Length))
+            return "n/a";
+
+        ArraySegment<long> window = new(values, from, Math.Min(to, values.Length) - from);
+        return string.Create(CultureInfo.InvariantCulture, $"{window.Average():F0} ({window.Max():N0})");
     }
 
     /// <summary>An initialised server-role session, as an admitted world connection holds: one per connection.</summary>
@@ -386,6 +431,26 @@ public static class OutboxFlushHarness
         using X509Certificate2 created = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
         // Exported and loaded again, so the private key is usable by the platform's TLS on every OS.
         return X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pkcs12), null);
+    }
+
+    /// <summary>
+    /// Pauses the stalled connections' readers. Its one completion source is made up front, so closing and opening it
+    /// allocate nothing on the tick that does them.
+    /// </summary>
+    private sealed class ReadGate
+    {
+        private readonly TaskCompletionSource _opened = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private volatile bool _closed;
+
+        public Task WaitOpenAsync() => _closed ? _opened.Task : Task.CompletedTask;
+
+        public void Close() => _closed = true;
+
+        public void Open()
+        {
+            _closed = false;
+            _opened.TrySetResult();
+        }
     }
 
     private sealed record ConnectionEnds(ConnectionSender Sender, Stream Server, Stream? Client, Task Reader) : IAsyncDisposable

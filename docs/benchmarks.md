@@ -1296,6 +1296,31 @@ An enqueue costs about 55 to 130 ns, and padding made it no faster anywhere, so 
 owner rarely touch one connection at the same moment: the owner's pass comes after the tick's sends, and `_dirty` and
 `_pendingBytes`, which both write, move between their cores once per tick whatever the layout.
 
+### A client that stops reading (#875, 2026-10-10)
+
+While a connection's write was pending, its owner send thread used to leave the queue alone until the write ended. The
+tick's packets for it piled up in its `ConcurrentQueue`, whose ring doubles on the enqueuing thread and stays that size
+for the connection's life, and each one held a pooled payload segment, so the tick rented new ones. Now the owner frames
+what is queued into a second burst buffer while the write is in flight and gives each payload back at once ("frame
+ahead"). The next write sends that buffer. The queue holds about one tick's packets and the pool stops growing. What
+`Network:MaxPendingBytes` caps is what the connection holds: queued payload bytes plus both burst buffers' payloads.
+
+`outbox-flush 1000 4 900 slow-tls off 1`: 1,000 TLS connections, 4 movement acks each per tick, seal off. One connection
+in twenty (50) has 4 KiB socket buffers at both ends, and its reader is paused for 180 ticks (3 s) after the first 180
+measured ticks. The figures are the bytes the tick thread allocated per tick (mean, and the largest single tick), before,
+during and after the stall. Windows 11, i9-12900K, 8 send threads, Release, dynamic PGO on. Before is `352f18bb`; after
+is the change. Three runs per side, interleaved.
+
+| Tick thread, B per tick | Before the stall | During the stall | After the stall | Whole run |
+|---|---:|---:|---:|---:|
+| Before, run 1 | 0 (largest 0) | 19,018 (largest 441,152) | 32 (largest 17,408) | 3,823 |
+| Before, run 2 | 0 (0) | 18,964 (441,152) | 50 (27,200) | 3,823 |
+| Before, run 3 | 0 (0) | 18,894 (331,328) | 50 (27,200) | 3,809 |
+| After, runs 1 to 3 | 0 (0) | 0 (0) | 0 (0) | 0 |
+
+The rest of the tick did not move: enqueue 1,254 to 1,312 µs mean for 4,000 packets, outbox stage 30.6 to 32.3 µs,
+send threads 26.3 to 27.0 µs per connection, on both sides.
+
 ### Before: the outbox flushed on the tick
 
 Until #875 the world's `TickDrivenOutbox` (capacity 100) flushed every connection's packets in the tick's outbox stage,
