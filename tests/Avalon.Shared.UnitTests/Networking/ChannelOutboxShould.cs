@@ -182,7 +182,7 @@ public class ChannelOutboxShould
     [Fact]
     public async Task DiscardTheBurstAndFault_WhenAPacketCannotBeSealed()
     {
-        var encoder = new PacketEncoder(new PayloadSegmentPool());
+        var encoder = new PacketEncoder(new PayloadSegmentPool(countOutstanding: true));
         var sink = new SlowStream(TimeSpan.Zero);
         var faulted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64, sealer: new RefusingSealer(),

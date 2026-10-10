@@ -41,7 +41,7 @@ public class PacketEnvelopeShould
     {
         byte[] payload = new byte[payloadLength];
         new Random(payloadLength).NextBytes(payload);
-        var pool = new PayloadSegmentPool();
+        var pool = new PayloadSegmentPool(countOutstanding: true);
         var packet = new OutboundPacket(
             new NetworkPacketHeader { Type = type, Flags = flags, Protocol = NetworkProtocol.Tcp }, pool.Rent(payload));
         (IAvalonCryptoSession writer, IAvalonCryptoSession reference) = TwinSessions();

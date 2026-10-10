@@ -19,19 +19,30 @@ public sealed class PayloadSegmentPool
 
     private readonly Stack<PayloadSegment>[] _free = new Stack<PayloadSegment>[LargestShift - SmallestShift + 1];
 
+    private readonly bool _countsOutstanding;
     private long _outstanding;
 
-    public PayloadSegmentPool()
+    /// <param name="countOutstanding">
+    /// Counts the segments rented and not yet returned (<see cref="Outstanding" />): a test's pool. Off for the process's
+    /// pool, whose counter would be one shared word written by the tick and every send thread twice per packet (#883).
+    /// </param>
+    public PayloadSegmentPool(bool countOutstanding = false)
     {
+        _countsOutstanding = countOutstanding;
         for (int i = 0; i < _free.Length; i++)
             _free[i] = new Stack<PayloadSegment>();
     }
 
-    /// <summary>The process's pool, which <c>PacketEncoder.Shared</c> encodes into.</summary>
+    /// <summary>The process's pool, which <c>PacketEncoder.Shared</c> encodes into. It counts nothing.</summary>
     public static PayloadSegmentPool Shared { get; } = new();
 
-    /// <summary>Segments rented and not yet returned: 0 once every packet encoded has been written or released.</summary>
-    public long Outstanding => Interlocked.Read(ref _outstanding);
+    /// <summary>
+    /// Segments rented and not yet returned: 0 once every packet encoded has been written or released. Only a pool made
+    /// to count them has the figure; any other throws rather than read a 0 it never counted.
+    /// </summary>
+    public long Outstanding => _countsOutstanding
+        ? Interlocked.Read(ref _outstanding)
+        : throw new InvalidOperationException("This payload segment pool does not count its outstanding segments.");
 
     /// <summary>A segment holding a copy of <paramref name="payload" />, with one reference.</summary>
     public PayloadSegment Rent(ReadOnlySpan<byte> payload)
@@ -48,13 +59,15 @@ public sealed class PayloadSegmentPool
         segment ??= new PayloadSegment(this, sizeClass,
             sizeClass >= 0 ? 1 << (sizeClass + SmallestShift) : payload.Length);
         segment.Fill(payload);
-        Interlocked.Increment(ref _outstanding);
+        if (_countsOutstanding)
+            Interlocked.Increment(ref _outstanding);
         return segment;
     }
 
     internal void Return(PayloadSegment segment)
     {
-        Interlocked.Decrement(ref _outstanding);
+        if (_countsOutstanding)
+            Interlocked.Decrement(ref _outstanding);
         if (segment.SizeClass >= 0)
         {
             Stack<PayloadSegment> free = _free[segment.SizeClass];
