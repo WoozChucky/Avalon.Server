@@ -334,7 +334,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     public override void Send(OutboundPacket packet)
     {
-        DiagnosticsConfig.World.BytesSent.Add(packet.Size);
+        DiagnosticsConfig.World.BytesSent.Add(SentSize(packet));
         DiagnosticsConfig.World.PacketsSent.Add(1);
         base.Send(packet);
     }

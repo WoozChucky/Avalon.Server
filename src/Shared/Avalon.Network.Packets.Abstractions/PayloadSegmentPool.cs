@@ -4,7 +4,8 @@ namespace Avalon.Network.Packets.Abstractions;
 
 /// <summary>
 /// Free payload segments by size class, powers of two from 64 B to 1 MiB (#875). Unbounded on purpose: it holds what
-/// was in flight at the peak, which the send path caps per connection (<c>Network:MaxPendingBytes</c>), and a pool that
+/// was in flight at the peak, which the send path caps per connection (the outbox's packet capacity, the oldest dropped
+/// first when it is full), and a pool that
 /// dropped segments would make the tick allocate new ones. A payload above 1 MiB gets a segment of its own, never pooled.
 /// </summary>
 public sealed class PayloadSegmentPool

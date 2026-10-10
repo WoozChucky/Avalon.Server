@@ -19,14 +19,17 @@ public readonly struct OutboundPacket
 
     public NetworkPacketHeader Header { get; }
 
-    /// <summary>The encoded message; null only for a marker the send path fills in itself (the time-sync ping).</summary>
+    /// <summary>The encoded message. <c>PacketEncoder.Encode</c> always sets it; only a <c>default</c> packet has none.</summary>
     public PayloadSegment? Payload { get; }
 
     public int PayloadLength => Payload?.Length ?? 0;
 
     public ReadOnlyMemory<byte> PayloadMemory => Payload?.Memory ?? ReadOnlyMemory<byte>.Empty;
 
-    /// <summary>The header and the payload, as the per-packet byte counters count them.</summary>
+    /// <summary>
+    /// The header and the plain payload. The byte counters count what goes out: a connection whose outbox seals the
+    /// packet adds the seal's nonce and tag (<c>Connection.SentSize</c>).
+    /// </summary>
     public int Size => Header.Size + PayloadLength;
 
     /// <summary>One more reference to the same payload, for one more recipient. Take it before handing the packet on.</summary>

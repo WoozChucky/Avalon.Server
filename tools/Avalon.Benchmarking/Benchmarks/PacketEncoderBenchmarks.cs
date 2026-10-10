@@ -9,7 +9,7 @@ using Org.BouncyCastle.Crypto;
 namespace Avalon.Benchmarking.Benchmarks;
 
 /// <summary>
-/// #875: what the tick pays to encode a state update into a pooled segment, and what a send thread pays to seal and
+/// #875: what the tick pays to encode a state update into a pooled segment, and what the drain (the world's tick flush, the auth drain task) pays to seal and
 /// frame it, per packet, for an update of one entity and of thirty (a crowded town).
 /// </summary>
 [MemoryDiagnoser]
@@ -50,7 +50,7 @@ public class PacketEncoderBenchmarks
         return length;
     }
 
-    [Benchmark(Description = "Encode, seal in place and frame (tick and send thread)")]
+    [Benchmark(Description = "Encode, seal in place and frame (tick and drain)")]
     public int EncodeSealFrame()
     {
         _burst.Reset();

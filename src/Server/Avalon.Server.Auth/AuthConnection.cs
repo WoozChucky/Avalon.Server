@@ -67,7 +67,7 @@ public class AuthConnection : Connection, IAuthConnection
 
     public override void Send(OutboundPacket packet)
     {
-        DiagnosticsConfig.Auth.BytesSent.Add(packet.Size);
+        DiagnosticsConfig.Auth.BytesSent.Add(SentSize(packet));
         DiagnosticsConfig.Auth.PacketsSent.Add(1);
         base.Send(packet);
     }

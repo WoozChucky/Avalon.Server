@@ -31,11 +31,17 @@ public sealed class PacketEncoder(PayloadSegmentPool pool)
     {
         MemoryStream stream = t_stream ??= new MemoryStream(512);
         stream.SetLength(0);
-        Serializer.Serialize(stream, message);
-
-        // A scratch message lets go of what this packet set (lists, strings, messages) once it is written (#875).
-        if (ReferenceEquals(message, ScratchSlot<T>.t_instance))
-            ScratchSlot<T>.s_clear!(message);
+        try
+        {
+            Serializer.Serialize(stream, message);
+        }
+        finally
+        {
+            // A scratch message lets go of what this packet set (lists, strings, messages) once it is written, or
+            // failed to be (#875).
+            if (ReferenceEquals(message, ScratchSlot<T>.t_instance))
+                ScratchSlot<T>.s_clear!(message);
+        }
 
         PayloadSegment payload = Pool.Rent(new ReadOnlySpan<byte>(stream.GetBuffer(), 0, (int)stream.Length));
         return new OutboundPacket(

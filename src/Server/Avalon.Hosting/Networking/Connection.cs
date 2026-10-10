@@ -161,11 +161,21 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
         }
 
         // Read before the outbox has it: once queued, another thread may write it and release it.
-        int size = packet.Size;
+        int size = SentSize(packet);
         if (!_outbox.Enqueue(packet)) return;
         Interlocked.Add(ref BytesSentCount, size);
         Interlocked.Increment(ref PacketSentCount);
     }
+
+    /// <summary>
+    /// What a packet puts on the wire, as the byte counters count it (#875): its header and payload, and the seal's
+    /// nonce and tag when the outbox seals it, as both outboxes do with <see cref="CryptoSession" /> for a packet flagged
+    /// Encrypted. Read it before the packet is handed on.
+    /// </summary>
+    protected int SentSize(in OutboundPacket packet) =>
+        packet.Size + (CryptoSession is not null && (packet.Header.Flags & NetworkPacketFlags.Encrypted) != 0
+            ? PacketEnvelope.SealOverhead
+            : 0);
 
     protected void Init(TcpClient client)
     {

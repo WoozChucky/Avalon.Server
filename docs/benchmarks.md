@@ -215,7 +215,7 @@ sends, of one entity and of thirty (`Entities`, a crowded town).
 |---|---|
 | `Encode` | `SInstanceStateUpdatePacket.Create` into a segment, released after the call: the tick's share |
 | `EncodeSealFrame` | The same, then sealed in place by a real P-256-keyed session and framed: tick and drain |
-| `EncodeFramePlain` | The same, framed without sealing, as a connection whose packets are flagged ClearText is |
+| `EncodeFramePlain` | The same, framed without sealing, as for a connection with no sealer (TLS only) |
 
 **Status:** Baseline recorded 2026-10-10 (#875).
 
@@ -1152,6 +1152,28 @@ The TLS flush on Linux by connection count (µs per connection): 50, 0.533 ms (1
   leave the tick is an open decision (#875): it changes when a packet leaves relative to the tick and puts the TLS
   and socket work on other threads.
 
+### Results — the seal inside the flush (#875, 2026-10-10)
+
+Since the outbound packets (#875) each outbox seals its packets as it frames them, so this harness's timed flush now
+includes one AES-GCM seal per connection per tick, which the 2026-10-09 run above did before queueing, outside the
+timed region; in the server that cost moved out of `Create`, in the world update, into the outbox stage
+([instrumentation](instrumentation.md#tick-and-instance-time)). Windows 11, .NET 10.0.12, workstation GC, 200
+connections, one packet each, 1800 measured ticks; `862042c5` (sealed before queueing) against `724618bb` (sealed in
+the flush), two runs each, alternating:
+
+| Mode | Build | mean ms | p50 | p99 | µs/conn | B/tick |
+|---|---|---:|---:|---:|---:|---:|
+| `memory` | `862042c5` | 0.057 / 0.057 | 0.049 / 0.046 | 0.183 / 0.219 | 0.29 / 0.28 | 0 |
+| `memory` | `724618bb` | 0.146 / 0.154 | 0.136 / 0.134 | 0.296 / 0.461 | 0.73 / 0.77 | 0 |
+| `tls` | `862042c5` | 3.066 / 3.095 | 3.015 / 3.049 | 4.215 / 4.194 | 15.33 / 15.48 | 0 |
+| `tls` | `724618bb` | 3.183 / 3.432 | 3.126 / 3.151 | 4.480 / 7.043 | 15.92 / 17.16 | 0 |
+
+- **The flush now carries the seal**: about 0.46 µs more per connection in `memory`, one seal of a 70 B frame each
+  (`SealInto` alone measures about 0.22 µs at 64 B; here 200 sessions' keys take turns in the cache). It is the cost
+  `Create` no longer pays, not a new one: the scenario tick, which runs both, got faster (above).
+- **Over TLS it is lost in the write**: 15.3-15.5 against 15.9-17.2 µs per connection, the second `724618bb` run
+  with a 48 ms outlier tick that also lifts its mean and p99.
+
 ### Results — the read loop, per frame (#875, 2026-10-09)
 
 `receive`, 200 connections each sending one frame per tick, 1800 ticks: 360,000 frames read over TLS.
@@ -1359,7 +1381,7 @@ World assembly competes for the CPU during the wall-clock warm-up; other test as
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 18 s to the World
 suite.
 
-### Results — packets encoded into pooled segments (#875, 2026-10-10)
+### Results — server packets built in per-thread messages (#875, 2026-10-10)
 
 The last allocation on the send path was the message object each server packet's `Create` built: 24 B for a state
 update, 48 B for a movement acknowledgement. `Create` now fills the calling thread's instance of its message type
@@ -1368,17 +1390,31 @@ update, 48 B for a movement acknowledgement. `Create` now fills the calling thre
 written in place at the drain, a packet sent costs the tick thread nothing, and no scenario allocates on it at all.
 
 Allocations, from `perf/scenario-allocations.json` regenerated at `75a16697` (the developer machine's Release run,
-i9-12900K, Windows 11, .NET 10.0.12), against the committed figures before this change (`6eafe191`) and before #875's
-outbound work (#854's results, regenerated after the flush's continuation went):
+i9-12900K, Windows 11, .NET 10.0.12), against the committed figures before this change (`6eafe191`) and before the
+payloads went into pooled segments (`44d0db3a`, the header struct's results):
 
-| Scenario | Players | bytes/window | B/player/tick | Before | B/player/tick before | Before #875's outbound work |
+| Scenario | Players | bytes/window | B/player/tick | Before | B/player/tick before | B/player/tick at `44d0db3a` |
 |---|---:|---:|---:|---:|---:|---:|
 | `town-idle` | 30 | 0 | 0.00 | 0 | 0.00 | 0.00 |
-| `town-walk` | 30 | 0 | 0.00 | 92,160 | 51.20 | 688.40 |
-| `many-instances` | 500 | 0 | 0.00 | 1,536,000 | 51.20 | 274.46 |
+| `town-walk` | 30 | 0 | 0.00 | 92,160 | 51.20 | 624.67 |
+| `many-instances` | 500 | 0 | 0.00 | 1,536,000 | 51.20 | 210.99 |
 
-The gate passes on the new figures in Debug and in Release. In the same run the tick took 0.144 ms on average in
-`town-walk` (p99 0.576) and 1.972 ms in `many-instances` (p99 3.135), with no collection in the timed minute of either.
+The gate passes on the new figures in Debug and in Release.
+
+Tick time like for like: `862042c5` (main before the outbound packets: payloads sealed into new arrays in `Create`)
+against `724618bb` (this work), the runner in Release, 5 s warm-up, 3600 timed ticks, three alternating pairs on the
+developer machine (i9-12900K, Windows 11, .NET 10.0.12, Server GC). Tick ms per run, then the mean of the three:
+
+| Scenario | Build | mean (3 runs) | mean | p99 (3 runs) | p99 | gen0 per minute | GC pause ms |
+|---|---|---|---:|---|---:|---|---|
+| `town-walk` | `862042c5` | 0.143 / 0.143 / 0.144 | 0.143 | 0.582 / 0.575 / 0.598 | 0.585 | 26 / 26 / 25 | 4.5 / 4.2 / 4.2 |
+| `town-walk` | `724618bb` | 0.131 / 0.132 / 0.130 | 0.131 | 0.431 / 0.443 / 0.431 | 0.435 | 0 / 0 / 0 | 0 |
+| `many-instances` | `862042c5` | 1.265 / 1.498 / 1.360 | 1.374 | 2.316 / 3.011 / 2.909 | 2.745 | 131 / 133 / 103 | 26.2 / 27.6 / 22.7 |
+| `many-instances` | `724618bb` | 1.167 / 1.277 / 1.171 | 1.205 | 2.154 / 2.438 / 2.142 | 2.245 | 0 / 0 / 0 | 0 |
+
+The mean tick falls by 8% in `town-walk` and 12% in `many-instances`, and p99 by 26% and 18%: the scenario tick both
+builds and flushes the packets, so it shows the net of the seal leaving `Create` and entering the outbox flush (see
+[outbox flush](#outbox-flush--the-send-path-over-real-sockets-875) for the flush alone), and no collection runs at all.
 
 ### Results — server packets encoded into pooled segments, sealed at the drain (#875, 2026-10-10)
 

@@ -52,7 +52,8 @@ public sealed class ChannelOutbox : IOutbox
         _queue = Channel.CreateBounded<OutboundPacket>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
+            // The drain reads, and so does Dispose's release loop, which can run while the drain still does.
+            SingleReader = false,
             SingleWriter = false
         }, packet => packet.Release());
     }

@@ -67,7 +67,8 @@ public sealed class TickDrivenOutbox : IOutbox
         _queue = Channel.CreateBounded<OutboundPacket>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
+            // The flush reads, and so does Dispose's release loop, which can run while a flush still does.
+            SingleReader = false,
             SingleWriter = false
         }, packet =>
         {
