@@ -35,8 +35,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     private readonly IWorldServer _server;
 
     // Network:PacketEncryption (#875), the world's, fixed for this connection's life: its sender seals with the session or
-    // sends plain inside TLS, its admission reply names the mode, and its read path refuses a plain gameplay packet while
-    // it seals (Task 4.2).
+    // sends plain inside TLS, and its admission reply names the mode. While it seals, a packet the world runs (the
+    // handshake and every session- or map-filter packet but the pong) that arrives plain closes the connection.
     private readonly bool _packetEncryption;
 
     private CharacterEntity? _characterEntity;

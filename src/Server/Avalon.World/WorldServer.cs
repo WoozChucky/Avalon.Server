@@ -400,6 +400,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         // The send threads before the tick that wakes them (#875).
         _sendScheduler.Start();
+        _logger.LogInformation("Packet encryption: {Mode}",
+            _sendScheduler.PacketEncryption ? "session layer inside TLS" : "TLS alone");
 
         _tickRunning = true;
         _tickThread = new Thread(TickLoop)
