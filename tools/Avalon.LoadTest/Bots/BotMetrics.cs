@@ -206,7 +206,7 @@ public sealed class BotMetrics
 
     /// <summary>
     /// A step of a fighter's trip failed; <paramref name="kind"/> names it (<c>forest:portal-timeout</c>,
-    /// <c>forest:enter:&lt;result&gt;</c>, <c>forest:exit-timeout</c>, ...).
+    /// <c>forest:enter:&lt;result&gt;</c>, <c>forest:exit-timeout:trail</c>, ...).
     /// </summary>
     public void FighterFailed(string kind) => CountKind(static window => window.FighterFailures, kind);
 

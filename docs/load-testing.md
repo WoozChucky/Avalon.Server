@@ -145,28 +145,35 @@ changed on the server or the network: it is the quickest way to see that the who
 | `--run ABC` | the only run kept | The run whose account is used |
 | `--dial HOST` | the join reply's host | A host name or address to connect to instead; TLS still names and pins the reply's server |
 | `--bot N` | `0` | The account's index in the run |
-| `--behaviour idle\|walker\|fighter` | `idle` | What the bot does: idle or walk for 10 seconds, or make one forest trip |
+| `--behaviour idle\|walker\|fighter` | `idle` | What the bot does: idle or walk for 10 seconds, or make forest trips until one completes (3 at most) |
 | `--forest-time T` | `5m` | A fighter's time in the forest: `90s`, `5m` or plain seconds, above 0, at most 1 h |
 | `--party-size N` | `1` | Fighters only, 1 to 6: N bots from `--bot` on check together as one party |
 
-**A fighter's check** (`--behaviour fighter`) drives one [forest trip](#fighters) instead of the 10 seconds, at once
+**A fighter's check** (`--behaviour fighter`) drives [forest trips](#fighters) instead of the 10 seconds, at once
 (no first-trip wait): to the town's portal, into the forest, fighting for `--forest-time` (or until no live creature
 is in sight for a minute), back out along its trail, and into town. It prints each stage and how long it took
 (`to-portal`, `enter-map` from the portal request to the transition, `in-forest`, `to-exit`, `exit-map`, or
 `respawn` after a death), then the forest entries and their p50, the casts sent and refused by reason, the kills seen
-and its own deaths, the trips completed, and each failed step by kind. It passes only when the trip completed: the
-fighter walked out into town. A death fails it (`forest:died`: it respawned in town before it walked out), and so
-does a failed step (`forest:failed`, with the [failure kinds](#failure-kinds)); a trip that has not ended within
-`--forest-time`, plus the most its exit budget can be (60 seconds or twice `--forest-time` plus 5 seconds (the 10 m
-from the entry spawn to the back portal), whichever is longer), plus 3 minutes, fails as `forest:timeout`; a
-connection the world closes during it as `forest:closed`.
+and its own deaths, the trips completed, and each failed step by kind. It passes once a trip completed: the fighter
+walked out into town. A trip that ends in a death does not fail it: the death is printed (`Died on trip 1 of 3`), and
+the fighter, already respawned in town (which shows the respawn works too), sets out again. It makes 3 trips at most.
+
+The check fails with one of these kinds:
+
+| Kind | What |
+|---|---|
+| `forest:died-thrice` | The fighter died on each of its 3 trips (it respawned in town each time) |
+| `forest:failed` | A step of a trip failed, with its [failure kinds](#failure-kinds); the fighter is not sent again |
+| `forest:timeout` | The trips had not ended within 3 times the bound of one trip: `--forest-time`, plus the most its exit budget can be (60 seconds or twice `--forest-time` plus 5 seconds (the 10 m from the entry spawn to the back portal), whichever is longer), plus 3 minutes |
+| `forest:closed` | The world closed a connection during the trips |
+| `party:failed` | The party did not form after its second attempt, with the reasons |
 
 With `--party-size N` above 1 (fighters only; any other behaviour refuses it), the N bots from `--bot` on enter
-together, form one party with the party packets once all are in (it prints how long that took; a party that did not
-form after its second attempt fails the check as `party:failed`, with the reasons), set out at once, share one forest
-and each make one trip; the check passes when the party formed and every member's trip completed. A member back first
-stands in town until the others are. At 1 the fighter sends no party packet, except one leave when its character is
-still in a party of an earlier run ([parties](#parties)).
+together, form one party with the party packets once all are in (it prints how long that took), set out at once and
+share one forest. Each member goes again after a death as a solo fighter does, 3 trips at most, its deaths printed
+with its index; the check passes when the party formed and every member completed a trip. A member done first stands
+in town until the others are. At 1 the fighter sends no party packet, except one leave when its character is still in
+a party of an earlier run ([parties](#parties)).
 
 A failure prints `Check failed at <step>: <reason>`, and the bot still leaves and signs out (with 30 seconds of its
 own). A leave or a sign-out that fails after the bot was driven fails the check too: `Check failed at leave:` with
@@ -366,13 +373,24 @@ first, passing each within 1.5 m, then at the entry spawn and the back portal. T
 when the fighter turns for the exit: the longer of 60 seconds and twice the walk back along its trail, then by the
 entry spawn to the back portal, at the base walk speed of 4 m/s. The trail is never longer than the walk in, so the
 budget is at most 60 seconds or twice `--forest-time` plus 5 seconds (the 10 m from the entry spawn to the back
-portal), whichever is longer. A fighter not back in town within it reconnects (`forest:exit-timeout`).
+portal), whichever is longer. A fighter not back in town within it reconnects (`forest:exit-timeout:<where>`, by where
+the way out stalled: on the trail, short of the entry spawn, short of the back portal, or asked and not answered).
 
-**Death.** The fighter's table holds its own character too, by the guid of the character it selected. When the table
-shows that character dead, the fighter counts an **own death**, drops whatever it was doing and sends
-`CMSG_RESPAWN_AT_TOWN`, repeated every 5 seconds until the world moves it (the world drops the ask while a move is
-under way). The transition into town ends the trip as a death, and the next trip starts. Still dead 30 seconds after
-dying, it reconnects (`forest:respawn-timeout`): a fresh login lands in town.
+**Death.** The world tells a character of each hit it takes (`SMSG_CHARACTER_DAMAGED`, a direct hit or an aura's
+tick), on its own connection only and in the tick of the hit. A fighter decodes it (no other behaviour does), and one
+that left its own character at 0 health is its death: taken on the very next step, not at the next look at the
+table, so it stops casting in the tick it died. The table, which holds its own character too by the guid of the
+character it selected, is the fallback: a death it shows is seen within a tenth of a second. Dead, the fighter counts
+an **own death**, drops whatever it was doing and sends `CMSG_RESPAWN_AT_TOWN`, repeated every 5 seconds until the
+world moves it (the world drops the ask while a move is under way). The transition into town ends the trip as a
+death, and the next trip starts. Still dead 30 seconds after dying, it reconnects (`forest:respawn-timeout`): a fresh
+login lands in town.
+
+**A move it did not ask for.** A move into town in the middle of a trip that is neither the back portal's answer nor a
+respawn fails the trip (`forest:returned`), and the next one starts after 30 seconds: the world returns a party's
+members from the party's forest when the party falls apart ([parties](#parties)). A back portal asked while that move
+is under way is refused with `MoveInProgress`; the fighter then waits for the move instead of asking again, and counts
+only the `forest:returned`.
 
 **After a transition.** The acks of inputs sent before a map transition may still describe the old map. Until an ack
 answers an input sent since the transition, the fighter stands and reads neither its position nor a wall from them; a
@@ -404,8 +422,8 @@ fighters. `WorldStateDecodeShould` checks the decoder against packets built by t
 | An entry, portal request to transition | 30 s | `forest:enter:timeout`: back to town, and the next trip after 30 s |
 | An entry refused | at once | `forest:enter:<result>`: back to town, and the next trip after 30 s |
 | No live creature within 60 m | 60 s | The fighter leaves the forest; not a failure |
-| The way out | the exit budget | `forest:exit-timeout`: reconnect |
-| The back portal refused | at once | `forest:leave:<result>`: back toward the portal, asked again no sooner than 1 s later, while the exit budget lasts |
+| The way out | the exit budget | `forest:exit-timeout:trail`, `:entry`, `:portal` or `:leaving` (by where it stalled): reconnect |
+| The back portal refused | at once | `forest:leave:<result>`: back toward the portal, asked again no sooner than 1 s later, while the exit budget lasts; `MoveInProgress` is not counted: the fighter waits for that move (`forest:returned`) while the exit budget lasts |
 | Dead | respawn asked every 5 s | Still dead at 30 s: `forest:respawn-timeout`, reconnect |
 | A fresh ack after a transition | 10 s | `forest:stale-acks`: reconnect |
 | A party's formation attempt | 20 s | Tried once more from scratch; then counted, and its members fight solo |
@@ -422,8 +440,12 @@ once by reason in the step's party failures. `<result>` is the world's `MapTrans
 | `forest:portal-timeout` | The fighter was not within the town portal's radius 20 s after it set out for it |
 | `forest:enter:<result>` | The world refused the forest entry |
 | `forest:enter:timeout` | The world did not answer the forest entry within 30 s |
-| `forest:leave:<result>` | The world refused the back portal; the fighter asks again (one count per refusal) |
-| `forest:exit-timeout` | Not back in town within the exit budget; the fighter reconnects |
+| `forest:leave:<result>` | The world refused the back portal; the fighter asks again (one count per refusal). Never `MoveInProgress`, which is the world's own move (`forest:returned`) |
+| `forest:exit-timeout:trail` | Not back in town within the exit budget, with crumbs of the trail still ahead; the fighter reconnects |
+| `forest:exit-timeout:entry` | As above, past the trail but short of the entry spawn |
+| `forest:exit-timeout:portal` | As above, past the entry spawn but not yet asking the back portal (short of it, or waiting to ask again after a refusal) |
+| `forest:exit-timeout:leaving` | As above, having asked the back portal (or waiting for a move under way) with no move into town |
+| `forest:returned` | The world moved the fighter into town in the middle of a trip, without its asking (a party fell apart) |
 | `forest:respawn-timeout` | Still dead 30 s after dying; the fighter reconnects |
 | `forest:stale-acks` | No ack from the new map 10 s after a transition; the fighter reconnects |
 | `party:timeout` | An attempt ran out its 20 s with every member in the world |
@@ -464,7 +486,8 @@ so a member that reconnects is still in it and gets its roster as its character 
 good stays on the roster, offline, and holds nobody back. A member whose roster on its current connection has not
 listed the whole party for 20 seconds (the world restarted and forgot its parties, or a member was removed) makes the
 party fall apart: counted once (`party:fell-apart`), every member leaves what is left of it, and they fight solo from
-then on.
+then on. A member in the party's forest as it leaves is returned to town by the world after its 60 second leave
+countdown ([parties](parties.md)), which fails its trip (`forest:returned`).
 
 **Stale parties.** Until it restarts, the world keeps a party for a character that left it only by logging out, and a
 character in a party is taken by the portal to its party's forest. So a fighter that fights solo (`--party-size 1`, a
@@ -698,7 +721,7 @@ merge, so each is the slower of the two, an upper bound.
 | Entry p50 / p95 | Forest entry time, portal request to transition, in ms |
 | Trips completed | Trips that walked out of the forest into town |
 | Casts sent | Casts of the basic abilities |
-| Casts refused (by reason) | Casts the world refused (`SMSG_ABILITY_NOT_READY`), in all and by `CastRejectReason` (`Gcd`, `Cooldown`, `OutOfRange`, `TargetNotFound`, ...) |
+| Casts refused (by reason) | Casts the world refused (`SMSG_ABILITY_NOT_READY`), in all and by `CastRejectReason` (`Gcd`, `Cooldown`, `OutOfRange`, `TargetNotFound`, ...). A few `Dead` remain: casts already on the wire when the character died |
 | Kills seen | Creatures a fighter cast at seen dead afterwards, once per fighter that cast at it |
 | Own deaths | Deaths of the fighters' characters |
 | Trip failures by kind | Failed steps of the trips, by [kind](#failure-kinds) |

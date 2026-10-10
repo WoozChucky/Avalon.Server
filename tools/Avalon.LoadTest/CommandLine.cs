@@ -246,7 +246,7 @@ public sealed record CleanupOptions(string? RunId);
 /// <param name="Bot">The bot's index in the run.</param>
 /// <param name="Behaviour">What the bot does in the world for the check: idle, walker or fighter.</param>
 /// <param name="ForestTime">How long a fighter's trip stays in the forest.</param>
-/// <param name="PartySize">Fighters only: this many bots from <paramref name="Bot"/> on form one party and make one trip; 1 is one bot, solo.</param>
+/// <param name="PartySize">Fighters only: this many bots from <paramref name="Bot"/> on form one party and each complete a trip; 1 is one bot, solo.</param>
 public sealed record CheckOptions(string? RunId, string? Dial, int Bot, BehaviourKind Behaviour, TimeSpan ForestTime, int PartySize);
 
 /// <summary>The options of <c>ramp</c> as given, before the run is known.</summary>

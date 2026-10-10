@@ -119,13 +119,15 @@ static int Usage()
               signs out, printing each step's duration, the input-ack latency and the driver's lateness.
               --dial is the host to connect to instead of the join reply's (TLS still names the reply's
               server); --bot the bot's index in the run (default 0); --behaviour idle (default), walker, or
-              fighter: one forest trip instead of the 10 s (portal, fight, exit), passed when it walks out
-              into town; --forest-time how long it fights (default 5m, as 90s, 5m or seconds). --party-size N
-              (fighter only, 1 to {BotParty.MaxSize}, default 1) checks N bots from --bot on instead: they form one
-              party with the party packets (the first invites the others by name, they accept), enter one shared
-              forest and make one trip each; passed when the party formed and every member walked out. At 1 the
-              fighter sends no party packet, except one leave when its character is still in a party of an
-              earlier run (the world keeps parties until it restarts).
+              fighter: a forest trip instead of the 10 s (portal, fight, exit), passed when it walks out into
+              town; a trip that ends in a death (printed, not failed) is made again, {CheckTrips.MostTrips} trips at
+              most, and dying on every one fails as forest:died-thrice; --forest-time how long it fights
+              (default 5m, as 90s, 5m or seconds). --party-size N (fighter only, 1 to {BotParty.MaxSize}, default 1)
+              checks N bots from --bot on instead: they form one party with the party packets (the first
+              invites the others by name, they accept) and enter one shared forest, each going again after a
+              death as above; passed when the party formed and every member walked out once. At 1 the fighter
+              sends no party packet, except one leave when its character is still in a party of an earlier run
+              (the world keeps parties until it restarts).
           ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
                [--limit name=value]... [--dial HOST] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
                [--forest-time 5m] [--party-size 1]

@@ -9,12 +9,13 @@ namespace Avalon.LoadTest.Bots;
 /// <c>check</c>: one bot of a run end to end. It signs in, enters the run's world, sends input at 60 Hz for ten seconds
 /// through the <see cref="InputDriver"/> (idle, or walking with <c>--behaviour walker</c>), leaves and signs out,
 /// printing each step's duration, the input-ack latency and the driver's lateness. With <c>--behaviour fighter</c> it
-/// drives one forest trip instead, at once (no first-trip wait), printing each stage (to the portal, portal request to
-/// transition, the fight, to the exit, the exit), the casts sent and refused, the kills and any failure. With
-/// <c>--party-size N</c> as well, N bots from <c>--bot</c> on do it together: they form one party
-/// (<see cref="PartyFormer"/>) once all are in, set out at once, share one forest and each make one trip. Exit 0 when
-/// every step passed (for a fighter, its trip completed: it walked out into town; for a party, it formed and every
-/// member's trip completed), the leaves and the sign-outs included, 1 with the failing step and its reason otherwise.
+/// drives forest trips instead, at once (no first-trip wait), printing each stage (to the portal, portal request to
+/// transition, the fight, to the exit, the exit, or the respawn), the casts sent and refused, the kills, the deaths and
+/// any failure. A trip that ended in a death is made again, up to <see cref="CheckTrips.MostTrips"/> trips
+/// (<see cref="CheckTrips"/>). With <c>--party-size N</c> as well, N bots from <c>--bot</c> on do it together: they
+/// form one party (<see cref="PartyFormer"/>) once all are in, set out at once and share one forest. Exit 0 when every
+/// step passed (for a fighter, a trip completed: it walked out into town; for a party, it formed and every member
+/// completed a trip), the leaves and the sign-outs included, 1 with the failing step and its reason otherwise.
 /// </summary>
 public static class CheckCommand
 {
@@ -29,8 +30,9 @@ public static class CheckCommand
     private static readonly TimeSpan s_cleanupTimeout = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// A fighter's trip ends within <c>--forest-time</c>, its exit budget (<see cref="ExitBudget"/>) and this: the walk
-    /// to the portal (20 s), the entry (30 s), a respawn (30 s), a hold for a fresh ack (10 s), and a margin.
+    /// A fighter's trip ends within <c>--forest-time</c>, the most its exit budget can be
+    /// (<see cref="Fighter.MostExitBudget"/>) and this: the walk to the portal (20 s), the entry (30 s), a respawn
+    /// (30 s), a hold for a fresh ack (10 s), and a margin.
     /// </summary>
     private static readonly TimeSpan s_tripMargin = TimeSpan.FromMinutes(3);
 
@@ -101,9 +103,9 @@ public static class CheckCommand
                 BehaviourKind.Fighter => "forest",
                 _ => "idle",
             };
-            (double latenessP95, TripEnd[] trips) = options.Behaviour == BehaviourKind.Fighter
+            (double latenessP95, CheckTripsVerdict trips) = options.Behaviour == BehaviourKind.Fighter
                 ? await TripAsync(bots, options.ForestTime, ct)
-                : (await DriveAsync(bots[0], step, ct), []);
+                : (await DriveAsync(bots[0], step, ct), CheckTripsVerdict.Passed);
             StepClientValues values = metrics.TakeWindow();
             Console.WriteLine(Invariant(
                 $"  ack        p50 {Ms(values.AckP50)}, p95 {Ms(values.AckP95)}, p99 {Ms(values.AckP99)} over {values.AckSamples} inputs"));
@@ -112,14 +114,17 @@ public static class CheckCommand
             if (values.AckSamples == 0)
                 throw new BotStepException(step, $"{step}:no-acks", "no input was answered");
 
-            if (trips.Contains(TripEnd.Died))
-                throw new BotStepException(step, "forest:died", "a fighter died before it walked out (it respawned in town)");
-
-            if (trips.Contains(TripEnd.Failed) || values.PartyFormFailures.Count > 0)
+            if (trips == CheckTripsVerdict.Failed || values.PartyFormFailures.Count > 0)
             {
                 IEnumerable<string> kinds = values.FighterFailures.Keys.Concat(values.PartyFormFailures.Keys);
                 throw new BotStepException(step, "forest:failed",
                     $"a step of the trip failed: {string.Join(", ", kinds.Order(StringComparer.Ordinal))}");
+            }
+
+            if (trips == CheckTripsVerdict.DiedThrice)
+            {
+                throw new BotStepException(step, "forest:died-thrice",
+                    Invariant($"a fighter died on each of its {CheckTrips.MostTrips} trips (it respawned in town each time)"));
             }
 
             left = true;
@@ -213,31 +218,40 @@ public static class CheckCommand
     }
 
     /// <summary>
-    /// Runs the input driver over the fighters until each one's first trip ends, then waits for the last acks. Returns
-    /// the driver's lateness p95 and how each trip ended. A connection the world closes, or a trip that has not ended
-    /// within <c>--forest-time</c>, its exit budget and <see cref="s_tripMargin"/>, fails the check.
+    /// Runs the input driver over the fighters until each one is done (<see cref="CheckTrips"/>: a trip completed or
+    /// failed, or it died on each of its trips), printing each death, then waits for the last acks. Returns the
+    /// driver's lateness p95 and the trips' verdict. A connection the world closes, or a member not done within
+    /// <see cref="CheckTrips.MostTrips"/> times <c>--forest-time</c>, the most its exit budget can be and
+    /// <see cref="s_tripMargin"/>, fails the check.
     /// </summary>
-    private static async Task<(double LatenessP95, TripEnd[] Trips)> TripAsync(Bot[] bots, TimeSpan forestTime,
+    private static async Task<(double LatenessP95, CheckTripsVerdict Trips)> TripAsync(Bot[] bots, TimeSpan forestTime,
         CancellationToken ct)
     {
         const string Step = "forest";
-        var ended = new TaskCompletionSource<TripEnd>[bots.Length];
+        var trips = new CheckTrips(bots.Length);
         for (int i = 0; i < bots.Length; i++)
         {
-            var trip = new TaskCompletionSource<TripEnd>(TaskCreationOptions.RunContinuationsAsynchronously);
-            Fighter fighter = bots[i].Fighter!;
-            fighter.TripEnded += end => trip.TrySetResult(end);
-            // One trip each: a member back first stands in town while the others finish theirs.
+            int member = i;
+            Bot bot = bots[i];
+            Fighter fighter = bot.Fighter!;
+            fighter.TripEnded += end =>
+            {
+                if (trips.Ended(member, end))
+                {
+                    bot.Note?.Invoke(Invariant(
+                        $"Died on trip {trips.Trips(member)} of {CheckTrips.MostTrips}; it respawned in town and goes again."));
+                }
+            };
+            // A member done stands in town while the others go on.
             Func<long, bool>? party = fighter.ReadyToLeaveTown;
-            fighter.ReadyToLeaveTown = now => !trip.Task.IsCompleted && (party is null || party(now));
-            ended[i] = trip;
+            fighter.ReadyToLeaveTown = now => trips.MaySetOut(member) && (party is null || party(now));
         }
 
         var driver = new InputDriver(() => bots);
-        TimeSpan limit = forestTime + ExitBudget(forestTime) + s_tripMargin;
+        TimeSpan limit = CheckTrips.MostTrips * (forestTime + Fighter.MostExitBudget(forestTime) + s_tripMargin);
         long start = Stopwatch.GetTimestamp();
 
-        Task<TripEnd[]> all = Task.WhenAll(ended.Select(trip => trip.Task));
+        Task all = trips.AllDone;
         using (var stop = CancellationTokenSource.CreateLinkedTokenSource(ct))
         {
             Task driving = driver.RunAsync(stop.Token);
@@ -251,23 +265,15 @@ public static class CheckCommand
                 throw first == closed
                     ? new BotStepException(Step, $"{Step}:closed", "the world closed a connection during the trip")
                     : new BotStepException(Step, $"{Step}:timeout",
-                        Invariant($"a trip had not ended {limit.TotalSeconds:0} s after it began"));
+                        Invariant($"a fighter's trips had not ended {limit.TotalSeconds:0} s after the first began"));
             }
         }
 
         await Task.Delay(s_ackDrain, ct);
         if (bots.Length == 1) bots[0].StepTimed?.Invoke(Step, Stopwatch.GetElapsedTime(start));
-        else Console.WriteLine(Invariant($"  {Step,-10} {Stopwatch.GetElapsedTime(start).TotalMilliseconds,8:0} ms (every member's trip)"));
-        return (driver.LatenessP95Ms(), await all);
+        else Console.WriteLine(Invariant($"  {Step,-10} {Stopwatch.GetElapsedTime(start).TotalMilliseconds,8:0} ms (every member's trips)"));
+        return (driver.LatenessP95Ms(), trips.Verdict);
     }
-
-    /// <summary>
-    /// The most a fighter's way out may take: 60 s, or twice the walk back along its trail, then by the entry spawn to the
-    /// back portal. The trail is at most as long as its walk in, at most <c>--forest-time</c> at the walk speed, and the
-    /// entry spawn is 10 m (2.5 s) from the back portal: so at most twice <c>--forest-time</c> plus 5 s.
-    /// </summary>
-    private static TimeSpan ExitBudget(TimeSpan forestTime) =>
-        TimeSpan.FromSeconds(Math.Max(60, 2 * forestTime.TotalSeconds + 5));
 
     /// <summary>What a fighter's trip counted.</summary>
     private static void PrintTrip(StepClientValues values)

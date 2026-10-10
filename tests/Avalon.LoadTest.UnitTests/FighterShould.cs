@@ -4,6 +4,7 @@ using Avalon.Common.Cryptography;
 using Avalon.LoadTest.Bots;
 using Avalon.LoadTest.Wire;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
@@ -98,11 +99,17 @@ public class FighterShould
         Assert.Equal(FighterState.ToPortal, wizard.Fighter.State);
         Assert.Equal([TripEnd.Completed], _trips);
 
-        // Dying in the forest on the next trip: it asks to respawn at once, again every 5 s, and is in town once moved.
+        // Dying in the forest on the next trip. The world tells the character of each hit in the tick it lands, ahead of
+        // the table: a hit it survives changes nothing; on the one that kills it, it asks to respawn on the very next
+        // step, with the table still showing it alive. Again every 5 s, and it is in town once moved.
         wizard.RunUntil(s => s.Action == FighterAction.EnterForest);
         wizard.Transition(Fighter.ForestMapId, _now);
-        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: false)], _server.Encryptor));
-        step = wizard.RunUntil(s => s.Action != FighterAction.None);
+        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true)], _server.Encryptor));
+        wizard.Hit(SCharacterDamagePacket.Create(_north, _self, currentHealth: 40, damage: 80, abilityId: null, _server.Encryptor));
+        for (int i = 0; i < 12; i++) wizard.Step();
+        Assert.Equal(FighterState.InForest, wizard.Fighter.State);
+        wizard.Hit(SCharacterDamagePacket.Create(_north, _self, currentHealth: 0, damage: 40, abilityId: null, _server.Encryptor));
+        step = wizard.Step();
         Assert.Equal(FighterAction.Respawn, step.Action);
         Assert.Equal(FighterState.Dead, wizard.Fighter.State);
         steps = 0;
@@ -116,14 +123,28 @@ public class FighterShould
         Assert.Equal(FighterState.ToPortal, wizard.Fighter.State);
         Assert.Equal([TripEnd.Completed, TripEnd.Died], _trips);
 
+        // A move to town it did not ask for (its party fell apart, and the world returns it from the party's forest)
+        // ends the trip as a failure, even when it reached the back portal as the move began: the portal's refusal
+        // (a move is under way) is not a failure of its own.
+        wizard.RunUntil(s => s.Action == FighterAction.EnterForest);
+        wizard.Transition(Fighter.ForestMapId, _now);
+        wizard.RunUntil(s => s.Action == FighterAction.LeaveForest);
+        wizard.Fighter.OnTransition(MapTransitionResult.MoveInProgress, 0, _now);
+        wizard.Step();
+        Assert.Equal(FighterState.Leaving, wizard.Fighter.State);
+        wizard.Transition(Fighter.TownMapId, _now);
+        wizard.Step();
+        Assert.Equal(FighterState.Town, wizard.Fighter.State);
+        Assert.Equal([TripEnd.Completed, TripEnd.Died, TripEnd.Failed], _trips);
+
         StepClientValues values = _metrics.TakeWindow();
-        Assert.Equal(2, values.ForestEntries);
+        Assert.Equal(3, values.ForestEntries);
         Assert.InRange(values.ForestEntryP95, 299.0, 301.0);
         Assert.Equal(3, values.CastsSent);
         Assert.Equal(2, values.Kills);
         Assert.Equal(1, values.ForestTrips);
         Assert.Equal(1, values.OwnDeaths);
-        Assert.Empty(values.FighterFailures);
+        Assert.Equal([("forest:returned", 1)], values.FighterFailures.Select(kind => (kind.Key, kind.Value)));
 
         // Bot 0 is a warrior: Cleave (200) reaches 2.5 m, and a creature holds its station 1.5 m from what it fights, so
         // the warrior stops 2 m from its target, where its swing lands, rather than chasing it to 1.5 m.
@@ -135,6 +156,13 @@ public class FighterShould
         Assert.Equal(FighterAction.Cast, step.Action);
         Assert.Equal(200u, warrior.Fighter.AbilityId);
         Assert.InRange(warrior.Distance(15f, 30f), 1.9f, 2f);
+
+        // The table stays the fallback for a death: one it shows is seen within a look, six steps.
+        warrior.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _self, CurrentHealth = 0, IsDead = true }],
+            _server.Encryptor));
+        steps = 0;
+        Assert.Equal(FighterAction.Respawn, warrior.RunUntil(s => s.Action != FighterAction.None, () => steps++).Action);
+        Assert.InRange(steps, 1, 6);
     }
 
     [Fact]
@@ -444,6 +472,13 @@ public class FighterShould
         }
 
         public void Apply(NetworkPacket packet) => fighter.Table.Apply(packet, test._codec);
+
+        /// <summary>An <c>SMSG_CHARACTER_DAMAGED</c> as the bot's connection hands it over: a hit that left its character at 0 kills it.</summary>
+        public void Hit(NetworkPacket packet)
+        {
+            SCharacterDamagePacket hit = test._codec.Decode<SCharacterDamagePacket>(packet);
+            if (hit.Target == test._self && hit.CurrentHealth == 0) fighter.OnKilled();
+        }
 
         public float Distance(float x, float z) => MathF.Sqrt((X - x) * (X - x) + (Z - z) * (Z - z));
     }

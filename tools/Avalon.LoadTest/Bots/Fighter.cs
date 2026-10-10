@@ -79,10 +79,11 @@ public readonly record struct FighterStep(
 /// <remarks>
 /// <para>
 /// What it knows of the world: the acks (its own position and velocity), its <see cref="Table"/> of the objects in view
-/// (the creatures, and its own character's death), and the map transitions and cast refusals its connection hands it
-/// on the read loop (<see cref="OnTransition"/>, <see cref="OnCastRefused"/>). It looks at the table every sixth step
-/// (10 Hz, the rate the world sends it), each fighter on its own phase, so the steps of a driver with many fighters
-/// stay even.
+/// (the creatures, and its own character's death), and the map transitions, cast refusals and its character's death its
+/// connection hands it on the read loop (<see cref="OnTransition"/>, <see cref="OnCastRefused"/>,
+/// <see cref="OnKilled"/>). It looks at the table every sixth step (10 Hz, the rate the world sends it), each fighter on
+/// its own phase, so the steps of a driver with many fighters stay even; a death it was handed it takes on the next
+/// step, so it stops casting in the tick it died, and the table is the fallback for one it was not.
 /// </para>
 /// <para>
 /// It moves by bump-and-turn: it steers straight at its goal, and when an ack shows the last heading stopped against
@@ -99,8 +100,8 @@ public readonly record struct FighterStep(
 /// </para>
 /// <para>
 /// <see cref="Step"/>, <see cref="Reset"/> and the properties the driver reads run on the driver's thread only;
-/// <see cref="OnTransition"/> and <see cref="OnCastRefused"/> on the connection's read loop; <see cref="TakeReconnect"/>
-/// on the bot's life loop. A step allocates nothing.
+/// <see cref="OnTransition"/>, <see cref="OnCastRefused"/> and <see cref="OnKilled"/> on the connection's read loop;
+/// <see cref="TakeReconnect"/> on the bot's life loop. A step allocates nothing.
 /// </para>
 /// </remarks>
 public sealed class Fighter
@@ -128,6 +129,9 @@ public sealed class Fighter
     /// <summary>The forest's portal back to town, straight south of its entry spawn.</summary>
     private const float BackPortalX = 15f;
     private const float BackPortalZ = 5f;
+
+    /// <summary>From the entry spawn to the back portal, straight south: 10 m.</summary>
+    private const float EntryToPortal = EntrySpawnZ - BackPortalZ;
 
     /// <summary>Within this of a portal or the entry spawn (on the ground plane), the fighter is there.</summary>
     private const float ArrivalRadius = 2.5f;
@@ -163,6 +167,12 @@ public sealed class Fighter
     /// <summary>How many creatures cast at are watched for their death at once.</summary>
     private const int CastAtCapacity = 8;
 
+    /// <summary>The way out's stall kinds (<see cref="ExitTimedOut"/>), made once.</summary>
+    private const string ExitTimeoutTrail = "forest:exit-timeout:trail";
+    private const string ExitTimeoutEntry = "forest:exit-timeout:entry";
+    private const string ExitTimeoutPortal = "forest:exit-timeout:portal";
+    private const string ExitTimeoutLeaving = "forest:exit-timeout:leaving";
+
     /// <summary>The basic abilities' 0.8 s cooldown and a margin.</summary>
     private static readonly long s_castInterval = Ticks(TimeSpan.FromMilliseconds(850));
 
@@ -184,9 +194,9 @@ public sealed class Fighter
 
     /// <summary>
     /// Not back in town this long after setting out for the exit, the fighter reconnects (in town); a long trail gets
-    /// twice its walk instead.
+    /// twice its walk instead (<see cref="ExitBudget"/>).
     /// </summary>
-    private static readonly long s_exitTimeout = Ticks(TimeSpan.FromSeconds(60));
+    private static readonly TimeSpan s_exitFloor = TimeSpan.FromSeconds(60);
 
     /// <summary>After the back portal refused, the fighter asks it again no sooner than this.</summary>
     private static readonly long s_leaveRetry = Ticks(TimeSpan.FromSeconds(1));
@@ -227,6 +237,10 @@ public sealed class Fighter
     private readonly float[] _trailZ = new float[TrailCapacity];
 
     private volatile FighterState _state = FighterState.Town;
+
+    /// <summary>Set by <see cref="OnKilled"/> on the read loop, taken by the next step.</summary>
+    private volatile bool _killed;
+
     private volatile TaskCompletionSource _reconnect = NewReconnect();
 
     /// <summary>The last transition the read loop handed over and not yet taken: <c>result &lt;&lt; 16 | map</c>.</summary>
@@ -252,6 +266,13 @@ public sealed class Fighter
     private long _nextRequestAt;
     private long _nextRespawnAt;
     private bool _pastEntry;
+
+    /// <summary>
+    /// The back portal was refused because another move is under way (<see cref="MapTransitionResult.MoveInProgress"/>):
+    /// the move to town that follows is that one, not the fighter's. Cleared as it asks the portal.
+    /// </summary>
+    private bool _unaskedMove;
+
     private int _lookIn;
     private bool _hasTarget;
     private TrackedObject _target;
@@ -281,6 +302,15 @@ public sealed class Fighter
         _reach = reach - MathF.Min(ReachMargin, ReachMarginShare * reach);
         _lookIn = botIndex % LookEvery + 1;
     }
+
+    /// <summary>
+    /// The most a fighter's way out may take with <paramref name="forestTime"/> in the forest: its exit budget for the
+    /// longest trail it can have. The trail is never longer than the walk in, at most <paramref name="forestTime"/> at
+    /// the walk speed, and the back portal is <see cref="EntryToPortal"/> beyond the entry spawn: so the longer of
+    /// 60 s and twice <paramref name="forestTime"/> plus 5 s.
+    /// </summary>
+    public static TimeSpan MostExitBudget(TimeSpan forestTime) =>
+        ExitBudget((float)(forestTime.TotalSeconds * WalkSpeed) + EntryToPortal);
 
     /// <summary>The class's basic ability: no cost, a 0.8 s cooldown.</summary>
     public uint AbilityId { get; }
@@ -345,12 +375,19 @@ public sealed class Fighter
     public void OnCastRefused(CastRejectReason reason) => _metrics.CastRefused(s_refusals[(byte)reason]);
 
     /// <summary>
+    /// The world told the character of a hit that left it at 0 health (<c>SMSG_CHARACTER_DAMAGED</c>, sent in the tick
+    /// of the hit), on the read loop: the next step enters <see cref="FighterState.Dead"/>, ahead of the table.
+    /// </summary>
+    public void OnKilled() => _killed = true;
+
+    /// <summary>
     /// The bot has a new connection: whatever the fighter was doing on the old one is over, and it starts again from
     /// town, still waiting out a wait it had there (its first trip's, or a retry's).
     /// </summary>
     public void Reset()
     {
         _reconnecting = false;
+        _killed = false;
         Volatile.Write(ref _transition, NoTransition);
         _freshFrom = 0;
         _trail = 0;
@@ -388,6 +425,14 @@ public sealed class Fighter
         if (_reconnecting) return Still(newHeading: false);
 
         FighterState before = _state;
+        // Before the transition: a death the world told of precedes, on the wire, the respawn that ends it. A second
+        // kill set between the read and the clear is the same death.
+        if (_killed)
+        {
+            _killed = false;
+            if (_state != FighterState.Dead) Die(now);
+        }
+
         TakeTransition(seq, now);
         bool fresh = ack.Seq >= _freshFrom;
         if (--_lookIn <= 0)
@@ -457,7 +502,7 @@ public sealed class Fighter
                 if (now >= _forestUntil || now - _lastCreatureAt > s_noCreatureTimeout)
                 {
                     StepTimed?.Invoke("in-forest", Elapsed(_stateSince, now));
-                    _exitBy = now + Math.Max(s_exitTimeout, Ticks(TimeSpan.FromSeconds(2 * WayOut(ack) / WalkSpeed)));
+                    _exitBy = now + Ticks(ExitBudget(WayOut(ack)));
                     _pastEntry = false;
                     Enter(FighterState.ToExit, now);
                     goto case FighterState.ToExit;
@@ -489,6 +534,7 @@ public sealed class Fighter
 
                 StepTimed?.Invoke("to-exit", Elapsed(_stateSince, now));
                 _requestedAt = now;
+                _unaskedMove = false;
                 Enter(FighterState.Leaving, now);
                 return Act(FighterAction.LeaveForest);
 
@@ -541,7 +587,7 @@ public sealed class Fighter
         return new FighterStep(0f, 0f, Heading.Wire(_yaw), false, FighterAction.Cast, _target.X, _target.Y, _target.Z);
     }
 
-    /// <summary>The table at 10 Hz: its own death, the deaths of the creatures it cast at, and in the forest a target.</summary>
+    /// <summary>The table at 10 Hz: the deaths of the creatures it cast at, its own death, and in the forest a target.</summary>
     private void Look(BotAck ack, ulong selfGuid, bool fresh, long now)
     {
         for (int i = 0; i < _castAt.Length; i++)
@@ -561,13 +607,10 @@ public sealed class Fighter
             }
         }
 
+        // The fallback for a death no hit told of: the table shows it within a tenth of a second.
         if (_state != FighterState.Dead && selfGuid != 0 && Table.TryGet(selfGuid, out TrackedObject self) && self.Dead)
         {
-            _metrics.OwnDeath();
-            Note?.Invoke($"Died ({_state}); respawning in town.");
-            _nextRespawnAt = now;
-            _hasTarget = false;
-            Enter(FighterState.Dead, now);
+            Die(now);
             return;
         }
 
@@ -576,6 +619,16 @@ public sealed class Fighter
 
         _hasTarget = Table.TryNearestLiveCreature(ack.X, ack.Z, SearchRange, out _target);
         if (_hasTarget) _lastCreatureAt = now;
+    }
+
+    /// <summary>The character died: counted, and whatever the fighter was doing gives way to asking for a respawn at once.</summary>
+    private void Die(long now)
+    {
+        _metrics.OwnDeath();
+        Note?.Invoke($"Died ({_state}); respawning in town.");
+        _nextRespawnAt = now;
+        _hasTarget = false;
+        Enter(FighterState.Dead, now);
     }
 
     /// <summary>The transition the read loop handed over, if any, applied to the trip.</summary>
@@ -611,7 +664,7 @@ public sealed class Fighter
                 return;
             }
 
-            if (_state == FighterState.Leaving)
+            if (_state == FighterState.Leaving && !_unaskedMove)
             {
                 StepTimed?.Invoke("exit-map", Elapsed(_requestedAt, at));
                 _metrics.ForestTripCompleted();
@@ -621,6 +674,13 @@ public sealed class Fighter
             {
                 StepTimed?.Invoke("respawn", Elapsed(_stateSince, at));
                 EndTrip(TripEnd.Died);
+            }
+            else if (_state != FighterState.Town)
+            {
+                // Moved out of a trip it had not finished by a move it did not ask for: a party that fell apart has the
+                // world return its members from the party's forest after a countdown.
+                Fail("forest:returned", now);
+                return;
             }
 
             // Back in town (or on a map a fighter does not know, from which its walk to the portal times out).
@@ -633,6 +693,12 @@ public sealed class Fighter
         if (_state == FighterState.Entering)
         {
             Fail($"forest:enter:{result}", now);
+        }
+        else if (_state == FighterState.Leaving && result == MapTransitionResult.MoveInProgress)
+        {
+            // Another move is under way: the world's, which ends the trip when it lands (or the exit budget does).
+            _unaskedMove = true;
+            Note?.Invoke("The back portal refused: another move is under way; waiting for it.");
         }
         else if (_state == FighterState.Leaving)
         {
@@ -655,10 +721,18 @@ public sealed class Fighter
         Enter(FighterState.Town, now);
     }
 
+    /// <summary>
+    /// Not back in town within the exit budget: counted by where the way out stalled (crumbs left, short of the entry
+    /// spawn, short of the back portal, or asked and not answered), and the fighter reconnects.
+    /// </summary>
     private void ExitTimedOut(long now)
     {
-        _metrics.FighterFailed("forest:exit-timeout");
-        Note?.Invoke("Not back in town within its exit budget: reconnecting.");
+        string kind = _state == FighterState.Leaving ? ExitTimeoutLeaving
+            : _trail > 0 ? ExitTimeoutTrail
+            : !_pastEntry ? ExitTimeoutEntry
+            : ExitTimeoutPortal;
+        _metrics.FighterFailed(kind);
+        Note?.Invoke($"Not back in town within its exit budget ({kind}): reconnecting.");
         EndTrip(TripEnd.Failed);
         AskReconnect(now);
     }
@@ -811,7 +885,14 @@ public sealed class Fighter
             (x, z) = (_trailX[i], _trailZ[i]);
         }
 
-        return length + Distance(x, z, EntrySpawnX, EntrySpawnZ) + Distance(EntrySpawnX, EntrySpawnZ, BackPortalX, BackPortalZ);
+        return length + Distance(x, z, EntrySpawnX, EntrySpawnZ) + EntryToPortal;
+    }
+
+    /// <summary>The exit budget for a way out <paramref name="wayOut"/> metres long: twice its walk, and 60 s at least.</summary>
+    private static TimeSpan ExitBudget(float wayOut)
+    {
+        var walk = TimeSpan.FromSeconds(2 * wayOut / WalkSpeed);
+        return walk > s_exitFloor ? walk : s_exitFloor;
     }
 
     private static TaskCompletionSource NewReconnect() => new(TaskCreationOptions.RunContinuationsAsynchronously);
