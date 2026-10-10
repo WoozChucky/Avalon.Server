@@ -1278,9 +1278,18 @@ Means of the three runs; enqueue is the tick's encode, rent and queue of 4,000 p
 **The cap.** The free stacks never shrank, so a network blip that left a thousand connections each holding up to
 `Network:MaxPendingBytes` (512 KiB) could have pinned about 512 MB of segments for good, the 1 MiB ones on the large
 object heap. Each size class now keeps at most `PayloadSegmentPool.MaxFreeBytesPerSizeClass`, 4 MiB of segment
-capacity (65,536 segments of 64 B, four of 1 MiB; 60 MiB over the 15 classes, plus about 64 B of object per segment);
-past it a segment given back is left to the GC. The steady state never reaches it: 1,000 connections × 4 packets keep
-about 4,000 segments of one class in flight.
+capacity, but never fewer than `MinFreeSegmentsPerSmallSizeClass` (2,048) segments for a class up to 4 KiB, where most
+packets fall. Past its limit a segment given back is left to the GC.
+
+| Size class | 64 B | 128 B | 256 B | 512 B | 1 KiB | 2 KiB | 4 KiB | 8 KiB | 16 KiB | 32 KiB | 64 KiB | 128 KiB | 256 KiB | 512 KiB | 1 MiB |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Free segments kept | 65,536 | 32,768 | 16,384 | 8,192 | 4,096 | 2,048 | 2,048 | 512 | 256 | 128 | 64 | 32 | 16 | 8 | 4 |
+
+That is 64 MiB of segment capacity over the 15 classes (the 4 KiB class holds 8 MiB), plus about 64 B of object per
+segment. What was measured: the harness above, 1,000 connections × 4 movement acks per tick, keeps about 4,000
+segments of one small class in flight, far under its limit, and its tick allocated 0 B. Not measured: a steady state
+above a class's limit. There, each tick would rent segments the last peak's returns left to the GC, so the tick would
+allocate again at every such peak (a recurring re-rent), not only once at a new high.
 
 ### The connection sender's fields (#875, 2026-10-10)
 

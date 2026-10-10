@@ -4,7 +4,9 @@ namespace Avalon.Network.Packets.Abstractions;
 
 /// <summary>
 /// Free payload segments by size class, powers of two from 64 B to 1 MiB (#875). It keeps what was in flight at the peak,
-/// up to <see cref="MaxFreeBytesPerSizeClass" /> per size class: the send path caps what one connection holds
+/// up to <see cref="MaxFreeBytesPerSizeClass" /> per size class, and never fewer than
+/// <see cref="MinFreeSegmentsPerSmallSizeClass" /> segments for a class up to <see cref="SmallSizeClassBytes" />: the
+/// send path caps what one connection holds
 /// (<c>Network:MaxPendingBytes</c>, past which the connection is closed as too slow), but not what a thousand connections
 /// held together during a network blip, which a pool that never shrank would pin for good. Past the cap a segment given
 /// back is left to the GC. A payload above 1 MiB gets a segment of its own, never pooled.
@@ -27,6 +29,16 @@ public sealed class PayloadSegmentPool
     /// segments' own objects come on top (about 64 B each).
     /// </summary>
     public const int MaxFreeBytesPerSizeClass = 4 * 1024 * 1024;
+
+    /// <summary>
+    /// The fewest free segments a size class up to <see cref="SmallSizeClassBytes" /> keeps, whatever its byte cap: the
+    /// classes most packets fall in keep a peak of this many in flight. Only the 4 KiB class rises by it (1,024 to 2,048,
+    /// 8 MiB); the smaller classes' byte caps already allow more.
+    /// </summary>
+    public const int MinFreeSegmentsPerSmallSizeClass = 2048;
+
+    /// <summary>The largest segment capacity <see cref="MinFreeSegmentsPerSmallSizeClass" /> applies to.</summary>
+    public const int SmallSizeClassBytes = 4096;
 
     private const int SmallestShift = 6;
     private const int LargestShift = 20;
@@ -54,7 +66,7 @@ public sealed class PayloadSegmentPool
     {
         _countsOutstanding = countOutstanding;
         for (int i = 0; i < _free.Length; i++)
-            _free[i] = new FreeList(MaxFreeBytesPerSizeClass >> (i + SmallestShift));
+            _free[i] = new FreeList(FreeLimit(1 << (i + SmallestShift)));
     }
 
     /// <summary>The process's pool, which <c>PacketEncoder.Shared</c> encodes into. It counts nothing.</summary>
@@ -130,6 +142,14 @@ public sealed class PayloadSegmentPool
         if (_countsOutstanding)
             Interlocked.Decrement(ref _outstanding);
     }
+
+    /// <summary>
+    /// The most free segments a size class of <paramref name="capacity" /> keeps: its byte cap, raised to the floor for a
+    /// small class. 64 B 65,536; 128 B 32,768; 256 B 16,384; 512 B 8,192; 1 KiB 4,096; 2 KiB and 4 KiB 2,048; 8 KiB 512;
+    /// then halving to four of 1 MiB.
+    /// </summary>
+    private static int FreeLimit(int capacity) =>
+        Math.Max(MaxFreeBytesPerSizeClass / capacity, capacity <= SmallSizeClassBytes ? MinFreeSegmentsPerSmallSizeClass : 0);
 
     private void GiveBack(ReturnBatch batch, int sizeClass)
     {

@@ -39,18 +39,19 @@ public class PayloadSegmentPoolShould
 
     /// <summary>
     /// A blip that left a thousand connections each holding their pending bytes must not pin those segments for good: a
-    /// size class keeps at most <see cref="PayloadSegmentPool.MaxFreeBytesPerSizeClass" /> of free segments, whether they
-    /// come back one by one or in a send pass's batch, and the rest go to the GC.
+    /// size class keeps at most <see cref="PayloadSegmentPool.MaxFreeBytesPerSizeClass" /> of free segments, but never
+    /// fewer than <see cref="PayloadSegmentPool.MinFreeSegmentsPerSmallSizeClass" /> up to 4 KiB, whether they come back
+    /// one by one or in a send pass's batch, and the rest go to the GC.
     /// </summary>
     [Theory]
-    [InlineData(40, false)] // the 64 B class: 65,536 kept
-    [InlineData(40, true)]
-    [InlineData(1024 * 1024, false)] // the 1 MiB class: 4 kept
-    public void Keep_no_more_free_segments_of_a_size_than_its_cap(int payloadLength, bool batched)
+    [InlineData(40, false, 65_536)] // the 64 B class: its byte cap
+    [InlineData(40, true, 65_536)]
+    [InlineData(4096, true, 2048)] // the 4 KiB class: the floor, above its byte cap's 1,024
+    [InlineData(8192, false, 512)] // the 8 KiB class: past the floor's reach, its byte cap
+    [InlineData(1024 * 1024, false, 4)] // the 1 MiB class
+    public void Keep_no_more_free_segments_of_a_size_than_its_cap(int payloadLength, bool batched, int kept)
     {
         var pool = new PayloadSegmentPool(countOutstanding: true);
-        int capacity = Math.Max(64, payloadLength);
-        int kept = PayloadSegmentPool.MaxFreeBytesPerSizeClass / capacity;
         byte[] payload = new byte[payloadLength];
 
         var burst = new OutboundPacket[kept + 3];
