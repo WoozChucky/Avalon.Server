@@ -165,6 +165,15 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
         if (!_outbox.Enqueue(packet)) return;
         Interlocked.Add(ref BytesSentCount, size);
         Interlocked.Increment(ref PacketSentCount);
+        OnQueued(size);
+    }
+
+    /// <summary>
+    /// A packet the outbox accepted, with what it puts on the wire (<see cref="SentSize" />), on the sending thread: a
+    /// server counts it in its telemetry here, once, and never a refused one.
+    /// </summary>
+    protected virtual void OnQueued(int size)
+    {
     }
 
     /// <summary>

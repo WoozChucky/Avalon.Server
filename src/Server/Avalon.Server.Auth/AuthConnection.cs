@@ -65,11 +65,10 @@ public class AuthConnection : Connection, IAuthConnection
 
     public bool VerifyHandshakeData(byte[] handshakeData) => _handshakeData.SequenceEqual(handshakeData);
 
-    public override void Send(OutboundPacket packet)
+    protected override void OnQueued(int size)
     {
-        DiagnosticsConfig.Auth.BytesSent.Add(SentSize(packet));
+        DiagnosticsConfig.Auth.BytesSent.Add(size);
         DiagnosticsConfig.Auth.PacketsSent.Add(1);
-        base.Send(packet);
     }
 
     protected override void OnHandshakeFinished() => Server.CallConnectionListener(this);

@@ -24,8 +24,8 @@ namespace Avalon.World.Testing.Scenarios;
 /// the encoder, the cipher and the send pass (#875). Everything a scenario does not drive throws.
 /// </summary>
 /// <remarks>
-/// <see cref="Send"/> mirrors <c>WorldConnection.Send</c> and the <c>Connection</c> base it calls, without the
-/// telemetry counters (<c>DiagnosticsConfig.World.BytesSent</c>, <c>PacketsSent</c>).
+/// <see cref="Send"/> mirrors the <c>Connection</c> base's <c>Send</c>, without the telemetry counters
+/// <c>WorldConnection.OnQueued</c> adds (<c>DiagnosticsConfig.World.BytesSent</c>, <c>PacketsSent</c>).
 /// The scheduler's thread never starts: <c>ScenarioWorld.Tick</c> runs its pass inline, on the measured thread, and the
 /// counting stream completes every write synchronously, as a socket with room in its buffer does. That stream stands in
 /// for production's <c>SslStream</c>, so baselines exclude the TLS record layer, and the session keys are identical

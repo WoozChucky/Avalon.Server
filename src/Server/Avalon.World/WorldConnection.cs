@@ -332,15 +332,14 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         AccessLevel = level;
     }
 
-    public override void Send(OutboundPacket packet)
+    protected override void OnQueued(int size)
     {
-        DiagnosticsConfig.World.BytesSent.Add(SentSize(packet));
+        DiagnosticsConfig.World.BytesSent.Add(size);
         DiagnosticsConfig.World.PacketsSent.Add(1);
-        base.Send(packet);
     }
 
     /// <summary>
-    /// A time-sync ping its send thread wrote (#875): encoded there, it never passed <see cref="Send" />, so it is counted
+    /// A time-sync ping its send thread wrote (#875): encoded there, it never passed <see cref="Connection.Send" />, so it is counted
     /// here, on that thread. Clear text, so its size has no seal overhead.
     /// </summary>
     private void CountPing(int size)
