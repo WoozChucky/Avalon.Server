@@ -86,7 +86,7 @@ jobs:
     permissions: { contents: read, pull-requests: read }
     steps:
       - uses: actions/setup-python@v7
-        with: { python-version: '3.14' }
+        with: { python-version: '3.15' }
       - name: Changelog entry
         env:
           GITHUB_TOKEN: ${{ github.token }}
