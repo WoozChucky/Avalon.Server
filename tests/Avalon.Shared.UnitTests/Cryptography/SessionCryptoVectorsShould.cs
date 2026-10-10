@@ -150,9 +150,10 @@ public class SessionCryptoVectorsShould
     // -- the sealed packets --------------------------------------------------
 
     /// <summary>
-    /// Each recorded packet, sealed again by a session of the right role in the recorded order.
-    /// This is where a swapped label or a stalled counter shows: the round trip still works with
-    /// either mistake, and these bytes do not.
+    /// Each recorded packet, sealed again by a session of the right role in the recorded order, into the middle of a
+    /// larger buffer, as the send path seals straight into the frame it writes (#875). This is where a swapped label or
+    /// a stalled counter shows: the round trip still works with either mistake, and these bytes do not. The bytes on
+    /// either side are left as they were.
     /// </summary>
     [Theory]
     [MemberData(nameof(Names))]
@@ -166,16 +167,24 @@ public class SessionCryptoVectorsShould
         var server = new AvalonCryptoSession(CryptoRole.Server, KeyPair(vector.ServerPrivateScalar));
         server.Initialize(vector.ClientPublicKeyDer);
 
+        const int Offset = 5;
         foreach (CryptoPacket packet in vector.Packets)
         {
             IAvalonCryptoSession sender = string.Equals(packet.Direction, "c2s", StringComparison.Ordinal)
                 ? client
                 : server;
 
-            byte[] resealed = sender.Encrypt(packet.Plaintext);
+            int sealedLength = SessionKeys.NonceSize + packet.Plaintext.Length + SessionKeys.TagSize;
+            byte[] frame = new byte[Offset + sealedLength + 3];
+            Array.Fill(frame, (byte)0xEE);
 
-            Assert.Equal(packet.Nonce, resealed[..SessionKeys.NonceSize]);
-            Assert.Equal(packet.Ciphertext, resealed[SessionKeys.NonceSize..]);
+            int written = sender.SealInto(packet.Plaintext, frame.AsSpan(Offset));
+
+            Assert.Equal(sealedLength, written);
+            Assert.Equal(packet.Nonce, frame[Offset..(Offset + SessionKeys.NonceSize)]);
+            Assert.Equal(packet.Ciphertext, frame[(Offset + SessionKeys.NonceSize)..(Offset + sealedLength)]);
+            Assert.All(frame[..Offset], b => Assert.Equal(0xEE, b));
+            Assert.All(frame[(Offset + sealedLength)..], b => Assert.Equal(0xEE, b));
         }
     }
 

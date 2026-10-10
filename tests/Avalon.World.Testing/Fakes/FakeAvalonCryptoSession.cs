@@ -15,6 +15,16 @@ public sealed class FakeAvalonCryptoSession : IAvalonCryptoSession
     public byte[] GetOtherEndPublicKey() => Array.Empty<byte>();
     public byte[] Encrypt(ReadOnlySpan<byte> data) => data.ToArray();
     public EncryptFunc Encryptor { get; }
+
+    public int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination)
+    {
+        // No cipher: the plaintext between a zero nonce and a zero tag, at the sealed layout's length.
+        destination.Slice(0, SessionKeys.NonceSize).Clear();
+        plaintext.CopyTo(destination.Slice(SessionKeys.NonceSize));
+        destination.Slice(SessionKeys.NonceSize + plaintext.Length, SessionKeys.TagSize).Clear();
+        return SessionKeys.NonceSize + plaintext.Length + SessionKeys.TagSize;
+    }
+
     public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
     {
         data.CopyTo(output);

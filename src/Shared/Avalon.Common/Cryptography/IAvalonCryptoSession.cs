@@ -34,6 +34,13 @@ public interface IAvalonCryptoSession
     /// </summary>
     EncryptFunc Encryptor { get; }
 
+    /// <summary>
+    /// Seals <paramref name="plaintext" /> into <paramref name="destination" /> as
+    /// <c>[12-byte nonce][ciphertext][16-byte tag]</c> and returns that length, the plaintext's plus 28, allocating
+    /// nothing: the send path seals each payload straight into the frame it writes (#875).
+    /// </summary>
+    int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination);
+
     int Decrypt(ReadOnlySpan<byte> data, byte[] output);
     byte[] GenerateHandshakeData();
 }
@@ -83,7 +90,7 @@ public interface IAvalonCryptoSession
 /// A session goes through <see cref="Initialize"/> once, and only a session whose exchange
 /// completed seals or opens anything (#855). An Initialize that throws (a peer key that does not
 /// parse, say) leaves the session failed for good: it refuses a second Initialize, and every
-/// Encrypt and Decrypt, as an <see cref="InvalidOperationException"/>. So does a session whose send
+/// Encrypt, SealInto and Decrypt, as an <see cref="InvalidOperationException"/>. So does a session whose send
 /// counter is spent, since its next nonce would repeat one this key has already used. The two
 /// public keys are readable only once the exchange has completed.
 /// </para>
@@ -229,9 +236,28 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     {
         if (_state != Ready) throw NotReady();
 
-        // The one allocation: the packet itself, [nonce][ciphertext][tag], sealed in place.
+        // A client's path (the load-test tool, the vectors): a new array per packet. The server seals into its frames.
         byte[] sealedPacket = new byte[SessionKeys.NonceSize + data.Length + SessionKeys.TagSize];
-        Span<byte> nonce = sealedPacket.AsSpan(0, SessionKeys.NonceSize);
+        SealInto(data, sealedPacket);
+        return sealedPacket;
+    }
+
+    /// <inheritdoc />
+    /// <exception cref="ArgumentException"><paramref name="destination" /> is shorter than the sealed packet.</exception>
+    /// <exception cref="InvalidOperationException">As <see cref="Encrypt" />.</exception>
+    /// <exception cref="OverflowException">As <see cref="Encrypt" />.</exception>
+    public int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination)
+    {
+        if (_state != Ready) throw NotReady();
+
+        int sealedLength = SessionKeys.NonceSize + plaintext.Length + SessionKeys.TagSize;
+        if (destination.Length < sealedLength)
+        {
+            throw new ArgumentException(
+                $"A sealed packet of {sealedLength} bytes does not fit in {destination.Length}", nameof(destination));
+        }
+
+        Span<byte> nonce = destination.Slice(0, SessionKeys.NonceSize);
 
         lock (_lock)
         {
@@ -248,12 +274,12 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
             _sealer!.Encrypt(
                 nonce,
-                data,
-                sealedPacket.AsSpan(SessionKeys.NonceSize, data.Length),
-                sealedPacket.AsSpan(SessionKeys.NonceSize + data.Length, SessionKeys.TagSize));
+                plaintext,
+                destination.Slice(SessionKeys.NonceSize, plaintext.Length),
+                destination.Slice(SessionKeys.NonceSize + plaintext.Length, SessionKeys.TagSize));
         }
 
-        return sealedPacket;
+        return sealedLength;
     }
 
     /// <exception cref="CryptographicException">
