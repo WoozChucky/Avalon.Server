@@ -7,10 +7,10 @@ namespace Avalon.Network.Packets.Abstractions;
 /// dropped segments would make the tick allocate new ones. A payload above 1 MiB gets a segment of its own, never pooled.
 /// </summary>
 /// <remarks>
-/// Each size class is a stack under a lock, which allocates only when the class holds more free segments than ever
-/// before. A <c>ConcurrentQueue</c> did not: once the free segments of a class outnumbered its tail segment, every
-/// segment taken and given back moved the queue through new internal segments, so a burst that left many free
-/// (a fight's loot and damage packets, a test run before) had every later tick allocate there, in proportion to its sends.
+/// Each size class is a stack under a lock, which allocates only at a new peak. A <c>ConcurrentQueue</c> did not: after
+/// a burst, it kept allocating new, larger internal segments with no new peak until its free segments sat in one; those
+/// allocations landed in later ticks. Rent and return both run on the tick today, so the lock is uncontended (about
+/// 16 ns more per packet than the queue); a lock-free stack would allocate a node per push.
 /// </remarks>
 public sealed class PayloadSegmentPool
 {

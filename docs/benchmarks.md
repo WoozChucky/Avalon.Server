@@ -1358,8 +1358,8 @@ It is an allocation reduction; no change in tick time was measured. PGO on and o
 What PGO still keeps on the stack is spread thin, on paths the rehearsal settles. Before the pause after each
 rehearsal, a busy machine could still finish a promotion during the first measured run of a process (201,681 against
 201,643 once in three runs under load); with it, none did in five. Should a later change bring back an allocation of
-this kind, the two-run check (`ForestCombatScenarioShould`) or the Debug gate shows it: find it by diffing the
-per-tick bytes of two runs, as above.
+this kind, the two-run check (`ForestCombatScenarioShould`), or the Release gate (CI), shows it: find it by diffing
+the per-tick bytes of two runs, as above.
 
 ### Running it and reading the table
 
@@ -1388,13 +1388,15 @@ and compares only against a baseline taken on the same machine.
 `perf/scenario-allocations.json` is the committed baseline: per scenario its `bytesPerWindow` (and, for reading,
 `bytesPerPlayerPerTick`), with the commit and date it was generated at. `perf/local/` holds per-machine runner
 baselines and is never committed. `ScenarioAllocationsShould` runs every scenario and compares its `bytesPerWindow`
-with the committed figure, in every build (Debug and Release, see below):
+with the committed figure, in every build (Debug and Release, see below), except that `forest-combat` is decided in
+Release and reported in Debug (#890):
 
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
-- **Detection floor.** Every town figure is 0 (regenerated at `75a16697`, #875: no town scenario allocates on the
-  tick thread since server packets are built in per-thread messages), so the 256 B floor decides in every scenario:
+- **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
+  since server packets are built in per-thread messages; the file was last regenerated at `11896cd1`), so the 256 B
+  floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
   per window).
@@ -1405,8 +1407,8 @@ with the committed figure, in every build (Debug and Release, see below):
   object every six ticks fails it. Its Debug run reads 225 B per window above Release (16,477 B: what the optimised
   JIT keeps off the heap, among it in the vendored navmesh code, which a Debug build compiles unoptimised too), and a
   whole World suite run reads 80 B per window more or less than the test alone (Release 16,172, Debug 16,557; the cause
-  is not found), so its Debug figure can cross the floor with no change. The escape hatch below applies to it alone:
-  `forest-combat` is decided in Release (CI) and reported in Debug.
+  is not found), so its Debug figure can cross the floor with no change. The escape hatch below applies to it alone
+  (owner, #890): `forest-combat` is decided in Release (CI) and reported in Debug.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
   CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
@@ -1431,7 +1433,8 @@ dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write
 patch can move the figures with no change in this repository. The CI run's summary table names the runtime and OS that measured it; when they differ from the run that
 committed the baseline and the code did not change, regenerate the baseline on the new runtime and commit it.
 
-**The gate decides in every build, and every machine reads the same figures.** CI builds Release on a GitHub-hosted
+**The gate decides in every build (except `forest-combat`, decided in Release and reported in Debug, #890), and every
+machine reads the same figures.** CI builds Release on a GitHub-hosted
 runner; a plain local `dotnet test` builds Debug. Since #854 the committed figures are a plain Release run on the
 developer machine, and Debug, Release, Windows and Linux read them within run-to-run noise. Measured at `2fe836e8`
 (#852, #859), bytes per window, committed `town-walk` 1,440,240 and `many-instances` 11,589,728:
@@ -1528,12 +1531,29 @@ creatures are far from any player, and an idle creature's AI looks for players o
 The minute allocates 0.98 MB on the tick thread.
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
-holds a free list that never allocates: it kept free segments in a `ConcurrentQueue` per size, and when a burst left
-more free than the queue's tail segment held, every segment taken and given back moved it through new internal
-segments, so the fight's figure depended on what ran in the process before (up to 524 KB more per measured minute
-after 30,000 segments were left free); a stack under a lock per size allocates only at a new peak
-(`PayloadSegmentPoolShould`). Of the 975 KB a measured minute allocates, measured with allocation counters around the
-steps of the tick (Release):
+holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a
+burst, it kept allocating new, larger internal segments with no new peak until its free segments sat in one; those
+allocations landed in later ticks, so the fight's figure depended on what ran in the process before. A stack allocates
+only at a new peak (`PayloadSegmentPoolShould`: 20,000 segments left free, then 64,000 taken and given back, cost
+524,544 B on the queue, one 32,768-slot internal segment, a one-off, and 0 B on the stack).
+
+What the lock costs (the world-performance review's measurements, and `PacketEncoderBenchmarks` before and after on the
+developer machine, i9-12900K, Windows 11, .NET 10.0.12, Release, BenchmarkDotNet defaults):
+
+- **Rent and return, uncontended:** 33.5 ns with the lock against 17.8 ns with the `ConcurrentQueue`, about 16 ns more
+  per packet.
+- **`OutboxFlush` harness, 500 connections × 4 packets:** 0.794 / 0.803 / 0.817 ms per flush with the lock against
+  0.808 / 0.790 ms on main, within noise, and 0 B per tick on both.
+- **`PacketEncoderBenchmarks`, mean, lock against queue:** encode a state update 209.4 against 197.4 ns (1 entity) and
+  3,298 against 3,275 ns (30); encode, seal and frame 495.6 against 459.2 ns and 3,642 against 3,710 ns; encode and
+  frame plain 224.4 against 212.5 ns and 3,296 against 3,449 ns. About 12 to 36 ns more for one packet, within noise
+  for 30, and 0 B allocated in every case.
+
+No contention today: rent and return both run on the tick. Network PR 3's send threads return segments from their own
+threads; its Task 3.8 measures that and may batch the returns per pass. The lock-free alternatives allocate
+(`ConcurrentStack` creates a node per push), which is what the pool exists to avoid.
+
+Of the 975 KB a measured minute allocates, measured with allocation counters around the steps of the tick (Release):
 
 | Share | Where |
 |---:|---|

@@ -7,8 +7,9 @@ public class PayloadSegmentPoolShould
 {
     /// <summary>
     /// The pool is the process's, and a burst can leave it holding many free segments of a size. Taking and giving back
-    /// segments it already holds must then cost nothing, however many it holds: a free list that moved through new
-    /// internal storage with every segment taken and given back made each later tick allocate in proportion to its sends.
+    /// segments it already holds must then cost nothing, however many it holds. A <c>ConcurrentQueue</c> free list, after
+    /// a burst, kept allocating new, larger internal segments with no new peak until its free segments sat in one; those
+    /// allocations landed in later ticks (here, one 32,768-slot segment: 524,544 B). A stack allocates only at a new peak.
     /// </summary>
     [Fact]
     public void Allocate_nothing_to_hand_out_and_take_back_segments_it_holds_after_a_burst()

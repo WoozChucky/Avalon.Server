@@ -27,10 +27,11 @@ public sealed class ScenarioAllocations;
 /// make the regression branch Release-only (<c>#if !DEBUG</c>) and report in Debug instead, as #856 did; see
 /// docs/benchmarks.md, "The allocation gate".
 /// <para>
-/// That is so for a fixed-length scenario (<c>forest-combat</c>): since #888 its figure is small (16 KB per window),
-/// the 256 B floor decides, and a Debug build reads 225 B per window above Release (the vendored navmesh code and other
-/// spots unoptimised there), and 80 B more or less in a whole-suite run. It is decided in Release, which CI runs, and
-/// reported in Debug, where its regressed line still names the figure.
+/// That is so for <c>forest-combat</c> (owner, #890): since #888 its figure is small (16 KB per window), the 256 B
+/// floor decides, and a Debug build reads 225 B per window above Release (the vendored navmesh code and other spots
+/// unoptimised there), and 80 B more or less in a whole-suite run. It alone is decided in Release, which CI runs, and
+/// reported in Debug, where its regressed line still names the figure; any other scenario, a later fixed-length one
+/// included, is decided in every build.
 /// </para>
 /// </remarks>
 [Collection(nameof(ScenarioAllocations))]
@@ -63,10 +64,10 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
         {
             case AllocationBaseline.Verdict.Regressed:
 #if DEBUG
-                if (Scenarios.Get(name).Length is not null)
+                if (name == "forest-combat")
                 {
-                    output.WriteLine($"{name} reads above its committed figure in this Debug build; a fixed-length " +
-                                     "scenario is decided in Release (docs/benchmarks.md, \"The allocation gate\").");
+                    output.WriteLine($"{name} reads above its committed figure in this Debug build; it is decided in " +
+                                     "Release (#890; docs/benchmarks.md, \"The allocation gate\").");
                     break;
                 }
 #endif
