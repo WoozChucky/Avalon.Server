@@ -1173,9 +1173,8 @@ the instance pass, and leaves out:
 - `InstanceRegistry.ProcessExpiredInstances`, the last step. Its walk of the registry allocates a 72 B enumerator per
   tick in an unoptimized (Debug) build and, measured, nothing in Release, so it would add nothing to the committed
   figure and would fail `town-idle`'s gate (4,320 B per window over a 0 B baseline) in every local Debug run.
-- The map pass's dispatch wrapper: `WorldConnection.ProcessQueue` and `PacketDispatchTelemetry.Begin`. `LoopWalker`
-  calls `PlayerInputHandler` directly, so the queue, the per-packet session filter and the dispatch telemetry are not
-  in the numbers.
+- The map pass's queue: `WorldConnection.ProcessQueue`. `LoopWalker` calls `PlayerInputHandler` directly, so the queue
+  and the per-packet session filter are not in the numbers (the dispatch is, since #875; see The allocation gate).
 
 ### How a scenario is measured
 
@@ -1301,6 +1300,26 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 18 s to the World
 suite.
+
+### Results — the header struct (#875, 2026-10-10)
+
+`NetworkPacketHeader` was a class, and every sent packet allocated two of them (32 B each): one from `NetworkPacket`'s
+`Header { get; set; } = new()` initializer and one from `PacketSerializationHelper.Serialize`'s
+`Header = new NetworkPacketHeader { … }`, which replaced it. As a struct it allocates nothing, on the send path as on the
+receive path (`InboundPacketFrame.ParseFrame` reads it by hand). Both moving scenarios fall by about 63.5 B per player per
+tick, the two header objects of the one state ack each walking player is sent per tick (63.7 in `town-walk`, 63.5 in
+`many-instances`). The scenarios now also dispatch each walker's input through `PacketDispatchTelemetry`, as
+`WorldConnection.ProcessQueue` does; for `CMSG_PLAYER_INPUT` that dispatch is measured at 0 B (it was 248 B per packet
+with a scope-reading log provider, see [instrumentation](instrumentation.md#packet-handlers)).
+
+Allocations, from `perf/scenario-allocations.json` regenerated at `44d0db3a` (the developer machine's Release run,
+i9-12900K, Windows 11, .NET 10.0.12):
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Before | Change |
+|---|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 0 | 0 | 0.00 | 0 | 0 |
+| `town-walk` | 30 | 1,124,400 | 18,740 | 624.67 | 1,239,120 | −9.3% |
+| `many-instances` | 500 | 6,329,728 | 105,495 | 210.99 | 8,233,728 | −23.1% |
 
 ### Results — no closure per flusher call (#875, 2026-10-09)
 

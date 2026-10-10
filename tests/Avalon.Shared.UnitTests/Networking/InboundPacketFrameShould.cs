@@ -105,9 +105,8 @@ public class InboundPacketFrameShould
 
         var frame = InboundPacketFrame.ParseFrame(raw);
 
-        Assert.True(
-            expected.SequenceEqual([(int)frame.Header.Type, (int)frame.Header.Flags, (int)frame.Header.Protocol, frame.Header.Version]),
-            because);
+        _ = because; // Names the case in the test's display name; Assert.Equal prints the values on a failure.
+        Assert.Equal(expected, new[] { (int)frame.Header.Type, (int)frame.Header.Flags, (int)frame.Header.Protocol, frame.Header.Version });
         Assert.Equal(payload, frame.Payload.ToArray());
     }
 

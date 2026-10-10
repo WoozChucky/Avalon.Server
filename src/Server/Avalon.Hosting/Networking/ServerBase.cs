@@ -345,7 +345,8 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         catch (Exception e)
         {
             dispatch.Fail(e);
-            _logger.LogError(e, "Failed to execute packet handler for {PacketType}", header.Type);
+            _logger.LogError(e, "Failed to execute packet handler for {PacketType} on connection {ConnectionId}", header.Type,
+                connection.Id);
             connection.Close();
         }
         finally
