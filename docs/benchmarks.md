@@ -1285,13 +1285,17 @@ instance pass, and leaves out:
   at a different point of the fight on every machine. So a scenario can name a fixed length (`IScenario.Length`;
   `forest-combat`: 600 warm-up ticks, then 3,600 measured ticks) and is then measured another way. First a
   **rehearsal**: the whole run on a world of its own, again on a new world each time, until the wall-clock warm-up has
-  passed and two rehearsals in a row allocated the same over their measured ticks, with a 250 ms pause
-  after each for the JIT's background promotions to finish, so its tiering, first-use caches and pools settle on the
-  code the fight takes; see [Dynamic PGO](#dynamic-pgo). Rehearsals that have not settled 12 runs past the warm-up
-  end the run with an error naming the last two figures: an unsettled run is never measured. Then a **fresh world**, ticked for its warm-up ticks and
-  then its measured ticks, every one counted: the gated `bytesPerWindow` is their **mean** per 60-tick window, so
-  every kill, death and drop of the minute is in it (the least window would keep only the quietest second). Its timing is that of the same measured ticks (none with
-  `--measure-ticks 0`). Its check (`Verify`) requires every player present and sent to, every fighter casting and
+  passed and two rehearsals in a row allocated the same over their measured ticks, with a 250 ms pause after each for
+  the JIT's background promotions to finish, so its tiering, first-use caches and pools settle on the code the fight
+  takes; see [Dynamic PGO](#dynamic-pgo). Rehearsals that have not settled 12 runs past the warm-up end the run with
+  an error naming the last two figures: an unsettled run is never measured. Then a **fresh world**: a full collection
+  first (before its warm-up ticks, so the shared pools are refilled by the warm-up rather than by the measured ticks),
+  its warm-up ticks, then its measured ticks, every one counted: the gated `bytesPerWindow` is their **mean** per
+  60-tick window, so every kill, death and drop of the minute is in it (the least window would keep only the quietest
+  second). The whole measurement runs on a thread of its own, so what a thread keeps for itself (a pool's per-thread
+  buffers, the packet encoder's per-thread scratch) starts empty on every run, whatever tests ran before on the
+  caller's thread. Its timing is that of the same measured ticks (none with `--measure-ticks 0`). Its check
+  (`Verify`) requires every player present and sent to, every fighter casting and
   every forest losing creatures during the measured ticks.
 
 #### Dynamic PGO
@@ -1335,7 +1339,8 @@ diffing the per-tick allocations of two runs, then narrowing with allocation cou
   instance. `CastAbilityHandler` tested its two flags with `Enum.HasFlag`, which boxes in unoptimised code; bit tests.
 
 After the fix, bytes per window (developer machine, i9-12900K, Windows 11, .NET 10.0.12, and the Linux container used
-for CI's runner size):
+for CI's runner size), before the outbound packets of #888 took the send path off the tick thread's bill (see
+[The forest-combat scenario](#the-forest-combat-scenario) for the figures since):
 
 | Run | `forest-combat` |
 |---|---:|
@@ -1348,7 +1353,8 @@ for CI's runner size):
 
 Like for like, the figure falls by 44% with PGO off (362,459 to 201,916) and by 37% or 43% with PGO on (322,415 in the
 test process, 351,215 in the runner, to 201,643): about 120 to 150 KB per window less of the tick thread's garbage.
-It is an allocation reduction; no change in tick time was measured (see the timing below). PGO on and off now read within 0.14%, and Debug 0.23% above Release, inside the 1% band.
+It is an allocation reduction; no change in tick time was measured. PGO on and off then read within 0.14%, and Debug
+0.23% above Release, inside the 1% band.
 What PGO still keeps on the stack is spread thin, on paths the rehearsal settles. Before the pause after each
 rehearsal, a busy machine could still finish a promotion during the first measured run of a process (201,681 against
 201,643 once in three runs under load); with it, none did in five. Should a later change bring back an allocation of
@@ -1387,15 +1393,20 @@ with the committed figure, in every build (Debug and Release, see below):
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
-- **Detection floor.** Every committed figure is 0 (regenerated at `75a16697`, #875: no scenario allocates on the
+- **Detection floor.** Every town figure is 0 (regenerated at `75a16697`, #875: no town scenario allocates on the
   tick thread since server packets are built in per-thread messages), so the 256 B floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
-  allocated every tick, anywhere on the measured path, fails all three (the smallest, 24 B, is 1,440 B per window).
+  allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
+  per window).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` (201,643 B per window) fails above 203,659 B: 2,016 B per window, 34 B per tick, **2.8 B per player
-  per tick**, so one 40 B object per tick for the whole world fails it. Its Debug run reads 0.23% above Release, so in
-  Debug the band left is 0.77%.
+  `forest-combat` is the one figure above 0 (16,252 B per window since #888), and at that size the 256 B floor
+  decides for it too (1% is 162 B): it fails above 16,508 B, about 4 B per tick for the whole fight, so one 24 B
+  object every six ticks fails it. Its Debug run reads 225 B per window above Release (16,477 B: what the optimised
+  JIT keeps off the heap, among it in the vendored navmesh code, which a Debug build compiles unoptimised too), and a
+  whole World suite run reads 80 B per window more or less than the test alone (Release 16,172, Debug 16,557; the cause
+  is not found), so its Debug figure can cross the floor with no change. The escape hatch below applies to it alone:
+  `forest-combat` is decided in Release (CI) and reported in Debug.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
   CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
@@ -1497,31 +1508,44 @@ no character reaches level 2. `ForestCombatScenarioShould` runs the scenario twi
 same kills and the same bytes per window; the second run's creatures carry higher ids (the process-wide object id
 counter), which changes neither.
 
-**Gate.** Committed at 201,643 B per window (280.1 B per player per tick, 3,361 B per tick), a hard gate like the town
+**Gate.** Committed at **16,252 B per window** (22.6 B per player per tick, 271 B per tick), a hard gate like the town
 scenarios: see [The allocation gate](#the-allocation-gate) for the floor. Recorded on the developer machine, Release,
-dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)).
+dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)) and
+#888 took the send path off the tick thread's bill. The same figure every run: five two-run checks in Release on the
+developer machine, and the gate and the check in a Linux container (4 CPUs, 16 GB).
 
-Timing: #880's fix is an allocation reduction, with **no measurable change in tick time**. Compared with PGO on for
-both sides, the tick times before and after are the same within run-to-run noise. The runner, after the fix (Release,
-i9-12900K, Windows 11, .NET 10.0.12, Server GC, PGO on; the 3,600 measured ticks), two runs:
+| `forest-combat`, bytes per window | |
+|---|---:|
+| First committed (PGO off, before #880's fix) | 362,459 |
+| After #880's fix (PGO on) | 201,643 |
+| After #888's outbound packets (PGO on), now | 16,252 |
+| Debug, now | 16,477 |
 
-| `forest-combat` | Tick ms mean | p95 | p99 | max | gen0 |
-|---|---:|---:|---:|---:|---:|
-| After (201,643 B per window) | 0.135 / 0.142 | 0.182 / 0.196 | 0.229 / 0.257 | 0.438 / 0.430 | 0 / 0 |
-
-The town scenarios did not move beyond run-to-run noise, in allocation (`town-walk` 1,123,440-1,124,880 B per window,
-`many-instances` 6,323,728-6,329,728 B, `town-idle` 0 B) or in tick time.
+No tick-time change is claimed for either step: tick time was not measured like for like.
 
 Four forests of about 840 creatures and twelve fighters cost about as much per tick as `town-walk`'s 30 walkers: most
 creatures are far from any player, and an idle creature's AI looks for players once a second rather than every tick.
-The minute allocates 12.1 MB on the tick thread, too little for a gen0 collection under Server GC on this machine.
+The minute allocates 0.98 MB on the tick thread.
 
-**What dominates its allocations.** After #880's fix the send path is about 85% of it: `byte[]` (sealed payloads and
-serialization buffers) about 53%, `NetworkPacket` 18%, `SPlayerStateAckPacket` 15%, which the network-layer work
-(#875's next phase) takes on. The rest is spread thin: the packets combat sends, ability scripts and their aim and
-metadata copies per cast, the state broadcast's lists, each under about 1%. Before the fix, a sampled allocation profile
-of the measured ticks (the runtime's `GCAllocationTick` events, about 800 samples over four runs, PGO off; read by
-type, so a share is approximate) read:
+**What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
+holds a free list that never allocates: it kept free segments in a `ConcurrentQueue` per size, and when a burst left
+more free than the queue's tail segment held, every segment taken and given back moved it through new internal
+segments, so the fight's figure depended on what ran in the process before (up to 524 KB more per measured minute
+after 30,000 segments were left free); a stack under a lock per size allocates only at a new peak
+(`PayloadSegmentPoolShould`). Of the 975 KB a measured minute allocates, measured with allocation counters around the
+steps of the tick (Release):
+
+| Share | Where |
+|---:|---|
+| 52% | The players' casts (`CastAbilityHandler`). Most of it is building each cast's ability script: `InstanceAbilityCastSystem.Build` calls `ActivatorUtilities.CreateInstance` per cast, which costs its argument array, the boxed aim, the ability's clone and the script itself (about 700 B a cast). Each cast packet's id also becomes a new `AbilityId` (24 B). |
+| 29% | The creatures' AI scripts, their own casts' scripts (built the same way) among it |
+| 16% | The cast system's tick: projectiles in flight, their hit queries and effects |
+| 2% | Corpse removal (about 380 B a corpse) |
+| <1% | Broadcasts and auras |
+
+The per-cast script construction is the next thing to take out. Before #880's fix, a sampled allocation profile of the
+measured ticks (the runtime's `GCAllocationTick` events, about 800 samples over four runs, PGO off; read by type, so a
+share is approximate) read:
 
 | Share | Type | Where |
 |---:|---|---|
