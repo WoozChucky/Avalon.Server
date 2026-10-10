@@ -123,7 +123,6 @@ public sealed class ScenarioWorld : IDisposable
         // One send thread, never started: Tick runs its pass inline, on the measured thread (#875).
         Scheduler = new NetworkSendScheduler(new NetworkConfiguration { SendThreads = 1 }, NullLoggerFactory.Instance,
             Clock, NetworkSendMetrics.Disabled);
-        NetworkSendScheduler.DeferSignalsOnCurrentThread();
 
         var services = new ServiceCollection();
         services.AddSingleton<TimeProvider>(Clock);
@@ -226,38 +225,49 @@ public sealed class ScenarioWorld : IDisposable
     /// </remarks>
     public void Tick()
     {
-        _registry.PublishFinished();
+        // The tick's sends leave the wake-up to SignalAll, as on WorldServer's tick thread, for this tick only: the
+        // calling thread's later users (another test on the same thread) wake their send threads at once (#875).
+        NetworkSendScheduler.DeferSignalsOnCurrentThread();
+        try
+        {
+            _registry.PublishFinished();
 
-        // World.TickParties: invite expiry, leadership and the leave countdowns. A countdown that ran out would move a
-        // character to town, which a scenario cannot do.
-        if (_parties is not null && _parties.Tick().Count > 0)
-            throw new NotSupportedException("A party leave countdown ran out: a scenario cannot return a character to town");
+            // World.TickParties: invite expiry, leadership and the leave countdowns. A countdown that ran out would move
+            // a character to town, which a scenario cannot do.
+            if (_parties is not null && _parties.Tick().Count > 0)
+                throw new NotSupportedException("A party leave countdown ran out: a scenario cannot return a character to town");
 
-        _ticker.Tick(_registry.TickInstances(), Dt);
-        if (_failures.First is { } failure)
-            throw new InvalidOperationException("An instance threw during a scenario tick", failure);
-        if (_errorLog.First is { } error)
-            throw new InvalidOperationException("A forest instance logged an error during a tick", error);
+            _ticker.Tick(_registry.TickInstances(), Dt);
+            if (_failures.First is { } failure)
+                throw new InvalidOperationException("An instance threw during a scenario tick", failure);
+            if (_errorLog.First is { } error)
+                throw new InvalidOperationException("A forest instance logged an error during a tick", error);
 
-        // The flushers that need no service, in WorldServer's order after the world update (#875). Nothing a town
-        // scenario does changes an inventory, the stats or the abilities, so there they send nothing, and must allocate
-        // nothing. In a world with reference data a fight can (a level-up, an aura, an ability's per-hit amount), and
-        // they send it as WorldServer would.
-        for (int i = 0; i < _connections.Count; i++)
-            InventoryUpdateFlusher.Flush(_connections[i]);
-        for (int i = 0; i < _connections.Count; i++)
-            CharacterSheetFlusher.Flush(_connections[i], _formula);
-        for (int i = 0; i < _connections.Count; i++)
-            AbilityAmountsFlusher.Flush(_connections[i]);
+            // The flushers that need no service, in WorldServer's order after the world update (#875). Nothing a town
+            // scenario does changes an inventory, the stats or the abilities, so there they send nothing, and must
+            // allocate nothing. In a world with reference data a fight can (a level-up, an aura, an ability's per-hit
+            // amount), and they send it as WorldServer would.
+            for (int i = 0; i < _connections.Count; i++)
+                InventoryUpdateFlusher.Flush(_connections[i]);
+            for (int i = 0; i < _connections.Count; i++)
+                CharacterSheetFlusher.Flush(_connections[i], _formula);
+            for (int i = 0; i < _connections.Count; i++)
+                AbilityAmountsFlusher.Flush(_connections[i]);
 
-        // The party members' pools, at most four times a second each, after the flushers as WorldServer sends them.
-        _parties?.FlushMemberStatus();
+            // The party members' pools, at most four times a second each, after the flushers as WorldServer sends them.
+            _parties?.FlushMemberStatus();
 
-        // The tick's outbox stage, then the send thread's pass, inline on this thread so the gate measures both (#875).
-        Scheduler.SignalAll();
-        Scheduler.RunAllPasses();
+            // The tick's outbox stage, then the send thread's pass, inline on this thread so the gate measures both
+            // (#875).
+            Scheduler.SignalAll();
+            Scheduler.RunAllPasses();
 
-        Clock.Advance(Dt);
+            Clock.Advance(Dt);
+        }
+        finally
+        {
+            NetworkSendScheduler.ResumeSignalsOnCurrentThread();
+        }
     }
 
     /// <summary>

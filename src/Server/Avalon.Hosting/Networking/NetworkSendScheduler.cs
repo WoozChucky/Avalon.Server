@@ -61,6 +61,12 @@ public sealed class NetworkSendScheduler : IDisposable
     /// </summary>
     public static void DeferSignalsOnCurrentThread() => t_deferSignals = true;
 
+    /// <summary>
+    /// Undoes <see cref="DeferSignalsOnCurrentThread" />: the calling thread's sends wake their owners at once again. For a
+    /// thread that only plays the tick for a while (the scenario runner's), so a later user of that thread is not deferred.
+    /// </summary>
+    public static void ResumeSignalsOnCurrentThread() => t_deferSignals = false;
+
     public void Start()
     {
         if (Interlocked.Exchange(ref _started, 1) != 0)
@@ -192,6 +198,16 @@ public sealed class NetworkSendScheduler : IDisposable
         owner.Dirty.Enqueue(sender);
         if (!t_deferSignals)
             owner.Wake.Set();
+    }
+
+    /// <summary>
+    /// A send for a connection already on its owner's dirty list (a tick send pushed it, waiting for the tick's next
+    /// signal): from any thread but the tick it still wakes the owner at once, which then writes both.
+    /// </summary>
+    internal void Wake(ConnectionSender sender)
+    {
+        if (!t_deferSignals)
+            _threads[sender.OwnerThread].Wake.Set();
     }
 
     /// <summary>Owner thread only: a write of <paramref name="sender" /> is pending, so its stall clock is read each pass.</summary>

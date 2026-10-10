@@ -167,7 +167,16 @@ public sealed class ConnectionSender : IOutbox
 
         MarkDirty();
 
-        if (!await WithinAsync(_finished.Task, CloseBudget).ConfigureAwait(false))
+        Task<bool> finishing = WithinAsync(_finished.Task, CloseBudget);
+        if (finishing.IsCompleted)
+        {
+            // The owner finished this connection before the wait began, so this close would complete inline and its
+            // caller would close the socket and run its close handler on the calling thread, the tick's among them. A
+            // close is rare; one yield moves the rest off that thread.
+            await Task.Yield();
+        }
+
+        if (!await finishing.ConfigureAwait(false))
         {
             // A peer that stopped reading cannot hold the close open.
             await _cts.CancelAsync().ConfigureAwait(false);
@@ -426,6 +435,8 @@ public sealed class ConnectionSender : IOutbox
     {
         if (Interlocked.CompareExchange(ref _dirty, 1, 0) == 0)
             _scheduler.MarkDirty(this);
+        else
+            _scheduler.Wake(this); // already listed, perhaps by a tick send still waiting for the tick's signal
     }
 
     private void RequestClose()

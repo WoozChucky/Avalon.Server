@@ -24,10 +24,10 @@ Size calculation uses fixed field lengths; header marshaled first enabling preal
 
 A server packet's `Create` (`S*Packet.Create`) returns an `OutboundPacket`: its header, and its message encoded, plain,
 into a pooled `PayloadSegment` by `PacketEncoder` (#875). `IConnection.Send` takes the packet's payload reference. The
-connection's outbox seals the payload if the header is flagged Encrypted (the world's outbox as the tick flushes it, the
-auth server's as its drain task writes) and frames it with `PacketEnvelope`: `[varint length][NetworkPacket{1: header,
-2: payload}]`, written by hand, byte for byte what protobuf-net writes for a `NetworkPacket`. The outbox then releases
-the segment to its pool: no `byte[]` per packet.
+connection's outbox seals the payload if the header is flagged Encrypted (a world connection's send thread, the auth
+server's outbox as its drain task writes) and frames it with `PacketEnvelope`: `[varint length][NetworkPacket{1:
+header, 2: payload}]`, written by hand, byte for byte what protobuf-net writes for a `NetworkPacket`. The outbox then
+releases the segment to its pool: no `byte[]` per packet.
 
 Nor a message object per packet. `Create` fills the calling thread's instance of its message type
 (`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that
