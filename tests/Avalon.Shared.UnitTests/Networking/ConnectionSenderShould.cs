@@ -202,6 +202,7 @@ public sealed class ConnectionSenderShould
         Assert.Equal(16, accepted);                // 16 x 4 KiB is the cap; the 17th crosses it and is never queued
         Assert.False(sender.Enqueue(Payload(10))); // doomed: released at once, never dropped from a queue
         scheduler.RunPass(sender.OwnerThread);
+        Assert.Equal(0, sender.PendingBytes);
 
         (NetworkPacketHeader header, byte[] payload) = Assert.Single(await Frames(wire.ToArray()));
         Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, header.Type);
@@ -257,6 +258,7 @@ public sealed class ConnectionSenderShould
         var watch = System.Diagnostics.Stopwatch.StartNew();
         await sender.DisposeAsync().AsTask().WaitAsync(s_guard);
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"the close took {watch.Elapsed}");
+        Assert.Equal(100, sender.PendingBytes);   // the burst stays counted until its write ends; the queue was discarded
 
         Assert.True(scheduler.Stop(TimeSpan.FromSeconds(5)));
         Assert.Equal(1, stalled.Writes);

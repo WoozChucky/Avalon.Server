@@ -137,13 +137,15 @@ public sealed class ConnectionSender : IOutbox
         return true;
     }
 
-    /// <summary>Marks the connection too slow (once) and wakes its owner, which discards its queue and closes it.</summary>
+    /// <summary>
+    /// Marks the connection too slow (once) and wakes its owner, which counts the kick, discards the queue and closes the
+    /// connection. A connection already closing is not a kick: its close has its own budget.
+    /// </summary>
     internal void Doom(SlowKickReason reason)
     {
-        if (Interlocked.CompareExchange(ref _doomed, (int)reason, 0) != 0)
+        if (Volatile.Read(ref _completed) != 0 || Interlocked.CompareExchange(ref _doomed, (int)reason, 0) != 0)
             return;
 
-        _scheduler.Metrics.SlowKick(reason);
         MarkDirty();
     }
 
@@ -275,6 +277,8 @@ public sealed class ConnectionSender : IOutbox
         if (!_doomHandled)
         {
             _doomHandled = true;
+            // Counted here, once and on the owner thread, never on the enqueuing thread (often the tick).
+            _scheduler.Metrics.SlowKick(reason);
             _logger.LogInformation("Closing connection {Id}: it reads too slowly ({Reason})", ConnectionId, reason);
 
             // Past the byte cap the notice is its only packet, when nothing is still being written. A stalled write gets
