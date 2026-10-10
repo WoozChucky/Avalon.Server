@@ -127,7 +127,7 @@ under a nonce the key has already used.
 
 AES-256-GCM is the platform's `System.Security.Cryptography.AesGcm` (#850): one instance per
 direction, keyed once in `AvalonCryptoSession.Initialize` from the two derived keys and reused for
-every packet under the session's one lock (an instance is not thread-safe). The server seals as it
+every packet. The server seals as it
 frames a packet (a world connection's send thread, the auth server's drain task) with `SealInto`, which
 writes the nonce, ciphertext and tag straight into the frame and allocates nothing (#875). The nonce
 is taken at seal time, so nonce order is the order the frames are written; no receiver checks that
@@ -139,20 +139,31 @@ clears what it had written). The key agreement and the derivation stay on Bouncy
 also what sealed the vectors in the file, so the vectors (those recorded before #850) hold the
 platform cipher to a second implementation.
 
+The session holds one `AesGcm` per direction and no lock (#875). One thread at a time seals, and one
+thread at a time opens; concurrent seals, or concurrent opens, are the caller's to prevent. On the
+world server the connection's send thread seals while its read loop opens; on the auth server the
+drain task seals while the read loop opens. A seal and an open may run at once, since each direction
+has its own cipher and its own state (the send counter is the sealer's alone). A client must likewise
+seal from one thread at a time, and open from one: the load-test tool serialises its seals and its
+opens with locks of its own, since a bot opens both on its read loop and where it awaited a reply. A
+Debug build asserts that no two seals, and no two opens, of one session overlap; a Release build
+checks nothing.
+
 The two instances live as long as the session, which lives as long as its connection, and are not
-disposed: the tick thread may still seal for a connection that has just closed, and a disposed
-cipher would make that an exception on the tick. Their native key handles are released, and the
-key material destroyed, by the handles' finalizers when the session is collected.
+disposed: a send thread may still seal for a connection that has just closed, and a disposed cipher
+would make that an exception on it. Their native key handles are released, and the key material
+destroyed, by the handles' finalizers when the session is collected.
 
 A session seals and opens only once its exchange has completed (#855). `Initialize` runs once: it
 claims the session first, so a second call is refused even after a failed first one; it builds
-both ciphers, publishes them under the lock the packets take, and only then marks the session
-ready. An `Initialize` that throws (a peer key that does not parse, say) leaves the session failed
+both ciphers, and only then marks the session ready, with a volatile write that publishes the
+ciphers with it. An `Initialize` that throws (a peer key that does not parse, say) leaves the session failed
 for good, and every later `Encrypt` or `Decrypt` refuses with an `InvalidOperationException` rather
 than reaching a missing cipher. `GetPublicKey` and `GetOtherEndPublicKey` refuse the same way
 until the exchange has completed; a spent session still returns them, since exhaustion ends what
-it may seal, not which exchange it was. The ready check is one volatile read before each packet and one
-more under the lock the packet already takes, so it adds no lock and no allocation.
+it may seal, not which exchange it was. The ready check is one volatile read before each packet, so it
+adds no lock and no allocation. Exhaustion is written by the one thread sealing, so no seal passes the
+check once the counter is spent.
 
 `AesGcm` has no fallback. `ServerBase` refuses to construct, so the auth and world servers refuse to
 start, when `AesGcm.IsSupported` is false (on Linux it needs OpenSSL, which the `aspnet:10.0`

@@ -20,6 +20,10 @@ public enum CryptoRole
     Server,
 }
 
+/// <remarks>
+/// One thread at a time seals, and one thread at a time opens; concurrent seals, or concurrent opens, are the caller's
+/// to prevent (#875). A seal and an open may run at once: each direction has its own cipher and its own state.
+/// </remarks>
 public interface IAvalonCryptoSession
 {
     void Initialize(byte[] otherEndPublicKeyBytes);
@@ -80,11 +84,14 @@ public interface IAvalonCryptoSession
 /// since this assembly's netstandard2.1 target cannot.
 /// </para>
 /// <para>
-/// The two <see cref="AesGcm"/> instances live as long as the session, which lives as long as its
-/// connection, and are not disposed: a tick-thread send may still seal for a connection that has
-/// just closed, and a disposed cipher would turn that into an exception on the tick. Their native
-/// key handles are released, and the key material destroyed, by the handles' finalizers when the
-/// session is collected.
+/// One thread at a time seals, and one thread at a time opens; concurrent seals, or concurrent opens, are the
+/// caller's to prevent (#875). On the world server the connection's send thread seals and its read loop opens; on the
+/// auth server its drain task seals and its read loop opens; a client serialises its own sends, and its own opens.
+/// Each direction has its own <see cref="AesGcm"/>, so the two need no lock between them, and the session takes none.
+/// A Debug build asserts that no two seals, and no two opens, overlap. Neither cipher is disposed: a send thread may
+/// still seal for a connection that has just closed, and a disposed cipher would turn that into an exception on it.
+/// Their native key handles are released, and the key material destroyed, by the handles' finalizers when the session
+/// is collected.
 /// </para>
 /// <para>
 /// A session goes through <see cref="Initialize"/> once, and only a session whose exchange
@@ -97,14 +104,10 @@ public interface IAvalonCryptoSession
 /// </remarks>
 public class AvalonCryptoSession : IAvalonCryptoSession
 {
-    // AesGcm instances are not thread-safe, and a connection seals from the tick thread while its
-    // read loop opens; one lock serialises both directions, as it did with one shared cipher.
-    private readonly object _lock = new object();
-
     // New -> Initializing -> Ready, or Failed; Ready -> Exhausted. Ready is written only after both
     // ciphers are published, and Failed and Exhausted are never left, so a session reads Ready only
-    // while it can seal and open. Checked before each packet, and again under the lock, where
-    // exhaustion is written.
+    // while it can seal and open. Checked once before each packet. Exhaustion is written only by the
+    // one thread sealing, so no seal can pass the check once its counter is spent.
     private const int New = 0;
     private const int Initializing = 1;
     private const int Ready = 2;
@@ -127,6 +130,14 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     private AesGcm? _sealer;
     private AesGcm? _opener;
     private readonly byte[] _sendNonce = new byte[SessionKeys.NonceSize];
+
+#if DEBUG
+    // Set while a seal, or an open, is under way: a second one that overlaps it is a caller breaking the one-sealer,
+    // one-opener contract, and trips an assert. An in-use flag rather than an owning thread's id, since a sequential
+    // caller (a drain task, a read loop) may resume on another pool thread after each await. Release builds have none.
+    private int _sealing;
+    private int _opening;
+#endif
 
     public AvalonCryptoSession(CryptoRole role, AsymmetricCipherKeyPair? keyPair = null)
     {
@@ -178,14 +189,11 @@ public class AvalonCryptoSession : IAvalonCryptoSession
             sealer = new AesGcm(_role == CryptoRole.Client ? clientToServer : serverToClient);
             opener = new AesGcm(_role == CryptoRole.Client ? serverToClient : clientToServer);
 
-            // Both ciphers are published under the lock the packets take, and only then is the
-            // session Ready: no packet sees one cipher, or none.
-            lock (_lock)
-            {
-                _sealer = sealer;
-                _opener = opener;
-                _state = Ready;
-            }
+            // Both ciphers are written before the state: a volatile write publishes them, so a packet that reads Ready
+            // sees both.
+            _sealer = sealer;
+            _opener = opener;
+            _state = Ready;
         }
         catch
         {
@@ -288,12 +296,14 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         Span<byte> ciphertext = destination.Slice(CiphertextOffset, plaintext.Length);
         Span<byte> tag = destination.Slice(CiphertextOffset + plaintext.Length, SessionKeys.TagSize);
 
-        lock (_lock)
+#if DEBUG
+        System.Diagnostics.Debug.Assert(Interlocked.Exchange(ref _sealing, 1) == 0,
+            "Two seals overlapped on one session: one thread at a time seals (#875)");
+#endif
+        try
         {
             // The counter is the nonce. It is sent anyway, so a peer never has to track ours. It
             // is copied out and advanced before sealing, so no two packets can share it.
-            if (_state != Ready) throw NotReady();
-
             _sendNonce.CopyTo(nonce);
             if (!SessionKeys.TryIncrementNonce(_sendNonce))
             {
@@ -302,6 +312,12 @@ public class AvalonCryptoSession : IAvalonCryptoSession
             }
 
             _sealer!.Encrypt(nonce, plaintext, ciphertext, tag);
+        }
+        finally
+        {
+#if DEBUG
+            Volatile.Write(ref _sealing, 0);
+#endif
         }
 
         return sealedLength;
@@ -326,15 +342,23 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
         int length = data.Length - SessionKeys.NonceSize - SessionKeys.TagSize;
 
-        lock (_lock)
+#if DEBUG
+        System.Diagnostics.Debug.Assert(Interlocked.Exchange(ref _opening, 1) == 0,
+            "Two opens overlapped on one session: one thread at a time opens (#875)");
+#endif
+        try
         {
-            if (_state != Ready) throw NotReady();
-
             _opener!.Decrypt(
                 data.Slice(0, SessionKeys.NonceSize),
                 data.Slice(SessionKeys.NonceSize, length),
                 data.Slice(SessionKeys.NonceSize + length, SessionKeys.TagSize),
                 output.AsSpan(0, length));
+        }
+        finally
+        {
+#if DEBUG
+            Volatile.Write(ref _opening, 0);
+#endif
         }
 
         return length;

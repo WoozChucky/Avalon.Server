@@ -192,15 +192,17 @@ named `BouncyCastle_Encrypt` / `BouncyCastle_Decrypt`.
 
 | Scenario | What it models |
 |---|---|
-| `Session_Encrypt` | Production `AvalonCryptoSession.Encrypt` — lock, counter nonce, one freshly allocated result sealed in place |
-| `Session_Decrypt` | Production `AvalonCryptoSession.Decrypt` — lock, caller-supplied output buffer |
+| `Session_Encrypt` | Production `AvalonCryptoSession.Encrypt` — counter nonce, one freshly allocated result sealed in place (a client's path) |
+| `SessionSealInto` | Production `AvalonCryptoSession.SealInto` — counter nonce, sealed into a caller's frame, nothing allocated (the server's send path, #875) |
+| `Session_Decrypt` | Production `AvalonCryptoSession.Decrypt` — caller-supplied output buffer |
 | `AesGcm_Encrypt` | Bare platform encrypt into an equivalently allocated result buffer (random nonce) |
 | `AesGcm_Decrypt` | Bare platform decrypt into the same caller-supplied output buffer |
 
 `PayloadSize` is parameterised at 64, 256 and 1024 bytes. The key is a real P-256 ECDH agreement
 shared by both arms, so the two differ in call shape only — never in key material.
 
-**Status:** Baseline recorded 2026-09-10; re-measured 2026-10-09 before and after #850.
+**Status:** Baseline recorded 2026-09-10; re-measured 2026-10-09 before and after #850, and 2026-10-10 before and
+after the session lock went (#875). Until #875 both session arms took the session's one lock.
 
 ---
 
@@ -996,6 +998,34 @@ After — the session on the platform `AesGcm`, keyed once per direction (#850):
   allocation columns are deterministic and are the solid comparison.
 - **At broadcast scale** — 50 connections × 60 Hz × 256 B, 3,000 encrypts/s — sealing now costs
   ~0.9 ms/s of CPU and ~0.9 MB/s of Gen0, against ~1.8 ms/s and ~6.6 MB/s in the before run.
+
+### Results — without the session lock (#875, 2026-10-10)
+
+One thread at a time seals and one opens (the world connection's send thread and its read loop), so the session lost
+the lock it took around both. Four runs on one machine, alternating before and after; this machine's clock drifted by
+up to 20% between runs, the bare `AesGcm` arms (unchanged code) with it. The pair below is the one whose bare arms
+agree within 1%:
+
+| Method | PayloadSize | Before | After | Change |
+|---|---:|---:|---:|---:|
+| `SessionSealInto` | 64 | 219.8 ns | 207.9 ns | −11.9 ns |
+| `Session_Decrypt` | 64 | 216.2 ns | 200.0 ns | −16.2 ns |
+| `AesGcm_Encrypt` (control) | 64 | 265.2 ns | 263.5 ns | −1.7 ns |
+| `AesGcm_Decrypt` (control) | 64 | 199.2 ns | 196.3 ns | −2.9 ns |
+| `SessionSealInto` | 256 | 238.5 ns | 221.5 ns | −17.0 ns |
+| `Session_Decrypt` | 256 | 235.4 ns | 227.1 ns | −8.3 ns |
+| `AesGcm_Encrypt` (control) | 256 | 287.1 ns | 287.4 ns | +0.3 ns |
+| `AesGcm_Decrypt` (control) | 256 | 218.3 ns | 222.1 ns | +3.8 ns |
+| `SessionSealInto` | 1024 | 288.6 ns | 282.4 ns | −6.2 ns |
+| `Session_Decrypt` | 1024 | 302.9 ns | 283.1 ns | −19.8 ns |
+
+- **About 10–20 ns off each seal and each open**, the cost of an uncontended monitor enter and exit. Measured
+  within each run, which the drift does not touch, the open's overhead over the bare primitive fell from 17–21 ns
+  (both before runs, 64 and 256 B) to 4–8 ns (both after runs): what is left is the ready check and the length checks.
+  The 1,024-byte rows are noisier (a bimodal bare decrypt in the first before run).
+- **Nothing allocated, before or after.** At the scale the send path works (a world of 50 connections at 60 Hz, a
+  few thousand seals a second per send thread), the saving is tens of microseconds of CPU per second: small, and
+  on every packet.
 
 ## Packet encoder (#875) — Benchmark Results
 

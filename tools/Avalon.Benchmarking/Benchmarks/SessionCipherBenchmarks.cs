@@ -13,8 +13,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <para>
 /// The key comes from a real P-256 ECDH agreement, so both arms run on identical 256-bit key
 /// material. Since #850 the session is itself the platform <c>AesGcm</c>, keyed once per direction;
-/// the session arm keeps the production call shape (a lock, the counter nonce, a freshly allocated
-/// result). On decrypt the gap between the arms is what the session adds around the primitive; on
+/// the session arm keeps the production call shape (the counter nonce, a freshly allocated result;
+/// no lock since #875, each direction being used by one thread at a time). On decrypt the gap between the arms is what the session adds around the primitive; on
 /// encrypt the bare arm also draws a random nonce per call, so it is not a pure measure. Before
 /// #850 the session arm was BouncyCastle AES-GCM re-keyed per call (<c>docs/benchmarks.md</c>
 /// keeps those figures).
