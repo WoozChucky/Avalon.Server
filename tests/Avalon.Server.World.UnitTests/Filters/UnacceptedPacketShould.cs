@@ -38,7 +38,6 @@ public sealed class UnacceptedPacketShould : IDisposable
         listener.Stop();
 
         _server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)_server).SendBufferCapacity.Returns(256);
         _server.PacketHandlers.Returns(new Dictionary<NetworkPacketType, IWorldPacketHandler>
         {
             [NetworkPacketType.CMSG_CHARACTER_LIST] = new Recorder(NetworkPacketType.CMSG_CHARACTER_LIST, _dispatched),

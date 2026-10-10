@@ -30,7 +30,6 @@ public class ConnectionAccessLevelShould
         // echoes back whatever value was configured, which would never exercise the production
         // `= AccountAccessLevel.Player` initializer at all.
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();

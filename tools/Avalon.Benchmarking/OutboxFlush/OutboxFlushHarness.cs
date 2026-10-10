@@ -26,7 +26,8 @@ namespace Avalon.Benchmarking.OutboxFlush;
 /// the thread pool, as a peer would), then ticks at 60 Hz on a thread of the world tick thread's priority: <c>packets</c> movement acks
 /// encoded and queued on every connection, then the outbox stage, which only wakes the send threads. The tick's part is
 /// timed and its allocations counted on the tick thread; the send threads seal (when the connection seals), frame and
-/// write meanwhile, and their busy time comes from their own pass metric. Not a BenchmarkDotNet benchmark: a steady
+/// write meanwhile, and the wall time of their passes comes from their own pass metric (wall time, not CPU time: a pass
+/// the OS preempts counts the time it was off its core). Not a BenchmarkDotNet benchmark: a steady
 /// state, timed tick by tick.
 /// </summary>
 /// <remarks>
@@ -85,7 +86,7 @@ public static class OutboxFlushHarness
 
         Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"{RuntimeEnvironment()} | {new NetworkConfiguration().SendThreads} send threads | {packets} packet(s) per connection per tick, {wakes} wake-up(s) per tick, {ticks} ticks at 60 Hz"));
-        Console.WriteLine("mode    conns seal | enqueue us mean   p99 | outbox stage us mean   p99 | send threads us/tick (us/conn) | B/tick on the tick");
+        Console.WriteLine("mode    conns seal | enqueue us mean   p99 p99.9    max | outbox stage us mean   p99 p99.9    max | send passes, wall time us/tick (us/conn) | B/tick on the tick");
 
         using X509Certificate2 certificate = SelfSigned();
         foreach (string mode in modes)
@@ -229,7 +230,7 @@ public static class OutboxFlushHarness
             Array.Sort(enqueueUs);
             Array.Sort(signalUs);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"{mode,-6} {count,6} {(seal ? "on " : "off")}  | {enqueueMean,15:F1} {P(enqueueUs, 0.99),6:F1} | {signalMean,20:F1} {P(signalUs, 0.99),5:F1} | {busyUsPerTick,20:F1} ({busyUsPerTick / count,6:F2}) | {bytes.Average(),18:F0}"));
+                $"{mode,-6} {count,6} {(seal ? "on " : "off")}  | {enqueueMean,15:F1} {P(enqueueUs, 0.99),6:F1} {P(enqueueUs, 0.999),6:F1} {enqueueUs[^1],6:F1} | {signalMean,20:F1} {P(signalUs, 0.99),5:F1} {P(signalUs, 0.999),5:F1} {signalUs[^1],6:F1} | {busyUsPerTick,32:F1} ({busyUsPerTick / count,6:F2}) | {bytes.Average(),18:F0}"));
             if (gate is not null)
             {
                 Console.WriteLine(string.Create(CultureInfo.InvariantCulture,

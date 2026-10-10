@@ -1160,8 +1160,11 @@ peer would. It then ticks at 60 Hz on a thread of its own at the world tick thre
 priority, on Windows, a send thread it wakes can take its core and run its pass inside the outbox stage). Each tick
 encodes `packets` movement acknowledgements (a frame of about 70 B, the size of the world's acks and state updates) per
 connection and queues them (**enqueue**, which includes the encode and the payload pool's rent), then wakes the send
-threads (**outbox stage**). It reports both, mean and p99; the send threads' busy time per tick and per connection (the
-sum of `network.send.pass.duration`, read through a `MeterListener`); and the bytes the tick thread allocated per tick.
+threads (**outbox stage**). It reports both, mean, p99, p99.9 and max; the wall time of the send threads' passes per
+tick and per connection (the sum of `network.send.pass.duration`, read through a `MeterListener`; wall time, not CPU
+time, so a pass the OS preempts counts the time it was off its core); and the bytes the tick thread allocated per tick.
+`slow-tcp` and `slow-tls` also stall one connection in twenty for 3 s and report the tick's bytes before, during and
+after the stall ([a client that stops reading](#a-client-that-stops-reading-875-2026-10-10)).
 300 warm-up ticks come first.
 
 | Mode | Stream behind the sender |
@@ -1209,6 +1212,9 @@ interleaved, means of the three. Linux: one run of the after build at 1,000 conn
   the bare primitive (8 waiting threads set at 60 Hz, nothing else running) gave the same: 26 µs median on Windows,
   80 µs on Linux in the container. Waking one thread that wakes the next would leave the tick one wake-up, at the cost
   of the later threads starting later; not done here.
+- **Smoke runs over TLS sometimes showed 12 to 88 B per tick on the tick thread** (a run's mean). That is one-off
+  growth of the payload pool at a new peak: the world-performance review traced it to 503 segments of 136 B, one
+  tick's payloads rented new, in one tick. It does not recur: 0 of about 14,000 ticks in the review's probes allocated.
 - **The tick keeps the encode and the queue**: 0.46 µs per connection on Windows at 1,000 (0.55 µs at 200), 0 B
   allocated. The before harness did not time that part. The enqueue alone does cost more than the old outbox's:
   the world-performance review measured it single-threaded on Windows at 18.7 to 21.7 ns before (`TickDrivenOutbox`,
@@ -1483,8 +1489,8 @@ allocations, are in the numbers; the [session cipher results](#session-cipher--b
 costs per call. Three things differ from production, all on the cost side only:
 
 - The counting stream stands in for production's `SslStream`, so the TLS record layer and the socket send are **not**
-  in the numbers: [the send path](#the-send-path-875) measures them, about 10 µs per
-  connection per tick on Linux loopback against 0.3 µs here. The counting stream completes every write at once, as a
+  in the numbers: [the send path](#the-send-path-875) measures them, 6.4 µs of send-thread time per connection per
+  tick over TLS on Linux loopback ([results](#results--the-send-threads-875-2026-10-10)), against 0.3 µs here. The counting stream completes every write at once, as a
   socket with room in its send buffer does; the sender then reads the write's outcome inline (#875), so a pass over
   either allocates nothing on the tick thread.
 - Scenario connections share key material. The point is the cost of sealing, not the secrecy of the result.

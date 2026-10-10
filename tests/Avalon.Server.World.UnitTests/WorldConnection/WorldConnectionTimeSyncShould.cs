@@ -32,7 +32,6 @@ public class WorldConnectionTimeSyncShould : IDisposable
     public WorldConnectionTimeSyncShould()
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         (TcpClient? clientSide, TcpClient? serverSide) = CreateLoopbackPair();
         _serverSide = serverSide;

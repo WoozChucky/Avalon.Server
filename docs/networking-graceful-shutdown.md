@@ -108,8 +108,9 @@ by the close.
    close open past that budget and its 100 ms grace.
 5. The despawns the closes queued, run on this thread, which write the characters back.
 6. The wait for character saves still in flight (`SaveDrainLimit`, 20 s, and the host's stop timeout).
-7. The send threads stop last: they outlive the tick so that the notices and every reply the despawns sent go out.
-   They are background threads, joined within one shared `WorldServer.SendThreadsStopLimit` (2 s); one that does not
+7. The send threads stop last: they outlive the tick and the closes, so each close's notice goes out (or its budget
+   runs out) while its owner still runs, and no close is left waiting on a stopped owner. A send after the closes, a
+   despawn's among them, is refused, since its connection is already closed. They are background threads, joined within one shared `WorldServer.SendThreadsStopLimit` (2 s); one that does not
    stop in time is logged and does not hold the process up.
 
 ### Forced kick notification

@@ -38,17 +38,17 @@ public sealed class NetworkSendMetrics
     /// <summary>Records into a meter nothing listens to.</summary>
     public static NetworkSendMetrics Disabled { get; } = new(new Meter("avalon-network-disabled"));
 
-    internal void Pass(KeyValuePair<string, object?> thread, TimeSpan duration, long maxPendingBytes)
+    /// <summary>One pass's end: its duration, the most bytes a connection it visited held, and the bytes it wrote.</summary>
+    internal void Pass(KeyValuePair<string, object?> thread, TimeSpan duration, long maxPendingBytes, long bytes)
     {
         _passDuration.Record(duration.TotalMicroseconds, thread);
         _pendingBytes.Record(maxPendingBytes);
+        if (bytes > 0)
+            _bytes.Add(bytes);
     }
 
-    internal void Burst(int packets, int bytes)
-    {
-        _burstPackets.Record(packets);
-        _bytes.Add(bytes);
-    }
+    /// <summary>One write's packet count; its bytes are counted with its pass's (<see cref="Pass" />).</summary>
+    internal void Burst(int packets) => _burstPackets.Record(packets);
 
     internal void ThreadFault(KeyValuePair<string, object?> thread) => _threadFaults.Add(1, thread);
 

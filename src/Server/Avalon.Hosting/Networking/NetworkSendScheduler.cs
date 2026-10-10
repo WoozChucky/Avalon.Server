@@ -189,7 +189,10 @@ public sealed class NetworkSendScheduler : IDisposable
         }
 
         if (serviced > 0)
-            Metrics.Pass(owner.Tag, Stopwatch.GetElapsedTime(started), maxPending);
+        {
+            Metrics.Pass(owner.Tag, Stopwatch.GetElapsedTime(started), maxPending, owner.PassBytes);
+            owner.PassBytes = 0;
+        }
     }
 
     /// <summary>Every thread's pass, in turn, on the calling thread: the scenario runner's tick and the tests.</summary>
@@ -248,8 +251,15 @@ public sealed class NetworkSendScheduler : IDisposable
             _threads[sender.OwnerThread].Wake.Set();
     }
 
-    /// <summary>Owner thread only: a write of <paramref name="sender" /> starts, of <paramref name="packets" /> packets.</summary>
-    internal void CountWrite(ConnectionSender sender, int packets, int bytes) => Metrics.Burst(packets, bytes);
+    /// <summary>
+    /// Owner thread only: a write of <paramref name="sender" /> starts, of <paramref name="packets" /> packets. Its bytes are
+    /// added up for the pass and counted once at its end.
+    /// </summary>
+    internal void CountWrite(ConnectionSender sender, int packets, int bytes)
+    {
+        Metrics.Burst(packets);
+        _threads[sender.OwnerThread].PassBytes += bytes;
+    }
 
     /// <summary>Owner thread only: a write of <paramref name="sender" /> is pending, so its stall clock is read each pass.</summary>
     internal void TrackWriting(ConnectionSender sender)
@@ -301,5 +311,8 @@ public sealed class NetworkSendScheduler : IDisposable
         public KeyValuePair<string, object?> Tag { get; } = new("thread", index.ToString(CultureInfo.InvariantCulture));
 
         public Thread? Thread { get; set; }
+
+        /// <summary>Owner thread only: the bytes the current pass handed to the sockets.</summary>
+        public long PassBytes { get; set; }
     }
 }

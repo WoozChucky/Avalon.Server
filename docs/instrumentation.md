@@ -62,7 +62,7 @@ Since #875 the tick only queues packets; the send threads seal, frame and write 
 | `network.out.slow_kicks` | `network_out_slow_kicks_total` | Connections closed as too slow, tagged `reason`: `bytes` (past `Network:MaxPendingBytes`, sent `SDisconnect(SlowConnection)`) or `stall` (a write pending past `Network:MaxWriteStall`, closed without a notice) |
 | `network.out.pending_bytes` | `network_out_pending_bytes_bucket` | Per send pass, the most bytes any one connection it visited had queued or being written |
 | `network.send.pass.duration` | `network_send_pass_duration_microseconds_bucket` | One send thread's pass, tagged `thread`; the `_sum` rate is the threads' busy time |
-| `network.send.bytes` | `network_send_bytes_total` | Bytes handed to the sockets |
+| `network.send.bytes` | `network_send_bytes_total` | Bytes handed to the sockets, counted once per send pass |
 | `network.send.burst_packets` | `network_send_burst_packets_bucket` | Packets per write |
 | `network.send.thread_faults` | `network_send_thread_faults_total` | Failures that escaped a send pass, tagged `thread` (the thread goes on); any non-zero value is a bug |
 

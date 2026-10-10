@@ -101,9 +101,6 @@ public sealed class ConnectionSender : IOutbox
     /// <summary>The send thread that owns this connection for its life.</summary>
     public int OwnerThread { get; }
 
-    /// <summary>Whether this connection seals what is flagged Encrypted (the session layer inside TLS).</summary>
-    public bool Seals => _sealer is not null;
-
     /// <summary>
     /// Payload bytes held: queued, framed ahead into the next burst, or in the burst being written. What
     /// <c>Network:MaxPendingBytes</c> caps.

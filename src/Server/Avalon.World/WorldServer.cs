@@ -493,8 +493,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // SaveDrainLimit, because a write that never returns must not hold the process up forever.
         await WaitForSavesAsync(stoppingToken).ConfigureAwait(false);
 
-        // Last (#875): the send threads outlived the tick, so the shutdown notices and every reply the despawns sent have
-        // gone out. Background threads: one that does not stop in time does not hold the process up.
+        // Last (#875): the send threads outlived the tick and the closes, so each close's notice went out (or its budget
+        // ran out) with its owner still running, and no close is left waiting on a stopped owner. A send after the closes,
+        // a despawn's among them, is refused: the connection is already closed. Background threads: one that does not
+        // stop in time does not hold the process up.
         if (!_sendScheduler.Stop(SendThreadsStopLimit))
             _logger.LogWarning("A send thread did not stop within {Limit}", SendThreadsStopLimit);
 
