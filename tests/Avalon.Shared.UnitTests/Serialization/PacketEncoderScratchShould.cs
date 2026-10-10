@@ -111,7 +111,7 @@ public class PacketEncoderScratchShould
             second = Serialize(Take(type));
         });
         thread.Start();
-        thread.Join();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "The scratch thread did not finish");
 
         byte[] expected = Serialize(Activator.CreateInstance(type)!);
         Assert.Equal(expected, first);

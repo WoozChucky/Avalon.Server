@@ -38,7 +38,7 @@ public class ChannelOutboxShould
         outbox.Connect(stream);
 
         outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
 
         Assert.True(sink.BytesWritten > 0, "Expected the queued packet to reach the stream before the outbox closed");
     }
@@ -58,7 +58,7 @@ public class ChannelOutboxShould
         outbox.Connect(stream);
 
         outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
 
         // The fault continuation runs after the loop ends. Wait on the error itself rather than
         // on a fixed delay: a regression completes this immediately, a pass waits out the ceiling.
@@ -126,9 +126,9 @@ public class ChannelOutboxShould
         outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
 
         // The write is in flight and holding the buffer before disposal starts.
-        await sink.WriteStarted;
+        await sink.WriteStarted.WaitAsync(s_deadlockGuard);
 
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
 
         Assert.True(sink.WriteUnwound, "Expected the cancelled write to have released the buffer before disposal returned");
     }
@@ -152,8 +152,8 @@ public class ChannelOutboxShould
             outbox.Connect(stream);
             outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
 
-            await sink.WriteStarted;
-            await outbox.DisposeAsync();
+            await sink.WriteStarted.WaitAsync(s_deadlockGuard);
+            await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
 
             byte[]? held = sink.WrittenArray;
             Assert.NotNull(held);
@@ -194,7 +194,7 @@ public class ChannelOutboxShould
         outbox.Connect(new PacketStream(sink));
 
         Task finished = await Task.WhenAny(faulted.Task, Task.Delay(s_deadlockGuard));
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
 
         Assert.True(ReferenceEquals(finished, faulted.Task), "Expected the outbox to report the fault");
         Assert.Equal(0, sink.BytesWritten);
