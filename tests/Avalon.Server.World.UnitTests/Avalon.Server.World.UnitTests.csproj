@@ -5,6 +5,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!--
+      Dynamic PGO off for this test process, as in tools/Avalon.Scenarios, so the scenario allocation gate counts every
+      allocation the code makes: with it on, how many boxed enumerators and closures the JIT keeps off the heap depends on
+      the profile it gathered, which differs between runs and machines (docs/benchmarks.md, "Dynamic PGO is off").
+    -->
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
 
   <ItemGroup>

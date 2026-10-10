@@ -486,8 +486,15 @@ public sealed class ScenarioWorld : IDisposable
     }
 
     /// <summary>
+    /// Raised by <see cref="MarkProgress" /> after it recorded the connections, for a scenario to record its own
+    /// progress (a fight's casts and kills) for its <see cref="IScenario.Verify" />. Outside any measured tick.
+    /// </summary>
+    public event Action? Marked;
+
+    /// <summary>
     /// Records every connection's packets sent, last input and position, for <see cref="RequireEverySent" /> and
-    /// <see cref="RequireEveryWalked" /> to compare with later. Outside any measured tick: it allocates its arrays.
+    /// <see cref="RequireEveryWalked" /> to compare with later, then raises <see cref="Marked" />. Outside any measured
+    /// tick: it allocates its arrays.
     /// </summary>
     public void MarkProgress()
     {
@@ -502,6 +509,8 @@ public sealed class ScenarioWorld : IDisposable
             _markedInputSeq[i] = connection.LastInputSeq;
             _markedPosition[i] = connection.Character!.Position;
         }
+
+        Marked?.Invoke();
     }
 
     /// <summary>
