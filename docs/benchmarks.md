@@ -1243,6 +1243,11 @@ with the committed figure, in every build (Debug and Release, see below):
   regenerate and commit the lower figure, so the gain cannot be lost again unnoticed. When an increase is intended,
   regenerating is also the fix, and the JSON diff shows the reviewer what it costs.
 
+Since #875 each walker's input is dispatched through `PacketDispatchTelemetry`, as `WorldConnection` dispatches a
+received packet, so the gate covers the dispatch too; for a high-rate type such as `CMSG_PLAYER_INPUT` it allocates
+nothing (it was 248 B per packet with a scope-reading log provider: the dispatch object, the log scope's state and
+scope, and the `ExecutionContext` and `OneElementAsyncLocalValueMap` the scope's `AsyncLocal` write creates).
+
 Regenerate (every scenario, in Release; the runner refuses `--write-allocations` for a subset):
 
 ```bash

@@ -8,9 +8,9 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.Hosting.Telemetry;
 
 /// <summary>
-/// What every packet handler run records, at both dispatch points: a span (unless its type is too
-/// frequent to trace), its duration and outcome, an error count, and a log scope carrying who sent
-/// it, so the handler's own log lines can be found by account, character or connection.
+/// What every packet handler run records, at both dispatch points: its duration and outcome and an error count, and,
+/// unless its type is high-rate (<c>Hosting:Telemetry:NoSpanPacketTypes</c>), a span and a log scope carrying who sent
+/// it.
 /// </summary>
 public sealed class PacketDispatchTelemetry
 {
@@ -73,6 +73,11 @@ public sealed class PacketDispatchTelemetry
 
     public PacketDispatch Begin(NetworkPacketType type, PacketTags tags, ILogger logger)
     {
+        // A high-rate type (input, pong) gets neither a span nor a log scope (#875): one each would cost the tick an
+        // object per packet. Its handlers name the connection and the packet type in their few log lines instead.
+        if (_noSpan.Contains(type))
+            return new PacketDispatch(this, type, activity: null, scope: null);
+
         Activity? previous = Activity.Current;
         Activity? activity = null;
         IDisposable? scope = null;
@@ -95,9 +100,6 @@ public sealed class PacketDispatchTelemetry
 
     private Activity? StartSpan(NetworkPacketType type, PacketTags tags)
     {
-        if (_noSpan.Contains(type))
-            return null;
-
         Activity? activity = _source.StartActivity($"packet {type}", ActivityKind.Server);
         if (activity is null)
             return null;

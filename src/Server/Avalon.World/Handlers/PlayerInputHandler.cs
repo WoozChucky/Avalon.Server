@@ -24,7 +24,7 @@ public class PlayerInputHandler(
 
         if (ch.IsDead)
         {
-            logger.LogDebug("Dropped CMSG_PLAYER_INPUT from dead char {Name}", ch.Name);
+            HighRatePacketLog.DroppedFromDeadCharacter(logger, NetworkPacketType.CMSG_PLAYER_INPUT, connection.Id, ch.Name);
             return;
         }
 
@@ -36,7 +36,7 @@ public class PlayerInputHandler(
         IMapInstance? instance = world.InstanceRegistry.GetInstanceById(ch.InstanceId);
         if (instance == null)
         {
-            logger.LogError("PlayerInputHandler: instance lookup failed for InstanceId={InstanceId}", ch.InstanceId);
+            HighRatePacketLog.InstanceNotFound(logger, NetworkPacketType.CMSG_PLAYER_INPUT, connection.Id, ch.InstanceId);
             return;
         }
         IMapNavigator navigator = instance.GetNavigatorForPosition(ch.Position);

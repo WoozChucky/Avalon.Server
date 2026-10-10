@@ -329,7 +329,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
         object context = GetContextPacket(connection, payload, details.PacketType);
 
-        using PacketDispatch dispatch = PacketTelemetry.Begin(header.Type, DescribeConnection(connection), _logger);
+        PacketDispatch dispatch = PacketTelemetry.Begin(header.Type, DescribeConnection(connection), _logger);
         try
         {
             await using AsyncServiceScope scope = _serviceProvider.CreateAsyncScope();
@@ -347,6 +347,10 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             dispatch.Fail(e);
             _logger.LogError(e, "Failed to execute packet handler for {PacketType}", header.Type);
             connection.Close();
+        }
+        finally
+        {
+            dispatch.Dispose();
         }
     }
 

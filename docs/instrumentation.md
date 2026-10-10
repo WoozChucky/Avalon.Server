@@ -1,4 +1,4 @@
-﻿# Instrumentation
+# Instrumentation
 
 To monitor the performance of the server, you can use the `dotnet-counters` tool, which is part of the .NET Core diagnostics suite.
 This tool allows you to collect performance metrics from your application in real-time.
@@ -58,6 +58,10 @@ The deadline overshoot has its own buckets (`WorldHistograms.OvershootMicrosecon
 ### Receive backlog
 
 `world.receive_queue.depth` (`{packets}`, Prometheus `world_receive_queue_depth`) is an observable gauge of the packets received and not yet dispatched by the tick. It reports two series, tagged `stat`: `total`, the sum over every connection, and `max`, the deepest single connection. It is read on the metrics exporter's thread over the connection snapshot, never on the tick. A `total` that keeps climbing means the tick no longer keeps up with what clients send; a high `max` with a low `total` points at one client.
+
+### Packet handlers
+
+Every handler run records `avalon.packet.handler.duration` (ms, tagged `avalon.packet.type` and `avalon.outcome`) and, when it throws, `avalon.packet.handler.errors`. A packet of a high-rate type (`Hosting:Telemetry:NoSpanPacketTypes`, default `CMSG_PLAYER_INPUT` and `CMSG_PONG`) opens no span and no log scope (#875): at 60 inputs a second per player those cost the tick an object each. Their handlers' log lines carry `{Connection}` and `{PacketType}` themselves (`HighRatePacketLog`). Every other packet opens its span and a log scope with `PacketType`, `ConnectionId`, `AccountId` and `CharacterId`.
 
 ### Character saves
 

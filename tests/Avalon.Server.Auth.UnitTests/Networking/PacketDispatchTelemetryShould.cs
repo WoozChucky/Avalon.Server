@@ -208,24 +208,33 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     }
 
     [Fact]
-    public void Allocate_little_per_packet_for_the_chatty_types()
+    public void Open_no_scope_and_allocate_nothing_per_packet_for_the_high_rate_types()
     {
-        // A source and meter nothing listens to, so only the dispatch itself is measured. Player input
-        // arrives many times a second per player on the tick thread.
+        // A source and meter nothing listens to, so only the dispatch itself is measured. Player input arrives 60
+        // times a second per player on the tick thread, and pong every ten seconds (#875).
         using ActivitySource quietSource = new($"quiet-{Guid.NewGuid()}");
         using Meter quietMeter = new($"quiet-{Guid.NewGuid()}");
         PacketDispatchTelemetry telemetry = new(quietSource, quietMeter);
-        ILogger logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+        ScopeLogger logger = new();
         for (int i = 0; i < 100; i++)
             telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, s_tags, logger).Dispose();
 
-        const int Runs = 1000;
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < Runs; i++)
-            telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, s_tags, logger).Dispose();
-        long perDispatch = (GC.GetAllocatedBytesForCurrentThread() - before) / Runs;
+        // The fewest bytes over three windows, as WaypointRepathAllocationShould takes them.
+        long fewest = long.MaxValue;
+        for (int window = 0; window < 3; window++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 1000; i++)
+            {
+                telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, s_tags, logger).Dispose();
+                telemetry.Begin(NetworkPacketType.CMSG_PONG, s_tags, logger).Dispose();
+            }
 
-        Assert.True(perDispatch <= 128, $"{perDispatch} bytes per dispatch");
+            fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        Assert.Equal(0, fewest);
+        Assert.Empty(logger.Scopes);
     }
 
     [Fact]
