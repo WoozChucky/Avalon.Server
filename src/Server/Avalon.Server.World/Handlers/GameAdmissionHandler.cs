@@ -38,7 +38,8 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             {
                 connection.CryptoSession.Initialize(publicKey);
                 connection.PublishAdmission(reply.Lease);
-                connection.Send(SGameAdmissionPacket.Create(connection.ServerCrypto.GetPublicKey(), PacketEncoder.Shared));
+                connection.Send(SGameAdmissionPacket.Create(connection.ServerCrypto.GetPublicKey(), PacketEncoder.Shared,
+                    GameAdmissionResult.Accepted, connection.PacketEncryption));
             }
             catch (Exception)
             {

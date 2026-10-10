@@ -46,6 +46,10 @@ server:
     # the same instance. 0 frees it on the next tick, so every entry builds a new one (a load-test world). Empty:
     # the world's default, 15.
     abandonedInstanceLifetimeMinutes: ""
+  # The per-packet session encryption (Network:PacketEncryption, #875): AES-GCM on every gameplay payload inside TLS.
+  # false (the default): TLS alone. Read at startup: a change rolls the pod. true or false only.
+  network:
+    packetEncryption: false
 
 replicaCount: 1
 

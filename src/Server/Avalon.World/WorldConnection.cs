@@ -34,6 +34,11 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private readonly IWorldServer _server;
 
+    // Network:PacketEncryption (#875), the world's, fixed for this connection's life: its sender seals with the session or
+    // sends plain inside TLS, and its admission reply names the mode. While it seals, a packet the world runs (the
+    // handshake and every session- or map-filter packet but the pong) that arrives plain closes the connection.
+    private readonly bool _packetEncryption;
+
     private CharacterEntity? _characterEntity;
 
     private long _lastClientTicks;
@@ -48,6 +53,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
     {
         _server = server;
+        _packetEncryption = server.PacketEncryption;
         _time = time ?? TimeProvider.System;
         _receiveQueue = new ConcurrentQueue<WorldPacket>();
         _worldSessionFilter = new WorldSessionFilter(this);
@@ -326,15 +332,14 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         AccessLevel = level;
     }
 
-    public override void Send(OutboundPacket packet)
+    protected override void OnQueued(int size)
     {
-        DiagnosticsConfig.World.BytesSent.Add(SentSize(packet));
+        DiagnosticsConfig.World.BytesSent.Add(size);
         DiagnosticsConfig.World.PacketsSent.Add(1);
-        base.Send(packet);
     }
 
     /// <summary>
-    /// A time-sync ping its send thread wrote (#875): encoded there, it never passed <see cref="Send" />, so it is counted
+    /// A time-sync ping its send thread wrote (#875): encoded there, it never passed <see cref="Connection.Send" />, so it is counted
     /// here, on that thread. Clear text, so its size has no seal overhead.
     /// </summary>
     private void CountPing(int size)
@@ -350,17 +355,23 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>
     /// The connection's sender on its send thread (#875). Its close action runs on that thread or where a write completed:
     /// <see cref="Connection.Close" /> only starts the teardown (the sender's close is awaited off that thread, then the
-    /// socket closes), so it neither blocks nor throws there, and a close already started makes it a no-op.
+    /// socket closes), so it neither blocks nor throws there, and a close already started makes it a no-op. It seals with
+    /// the session only while the world seals (Network:PacketEncryption); otherwise every packet goes plain inside TLS,
+    /// its Encrypted flag cleared.
     /// </summary>
     protected override IOutbox OnCreateOutbox()
     {
         NetworkSendScheduler scheduler = _server.SendScheduler
             ?? throw new InvalidOperationException("The world server has no send scheduler");
 #pragma warning disable MA0045 // a slow connection's close starts on its send thread, which must not wait on it
-        _sender = scheduler.CreateSender(Id, _logger, CryptoSession, close: () => Close(false), onPingWritten: CountPing);
+        _sender = scheduler.CreateSender(Id, _logger, _packetEncryption ? CryptoSession : null, close: () => Close(false),
+            onPingWritten: CountPing);
 #pragma warning restore MA0045
         return _sender;
     }
+
+    /// <summary>Whether this connection's gameplay packets are sealed both ways (Network:PacketEncryption, #875).</summary>
+    public bool PacketEncryption => _packetEncryption;
 
     public void InitOutboxForTest(PacketStream stream)
     {
@@ -391,6 +402,16 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         if (_maintenanceBlocked || IsClosing) return ValueTask.CompletedTask;
         if (header.Type == NetworkPacketType.CMSG_GAME_ADMISSION)
             return new ValueTask(Server.CallListener(this, header, payload));
+        // Network:PacketEncryption on (#875): a client that follows its admission reply seals every packet the world runs,
+        // so a plain one is a protocol violation and closes the connection.
+        if (_packetEncryption && (header.Flags & NetworkPacketFlags.Encrypted) == 0 && MustArriveSealed(header.Type))
+        {
+            ReceiveLog.PlainPacketRefused(_logger, Id, header.Type);
+#pragma warning disable MA0045 // the read loop must not wait on the close it starts
+            Close(false);
+#pragma warning restore MA0045
+            return ValueTask.CompletedTask;
+        }
         if (header.Type == NetworkPacketType.CMSG_WORLD_HANDSHAKE && GameSessionLease?.IsActive == true)
             return new ValueTask(Server.CallListener(this, header, payload));
         if (!IsGameplayAuthorized) return ValueTask.CompletedTask;
@@ -436,8 +457,23 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         }
     }
 
+    /// <summary>
+    /// A packet the world runs in some state, so one a client sealing as told seals (#875): the version handshake and every
+    /// filtered packet but the pong, which is plain by design. Admission is handled before this is asked. An opcode no world
+    /// filter takes (CMSG_PING, CMSG_AUDIO_RECORD, the auth server's) is dropped as before, whatever its flags, as the
+    /// client contract (Avalon.Client#213) promises for the opcodes declared ClearText.
+    /// </summary>
+    private static bool MustArriveSealed(NetworkPacketType type) =>
+        type != NetworkPacketType.CMSG_PONG
+        && (type == NetworkPacketType.CMSG_WORLD_HANDSHAKE || WorldSessionFilter.IsSessionPacket(type)
+            || MapSessionFilter.IsMapPacket(type));
+
     private static partial class ReceiveLog
     {
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closed connection {ConnectionId}: {PacketType} arrived unsealed while this world seals packets (Network:PacketEncryption)")]
+        public static partial void PlainPacketRefused(ILogger logger, Guid connectionId, NetworkPacketType packetType);
+
         [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
         public static partial void DroppedForState(ILogger logger, NetworkPacketType packetType);
 

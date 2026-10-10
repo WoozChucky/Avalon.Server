@@ -82,6 +82,12 @@ public sealed record RampResult(
     public int SignIns { get; init; }
 
     /// <summary>
+    /// Every admission over the ramp, by the mode the world's reply named (<see cref="BotMetrics.Admissions"/>, #875):
+    /// sealed (Network:PacketEncryption on) and plain (TLS alone).
+    /// </summary>
+    public (long Sealed, long Plain) Admissions { get; init; }
+
+    /// <summary>
     /// Sign-in failures over the ramp by kind (<see cref="BotMetrics.SignInFailed"/>), the context refresher's and the
     /// stop sequence's included; identity's side, apart from admission.
     /// </summary>
@@ -621,6 +627,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             StopStarted = stopStarted,
             StopReason = stopReason,
             SignIns = _signIns,
+            Admissions = metrics.Admissions,
             SignInFailures = new Dictionary<string, int>(signInFailures, StringComparer.Ordinal),
             SignOutFailures = signOutFailures,
             WorldDrained = null,
@@ -690,6 +697,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         {
             KubeNotScrapedSinceDrain = !scraped,
             SignIns = _signIns,
+            Admissions = metrics.Admissions,
             SignInRate = SignInRate(),
             Ended = DateTimeOffset.UtcNow,
             SignInFailures = signInFailures,

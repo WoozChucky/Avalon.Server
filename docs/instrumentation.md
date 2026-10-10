@@ -45,7 +45,7 @@ The world update is followed by work no other histogram covers, about two thirds
 | `outbox` | `NetworkSendScheduler.SignalAll`: one wake-up per send thread with work (a thread with nothing queued sleeps on), never more than the thread count whatever the player count; tens of µs, about as much as the wake-ups cost on the host ([the send path](benchmarks.md#the-send-path-875)) (#875) |
 | `continuations` | `FlushContinuations` over every connection: the off-tick results handed back to the tick |
 
-Since #875 the tick neither seals nor writes: the `outbox` stage only wakes the send threads, which seal, frame and write each connection's packets off the tick (their cost is under [Send threads and slow clients](#send-threads-and-slow-clients)). Before that change the stage framed, sealed and wrote every connection's packets on the tick, so compare it across the change with that work moved, not removed.
+Since #875 the tick neither seals nor writes: the `outbox` stage only wakes the send threads, which frame (and, with `Network:PacketEncryption` on, seal) and write each connection's packets off the tick (their cost is under [Send threads and slow clients](#send-threads-and-slow-clients)). Before that change the stage framed, sealed and wrote every connection's packets on the tick, so compare it across the change with that work moved, not removed.
 
 A stage is usually a small part of a tick, so these buckets start lower (`WorldHistograms.StageMicroseconds`): `25, 50, 100, 250, 500, 1000, 2000, 4000, 8000, 12000, 16667, 25000, 33333, 50000, 100000, 250000, 1000000`. The stages together are the tick's time after the world update. Each stage's mean time per tick: `sum by (stage) (rate(world_post_update_duration_microseconds_sum[1m])) / sum by (stage) (rate(world_post_update_duration_microseconds_count[1m]))`.
 
@@ -55,7 +55,7 @@ The deadline overshoot has its own buckets (`WorldHistograms.OvershootMicrosecon
 
 ### Send threads and slow clients
 
-Since #875 the tick only queues packets; the send threads seal, frame and write them, and nothing is dropped.
+Since #875 the tick only queues packets; the send threads frame (and, with `Network:PacketEncryption` on, seal) and write them, and nothing is dropped.
 
 | Metric | Prometheus | Measures |
 |---|---|---|

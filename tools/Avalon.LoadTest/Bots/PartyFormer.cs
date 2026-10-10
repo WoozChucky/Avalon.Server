@@ -519,7 +519,7 @@ internal sealed class StalePartyLeave(WorldConnection connection, Func<bool>? wh
     {
         try
         {
-            await connection.SendAsync(connection.Seal(new CPartyLeavePacket(), NetworkPacketType.CMSG_PARTY_LEAVE),
+            await connection.SendAsync(connection.Outgoing(new CPartyLeavePacket(), NetworkPacketType.CMSG_PARTY_LEAVE),
                 CancellationToken.None);
         }
         catch (Exception)

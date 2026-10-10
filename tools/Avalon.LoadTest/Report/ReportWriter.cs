@@ -101,6 +101,7 @@ public static class ReportWriter
         md.AppendLine(Invariant($"- Run: {run.RunId} ({run.Bots.Count} bots) through {run.Api}"));
         md.AppendLine($"- Mix: {options.Mix}");
         md.AppendLine($"- Fighters: {FightersText(options)}");
+        md.AppendLine($"- Packet encryption, as the world's admission replies named it: {BotMetrics.EncryptionText(result.Admissions)}");
         md.AppendLine(Invariant(
             $"- Ramp: start {options.Start}, step {options.Step}, hold {options.Hold.TotalSeconds:0} s (judged on the last {RampRunner.JudgedWindow(options.Hold).TotalSeconds:0} s), max {options.Max}, {options.SignInConcurrency} sign-ins at once"));
         md.AppendLine($"- Prometheus: {options.Prometheus} (pod {options.Pod}){(options.Dial is { } dial ? $"; dialling {dial}" : "")}");
@@ -428,6 +429,7 @@ public static class ReportWriter
                 Blips = result.Steps.Where(step => step.Decision.Blip).Select(step => step.Index),
                 SlowKicksMayBeGenerator = result.Steps.Where(step => step.Decision.SlowKicksMayBeGenerator).Select(step => step.Index),
                 result.SignIns,
+                PacketEncryption = new { result.Admissions.Sealed, result.Admissions.Plain },
                 SecondsPerSignIn = result.SignInRate.TotalSeconds,
                 result.SignInFailures,
                 result.SignOutFailures,

@@ -1,10 +1,14 @@
+using Avalon.Common;
+using Avalon.Common.Cryptography;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Org.BouncyCastle.Crypto;
 using ProtoBuf;
 using Xunit;
 
@@ -344,6 +348,80 @@ public sealed class ConnectionSenderShould
         await WaitUntil(() => _pool.Outstanding == 0, s_guard);
     }
 
+    /// <summary>
+    /// A broadcast's payload, encoded once and shared by its recipients (#875). Each recipient copies it into its own
+    /// burst, sealing it there when it seals, and gives its reference back as it frames it: one that has closed refuses
+    /// it at once, one whose write is still pending frames it ahead. Every other recipient writes the payload's own
+    /// bytes, the segment is never sealed in place, and it goes back to the pool only once the last recipient has framed
+    /// it, so a packet encoded into it afterwards changes nothing already framed.
+    /// </summary>
+    [Fact]
+    public async Task Write_a_shared_payload_to_every_other_recipient_when_one_has_closed()
+    {
+        NetworkSendScheduler scheduler = Scheduler(threads: 2);
+        (AvalonCryptoSession serverSession, AvalonCryptoSession clientSession) = PairedSessions();
+        var plainWire = new MemoryStream();
+        var sealedWire = new MemoryStream();
+        var stalled = new PendingStream();
+        ConnectionSender plain = Open(scheduler, plainWire);
+        ConnectionSender sealing = Open(scheduler, sealedWire, sealer: serverSession);
+        ConnectionSender pending = Open(scheduler, stalled);
+        ConnectionSender closed = Open(scheduler, new MemoryStream());
+        await CloseAsync(scheduler, closed);
+        pending.Enqueue(Numbered(1));
+        scheduler.RunAllPasses(); // the pending recipient's first write starts and stays pending
+
+        // As MapInstance broadcasts a hit: encoded once, a reference per recipient, its own released after the loop.
+        OutboundPacket hit = SUnitDamagePacket.Create(new ObjectGuid(ObjectType.Creature, 9), 7, 90, 10, _encoder);
+        foreach (ConnectionSender recipient in new[] { plain, sealing, pending, closed })
+            recipient.Enqueue(hit.Share());
+        hit.Release();
+        scheduler.RunAllPasses();
+
+        // Framed by all three, refused by the closed one: the segment is back though one write has not ended.
+        Assert.Equal(0, _pool.Outstanding);
+
+        // Encoded into the segment the hit gave back: nothing framed above may change.
+        OutboundPacket overwrite = SUnitDamagePacket.Create(new ObjectGuid(ObjectType.Creature, 1), 1, 1, 1, _encoder);
+        Assert.Same(hit.Payload, overwrite.Payload); // the pool hands the hit's segment out again
+        stalled.Complete();
+        PassUntil(scheduler, pending.OwnerThread, () => stalled.Writes == 2);
+
+        (NetworkPacketHeader plainHeader, byte[] plainPayload) = Assert.Single(await Frames(plainWire.ToArray()));
+        Assert.Equal(0, (int)(plainHeader.Flags & NetworkPacketFlags.Encrypted));
+        AssertHit(plainPayload);
+
+        (NetworkPacketHeader sealedHeader, byte[] sealedPayload) = Assert.Single(await Frames(sealedWire.ToArray()));
+        Assert.NotEqual(0, (int)(sealedHeader.Flags & NetworkPacketFlags.Encrypted));
+        byte[] opened = new byte[sealedPayload.Length];
+        AssertHit(opened[..clientSession.Decrypt(sealedPayload, opened)]);
+
+        List<(NetworkPacketHeader Header, byte[] Payload)> late = await Frames(stalled.Written.ToArray());
+        Assert.Equal(2, late.Count); // the first packet, then the hit framed ahead while its write was pending
+        AssertHit(late[1].Payload);
+
+        overwrite.Release();
+        Assert.Equal(0, _pool.Outstanding);
+    }
+
+    private static void AssertHit(byte[] payload)
+    {
+        SUnitDamagePacket written = Serializer.Deserialize<SUnitDamagePacket>(payload.AsSpan());
+        Assert.Equal(7ul, written.Target);
+        Assert.Equal(10u, written.Damage);
+    }
+
+    /// <summary>A server session and the client session keyed against it, as admission keys the two.</summary>
+    private static (AvalonCryptoSession Server, AvalonCryptoSession Client) PairedSessions()
+    {
+        AsymmetricCipherKeyPair clientKeys = AsymmetricCipher.GenerateECDHKeyPair();
+        var client = new AvalonCryptoSession(CryptoRole.Client, clientKeys);
+        var server = new AvalonCryptoSession(CryptoRole.Server);
+        server.Initialize(AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeys)));
+        client.Initialize(server.GetPublicKey());
+        return (server, client);
+    }
+
     private NetworkSendScheduler Scheduler(int threads = 1, int maxPendingBytes = 512 * 1024)
     {
         var options = new NetworkConfiguration
@@ -355,9 +433,10 @@ public sealed class ConnectionSenderShould
         return new NetworkSendScheduler(options, NullLoggerFactory.Instance, _time, NetworkSendMetrics.Disabled, _encoder);
     }
 
-    private static ConnectionSender Open(NetworkSendScheduler scheduler, Stream stream, Action? close = null)
+    private static ConnectionSender Open(NetworkSendScheduler scheduler, Stream stream, Action? close = null,
+        IAvalonCryptoSession? sealer = null)
     {
-        ConnectionSender sender = scheduler.CreateSender(Guid.NewGuid(), NullLogger.Instance, sealer: null, close ?? (() => { }));
+        ConnectionSender sender = scheduler.CreateSender(Guid.NewGuid(), NullLogger.Instance, sealer, close ?? (() => { }));
         sender.Connect(new PacketStream(stream));
         return sender;
     }
@@ -466,12 +545,16 @@ public sealed class ConnectionSenderShould
 
         public int Writes { get; private set; }
 
+        /// <summary>The bytes of each write as it was handed them, as a socket copies them.</summary>
+        public MemoryStream Written { get; } = new();
+
         public void Complete() => _write.TrySetResult();
 
         public void Fail(Exception error) => _write.TrySetException(error);
 
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
+            Written.Write(buffer.Span);
             Writes++;
             _write = new TaskCompletionSource();
             return new ValueTask(_write.Task);

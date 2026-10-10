@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
@@ -175,15 +176,24 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
         }
 
         ulong accountId = ctx.Connection.AccountId is { } account ? (ulong)account.Value : 0UL;
+        // Encoded once, for the first member who hears it, and shared by every one who does (#875).
+        OutboundPacket line = default;
         foreach (PartyMember member in party.Members)
         {
             // A member ignoring the sender does not hear it (#723); nobody is told.
             if (parties.OnlineConnection(member.Id.Value) is { } target && !Ignoring.Hides(target, sender.Guid.Id))
             {
-                target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
-                    PacketEncoder.Shared, ChatChannel.Party, characterClass: (ushort)sender.Class));
+                if (line.Payload is null)
+                {
+                    line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
+                        PacketEncoder.Shared, ChatChannel.Party, characterClass: (ushort)sender.Class);
+                }
+
+                target.Send(line.Share());
             }
         }
+
+        line.Release();
 
         // Counts once the message has gone out (the sender is a member of the party, so it always has).
         rateLimiter.Record(sender.Guid.Id);

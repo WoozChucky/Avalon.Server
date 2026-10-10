@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
@@ -448,6 +449,8 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
                 }
 
                 _statusSent[id] = (status, now);
+                // The same status for every watcher: encoded once, for the first, and shared by the others (#875).
+                OutboundPacket sent = default;
                 for (int j = 0; j < party.Members.Count; j++)
                 {
                     uint other = party.Members[j].Id.Value;
@@ -457,9 +460,16 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
                         continue;
                     }
 
-                    connection.Send(SPartyMemberStatusPacket.Create(id, status.Health, status.MaxHealth, status.Power,
-                        status.MaxPower, status.PowerType, status.IsDead, PacketEncoder.Shared));
+                    if (sent.Payload is null)
+                    {
+                        sent = SPartyMemberStatusPacket.Create(id, status.Health, status.MaxHealth, status.Power,
+                            status.MaxPower, status.PowerType, status.IsDead, PacketEncoder.Shared);
+                    }
+
+                    connection.Send(sent.Share());
                 }
+
+                sent.Release();
             }
         }
     }

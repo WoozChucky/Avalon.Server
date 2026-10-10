@@ -98,6 +98,8 @@ public sealed class ConnectionSender : IOutbox
 
     public Guid ConnectionId { get; }
 
+    public bool Seals => _sealer is not null;
+
     /// <summary>The send thread that owns this connection for its life.</summary>
     public int OwnerThread { get; }
 

@@ -18,24 +18,28 @@ message SGameAdmissionPacket
 variant absent
   field 1 PublicKey : byte[] = null
   field 2 Result : GameAdmissionResult = Accepted (0)
+  field 3 PacketEncryption : bool = false
   bytes 0
 
 variant empty
   field 1 PublicKey : byte[] = 0 bytes
   field 2 Result : GameAdmissionResult = Accepted (0)
+  field 3 PacketEncryption : bool = false
   bytes 2
     0a 00
 
 variant populated
   field 1 PublicKey : byte[] = 1 byte 00
   field 2 Result : GameAdmissionResult = InvalidRequest (1)
-  bytes 5
-    0a 01 00 10 01
+  field 3 PacketEncryption : bool = true
+  bytes 7
+    0a 01 00 10 01 18 01
 
 variant maxima
   field 1 PublicKey : byte[] = 140 bytes 5a 5d 54 4f 46 79 70 6b ...
   field 2 Result : GameAdmissionResult = UnsupportedClient (4)
-  bytes 145
+  field 3 PacketEncryption : bool = true
+  bytes 147
     0a 8c 01 5a 5d 54 4f 46 79 70 6b 62 65 1c 17 0e
     01 38 33 2a 2d 24 df d6 c9 c0 fb f2 f5 ec e7 9e
     91 88 83 ba bd b4 af a6 59 50 4b 42 45 7c 77 6e
@@ -45,18 +49,20 @@ variant maxima
     d1 c8 c3 fa fd f4 ef e6 99 90 8b 82 85 bc b7 ae
     a1 58 53 4a 4d 44 7f 76 69 60 1b 12 15 0c 07 3e
     31 28 23 da dd d4 cf c6 f9 f0 eb e2 e5 9c 97 10
-    04
+    04 18 01
 
 variant minima
   field 1 PublicKey : byte[] = 1 byte 00
   field 2 Result : GameAdmissionResult = Accepted (0)
+  field 3 PacketEncryption : bool = false
   bytes 3
     0a 01 00
 
 variant varint-edges
   field 1 PublicKey : byte[] = 128 bytes 5a 5d 54 4f 46 79 70 6b ...
   field 2 Result : GameAdmissionResult = <not a declared member> (5)
-  bytes 133
+  field 3 PacketEncryption : bool = true
+  bytes 135
     0a 80 01 5a 5d 54 4f 46 79 70 6b 62 65 1c 17 0e
     01 38 33 2a 2d 24 df d6 c9 c0 fb f2 f5 ec e7 9e
     91 88 83 ba bd b4 af a6 59 50 4b 42 45 7c 77 6e
@@ -65,4 +71,4 @@ variant varint-edges
     41 78 73 6a 6d 64 1f 16 09 00 3b 32 35 2c 27 de
     d1 c8 c3 fa fd f4 ef e6 99 90 8b 82 85 bc b7 ae
     a1 58 53 4a 4d 44 7f 76 69 60 1b 12 15 0c 07 3e
-    31 28 23 10 05
+    31 28 23 10 05 18 01

@@ -10,7 +10,7 @@ namespace Avalon.LoadTest.Wire;
 /// directly, as the server's own serialization helper is internal to the packet assembly.
 /// </summary>
 /// <remarks>
-/// <see cref="Encrypted{T}"/> reuses one stream, so a connection calls it from one sender at a time.
+/// <see cref="Outgoing{T}"/> reuses one stream, so a connection calls it from one sender at a time, sealing or not.
 /// <see cref="Decode{T}"/> may be called from any thread: the session opens on one thread at a time only (#875), and a
 /// connection opens on two, its read loop and the bot that awaited a reply, so the codec serialises its opens itself.
 /// </remarks>
@@ -21,24 +21,22 @@ public sealed class PacketCodec(IAvalonCryptoSession session)
     // Held only for the open, not the deserialisation: the session's receiving cipher is not thread-safe.
     private readonly Lock _openLock = new();
 
-    /// <summary>A packet sealed with the session's sending key.</summary>
-    public NetworkPacket Encrypted<T>(T message, NetworkPacketType type) where T : class
+    /// <summary>
+    /// Whether this connection seals what it sends, every packet but the pong, which the world takes plain: what the
+    /// world's admission reply said (#875, <c>SGameAdmissionPacket.PacketEncryption</c>), set before anything else is
+    /// sent. A world from before the flag never says, reads false, and opens each packet by its header.
+    /// </summary>
+    public bool Seals { get; set; }
+
+    /// <summary>A packet for the world as its admission asked: sealed with the session's sending key, or plain.</summary>
+    public NetworkPacket Outgoing<T>(T message, NetworkPacketType type) where T : class
     {
         _stream.SetLength(0);
         Serializer.Serialize(_stream, message);
-        return new NetworkPacket
-        {
-            Header = Header(type, NetworkPacketFlags.Encrypted),
-            Payload = session.Encryptor(new ReadOnlySpan<byte>(_stream.GetBuffer(), 0, (int)_stream.Length)),
-        };
-    }
-
-    /// <summary>A packet whose payload is the serialized message as is, before or outside the session.</summary>
-    public static NetworkPacket Clear<T>(T message, NetworkPacketType type, NetworkPacketFlags flags) where T : class
-    {
-        using var stream = new MemoryStream();
-        Serializer.Serialize(stream, message);
-        return new NetworkPacket { Header = Header(type, flags), Payload = stream.ToArray() };
+        var written = new ReadOnlySpan<byte>(_stream.GetBuffer(), 0, (int)_stream.Length);
+        return Seals
+            ? new NetworkPacket { Header = Header(type, NetworkPacketFlags.Encrypted), Payload = session.Encryptor(written) }
+            : new NetworkPacket { Header = Header(type, NetworkPacketFlags.None), Payload = written.ToArray() };
     }
 
     /// <summary>The message a packet carries, opened with the session's receiving key when the packet is encrypted.</summary>

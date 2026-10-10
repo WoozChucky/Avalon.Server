@@ -80,7 +80,8 @@ public static class ServiceExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // The send threads (#875): Network:SendThreads, MaxPendingBytes, MaxWriteStall.
+        // The send threads and the session layer (#875): Network:SendThreads, MaxPendingBytes, MaxWriteStall,
+        // PacketEncryption.
         services
             .AddOptions<NetworkConfiguration>()
             .BindConfiguration(NetworkConfiguration.Section)

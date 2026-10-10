@@ -58,6 +58,8 @@ public sealed class ChannelOutbox : IOutbox
         }, packet => packet.Release());
     }
 
+    public bool Seals => _sealer is not null;
+
     /// <exception cref="InvalidOperationException">The outbox is already connected: one drain task seals for it.</exception>
     public void Connect(PacketStream stream)
     {

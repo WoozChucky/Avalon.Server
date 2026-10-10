@@ -17,17 +17,30 @@ neither a received frame nor a sent packet allocates a header (#875); the wire i
 Transport: TCP inside TLS, one connection per phase (Auth, then World). The auth server wraps every accepted socket in
 TLS 1.2 with its certificate, the world server in TLS 1.2 or 1.3 with its own (both `Hosting:Security:CertificatePath`),
 and a client pins the world's leaf named in its join reply. Ordering guaranteed by TCP.  
-Encryption: inside TLS, session crypto negotiated via ephemeral public key exchange during handshake stages.  
+Encryption: inside TLS, session crypto negotiated via ephemeral public key exchange during handshake stages; on the
+world server the per-packet session layer is a per-world setting, `Network:PacketEncryption`, off by default (#875).  
 Size calculation uses fixed field lengths; header marshaled first enabling preallocation.
 
 ## Sending a packet
 
 A server packet's `Create` (`S*Packet.Create`) returns an `OutboundPacket`: its header, and its message encoded, plain,
 into a pooled `PayloadSegment` by `PacketEncoder` (#875). `IConnection.Send` takes the packet's payload reference. The
-connection's outbox seals the payload if the header is flagged Encrypted (a world connection's send thread, the auth
-server's outbox as its drain task writes) and frames it with `PacketEnvelope`: `[varint length][NetworkPacket{1:
-header, 2: payload}]`, written by hand, byte for byte what protobuf-net writes for a `NetworkPacket`. The outbox then
-releases the segment to its pool: no `byte[]` per packet.
+connection's outbox (a world connection's send thread, the auth server's outbox as its drain task writes) seals the
+payload of a packet flagged Encrypted only when the outbox seals (`IOutbox.Seals`): always on the auth server, and on
+a world connection only with `Network:PacketEncryption`. Otherwise the payload goes plain inside TLS and the header
+loses the Encrypted flag, so the client opens nothing. The outbox frames the packet with `PacketEnvelope`:
+`[varint length][NetworkPacket{1: header, 2: payload}]`, written by hand, byte for byte what protobuf-net writes for a
+`NetworkPacket`, then releases the segment to its pool: no `byte[]` per packet.
+
+A broadcast whose bytes are the same for every recipient (a hit, a cast, a death, a heal, loot spawned or despawned,
+instance and party chat, a party member's status, a maintenance warning) is encoded once, for the first recipient that
+hears it, and each recipient takes a reference of its own (`OutboundPacket.Share`); the broadcaster releases its own
+after the loop (#875). Each send thread copies the payload into its own connection's burst, sealing it there when its
+connection seals, and releases its reference as it frames it, or at once when its connection refuses the packet; the
+segment is never sealed in place, and it returns to its pool after the last reference. World-state packets
+(`SInstanceStateAdd/Update/Remove`, the aura list and updates) stay per recipient: each recipient hears its own set of
+units, and they are sent inside the per-recipient state pass. An aura update's bytes depend only on its unit, so sharing
+it needs a per-unit cache across that pass (#898).
 
 Nor a message object per packet. `Create` fills the calling thread's instance of its message type
 (`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that
@@ -67,12 +80,34 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
 11. Client opens a TCP connection to that world server and completes TLS.
 12. `CGameAdmissionPacket(JoinTicket, PublicKey)` — clear text inside TLS: the ticket and a new ephemeral public key.
 13. The world server redeems the ticket and activates the session through the API's internal admission routes, off the
-    tick, then initializes the session crypto.
-14. `SGameAdmissionPacket(PublicKey, Result)` — `Accepted` with the server's public key; otherwise `InvalidRequest`,
-    `AuthorizationRequired` or `ServiceUnavailable`, and the connection is closed.
-15. `CWorldHandshakePacket(Version)` / `SWorldHandshakePacket` — encrypted; the client's version must be at least 0.2.0
-    and the world's `MinVersion`, or the connection is closed.
-16. Subsequent packets (character list, selection, movement, chat) proceed under the admitted session.
+    tick, then initializes the session crypto. The key exchange runs for every connection, whatever the world's mode, so
+    a client that always seals keeps working (retiring it is #878).
+14. `SGameAdmissionPacket(PublicKey, Result, PacketEncryption)` — `Accepted` with the server's public key and the
+    world's mode (field 3, `Network:PacketEncryption`, #875): true, the client seals every gameplay packet it sends;
+    false, TLS alone and it sends plain. The client seals exactly as told. Otherwise `InvalidRequest`,
+    `AuthorizationRequired` or `ServiceUnavailable` (`UnsupportedClient` is declared beside them; this server refuses
+    an old client at step 15 instead), `PacketEncryption` false, and the connection is closed.
+15. `CWorldHandshakePacket(Version)` / `SWorldHandshakePacket` — sealed only when the world seals; the client's version
+    must be at least 0.2.0 and the world's `MinVersion`, or the connection is closed.
+16. Subsequent packets (character list, selection, movement, chat) proceed under the admitted session. A connection
+    keeps the mode it was created and admitted under for its life; a change of the setting needs a restart.
+
+Strictness of the mode (#875). With `Network:PacketEncryption` on, a plain packet the world runs (the version
+handshake, and every packet a session filter names but the pong) closes the connection as a protocol violation, at
+arrival, before any filter is asked (`WorldConnection.OnReceive`). Admission and pong are plain by design and accepted
+plain. An opcode no world filter takes is dropped as before, whatever its flags. With the flag off, plain and sealed
+are both accepted.
+
+Compatibility of the mode (#875). A server opens a client packet by its header, sealed or not; a client opens a server
+packet by its header too.
+
+| Client | Server | Client to server | Server to client |
+|---|---|---|---|
+| before #875 | flag off | the client still seals; the server opens it by its header | plain; the client follows the header |
+| before #875 | flag on | sealed, as before | sealed, as before |
+| current | flag off | plain | plain |
+| current | flag on | sealed | sealed |
+| current | before #875 (field absent, reads false) | plain; that server decides by the header | sealed; the client follows the header |
 
 ## Redis Usage in Flow
 

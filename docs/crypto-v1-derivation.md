@@ -4,6 +4,10 @@
 **Vectors:** `schema/crypto/session-v1.txt`
 **Addresses:** findings 3, 4, 5 and 6 of `docs/security-review-network-crypto.md`.
 
+Since #875 the per-packet session layer is a per-world setting on the world server, `Network:PacketEncryption`, off by
+default: a world that leaves it off relies on its pinned TLS alone, and its admission reply tells the client so. The
+derivation, the vectors and the key exchange below are unchanged, and the exchange still runs on every connection.
+
 Both ends of a connection derive the same two keys independently and never compare them. A
 derivation that disagrees therefore fails as a packet that will not open — on a live connection,
 at the first sealed packet, with nothing on the wire saying which end is wrong. That is what the
@@ -142,7 +146,7 @@ platform cipher to a second implementation.
 The session holds one `AesGcm` per direction and no lock (#875). Seals (`Encrypt`, `Encryptor`,
 `SealInto`) must be totally ordered, each happening after the last (one thread, a lock, a queue
 hand-off or an await); the same applies to opens (`Decrypt`). On the world server the connection's
-send thread seals while its read loop opens; on the auth server the drain task seals while the read
+send thread seals (with `Network:PacketEncryption` on) while its read loop opens; on the auth server the drain task seals while the read
 loop opens. A seal and an open may run at once, since each direction has its own cipher and its own
 state (the send counter is the sealer's alone). A client must likewise order its seals, and its
 opens: the load-test tool takes locks of its own for both, since a bot opens both on its read loop

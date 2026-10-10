@@ -79,6 +79,12 @@ public interface IWorldServer
 
     /// <summary>The send threads every connection's packets leave on (#875).</summary>
     NetworkSendScheduler SendScheduler { get; }
+
+    /// <summary>
+    /// <c>Network:PacketEncryption</c> (#875), read once at startup: whether this world's connections seal every gameplay
+    /// packet with the session layer inside TLS. A connection reads it when it is created and keeps it.
+    /// </summary>
+    bool PacketEncryption { get; }
 }
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
@@ -318,6 +324,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     public NetworkSendScheduler SendScheduler => _sendScheduler;
 
+    public bool PacketEncryption => _sendScheduler.PacketEncryption;
+
     public IReadOnlyList<IWorldConnection> SessionsOf(AccountId accountId, IWorldConnection except)
     {
         // Connections first, then the queue: a close enqueues its despawn before it leaves the
@@ -392,6 +400,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         // The send threads before the tick that wakes them (#875).
         _sendScheduler.Start();
+        _logger.LogInformation("Packet encryption: {Mode}",
+            _sendScheduler.PacketEncryption ? "session layer inside TLS" : "TLS alone");
 
         _tickRunning = true;
         _tickThread = new Thread(TickLoop)
@@ -772,7 +782,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         stageStart = StageDone(stageStart, s_pingsStage);
 
         // The tick never writes (#875): each connection's packets are already queued on its sender, and one signal per
-        // send thread wakes it to seal, frame and write them.
+        // send thread wakes it to frame them (sealing them too while Network:PacketEncryption is on) and write them.
         _sendScheduler.SignalAll();
         stageStart = StageDone(stageStart, s_outboxStage);
 

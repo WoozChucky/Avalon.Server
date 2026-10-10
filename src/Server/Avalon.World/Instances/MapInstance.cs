@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auras;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
@@ -359,8 +360,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         string text = (changes == 1 && change is not null ? change + " " : string.Empty)
                       + $"Creatures now have {percent}% health ({players} {(players == 1 ? "player" : "players")}).";
         DateTime now = _time.GetUtcNow().UtcDateTime;
+        // Encoded once, for the first connection here, and shared by every one (#875).
+        OutboundPacket notice = default;
         foreach (IWorldConnection connection in _connections.Values)
-            connection.Send(SChatMessagePacket.System(text, now, PacketEncoder.Shared));
+        {
+            if (notice.Payload is null)
+            {
+                notice = SChatMessagePacket.System(text, now, PacketEncoder.Shared);
+            }
+
+            connection.Send(notice.Share());
+        }
+
+        notice.Release();
     }
 
     public bool IsExpired(TimeSpan expiry) =>
@@ -679,6 +691,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     private void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage, HitResult result)
     {
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket hit = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, attacker.Guid, target.Guid, attacker.Position, target.Position))
@@ -686,9 +700,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
-                currentHealth, damage, PacketEncoder.Shared, result));
+            if (hit.Payload is null)
+            {
+                hit = SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
+                    currentHealth, damage, PacketEncoder.Shared, result);
+            }
+
+            connection.Send(hit.Share());
         }
+
+        hit.Release();
     }
 
     // How the hit whose creature script is running now went (#506); see ICombatOutcomes.HitInFlight.
@@ -702,6 +723,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Heard near the caster or near where it will land (#648), so a watcher standing in the telegraph sees it.
         Vector3? centre = footprint?.Centre;
         AbilityFootprintDto? dto = footprint?.ToDto();
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket start = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, caster.Guid, null, caster.Position, centre))
@@ -709,10 +732,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            // #627: the time the cast system just set, haste included, so every cast bar ends when the cast does.
-            connection.Send(SUnitStartCastPacket.Create(caster.Guid, ability.CastTimeTimer,
-                ability.AbilityId.Value, castId, dto, PacketEncoder.Shared));
+            if (start.Payload is null)
+            {
+                // #627: the time the cast system just set, haste included, so every cast bar ends when the cast does.
+                start = SUnitStartCastPacket.Create(caster.Guid, ability.CastTimeTimer,
+                    ability.AbilityId.Value, castId, dto, PacketEncoder.Shared);
+            }
+
+            connection.Send(start.Share());
         }
+
+        start.Release();
     }
 
     // The cast whose script the cast system is firing now (#648); see IAbilityArena.CastInFlight.
@@ -723,6 +753,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public void BroadcastAbilityFired(IUnit caster, IAbility ability, AbilityFootprint footprint)
     {
         AbilityFootprintDto dto = footprint.ToDto();
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket fired = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, caster.Guid, null, footprint.Origin, footprint.Centre))
@@ -730,13 +762,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, _castInFlight,
-                dto, PacketEncoder.Shared));
+            if (fired.Payload is null)
+            {
+                fired = SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, _castInFlight,
+                    dto, PacketEncoder.Shared);
+            }
+
+            connection.Send(fired.Share());
         }
+
+        fired.Release();
     }
 
     public void BroadcastUnitDeath(IUnit unit, IUnit? killer)
     {
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket death = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, unit.Guid, killer?.Guid, unit.Position, null))
@@ -744,13 +785,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SUnitDeathPacket.Create(unit.Guid, killer?.Guid,
-                PacketEncoder.Shared));
+            if (death.Payload is null)
+            {
+                death = SUnitDeathPacket.Create(unit.Guid, killer?.Guid,
+                    PacketEncoder.Shared);
+            }
+
+            connection.Send(death.Share());
         }
+
+        death.Release();
     }
 
     public void BroadcastUnitRevive(IUnit unit, Vector3 position, uint health)
     {
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket revive = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, unit.Guid, null, position, null))
@@ -758,9 +808,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SUnitRevivePacket.Create(unit.Guid, position, health,
-                PacketEncoder.Shared));
+            if (revive.Payload is null)
+            {
+                revive = SUnitRevivePacket.Create(unit.Guid, position, health,
+                    PacketEncoder.Shared);
+            }
+
+            connection.Send(revive.Share());
         }
+
+        revive.Release();
     }
 
     /// <summary>
@@ -785,10 +842,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public void BroadcastLootDespawned(IReadOnlyCollection<ObjectGuid> lootGuids)
     {
+        // Encoded once, for the first connection here, and shared by every one (#875).
+        OutboundPacket despawned = default;
         foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
         {
-            connection.Send(SLootDespawnedPacket.Create(lootGuids, PacketEncoder.Shared));
+            if (despawned.Payload is null)
+            {
+                despawned = SLootDespawnedPacket.Create(lootGuids, PacketEncoder.Shared);
+            }
+
+            connection.Send(despawned.Share());
         }
+
+        despawned.Release();
     }
 
     /// <summary>
@@ -844,10 +910,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
             List<LootDropDto> dtos = LootDtos(drops);
+            // The same drops for every connection: encoded once, for the first, and shared by every one (#875).
+            OutboundPacket spawned = default;
             foreach (IWorldConnection connection in _connections.Values)
             {
-                connection.Send(SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared));
+                if (spawned.Payload is null)
+                {
+                    spawned = SLootSpawnedPacket.Create(dtos, PacketEncoder.Shared);
+                }
+
+                connection.Send(spawned.Share());
             }
+
+            spawned.Release();
         }
         catch (Exception e)
         {
@@ -885,13 +960,23 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         if (_groundLoot.Count > 0)
         {
+            // Every owed connection is sent the same snapshot: built and encoded once, for the first still here, and
+            // shared by the others (#875).
+            OutboundPacket snapshot = default;
             foreach (ObjectGuid guid in _lootSnapshotOwed)
             {
                 if (_connections.TryGetValue(guid, out IWorldConnection? connection))
                 {
-                    connection.Send(SLootSpawnedPacket.Create(LootDtos(_groundLoot.All), PacketEncoder.Shared));
+                    if (snapshot.Payload is null)
+                    {
+                        snapshot = SLootSpawnedPacket.Create(LootDtos(_groundLoot.All), PacketEncoder.Shared);
+                    }
+
+                    connection.Send(snapshot.Share());
                 }
             }
+
+            snapshot.Release();
         }
 
         _lootSnapshotOwed.Clear();
@@ -1414,6 +1499,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         ushort animationId = ResolveBroadcastAnimationId(spell);
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket animation = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, attacker.Guid, null, attacker.Position, null))
@@ -1421,9 +1508,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, animationId,
-                PacketEncoder.Shared));
+            if (animation.Payload is null)
+            {
+                animation = SUnitAttackAnimationPacket.Create(attacker.Guid, animationId,
+                    PacketEncoder.Shared);
+            }
+
+            connection.Send(animation.Share());
         }
+
+        animation.Release();
     }
 
     /// <summary>
@@ -1445,6 +1539,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket finish = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, attacker.Guid, null, attacker.Position, null))
@@ -1452,9 +1548,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
-                PacketEncoder.Shared));
+            if (finish.Payload is null)
+            {
+                finish = SUnitFinishCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
+                    PacketEncoder.Shared);
+            }
+
+            connection.Send(finish.Share());
         }
+
+        finish.Release();
     }
 
     public void BroadcastInterruptedCast(IUnit attacker, IAbility spell) => BroadcastInterruptedCast(attacker, spell, 0u);
@@ -1466,6 +1569,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket interrupted = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, attacker.Guid, null, attacker.Position, null))
@@ -1473,44 +1578,78 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
-                PacketEncoder.Shared));
+            if (interrupted.Payload is null)
+            {
+                interrupted = SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId, castId,
+                    PacketEncoder.Shared);
+            }
+
+            connection.Send(interrupted.Share());
         }
+
+        interrupted.Release();
     }
 
     void IItemCastAudience.BroadcastItemCastStart(IUnit caster, ItemTemplateId item, float castTimeSeconds, uint castId)
     {
         if (!_characters.ContainsKey(caster.Guid)) return;
 
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket start = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
-            connection.Send(SUnitStartCastPacket.CreateForItem(caster.Guid, castTimeSeconds, item.Value, castId,
-                PacketEncoder.Shared));
+            if (start.Payload is null)
+            {
+                start = SUnitStartCastPacket.CreateForItem(caster.Guid, castTimeSeconds, item.Value, castId,
+                    PacketEncoder.Shared);
+            }
+
+            connection.Send(start.Share());
         }
+
+        start.Release();
     }
 
     void IItemCastAudience.BroadcastItemCastFinish(IUnit caster, ItemTemplateId item, uint castId)
     {
         if (!_characters.ContainsKey(caster.Guid)) return;
 
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket finish = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
-            connection.Send(SUnitFinishCastPacket.CreateForItem(caster.Guid, item.Value, castId, PacketEncoder.Shared));
+            if (finish.Payload is null)
+            {
+                finish = SUnitFinishCastPacket.CreateForItem(caster.Guid, item.Value, castId, PacketEncoder.Shared);
+            }
+
+            connection.Send(finish.Share());
         }
+
+        finish.Release();
     }
 
     void IItemCastAudience.BroadcastItemCastInterrupted(IUnit caster, ItemTemplateId item, uint castId)
     {
         if (!_characters.ContainsKey(caster.Guid)) return;
 
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket interrupted = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
-            connection.Send(SCharacterInterruptedCastPacket.CreateForItem(caster.Guid, item.Value, castId,
-                PacketEncoder.Shared));
+            if (interrupted.Payload is null)
+            {
+                interrupted = SCharacterInterruptedCastPacket.CreateForItem(caster.Guid, item.Value, castId,
+                    PacketEncoder.Shared);
+            }
+
+            connection.Send(interrupted.Share());
         }
+
+        interrupted.Release();
     }
 
     /// <summary>
@@ -1587,6 +1726,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket healed = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, healer.Guid, target.Guid, target.Position, null))
@@ -1594,9 +1735,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SUnitHealedPacket.Create(healer.Guid.RawValue, target.Guid.RawValue, restored,
-                target.CurrentHealth, abilityId?.Value, result, PacketEncoder.Shared));
+            if (healed.Payload is null)
+            {
+                healed = SUnitHealedPacket.Create(healer.Guid.RawValue, target.Guid.RawValue, restored,
+                    target.CurrentHealth, abilityId?.Value, result, PacketEncoder.Shared);
+            }
+
+            connection.Send(healed.Share());
         }
+
+        healed.Release();
     }
 
     /// <summary>
@@ -1619,6 +1767,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 null, PacketEncoder.Shared, result, aura.Value));
         }
 
+        // Encoded once, for the first who hears it, and shared by everyone who does (#875).
+        OutboundPacket tick = default;
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             if (!Hears(guid, connection, target.Guid, caster?.Guid, target.Position, null))
@@ -1626,12 +1776,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(heal
-                ? SUnitHealedPacket.Create(from.RawValue, target.Guid.RawValue, amount, target.CurrentHealth, null, result,
-                    PacketEncoder.Shared, aura.Value)
-                : SUnitDamagePacket.Create(from, target.Guid.RawValue, target.CurrentHealth, amount,
-                    PacketEncoder.Shared, result, aura.Value));
+            if (tick.Payload is null)
+            {
+                tick = heal
+                    ? SUnitHealedPacket.Create(from.RawValue, target.Guid.RawValue, amount, target.CurrentHealth, null, result,
+                        PacketEncoder.Shared, aura.Value)
+                    : SUnitDamagePacket.Create(from, target.Guid.RawValue, target.CurrentHealth, amount,
+                        PacketEncoder.Shared, result, aura.Value);
+            }
+
+            connection.Send(tick.Share());
         }
+
+        tick.Release();
     }
 
     /// <summary>

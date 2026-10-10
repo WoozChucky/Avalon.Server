@@ -21,7 +21,8 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
     public List<OutboundPacket> Sent { get; } = [];
     public override void Send(OutboundPacket packet) => Sent.Add(packet);
     protected override Task OnClose(bool expected = true) => Task.CompletedTask;
-    public void Deliver(NetworkPacketType type, Packet payload) => OnReceive(new() { Type = type }, payload).GetAwaiter().GetResult();
+    public void Deliver(NetworkPacketType type, Packet payload, NetworkPacketFlags flags = NetworkPacketFlags.None) =>
+        OnReceive(new() { Type = type, Flags = flags }, payload).GetAwaiter().GetResult();
     public static WorldAdmissionConnection Create(IWorldServer? server = null, bool tls = true)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
