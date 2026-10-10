@@ -26,6 +26,12 @@ public sealed class ScenarioAllocations;
 /// Debug and Release diverge again (an allocation the optimised JIT keeps on the stack and unoptimised code does not),
 /// make the regression branch Release-only (<c>#if !DEBUG</c>) and report in Debug instead, as #856 did; see
 /// docs/benchmarks.md, "The allocation gate".
+/// <para>
+/// That is so for a fixed-length scenario (<c>forest-combat</c>): since #888 its figure is small (16 KB per window),
+/// the 256 B floor decides, and a Debug build reads 225 B per window above Release (the vendored navmesh code and other
+/// spots unoptimised there), and 80 B more or less in a whole-suite run. It is decided in Release, which CI runs, and
+/// reported in Debug, where its regressed line still names the figure.
+/// </para>
 /// </remarks>
 [Collection(nameof(ScenarioAllocations))]
 public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
@@ -56,6 +62,14 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
         switch (verdict)
         {
             case AllocationBaseline.Verdict.Regressed:
+#if DEBUG
+                if (Scenarios.Get(name).Length is not null)
+                {
+                    output.WriteLine($"{name} reads above its committed figure in this Debug build; a fixed-length " +
+                                     "scenario is decided in Release (docs/benchmarks.md, \"The allocation gate\").");
+                    break;
+                }
+#endif
                 Assert.Fail($"{name} allocates {report.BytesPerWindow:N0} B per {ScenarioMeasurement.WindowTicks}-tick window, " +
                             $"committed {entry.BytesPerWindow:N0} B (more than {AllocationBaseline.TolerancePercent}% and " +
                             $"{AllocationBaseline.SlackBytes} B over). " +
