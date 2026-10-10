@@ -111,6 +111,10 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     private const int Failed = 3;
     private const int Exhausted = 4;
 
+    // Where the ciphertext starts in a sealed packet, after the nonce: the one place a plaintext may share with the
+    // destination it is sealed into, since that is where the send path encodes it.
+    private const int CiphertextOffset = SessionKeys.NonceSize;
+
     private volatile int _state;
 
     private readonly CryptoRole _role;
@@ -243,12 +247,24 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     }
 
     /// <inheritdoc />
-    /// <exception cref="ArgumentException"><paramref name="destination" /> is shorter than the sealed packet.</exception>
+    /// <remarks>
+    /// <paramref name="plaintext" /> may lie inside <paramref name="destination" /> only at the ciphertext's offset,
+    /// byte 12, where it is sealed in place. Every refusal comes before the send counter moves, so none spends a nonce.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="plaintext" /> is too long to seal, <paramref name="destination" /> is shorter than the sealed
+    /// packet, or the two overlap anywhere but at the ciphertext's offset.
+    /// </exception>
     /// <exception cref="InvalidOperationException">As <see cref="Encrypt" />.</exception>
     /// <exception cref="OverflowException">As <see cref="Encrypt" />.</exception>
     public int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination)
     {
         if (_state != Ready) throw NotReady();
+
+        if (plaintext.Length > int.MaxValue - SessionKeys.NonceSize - SessionKeys.TagSize)
+        {
+            throw new ArgumentException("The plaintext is too long to seal", nameof(plaintext));
+        }
 
         int sealedLength = SessionKeys.NonceSize + plaintext.Length + SessionKeys.TagSize;
         if (destination.Length < sealedLength)
@@ -257,7 +273,20 @@ public class AvalonCryptoSession : IAvalonCryptoSession
                 $"A sealed packet of {sealedLength} bytes does not fit in {destination.Length}", nameof(destination));
         }
 
+        // Anywhere else, the nonce would overwrite the plaintext before it is sealed, or the cipher would read bytes it
+        // has already written; neither throws below, and the packet would be sealed wrong. The offset is the
+        // plaintext's from the destination's start, so a plaintext that begins before it is refused too.
+        if (((ReadOnlySpan<byte>)destination).Overlaps(plaintext, out int plaintextOffset)
+            && plaintextOffset != CiphertextOffset)
+        {
+            throw new ArgumentException(
+                "The plaintext may only alias the destination at its ciphertext offset", nameof(plaintext));
+        }
+
+        // Sliced before the counter moves, so that once it has, only the cipher itself can fail.
         Span<byte> nonce = destination.Slice(0, SessionKeys.NonceSize);
+        Span<byte> ciphertext = destination.Slice(CiphertextOffset, plaintext.Length);
+        Span<byte> tag = destination.Slice(CiphertextOffset + plaintext.Length, SessionKeys.TagSize);
 
         lock (_lock)
         {
@@ -272,11 +301,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
                 throw new OverflowException("Session nonce counter exhausted");
             }
 
-            _sealer!.Encrypt(
-                nonce,
-                plaintext,
-                destination.Slice(SessionKeys.NonceSize, plaintext.Length),
-                destination.Slice(SessionKeys.NonceSize + plaintext.Length, SessionKeys.TagSize));
+            _sealer!.Encrypt(nonce, plaintext, ciphertext, tag);
         }
 
         return sealedLength;

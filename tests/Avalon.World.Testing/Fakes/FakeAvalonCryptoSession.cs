@@ -3,7 +3,8 @@ using Avalon.Common.Cryptography;
 namespace Avalon.World.Testing.Fakes;
 
 /// <summary>
-/// Test double for IAvalonCryptoSession. Encrypt is a pass-through (returns plaintext as-is).
+/// Test double for IAvalonCryptoSession. Encrypt, SealInto and Decrypt are pass-throughs: no cipher and no
+/// nonce or tag, so a sent payload is the serialized packet, and the three agree with each other.
 /// NSubstitute cannot proxy ReadOnlySpan&lt;byte&gt; parameters; use this concrete fake instead.
 /// </summary>
 public sealed class FakeAvalonCryptoSession : IAvalonCryptoSession
@@ -18,11 +19,9 @@ public sealed class FakeAvalonCryptoSession : IAvalonCryptoSession
 
     public int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination)
     {
-        // No cipher: the plaintext between a zero nonce and a zero tag, at the sealed layout's length.
-        destination.Slice(0, SessionKeys.NonceSize).Clear();
-        plaintext.CopyTo(destination.Slice(SessionKeys.NonceSize));
-        destination.Slice(SessionKeys.NonceSize + plaintext.Length, SessionKeys.TagSize).Clear();
-        return SessionKeys.NonceSize + plaintext.Length + SessionKeys.TagSize;
+        // No cipher and no framing, as Encrypt: the plaintext as-is, which Decrypt hands back unchanged.
+        plaintext.CopyTo(destination);
+        return plaintext.Length;
     }
 
     public int Decrypt(ReadOnlySpan<byte> data, byte[] output)

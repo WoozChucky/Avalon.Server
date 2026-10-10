@@ -1,4 +1,3 @@
-using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
@@ -48,7 +47,7 @@ public class CharacterListHandlerShould : IDisposable
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.AccountId.Returns(s_owner);
         connection.Character.Returns((Avalon.World.Public.Characters.ICharacter?)null!);
-        connection.CryptoSession.Returns(new EchoCryptoSession());
+        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.EnqueueContinuation(
             Arg.Do<Task<List<CharacterRow>>>(t => query = t),
             Arg.Do<Action<List<CharacterRow>>>(c => callback = c));
@@ -77,27 +76,4 @@ public class CharacterListHandlerShould : IDisposable
     };
 
     public void Dispose() => _characters.Dispose();
-
-    private sealed class EchoCryptoSession : IAvalonCryptoSession
-    {
-        public EchoCryptoSession() => Encryptor = Encrypt;
-
-        public void Initialize(byte[] otherEndPublicKeyBytes) { }
-        public byte[] GetPublicKey() => [];
-        public byte[] GetOtherEndPublicKey() => [];
-        public byte[] Encrypt(ReadOnlySpan<byte> data) => data.ToArray();
-        public EncryptFunc Encryptor { get; }
-
-        public int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination)
-        {
-            // No cipher: the plaintext between a zero nonce and a zero tag, at the sealed layout's length.
-            destination.Slice(0, SessionKeys.NonceSize).Clear();
-            plaintext.CopyTo(destination.Slice(SessionKeys.NonceSize));
-            destination.Slice(SessionKeys.NonceSize + plaintext.Length, SessionKeys.TagSize).Clear();
-            return SessionKeys.NonceSize + plaintext.Length + SessionKeys.TagSize;
-        }
-
-        public int Decrypt(ReadOnlySpan<byte> data, byte[] output) => 0;
-        public byte[] GenerateHandshakeData() => [];
-    }
 }
