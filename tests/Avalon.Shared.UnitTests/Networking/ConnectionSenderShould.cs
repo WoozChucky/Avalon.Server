@@ -261,6 +261,9 @@ public sealed class ConnectionSenderShould
         Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, header.Type);
         Assert.Equal(DisconnectReason.SlowConnection, Serializer.Deserialize<SDisconnectPacket>(payload.AsSpan()).ReasonCode);
         Assert.Equal(0, sender.LastPingServerTicks);
+
+        await CloseAsync(scheduler, sender);
+        Assert.Equal(0, _pool.Outstanding);
     }
 
     /// <summary>
@@ -283,6 +286,9 @@ public sealed class ConnectionSenderShould
         (NetworkPacketHeader header, byte[] _) = Assert.Single(await Frames(wire.ToArray()));
         Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, header.Type);
         Assert.Equal(0, sender.LastPingServerTicks);
+
+        await CloseAsync(scheduler, sender);
+        Assert.Equal(0, _pool.Outstanding);
     }
 
     [Fact]

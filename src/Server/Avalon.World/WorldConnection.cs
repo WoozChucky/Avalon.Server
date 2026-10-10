@@ -333,6 +333,18 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         base.Send(packet);
     }
 
+    /// <summary>
+    /// A time-sync ping its send thread wrote (#875): encoded there, it never passed <see cref="Send" />, so it is counted
+    /// here, on that thread. Clear text, so its size has no seal overhead.
+    /// </summary>
+    private void CountPing(int size)
+    {
+        Interlocked.Add(ref BytesSentCount, size);
+        Interlocked.Increment(ref PacketSentCount);
+        DiagnosticsConfig.World.BytesSent.Add(size);
+        DiagnosticsConfig.World.PacketsSent.Add(1);
+    }
+
     private ConnectionSender? _sender;
 
     /// <summary>
@@ -345,7 +357,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         NetworkSendScheduler scheduler = _server.SendScheduler
             ?? throw new InvalidOperationException("The world server has no send scheduler");
 #pragma warning disable MA0045 // a slow connection's close starts on its send thread, which must not wait on it
-        _sender = scheduler.CreateSender(Id, _logger, CryptoSession, close: () => Close(false));
+        _sender = scheduler.CreateSender(Id, _logger, CryptoSession, close: () => Close(false), onPingWritten: CountPing);
 #pragma warning restore MA0045
         return _sender;
     }

@@ -46,6 +46,7 @@ public sealed class ConnectionSender : IOutbox
     private readonly TaskCompletionSource _finished = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Action _onPendingWriteCompleted;
     private readonly long _maxPendingBytes;
+    private readonly Action<int>? _onPingWritten;
 
     private PacketStream? _stream;
     private ConfiguredValueTaskAwaitable.ConfiguredValueTaskAwaiter _pendingWrite;
@@ -68,7 +69,8 @@ public sealed class ConnectionSender : IOutbox
     private bool _noticeWritten; // owner thread only: a disconnect notice went out, so no ping follows it
 
     internal ConnectionSender(NetworkSendScheduler scheduler, int ownerThread, Guid connectionId, ILogger logger,
-        IAvalonCryptoSession? sealer, PacketEncoder encoder, Action close, TimeProvider time, long maxPendingBytes)
+        IAvalonCryptoSession? sealer, PacketEncoder encoder, Action close, TimeProvider time, long maxPendingBytes,
+        Action<int>? onPingWritten = null)
     {
         _scheduler = scheduler;
         OwnerThread = ownerThread;
@@ -80,6 +82,7 @@ public sealed class ConnectionSender : IOutbox
         _time = time;
         _onPendingWriteCompleted = OnPendingWriteCompleted;
         _maxPendingBytes = maxPendingBytes;
+        _onPingWritten = onPingWritten;
     }
 
     public Guid ConnectionId { get; }
@@ -294,6 +297,7 @@ public sealed class ConnectionSender : IOutbox
                 long serverTicks = _time.GetUtcNow().UtcTicks;
                 OutboundPacket stamped = SPingPacket.Create(serverTicks, Volatile.Read(ref _pingClientTicks),
                     Volatile.Read(ref _pingRoundTrip), Volatile.Read(ref _pingOffset), _encoder);
+                int size = stamped.Size; // read before the release gives the payload back
                 try
                 {
                     PacketEnvelope.Append(_burst, stamped, _sealer);
@@ -304,6 +308,7 @@ public sealed class ConnectionSender : IOutbox
                 }
 
                 Interlocked.Exchange(ref _lastPingServerTicks, serverTicks);
+                _onPingWritten?.Invoke(size);
                 packets++;
             }
         }

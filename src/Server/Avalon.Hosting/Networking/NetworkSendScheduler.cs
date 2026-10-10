@@ -86,10 +86,17 @@ public sealed class NetworkSendScheduler : IDisposable
     /// once, on a send thread or where a write completed (an I/O completion): it must neither block nor throw. A throw is
     /// logged at Critical and swallowed.
     /// </param>
-    public ConnectionSender CreateSender(Guid connectionId, ILogger logger, IAvalonCryptoSession? sealer, Action close)
+    /// <param name="onPingWritten">
+    /// Told the size of each time-sync ping the send thread writes (a ping is encoded there, so it never passes the
+    /// connection's own send counters); a dropped ping is not reported. Called on the send thread: it must neither
+    /// block nor throw.
+    /// </param>
+    public ConnectionSender CreateSender(Guid connectionId, ILogger logger, IAvalonCryptoSession? sealer, Action close,
+        Action<int>? onPingWritten = null)
     {
         int owner = (int)((ulong)Interlocked.Increment(ref _created) % (ulong)_threads.Length);
-        return new ConnectionSender(this, owner, connectionId, logger, sealer, _encoder, close, _time, _maxPendingBytes);
+        return new ConnectionSender(this, owner, connectionId, logger, sealer, _encoder, close, _time, _maxPendingBytes,
+            onPingWritten);
     }
 
     /// <summary>The tick's one wake-up per send thread, at its end (the <c>outbox</c> stage).</summary>
