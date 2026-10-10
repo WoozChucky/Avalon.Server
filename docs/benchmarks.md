@@ -1285,9 +1285,10 @@ instance pass, and leaves out:
   at a different point of the fight on every machine. So a scenario can name a fixed length (`IScenario.Length`;
   `forest-combat`: 600 warm-up ticks, then 3,600 measured ticks) and is then measured another way. First a
   **rehearsal**: the whole run on a world of its own, again on a new world each time, until the wall-clock warm-up has
-  passed and two rehearsals in a row allocated the same over their measured ticks (at most 12), with a 250 ms pause
+  passed and two rehearsals in a row allocated the same over their measured ticks, with a 250 ms pause
   after each for the JIT's background promotions to finish, so its tiering, first-use caches and pools settle on the
-  code the fight takes; see [Dynamic PGO](#dynamic-pgo). Then a **fresh world**, ticked for its warm-up ticks and
+  code the fight takes; see [Dynamic PGO](#dynamic-pgo). Rehearsals that have not settled 12 runs past the warm-up
+  end the run with an error naming the last two figures: an unsettled run is never measured. Then a **fresh world**, ticked for its warm-up ticks and
   then its measured ticks, every one counted: the gated `bytesPerWindow` is their **mean** per 60-tick window, so
   every kill, death and drop of the minute is in it (the least window would keep only the quietest second). Its timing is that of the same measured ticks (none with
   `--measure-ticks 0`). Its check (`Verify`) requires every player present and sent to, every fighter casting and
@@ -1345,8 +1346,9 @@ for CI's runner size):
 | Debug | 202,116 / 202,116 |
 | Linux container (4 CPUs, 16 GB), Release, PGO on: the gate and the two-run check, twice | 201,643, and 201,643 / 201,643 |
 
-The figure falls by 42.6% against the runner's 351,215 (44.4% against the 362,459 first committed), 150 KB per window
-of the tick thread's garbage. PGO on and off now read within 0.14%, and Debug 0.23% above Release, inside the 1% band.
+Like for like, the figure falls by 44% with PGO off (362,459 to 201,916) and by 37% or 43% with PGO on (322,415 in the
+test process, 351,215 in the runner, to 201,643): about 120 to 150 KB per window less of the tick thread's garbage.
+It is an allocation reduction; no change in tick time was measured (see the timing below). PGO on and off now read within 0.14%, and Debug 0.23% above Release, inside the 1% band.
 What PGO still keeps on the stack is spread thin, on paths the rehearsal settles. Before the pause after each
 rehearsal, a busy machine could still finish a promotion during the first measured run of a process (201,681 against
 201,643 once in three runs under load); with it, none did in five. Should a later change bring back an allocation of
@@ -1457,7 +1459,9 @@ developer machine or the homelab node in Release; the committed figures were CI'
 be committed. #854 passes the session's `Encryptor`, a delegate created once with the session, so how far the JIT has
 got no longer changes what a send allocates. The gate runs in a non-parallel xUnit collection, so no other test in the
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
-under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 23 s to the World
+under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that; a fixed-length scenario
+(`forest-combat`) has no minimum to lean on, and relies instead on its settled rehearsal, which waits out a busy machine
+before its one measured run. The gate adds about 23 s to the World
 suite (`forest-combat` about 8 s of it), and `ForestCombatScenarioShould`, the forest's two-run check, about 15 s more.
 
 ### The forest-combat scenario
@@ -1497,17 +1501,16 @@ counter), which changes neither.
 scenarios: see [The allocation gate](#the-allocation-gate) for the floor. Recorded on the developer machine, Release,
 dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)).
 
-Timing, from the runner (Release, i9-12900K, Windows 11, .NET 10.0.12, Server GC, PGO on; the 3,600 measured ticks), two
-runs each before and after #880's fix:
+Timing: #880's fix is an allocation reduction, with **no measurable change in tick time**. Compared with PGO on for
+both sides, the tick times before and after are the same within run-to-run noise. The runner, after the fix (Release,
+i9-12900K, Windows 11, .NET 10.0.12, Server GC, PGO on; the 3,600 measured ticks), two runs:
 
 | `forest-combat` | Tick ms mean | p95 | p99 | max | gen0 |
 |---|---:|---:|---:|---:|---:|
-| Before (351,215 B per window) | 0.147 / 0.152 | 0.209 / 0.238 | 0.284 / 0.355 | 0.825 / 0.546 | 0 / 0 |
 | After (201,643 B per window) | 0.135 / 0.142 | 0.182 / 0.196 | 0.229 / 0.257 | 0.438 / 0.430 | 0 / 0 |
 
-The town scenarios, in the same runs, did not move beyond run-to-run noise: `town-walk` 0.142 / 0.141 ms mean before,
-0.142 / 0.145 after (1,123,680-1,124,880 B per window throughout); `many-instances` 1.582 / 1.339 before, 1.321 / 1.221
-after (6,325,728-6,329,728 B); `town-idle` 0 B.
+The town scenarios did not move beyond run-to-run noise, in allocation (`town-walk` 1,123,440-1,124,880 B per window,
+`many-instances` 6,323,728-6,329,728 B, `town-idle` 0 B) or in tick time.
 
 Four forests of about 840 creatures and twelve fighters cost about as much per tick as `town-walk`'s 30 walkers: most
 creatures are far from any player, and an idle creature's AI looks for players once a second rather than every tick.

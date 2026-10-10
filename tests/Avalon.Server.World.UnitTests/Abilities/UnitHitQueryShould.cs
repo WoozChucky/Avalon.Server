@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Units;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
@@ -89,6 +90,21 @@ public class UnitHitQueryShould
         ICreature sooner = Creature(2, 0f, 3f);
 
         Assert.Equal([sooner, later], Query.OnSegment(Vector3.zero, new Vector3(0f, 0f, 10f)));
+    }
+
+    [Fact]
+    public void Keep_a_result_intact_while_a_second_query_runs_before_the_next_tick()
+    {
+        ICreature near = Creature(1, 0f, 1f);
+        ICreature far = Creature(2, 0f, 8f);
+        var query = new UnitHitQuery(_characters, _creatures);
+
+        IReadOnlyList<IUnit> circle = query.InCircle(Vector3.zero, 3f);
+        IReadOnlyList<IUnit> segment = query.OnSegment(Vector3.zero, new Vector3(0f, 0f, 10f));
+
+        Assert.NotSame(circle, segment);
+        Assert.Equal([near], circle);
+        Assert.Equal([near, far], segment);
     }
 
     [Fact]

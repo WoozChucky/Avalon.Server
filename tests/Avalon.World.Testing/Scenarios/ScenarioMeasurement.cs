@@ -20,7 +20,7 @@ public static class ScenarioMeasurement
 
     private const double TickBudgetMs = 1000d / 60d;
 
-    /// <summary>The most rehearsals a fixed-length scenario runs before it is measured, settled or not.</summary>
+    /// <summary>The most rehearsals a fixed-length scenario runs past its warm-up to settle; unsettled, it throws.</summary>
     private const int MostRehearsals = 12;
 
     /// <summary>The pause after each rehearsal, for the JIT's background promotions to finish.</summary>
@@ -107,8 +107,10 @@ public static class ScenarioMeasurement
 
     /// <summary>
     /// A fixed-length scenario's rehearsal: the whole run, each time on a world of its own, until
-    /// <paramref name="warmup" /> has passed and two rehearsals in a row allocated the same over their measured ticks,
-    /// or <see cref="MostRehearsals" /> were run. With dynamic PGO on, a path the fight takes only now and then (a kill's
+    /// <paramref name="warmup" /> has passed and two rehearsals in a row allocated the same over their measured ticks.
+    /// Throws <see cref="InvalidOperationException" /> when they have not settled after <see cref="MostRehearsals" />
+    /// (counted once the warm-up has passed): an unsettled run is never measured, since its figure would depend on the
+    /// machine. With dynamic PGO on, a path the fight takes only now and then (a kill's
     /// drop, an aura's tick) reaches the optimised tier late, and the boxes, enumerators and closures that tier keeps on
     /// the stack would otherwise still be paid in the measured run on one machine and not on another.
     /// </summary>
@@ -116,7 +118,8 @@ public static class ScenarioMeasurement
     {
         long start = Stopwatch.GetTimestamp();
         long previous = -1;
-        for (int rehearsal = 0; rehearsal < MostRehearsals; rehearsal++)
+        int afterWarmup = 0;
+        while (true)
         {
             long bytes = RehearseOnce(scenario, length);
 
@@ -125,8 +128,18 @@ public static class ScenarioMeasurement
             // pending when the measured run starts and land in the middle of it.
             Thread.Sleep(s_tieringPause);
 
-            if (bytes == previous && Stopwatch.GetElapsedTime(start) >= warmup)
+            bool warm = Stopwatch.GetElapsedTime(start) >= warmup;
+            if (bytes == previous && warm)
                 return;
+
+            if (warm && ++afterWarmup >= MostRehearsals)
+            {
+                throw new InvalidOperationException(
+                    $"{scenario.Name}: the rehearsals did not settle after {MostRehearsals} past the warm-up (the last two " +
+                    $"allocated {previous:N0} and {bytes:N0} B over their measured ticks), so the run is not measured. " +
+                    "Something on its path allocates differently from run to run: find it by diffing the per-tick bytes " +
+                    "of two runs (docs/benchmarks.md, \"Dynamic PGO\").");
+            }
 
             previous = bytes;
         }

@@ -8,7 +8,9 @@ namespace Avalon.Server.World.UnitTests.Performance;
 /// <summary>
 /// Scenarios measure the tick thread's allocations, so they run alone in this assembly: a test allocating on another
 /// thread does not count, but one competing for the CPU would stretch the wall-clock warm-up. Other test assemblies
-/// still run in parallel processes under a solution-wide <c>dotnet test</c>; the minimum of five windows absorbs that.
+/// still run in parallel processes under a solution-wide <c>dotnet test</c>; the minimum of five windows absorbs that. A
+/// fixed-length scenario (<c>forest-combat</c>) is measured in one run, not by a minimum of windows: it relies on its
+/// settled rehearsal instead, which runs until two rehearsals allocate the same before the measured run starts.
 /// </summary>
 [CollectionDefinition(nameof(ScenarioAllocations), DisableParallelization = true)]
 public sealed class ScenarioAllocations;

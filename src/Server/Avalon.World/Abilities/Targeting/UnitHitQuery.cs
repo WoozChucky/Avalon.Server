@@ -43,10 +43,15 @@ public sealed class UnitHitQuery(
         unit is ICharacter character ? !character.IsDead : unit.CurrentHealth > 0;
 
     /// <summary>
-    /// Every list handed out may be reused from now on. The instance calls it at the start of its tick, when no result
-    /// of the last one is still being read.
+    /// Every list handed out may be reused from now on: each is emptied, so none holds a unit past the tick it was asked
+    /// in. The instance calls it at the start of its tick, when no result of the last one is still being read.
     /// </summary>
-    public void Recycle() => _handedOut = 0;
+    public void Recycle()
+    {
+        for (int i = 0; i < _handedOut; i++)
+            _lists[i].Clear();
+        _handedOut = 0;
+    }
 
     private List<IUnit> Collect(Vector3 origin, in Shape shape)
     {
@@ -70,15 +75,13 @@ public sealed class UnitHitQuery(
         return hits;
     }
 
-    /// <summary>A list not handed out since the last <see cref="Recycle" />, emptied; a new one when every one is.</summary>
+    /// <summary>A list not handed out since the last <see cref="Recycle" /> (which emptied it); a new one when every one is.</summary>
     private List<IUnit> NextList()
     {
         if (_handedOut == _lists.Count)
             _lists.Add([]);
 
-        List<IUnit> list = _lists[_handedOut++];
-        list.Clear();
-        return list;
+        return _lists[_handedOut++];
     }
 
     private enum ShapeKind
