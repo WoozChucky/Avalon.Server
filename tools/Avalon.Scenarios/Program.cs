@@ -27,8 +27,11 @@ ScenarioReport[]? baseline = options.Baseline is null ? null : ReadBaseline(opti
 var reports = new List<ScenarioReport>(options.Scenarios.Count);
 foreach (IScenario scenario in options.Scenarios)
 {
-    Console.Error.WriteLine(string.Create(CultureInfo.InvariantCulture,
-        $"{scenario.Name}: {options.WarmupSeconds} s warm-up, {ScenarioMeasurement.Windows} windows of {ScenarioMeasurement.WindowTicks} ticks, {options.MeasureTicks} timed ticks"));
+    Console.Error.WriteLine(scenario.Length is { } length
+        ? string.Create(CultureInfo.InvariantCulture,
+            $"{scenario.Name}: a rehearsal of at least {options.WarmupSeconds} s, then {length.WarmupTicks} warm-up ticks and {length.MeasuredTicks} measured ticks{(options.MeasureTicks > 0 ? ", timed" : "")}")
+        : string.Create(CultureInfo.InvariantCulture,
+            $"{scenario.Name}: {options.WarmupSeconds} s warm-up, {ScenarioMeasurement.Windows} windows of {ScenarioMeasurement.WindowTicks} ticks, {options.MeasureTicks} timed ticks"));
     reports.Add(ScenarioMeasurement.Run(scenario, TimeSpan.FromSeconds(options.WarmupSeconds), options.MeasureTicks));
 }
 
@@ -205,11 +208,14 @@ static int Usage()
           dotnet run -c Release --project tools/Avalon.Scenarios -- [options]
               Runs the world server's scenarios in process and prints, per scenario, the tick-thread bytes of one
               {ScenarioMeasurement.WindowTicks}-tick window (the least of {ScenarioMeasurement.Windows}), tick times, ticks over the 60 Hz budget and garbage collections.
+              A fixed-length scenario (a fight) is rehearsed for at least the warm-up, then measured over its own ticks
+              on a fresh world: the mean window, and the timing of those same ticks.
 
         Options:
           --scenario <name>|all       the scenario to run, default all ({string.Join(", ", Scenarios.All.Select(s => s.Name))})
-          --warmup-seconds <s>        wall-clock warm-up before measuring, default {CommandLine.DefaultWarmupSeconds}
+          --warmup-seconds <s>        wall-clock warm-up before measuring (a fixed-length scenario's least rehearsal), default {CommandLine.DefaultWarmupSeconds}
           --measure-ticks <n>         ticks timed after the allocation windows, default {CommandLine.DefaultMeasureTicks}; 0 skips timing
+                                      (a fixed-length scenario times its own measured ticks, or none with 0)
           --json <file>               writes the reports, a JSON array
           --write-baseline <file>     the same, meant as a baseline for --baseline (perf/local/ is ignored by git)
           --baseline <file>           compares with an earlier --json or --write-baseline file: current, baseline, change

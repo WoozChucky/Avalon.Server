@@ -78,6 +78,27 @@ public static class ExperienceAward
         Requirement(data, character.Level) is not null
         && Requirement(data, (ushort)(character.Level + 1)) is not null;
 
-    private static CharacterLevelExperience? Requirement(StaticData data, ushort level) =>
-        data.CharacterLevelExperiences.FirstOrDefault(e => e.Level == level);
+    // A plain walk: a lambda on the level allocated its closure and delegate on every kill's award (#880).
+    private static CharacterLevelExperience? Requirement(StaticData data, ushort level)
+    {
+        IReadOnlyCollection<CharacterLevelExperience> rows = data.CharacterLevelExperiences;
+        if (rows is IReadOnlyList<CharacterLevelExperience> list)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i].Level == level)
+                    return list[i];
+            }
+
+            return null;
+        }
+
+        foreach (CharacterLevelExperience row in rows)
+        {
+            if (row.Level == level)
+                return row;
+        }
+
+        return null;
+    }
 }

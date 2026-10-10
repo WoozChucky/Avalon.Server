@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 namespace Avalon.Network.Packets.Abstractions;
 
 /// <summary>
@@ -8,20 +6,25 @@ namespace Avalon.Network.Packets.Abstractions;
 /// first when it is full), and a pool that
 /// dropped segments would make the tick allocate new ones. A payload above 1 MiB gets a segment of its own, never pooled.
 /// </summary>
+/// <remarks>
+/// Each size class is a stack under a lock, which allocates only at a new peak. A <c>ConcurrentQueue</c> did not: after
+/// a burst, it kept allocating new, larger internal segments with no new peak until its free segments sat in one; those
+/// allocations landed in later ticks. Rent and return both run on the tick today, so the lock is uncontended (about
+/// 16 ns more per packet than the queue); a lock-free stack would allocate a node per push.
+/// </remarks>
 public sealed class PayloadSegmentPool
 {
     private const int SmallestShift = 6;
     private const int LargestShift = 20;
 
-    private readonly ConcurrentQueue<PayloadSegment>[] _free =
-        new ConcurrentQueue<PayloadSegment>[LargestShift - SmallestShift + 1];
+    private readonly Stack<PayloadSegment>[] _free = new Stack<PayloadSegment>[LargestShift - SmallestShift + 1];
 
     private long _outstanding;
 
     public PayloadSegmentPool()
     {
         for (int i = 0; i < _free.Length; i++)
-            _free[i] = new ConcurrentQueue<PayloadSegment>();
+            _free[i] = new Stack<PayloadSegment>();
     }
 
     /// <summary>The process's pool, which <c>PacketEncoder.Shared</c> encodes into.</summary>
@@ -36,7 +39,11 @@ public sealed class PayloadSegmentPool
         int sizeClass = SizeClassOf(payload.Length);
         PayloadSegment? segment = null;
         if (sizeClass >= 0)
-            _free[sizeClass].TryDequeue(out segment);
+        {
+            Stack<PayloadSegment> free = _free[sizeClass];
+            lock (free)
+                free.TryPop(out segment);
+        }
 
         segment ??= new PayloadSegment(this, sizeClass,
             sizeClass >= 0 ? 1 << (sizeClass + SmallestShift) : payload.Length);
@@ -49,7 +56,11 @@ public sealed class PayloadSegmentPool
     {
         Interlocked.Decrement(ref _outstanding);
         if (segment.SizeClass >= 0)
-            _free[segment.SizeClass].Enqueue(segment);
+        {
+            Stack<PayloadSegment> free = _free[segment.SizeClass];
+            lock (free)
+                free.Push(segment);
+        }
     }
 
     private static int SizeClassOf(int length)

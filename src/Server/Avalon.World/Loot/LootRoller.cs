@@ -60,15 +60,20 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
             return;
         }
 
-        foreach (LootEntryView entry in table.Ungrouped)
+        // By index throughout the roll: a kill walks these lists, and a foreach through the interface boxes each
+        // enumerator (#880).
+        IReadOnlyList<LootEntryView> ungrouped = table.Ungrouped;
+        for (int i = 0; i < ungrouped.Count; i++)
         {
+            LootEntryView entry = ungrouped[i];
             if (random.NextDouble() * 100.0 < entry.Chance)
                 Resolve(table, entry, depth, catalog, items, drops);
         }
 
-        foreach (LootGroupView group in table.Groups)
+        IReadOnlyList<LootGroupView> groups = table.Groups;
+        for (int i = 0; i < groups.Count; i++)
         {
-            if (PickByWeight(group) is { } picked)
+            if (PickByWeight(groups[i]) is { } picked)
                 Resolve(table, picked, depth, catalog, items, drops);
         }
     }
@@ -76,9 +81,10 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
     /// <summary>Exactly one entry, weighted by Chance; null only when the weights add up to 0.</summary>
     private LootEntryView? PickByWeight(LootGroupView group)
     {
+        IReadOnlyList<LootEntryView> entries = group.Entries;
         double total = 0;
-        foreach (LootEntryView entry in group.Entries)
-            total += Math.Max(0f, entry.Chance);
+        for (int i = 0; i < entries.Count; i++)
+            total += Math.Max(0f, entries[i].Chance);
 
         if (total <= 0)
             return null;
@@ -87,8 +93,9 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
         double cumulative = 0;
         LootEntryView? last = null;
 
-        foreach (LootEntryView entry in group.Entries)
+        for (int i = 0; i < entries.Count; i++)
         {
+            LootEntryView entry = entries[i];
             if (entry.Chance <= 0f)
                 continue;
 
@@ -114,7 +121,7 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
         }
 
         ItemTemplateId itemId = entry.ItemTemplateId!;
-        ItemTemplate? item = items.FirstOrDefault(t => t.Id == itemId);
+        ItemTemplate? item = FindItem(items, itemId);
         if (item is null)
         {
             logger.LogWarning(
@@ -132,6 +139,29 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
             drops.Add(RolledDrop.Item(item.Id, take));
             count -= take;
         }
+    }
+
+    /// <summary>The first item template of that id: a plain walk, where a lambda on the id allocated its closure and delegate per drop (#880).</summary>
+    private static ItemTemplate? FindItem(IReadOnlyCollection<ItemTemplate> items, ItemTemplateId itemId)
+    {
+        if (items is IReadOnlyList<ItemTemplate> list)
+        {
+            for (int i = 0; i < list.Count; i++)
+            {
+                if (list[i].Id == itemId)
+                    return list[i];
+            }
+
+            return null;
+        }
+
+        foreach (ItemTemplate template in items)
+        {
+            if (template.Id == itemId)
+                return template;
+        }
+
+        return null;
     }
 
     private ulong? RollGold(CreatureTemplate template)

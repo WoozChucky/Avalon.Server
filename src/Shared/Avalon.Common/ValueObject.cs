@@ -14,7 +14,9 @@ public abstract class ValueObject<TValue> : IEquatable<ValueObject<TValue>>
     /// <exception cref="ArgumentNullException">Thrown when the value is null.</exception>
     protected ValueObject(TValue value)
     {
-        if (value == null)
+        // Tested only for a reference type: for a value type the comparison would box the value in unoptimised code,
+        // on every value object made, and a value type is never null.
+        if (!typeof(TValue).IsValueType && value is null)
         {
             throw new ArgumentNullException(nameof(value));
         }

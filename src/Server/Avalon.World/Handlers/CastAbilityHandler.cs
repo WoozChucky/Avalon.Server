@@ -77,13 +77,14 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
 
         AbilityMetadata meta = ability.Metadata;
 
-        if (meta.Flags.HasFlag(AbilityFlags.RequiresOutOfCombat) && caster.IsInCombat)
+        // Bit tests, not Enum.HasFlag, which boxes in unoptimised code on every cast (#880).
+        if ((meta.Flags & AbilityFlags.RequiresOutOfCombat) != 0 && caster.IsInCombat)
         {
             Refuse(connection, packet, CastRejectReason.RequiresOutOfCombat);
             return;
         }
 
-        if (meta.Flags.HasFlag(AbilityFlags.RequiresInCombat) && !caster.IsInCombat)
+        if ((meta.Flags & AbilityFlags.RequiresInCombat) != 0 && !caster.IsInCombat)
         {
             Refuse(connection, packet, CastRejectReason.RequiresInCombat);
             return;

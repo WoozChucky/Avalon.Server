@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -46,23 +47,41 @@ public class CreatureRangeDetectorScript : AiScript
 
         _searchTimer = 0.0f;
 
-        IEnumerable<ICharacter> characters = Context.Characters.Values;
-        foreach (ICharacter character in characters)
+        // An instance's own dictionary is walked with its struct enumerator: through the interface, every creature's
+        // search boxed one (#880). Any other dictionary (a test's) is walked as before.
+        if (Context.Characters is Dictionary<ObjectGuid, ICharacter> characters)
         {
-            // Don't aggro on dead characters — they're stuck in the respawn modal until they
-            // click the button or force-quit, and the combat handlers already drop their
-            // input/attack packets. Aggroing would just queue a kill on a corpse.
-            if (character.IsDead) continue;
-
-            Vector3 characterPosition = character.Position;
-            float distance = Vector3.Distance(Creature.Position, characterPosition);
-            if (distance <= _aggroRange)
+            foreach (ICharacter character in characters.Values)
             {
-                if (!Context.GetNavigatorForPosition(Creature.Position).HasVisibility(Creature.Position, characterPosition)) continue;
-                State = RangeDetectionState.Detected;
-                CharacterDetected?.Invoke(character);
-                break;
+                if (Detects(character))
+                    return;
             }
+
+            return;
         }
+
+        foreach (ICharacter character in Context.Characters.Values)
+        {
+            if (Detects(character))
+                return;
+        }
+    }
+
+    /// <summary>Whether <paramref name="character" /> is the one detected: then the state and the event are set.</summary>
+    private bool Detects(ICharacter character)
+    {
+        // Don't aggro on dead characters — they're stuck in the respawn modal until they
+        // click the button or force-quit, and the combat handlers already drop their
+        // input/attack packets. Aggroing would just queue a kill on a corpse.
+        if (character.IsDead) return false;
+
+        Vector3 characterPosition = character.Position;
+        float distance = Vector3.Distance(Creature.Position, characterPosition);
+        if (distance > _aggroRange) return false;
+
+        if (!Context.GetNavigatorForPosition(Creature.Position).HasVisibility(Creature.Position, characterPosition)) return false;
+        State = RangeDetectionState.Detected;
+        CharacterDetected?.Invoke(character);
+        return true;
     }
 }

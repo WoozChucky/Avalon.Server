@@ -8,7 +8,9 @@ namespace Avalon.Server.World.UnitTests.Performance;
 /// <summary>
 /// Scenarios measure the tick thread's allocations, so they run alone in this assembly: a test allocating on another
 /// thread does not count, but one competing for the CPU would stretch the wall-clock warm-up. Other test assemblies
-/// still run in parallel processes under a solution-wide <c>dotnet test</c>; the minimum of five windows absorbs that.
+/// still run in parallel processes under a solution-wide <c>dotnet test</c>; the minimum of five windows absorbs that. A
+/// fixed-length scenario (<c>forest-combat</c>) is measured in one run, not by a minimum of windows: it relies on its
+/// settled rehearsal instead, which runs until two rehearsals allocate the same before the measured run starts.
 /// </summary>
 [CollectionDefinition(nameof(ScenarioAllocations), DisableParallelization = true)]
 public sealed class ScenarioAllocations;
@@ -24,6 +26,13 @@ public sealed class ScenarioAllocations;
 /// Debug and Release diverge again (an allocation the optimised JIT keeps on the stack and unoptimised code does not),
 /// make the regression branch Release-only (<c>#if !DEBUG</c>) and report in Debug instead, as #856 did; see
 /// docs/benchmarks.md, "The allocation gate".
+/// <para>
+/// That is so for <c>forest-combat</c> (owner, #890): since #888 its figure is small (16 KB per window), the 256 B
+/// floor decides, and a Debug build reads 225 B per window above Release (the vendored navmesh code and other spots
+/// unoptimised there), and 80 B more or less in a whole-suite run. It alone is decided in Release, which CI runs, and
+/// reported in Debug, where its regressed line still names the figure; any other scenario, a later fixed-length one
+/// included, is decided in every build.
+/// </para>
 /// </remarks>
 [Collection(nameof(ScenarioAllocations))]
 public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
@@ -54,6 +63,14 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
         switch (verdict)
         {
             case AllocationBaseline.Verdict.Regressed:
+#if DEBUG
+                if (name == "forest-combat")
+                {
+                    output.WriteLine($"{name} reads above its committed figure in this Debug build; it is decided in " +
+                                     "Release (#890; docs/benchmarks.md, \"The allocation gate\").");
+                    break;
+                }
+#endif
                 Assert.Fail($"{name} allocates {report.BytesPerWindow:N0} B per {ScenarioMeasurement.WindowTicks}-tick window, " +
                             $"committed {entry.BytesPerWindow:N0} B (more than {AllocationBaseline.TolerancePercent}% and " +
                             $"{AllocationBaseline.SlackBytes} B over). " +
