@@ -153,7 +153,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// <summary>
     /// A fighter's trip, set before the bot enters (with <see cref="Behaviour"/> <see cref="BehaviourKind.Fighter"/>):
     /// every connection then keeps its <see cref="Bots.Fighter.Table"/> and hands it map transitions, cast refusals and
-    /// its character's death (<see cref="Bots.Fighter.OnKilled"/>). Null for every other behaviour, whose connections
+    /// the hits on its character (<see cref="Bots.Fighter.OnDamaged"/>). Null for every other behaviour, whose connections
     /// leave those packets unread.
     /// </summary>
     public Fighter? Fighter { get; set; }
@@ -552,10 +552,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             connection.State = fighter.Table;
             connection.MapTransition += (result, mapId) => fighter.OnTransition(result, mapId, Stopwatch.GetTimestamp());
             connection.CastRefused += fighter.OnCastRefused;
-            connection.CharacterDamaged += (target, health) =>
-            {
-                if (health == 0 && target == CharacterGuid) fighter.OnKilled();
-            };
+            connection.CharacterDamaged += (target, health) => fighter.OnDamaged(target, health, CharacterGuid);
         }
 
         int generation = Interlocked.Increment(ref _connectionGeneration);

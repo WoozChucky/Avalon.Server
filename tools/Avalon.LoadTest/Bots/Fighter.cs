@@ -81,7 +81,7 @@ public readonly record struct FighterStep(
 /// What it knows of the world: the acks (its own position and velocity), its <see cref="Table"/> of the objects in view
 /// (the creatures, and its own character's death), and the map transitions, cast refusals and its character's death its
 /// connection hands it on the read loop (<see cref="OnTransition"/>, <see cref="OnCastRefused"/>,
-/// <see cref="OnKilled"/>). It looks at the table every sixth step (10 Hz, the rate the world sends it), each fighter on
+/// <see cref="OnDamaged"/>). It looks at the table every sixth step (10 Hz, the rate the world sends it), each fighter on
 /// its own phase, so the steps of a driver with many fighters stay even; a death it was handed it takes on the next
 /// step, so it stops casting in the tick it died, and the table is the fallback for one it was not.
 /// </para>
@@ -100,7 +100,7 @@ public readonly record struct FighterStep(
 /// </para>
 /// <para>
 /// <see cref="Step"/>, <see cref="Reset"/> and the properties the driver reads run on the driver's thread only;
-/// <see cref="OnTransition"/>, <see cref="OnCastRefused"/> and <see cref="OnKilled"/> on the connection's read loop;
+/// <see cref="OnTransition"/>, <see cref="OnCastRefused"/> and <see cref="OnDamaged"/> on the connection's read loop;
 /// <see cref="TakeReconnect"/> on the bot's life loop. A step allocates nothing.
 /// </para>
 /// </remarks>
@@ -245,7 +245,7 @@ public sealed class Fighter
 
     private volatile FighterState _state = FighterState.Town;
 
-    /// <summary>Set by <see cref="OnKilled"/> on the read loop, taken by the next step.</summary>
+    /// <summary>Set by <see cref="OnDamaged"/> on the read loop, taken by the next step.</summary>
     private volatile bool _killed;
 
     private volatile TaskCompletionSource _reconnect = NewReconnect();
@@ -361,7 +361,8 @@ public sealed class Fighter
     /// <remarks>
     /// <para>
     /// A success not yet taken is never overwritten by a refusal: the move happened, and a refusal arriving right after it
-    /// (a repeated respawn answered <c>MoveInProgress</c>, say) answers an ask the move has made moot.
+    /// answers an ask the move has made moot (a back portal asked as the world moved the character to town itself is
+    /// answered <c>MapNotFound</c> from town, which has no portal to it).
     /// </para>
     /// <para>
     /// A <c>MoveInProgress</c> refusal is still remembered (<see cref="MoveRefused"/>), whichever lands first and however
@@ -410,10 +411,17 @@ public sealed class Fighter
     public void OnCastRefused(CastRejectReason reason) => _metrics.CastRefused(s_refusals[(byte)reason]);
 
     /// <summary>
-    /// The world told the character of a hit that left it at 0 health (<c>SMSG_CHARACTER_DAMAGED</c>, sent in the tick
-    /// of the hit), on the read loop: the next step enters <see cref="FighterState.Dead"/>, ahead of the table.
+    /// The world told a character of a hit (<c>SMSG_CHARACTER_DAMAGED</c>, sent in the tick of the hit), on the read loop:
+    /// one that left the fighter's own character (<paramref name="self"/>) at 0 health is its death, and the next step
+    /// enters <see cref="FighterState.Dead"/>, ahead of the table. Any other hit changes nothing.
     /// </summary>
-    public void OnKilled() => _killed = true;
+    /// <param name="target">The character hit.</param>
+    /// <param name="health">The health it has left.</param>
+    /// <param name="self">The guid of the bot's character.</param>
+    public void OnDamaged(ulong target, uint health, ulong self)
+    {
+        if (health == 0 && target == self && self != 0) _killed = true;
+    }
 
     /// <summary>
     /// The bot has a new connection: whatever the fighter was doing on the old one is over, and it starts again from

@@ -7,7 +7,8 @@ public class CheckTripsShould
 {
     /// <summary>
     /// Each row: how each member's trips end, in order (C completed, D died, F failed), whether each member may set out
-    /// again after its last one, and the verdict once every member is done.
+    /// again after its last one, and the verdict: decided once every member is done, or once one is done without a
+    /// completed trip.
     /// </summary>
     public static TheoryData<string[], bool[], CheckTripsVerdict> Rows => new()
     {
@@ -17,6 +18,7 @@ public class CheckTripsShould
         { ["DDD", "C"], [false, false], CheckTripsVerdict.DiedThrice },
         { ["DF", "C"], [false, false], CheckTripsVerdict.Failed },
         { ["DDD", "F"], [false, false], CheckTripsVerdict.Failed },
+        { ["F", "D"], [false, true], CheckTripsVerdict.Failed },
     };
 
     [Theory]

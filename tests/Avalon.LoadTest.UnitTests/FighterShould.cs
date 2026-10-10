@@ -105,6 +105,7 @@ public class FighterShould
         wizard.RunUntil(s => s.Action == FighterAction.EnterForest);
         wizard.Transition(Fighter.ForestMapId, _now);
         wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true)], _server.Encryptor));
+        wizard.Step();
         wizard.Hit(SCharacterDamagePacket.Create(_north, _self, currentHealth: 40, damage: 80, abilityId: null, _server.Encryptor));
         for (int i = 0; i < 12; i++) wizard.Step();
         Assert.Equal(FighterState.InForest, wizard.Fighter.State);
@@ -116,8 +117,8 @@ public class FighterShould
         Assert.Equal(FighterAction.Respawn, wizard.RunUntil(s => s.Action != FighterAction.None, () => steps++).Action);
         Assert.InRange(steps, 299, 301);
         wizard.Transition(Fighter.TownMapId, _now);
-        // The repeated ask, answered after the move it repeats: the move stands.
-        wizard.Fighter.OnTransition(MapTransitionResult.MoveInProgress, Fighter.TownMapId, _now);
+        // A refusal handed over after the move and before the step (an ask the move overtook) does not undo the move.
+        wizard.Fighter.OnTransition(MapTransitionResult.MapNotFound, Fighter.TownMapId, _now);
         wizard.Step();
         wizard.Step();
         Assert.Equal(FighterState.ToPortal, wizard.Fighter.State);
@@ -472,11 +473,11 @@ public class FighterShould
 
         public void Apply(NetworkPacket packet) => fighter.Table.Apply(packet, test._codec);
 
-        /// <summary>An <c>SMSG_CHARACTER_DAMAGED</c> as the bot's connection hands it over: a hit that left its character at 0 kills it.</summary>
+        /// <summary>An <c>SMSG_CHARACTER_DAMAGED</c> as the bot's connection hands it over: decoded, and every one passed on.</summary>
         public void Hit(NetworkPacket packet)
         {
             SCharacterDamagePacket hit = test._codec.Decode<SCharacterDamagePacket>(packet);
-            if (hit.Target == test._self && hit.CurrentHealth == 0) fighter.OnKilled();
+            fighter.OnDamaged(hit.Target, hit.CurrentHealth, test._self);
         }
 
         public float Distance(float x, float z) => MathF.Sqrt((X - x) * (X - x) + (Z - z) * (Z - z));

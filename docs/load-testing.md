@@ -390,7 +390,9 @@ login lands in town.
 respawn fails the trip (`forest:returned`), and the next one starts after 30 seconds: the world returns a party's
 members from the party's forest when the party falls apart ([parties](#parties)). A back portal asked while that move
 is under way is refused with `MoveInProgress`; the fighter then waits for the move instead of asking again, and counts
-only the `forest:returned`, also when the refusal and the move reach it within one step.
+only the `forest:returned`, also when the refusal and the move reach it within one step. A party's return that lands
+while the fighter's own back-portal ask is still on its way (one network trip) counts as a completed trip: the world
+sends the same town entry spawn for both moves, so the two cannot be told apart.
 
 **After a transition.** The acks of inputs sent before a map transition may still describe the old map. Until an ack
 answers an input sent since the transition, the fighter stands and reads neither its position nor a wall from them; a

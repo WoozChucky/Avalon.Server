@@ -42,7 +42,10 @@ public sealed class CheckTrips
         _done = new TripEnd?[members];
     }
 
-    /// <summary>Completes once every member is done.</summary>
+    /// <summary>
+    /// Completes once every member is done, or as soon as one is done without a completed trip (it failed, or died on
+    /// each of its trips): the verdict is then decided, and the check need not wait for the others.
+    /// </summary>
     public Task AllDone => _allDone.Task;
 
     /// <summary>
@@ -74,7 +77,7 @@ public sealed class CheckTrips
         if (end == TripEnd.Died && _trips[member] < MostTrips) return true;
 
         _done[member] = end;
-        if (++_doneCount == _done.Length) _allDone.TrySetResult();
+        if (++_doneCount == _done.Length || end != TripEnd.Completed) _allDone.TrySetResult();
         return false;
     }
 }

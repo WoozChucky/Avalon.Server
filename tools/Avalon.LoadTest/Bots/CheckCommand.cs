@@ -219,7 +219,8 @@ public static class CheckCommand
 
     /// <summary>
     /// Runs the input driver over the fighters until each one is done (<see cref="CheckTrips"/>: a trip completed or
-    /// failed, or it died on each of its trips), printing each death, then waits for the last acks. Returns the
+    /// failed, or it died on each of its trips), or until one is done without a completed trip, which decides the
+    /// verdict; it prints each death, then waits for the last acks. Returns the
     /// driver's lateness p95 and the trips' verdict. A connection the world closes, or a member not done within
     /// <see cref="CheckTrips.MostTrips"/> times <c>--forest-time</c>, the most its exit budget can be and
     /// <see cref="s_tripMargin"/>, fails the check.
