@@ -21,8 +21,11 @@ public enum CryptoRole
 }
 
 /// <remarks>
-/// One thread at a time seals, and one thread at a time opens; concurrent seals, or concurrent opens, are the caller's
-/// to prevent (#875). A seal and an open may run at once: each direction has its own cipher and its own state.
+/// Seals (<see cref="Encrypt" />, <see cref="Encryptor" />, <see cref="SealInto" />) must be totally ordered, each
+/// happening after the last (one thread, a lock, a queue hand-off or an await); the same applies to opens
+/// (<see cref="Decrypt" />). A seal that overlaps another is refused with an <see cref="InvalidOperationException" />
+/// before it takes a nonce. A seal and an open may run at once: each direction has its own cipher and its own state
+/// (#875).
 /// </remarks>
 public interface IAvalonCryptoSession
 {
@@ -84,14 +87,22 @@ public interface IAvalonCryptoSession
 /// since this assembly's netstandard2.1 target cannot.
 /// </para>
 /// <para>
-/// One thread at a time seals, and one thread at a time opens; concurrent seals, or concurrent opens, are the
-/// caller's to prevent (#875). On the world server the connection's send thread seals and its read loop opens; on the
-/// auth server its drain task seals and its read loop opens; a client serialises its own sends, and its own opens.
-/// Each direction has its own <see cref="AesGcm"/>, so the two need no lock between them, and the session takes none.
-/// A Debug build asserts that no two seals, and no two opens, overlap. Neither cipher is disposed: a send thread may
-/// still seal for a connection that has just closed, and a disposed cipher would turn that into an exception on it.
-/// Their native key handles are released, and the key material destroyed, by the handles' finalizers when the session
-/// is collected.
+/// Seals (Encrypt, Encryptor, SealInto) must be totally ordered, each happening after the last (one thread, a lock, a
+/// queue hand-off or an await); the same applies to opens (Decrypt) (#875). On the world server the connection's send
+/// thread seals and its read loop opens; on the auth server its drain task seals and its read loop opens; a client
+/// orders its own seals, and its own opens. Each direction has its own <see cref="AesGcm"/>, so the two need no lock
+/// between them, and the session takes none.
+/// </para>
+/// <para>
+/// A seal that overlaps another fails closed, in every build: it is refused with an
+/// <see cref="InvalidOperationException"/> before a nonce is copied or the counter moves, so an overlap can never seal
+/// two packets under one nonce. Opens are checked only in a Debug build, by an assert. That check is an interlocked
+/// operation, which orders opens of its own accord, so a Debug run that passes does not prove a caller orders its opens.
+/// </para>
+/// <para>
+/// Neither cipher is disposed: a send thread may still seal for a connection that has just closed, and a disposed
+/// cipher would turn that into an exception on it. Their native key handles are released, and the key material
+/// destroyed, by the handles' finalizers when the session is collected.
 /// </para>
 /// <para>
 /// A session goes through <see cref="Initialize"/> once, and only a session whose exchange
@@ -131,11 +142,13 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     private AesGcm? _opener;
     private readonly byte[] _sendNonce = new byte[SessionKeys.NonceSize];
 
-#if DEBUG
-    // Set while a seal, or an open, is under way: a second one that overlaps it is a caller breaking the one-sealer,
-    // one-opener contract, and trips an assert. An in-use flag rather than an owning thread's id, since a sequential
-    // caller (a drain task, a read loop) may resume on another pool thread after each await. Release builds have none.
+    // Set while a seal is under way. A seal that finds it set overlaps another, which would copy the same nonce: it is
+    // refused instead, in every build (#875). An in-use flag rather than an owning thread's id, since an ordered caller
+    // (a drain task, a read loop) may resume on another pool thread after each await.
     private int _sealing;
+
+#if DEBUG
+    // The same for opens, checked only in a Debug build: an overlapping open trips an assert.
     private int _opening;
 #endif
 
@@ -238,7 +251,8 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     public EncryptFunc Encryptor { get; }
 
     /// <exception cref="InvalidOperationException">
-    /// The session never completed its exchange, or its send counter is spent.
+    /// The session never completed its exchange, or its send counter is spent; or this seal overlapped another, and
+    /// was refused before it took a nonce (seals must be ordered).
     /// </exception>
     /// <exception cref="OverflowException">
     /// This call spent the send counter. Nothing is sealed, and the session is closed for good:
@@ -296,10 +310,13 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         Span<byte> ciphertext = destination.Slice(CiphertextOffset, plaintext.Length);
         Span<byte> tag = destination.Slice(CiphertextOffset + plaintext.Length, SessionKeys.TagSize);
 
-#if DEBUG
-        System.Diagnostics.Debug.Assert(Interlocked.Exchange(ref _sealing, 1) == 0,
-            "Two seals overlapped on one session: one thread at a time seals (#875)");
-#endif
+        // Taken before the nonce is copied: an overlapping seal is refused before it can reuse one, and the flag is
+        // cleared below only by the call that took it.
+        if (Interlocked.CompareExchange(ref _sealing, 1, 0) != 0)
+        {
+            throw new InvalidOperationException("Two seals overlapped on one session: seals must be ordered (#875)");
+        }
+
         try
         {
             // The counter is the nonce. It is sent anyway, so a peer never has to track ours. It
@@ -315,9 +332,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         }
         finally
         {
-#if DEBUG
             Volatile.Write(ref _sealing, 0);
-#endif
         }
 
         return sealedLength;
@@ -343,8 +358,8 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         int length = data.Length - SessionKeys.NonceSize - SessionKeys.TagSize;
 
 #if DEBUG
-        System.Diagnostics.Debug.Assert(Interlocked.Exchange(ref _opening, 1) == 0,
-            "Two opens overlapped on one session: one thread at a time opens (#875)");
+        bool owned = Interlocked.Exchange(ref _opening, 1) == 0;
+        System.Diagnostics.Debug.Assert(owned, "Two opens overlapped on one session: opens must be ordered (#875)");
 #endif
         try
         {
@@ -357,7 +372,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         finally
         {
 #if DEBUG
-            Volatile.Write(ref _opening, 0);
+            if (owned) Volatile.Write(ref _opening, 0);
 #endif
         }
 

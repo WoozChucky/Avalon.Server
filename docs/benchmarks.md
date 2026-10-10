@@ -1027,6 +1027,25 @@ agree within 1%:
   few thousand seals a second per send thread), the saving is tens of microseconds of CPU per second: small, and
   on every packet.
 
+**The seal guard (#875, same day).** The seal path then gained a guard that fails closed in every build: a
+compare-and-swap on an in-use flag before the nonce is copied, so an overlapping seal is refused rather than sealed
+under a nonce already used. Four more runs, alternating without and with it; the first pair's bare arms agree within
+2%:
+
+| Method | PayloadSize | No guard | Guard | Change |
+|---|---:|---:|---:|---:|
+| `Session_Encrypt` | 64 | 217.2 ns | 223.5 ns | +6.3 ns |
+| `SessionSealInto` | 64 | 212.3 ns | 212.6 ns | +0.3 ns |
+| `SessionSealInto` | 256 | 216.4 ns | 225.6 ns | +9.2 ns |
+| `SessionSealInto` | 1024 | 274.5 ns | 281.7 ns | +7.2 ns |
+| `Session_Decrypt` | 64 | 198.2 ns | 199.3 ns | +1.1 ns |
+| `AesGcm_Encrypt` (control) | 64 / 256 / 1024 | 265.9 / 282.9 / 387.6 ns | 262.6 / 283.0 / 387.1 ns | ≈0 |
+
+- **0–9 ns a seal**, an uncontended interlocked operation and its release; the open, which keeps only a Debug check,
+  is unchanged. Measured against the bare arm in the same run, the seal's lead over it shrank by 4–9 ns.
+- **Still under the lock it replaced**: 212.6 / 225.6 / 281.7 ns against 219.8 / 238.5 / 288.6 ns with the lock. The
+  second pair of runs drifted mid-run (its 64-byte session rows moved while its bare rows did not) and is not used.
+
 ## Packet encoder (#875) — Benchmark Results
 
 ### Results — first baseline (2026-10-10)

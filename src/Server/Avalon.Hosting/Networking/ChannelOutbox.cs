@@ -58,8 +58,12 @@ public sealed class ChannelOutbox : IOutbox
         }, packet => packet.Release());
     }
 
+    /// <exception cref="InvalidOperationException">The outbox is already connected: one drain task seals for it.</exception>
     public void Connect(PacketStream stream)
     {
+        if (_bgTask is not null)
+            throw new InvalidOperationException("The outbox is already connected");
+
         _stream = stream;
         // The drain task itself is kept, not the fault continuation: disposal waits on this
         // to know the queue has been written out.

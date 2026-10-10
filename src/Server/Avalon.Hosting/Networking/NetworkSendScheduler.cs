@@ -111,9 +111,19 @@ public sealed class NetworkSendScheduler : IDisposable
     /// or finished if it closed. Runs on that thread only; public so the tests and the scenario runner can drive a
     /// scheduler whose threads were never started.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// The threads were started and this is not thread <paramref name="thread" />: a second thread would service, and
+    /// seal for, the connections that thread owns.
+    /// </exception>
     public void RunPass(int thread)
     {
         SendThread owner = _threads[thread];
+        if (Volatile.Read(ref _started) == 1 && owner.Thread != Thread.CurrentThread)
+        {
+            throw new InvalidOperationException(
+                $"Send thread {thread}'s pass ran on another thread once the send threads had started");
+        }
+
         long started = Stopwatch.GetTimestamp();
         int serviced = 0;
         long maxPending = 0;

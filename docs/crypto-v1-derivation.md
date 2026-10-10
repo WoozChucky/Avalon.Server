@@ -139,15 +139,22 @@ clears what it had written). The key agreement and the derivation stay on Bouncy
 also what sealed the vectors in the file, so the vectors (those recorded before #850) hold the
 platform cipher to a second implementation.
 
-The session holds one `AesGcm` per direction and no lock (#875). One thread at a time seals, and one
-thread at a time opens; concurrent seals, or concurrent opens, are the caller's to prevent. On the
-world server the connection's send thread seals while its read loop opens; on the auth server the
-drain task seals while the read loop opens. A seal and an open may run at once, since each direction
-has its own cipher and its own state (the send counter is the sealer's alone). A client must likewise
-seal from one thread at a time, and open from one: the load-test tool serialises its seals and its
-opens with locks of its own, since a bot opens both on its read loop and where it awaited a reply. A
-Debug build asserts that no two seals, and no two opens, of one session overlap; a Release build
-checks nothing.
+The session holds one `AesGcm` per direction and no lock (#875). Seals (`Encrypt`, `Encryptor`,
+`SealInto`) must be totally ordered, each happening after the last (one thread, a lock, a queue
+hand-off or an await); the same applies to opens (`Decrypt`). On the world server the connection's
+send thread seals while its read loop opens; on the auth server the drain task seals while the read
+loop opens. A seal and an open may run at once, since each direction has its own cipher and its own
+state (the send counter is the sealer's alone). A client must likewise order its seals, and its
+opens: the load-test tool takes locks of its own for both, since a bot opens both on its read loop
+and where it awaited a reply.
+
+A seal that overlaps another fails closed, in every build: the session takes an in-use flag with a
+compare-and-swap before it copies the nonce, and refuses an overlapping seal with an
+`InvalidOperationException` before any nonce is copied or the counter moves, so an overlap can never
+seal two packets under one nonce. Both send paths already turn a seal that throws into discarding
+the burst and closing the connection. Opens are checked only in a Debug build, by an assert on the
+same kind of flag. That check is an interlocked operation, which orders opens of its own accord, so
+a Debug run that passes does not prove a caller orders its opens.
 
 The two instances live as long as the session, which lives as long as its connection, and are not
 disposed: a send thread may still seal for a connection that has just closed, and a disposed cipher

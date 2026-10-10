@@ -218,8 +218,12 @@ public sealed class WorldConnection : IAsyncDisposable
     /// <summary>Sends the client version and waits for the server to verify it; a refusal is a <see cref="WorldRefusedException"/>.</summary>
     public async Task HandshakeAsync(string version, CancellationToken ct)
     {
-        NetworkPacket reply = await RequestAsync(CWorldHandshakePacket.Create(version, _session.Encryptor),
-            NetworkPacketType.SMSG_WORLD_HANDSHAKE, ct);
+        // Under the seal lock like every other seal: the session refuses a seal that overlaps another (#875).
+        NetworkPacket request;
+        lock (_sealLock)
+            request = CWorldHandshakePacket.Create(version, _session.Encryptor);
+
+        NetworkPacket reply = await RequestAsync(request, NetworkPacketType.SMSG_WORLD_HANDSHAKE, ct);
         if (!Codec.Decode<SWorldHandshakePacket>(reply).Verified)
             throw new WorldRefusedException($"the server did not verify client version {version}");
     }
