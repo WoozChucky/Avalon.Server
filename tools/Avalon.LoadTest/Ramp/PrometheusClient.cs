@@ -19,7 +19,10 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="ReceiveBacklogMax">The deepest the receive queue got over the window.</param>
 /// <param name="WorkingSetFraction">The world process's working set as a fraction of its pod's memory limit.</param>
 /// <param name="WorkingSetMb">The world process's working set, in MiB.</param>
-/// <param name="Gen2PerMin">Gen 2 collections per minute over the window.</param>
+/// <param name="Gen2PerMin">
+/// Gen 2 collections per minute over the window, background ones included, for the report only: no limit reads it
+/// (<see cref="GcStall"/> is judged instead).
+/// </param>
 /// <param name="GcPauseFraction">The fraction of the window the GC paused the process.</param>
 /// <param name="SaveP95Ms">
 /// The 95th percentile of character save duration, in milliseconds; 0 when the window is known to have had no save,
@@ -42,6 +45,9 @@ public sealed record ServerValues(
     /// for the report only: no limit reads it. <see cref="Instances"/> is the total at the step's end.
     /// </summary>
     public InstancesByMap InstancesByMap { get; init; } = InstancesByMap.Unknown;
+
+    /// <summary>The most GC pause the world added between two of its samples in the window: the <c>gc-stall</c> limit's value.</summary>
+    public GcStall GcStall { get; init; } = GcStall.Unknown;
 }
 
 /// <summary>
@@ -109,6 +115,14 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             $"sum(increase(dotnet_gc_collections_total{{{world},gc_heap_generation=\"gen2\"}}{range})) * 60 / {w.ToString(CultureInfo.InvariantCulture)}",
             at, ct);
         Task<double?> gcPause = ValueAsync($"sum(rate(dotnet_gc_pause_time_seconds_total{{{world}}}{range}))", at, ct);
+        // The worst stall: the pause time's raw samples, each one's increase over the one before it. rate() and increase()
+        // extrapolate to the range's edges, so they are not used here. The range reaches one minute further back than
+        // the window, so the window's first sample has the one before it; only samples within the window are judged.
+        const string GcPauseTime = "dotnet_gc_pause_time_seconds_total";
+        Task<Answer> gcPauseSeries = AnswerAsync(
+            $"count({GcPauseTime}{{{world}}}) or (0 * count(world_tick_duration_microseconds_count{{{world}}}))", at, ct);
+        Task<IReadOnlyList<IReadOnlyList<CounterSample>>?> gcPauseSamples = SamplesAsync(
+            $"{GcPauseTime}{{{world}}}[{(w + 60).ToString(CultureInfo.InvariantCulture)}s]", at, ct);
         Task<double?> save = ValueAsync(
             $"histogram_quantile(0.95, sum by (le)(rate(world_character_save_duration_milliseconds_bucket{{{world}}}{range})))",
             at, ct);
@@ -147,7 +161,7 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
         await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saveIncrease,
             saveSamples, savesAtStart, newSaveSeries, instances, postUpdateSeries, stageMean, stageP99, instanceUpdateSeries,
-            instancesPerTick);
+            instancesPerTick, gcPauseSeries, gcPauseSamples);
 
         double? saveP95 = SaveP95(tick.Result, save.Result, saveIncrease.Result, saveSamples.Result, savesAtStart.Result,
             newSaveSeries.Result);
@@ -160,6 +174,8 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
                 stageMean.Result, stageP99.Result),
             InstancesByMap = InstancesByMap.From(instanceUpdateSeries.Result.Answered, instanceUpdateSeries.Result.Value,
                 instancesPerTick.Result),
+            GcStall = GcStall.From(gcPauseSeries.Result.Answered, gcPauseSeries.Result.Value, gcPauseSamples.Result,
+                PrometheusSeconds(at) - w),
         };
     }
 
@@ -482,6 +498,49 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
 
         return values;
     }
+
+    /// <summary>
+    /// The raw samples of a range-vector query, by series, oldest first (a sample whose value is not a number or NaN is
+    /// passed over); null when the query failed.
+    /// </summary>
+    private async Task<IReadOnlyList<IReadOnlyList<CounterSample>>?> SamplesAsync(string query, DateTimeOffset at,
+        CancellationToken ct)
+    {
+        JsonArray results;
+        try
+        {
+            results = await QueryAsync(query, at, ct);
+        }
+        catch (PrometheusException)
+        {
+            return null;
+        }
+
+        var series = new List<IReadOnlyList<CounterSample>>();
+        foreach (JsonNode? result in results)
+        {
+            if (result is not JsonObject { } matrix || matrix["values"] is not JsonArray values) continue;
+
+            var samples = new List<CounterSample>(values.Count);
+            foreach (JsonNode? value in values)
+            {
+                if (value is JsonArray { Count: 2 } pair &&
+                    double.TryParse(pair[0]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double time) &&
+                    double.TryParse(pair[1]?.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out double sample) &&
+                    !double.IsNaN(sample))
+                {
+                    samples.Add(new CounterSample(time, sample));
+                }
+            }
+
+            series.Add(samples);
+        }
+
+        return series;
+    }
+
+    /// <summary>A local instant as the Unix time, in seconds, a query at it is evaluated at on Prometheus's clock.</summary>
+    private double PrometheusSeconds(DateTimeOffset at) => (at - _clockOffset).ToUnixTimeMilliseconds() / 1000.0;
 
     /// <summary>
     /// The <c>data.result</c> vector of an instant query at <paramref name="at"/>, a local instant read on Prometheus's

@@ -797,7 +797,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             [LimitName.Drops] = server.Drops,
             [LimitName.Admission] = client.BotsTried == 0 ? 0 : (double)client.BotsFailing / client.BotsTried,
             [LimitName.Memory] = server.WorkingSetFraction,
-            [LimitName.Gen2] = server.Gen2PerMin,
+            [LimitName.GcStall] = server.GcStall.Ms,
             [LimitName.GcPause] = server.GcPauseFraction,
             [LimitName.SaveP95] = server.SaveP95Ms,
             [LimitName.GenCpu] = generatorCpu,
@@ -805,11 +805,23 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         };
     }
 
-    /// <summary>The limits a step could not be judged on: a missing or non-finite value (a missing drops value is no drops).</summary>
+    /// <summary>
+    /// The limits a step is not judged on because the world build does not export their series: the GC stall when the
+    /// world reports its ticks and no GC pause time.
+    /// </summary>
+    public static IReadOnlySet<LimitName> NotJudged(ServerValues server) =>
+        server.GcStall.Readout == GcStallReadout.NotExported ? new HashSet<LimitName> { LimitName.GcStall } : new HashSet<LimitName>();
+
+    /// <summary>
+    /// The limits a step could not be judged on: a missing or non-finite value (a missing drops value is no drops). A
+    /// limit the world does not export (<see cref="NotJudged"/>) is not unknown: it is not judged at all.
+    /// </summary>
     public static IReadOnlyList<Limit> Unknowns(StepRecord step, IReadOnlyList<Limit> limits)
     {
         IReadOnlyDictionary<LimitName, double?> values = Values(step.Server, step.Client, step.GeneratorCpu, step.GeneratorLagP95Ms);
-        return limits.Where(limit => values.TryGetValue(limit.Name, out double? value) && value is { } v
+        IReadOnlySet<LimitName> notJudged = NotJudged(step.Server);
+        return limits.Where(limit => !notJudged.Contains(limit.Name))
+            .Where(limit => values.TryGetValue(limit.Name, out double? value) && value is { } v
                 ? !double.IsFinite(v)
                 : limit.Name != LimitName.Drops)
             .ToList();
@@ -1023,7 +1035,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
 
         StepClientValues client = Merge(settle, judged);
         IReadOnlyDictionary<LimitName, double?> values = Values(server, client, cpu, lag);
-        Decision decision = decider.Decide(new StepSample(live.Length, values, cpu));
+        Decision decision = decider.Decide(new StepSample(live.Length, values, cpu) { NotJudged = NotJudged(server) });
         Dictionary<BehaviourKind, int> byBehaviour = Enum.GetValues<BehaviourKind>()
             .ToDictionary(kind => kind, kind => live.Count(bot => bot.Behaviour == kind));
         return new StepRecord(index, live.Length, byBehaviour, server, client, cpu, lag, decision)

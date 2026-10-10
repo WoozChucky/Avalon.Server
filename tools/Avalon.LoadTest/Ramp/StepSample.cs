@@ -9,4 +9,11 @@ namespace Avalon.LoadTest.Ramp;
 /// The bot PC's CPU use over the step, a fraction of its cores: the same value as <c>Values[GenCpu]</c>, kept apart
 /// because it feeds the drops flag (<see cref="Decision.DropsMayBeGenerator"/>) whatever the limits are.
 /// </param>
-public sealed record StepSample(int Bots, IReadOnlyDictionary<LimitName, double?> Values, double GeneratorCpu);
+public sealed record StepSample(int Bots, IReadOnlyDictionary<LimitName, double?> Values, double GeneratorCpu)
+{
+    /// <summary>
+    /// The limits whose series this world build does not export (<see cref="GcStallReadout.NotExported"/>): the step is
+    /// not judged on them, neither passed nor unknown, and the report says so.
+    /// </summary>
+    public IReadOnlySet<LimitName> NotJudged { get; init; } = new HashSet<LimitName>();
+}

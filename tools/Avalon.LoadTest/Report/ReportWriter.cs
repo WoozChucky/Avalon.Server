@@ -131,8 +131,8 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | GC stall | GC pause | Gen2 / min (not judged) | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
             ServerValues s = step.Server;
@@ -158,8 +158,9 @@ public static class ReportWriter
                 Number(s.Drops, "0"),
                 Number(s.ReceiveBacklogMax, "0"),
                 workingSet,
-                Number(s.Gen2PerMin, "0.##"),
+                s.GcStall.Readout == GcStallReadout.NotExported ? "not exported" : Ms(s.GcStall.Ms, "0.0"),
                 Percent(s.GcPauseFraction, "0.##"),
+                Number(s.Gen2PerMin, "0.##"),
                 Ms(s.SaveP95Ms, "0"),
                 Invariant($"{c.BotsFailing} / {c.BotsTried}"),
                 Invariant($"{c.EntryAttempts} / {failed}"),
@@ -199,6 +200,12 @@ public static class ReportWriter
         if (slowReaders.Length > 0)
         {
             md.AppendLine($"- Drops while the bot PC was above 60 % CPU, possibly the bots reading slowly rather than the server: steps {string.Join(", ", slowReaders.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
+        }
+
+        StepRecord[] noGcPause = [.. result.Steps.Where(step => step.Server.GcStall.Readout == GcStallReadout.NotExported)];
+        if (noGcPause.Length > 0)
+        {
+            md.AppendLine($"- GC pause time not exported by this world build: gc-stall was not judged on steps {string.Join(", ", noGcPause.Select(step => step.Index.ToString(CultureInfo.InvariantCulture)))}.");
         }
 
         int signInFailures = result.SignInFailures.Values.Sum();

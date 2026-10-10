@@ -98,7 +98,7 @@ public class RampDeciderShould
             [LimitName.Drops] = drops,
             [LimitName.Admission] = 0,
             [LimitName.Memory] = 0.3,
-            [LimitName.Gen2] = 0,
+            [LimitName.GcStall] = 5,
             [LimitName.GcPause] = 0.01,
             [LimitName.SaveP95] = 50,
             [LimitName.GenCpu] = genCpu,
