@@ -233,7 +233,7 @@ A missing or wrong password is 401 `Invalid current password`; a spent budget or
 - An MFA reset with the recovery codes does the same (see [MFA Flow](#security-notes)).
 - An admin's MFA removal and a ban already did (#475, #480). A ban or a deactivation also raises the session epoch,
   voiding every game context and session, and publishes on `world:accounts:status` instead (#882).
-- The publish is best-effort: the change is committed, so a Redis failure is logged and the call succeeds.
+- The publish is best-effort: the change is committed, so a Redis failure is logged and the call succeeds. When the status notice on `world:accounts:status` cannot be published, the bare id goes on `world:accounts:disconnect` instead, so connections still close (#882).
 
 The access JWT in use is not revoked by any of these; it lives out its `AccessTokenLifetimeMinutes`.
 

@@ -158,7 +158,7 @@ subscribers active at the time of publish.
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldAccountsDisconnectChannel` |
-| **Publisher** | Auth server — `GameLoginCompletion` (duplicate login path); the API's identity service on a credentials change or refresh-token reuse (`AccountService`, `AccountRefreshController`, `ClientAuthController`); `MFAService` on an MFA reset, on either server. A ban or a deactivation publishes on [`world:accounts:status`](#worldaccountsstatus) instead (#882) |
+| **Publisher** | Auth server — `GameLoginCompletion` (duplicate login path); the API's identity service on a credentials change or refresh-token reuse (`AccountService`, `AccountRefreshController`, `ClientAuthController`); `MFAService` on an MFA reset, on either server. A ban or a deactivation publishes on [`world:accounts:status`](#worldaccountsstatus) instead (#882), and falls back to the bare id here when that publish fails |
 | **Subscriber** | World server — `WorldServer.CacheSubscribeAsync`; Auth server — `AuthServer` |
 | **Message format** | Account ID as a decimal string |
 
