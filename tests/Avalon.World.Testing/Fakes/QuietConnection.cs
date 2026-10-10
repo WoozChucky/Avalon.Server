@@ -28,10 +28,11 @@ public sealed class QuietConnection(CharacterEntity character) : IWorldConnectio
     /// <summary>The payload bytes of everything sent, so a pin can allow for the packets themselves.</summary>
     public long SentPayloadBytes { get; private set; }
 
-    public void Send(NetworkPacket packet)
+    public void Send(OutboundPacket packet)
     {
         Sent++;
-        SentPayloadBytes += packet.Payload.Length;
+        SentPayloadBytes += packet.PayloadLength;
+        packet.Release();
     }
 
     public Guid Id => throw new NotSupportedException();

@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 using Xunit;
 
@@ -12,11 +13,9 @@ namespace Avalon.Shared.UnitTests.Packets;
 /// </summary>
 public class DamagePacketsShould
 {
-    private static byte[] Plain(ReadOnlySpan<byte> bytes) => bytes.ToArray();
-
-    private static T Read<T>(NetworkPacket packet)
+    private static T Read<T>(OutboundPacket packet)
     {
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<T>(stream);
     }
 
@@ -34,7 +33,7 @@ public class DamagePacketsShould
     public void Carry_the_hit_result_on_the_unit_damage_packet(HitResult result)
     {
         SUnitDamagePacket read = Read<SUnitDamagePacket>(
-            SUnitDamagePacket.Create(new ObjectGuid(ObjectType.Creature, 5), 9, 40, 12, Plain, result));
+            SUnitDamagePacket.Create(new ObjectGuid(ObjectType.Creature, 5), 9, 40, 12, PacketEncoder.Shared, result));
 
         Assert.Equal((40u, 12u, result), (read.CurrentHealth, read.Damage, read.Result));
     }
@@ -46,7 +45,7 @@ public class DamagePacketsShould
     public void Carry_the_hit_result_on_the_character_damage_packet(HitResult result)
     {
         SCharacterDamagePacket read = Read<SCharacterDamagePacket>(
-            SCharacterDamagePacket.Create(5, 9, 40, 12, 200, Plain, result));
+            SCharacterDamagePacket.Create(5, 9, 40, 12, 200, PacketEncoder.Shared, result));
 
         Assert.Equal((40u, 12u, (uint?)200u, result), (read.CurrentHealth, read.Damage, read.AbilityId, read.Result));
     }

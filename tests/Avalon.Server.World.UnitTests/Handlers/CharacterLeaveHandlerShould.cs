@@ -22,7 +22,7 @@ public class CharacterLeaveHandlerShould
 {
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly IWorldConnection _connection = Substitute.For<IWorldConnection, ICharacterLeaveControl>();
-    private readonly List<NetworkPacket> _sent = [];
+    private readonly List<OutboundPacket> _sent = [];
     private readonly List<(Task<bool> Task, Action<bool> Callback)> _continuations = [];
     private readonly CharacterLeaveHandler _handler;
 
@@ -33,7 +33,7 @@ public class CharacterLeaveHandlerShould
         // A substitute answers an interface-typed property with another substitute, never null.
         _connection.Character.Returns((ICharacter?)null);
         _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => _sent.Add(ci.Arg<NetworkPacket>()));
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => _sent.Add(ci.Arg<OutboundPacket>()));
         _connection.When(c => c.EnqueueContinuation(Arg.Any<Task<bool>>(), Arg.Any<Action<bool>>()))
             .Do(ci => _continuations.Add((ci.Arg<Task<bool>>(), ci.Arg<Action<bool>>())));
         Control.TryBeginLeave().Returns(true);

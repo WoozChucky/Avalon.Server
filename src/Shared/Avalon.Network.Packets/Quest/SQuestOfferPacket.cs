@@ -20,8 +20,13 @@ public class SQuestOfferPacket : Packet
     [ProtoMember(3)] public QuestOfferMode Mode { get; set; }
     [ProtoMember(4)] public QuestDisplayDto? Quest { get; set; }
 
-    public static NetworkPacket Create(uint questId, ulong npcGuid, QuestOfferMode mode, QuestDisplayDto quest, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SQuestOfferPacket { QuestId = questId, NpcGuid = npcGuid, Mode = mode, Quest = quest },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(uint questId, ulong npcGuid, QuestOfferMode mode, QuestDisplayDto quest, PacketEncoder encoder)
+    {
+        SQuestOfferPacket message = PacketEncoder.Scratch<SQuestOfferPacket>();
+        message.QuestId = questId;
+        message.NpcGuid = npcGuid;
+        message.Mode = mode;
+        message.Quest = quest;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

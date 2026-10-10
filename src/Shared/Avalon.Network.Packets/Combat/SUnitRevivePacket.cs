@@ -23,13 +23,12 @@ public class SUnitRevivePacket : Packet
 #pragma warning restore PBN0022
     [ProtoMember(3)] public uint Health { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid unit, Vector3 position, uint health, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SUnitRevivePacket
-            {
-                UnitGuid = unit.RawValue,
-                Position = Vector3Dto.From(position),
-                Health = health
-            },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(ObjectGuid unit, Vector3 position, uint health, PacketEncoder encoder)
+    {
+        SUnitRevivePacket message = PacketEncoder.Scratch<SUnitRevivePacket>();
+        message.UnitGuid = unit.RawValue;
+        message.Position = Vector3Dto.From(position);
+        message.Health = health;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

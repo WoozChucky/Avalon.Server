@@ -194,7 +194,7 @@ public class ReloadCommandShould
             Command.Execute(ctx, args);
         }
 
-        /// <summary>Every chat line sent; the crypto session is a pass-through (see CommandConnection).</summary>
+        /// <summary>Every chat line sent, as encoded (see CommandConnection).</summary>
         public List<string> CaptureSentMessages() => Connection.Messages();
     }
 }

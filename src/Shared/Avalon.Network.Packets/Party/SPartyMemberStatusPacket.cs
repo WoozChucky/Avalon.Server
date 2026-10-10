@@ -21,18 +21,17 @@ public class SPartyMemberStatusPacket : Packet
     [ProtoMember(6)] public PowerType PowerType { get; set; }
     [ProtoMember(7)] public bool IsDead { get; set; }
 
-    public static NetworkPacket Create(uint characterId, uint health, uint maxHealth, uint power, uint maxPower,
-        PowerType powerType, bool isDead, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SPartyMemberStatusPacket
-            {
-                CharacterId = characterId,
-                Health = health,
-                MaxHealth = maxHealth,
-                Power = power,
-                MaxPower = maxPower,
-                PowerType = powerType,
-                IsDead = isDead
-            },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(uint characterId, uint health, uint maxHealth, uint power, uint maxPower,
+        PowerType powerType, bool isDead, PacketEncoder encoder)
+    {
+        SPartyMemberStatusPacket message = PacketEncoder.Scratch<SPartyMemberStatusPacket>();
+        message.CharacterId = characterId;
+        message.Health = health;
+        message.MaxHealth = maxHealth;
+        message.Power = power;
+        message.MaxPower = maxPower;
+        message.PowerType = powerType;
+        message.IsDead = isDead;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

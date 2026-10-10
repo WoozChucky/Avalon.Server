@@ -15,11 +15,15 @@ public class SAuthResultPacket : Packet
     [ProtoMember(2)] public AuthResult Result { get; set; }
     [ProtoMember(3)] public string? MfaHash { get; set; }
 
-    public static NetworkPacket Create(long? accountId, string? hash, AuthResult result,
-        EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SAuthResultPacket { AccountId = accountId ?? 0, Result = result, MfaHash = hash },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(long? accountId, string? hash, AuthResult result,
+        PacketEncoder encoder)
+    {
+        SAuthResultPacket message = PacketEncoder.Scratch<SAuthResultPacket>();
+        message.AccountId = accountId ?? 0;
+        message.Result = result;
+        message.MfaHash = hash;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 public enum AuthResult : ushort

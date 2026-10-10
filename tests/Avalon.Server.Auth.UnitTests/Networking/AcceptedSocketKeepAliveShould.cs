@@ -45,7 +45,7 @@ public class AcceptedSocketKeepAliveShould
         public ICryptoManager ServerCrypto => null!;
         public void Close(bool expected = true) { }
         public Task CloseAsync(bool expected = true) => Task.CompletedTask;
-        public void Send(NetworkPacket packet) { }
+        public void Send(OutboundPacket packet) { }
         // Handed over only once ServerBase has started it, after it has gone back to accepting, so
         // the test's StopAsync never lands between the accept and that re-arm.
         public new Task StartAsync(CancellationToken token = default)

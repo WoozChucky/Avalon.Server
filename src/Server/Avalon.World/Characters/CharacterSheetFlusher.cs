@@ -1,5 +1,6 @@
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 
@@ -27,6 +28,6 @@ public static class CharacterSheetFlusher
             return;
 
         character.SheetSent = sheet;
-        connection.Send(SCharacterStatsPacket.Create(sheet.ToPacket(), connection.CryptoSession.Encryptor));
+        connection.Send(SCharacterStatsPacket.Create(sheet.ToPacket(), PacketEncoder.Shared));
     }
 }

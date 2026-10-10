@@ -58,8 +58,11 @@ public class SVendorResultPacket : Packet
 
     [ProtoMember(2)] public VendorResult Result { get; set; }
 
-    public static NetworkPacket Create(uint requestId, VendorResult result, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SVendorResultPacket { RequestId = requestId, Result = result },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(uint requestId, VendorResult result, PacketEncoder encoder)
+    {
+        SVendorResultPacket message = PacketEncoder.Scratch<SVendorResultPacket>();
+        message.RequestId = requestId;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -32,7 +33,7 @@ public static class InventoryUpdateFlusher
         if (slots.Length == 0 && money is null)
             return;
 
-        connection.Send(SInventoryUpdatePacket.Create(slots, money, connection.CryptoSession.Encryptor));
+        connection.Send(SInventoryUpdatePacket.Create(slots, money, PacketEncoder.Shared));
     }
 
     /// <summary>

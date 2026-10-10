@@ -1,5 +1,5 @@
-using Avalon.Common.Cryptography;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using ProtoBuf;
 using Xunit;
@@ -13,17 +13,15 @@ public class PacketSerializationShould
     [Fact]
     public void Create_ProducesDeserializablePayload()
     {
-        EncryptFunc identity = span => span.ToArray();
-
-        NetworkPacket packet = SChatMessagePacket.Create(
+        OutboundPacket packet = SChatMessagePacket.Create(
             accountId: 42UL,
             characterId: 7UL,
             characterName: "Alice",
             message: "Hello",
             dateTime: s_testDate,
-            encryptFunc: identity);
+            encoder: PacketEncoder.Shared);
 
-        using var ms = new MemoryStream(packet.Payload);
+        using var ms = new MemoryStream(packet.PayloadMemory.ToArray());
         SChatMessagePacket result = Serializer.Deserialize<SChatMessagePacket>(ms);
 
         Assert.Equal(42UL, result.AccountId);
@@ -36,13 +34,11 @@ public class PacketSerializationShould
     [Fact]
     public void Create_MultipleCallsProduceIndependentResults()
     {
-        EncryptFunc identity = span => span.ToArray();
+        OutboundPacket packet1 = SChatMessagePacket.Create(1UL, 2UL, "Alice", "Hello", s_testDate, PacketEncoder.Shared);
+        OutboundPacket packet2 = SChatMessagePacket.Create(3UL, 4UL, "Bob", "World", s_testDate, PacketEncoder.Shared);
 
-        NetworkPacket packet1 = SChatMessagePacket.Create(1UL, 2UL, "Alice", "Hello", s_testDate, identity);
-        NetworkPacket packet2 = SChatMessagePacket.Create(3UL, 4UL, "Bob", "World", s_testDate, identity);
-
-        using var ms1 = new MemoryStream(packet1.Payload);
-        using var ms2 = new MemoryStream(packet2.Payload);
+        using var ms1 = new MemoryStream(packet1.PayloadMemory.ToArray());
+        using var ms2 = new MemoryStream(packet2.PayloadMemory.ToArray());
         SChatMessagePacket result1 = Serializer.Deserialize<SChatMessagePacket>(ms1);
         SChatMessagePacket result2 = Serializer.Deserialize<SChatMessagePacket>(ms2);
 

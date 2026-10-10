@@ -42,22 +42,26 @@ public class SUnitStartCastPacket : Packet
     [ProtoMember(6)] public ulong ItemTemplateId { get; set; }
 
     /// <summary>An item's cast bar: no ability, no footprint.</summary>
-    public static NetworkPacket CreateForItem(ObjectGuid caster, float castTime, ulong itemTemplateId, uint castId,
-        EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SUnitStartCastPacket { Caster = caster.RawValue, CastTime = castTime, CastId = castId, ItemTemplateId = itemTemplateId },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket CreateForItem(ObjectGuid caster, float castTime, ulong itemTemplateId, uint castId,
+        PacketEncoder encoder)
+    {
+        SUnitStartCastPacket message = PacketEncoder.Scratch<SUnitStartCastPacket>();
+        message.Caster = caster.RawValue;
+        message.CastTime = castTime;
+        message.CastId = castId;
+        message.ItemTemplateId = itemTemplateId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 
-    public static NetworkPacket Create(ObjectGuid caster, float castTime, uint abilityId, uint castId,
-        AbilityFootprintDto? footprint, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SUnitStartCastPacket
-            {
-                Caster = caster.RawValue,
-                CastTime = castTime,
-                AbilityId = abilityId,
-                CastId = castId,
-                Footprint = footprint,
-            },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(ObjectGuid caster, float castTime, uint abilityId, uint castId,
+        AbilityFootprintDto? footprint, PacketEncoder encoder)
+    {
+        SUnitStartCastPacket message = PacketEncoder.Scratch<SUnitStartCastPacket>();
+        message.Caster = caster.RawValue;
+        message.CastTime = castTime;
+        message.AbilityId = abilityId;
+        message.CastId = castId;
+        message.Footprint = footprint;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

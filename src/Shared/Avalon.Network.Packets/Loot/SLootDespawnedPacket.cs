@@ -15,8 +15,12 @@ public class SLootDespawnedPacket : Packet
 
     [ProtoMember(1)] public List<ulong> LootGuids { get; set; } = [];
 
-    public static NetworkPacket Create(IEnumerable<ObjectGuid> lootGuids, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SLootDespawnedPacket { LootGuids = lootGuids.Select(g => g.RawValue).ToList() },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(IEnumerable<ObjectGuid> lootGuids, PacketEncoder encoder)
+    {
+        // Enumerated before the scratch is taken: nothing a caller's sequence runs can reach the message (#875).
+        var ids = lootGuids.Select(g => g.RawValue).ToList();
+        SLootDespawnedPacket message = PacketEncoder.Scratch<SLootDespawnedPacket>();
+        message.LootGuids = ids;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

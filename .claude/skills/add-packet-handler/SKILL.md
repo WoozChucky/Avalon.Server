@@ -90,6 +90,7 @@ Template for a **server packet** (sent by server — needs a static `Create` fac
 ```csharp
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.<Group>;
@@ -104,21 +105,13 @@ public class <PacketName> : Packet
 
     [ProtoMember(1)] public <Type> <Field> { get; set; }
 
-    public static NetworkPacket Create(<params>, Func<byte[], byte[]> encryptFunc)
+    // Built in the thread's scratch message and encoded, plain, into a pooled segment before it returns; the
+    // connection's outbox seals it (Flags) as it frames it (#875). Assign collections, never add to one found there.
+    public static OutboundPacket Create(<params>, PacketEncoder encoder)
     {
-        using var ms = new MemoryStream();
-        Serializer.Serialize(ms, new <PacketName> { <Field> = <param> });
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = encryptFunc(ms.ToArray())
-        };
+        <PacketName> message = PacketEncoder.Scratch<<PacketName>>();
+        message.<Field> = <param>;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }
 ```
@@ -151,7 +144,7 @@ public class <HandlerName> : IAuthPacketHandler<<PacketName>>
     public async Task ExecuteAsync(AuthPacketContext<<PacketName>> ctx, CancellationToken token = default)
     {
         // implementation
-        // Send response: ctx.Connection.Send(S<ResponsePacket>.Create(..., ctx.Connection.CryptoSession.Encryptor));
+        // Send response: ctx.Connection.Send(S<ResponsePacket>.Create(..., PacketEncoder.Shared));
     }
 }
 ```
@@ -248,7 +241,7 @@ public override void Execute(IWorldConnection connection, <PacketName> packet)
     {
         if (result == null) { connection.Close(); return; }
         // mutate game state safely here
-        connection.Send(S<ResponsePacket>.Create(result, connection.CryptoSession.Encryptor));
+        connection.Send(S<ResponsePacket>.Create(result, PacketEncoder.Shared));
     });
 }
 ```
@@ -278,9 +271,9 @@ public class <HandlerName>Should
 {
     private readonly I<Dep> _dep = Substitute.For<I<Dep>>();
     private readonly I<Auth|World>Connection _connection = Substitute.For<I<Auth|World>Connection>();
-    // A hand-written fake, not a substitute: NSubstitute cannot stub the span-based Encrypt, and handlers seal
-    // through the session's cached Encryptor (#854). World handlers: Avalon.World.Testing.Fakes; auth handlers:
-    // the Auth tests' own FakeAvalonCryptoSession.
+    // A hand-written fake, not a substitute: NSubstitute cannot stub the session's span-based methods. A handler
+    // never seals (the outbox does, as it frames the packet, #875), so a test reads the sent packet's plain payload.
+    // World handlers: Avalon.World.Testing.Fakes; auth handlers: the Auth tests' own FakeAvalonCryptoSession.
     private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly <HandlerName> _handler;
 

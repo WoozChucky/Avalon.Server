@@ -33,7 +33,7 @@ public class CHandshakeHandlerShould
         await _handler.ExecuteAsync(ctx);
 
         _connection.Received(1).Close();
-        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        _connection.DidNotReceive().Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -50,6 +50,6 @@ public class CHandshakeHandlerShould
         await _handler.ExecuteAsync(ctx);
 
         _connection.DidNotReceive().Close();
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 }

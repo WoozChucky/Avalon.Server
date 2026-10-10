@@ -36,7 +36,7 @@ public class SMapTransitionPacket : Packet
     [ProtoMember(7)] public string MapName { get; set; } = string.Empty;
     [ProtoMember(8)] public string MapDescription { get; set; } = string.Empty;
 
-    public static NetworkPacket Create(
+    public static OutboundPacket Create(
         MapTransitionResult result,
         Guid instanceId,
         ushort mapId,
@@ -45,12 +45,21 @@ public class SMapTransitionPacket : Packet
         float spawnZ,
         string mapName,
         string mapDescription,
-        EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SMapTransitionPacket { Result = result, InstanceId = instanceId, MapId = mapId, SpawnX = spawnX, SpawnY = spawnY, SpawnZ = spawnZ, MapName = mapName, MapDescription = mapDescription },
-            PacketType, Flags, Protocol, encrypt);
+        PacketEncoder encoder)
+    {
+        SMapTransitionPacket message = PacketEncoder.Scratch<SMapTransitionPacket>();
+        message.Result = result;
+        message.InstanceId = instanceId;
+        message.MapId = mapId;
+        message.SpawnX = spawnX;
+        message.SpawnY = spawnY;
+        message.SpawnZ = spawnZ;
+        message.MapName = mapName;
+        message.MapDescription = mapDescription;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 
     /// <summary>Creates a failure response with only the result code populated.</summary>
-    public static NetworkPacket CreateFailure(MapTransitionResult result, EncryptFunc encrypt) =>
-        Create(result, Guid.Empty, 0, 0f, 0f, 0f, string.Empty, string.Empty, encrypt);
+    public static OutboundPacket CreateFailure(MapTransitionResult result, PacketEncoder encoder) =>
+        Create(result, Guid.Empty, 0, 0f, 0f, 0f, string.Empty, string.Empty, encoder);
 }

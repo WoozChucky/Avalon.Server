@@ -7,6 +7,7 @@ using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
+using Avalon.World.Testing.Fakes;
 
 namespace Avalon.Benchmarking.CrowdBudget;
 
@@ -22,9 +23,13 @@ internal sealed class BenchConnection(CharacterEntity character) : IWorldConnect
 
     public (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
 
-    public IAvalonCryptoSession CryptoSession { get; } = new PassThroughCryptoSession();
+    public IAvalonCryptoSession CryptoSession { get; } = new FakeAvalonCryptoSession();
 
-    public void Send(NetworkPacket packet) => Sent++;
+    public void Send(OutboundPacket packet)
+    {
+        Sent++;
+        packet.Release();
+    }
 
     public Guid Id => throw new NotSupportedException();
     public Task? ExecuteTask => throw new NotSupportedException();

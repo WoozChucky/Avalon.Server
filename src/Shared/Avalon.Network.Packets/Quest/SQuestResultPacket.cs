@@ -15,7 +15,11 @@ public class SQuestResultPacket : Packet
     [ProtoMember(1)] public QuestResult Result { get; set; }
     [ProtoMember(2)] public uint QuestId { get; set; }
 
-    public static NetworkPacket Create(QuestResult result, uint questId, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(new SQuestResultPacket { Result = result, QuestId = questId },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(QuestResult result, uint questId, PacketEncoder encoder)
+    {
+        SQuestResultPacket message = PacketEncoder.Scratch<SQuestResultPacket>();
+        message.Result = result;
+        message.QuestId = questId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

@@ -19,6 +19,6 @@ public class SQuestUpdatePacket : Packet
     [ProtoMember(5)] public QuestDisplayDto? Display { get; set; }
     [ProtoMember(6)] public List<QuestProgressDto> Progress { get; set; } = [];
 
-    public static NetworkPacket Create(SQuestUpdatePacket update, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(update, PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(SQuestUpdatePacket update, PacketEncoder encoder)
+        => encoder.Encode(update, PacketType, Flags, Protocol);
 }

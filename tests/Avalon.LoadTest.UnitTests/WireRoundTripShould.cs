@@ -1,9 +1,11 @@
+using System.Buffers;
 using Avalon.Common.Cryptography;
 using Avalon.Hosting.Networking;
 using Avalon.LoadTest.Wire;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Serialization;
 using Org.BouncyCastle.Crypto;
 using ProtoBuf;
 using Xunit;
@@ -42,12 +44,11 @@ public class WireRoundTripShould
         }
         Assert.Equal(501u, expected);
 
-        // Server → client: the server's own Create helpers, read by the bot's reader and codec.
-        var back = new MemoryStream();
-        Serializer.SerializeWithLengthPrefix(back, SPlayerStateAckPacket.Create(7, 1, 2, 3, 0, 0, 90, server.Encryptor), PrefixStyle.Base128);
-        Serializer.SerializeWithLengthPrefix(back, SGameAdmissionPacket.Create(server.GetPublicKey()), PrefixStyle.Base128);
-        back.Position = 0;
-        var reader = new FrameReader(back);
+        // Server → client: the server's own factories and envelope, read by the bot's reader and codec.
+        var back = new ArrayBufferWriter<byte>();
+        PacketEnvelope.Append(back, SPlayerStateAckPacket.Create(7, 1, 2, 3, 0, 0, 90, PacketEncoder.Shared), server);
+        PacketEnvelope.Append(back, SGameAdmissionPacket.Create(server.GetPublicKey(), PacketEncoder.Shared), server);
+        var reader = new FrameReader(new MemoryStream(back.WrittenSpan.ToArray()));
         SPlayerStateAckPacket ack = codec.Decode<SPlayerStateAckPacket>((await reader.ReadAsync(default))!);
         Assert.Equal(7u, ack.Seq);
         SGameAdmissionPacket admission = codec.Decode<SGameAdmissionPacket>((await reader.ReadAsync(default))!);

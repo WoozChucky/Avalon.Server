@@ -46,14 +46,14 @@ public class CRequestServerInfoHandlerShould
     public async Task SendRejectionPacket_AndCloseConnection_WhenClientVersionIsTooOldOrInvalid(string clientVersion)
     {
         CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "1.0.0", serverVersion: "1.0.0");
-        NetworkPacket? sent = null;
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent = ci.Arg<NetworkPacket>());
+        OutboundPacket sent = default;
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent = ci.Arg<OutboundPacket>());
 
         await handler.ExecuteAsync(Ctx(clientVersion));
 
         _connection.Received(1).Close();
-        Assert.NotNull(sent);
-        SServerInfoPacket packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.Payload));
+        Assert.NotNull(sent.Payload);
+        SServerInfoPacket packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.PayloadMemory.ToArray()));
         Assert.Equal(ServerInfoResult.ClientVersionTooOld, packet.Result);
     }
 
@@ -64,7 +64,7 @@ public class CRequestServerInfoHandlerShould
         bool packetSentBeforeClose = false;
         bool packetSent = false;
 
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(_ => packetSent = true);
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(_ => packetSent = true);
         _connection.When(c => c.Close()).Do(_ => packetSentBeforeClose = packetSent);
 
         await handler.ExecuteAsync(Ctx("0.9.0"));
@@ -76,13 +76,13 @@ public class CRequestServerInfoHandlerShould
     public async Task IncludeServerVersion_InRejectionPacket()
     {
         CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "2.0.0", serverVersion: "3.1.4");
-        NetworkPacket? sent = null;
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent = ci.Arg<NetworkPacket>());
+        OutboundPacket sent = default;
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent = ci.Arg<OutboundPacket>());
 
         await handler.ExecuteAsync(Ctx("1.0.0"));
 
-        Assert.NotNull(sent);
-        SServerInfoPacket packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.Payload));
+        Assert.NotNull(sent.Payload);
+        SServerInfoPacket packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.PayloadMemory.ToArray()));
         Assert.Equal(SemVerPacker.Pack("3.1.4"), packet.ServerVersion);
         Assert.Equal(ServerInfoResult.ClientVersionTooOld, packet.Result);
     }
@@ -98,7 +98,7 @@ public class CRequestServerInfoHandlerShould
         await handler.ExecuteAsync(Ctx(clientVersion));
 
         _connection.DidNotReceive().Close();
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
         _serverCrypto.Received(1).GetPublicKey();
     }
 
@@ -106,13 +106,13 @@ public class CRequestServerInfoHandlerShould
     public async Task SendSemverPackedServerVersion_InServerInfoPacket()
     {
         CRequestServerInfoHandler handler = CreateHandler(minClientVersion: "1.2.3", serverVersion: "2.5.10");
-        NetworkPacket? sent = null;
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent = ci.Arg<NetworkPacket>());
+        OutboundPacket sent = default;
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent = ci.Arg<OutboundPacket>());
 
         await handler.ExecuteAsync(Ctx("1.2.3"));
 
-        Assert.NotNull(sent);
-        SServerInfoPacket packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.Payload));
+        Assert.NotNull(sent.Payload);
+        SServerInfoPacket packet = Serializer.Deserialize<SServerInfoPacket>(new MemoryStream(sent.PayloadMemory.ToArray()));
         // 2.5.10 = (2 << 24) | (5 << 16) | 10 = 0x02_05_000A = 33,882,122
         Assert.Equal((2u << 24) | (5u << 16) | 10u, packet.ServerVersion);
         Assert.Equal(ServerInfoResult.Success, packet.Result);

@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
@@ -46,7 +47,7 @@ public class EnterMapHandler(
         {
             logger.LogDebug("EnterMap: {Name} is already moving to a map; refused", character.Name);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MoveInProgress,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
@@ -61,7 +62,7 @@ public class EnterMapHandler(
         {
             logger.LogDebug("EnterMap: target map {MapId} not found", packet.TargetMapId);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
@@ -74,7 +75,7 @@ public class EnterMapHandler(
             logger.LogError("EnterMap: current instance has no Layout; refusing teleport for character {Name}",
                 character.Name);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
@@ -83,7 +84,7 @@ public class EnterMapHandler(
         {
             logger.LogDebug("EnterMap: no portal to {TargetMapId}", packet.TargetMapId);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
@@ -101,7 +102,7 @@ public class EnterMapHandler(
                 Vector3.Distance(character.Position, portalPosition), portalRadius,
                 character.InstanceId, packet.TargetMapId);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.NotNearPortal,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
@@ -109,14 +110,14 @@ public class EnterMapHandler(
         if (targetTemplate.MinLevel.HasValue && character.Level < targetTemplate.MinLevel.Value)
         {
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.LevelTooLow,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
         if (targetTemplate.MaxLevel.HasValue && character.Level > targetTemplate.MaxLevel.Value)
         {
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.LevelTooHigh,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
@@ -189,7 +190,7 @@ public class EnterMapHandler(
         logger.LogWarning("EnterMap: instance {InstanceId} of map {MapId} was released again before {Name} arrived",
             targetInstance.InstanceId, targetMapId, character.Name);
         connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-            connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
         return true;
     }
 
@@ -211,7 +212,7 @@ public class EnterMapHandler(
         if (parties?.PartyOf(character.Guid.Id)?.Id.Equals(partyId) != true)
         {
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
@@ -220,7 +221,7 @@ public class EnterMapHandler(
         if (targetInstance.PlayerCount >= capacity)
         {
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.InstanceFull,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
             return;
         }
 
@@ -282,7 +283,7 @@ public class EnterMapHandler(
             spawnX, spawnY, spawnZ,
             targetTemplate.Name,
             targetTemplate.Description,
-            connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
 
         // 12. Send chunk layout packet for any instance backed by a ChunkLayout
         // (town + normal both flow through ChunkLayoutInstanceFactory now).
@@ -311,7 +312,7 @@ public class EnterMapHandler(
                 dtos,
                 layout.EntrySpawnWorldPos,
                 portalDtos,
-                connection.CryptoSession.Encryptor));
+                PacketEncoder.Shared));
         }
 
         // 13. Persist updated map and position, with any dirty inventory and money, through the one

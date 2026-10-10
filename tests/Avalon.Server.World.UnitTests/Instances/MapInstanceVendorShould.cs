@@ -39,13 +39,13 @@ public class MapInstanceVendorShould
     private readonly FixedTimeProvider _clock = new(new DateTimeOffset(Now));
     private StaticData _data = null!;
 
-    private sealed record Client(IWorldConnection Connection, CharacterEntity Character, List<NetworkPacket> Sent)
+    private sealed record Client(IWorldConnection Connection, CharacterEntity Character, List<OutboundPacket> Sent)
     {
         public List<SVendorListPacket> Lists() => Sent
             .Where(p => p.Header.Type == NetworkPacketType.SMSG_VENDOR_LIST)
             .Select(p =>
             {
-                using var stream = new MemoryStream(p.Payload);
+                using var stream = new MemoryStream(p.PayloadMemory.ToArray());
                 return Serializer.Deserialize<SVendorListPacket>(stream);
             })
             .ToList();
@@ -83,11 +83,11 @@ public class MapInstanceVendorShould
         CharacterEntity character = Inventory.TestCharacters.New(id);
         character.Spells.Load(Array.Empty<IAbility>());   // the tick updates abilities; an unloaded list throws
 
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         if (shopOpen)
         {

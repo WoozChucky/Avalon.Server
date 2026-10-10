@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Vendor;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
@@ -72,7 +73,7 @@ public static class VendorListBuilder
         StaticData data, IQuestProgress quests)
     {
         SVendorListPacket list = Build(vendor, stock, character, data, quests);
-        connection.Send(SVendorListPacket.Create(list.VendorGuid, list.Entries, list.Buyback, connection.CryptoSession.Encryptor));
+        connection.Send(SVendorListPacket.Create(list.VendorGuid, list.Entries, list.Buyback, PacketEncoder.Shared));
         character.VendorListOwed = false;
         character.VendorListQuestVersion = character.Quests.HeldVersion;
     }

@@ -1,5 +1,4 @@
 using Avalon.Combat;
-using Avalon.Common.Cryptography;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
@@ -352,12 +351,12 @@ public class CharacterCreationShould : IDisposable
 
     private static SCharacterCreateResult SentResult(IWorldConnection connection)
     {
-        var sent = (NetworkPacket)connection.ReceivedCalls()
+        var sent = (OutboundPacket)connection.ReceivedCalls()
             .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
             .GetArguments()[0]!;
 
-        // EchoCryptoSession leaves the payload as serialized.
-        return Serializer.Deserialize<SCharacterCreatedPacket>(new MemoryStream(sent.Payload)).Result;
+        // FakeAvalonCryptoSession leaves the payload as serialized.
+        return Serializer.Deserialize<SCharacterCreatedPacket>(new MemoryStream(sent.PayloadMemory.ToArray())).Result;
     }
 
     private static MemoryStream Serialize<T>(T value)
@@ -428,7 +427,7 @@ public class CharacterCreationShould : IDisposable
         // A substitute hands back a substitute for an interface-typed property, and a non-null
         // Character reads to the handler as "one is already selected".
         connection.Character.Returns((Avalon.World.Public.Characters.ICharacter?)null!);
-        connection.CryptoSession.Returns(new EchoCryptoSession());
+        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         return connection;
     }
 
@@ -470,18 +469,5 @@ public class CharacterCreationShould : IDisposable
     {
         _characters.Dispose();
         _world.Dispose();
-    }
-
-    private sealed class EchoCryptoSession : IAvalonCryptoSession
-    {
-        public EchoCryptoSession() => Encryptor = Encrypt;
-
-        public void Initialize(byte[] otherEndPublicKeyBytes) { }
-        public byte[] GetPublicKey() => [];
-        public byte[] GetOtherEndPublicKey() => [];
-        public byte[] Encrypt(ReadOnlySpan<byte> data) => data.ToArray();
-        public EncryptFunc Encryptor { get; }
-        public int Decrypt(ReadOnlySpan<byte> data, byte[] output) => 0;
-        public byte[] GenerateHandshakeData() => [];
     }
 }

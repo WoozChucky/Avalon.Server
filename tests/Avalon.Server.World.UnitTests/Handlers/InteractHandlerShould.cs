@@ -96,21 +96,21 @@ public class InteractHandlerShould
         public ICreature Npc = null!;
         public ILocalizedTextCatalog Text = null!;
         public InteractHandler Handler = null!;
-        public List<NetworkPacket> SentPackets = null!;
+        public List<OutboundPacket> SentPackets = null!;
 
         public static Fixture WithTalkingNpc() => Build(hasDialogue: true);
         public static Fixture WithSilentNpc() => Build(hasDialogue: false);
 
         /// <summary>
-        /// Payload bytes are unencrypted: FakeAvalonCryptoSession.Encrypt is a pass-through, so what
+        /// Payload bytes are unencrypted: a packet is sealed only as the outbox frames it, so what
         /// SDialogueNodePacket.Create wrote is exactly what protobuf-net reads back here. Mirrors
         /// CharacterSelectHandlerShould.DeserializeInventorySnapshot.
         /// </summary>
         public SDialogueNodePacket CaptureSentNode()
         {
-            NetworkPacket packet = Assert.Single(
+            OutboundPacket packet = Assert.Single(
                 SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_DIALOGUE_NODE);
-            using var stream = new MemoryStream(packet.Payload);
+            using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
             return Serializer.Deserialize<SDialogueNodePacket>(stream);
         }
 
@@ -193,9 +193,9 @@ public class InteractHandlerShould
             fixture.Connection.Locale.Returns(AccountLocale.enUS);
             fixture.Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
-            var sentPackets = new List<NetworkPacket>();
-            fixture.Connection.When(c => c.Send(Arg.Any<NetworkPacket>()))
-                .Do(ci => sentPackets.Add(ci.Arg<NetworkPacket>()));
+            var sentPackets = new List<OutboundPacket>();
+            fixture.Connection.When(c => c.Send(Arg.Any<OutboundPacket>()))
+                .Do(ci => sentPackets.Add(ci.Arg<OutboundPacket>()));
             fixture.SentPackets = sentPackets;
 
             fixture.Handler = new InteractHandler(NullLogger<InteractHandler>.Instance, world);

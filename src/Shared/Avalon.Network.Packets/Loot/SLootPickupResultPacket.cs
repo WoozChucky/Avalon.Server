@@ -40,8 +40,11 @@ public class SLootPickupResultPacket : Packet
 
     [ProtoMember(2)] public LootPickupResult Result { get; set; }
 
-    public static NetworkPacket Create(ulong lootGuid, LootPickupResult result, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SLootPickupResultPacket { LootGuid = lootGuid, Result = result },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(ulong lootGuid, LootPickupResult result, PacketEncoder encoder)
+    {
+        SLootPickupResultPacket message = PacketEncoder.Scratch<SLootPickupResultPacket>();
+        message.LootGuid = lootGuid;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

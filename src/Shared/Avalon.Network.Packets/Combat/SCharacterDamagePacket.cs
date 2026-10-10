@@ -23,18 +23,17 @@ public class SCharacterDamagePacket : Packet
     /// <summary>The aura whose tick this was (auras); absent for every other hit.</summary>
     [ProtoMember(7)] public uint? AuraId { get; set; }
 
-    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? abilityId,
-        EncryptFunc encryptFunc, HitResult result = HitResult.None, uint? auraId = null)
-        => PacketSerializationHelper.Serialize(
-            new SCharacterDamagePacket
-            {
-                Attacker = attacker,
-                Target = target,
-                CurrentHealth = currentHealth,
-                Damage = damage,
-                AbilityId = abilityId,
-                Result = result,
-                AuraId = auraId,
-            },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? abilityId,
+        PacketEncoder encoder, HitResult result = HitResult.None, uint? auraId = null)
+    {
+        SCharacterDamagePacket message = PacketEncoder.Scratch<SCharacterDamagePacket>();
+        message.Attacker = attacker;
+        message.Target = target;
+        message.CurrentHealth = currentHealth;
+        message.Damage = damage;
+        message.AbilityId = abilityId;
+        message.Result = result;
+        message.AuraId = auraId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

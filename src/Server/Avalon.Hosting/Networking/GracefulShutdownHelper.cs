@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Hosting.Networking;
@@ -42,7 +43,7 @@ public static class GracefulShutdownHelper
     {
         try
         {
-            connection.Send(SDisconnectPacket.Create(reason, reasonCode));
+            connection.Send(SDisconnectPacket.Create(reason, reasonCode, PacketEncoder.Shared));
         }
         catch (Exception ex)
         {

@@ -49,18 +49,17 @@ public class SAbilityFiredPacket : Packet
     /// </summary>
     [ProtoMember(7)] public AbilityFootprintDto? Footprint { get; set; }
 
-    public static NetworkPacket Create(ulong caster, uint abilityId, uint castId, AbilityFootprintDto footprint,
-        EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SAbilityFiredPacket
-            {
-                CasterGuid = caster,
-                AbilityId = abilityId,
-                Origin = footprint.Origin ?? new Vector3Dto(),
-                Direction = footprint.Direction,
-                Centre = footprint.Centre,
-                CastId = castId,
-                Footprint = footprint,
-            },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(ulong caster, uint abilityId, uint castId, AbilityFootprintDto footprint,
+        PacketEncoder encoder)
+    {
+        SAbilityFiredPacket message = PacketEncoder.Scratch<SAbilityFiredPacket>();
+        message.CasterGuid = caster;
+        message.AbilityId = abilityId;
+        message.Origin = footprint.Origin ?? new Vector3Dto();
+        message.Direction = footprint.Direction;
+        message.Centre = footprint.Centre;
+        message.CastId = castId;
+        message.Footprint = footprint;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

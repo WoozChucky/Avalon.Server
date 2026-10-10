@@ -28,10 +28,13 @@ public class SInventorySnapshotPacket : Packet
     /// </summary>
     [ProtoMember(2)] public ulong Money { get; set; }
 
-    public static NetworkPacket Create(ItemSlotDto[] items, ulong money, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SInventorySnapshotPacket { Items = items, Money = money },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(ItemSlotDto[] items, ulong money, PacketEncoder encoder)
+    {
+        SInventorySnapshotPacket message = PacketEncoder.Scratch<SInventorySnapshotPacket>();
+        message.Items = items;
+        message.Money = money;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]

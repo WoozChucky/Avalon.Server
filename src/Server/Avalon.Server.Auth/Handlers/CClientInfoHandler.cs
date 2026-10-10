@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Handshake;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Server.Auth.Handlers;
 
@@ -32,7 +33,7 @@ public class CClientInfoHandler : IAuthPacketHandler<CClientInfoPacket>
 
         byte[] data = ctx.Connection.GenerateHandshakeData();
 
-        NetworkPacket result = SHandshakePacket.Create(data, ctx.Connection.CryptoSession.Encryptor);
+        OutboundPacket result = SHandshakePacket.Create(data, PacketEncoder.Shared);
 
         ctx.Connection.Send(result);
 

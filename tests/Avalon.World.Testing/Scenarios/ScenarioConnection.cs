@@ -17,11 +17,11 @@ using Org.BouncyCastle.Crypto;
 namespace Avalon.World.Testing.Scenarios;
 
 /// <summary>
-/// A connection whose send path is production's minus the socket: packets are sealed by a real, initialised
-/// server-role <see cref="AvalonCryptoSession"/> when they are created, queued and framed by a real
-/// <see cref="TickDrivenOutbox"/>, and written through a real <see cref="PacketStream"/> to a stream that
-/// only counts bytes. An allocation measured through it therefore includes the cipher and the outbox.
-/// Everything a scenario does not drive throws.
+/// A connection whose send path is production's minus the socket: packets are encoded into pooled segments, queued
+/// by a real <see cref="TickDrivenOutbox"/>, and sealed by a real, initialised server-role
+/// <see cref="AvalonCryptoSession"/> as the outbox flushes and frames them, then written through a real
+/// <see cref="PacketStream"/> to a stream that only counts bytes. An allocation measured through it therefore includes
+/// the encoder, the cipher and the outbox. Everything a scenario does not drive throws.
 /// </summary>
 /// <remarks>
 /// <see cref="Send"/> mirrors <c>WorldConnection.Send</c> and the <c>Connection</c> base it calls, without the
@@ -53,7 +53,9 @@ public sealed class ScenarioConnection : IWorldConnection
     private readonly CountingStream _stream = new();
     private readonly Action<ScenarioConnection>? _onUpdateMap;
 
-    public ScenarioConnection(CharacterEntity character, Action<ScenarioConnection>? onUpdateMap = null)
+    /// <param name="sealPayloads">False frames every packet plain, as a connection with no sealer does.</param>
+    public ScenarioConnection(CharacterEntity character, Action<ScenarioConnection>? onUpdateMap = null,
+        bool sealPayloads = true)
     {
         Character = character;
         _onUpdateMap = onUpdateMap;
@@ -63,7 +65,8 @@ public sealed class ScenarioConnection : IWorldConnection
         session.Initialize(clientPublicKey);
         CryptoSession = session;
 
-        _outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 100, onFault: () => { });
+        _outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 100, onFault: () => { },
+            sealer: sealPayloads ? session : null);
         _outbox.Connect(new PacketStream(_stream));
     }
 
@@ -87,7 +90,7 @@ public sealed class ScenarioConnection : IWorldConnection
     public bool InGame => true;
     public bool InMap => true;
 
-    public void Send(NetworkPacket packet)
+    public void Send(OutboundPacket packet)
     {
         if (!_outbox.Enqueue(packet)) return;
         Sent++;

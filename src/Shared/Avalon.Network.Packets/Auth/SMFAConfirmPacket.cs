@@ -14,8 +14,11 @@ public class SMFAConfirmPacket : Packet
     [ProtoMember(1)] public string[] RecoveryCodes { get; set; } = [];
     [ProtoMember(2)] public MFAOperationResult Result { get; set; }
 
-    public static NetworkPacket Create(string[] recoveryCodes, MFAOperationResult result, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SMFAConfirmPacket { RecoveryCodes = recoveryCodes, Result = result },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(string[] recoveryCodes, MFAOperationResult result, PacketEncoder encoder)
+    {
+        SMFAConfirmPacket message = PacketEncoder.Scratch<SMFAConfirmPacket>();
+        message.RecoveryCodes = recoveryCodes;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

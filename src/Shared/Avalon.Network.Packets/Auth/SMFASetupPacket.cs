@@ -14,8 +14,11 @@ public class SMFASetupPacket : Packet
     [ProtoMember(1)] public string OtpUri { get; set; } = string.Empty;
     [ProtoMember(2)] public MFAOperationResult Result { get; set; }
 
-    public static NetworkPacket Create(string otpUri, MFAOperationResult result, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SMFASetupPacket { OtpUri = otpUri, Result = result },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(string otpUri, MFAOperationResult result, PacketEncoder encoder)
+    {
+        SMFASetupPacket message = PacketEncoder.Scratch<SMFASetupPacket>();
+        message.OtpUri = otpUri;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

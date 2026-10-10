@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Cryptography;
 using Avalon.LoadTest.Wire;
 using Avalon.LoadTest.World;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.State;
 using Org.BouncyCastle.Crypto;
 using Xunit;
@@ -25,12 +26,12 @@ public class WorldStateDecodeShould
         var table = new WorldStateTable();
 
         // An add carries everything (GameEntityFields.All): two live creatures and a character nearer than both.
-        table.Apply(SInstanceStateAddPacket.Create(
+        table.Apply(ServerFrames.Received(SInstanceStateAddPacket.Create(
         [
             Unit(nearCreature, 5, 0, 5, health: 50, dead: false),
             Unit(farCreature, 20, 0, 0, health: 80, dead: false),
             Unit(otherPlayer, 1, 0, 1, health: 120, dead: false),
-        ], server.Encryptor), codec);
+        ], PacketEncoder.Shared), server), codec);
 
         Assert.Equal(3, table.Count);
         Assert.True(table.TryNearestLiveCreature(0, 0, 60, out TrackedObject target));
@@ -38,11 +39,11 @@ public class WorldStateDecodeShould
 
         // An update carries only what changed, and an absent member keeps what the table knew: the far creature walks
         // up saying nothing of its health or death, the near one dies where it stands.
-        table.Apply(SInstanceStateUpdatePacket.Create(
+        table.Apply(ServerFrames.Received(SInstanceStateUpdatePacket.Create(
         [
             new ObjectState { Guid = farCreature, Position = new Vec3 { X = 3, Y = 1, Z = 4 } },
             new ObjectState { Guid = nearCreature, CurrentHealth = 0, IsDead = true },
-        ], server.Encryptor), codec);
+        ], PacketEncoder.Shared), server), codec);
 
         Assert.True(table.TryGet(nearCreature, out TrackedObject corpse));
         Assert.Equal(new TrackedObject(nearCreature, 2, 5, 0, 5, true, 0), corpse);
@@ -51,7 +52,8 @@ public class WorldStateDecodeShould
         Assert.False(table.TryNearestLiveCreature(0, 0, 4.9f, out _));
 
         // Gone from view: only the corpse and the character are left, and neither is a target.
-        table.Apply(SInstanceStateRemovePacket.Create([new ObjectGuid(farCreature)], server.Encryptor), codec);
+        table.Apply(ServerFrames.Received(SInstanceStateRemovePacket.Create([new ObjectGuid(farCreature)], PacketEncoder.Shared),
+            server), codec);
 
         Assert.Equal(2, table.Count);
         Assert.False(table.TryNearestLiveCreature(0, 0, 60, out _));

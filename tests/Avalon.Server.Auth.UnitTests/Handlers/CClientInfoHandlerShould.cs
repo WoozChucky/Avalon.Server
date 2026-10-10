@@ -40,7 +40,7 @@ public class CClientInfoHandlerShould
         await _handler.ExecuteAsync(ctx);
 
         Assert.Equal(0, _cryptoSession.InitializeCallCount);
-        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        _connection.DidNotReceive().Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -60,6 +60,6 @@ public class CClientInfoHandlerShould
         Assert.Equal(1, _cryptoSession.InitializeCallCount);
         Assert.Equal(validKey, _cryptoSession.LastInitializedKey);
         _connection.Received(1).GenerateHandshakeData();
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 }

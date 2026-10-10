@@ -24,10 +24,13 @@ public class SInventoryUpdatePacket : Packet
     /// <summary>The new balance in copper. Absent when the balance did not change this tick.</summary>
     [ProtoMember(2)] public ulong? Money { get; set; }
 
-    public static NetworkPacket Create(InventorySlotUpdateDto[] slots, ulong? money, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SInventoryUpdatePacket { Slots = slots, Money = money },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(InventorySlotUpdateDto[] slots, ulong? money, PacketEncoder encoder)
+    {
+        SInventoryUpdatePacket message = PacketEncoder.Scratch<SInventoryUpdatePacket>();
+        message.Slots = slots;
+        message.Money = money;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]

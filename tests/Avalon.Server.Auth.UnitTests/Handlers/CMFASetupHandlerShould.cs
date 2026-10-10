@@ -57,7 +57,7 @@ public class CMFASetupHandlerShould
 
         await CreateHandler().ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -76,6 +76,6 @@ public class CMFASetupHandlerShould
 
         await CreateHandler().ExecuteAsync(ctx);
 
-        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        _connection.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 }

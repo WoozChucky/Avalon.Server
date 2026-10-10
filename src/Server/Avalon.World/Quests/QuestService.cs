@@ -3,6 +3,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Quest;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
 using Avalon.World.Characters;
@@ -137,7 +138,7 @@ public sealed class QuestService(
         connection.Send(SQuestOfferPacket.Create(questId, npc.Guid.RawValue,
             turnIn ? QuestOfferMode.TurnIn : QuestOfferMode.Offer,
             QuestDisplay.Build(quest, text, text.ContextFor(character, connection.Locale), completionText: turnIn),
-            connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
         return true;
     }
 
@@ -934,7 +935,7 @@ public sealed class QuestService(
         {
             foreach ((uint questId, QuestClientChange change) in log.ClientChanges.OrderBy(c => c.Key))
             {
-                NetworkPacket? update = null;
+                OutboundPacket? update = null;
                 try
                 {
                     update = UpdatePacket(connection, character, questId, change);
@@ -945,7 +946,7 @@ public sealed class QuestService(
                 }
 
                 if (update is not null)
-                    connection.Send(update);
+                    connection.Send(update.Value);
             }
         }
 
@@ -953,13 +954,13 @@ public sealed class QuestService(
         {
             DateTime now = time.GetUtcNow().UtcDateTime;
             foreach (string line in log.PendingLines)
-                connection.Send(SChatMessagePacket.System(line, now, connection.CryptoSession.Encryptor));
+                connection.Send(SChatMessagePacket.System(line, now, PacketEncoder.Shared));
         }
 
         log.ClearClientChanges();
     }
 
-    private NetworkPacket LogPacket(IWorldConnection connection, CharacterEntity character)
+    private OutboundPacket LogPacket(IWorldConnection connection, CharacterEntity character)
     {
         QuestCatalog catalog = Catalog;
         ILocalizedTextCatalog text = world.Data.LocalizedTexts;
@@ -992,10 +993,10 @@ public sealed class QuestService(
             }
         }
 
-        return SQuestLogPacket.Create(entries, character.Quests.Completed.Order().ToList(), connection.CryptoSession.Encryptor);
+        return SQuestLogPacket.Create(entries, character.Quests.Completed.Order().ToList(), PacketEncoder.Shared);
     }
 
-    private NetworkPacket? UpdatePacket(IWorldConnection connection, CharacterEntity character, uint questId, QuestClientChange change)
+    private OutboundPacket? UpdatePacket(IWorldConnection connection, CharacterEntity character, uint questId, QuestClientChange change)
     {
         var update = new SQuestUpdatePacket { QuestId = questId };
         switch (change)
@@ -1023,7 +1024,7 @@ public sealed class QuestService(
                 break;
         }
 
-        return SQuestUpdatePacket.Create(update, connection.CryptoSession.Encryptor);
+        return SQuestUpdatePacket.Create(update, PacketEncoder.Shared);
     }
 
     /// <summary>Logged at Error at most once per quest per <see cref="ThrottledErrorLog.Interval" />, counting the throws left out.</summary>
@@ -1084,7 +1085,7 @@ public sealed class QuestService(
         log.MarkersSent = markers;
         connection.Send(SQuestMarkersPacket.Create(
             markers.Select(m => new QuestMarkerDto { CreatureGuid = m.Creature, Marker = (QuestMarker)m.Marker }).ToList(),
-            connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
     }
 
     /// <summary>A ready turn-in outranks an available quest; a quest refused only by a full log still shows as available.</summary>

@@ -1,5 +1,6 @@
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -111,6 +112,6 @@ public sealed class PvpToggle(IOptions<GameConfiguration> configuration, TimePro
     {
         PvpStatus status = StatusOf(character);
         character.PvpOffAtTold = character.PvpOffAt;
-        connection.Send(SPvpStatePacket.Create(status.Enabled, status.OffInMs, connection.CryptoSession.Encryptor));
+        connection.Send(SPvpStatePacket.Create(status.Enabled, status.OffInMs, PacketEncoder.Shared));
     }
 }

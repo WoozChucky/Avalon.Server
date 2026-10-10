@@ -14,8 +14,11 @@ public class SWorldHandshakePacket : Packet
     [ProtoMember(1)] public long? AccountId { get; set; }
     [ProtoMember(2)] public bool Verified { get; set; }
 
-    public static NetworkPacket Create(long accountId, bool verified, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SWorldHandshakePacket { AccountId = accountId, Verified = verified },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(long accountId, bool verified, PacketEncoder encoder)
+    {
+        SWorldHandshakePacket message = PacketEncoder.Scratch<SWorldHandshakePacket>();
+        message.AccountId = accountId;
+        message.Verified = verified;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

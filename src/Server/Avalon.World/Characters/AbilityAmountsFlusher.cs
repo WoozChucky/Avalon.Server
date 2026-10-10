@@ -1,5 +1,6 @@
 using Avalon.Combat;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Abilities;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -52,6 +53,6 @@ public static class AbilityAmountsFlusher
             i++;
         }
 
-        connection.Send(SCharacterAbilityAmountsPacket.Create(infos, connection.CryptoSession.Encryptor));
+        connection.Send(SCharacterAbilityAmountsPacket.Create(infos, PacketEncoder.Shared));
     }
 }

@@ -4,6 +4,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
 
@@ -69,11 +70,11 @@ public class CharacterListHandler(
                 Z = character.Z
             }).ToArray();
 
-        NetworkPacket result = SCharacterListPacket.Create(
+        OutboundPacket result = SCharacterListPacket.Create(
             characterInfo.Length,
             world.Configuration.MaxCharactersPerAccount,
             characterInfo,
-            connection.CryptoSession.Encryptor
+            PacketEncoder.Shared
         );
 
         connection.Send(result);

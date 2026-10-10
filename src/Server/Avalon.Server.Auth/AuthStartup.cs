@@ -1,6 +1,7 @@
 using Avalon.Database.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Login;
+using Avalon.Network.Packets.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -17,6 +18,9 @@ public static class AuthStartup
     public static async Task PrepareAsync(IHost host)
     {
         host.Services.GetRequiredService<IStartupValidator>().Validate();
+
+        // Every server packet's scratch reset is compiled here, before the port opens, as the world server does (#875).
+        PacketEncoder.PrepareServerPackets();
 
         await using AsyncServiceScope scope = host.Services.CreateAsyncScope();
         await using AuthDbContext db = await scope.ServiceProvider

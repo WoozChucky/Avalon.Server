@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Loot;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
@@ -40,7 +41,7 @@ public class LootPickupHandler(
             character, host?.Drops, lootGuid, world.Configuration.LootPickupRange,
             time.GetUtcNow().UtcDateTime, economy, logger, quests);
 
-        connection.Send(SLootPickupResultPacket.Create(packet.LootGuid, outcome.Result, connection.CryptoSession.Encryptor));
+        connection.Send(SLootPickupResultPacket.Create(packet.LootGuid, outcome.Result, PacketEncoder.Shared));
 
         if (outcome.Removed)
         {

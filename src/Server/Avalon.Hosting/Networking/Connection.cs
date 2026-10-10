@@ -26,7 +26,8 @@ public interface IConnection
     /// </summary>
     Task CloseAsync(bool expected = true);
 
-    void Send(NetworkPacket packet);
+    /// <summary>Takes the packet's payload reference: the connection writes and releases it, or releases it at once.</summary>
+    void Send(OutboundPacket packet);
     Task StartAsync(CancellationToken token = default);
 }
 
@@ -151,13 +152,30 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
         }
     }
 
-    public virtual void Send(NetworkPacket packet)
+    public virtual void Send(OutboundPacket packet)
     {
-        if (_outbox is null) return;
+        if (_outbox is null)
+        {
+            packet.Release();
+            return;
+        }
+
+        // Read before the outbox has it: once queued, another thread may write it and release it.
+        int size = SentSize(packet);
         if (!_outbox.Enqueue(packet)) return;
-        Interlocked.Add(ref BytesSentCount, packet.Size);
+        Interlocked.Add(ref BytesSentCount, size);
         Interlocked.Increment(ref PacketSentCount);
     }
+
+    /// <summary>
+    /// What a packet puts on the wire, as the byte counters count it (#875): its header and payload, and the seal's
+    /// nonce and tag when the outbox seals it, as both outboxes do with <see cref="CryptoSession" /> for a packet flagged
+    /// Encrypted. Read it before the packet is handed on.
+    /// </summary>
+    protected int SentSize(in OutboundPacket packet) =>
+        packet.Size + (CryptoSession is not null && (packet.Header.Flags & NetworkPacketFlags.Encrypted) != 0
+            ? PacketEnvelope.SealOverhead
+            : 0);
 
     protected void Init(TcpClient client)
     {
@@ -167,7 +185,10 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
     }
 
     protected virtual IOutbox OnCreateOutbox() =>
-        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity);
+        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity, CryptoSession,
+#pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
+            onFault: () => Close(false));
+#pragma warning restore MA0045
 
     protected abstract void OnHandshakeFinished();
 

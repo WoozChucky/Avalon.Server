@@ -34,24 +34,23 @@ public class SChatMessagePacket : Packet
     /// </summary>
     [ProtoMember(8)] public ushort CharacterClass { get; set; }
 
-    public static NetworkPacket Create(ulong accountId, ulong characterId, string characterName, string message,
-        DateTime dateTime, EncryptFunc encryptFunc, ChatChannel channel = ChatChannel.Say, string? targetName = null,
+    public static OutboundPacket Create(ulong accountId, ulong characterId, string characterName, string message,
+        DateTime dateTime, PacketEncoder encoder, ChatChannel channel = ChatChannel.Say, string? targetName = null,
         ushort characterClass = 0)
-        => PacketSerializationHelper.Serialize(
-            new SChatMessagePacket
-            {
-                AccountId = accountId,
-                CharacterId = characterId,
-                CharacterName = characterName,
-                Message = message,
-                DateTime = dateTime,
-                Channel = channel,
-                TargetName = targetName,
-                CharacterClass = characterClass
-            },
-            PacketType, Flags, Protocol, encryptFunc);
+    {
+        SChatMessagePacket packet = PacketEncoder.Scratch<SChatMessagePacket>();
+        packet.AccountId = accountId;
+        packet.CharacterId = characterId;
+        packet.CharacterName = characterName;
+        packet.Message = message;
+        packet.DateTime = dateTime;
+        packet.Channel = channel;
+        packet.TargetName = targetName;
+        packet.CharacterClass = characterClass;
+        return encoder.Encode(packet, PacketType, Flags, Protocol);
+    }
 
     /// <summary>A line from the server, on the system channel.</summary>
-    public static NetworkPacket System(string message, DateTime dateTime, EncryptFunc encryptFunc)
-        => Create(0UL, 0UL, "System", message, dateTime, encryptFunc, ChatChannel.System);
+    public static OutboundPacket System(string message, DateTime dateTime, PacketEncoder encoder)
+        => Create(0UL, 0UL, "System", message, dateTime, encoder, ChatChannel.System);
 }

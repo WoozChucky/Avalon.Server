@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Instances;
@@ -30,7 +31,7 @@ public static class MapArrival
         IChunkLibrary chunkLibrary)
     {
         connection.Send(SMapTransitionPacket.Create(MapTransitionResult.Success, instance.InstanceId, template.Id.Value,
-            at.x, at.y, at.z, template.Name, template.Description, connection.CryptoSession.Encryptor));
+            at.x, at.y, at.z, template.Name, template.Description, PacketEncoder.Shared));
 
         if (instance is not MapInstance { Layout: { } layout } built)
             return;
@@ -51,6 +52,6 @@ public static class MapArrival
             TargetMapId = p.TargetMapId,
         }).ToList();
         connection.Send(SChunkLayoutPacket.Create(layout.Seed, built.InstanceId, template.Id.Value, layout.CellSize, chunks,
-            layout.EntrySpawnWorldPos, portals, connection.CryptoSession.Encryptor));
+            layout.EntrySpawnWorldPos, portals, PacketEncoder.Shared));
     }
 }

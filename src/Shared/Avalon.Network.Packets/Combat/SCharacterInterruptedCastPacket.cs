@@ -27,13 +27,21 @@ public class SCharacterInterruptedCastPacket : Packet
     /// <summary>The item whose cast bar this ends (item use), with AbilityId 0; 0 for an ability's cast.</summary>
     [ProtoMember(4)] public ulong ItemTemplateId { get; set; }
 
-    public static NetworkPacket CreateForItem(ObjectGuid caster, ulong itemTemplateId, uint castId, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SCharacterInterruptedCastPacket { Caster = caster.RawValue, CastId = castId, ItemTemplateId = itemTemplateId },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket CreateForItem(ObjectGuid caster, ulong itemTemplateId, uint castId, PacketEncoder encoder)
+    {
+        SCharacterInterruptedCastPacket message = PacketEncoder.Scratch<SCharacterInterruptedCastPacket>();
+        message.Caster = caster.RawValue;
+        message.CastId = castId;
+        message.ItemTemplateId = itemTemplateId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 
-    public static NetworkPacket Create(ObjectGuid caster, AbilityId ability, uint castId, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SCharacterInterruptedCastPacket { Caster = caster.RawValue, AbilityId = ability.Value, CastId = castId },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(ObjectGuid caster, AbilityId ability, uint castId, PacketEncoder encoder)
+    {
+        SCharacterInterruptedCastPacket message = PacketEncoder.Scratch<SCharacterInterruptedCastPacket>();
+        message.Caster = caster.RawValue;
+        message.AbilityId = ability.Value;
+        message.CastId = castId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

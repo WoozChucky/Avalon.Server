@@ -2,6 +2,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging;
@@ -132,5 +133,5 @@ public class CharacterLeaveHandler(ILogger<CharacterLeaveHandler> logger, IWorld
     }
 
     private static void Answer(IWorldConnection connection, CharacterLeaveResult result) =>
-        connection.Send(SCharacterLeaveResultPacket.Create(result, connection.CryptoSession.Encryptor));
+        connection.Send(SCharacterLeaveResultPacket.Create(result, PacketEncoder.Shared));
 }

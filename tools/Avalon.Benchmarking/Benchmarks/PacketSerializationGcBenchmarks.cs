@@ -1,6 +1,6 @@
-using Avalon.Common.Cryptography;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using BenchmarkDotNet.Attributes;
 using ProtoBuf;
@@ -14,7 +14,9 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// The new path uses a <c>[ThreadStatic]</c> pooled <c>IBufferWriter&lt;byte&gt;</c> backed by
 /// <c>ArrayPool&lt;byte&gt;.Shared</c>, reducing allocations per call from 3 objects
 /// (MemoryStream + byte[] from ToArray + byte[] from encrypt) down to 1
-/// (byte[] output from encrypt, which is unavoidable since it becomes the packet payload).
+/// (byte[] output from encrypt). Since #875 a server packet is encoded into a pooled segment
+/// (<see cref="PacketEncoder" />) and sealed only as it is framed; each pooled call here releases its
+/// segment, as the send path does once the packet is written.
 /// </summary>
 [MemoryDiagnoser]
 public class PacketSerializationGcBenchmarks
@@ -23,8 +25,8 @@ public class PacketSerializationGcBenchmarks
     // (ToArray() already copied the bytes; no extra alloc needed from the encrypt step)
     private static readonly Func<byte[], byte[]> s_legacyEncrypt = static bytes => bytes;
 
-    // For the new path: simulate EncryptFunc — one copy from span (the unavoidable output alloc)
-    private static readonly EncryptFunc s_encrypt = static span => span.ToArray();
+    // For the new path: an encoder over a pool of its own, each segment released back to it.
+    private static readonly PacketEncoder s_encoder = new(new PayloadSegmentPool());
 
     private string _characterName = null!;
     private string _message = null!;
@@ -34,7 +36,7 @@ public class PacketSerializationGcBenchmarks
     {
         // Pre-warm the [ThreadStatic] PooledArrayBufferWriter so the one-time
         // thread-local allocation is excluded from measurement.
-        SCharacterCreatedPacket.Create(SCharacterCreateResult.Success, s_encrypt);
+        SCharacterCreatedPacket.Create(SCharacterCreateResult.Success, s_encoder).Release();
 
         // Pre-create strings so string allocation does not skew medium-packet measurements.
         _characterName = "Gandalf";
@@ -66,8 +68,8 @@ public class PacketSerializationGcBenchmarks
     }
 
     [Benchmark]
-    public NetworkPacket Pooled_SmallPacket()
-        => SCharacterCreatedPacket.Create(SCharacterCreateResult.Success, s_encrypt);
+    public int Pooled_SmallPacket()
+        => Written(SCharacterCreatedPacket.Create(SCharacterCreateResult.Success, s_encoder));
 
     // -----------------------------------------------------------------------
     // Scenario 2: Medium packet (SChatMessagePacket — two ulongs, two strings, DateTime)
@@ -101,6 +103,14 @@ public class PacketSerializationGcBenchmarks
     }
 
     [Benchmark]
-    public NetworkPacket Pooled_MediumPacket()
-        => SChatMessagePacket.Create(1001UL, 2002UL, _characterName, _message, DateTime.UtcNow, s_encrypt);
+    public int Pooled_MediumPacket()
+        => Written(SChatMessagePacket.Create(1001UL, 2002UL, _characterName, _message, DateTime.UtcNow, s_encoder));
+
+    /// <summary>The payload's length, read before the segment goes back to the pool, as the send path's write does.</summary>
+    private static int Written(OutboundPacket packet)
+    {
+        int length = packet.PayloadLength;
+        packet.Release();
+        return length;
+    }
 }

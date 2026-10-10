@@ -79,12 +79,12 @@ public class ChatMessageHandlerShould
     public void Answer_an_unknown_command_on_the_system_channel()
     {
         _commandDispatcher.Dispatch(Arg.Any<IWorldConnection>(), Arg.Any<CChatMessagePacket>()).Returns(false);
-        var sent = new List<NetworkPacket>();
-        _senderConnection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        var sent = new List<OutboundPacket>();
+        _senderConnection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         _handler.Execute(_senderConnection, MakePacket("/nope"));
 
-        using var stream = new MemoryStream(Assert.Single(sent).Payload);
+        using var stream = new MemoryStream(Assert.Single(sent).PayloadMemory.ToArray());
         SChatMessagePacket reply = Serializer.Deserialize<SChatMessagePacket>(stream);
         Assert.Equal((ChatChannel.System, "Unknown command.", (ushort)0), (reply.Channel, reply.Message, reply.CharacterClass));
     }
@@ -93,15 +93,15 @@ public class ChatMessageHandlerShould
     [Fact]
     public void Carry_the_senders_class_when_only_the_sender_hears_it()
     {
-        var sent = new List<NetworkPacket>();
-        _senderConnection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        var sent = new List<OutboundPacket>();
+        _senderConnection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
         CharacterEntity wizard = Inventory.TestCharacters.New(1);
         wizard.Data!.Class = CharacterClass.Wizard;
         _senderConnection.Character.Returns(wizard);
 
         _handler.Execute(_senderConnection, MakePacket("Hello"));
 
-        using var stream = new MemoryStream(Assert.Single(sent).Payload);
+        using var stream = new MemoryStream(Assert.Single(sent).PayloadMemory.ToArray());
         Assert.Equal((ushort)CharacterClass.Wizard, Serializer.Deserialize<SChatMessagePacket>(stream).CharacterClass);
     }
 }

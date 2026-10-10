@@ -40,14 +40,14 @@ public class AbilityAmountsFlusherShould
         return character;
     }
 
-    private static IWorldConnection Recording(CharacterEntity character, List<NetworkPacket> sent)
+    private static IWorldConnection Recording(CharacterEntity character, List<OutboundPacket> sent)
     {
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         TestTown.Record(connection, character, sent);
         return connection;
     }
 
-    private static List<SCharacterAbilityAmountsPacket> Updates(List<NetworkPacket> sent) =>
+    private static List<SCharacterAbilityAmountsPacket> Updates(List<OutboundPacket> sent) =>
         TestTown.Read<SCharacterAbilityAmountsPacket>(sent, NetworkPacketType.SMSG_CHARACTER_ABILITY_AMOUNTS);
 
     private static (AbilityAmountKind, uint, uint) Of(AbilityAmountInfo a) => (a.Kind, a.Min, a.Max);
@@ -56,7 +56,7 @@ public class AbilityAmountsFlusherShould
     public void Send_every_abilitys_amount_once_and_not_again_while_nothing_changes()
     {
         CharacterEntity character = Character();
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Recording(character, sent);
 
         AbilityAmountsFlusher.Flush(connection);
@@ -73,7 +73,7 @@ public class AbilityAmountsFlusherShould
     public void Send_the_new_amounts_after_a_stats_refresh_that_moves_them()
     {
         CharacterEntity character = Character();
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Recording(character, sent);
         AbilityAmountsFlusher.Flush(connection);
 
@@ -91,7 +91,7 @@ public class AbilityAmountsFlusherShould
     public void Send_nothing_after_a_stats_refresh_that_moves_no_amount()
     {
         CharacterEntity character = Character();
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Recording(character, sent);
         AbilityAmountsFlusher.Flush(connection);
 
@@ -104,10 +104,10 @@ public class AbilityAmountsFlusherShould
     [Fact]
     public void Send_nothing_to_a_connection_with_no_character()
     {
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns((Avalon.World.Public.Characters.ICharacter?)null);
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         AbilityAmountsFlusher.Flush(connection);
 

@@ -142,13 +142,13 @@ public sealed class WorldMaintenanceCoordinatorShould
 
         coordinator.Advance(s_start, [player]);
 
-        NetworkPacket[] packets = player.ReceivedCalls()
+        OutboundPacket[] packets = player.ReceivedCalls()
             .Where(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
-            .Select(call => call.GetArguments()[0]).OfType<NetworkPacket>().ToArray();
+            .Select(call => call.GetArguments()[0]).OfType<OutboundPacket>().ToArray();
         Assert.Equal(NetworkPacketType.SMSG_CHAT_MESSAGE, packets[0].Header.Type);
         Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, packets[1].Header.Type);
         Assert.Equal(DisconnectReason.Maintenance,
-            Serializer.Deserialize<SDisconnectPacket>(new MemoryStream(packets[1].Payload)).ReasonCode);
+            Serializer.Deserialize<SDisconnectPacket>(new MemoryStream(packets[1].PayloadMemory.ToArray())).ReasonCode);
         ((IMaintenanceBlockable)player).Received().BlockForMaintenance();
         Task drained = coordinator.WhenDrainedAsync(CancellationToken.None);
         Assert.False(drained.IsCompleted);
@@ -326,9 +326,9 @@ public sealed class WorldMaintenanceCoordinatorShould
 
     private static string[] Messages(IWorldConnection connection) => connection.ReceivedCalls()
         .Where(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
-        .Select(call => call.GetArguments()[0]).OfType<NetworkPacket>()
+        .Select(call => call.GetArguments()[0]).OfType<OutboundPacket>()
         .Where(packet => packet.Header.Type == NetworkPacketType.SMSG_CHAT_MESSAGE)
-        .Select(packet => Serializer.Deserialize<SChatMessagePacket>(new MemoryStream(packet.Payload)).Message)
+        .Select(packet => Serializer.Deserialize<SChatMessagePacket>(new MemoryStream(packet.PayloadMemory.ToArray())).Message)
         .ToArray();
 
     private sealed class FixedClock(DateTime now) : TimeProvider

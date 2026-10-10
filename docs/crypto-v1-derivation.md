@@ -127,13 +127,17 @@ under a nonce the key has already used.
 
 AES-256-GCM is the platform's `System.Security.Cryptography.AesGcm` (#850): one instance per
 direction, keyed once in `AvalonCryptoSession.Initialize` from the two derived keys and reused for
-every packet under the session's one lock (an instance is not thread-safe). Sealing allocates only
-the sealed packet and writes the nonce, ciphertext and tag straight into it; opening writes into the
-caller's buffer and allocates nothing. A packet shorter than a nonce and a tag, or one that does not
-authenticate, is refused as a `CryptographicException` (the platform throws the derived
-`AuthenticationTagMismatchException` and clears what it had written). The key agreement and the
-derivation stay on BouncyCastle, which is also what sealed the vectors in the file, so the vectors
-(those recorded before #850) hold the platform cipher to a second implementation.
+every packet under the session's one lock (an instance is not thread-safe). The server seals as it
+frames a packet (the world's outbox flush, the auth server's drain task) with `SealInto`, which
+writes the nonce, ciphertext and tag straight into the frame and allocates nothing (#875). The nonce
+is taken at seal time, so nonce order is the order the frames are written; no receiver checks that
+order. `Encrypt`, which the client-to-server packets' `Create` use, allocates only the sealed packet
+and writes into it the same way. Opening writes into the caller's buffer and allocates nothing. A
+packet shorter than a nonce and a tag, or one that does not authenticate, is refused as a
+`CryptographicException` (the platform throws the derived `AuthenticationTagMismatchException` and
+clears what it had written). The key agreement and the derivation stay on BouncyCastle, which is
+also what sealed the vectors in the file, so the vectors (those recorded before #850) hold the
+platform cipher to a second implementation.
 
 The two instances live as long as the session, which lives as long as its connection, and are not
 disposed: the tick thread may still seal for a connection that has just closed, and a disposed

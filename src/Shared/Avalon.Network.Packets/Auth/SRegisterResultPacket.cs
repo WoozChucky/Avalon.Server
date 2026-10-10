@@ -13,10 +13,12 @@ public class SRegisterResultPacket : Packet
 
     [ProtoMember(1)] public RegisterResult Result { get; set; }
 
-    public static NetworkPacket Create(RegisterResult result, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SRegisterResultPacket { Result = result },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(RegisterResult result, PacketEncoder encoder)
+    {
+        SRegisterResultPacket message = PacketEncoder.Scratch<SRegisterResultPacket>();
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 public enum RegisterResult : ushort

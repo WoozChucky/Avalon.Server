@@ -14,6 +14,10 @@ public class SQuestMarkersPacket : Packet
 
     [ProtoMember(1)] public List<QuestMarkerDto> Markers { get; set; } = [];
 
-    public static NetworkPacket Create(List<QuestMarkerDto> markers, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(new SQuestMarkersPacket { Markers = markers }, PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(List<QuestMarkerDto> markers, PacketEncoder encoder)
+    {
+        SQuestMarkersPacket message = PacketEncoder.Scratch<SQuestMarkersPacket>();
+        message.Markers = markers;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

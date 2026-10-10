@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Loot;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using ProtoBuf;
 using Xunit;
@@ -9,11 +10,9 @@ namespace Avalon.Shared.UnitTests.Packets;
 
 public class LootPacketsShould
 {
-    private static byte[] Plain(ReadOnlySpan<byte> bytes) => bytes.ToArray();
-
-    private static T Read<T>(NetworkPacket packet)
+    private static T Read<T>(OutboundPacket packet)
     {
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         return Serializer.Deserialize<T>(stream);
     }
 
@@ -31,7 +30,7 @@ public class LootPacketsShould
             new() { LootGuid = 0x0600000000000002, Position = new Vector3Dto(), Gold = 25, FreeForAllAt = freeForAllAt },
         };
 
-        NetworkPacket packet = SLootSpawnedPacket.Create(drops, Plain);
+        OutboundPacket packet = SLootSpawnedPacket.Create(drops, PacketEncoder.Shared);
         SLootSpawnedPacket read = Read<SLootSpawnedPacket>(packet);
 
         Assert.Equal(NetworkPacketType.SMSG_LOOT_SPAWNED, packet.Header.Type);
@@ -49,8 +48,8 @@ public class LootPacketsShould
     [Fact]
     public void Carry_Every_Despawned_Guid()
     {
-        NetworkPacket packet = SLootDespawnedPacket.Create(
-            [new ObjectGuid(ObjectType.Loot, 1), new ObjectGuid(ObjectType.Loot, 2)], Plain);
+        OutboundPacket packet = SLootDespawnedPacket.Create(
+            [new ObjectGuid(ObjectType.Loot, 1), new ObjectGuid(ObjectType.Loot, 2)], PacketEncoder.Shared);
 
         Assert.Equal(NetworkPacketType.SMSG_LOOT_DESPAWNED, packet.Header.Type);
         Assert.Equal(
@@ -68,7 +67,7 @@ public class LootPacketsShould
     [InlineData(LootPickupResult.MoneyCapReached)]
     public void Carry_Every_Pickup_Result(LootPickupResult result)
     {
-        NetworkPacket packet = SLootPickupResultPacket.Create(0x0600000000000009, result, Plain);
+        OutboundPacket packet = SLootPickupResultPacket.Create(0x0600000000000009, result, PacketEncoder.Shared);
         SLootPickupResultPacket read = Read<SLootPickupResultPacket>(packet);
 
         Assert.Equal(NetworkPacketType.SMSG_LOOT_PICKUP_RESULT, packet.Header.Type);

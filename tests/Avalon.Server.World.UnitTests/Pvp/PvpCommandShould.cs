@@ -19,7 +19,7 @@ namespace Avalon.Server.World.UnitTests.Pvp;
 /// <summary>/pvp and CMSG_PVP_TOGGLE are one path (#164): both call PvpToggle.Toggle and reply with SMSG_PVP_STATE.</summary>
 public class PvpCommandShould
 {
-    private readonly List<NetworkPacket> _sent = [];
+    private readonly List<OutboundPacket> _sent = [];
     private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
     private readonly PvpCommand _command;
     private readonly PvpToggleHandler _handler;
@@ -33,14 +33,14 @@ public class PvpCommandShould
 
         _connection.Character.Returns(TestCharacters.New(1));
         _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        _connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => _sent.Add(ci.Arg<NetworkPacket>()));
+        _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => _sent.Add(ci.Arg<OutboundPacket>()));
     }
 
     private List<SPvpStatePacket> Replies() => _sent
         .Where(p => p.Header.Type == NetworkPacketType.SMSG_PVP_STATE)
         .Select(p =>
         {
-            using var stream = new MemoryStream(p.Payload);
+            using var stream = new MemoryStream(p.PayloadMemory.ToArray());
             return Serializer.Deserialize<SPvpStatePacket>(stream);
         })
         .ToList();

@@ -18,7 +18,11 @@ public class SQuestLogPacket : Packet
     [ProtoMember(1)] public List<QuestLogEntryDto> Quests { get; set; } = [];
     [ProtoMember(2)] public List<uint> CompletedQuestIds { get; set; } = [];
 
-    public static NetworkPacket Create(List<QuestLogEntryDto> quests, List<uint> completed, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(new SQuestLogPacket { Quests = quests, CompletedQuestIds = completed },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(List<QuestLogEntryDto> quests, List<uint> completed, PacketEncoder encoder)
+    {
+        SQuestLogPacket message = PacketEncoder.Scratch<SQuestLogPacket>();
+        message.Quests = quests;
+        message.CompletedQuestIds = completed;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

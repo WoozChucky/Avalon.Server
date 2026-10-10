@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -90,6 +91,6 @@ public static class NpcInteraction
         if (connection.Character is CharacterEntity character)
             character.CloseNpcWindows();
 
-        connection.Send(SDialogueEndPacket.Create(npc.RawValue, connection.CryptoSession.Encryptor));
+        connection.Send(SDialogueEndPacket.Create(npc.RawValue, PacketEncoder.Shared));
     }
 }

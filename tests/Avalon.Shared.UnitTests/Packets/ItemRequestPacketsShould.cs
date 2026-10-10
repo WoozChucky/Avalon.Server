@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 using Xunit;
 
@@ -13,8 +14,6 @@ namespace Avalon.Shared.UnitTests.Packets;
 /// </summary>
 public class ItemRequestPacketsShould
 {
-    private static byte[] Plain(ReadOnlySpan<byte> bytes) => bytes.ToArray();
-
     private static string Hex<T>(T message)
     {
         using var stream = new MemoryStream();
@@ -105,7 +104,7 @@ public class ItemRequestPacketsShould
     [Fact]
     public void Carry_A_Refusal_And_The_Slots_It_Named()
     {
-        NetworkPacket packet = SItemResultPacket.Create(9, ItemRequestResult.TargetFull,
+        OutboundPacket packet = SItemResultPacket.Create(9, ItemRequestResult.TargetFull,
         [
             new InventorySlotUpdateDto
             {
@@ -113,10 +112,10 @@ public class ItemRequestPacketsShould
                 Item = new ItemSlotDto { Container = 1, Slot = 0, ItemTemplateId = 100, Count = 20 },
             },
             new InventorySlotUpdateDto { Container = 1, Slot = 4 },
-        ], Plain);
+        ], PacketEncoder.Shared);
 
         Assert.Equal(NetworkPacketType.SMSG_ITEM_RESULT, packet.Header.Type);
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         SItemResultPacket read = Serializer.Deserialize<SItemResultPacket>(stream);
 
         Assert.Equal(9u, read.RequestId);
@@ -129,9 +128,9 @@ public class ItemRequestPacketsShould
     [Fact]
     public void Read_An_Accepted_Result_As_Having_No_Slots()
     {
-        NetworkPacket packet = SItemResultPacket.Create(3, ItemRequestResult.Ok, [], Plain);
+        OutboundPacket packet = SItemResultPacket.Create(3, ItemRequestResult.Ok, [], PacketEncoder.Shared);
 
-        using var stream = new MemoryStream(packet.Payload);
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
         SItemResultPacket read = Serializer.Deserialize<SItemResultPacket>(stream);
 
         Assert.Equal(3u, read.RequestId);

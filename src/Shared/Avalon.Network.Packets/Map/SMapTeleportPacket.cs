@@ -16,8 +16,12 @@ public class SMapTeleportPacket : Packet
     [ProtoMember(2)] public float X { get; set; }
     [ProtoMember(3)] public float Y { get; set; }
 
-    public static NetworkPacket Create(MapInfo mapInfo, float x, float y, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SMapTeleportPacket { Map = mapInfo, X = x, Y = y },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(MapInfo mapInfo, float x, float y, PacketEncoder encoder)
+    {
+        SMapTeleportPacket message = PacketEncoder.Scratch<SMapTeleportPacket>();
+        message.Map = mapInfo;
+        message.X = x;
+        message.Y = y;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

@@ -49,7 +49,7 @@ internal sealed class BankerWorld
     public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection>();
     public IWorld World { get; } = Substitute.For<IWorld>();
     public Dictionary<ObjectGuid, ICreature> Creatures { get; } = [];
-    public List<NetworkPacket> Sent { get; } = [];
+    public List<OutboundPacket> Sent { get; } = [];
     public StaticData Data { get; }
     public ICreature Banker { get; }
     public ICreature Stranger { get; }

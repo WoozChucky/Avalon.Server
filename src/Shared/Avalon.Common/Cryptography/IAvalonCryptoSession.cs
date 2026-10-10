@@ -28,11 +28,18 @@ public interface IAvalonCryptoSession
     byte[] Encrypt(ReadOnlySpan<byte> data);
 
     /// <summary>
-    /// <see cref="Encrypt" /> as an <see cref="EncryptFunc" />, created once with the session. Every send passes this
-    /// rather than the method group <c>Encrypt</c>: a method group is a new delegate each time it is converted, and
-    /// whether the JIT keeps that on the stack depends on how far it has optimised the caller (#854).
+    /// <see cref="Encrypt" /> as an <see cref="EncryptFunc" />, created once with the session. A client-to-server packet's
+    /// <c>Create</c> takes this rather than the method group <c>Encrypt</c>: a method group is a new delegate each time it
+    /// is converted, and whether the JIT keeps that on the stack depends on how far it has optimised the caller (#854).
     /// </summary>
     EncryptFunc Encryptor { get; }
+
+    /// <summary>
+    /// Seals <paramref name="plaintext" /> into <paramref name="destination" /> as
+    /// <c>[12-byte nonce][ciphertext][16-byte tag]</c> and returns that length, the plaintext's plus 28, allocating
+    /// nothing: the send path seals each payload straight into the frame it writes (#875).
+    /// </summary>
+    int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination);
 
     int Decrypt(ReadOnlySpan<byte> data, byte[] output);
     byte[] GenerateHandshakeData();
@@ -83,7 +90,7 @@ public interface IAvalonCryptoSession
 /// A session goes through <see cref="Initialize"/> once, and only a session whose exchange
 /// completed seals or opens anything (#855). An Initialize that throws (a peer key that does not
 /// parse, say) leaves the session failed for good: it refuses a second Initialize, and every
-/// Encrypt and Decrypt, as an <see cref="InvalidOperationException"/>. So does a session whose send
+/// Encrypt, SealInto and Decrypt, as an <see cref="InvalidOperationException"/>. So does a session whose send
 /// counter is spent, since its next nonce would repeat one this key has already used. The two
 /// public keys are readable only once the exchange has completed.
 /// </para>
@@ -103,6 +110,10 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     private const int Ready = 2;
     private const int Failed = 3;
     private const int Exhausted = 4;
+
+    // Where the ciphertext starts in a sealed packet, after the nonce: the one place a plaintext may share with the
+    // destination it is sealed into, since that is where the send path encodes it.
+    private const int CiphertextOffset = SessionKeys.NonceSize;
 
     private volatile int _state;
 
@@ -229,9 +240,53 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     {
         if (_state != Ready) throw NotReady();
 
-        // The one allocation: the packet itself, [nonce][ciphertext][tag], sealed in place.
+        // A client's path (the load-test tool, the vectors): a new array per packet. The server seals into its frames.
         byte[] sealedPacket = new byte[SessionKeys.NonceSize + data.Length + SessionKeys.TagSize];
-        Span<byte> nonce = sealedPacket.AsSpan(0, SessionKeys.NonceSize);
+        SealInto(data, sealedPacket);
+        return sealedPacket;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// <paramref name="plaintext" /> may lie inside <paramref name="destination" /> only at the ciphertext's offset,
+    /// byte 12, where it is sealed in place. Every refusal comes before the send counter moves, so none spends a nonce.
+    /// </remarks>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="plaintext" /> is too long to seal, <paramref name="destination" /> is shorter than the sealed
+    /// packet, or the two overlap anywhere but at the ciphertext's offset.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">As <see cref="Encrypt" />.</exception>
+    /// <exception cref="OverflowException">As <see cref="Encrypt" />.</exception>
+    public int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination)
+    {
+        if (_state != Ready) throw NotReady();
+
+        if (plaintext.Length > int.MaxValue - SessionKeys.NonceSize - SessionKeys.TagSize)
+        {
+            throw new ArgumentException("The plaintext is too long to seal", nameof(plaintext));
+        }
+
+        int sealedLength = SessionKeys.NonceSize + plaintext.Length + SessionKeys.TagSize;
+        if (destination.Length < sealedLength)
+        {
+            throw new ArgumentException(
+                $"A sealed packet of {sealedLength} bytes does not fit in {destination.Length}", nameof(destination));
+        }
+
+        // Anywhere else, the nonce would overwrite the plaintext before it is sealed, or the cipher would read bytes it
+        // has already written; neither throws below, and the packet would be sealed wrong. The offset is the
+        // plaintext's from the destination's start, so a plaintext that begins before it is refused too.
+        if (((ReadOnlySpan<byte>)destination).Overlaps(plaintext, out int plaintextOffset)
+            && plaintextOffset != CiphertextOffset)
+        {
+            throw new ArgumentException(
+                "The plaintext may only alias the destination at its ciphertext offset", nameof(plaintext));
+        }
+
+        // Sliced before the counter moves, so that once it has, only the cipher itself can fail.
+        Span<byte> nonce = destination.Slice(0, SessionKeys.NonceSize);
+        Span<byte> ciphertext = destination.Slice(CiphertextOffset, plaintext.Length);
+        Span<byte> tag = destination.Slice(CiphertextOffset + plaintext.Length, SessionKeys.TagSize);
 
         lock (_lock)
         {
@@ -246,14 +301,10 @@ public class AvalonCryptoSession : IAvalonCryptoSession
                 throw new OverflowException("Session nonce counter exhausted");
             }
 
-            _sealer!.Encrypt(
-                nonce,
-                data,
-                sealedPacket.AsSpan(SessionKeys.NonceSize, data.Length),
-                sealedPacket.AsSpan(SessionKeys.NonceSize + data.Length, SessionKeys.TagSize));
+            _sealer!.Encrypt(nonce, plaintext, ciphertext, tag);
         }
 
-        return sealedPacket;
+        return sealedLength;
     }
 
     /// <exception cref="CryptographicException">

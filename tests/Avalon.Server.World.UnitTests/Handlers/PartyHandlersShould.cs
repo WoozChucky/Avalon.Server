@@ -36,7 +36,7 @@ public class PartyHandlersShould
         PartyClient a = _w.Online(1, "A");
         PartyClient b = _w.Online(2, "B");
         // Sending B its invite throws inside PartyService.Invite, after the invite was recorded.
-        b.Connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(_ => throw new InvalidOperationException("send failed"));
+        b.Connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(_ => throw new InvalidOperationException("send failed"));
 
         new PartyInviteHandler(_w.Parties, NullLogger<PartyInviteHandler>.Instance)
             .Execute(a.Connection, new CPartyInvitePacket { TargetName = "B" });
@@ -51,7 +51,7 @@ public class PartyHandlersShould
     {
         PartyClient a = _w.Online(1, "A");
         int sends = 0;
-        a.Connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(_ =>
+        a.Connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(_ =>
         {
             sends++;
             throw new InvalidOperationException("send failed");

@@ -20,6 +20,29 @@ and a client pins the world's leaf named in its join reply. Ordering guaranteed 
 Encryption: inside TLS, session crypto negotiated via ephemeral public key exchange during handshake stages.  
 Size calculation uses fixed field lengths; header marshaled first enabling preallocation.
 
+## Sending a packet
+
+A server packet's `Create` (`S*Packet.Create`) returns an `OutboundPacket`: its header, and its message encoded, plain,
+into a pooled `PayloadSegment` by `PacketEncoder` (#875). `IConnection.Send` takes the packet's payload reference. The
+connection's outbox seals the payload if the header is flagged Encrypted (the world's outbox as the tick flushes it, the
+auth server's as its drain task writes) and frames it with `PacketEnvelope`: `[varint length][NetworkPacket{1: header,
+2: payload}]`, written by hand, byte for byte what protobuf-net writes for a `NetworkPacket`. The outbox then releases
+the segment to its pool: no `byte[]` per packet.
+
+Nor a message object per packet. `Create` fills the calling thread's instance of its message type
+(`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that
+type. A resetter compiled once per type, at the world server's startup (`PacketEncoder.PrepareServerPackets`, before
+the port opens), sets every field back to a new message's value on every take and again once the message is written,
+so no value of one packet reaches the next or stays referenced after it. A collection comes back null (protobuf-net
+writes a null repeated field as it writes an empty one), so a factory assigns each collection it sends; a nested
+message the template creates is shared by every thread, so a factory assigns it whole and never writes into it. A
+member the reset cannot assign (a read-only field, a property without a setter) makes the type refuse to start.
+`PacketEncoderScratchShould` dirties every member of every server packet and checks that the next take comes back as a
+new message, and runs every factory and checks that a new thread's scratch still encodes as a new message does.
+
+The client-to-server packets' `C*Packet.Create`, which only clients send (the load-test tool, the benchmarks and the
+tests), still build a `NetworkPacket`, sealed as it is created.
+
 ## Auth Phase Lifecycle
 
 1. `CRequestServerInfoPacket` — client sends its version; `SServerInfoPacket` answers with the server's version and

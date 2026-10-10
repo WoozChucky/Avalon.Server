@@ -18,7 +18,11 @@ public class SAuraListPacket : Packet
     [ProtoMember(1)] public ulong UnitGuid { get; set; }
     [ProtoMember(2)] public List<AuraEntryDto> Entries { get; set; } = [];
 
-    public static NetworkPacket Create(ulong unitGuid, List<AuraEntryDto> entries, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(new SAuraListPacket { UnitGuid = unitGuid, Entries = entries },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(ulong unitGuid, List<AuraEntryDto> entries, PacketEncoder encoder)
+    {
+        SAuraListPacket message = PacketEncoder.Scratch<SAuraListPacket>();
+        message.UnitGuid = unitGuid;
+        message.Entries = entries;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

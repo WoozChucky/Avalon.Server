@@ -3,6 +3,7 @@ using System.Diagnostics.Metrics;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -26,8 +27,8 @@ public class TickDrivenOutboxShould
     /// </summary>
     private static readonly TimeSpan s_deadlockGuard = TimeSpan.FromSeconds(30);
 
-    private static NetworkPacket MakePacket() =>
-        SPingPacket.Create(0L, 0L, 0L, 0L);
+    private static OutboundPacket MakePacket() =>
+        SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared);
 
     private static (PacketStream stream, MemoryStream underlying) MakeSyncStream()
     {
@@ -112,7 +113,7 @@ public class TickDrivenOutboxShould
 
         // DisposeAsync should complete promptly — proves flag was cleared
         var sw = Stopwatch.StartNew();
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
         sw.Stop();
         Assert.True(sw.Elapsed < s_noWaitCeiling,
             $"Expected flag cleared after write; DisposeAsync took {sw.ElapsedMilliseconds}ms of a {s_longBudget.TotalMilliseconds}ms budget");
@@ -188,7 +189,7 @@ public class TickDrivenOutboxShould
         Assert.Equal(nameof(NetworkPacketType.SMSG_PING), type);
         outbox.Flush(); // still functional
 
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
         outbox.Enqueue(MakePacket()); // refused: the outbox is closed, not full
         Assert.Single(seen);          // still only the one capacity drop
     }
@@ -208,7 +209,7 @@ public class TickDrivenOutboxShould
         // No Flush: the tick that would have sent this never comes.
         outbox.Enqueue(MakePacket());
 
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
 
         Assert.True(ms.Length > 0, "Expected the queued packet to reach the stream before the outbox closed");
     }
@@ -262,10 +263,10 @@ public class TickDrivenOutboxShould
         outbox.Enqueue(MakePacket());
         outbox.Flush();
 
-        await faulted.Task; // the write has ended and the fault has been reported
+        await faulted.Task.WaitAsync(s_deadlockGuard); // the write has ended and the fault has been reported
 
         var sw = Stopwatch.StartNew();
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
         sw.Stop();
 
         Assert.True(sw.Elapsed < s_noWaitCeiling,
@@ -281,7 +282,7 @@ public class TickDrivenOutboxShould
         outbox.Connect(stream);
 
         var sw = Stopwatch.StartNew();
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
         sw.Stop();
 
         Assert.True(sw.Elapsed < s_noWaitCeiling,
@@ -303,7 +304,7 @@ public class TickDrivenOutboxShould
         _ = Task.Delay(50).ContinueWith(_ => slow.Complete());
 
         var sw = Stopwatch.StartNew();
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
         sw.Stop();
 
         Assert.True(sw.Elapsed < s_noWaitCeiling,
@@ -325,7 +326,7 @@ public class TickDrivenOutboxShould
 
         outbox.Enqueue(MakePacket()); // the close's own flush starts a write that only its cancellation ends
 
-        await outbox.DisposeAsync();
+        await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
 
         // The write's continuation wakes the close before it reports anything, so give a report the moment it would take.
         await Task.Delay(100);

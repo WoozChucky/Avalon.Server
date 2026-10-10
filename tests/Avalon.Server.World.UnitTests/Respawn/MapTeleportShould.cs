@@ -40,7 +40,7 @@ public class MapTeleportShould
     private readonly IMapInstance _source = Substitute.For<IMapInstance>();
     private readonly CharacterEntity _character = TestCharacters.New(7);
     private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
-    private readonly List<NetworkPacket> _sent = [];
+    private readonly List<OutboundPacket> _sent = [];
     private readonly List<Action> _continuations = [];
     private readonly ICharacterSaver _saver = Substitute.For<ICharacterSaver>();
     private readonly MapTeleport _teleport;

@@ -22,10 +22,12 @@ public class SCharacterAbilityAmountsPacket : Packet
 
     [ProtoMember(1)] public AbilityAmountInfo[] Amounts { get; set; } = [];
 
-    public static NetworkPacket Create(AbilityAmountInfo[] amounts, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SCharacterAbilityAmountsPacket { Amounts = amounts },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(AbilityAmountInfo[] amounts, PacketEncoder encoder)
+    {
+        SCharacterAbilityAmountsPacket message = PacketEncoder.Scratch<SCharacterAbilityAmountsPacket>();
+        message.Amounts = amounts;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 /// <summary>One ability's amount (#669), with the meaning of AbilityInfo's AmountKind, AmountMin and AmountMax.</summary>

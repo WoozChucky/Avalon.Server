@@ -1,7 +1,7 @@
-using Avalon.Common.Cryptography;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Persistence;
 using Avalon.World.Threading;
@@ -72,7 +72,7 @@ public sealed class IgnoreList(SaveStateTracker save, TickThreadGuard? tickThrea
     }
 
     /// <summary>SMSG_IGNORE_LIST: the whole list, oldest first.</summary>
-    public NetworkPacket ToPacket(EncryptFunc encrypt) =>
+    public OutboundPacket ToPacket(PacketEncoder encoder) =>
         SIgnoreListPacket.Create(
-            _entries.Select(e => new IgnoredCharacterDto { CharacterId = e.Id, Name = e.Name }).ToList(), encrypt);
+            _entries.Select(e => new IgnoredCharacterDto { CharacterId = e.Id, Name = e.Name }).ToList(), encoder);
 }

@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Public;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -139,7 +140,7 @@ public sealed class ThreatBroadcastService
             };
         }
 
-        conn.Send(SThreatListPacket.Create(targetGuid, entries, conn.CryptoSession.Encryptor));
+        conn.Send(SThreatListPacket.Create(targetGuid, entries, PacketEncoder.Shared));
         _state[conn] = new BroadcastState(creature, now, topPercent);
     }
 

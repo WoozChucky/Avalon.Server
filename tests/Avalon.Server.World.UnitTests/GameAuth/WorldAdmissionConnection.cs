@@ -18,8 +18,8 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
     private readonly TcpClient _peer;
     private WorldAdmissionConnection(IWorldServer server, TcpClient client, TcpClient peer)
         : base(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>()) { _peer = peer; }
-    public List<NetworkPacket> Sent { get; } = [];
-    public override void Send(NetworkPacket packet) => Sent.Add(packet);
+    public List<OutboundPacket> Sent { get; } = [];
+    public override void Send(OutboundPacket packet) => Sent.Add(packet);
     protected override Task OnClose(bool expected = true) => Task.CompletedTask;
     public void Deliver(NetworkPacketType type, Packet payload) => OnReceive(new() { Type = type }, payload).GetAwaiter().GetResult();
     public static WorldAdmissionConnection Create(IWorldServer? server = null, bool tls = true)

@@ -15,8 +15,13 @@ public class SPingPacket : Packet
     [ProtoMember(3)] public long Rtt { get; set; }
     [ProtoMember(4)] public long Offset { get; set; }
 
-    public static NetworkPacket Create(long serverTicks, long clientTicks, long rtt, long offset)
-        => PacketSerializationHelper.SerializeUnencrypted(
-            new SPingPacket { ServerTimestamp = serverTicks, ClientTimestamp = clientTicks, Rtt = rtt, Offset = offset },
-            PacketType, NetworkPacketFlags.None, Protocol);
+    public static OutboundPacket Create(long serverTicks, long clientTicks, long rtt, long offset, PacketEncoder encoder)
+    {
+        SPingPacket message = PacketEncoder.Scratch<SPingPacket>();
+        message.ServerTimestamp = serverTicks;
+        message.ClientTimestamp = clientTicks;
+        message.Rtt = rtt;
+        message.Offset = offset;
+        return encoder.Encode(message, PacketType, NetworkPacketFlags.None, Protocol);
+    }
 }

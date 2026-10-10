@@ -13,6 +13,12 @@ public sealed class SGameAdmissionPacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.ClearText;
     [ProtoMember(1)] public byte[] PublicKey { get; set; } = [];
     [ProtoMember(2)] public GameAdmissionResult Result { get; set; }
-    public static NetworkPacket Create(byte[] publicKey, GameAdmissionResult result = GameAdmissionResult.Accepted) => PacketSerializationHelper.SerializeUnencrypted(
-        new SGameAdmissionPacket { PublicKey = publicKey, Result = result }, PacketType, Flags, Protocol);
+    public static OutboundPacket Create(byte[] publicKey, PacketEncoder encoder,
+        GameAdmissionResult result = GameAdmissionResult.Accepted)
+    {
+        SGameAdmissionPacket message = PacketEncoder.Scratch<SGameAdmissionPacket>();
+        message.PublicKey = publicKey;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

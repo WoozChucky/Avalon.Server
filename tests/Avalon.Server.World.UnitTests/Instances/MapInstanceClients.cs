@@ -13,14 +13,14 @@ using ProtoBuf;
 namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>A real character in a real MapInstance, and every packet its connection was sent.</summary>
-internal sealed record MapInstanceClient(IWorldConnection Connection, CharacterEntity Character, List<NetworkPacket> Sent)
+internal sealed record MapInstanceClient(IWorldConnection Connection, CharacterEntity Character, List<OutboundPacket> Sent)
 {
     /// <summary>Every packet of <paramref name="type" /> this client was sent, decoded, oldest first.</summary>
     public List<T> Read<T>(NetworkPacketType type) => Sent
         .Where(p => p.Header.Type == type)
         .Select(p =>
         {
-            using var stream = new MemoryStream(p.Payload);
+            using var stream = new MemoryStream(p.PayloadMemory.ToArray());
             return Serializer.Deserialize<T>(stream);
         })
         .ToList();
@@ -71,11 +71,11 @@ internal static class MapInstanceClients
         character.Spells.Load(Array.Empty<IAbility>());   // the tick updates abilities; an unloaded list throws
         character.InstanceId = instance.InstanceId;         // a cast looks its instance up by this
 
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         instance.AddCharacter(connection);
         return new MapInstanceClient(connection, character, sent);

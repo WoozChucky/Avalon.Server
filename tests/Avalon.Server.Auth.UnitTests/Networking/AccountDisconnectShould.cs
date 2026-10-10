@@ -88,7 +88,7 @@ public sealed class AccountDisconnectShould
         Assert.Equal(2, closed);
         foreach (IAuthConnection connection in new[] { first, second })
         {
-            connection.Received(1).Send(Arg.Any<NetworkPacket>());
+            connection.Received(1).Send(Arg.Any<OutboundPacket>());
             connection.Received(1).Close();
         }
     }

@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -42,6 +43,6 @@ public static class ItemRequestReply
                 .ToArray();
         }
 
-        connection.Send(SItemResultPacket.Create(requestId, result, slots, connection.CryptoSession.Encryptor));
+        connection.Send(SItemResultPacket.Create(requestId, result, slots, PacketEncoder.Shared));
     }
 }

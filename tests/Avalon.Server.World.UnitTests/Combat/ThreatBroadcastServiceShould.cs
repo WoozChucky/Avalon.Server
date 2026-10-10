@@ -23,7 +23,7 @@ public class ThreatBroadcastServiceShould
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile }, env.combat);
 
-        conn.Received(1).Send(Arg.Any<NetworkPacket>());
+        conn.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class ThreatBroadcastServiceShould
         env.svc.Tick(new[] { conn }, creatures, env.combat);
         env.svc.Tick(new[] { conn }, creatures, env.combat);   // immediate re-tick — within 250 ms, 0 % delta
 
-        conn.Received(1).Send(Arg.Any<NetworkPacket>());
+        conn.Received(1).Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class ThreatBroadcastServiceShould
 
         env.svc.Tick(new[] { conn }, creatures, env.combat);   // top-share moved by ~80 % → resend
 
-        conn.Received(2).Send(Arg.Any<NetworkPacket>());
+        conn.Received(2).Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class ThreatBroadcastServiceShould
         Thread.Sleep(35);    // exceed configured 25 ms throttle window
         env.svc.Tick(new[] { conn }, creatures, env.combat);
 
-        conn.Received(2).Send(Arg.Any<NetworkPacket>());
+        conn.Received(2).Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class ThreatBroadcastServiceShould
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile }, env.combat);
 
-        conn.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        conn.DidNotReceive().Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class ThreatBroadcastServiceShould
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature>(), env.combat);
 
-        conn.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        conn.DidNotReceive().Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -121,7 +121,7 @@ public class ThreatBroadcastServiceShould
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile }, env.combat);
 
-        conn.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        conn.DidNotReceive().Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public class ThreatBroadcastServiceShould
 
         env.svc.Tick(new[] { conn }, new Dictionary<ObjectGuid, ICreature> { [env.hostileGuid] = env.hostile }, env.combat);
 
-        conn.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        conn.DidNotReceive().Send(Arg.Any<OutboundPacket>());
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public class ThreatBroadcastServiceShould
         conn.CurrentTargetGuid.Returns(hostile2Raw);
         env.svc.Tick(new[] { conn }, creatures, env.combat);
 
-        conn.Received(2).Send(Arg.Any<NetworkPacket>());
+        conn.Received(2).Send(Arg.Any<OutboundPacket>());
     }
 
     // ---------- helpers ----------

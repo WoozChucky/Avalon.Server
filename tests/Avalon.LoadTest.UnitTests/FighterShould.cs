@@ -6,6 +6,7 @@ using Avalon.LoadTest.Wire;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Party;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Org.BouncyCastle.Crypto;
@@ -50,7 +51,7 @@ public class FighterShould
 
         // The forest, 300 ms after the request: the fighter starts at its entry spawn and sees a creature 55 m north.
         wizard.Transition(Fighter.ForestMapId, _now + Stopwatch.Frequency * 3 / 10);
-        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true), Creature(_north, 15f, 70f)], _server.Encryptor));
+        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true), Creature(_north, 15f, 70f)], PacketEncoder.Shared));
 
         // It walks into reach and casts its basic ability at the creature's position, standing.
         step = wizard.RunUntil(s => s.Action != FighterAction.None);
@@ -69,8 +70,8 @@ public class FighterShould
 
         // The creature it cast at dies (a kill) as another comes into view to the east: the fighter turns east to it.
         wizard.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _north, CurrentHealth = 0, IsDead = true }],
-            _server.Encryptor));
-        wizard.Apply(SInstanceStateAddPacket.Create([Creature(_east, 60f, 51f)], _server.Encryptor));
+            PacketEncoder.Shared));
+        wizard.Apply(SInstanceStateAddPacket.Create([Creature(_east, 60f, 51f)], PacketEncoder.Shared));
         step = wizard.RunUntil(s => s.Action != FighterAction.None);
         Assert.Equal((60f, 51f), (step.AimX, step.AimZ));
         Assert.Equal(41f, wizard.X, 0.5f);
@@ -78,7 +79,7 @@ public class FighterShould
         // That one dies too. With nothing else in sight it walks on north until its 20 s in the forest are up, then
         // back the way it came, never into the wall, by the entry spawn to the portal at (15, 5).
         wizard.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _east, CurrentHealth = 0, IsDead = true }],
-            _server.Encryptor));
+            PacketEncoder.Shared));
         wizard.RunUntil(s => s.Action != FighterAction.None || wizard.Fighter.State == FighterState.ToExit);
         Assert.Equal(FighterState.ToExit, wizard.Fighter.State);
         Assert.True(wizard.Z > 55f);
@@ -104,12 +105,12 @@ public class FighterShould
         // step, with the table still showing it alive. Again every 5 s, and it is in town once moved.
         wizard.RunUntil(s => s.Action == FighterAction.EnterForest);
         wizard.Transition(Fighter.ForestMapId, _now);
-        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true)], _server.Encryptor));
+        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true)], PacketEncoder.Shared));
         wizard.Step();
-        wizard.Hit(SCharacterDamagePacket.Create(_north, _self, currentHealth: 40, damage: 80, abilityId: null, _server.Encryptor));
+        wizard.Hit(SCharacterDamagePacket.Create(_north, _self, currentHealth: 40, damage: 80, abilityId: null, PacketEncoder.Shared));
         for (int i = 0; i < 12; i++) wizard.Step();
         Assert.Equal(FighterState.InForest, wizard.Fighter.State);
-        wizard.Hit(SCharacterDamagePacket.Create(_north, _self, currentHealth: 0, damage: 40, abilityId: null, _server.Encryptor));
+        wizard.Hit(SCharacterDamagePacket.Create(_north, _self, currentHealth: 0, damage: 40, abilityId: null, PacketEncoder.Shared));
         step = wizard.Step();
         Assert.Equal(FighterAction.Respawn, step.Action);
         Assert.Equal(FighterState.Dead, wizard.Fighter.State);
@@ -151,7 +152,7 @@ public class FighterShould
         var warrior = new Sim(this, new Fighter(0, _metrics, TimeSpan.FromSeconds(20), firstTripJitter: TimeSpan.Zero));
         warrior.RunUntil(s => s.Action == FighterAction.EnterForest);
         warrior.Transition(Fighter.ForestMapId, _now);
-        warrior.Apply(SInstanceStateAddPacket.Create([Self(alive: true), Creature(_north, 15f, 30f)], _server.Encryptor));
+        warrior.Apply(SInstanceStateAddPacket.Create([Self(alive: true), Creature(_north, 15f, 30f)], PacketEncoder.Shared));
         step = warrior.RunUntil(s => s.Action != FighterAction.None);
         Assert.Equal(FighterAction.Cast, step.Action);
         Assert.Equal(200u, warrior.Fighter.AbilityId);
@@ -159,7 +160,7 @@ public class FighterShould
 
         // The table stays the fallback for a death: one it shows is seen within a look, six steps.
         warrior.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _self, CurrentHealth = 0, IsDead = true }],
-            _server.Encryptor));
+            PacketEncoder.Shared));
         steps = 0;
         Assert.Equal(FighterAction.Respawn, warrior.RunUntil(s => s.Action != FighterAction.None, () => steps++).Action);
         Assert.InRange(steps, 1, 6);
@@ -394,15 +395,17 @@ public class FighterShould
         }
 
         public void Result(PartyResult result, string? name = null) =>
-            Link!.OnPacket(SPartyResultPacket.Create(result, name, _server.Encryptor), _codec, Generation);
+            Link!.OnPacket(ServerFrames.Received(SPartyResultPacket.Create(result, name, PacketEncoder.Shared), _server), _codec,
+                Generation);
 
         public void Invite(string inviter) =>
-            Link!.OnPacket(SPartyInvitePacket.Create(inviter, 1, 1, 60_000, _server.Encryptor), _codec, Generation);
+            Link!.OnPacket(ServerFrames.Received(SPartyInvitePacket.Create(inviter, 1, 1, 60_000, PacketEncoder.Shared), _server),
+                _codec, Generation);
 
         public void Roster(List<FakeMember> party) =>
-            Link!.OnPacket(SPartyRosterPacket.Create(party.Count == 0 ? 0u : 1u, PartyExperienceMode.Even, 0,
+            Link!.OnPacket(ServerFrames.Received(SPartyRosterPacket.Create(party.Count == 0 ? 0u : 1u, PartyExperienceMode.Even, 0,
                 party.ConvertAll(member => new PartyMemberDto { Name = member.Name, Online = true, SameInstance = true }),
-                _server.Encryptor), _codec, Generation);
+                PacketEncoder.Shared), _server), _codec, Generation);
     }
 
     /// <summary>
@@ -471,12 +474,12 @@ public class FighterShould
             (X, Z) = (15f, 15f);
         }
 
-        public void Apply(NetworkPacket packet) => fighter.Table.Apply(packet, test._codec);
+        public void Apply(OutboundPacket packet) => fighter.Table.Apply(ServerFrames.Received(packet, test._server), test._codec);
 
         /// <summary>An <c>SMSG_CHARACTER_DAMAGED</c> as the bot's connection hands it over: decoded, and every one passed on.</summary>
-        public void Hit(NetworkPacket packet)
+        public void Hit(OutboundPacket packet)
         {
-            SCharacterDamagePacket hit = test._codec.Decode<SCharacterDamagePacket>(packet);
+            SCharacterDamagePacket hit = test._codec.Decode<SCharacterDamagePacket>(ServerFrames.Received(packet, test._server));
             fighter.OnDamaged(hit.Target, hit.CurrentHealth, test._self);
         }
 

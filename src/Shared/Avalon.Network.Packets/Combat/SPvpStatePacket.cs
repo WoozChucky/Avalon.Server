@@ -19,8 +19,11 @@ public class SPvpStatePacket : Packet
     [ProtoMember(1)] public bool Enabled { get; set; }
     [ProtoMember(2)] public uint OffInMs { get; set; }
 
-    public static NetworkPacket Create(bool enabled, uint offInMs, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SPvpStatePacket { Enabled = enabled, OffInMs = offInMs },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(bool enabled, uint offInMs, PacketEncoder encoder)
+    {
+        SPvpStatePacket message = PacketEncoder.Scratch<SPvpStatePacket>();
+        message.Enabled = enabled;
+        message.OffInMs = offInMs;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

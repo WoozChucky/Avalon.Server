@@ -16,8 +16,9 @@ Both TCP servers run on one code path:
 - **`AuthServer : ServerBase<AuthConnection>`** — the auth server.
 - **`WorldServer : ServerBase<WorldConnection>`** (`src/Server/Avalon.World/WorldServer.cs`) — the world server.
 - Connections implement **`IConnection`** (in `Avalon.Hosting.Networking`), which exposes:
-  - `void Send(NetworkPacket)` — a synchronous enqueue onto the connection's bounded outbox (`ChannelOutbox`; a world
-    connection's is a `TickDrivenOutbox`), at most `Hosting:SendBufferCapacity` packets, the oldest dropped when full.
+  - `void Send(OutboundPacket)` — takes the packet's payload reference: a synchronous enqueue onto the connection's
+    bounded outbox (`ChannelOutbox`; a world connection's is a `TickDrivenOutbox`), at most `Hosting:SendBufferCapacity`
+    packets, the oldest dropped (and released) when full; a packet the outbox refuses is released at once.
   - `void Close(bool expected = true)` and `Task CloseAsync(bool expected = true)` — terminate the connection.
 
 The standalone TCP server library that once sat beside it (`Avalon.Network.Tcp`, with its development test client) is
@@ -75,7 +76,8 @@ Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 ### Factory method
 
 ```csharp
-NetworkPacket packet = SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown);
+OutboundPacket packet = SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown,
+    PacketEncoder.Shared);
 ```
 
 ---

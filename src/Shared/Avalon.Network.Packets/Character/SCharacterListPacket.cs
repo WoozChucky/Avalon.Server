@@ -15,11 +15,15 @@ public class SCharacterListPacket : Packet
     [ProtoMember(2)] public int MaxCharacterCount { get; set; }
     [ProtoMember(3)] public CharacterInfo[] Characters { get; set; }
 
-    public static NetworkPacket Create(int characterCount, int maxCharacterCount,
-        CharacterInfo[] characters, EncryptFunc encrypt)
-        => PacketSerializationHelper.Serialize(
-            new SCharacterListPacket { CharacterCount = characterCount, MaxCharacterCount = maxCharacterCount, Characters = characters },
-            PacketType, Flags, Protocol, encrypt);
+    public static OutboundPacket Create(int characterCount, int maxCharacterCount,
+        CharacterInfo[] characters, PacketEncoder encoder)
+    {
+        SCharacterListPacket message = PacketEncoder.Scratch<SCharacterListPacket>();
+        message.CharacterCount = characterCount;
+        message.MaxCharacterCount = maxCharacterCount;
+        message.Characters = characters;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]

@@ -14,6 +14,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickLoop
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EntityTracking*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Serialization*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SessionCipher*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketEncoder*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketSerializationGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorldPacketQueueGc*"
@@ -62,17 +63,18 @@ Scale parameter `CreatureCount` runs at 50 / 100 / 200 to validate O(n) behaviou
 
 ### Packet Serialization GC-001 — `PacketSerializationGcBenchmarks.cs`
 
-Before/after allocation comparison for the GC-001 fix: `MemoryStream + ToArray` versus
-`PacketSerializationHelper` + `PooledArrayBufferWriter`.
+Before/after allocation comparison for the GC-001 fix: `MemoryStream + ToArray` versus `PacketEncoder.Encode` into a
+pooled segment, released after the call (#875).
 
 | Scenario | What it models |
 |---|---|
 | `Legacy_SmallPacket` | Old pattern — `MemoryStream + Serializer.Serialize + ms.ToArray() + encrypt` on a small packet (one field) — **baseline** |
-| `Pooled_SmallPacket` | New pattern — `PacketSerializationHelper.Serialize` on the same packet |
+| `Pooled_SmallPacket` | New pattern — `PacketEncoder.Encode` into a pooled segment on the same packet, released after the call |
 | `Legacy_MediumPacket` | Old pattern on `SChatMessagePacket` (two `ulong`s, two `string`s, `DateTime`) |
 | `Pooled_MediumPacket` | New pattern on the same medium packet |
 
-Both encrypt delegates are identity copies (`span => span.ToArray()`) to isolate serialization cost from crypto cost.
+Only the legacy path has an encrypt delegate now, an identity (`bytes => bytes`), to isolate serialization cost from
+crypto cost; the pooled path does not seal (the send path does, as it frames the packet).
 
 ---
 
@@ -168,7 +170,7 @@ session layer.
 | Scenario | What it models |
 |---|---|
 | `Serialize_NoEncryption` | Serialize `CClientInfoPacket` — no encryption |
-| `Serialize_Encrypted` | Serialize `CCharacterListPacket` through the session's `Encryptor`, as every send does (the `Encrypt` method group before #854) |
+| `Serialize_Encrypted` | Serialize `CCharacterListPacket` through the session's `Encryptor`, as every client-to-server packet does (the `Encrypt` method group before #854) |
 | `Deserialize_Encrypted` | Deserialize + decrypt + inner-deserialize an encrypted packet |
 | `Deserialize_NoEncryption` | Deserialize an unencrypted `NetworkPacket` |
 
@@ -199,6 +201,23 @@ named `BouncyCastle_Encrypt` / `BouncyCastle_Decrypt`.
 shared by both arms, so the two differ in call shape only — never in key material.
 
 **Status:** Baseline recorded 2026-09-10; re-measured 2026-10-09 before and after #850.
+
+---
+
+### Packet encoder — `PacketEncoderBenchmarks.cs`
+
+What a server packet costs on its way out since #875, per packet: the tick encodes it (`Create` fills the thread's
+scratch message, `PacketEncoder.Scratch<T>()`, and encodes it into a pooled `PayloadSegment`), and the drain seals and
+frames it (`PacketEnvelope.Append` into a burst buffer). The packet is a state update, the most frequent one a world
+sends, of one entity and of thirty (`Entities`, a crowded town).
+
+| Scenario | What it models |
+|---|---|
+| `Encode` | `SInstanceStateUpdatePacket.Create` into a segment, released after the call: the tick's share |
+| `EncodeSealFrame` | The same, then sealed in place by a real P-256-keyed session and framed: tick and drain |
+| `EncodeFramePlain` | The same, framed without sealing, as for a connection with no sealer (TLS only) |
+
+**Status:** Baseline recorded 2026-10-10 (#875).
 
 ---
 
@@ -978,6 +997,45 @@ After — the session on the platform `AesGcm`, keyed once per direction (#850):
 - **At broadcast scale** — 50 connections × 60 Hz × 256 B, 3,000 encrypts/s — sealing now costs
   ~0.9 ms/s of CPU and ~0.9 MB/s of Gen0, against ~1.8 ms/s and ~6.6 MB/s in the before run.
 
+## Packet encoder (#875) — Benchmark Results
+
+### Results — first baseline (2026-10-10)
+
+Windows 11, 12th Gen Intel Core i9-12900K, .NET 10.0.12, BenchmarkDotNet 0.15.8, DefaultJob, Release.
+
+| Method | Entities | Mean | StdDev | Allocated |
+|---|---:|---:|---:|---:|
+| `Encode` (tick) | 1 | 191.6 ns | 1.76 ns | - |
+| `EncodeSealFrame` (tick and drain) | 1 | 461.1 ns | 2.88 ns | - |
+| `EncodeFramePlain` (TLS only) | 1 | 218.1 ns | 2.13 ns | - |
+| `Encode` (tick) | 30 | 3,261.6 ns | 14.56 ns | - |
+| `EncodeSealFrame` (tick and drain) | 30 | 3,687.8 ns | 32.20 ns | - |
+| `EncodeFramePlain` (TLS only) | 30 | 3,292.4 ns | 13.19 ns | - |
+
+These rows include the second reset, once the message is written (the scratch lets go of the packet's lists); a run
+before it read 216 / 728 / 222 ns at one entity and 3,714 / 3,935 / 3,535 ns at thirty, within this machine's spread.
+
+`SessionCipherBenchmarks` in an earlier run of the same day, the seal the drain does since #875 (Task 2.1's `SealInto`) beside the
+`Encrypt` it replaced on the send path:
+
+| Method | PayloadSize | Mean | StdDev | Allocated |
+|---|---:|---:|---:|---:|
+| `Session_Encrypt` | 64 | 230.2 ns | 1.60 ns | 120 B |
+| `SessionSealInto` | 64 | 218.4 ns | 0.99 ns | - |
+| `Session_Encrypt` | 256 | 250.0 ns | 2.39 ns | 312 B |
+| `SessionSealInto` | 256 | 270.6 ns | 35.80 ns | - |
+| `Session_Encrypt` | 1024 | 398.3 ns | 42.15 ns | 1,080 B |
+| `SessionSealInto` | 1024 | 289.5 ns | 7.90 ns | - |
+
+- **Nothing is allocated per packet, at either size, on either side.** The message is the thread's scratch
+  (`PacketEncoder.Scratch<T>()`), the payload a pooled segment returned by `Release`, the frame written into a reused
+  burst buffer, and the seal written in place. Before the scratch, every `Create` allocated its message (24 B for a
+  state update, 48 B for a movement acknowledgement), the only allocation left on the send path.
+- **Encoding is protobuf-net's own cost**, about 105 ns per entity in view: framing plain adds little (about 25 ns).
+  The seal adds about what `SealInto` costs alone: some 270 ns at one entity and 400 ns at thirty (about 1.3 KB).
+- `SealInto` matches `Encrypt` in time and drops its array: 120, 312 and 1,080 B per sealed packet, the nonce, the
+  payload and the tag.
+
 
 ---
 
@@ -1048,8 +1106,10 @@ does: flush every connection's outbox, one after the other, on one thread.
 For each mode it opens the connections over loopback (the server end is what the world holds; the client end is read
 and discarded on the thread pool, as a peer would), then ticks at 60 Hz: each tick queues `packets` movement
 acknowledgements (a frame of about 70 B, the size of the world's acks and state updates) on every connection and
-times the loop that flushes every outbox. It reports the flush time per tick, per connection, the tick thread's
-allocations per tick and the collections over the measured ticks, after 300 warm-up ticks.
+times the loop that flushes every outbox. Since #875 each outbox has its own sealer, so the timed flush includes sealing
+every ack; the 2026-10-09 results below were taken with the acks sealed before they were queued, outside the flush.
+It reports the flush time per tick, per connection, the tick thread's allocations per tick and the collections over the
+measured ticks, after 300 warm-up ticks.
 
 | Mode | Stream behind the outbox |
 |---|---|
@@ -1091,6 +1151,28 @@ The TLS flush on Linux by connection count (µs per connection): 50, 0.533 ms (1
   (framing and queueing), `tls-parallel` 3.6 µs (the same work on four cores, waited for). Whether the write should
   leave the tick is an open decision (#875): it changes when a packet leaves relative to the tick and puts the TLS
   and socket work on other threads.
+
+### Results — the seal inside the flush (#875, 2026-10-10)
+
+Since the outbound packets (#875) each outbox seals its packets as it frames them, so this harness's timed flush now
+includes one AES-GCM seal per connection per tick, which the 2026-10-09 run above did before queueing, outside the
+timed region; in the server that cost moved out of `Create`, in the world update, into the outbox stage
+([instrumentation](instrumentation.md#tick-and-instance-time)). Windows 11, .NET 10.0.12, workstation GC, 200
+connections, one packet each, 1800 measured ticks; `862042c5` (sealed before queueing) against `724618bb` (sealed in
+the flush), two runs each, alternating:
+
+| Mode | Build | mean ms | p50 | p99 | µs/conn | B/tick |
+|---|---|---:|---:|---:|---:|---:|
+| `memory` | `862042c5` | 0.057 / 0.057 | 0.049 / 0.046 | 0.183 / 0.219 | 0.29 / 0.28 | 0 |
+| `memory` | `724618bb` | 0.146 / 0.154 | 0.136 / 0.134 | 0.296 / 0.461 | 0.73 / 0.77 | 0 |
+| `tls` | `862042c5` | 3.066 / 3.095 | 3.015 / 3.049 | 4.215 / 4.194 | 15.33 / 15.48 | 0 |
+| `tls` | `724618bb` | 3.183 / 3.432 | 3.126 / 3.151 | 4.480 / 7.043 | 15.92 / 17.16 | 0 |
+
+- **The flush now carries the seal**: about 0.46 µs more per connection in `memory`, one seal of a 70 B frame each
+  (`SealInto` alone measures about 0.22 µs at 64 B; here 200 sessions' keys take turns in the cache). It is the cost
+  `Create` no longer pays, not a new one: the scenario tick, which runs both, got faster (above).
+- **Over TLS it is lost in the write**: 15.3-15.5 against 15.9-17.2 µs per connection, the second `724618bb` run
+  with a 48 ms outlier tick that also lifts its mean and p99.
 
 ### Results — the read loop, per frame (#875, 2026-10-09)
 
@@ -1227,14 +1309,12 @@ with the committed figure, in every build (Debug and Release, see below):
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
-- **Detection floor.** With the committed figures (regenerated at `44d0db3a`, #875: `town-walk` 1,124,400 and
-  `many-instances` 6,329,728 B per window), the gate fails on a rise of more than **256 B per window** in
-  `town-idle` (about 4 B per tick: it allocates nothing since #851, so the floor decides, and any one object allocated
-  every tick fails it), **6.2 B per player per tick** in `town-walk` (11,244 B per window: it fails from 1,135,645 B),
-  and **2.1 B per player per tick** in `many-instances` (4.2 B per instance per tick, 63,297 B per window: it fails
-  from 6,393,026 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
-  one per instance per tick in `many-instances`; one object per tick for the whole town (about 1.4 KB per window) does
-  not fail `town-walk`. Under the 5% band before #852 the floors were 40 and 19 B per player per tick.
+- **Detection floor.** Every committed figure is 0 (regenerated at `75a16697`, #875: no scenario allocates on the
+  tick thread since server packets are built in per-thread messages), so the 256 B floor decides in every scenario:
+  the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
+  allocated every tick, anywhere on the measured path, fails all three (the smallest, 24 B, is 1,440 B per window).
+  Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
+  before #852.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
   CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
@@ -1300,6 +1380,60 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 18 s to the World
 suite.
+
+### Results — server packets built in per-thread messages (#875, 2026-10-10)
+
+The last allocation on the send path was the message object each server packet's `Create` built: 24 B for a state
+update, 48 B for a movement acknowledgement. `Create` now fills the calling thread's instance of its message type
+(`PacketEncoder.Scratch<T>()`, reset to a new message's values on every take) and encodes it before it returns, and
+`SInstanceStateRemovePacket` keeps its id list per thread too. With the payload already a pooled segment and the seal
+written in place at the drain, a packet sent costs the tick thread nothing, and no scenario allocates on it at all.
+
+Allocations, from `perf/scenario-allocations.json` regenerated at `75a16697` (the developer machine's Release run,
+i9-12900K, Windows 11, .NET 10.0.12), against the committed figures before this change (`6eafe191`) and before the
+payloads went into pooled segments (`44d0db3a`, the header struct's results):
+
+| Scenario | Players | bytes/window | B/player/tick | Before | B/player/tick before | B/player/tick at `44d0db3a` |
+|---|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 0 | 0.00 | 0 | 0.00 | 0.00 |
+| `town-walk` | 30 | 0 | 0.00 | 92,160 | 51.20 | 624.67 |
+| `many-instances` | 500 | 0 | 0.00 | 1,536,000 | 51.20 | 210.99 |
+
+The gate passes on the new figures in Debug and in Release.
+
+Tick time like for like: `862042c5` (main before the outbound packets: payloads sealed into new arrays in `Create`)
+against `724618bb` (this work), the runner in Release, 5 s warm-up, 3600 timed ticks, three alternating pairs on the
+developer machine (i9-12900K, Windows 11, .NET 10.0.12, Server GC). Tick ms per run, then the mean of the three:
+
+| Scenario | Build | mean (3 runs) | mean | p99 (3 runs) | p99 | gen0 per minute | GC pause ms |
+|---|---|---|---:|---|---:|---|---|
+| `town-walk` | `862042c5` | 0.143 / 0.143 / 0.144 | 0.143 | 0.582 / 0.575 / 0.598 | 0.585 | 26 / 26 / 25 | 4.5 / 4.2 / 4.2 |
+| `town-walk` | `724618bb` | 0.131 / 0.132 / 0.130 | 0.131 | 0.431 / 0.443 / 0.431 | 0.435 | 0 / 0 / 0 | 0 |
+| `many-instances` | `862042c5` | 1.265 / 1.498 / 1.360 | 1.374 | 2.316 / 3.011 / 2.909 | 2.745 | 131 / 133 / 103 | 26.2 / 27.6 / 22.7 |
+| `many-instances` | `724618bb` | 1.167 / 1.277 / 1.171 | 1.205 | 2.154 / 2.438 / 2.142 | 2.245 | 0 / 0 / 0 | 0 |
+
+The mean tick falls by 8% in `town-walk` and 12% in `many-instances`, and p99 by 26% and 18%: the scenario tick both
+builds and flushes the packets, so it shows the net of the seal leaving `Create` and entering the outbox flush (see
+[outbox flush](#outbox-flush--the-send-path-over-real-sockets-875) for the flush alone), and no collection runs at all.
+
+### Results — server packets encoded into pooled segments, sealed at the drain (#875, 2026-10-10)
+
+A server packet's `Create` used to serialize its message, seal it with the session's `Encryptor` into a new array (the
+payload plus the nonce and tag), and wrap that in a `NetworkPacket`; the outbox then serialized the `NetworkPacket`
+again through protobuf-net to frame it (`OutboxSerializer`). Now `Create` encodes the message, plain, into a pooled
+`PayloadSegment` (`PacketEncoder`) and returns an `OutboundPacket` struct; the outbox seals the payload straight into
+its burst buffer as it frames it (`PacketEnvelope`, `SealInto`) and returns the segment to its pool. No array, no
+`NetworkPacket` and no framing serializer per packet sent. What the moving scenarios still allocate, 51.2 B per player
+per tick in both, includes the message object each packet is built from (48 B for a state ack).
+
+Allocations, from `perf/scenario-allocations.json` regenerated at `6eafe191` (the developer machine's Release run,
+i9-12900K, Windows 11, .NET 10.0.12):
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Before | Change |
+|---|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 0 | 0 | 0.00 | 0 | 0 |
+| `town-walk` | 30 | 92,160 | 1,536 | 51.20 | 1,124,400 | −91.8% |
+| `many-instances` | 500 | 1,536,000 | 25,600 | 51.20 | 6,329,728 | −75.7% |
 
 ### Results — the header struct (#875, 2026-10-10)
 

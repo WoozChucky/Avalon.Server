@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Headers;
@@ -383,13 +384,21 @@ public sealed class RateLimitingShould
                 .Select(_ => Task.Run(() => ApiRateLimiting.IdentifyPersonalAccessTokenAsync(PatRequest(services))))
                 .ToArray();
             await Task.Delay(20);
-            TaskCompletionSource released = Volatile.Read(ref gate);
-            Volatile.Write(ref gate, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
-            released.SetResult();
-            await Task.WhenAll(burst);
-            // Lookups that started after the swap wait on the new gate; let them go too.
-            Volatile.Read(ref gate).TrySetResult();
-            Volatile.Write(ref gate, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+            // Release gate after gate until the whole burst is done: a lookup whose task started late, after a
+            // release, waits on the next gate. Releasing once and then waiting for the burst left such a lookup
+            // waiting forever, and the test with it (a loaded CI runner starts tasks late).
+            var all = Task.WhenAll(burst);
+            var deadline = Stopwatch.StartNew();
+            while (!all.IsCompleted)
+            {
+                Assert.True(deadline.Elapsed < TimeSpan.FromSeconds(30), "The burst's lookups never finished");
+                TaskCompletionSource released = Volatile.Read(ref gate);
+                Volatile.Write(ref gate, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+                released.SetResult();
+                await Task.WhenAny(all, Task.Delay(20));
+            }
+
+            await all;
         }
 
         Assert.True(maxInFlight <= 2, $"{maxInFlight} lookups ran at once");

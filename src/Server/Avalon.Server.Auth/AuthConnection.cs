@@ -65,9 +65,9 @@ public class AuthConnection : Connection, IAuthConnection
 
     public bool VerifyHandshakeData(byte[] handshakeData) => _handshakeData.SequenceEqual(handshakeData);
 
-    public override void Send(NetworkPacket packet)
+    public override void Send(OutboundPacket packet)
     {
-        DiagnosticsConfig.Auth.BytesSent.Add(packet.Size);
+        DiagnosticsConfig.Auth.BytesSent.Add(SentSize(packet));
         DiagnosticsConfig.Auth.PacketsSent.Add(1);
         base.Send(packet);
     }

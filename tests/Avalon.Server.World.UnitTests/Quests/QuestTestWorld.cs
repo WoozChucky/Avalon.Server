@@ -35,7 +35,7 @@ internal sealed class SteadyLootRandom(double value) : ILootRandom
 }
 
 /// <summary>A character in the quest test world, and every packet its connection was sent.</summary>
-internal sealed record QuestClient(IWorldConnection Connection, CharacterEntity Character, List<NetworkPacket> Sent)
+internal sealed record QuestClient(IWorldConnection Connection, CharacterEntity Character, List<OutboundPacket> Sent)
 {
     public uint Id => Character.Guid.Id;
 
@@ -43,7 +43,7 @@ internal sealed record QuestClient(IWorldConnection Connection, CharacterEntity 
         .Where(p => p.Header.Type == type)
         .Select(p =>
         {
-            using var stream = new MemoryStream(p.Payload);
+            using var stream = new MemoryStream(p.PayloadMemory.ToArray());
             return Serializer.Deserialize<T>(stream);
         })
         .ToList();
@@ -182,13 +182,13 @@ internal sealed class QuestTestWorld
         character.InstanceId = Instance.InstanceId;
         character.Position = Vector3.zero;
 
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.AccountId.Returns(new AccountId(id));
         connection.Locale.Returns(AccountLocale.enUS);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
+        connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
         return new QuestClient(connection, character, sent);
     }
 

@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.Dialogue;
 using Avalon.World.Entities;
@@ -131,7 +132,7 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world, Ques
             node.Id.Value,
             text.Get(node.TextId, context),
             options,
-            connection.CryptoSession.Encryptor));
+            PacketEncoder.Shared));
     }
 
     /// <summary>

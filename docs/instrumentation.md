@@ -42,8 +42,10 @@ The world update is followed by work no other histogram covers, about two thirds
 | `party_status` | `PartyService.FlushMemberStatus` |
 | `presence` | The admin view's presence capture |
 | `pings` | The time-sync pings due this tick |
-| `outbox` | `FlushOutbox` over every connection: each connection's queued packets framed and written to its stream |
+| `outbox` | `FlushOutbox` over every connection: each connection's queued packets framed, sealed and written to its stream |
 | `continuations` | `FlushContinuations` over every connection: the off-tick results handed back to the tick |
+
+Since #875 the `outbox` stage carries the seal (AES-GCM, in place as it frames each packet), which every packet's `Create` used to pay inside the world update: compare the stage across that change with that cost moved, not added.
 
 A stage is usually a small part of a tick, so these buckets start lower (`WorldHistograms.StageMicroseconds`): `25, 50, 100, 250, 500, 1000, 2000, 4000, 8000, 12000, 16667, 25000, 33333, 50000, 100000, 250000, 1000000`. The stages together are the tick's time after the world update. Each stage's mean time per tick: `sum by (stage) (rate(world_post_update_duration_microseconds_sum[1m])) / sum by (stage) (rate(world_post_update_duration_microseconds_count[1m]))`.
 

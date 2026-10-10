@@ -2,6 +2,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Server.Auth.Handlers;
 
@@ -41,6 +42,6 @@ public class CMFAResetHandler : IAuthPacketHandler<CMFAResetPacket>
             return;
         }
 
-        ctx.Connection.Send(SMFAResetPacket.Create(result.Status, ctx.Connection.CryptoSession.Encryptor));
+        ctx.Connection.Send(SMFAResetPacket.Create(result.Status, PacketEncoder.Shared));
     }
 }

@@ -33,6 +33,7 @@ public class SessionCipherBenchmarks
     private byte[] _plaintext = null!;
     private byte[] _encrypted = null!;
     private byte[] _output = null!;
+    private byte[] _frame = null!;
 
     [Params(64, 256, 1024)]
     public int PayloadSize;
@@ -73,6 +74,7 @@ public class SessionCipherBenchmarks
 
         _encrypted = _client.Encrypt(_plaintext);
         _output = new byte[PayloadSize + TagSize];
+        _frame = new byte[NonceSize + PayloadSize + TagSize];
     }
 
     [GlobalCleanup]
@@ -80,6 +82,10 @@ public class SessionCipherBenchmarks
 
     [Benchmark]
     public byte[] Session_Encrypt() => _client.Encrypt(_plaintext);
+
+    /// <summary>What the send path does per sealed payload since #875: no array, the frame is the destination.</summary>
+    [Benchmark(Description = "Session: seal into a frame")]
+    public int SessionSealInto() => _client.SealInto(_plaintext, _frame);
 
     [Benchmark]
     public int Session_Decrypt() => _server.Decrypt(_encrypted, _output);

@@ -3,6 +3,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Server.Auth.Handlers;
 
@@ -57,6 +58,6 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
             });
         }
 
-        ctx.Connection.Send(SWorldListPacket.Create(worldsInfo.ToArray(), ctx.Connection.CryptoSession.Encryptor));
+        ctx.Connection.Send(SWorldListPacket.Create(worldsInfo.ToArray(), PacketEncoder.Shared));
     }
 }

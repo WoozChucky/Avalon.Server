@@ -13,8 +13,10 @@ public class SMFAResetPacket : Packet
 
     [ProtoMember(1)] public MFAOperationResult Result { get; set; }
 
-    public static NetworkPacket Create(MFAOperationResult result, EncryptFunc encryptFunc)
-        => PacketSerializationHelper.Serialize(
-            new SMFAResetPacket { Result = result },
-            PacketType, Flags, Protocol, encryptFunc);
+    public static OutboundPacket Create(MFAOperationResult result, PacketEncoder encoder)
+    {
+        SMFAResetPacket message = PacketEncoder.Scratch<SMFAResetPacket>();
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

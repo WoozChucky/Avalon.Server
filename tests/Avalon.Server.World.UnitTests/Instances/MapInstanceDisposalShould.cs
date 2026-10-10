@@ -1,6 +1,5 @@
 using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Common.Cryptography;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
@@ -130,7 +129,7 @@ public class MapInstanceDisposalShould
     {
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
-        connection.CryptoSession.Returns(new PassThroughCryptoSession());
+        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         instance.AddCharacter(connection);
         return connection;
     }
@@ -165,28 +164,4 @@ public class MapInstanceDisposalShould
             Substitute.For<IMapNavigator>(),
             seed: 0);
     }
-}
-
-/// <summary>
-/// NSubstitute cannot proxy a method taking <see cref="ReadOnlySpan{T}" />, and the broadcast paths
-/// exercised here run packets through <c>Encrypt</c> — a substitute produces a proxy that throws
-/// <see cref="InvalidProgramException" /> at the call. Mirrors the Auth suite's fake of the same name.
-/// </summary>
-internal sealed class PassThroughCryptoSession : IAvalonCryptoSession
-{
-    public PassThroughCryptoSession() => Encryptor = Encrypt;
-
-    public void Initialize(byte[] otherEndPublicKeyBytes) { }
-    public byte[] GetPublicKey() => Array.Empty<byte>();
-    public byte[] GetOtherEndPublicKey() => Array.Empty<byte>();
-    public byte[] Encrypt(ReadOnlySpan<byte> data) => data.ToArray();
-    public EncryptFunc Encryptor { get; }
-
-    public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
-    {
-        data.CopyTo(output);
-        return data.Length;
-    }
-
-    public byte[] GenerateHandshakeData() => Array.Empty<byte>();
 }

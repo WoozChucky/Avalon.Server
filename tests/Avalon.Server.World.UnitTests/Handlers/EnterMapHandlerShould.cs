@@ -100,7 +100,7 @@ public class EnterMapHandlerShould
 
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.InGame.Returns(true);
-        var sent = new List<NetworkPacket>();
+        var sent = new List<OutboundPacket>();
         TestTown.Record(connection, character, sent);
         connection.RespawnInFlight.Returns(true);
 

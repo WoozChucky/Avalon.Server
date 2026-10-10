@@ -150,9 +150,10 @@ public class SessionCryptoVectorsShould
     // -- the sealed packets --------------------------------------------------
 
     /// <summary>
-    /// Each recorded packet, sealed again by a session of the right role in the recorded order.
-    /// This is where a swapped label or a stalled counter shows: the round trip still works with
-    /// either mistake, and these bytes do not.
+    /// Each recorded packet, sealed again by a session of the right role in the recorded order, into the middle of a
+    /// larger buffer, as the send path seals straight into the frame it writes (#875). This is where a swapped label or
+    /// a stalled counter shows: the round trip still works with either mistake, and these bytes do not. The bytes on
+    /// either side are left as they were.
     /// </summary>
     [Theory]
     [MemberData(nameof(Names))]
@@ -166,16 +167,81 @@ public class SessionCryptoVectorsShould
         var server = new AvalonCryptoSession(CryptoRole.Server, KeyPair(vector.ServerPrivateScalar));
         server.Initialize(vector.ClientPublicKeyDer);
 
+        const int Offset = 5;
         foreach (CryptoPacket packet in vector.Packets)
         {
             IAvalonCryptoSession sender = string.Equals(packet.Direction, "c2s", StringComparison.Ordinal)
                 ? client
                 : server;
 
-            byte[] resealed = sender.Encrypt(packet.Plaintext);
+            int sealedLength = SessionKeys.NonceSize + packet.Plaintext.Length + SessionKeys.TagSize;
+            byte[] frame = new byte[Offset + sealedLength + 3];
+            Array.Fill(frame, (byte)0xEE);
 
-            Assert.Equal(packet.Nonce, resealed[..SessionKeys.NonceSize]);
-            Assert.Equal(packet.Ciphertext, resealed[SessionKeys.NonceSize..]);
+            int written = sender.SealInto(packet.Plaintext, frame.AsSpan(Offset));
+
+            Assert.Equal(sealedLength, written);
+            Assert.Equal(packet.Nonce, frame[Offset..(Offset + SessionKeys.NonceSize)]);
+            Assert.Equal(packet.Ciphertext, frame[(Offset + SessionKeys.NonceSize)..(Offset + sealedLength)]);
+            Assert.All(frame[..Offset], b => Assert.Equal(0xEE, b));
+            Assert.All(frame[(Offset + sealedLength)..], b => Assert.Equal(0xEE, b));
+        }
+    }
+
+    /// <summary>
+    /// Each recorded packet sealed where the send path encodes it, at the ciphertext's offset in the frame, which seals
+    /// the recorded bytes (#875). A plaintext that overlaps the frame anywhere else is refused: the nonce would
+    /// overwrite it before it is sealed, or it would be sealed over itself. So is a frame too short for the packet.
+    /// Neither refusal spends a nonce, which is why the next seal still matches the recorded next one.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Names))]
+    public void SealInPlaceAndRefuseAnyOtherOverlapWithoutSpendingANonce(string name)
+    {
+        CryptoExchange vector = Named(name);
+
+        var client = new AvalonCryptoSession(CryptoRole.Client, KeyPair(vector.ClientPrivateScalar));
+        client.Initialize(vector.ServerPublicKeyDer);
+
+        var server = new AvalonCryptoSession(CryptoRole.Server, KeyPair(vector.ServerPrivateScalar));
+        server.Initialize(vector.ClientPublicKeyDer);
+
+        const int Offset = 5;
+        foreach (CryptoPacket packet in vector.Packets)
+        {
+            IAvalonCryptoSession sender = string.Equals(packet.Direction, "c2s", StringComparison.Ordinal)
+                ? client
+                : server;
+
+            int length = packet.Plaintext.Length;
+            int sealedLength = SessionKeys.NonceSize + length + SessionKeys.TagSize;
+            byte[] frame = new byte[Offset + sealedLength + 3];
+
+            // Relative to the frame's sealed packet: before it, over the nonce, inside the nonce, one past the
+            // ciphertext's offset. An empty plaintext overlaps nothing, and a short one may end before the packet.
+            foreach (int misplaced in new[] { -3, 0, 5, SessionKeys.NonceSize + 1 })
+            {
+                if (length == 0 || misplaced + length <= 0) continue;
+
+                packet.Plaintext.CopyTo(frame, Offset + misplaced);
+                Assert.Throws<ArgumentException>(
+                    () => sender.SealInto(frame.AsSpan(Offset + misplaced, length), frame.AsSpan(Offset)));
+            }
+
+            Assert.Throws<ArgumentException>(() => sender.SealInto(packet.Plaintext, new byte[sealedLength - 1]));
+
+            Array.Fill(frame, (byte)0xEE);
+            packet.Plaintext.CopyTo(frame, Offset + SessionKeys.NonceSize);
+
+            int written = sender.SealInto(
+                frame.AsSpan(Offset + SessionKeys.NonceSize, length),
+                frame.AsSpan(Offset));
+
+            Assert.Equal(sealedLength, written);
+            Assert.Equal(packet.Nonce, frame[Offset..(Offset + SessionKeys.NonceSize)]);
+            Assert.Equal(packet.Ciphertext, frame[(Offset + SessionKeys.NonceSize)..(Offset + sealedLength)]);
+            Assert.All(frame[..Offset], b => Assert.Equal(0xEE, b));
+            Assert.All(frame[(Offset + sealedLength)..], b => Assert.Equal(0xEE, b));
         }
     }
 

@@ -13,8 +13,11 @@ public class SPongPacket : Packet
     [ProtoMember(1)] public long SequenceNumber { get; set; }
     [ProtoMember(2)] public long Ticks { get; set; }
 
-    public static NetworkPacket Create(long sequenceNumber, long? ticks = null)
-        => PacketSerializationHelper.SerializeUnencrypted(
-            new SPongPacket { SequenceNumber = sequenceNumber, Ticks = ticks ?? DateTime.UtcNow.Ticks },
-            PacketType, NetworkPacketFlags.None, Protocol);
+    public static OutboundPacket Create(long sequenceNumber, PacketEncoder encoder, long? ticks = null)
+    {
+        SPongPacket message = PacketEncoder.Scratch<SPongPacket>();
+        message.SequenceNumber = sequenceNumber;
+        message.Ticks = ticks ?? DateTime.UtcNow.Ticks;
+        return encoder.Encode(message, PacketType, NetworkPacketFlags.None, Protocol);
+    }
 }
