@@ -1228,11 +1228,12 @@ with the committed figure, in every build (Debug and Release, see below):
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
-- **Detection floor.** With the committed figures, the gate fails on a rise of more than **256 B per window** in
+- **Detection floor.** With the committed figures (regenerated at `44d0db3a`, #875: `town-walk` 1,124,400 and
+  `many-instances` 6,329,728 B per window), the gate fails on a rise of more than **256 B per window** in
   `town-idle` (about 4 B per tick: it allocates nothing since #851, so the floor decides, and any one object allocated
-  every tick fails it), **8 B per player per tick** in `town-walk` (14,402 B per window: it fails from 1,454,643 B), and
-  **3.9 B per player per tick** in `many-instances` (7.7 B per instance per tick, 115,897 B per window: it fails from
-  11,705,626 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
+  every tick fails it), **6.2 B per player per tick** in `town-walk` (11,244 B per window: it fails from 1,135,645 B),
+  and **2.1 B per player per tick** in `many-instances` (4.2 B per instance per tick, 63,297 B per window: it fails
+  from 6,393,026 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
   one per instance per tick in `many-instances`; one object per tick for the whole town (about 1.4 KB per window) does
   not fail `town-walk`. Under the 5% band before #852 the floors were 40 and 19 B per player per tick.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
