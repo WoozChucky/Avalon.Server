@@ -36,40 +36,20 @@ public static class PacketEnvelope
 
         Span<byte> frame = burst.GetSpan(EnvelopeLength(headerLength, payloadLength) + payloadLength);
         int at = WriteEnvelope(frame, header, headerLength, payloadLength);
-        if (!seal)
-        {
-            plain.CopyTo(frame.Slice(at));
-        }
-        else
+        if (seal)
         {
             // From the segment's own buffer into the burst's: the two never overlap, as SealInto requires.
             int sealedLength = sealer!.SealInto(plain, frame.Slice(at, payloadLength));
-            if (sealedLength != payloadLength)
-            {
-                Debug.Assert((uint)sealedLength < (uint)payloadLength,
-                    "A sealer reported more bytes than it was given room for");
-                at = Reframe(frame, header, headerLength, at, sealedLength);
-            }
-
-            payloadLength = sealedLength;
+            Debug.Assert(sealedLength == plain.Length + SealOverhead,
+                "A session sealed to a length other than its plaintext's and the seal's overhead");
+        }
+        else
+        {
+            plain.CopyTo(frame.Slice(at));
         }
 
         at += payloadLength;
         burst.Advance(at);
-        return at;
-    }
-
-    /// <summary>
-    /// Closes the frame around a seal shorter than the room made for it, which only the tests' pass-through sessions
-    /// write (they add no nonce or tag). The payload moves down to just behind an envelope of its own length, which is
-    /// never longer than the one written for the longer payload, and the envelope is written again in front of it.
-    /// </summary>
-    private static int Reframe(Span<byte> frame, in NetworkPacketHeader header, int headerLength, int sealedAt,
-        int sealedLength)
-    {
-        int at = EnvelopeLength(headerLength, sealedLength);
-        frame.Slice(sealedAt, sealedLength).CopyTo(frame.Slice(at));
-        WriteEnvelope(frame, header, headerLength, sealedLength);
         return at;
     }
 

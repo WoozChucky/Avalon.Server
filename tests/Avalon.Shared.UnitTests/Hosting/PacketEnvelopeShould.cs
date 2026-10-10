@@ -16,34 +16,18 @@ namespace Avalon.Shared.UnitTests.Hosting;
 /// </summary>
 public class PacketEnvelopeShould
 {
-    /// <summary>What the connection seals with.</summary>
-    public enum Sealer
+    public static TheoryData<int, NetworkPacketType, NetworkPacketFlags, bool> Frames() => new()
     {
-        /// <summary>Nothing: the connection sends plain inside TLS.</summary>
-        None,
-
-        /// <summary>A real session, which adds a nonce and a tag.</summary>
-        Session,
-
-        /// <summary>The test fakes' session, which seals a payload to itself: nothing added.</summary>
-        PassThrough,
-    }
-
-    public static TheoryData<int, NetworkPacketType, NetworkPacketFlags, Sealer> Frames() => new()
-    {
-        // payload length, type, flags as created, what the connection seals with
-        { 0, NetworkPacketType.SMSG_DISCONNECT, NetworkPacketFlags.None, Sealer.Session },
-        { 1, NetworkPacketType.SMSG_PING, NetworkPacketFlags.None, Sealer.Session },
-        { 127, NetworkPacketType.SMSG_GAME_ADMISSION, NetworkPacketFlags.ClearText, Sealer.Session },
-        { 128, NetworkPacketType.SMSG_WORLD_STATE_UPDATE, NetworkPacketFlags.Encrypted, Sealer.Session },
-        { 100, NetworkPacketType.SMSG_WORLD_STATE_UPDATE, NetworkPacketFlags.Encrypted, Sealer.None },
-        { 7_000, NetworkPacketType.SMSG_WORLD_STATE_ADD, NetworkPacketFlags.Encrypted, Sealer.Session },
-        { 70_000, NetworkPacketType.SMSG_WORLD_STATE_ADD, NetworkPacketFlags.Encrypted, Sealer.None },
+        // payload length, type, flags as created, whether the connection seals
+        { 0, NetworkPacketType.SMSG_DISCONNECT, NetworkPacketFlags.None, true },
+        { 1, NetworkPacketType.SMSG_PING, NetworkPacketFlags.None, true },
+        { 127, NetworkPacketType.SMSG_GAME_ADMISSION, NetworkPacketFlags.ClearText, true },
+        { 128, NetworkPacketType.SMSG_WORLD_STATE_UPDATE, NetworkPacketFlags.Encrypted, true },
+        { 100, NetworkPacketType.SMSG_WORLD_STATE_UPDATE, NetworkPacketFlags.Encrypted, false },
+        { 7_000, NetworkPacketType.SMSG_WORLD_STATE_ADD, NetworkPacketFlags.Encrypted, true },
+        { 70_000, NetworkPacketType.SMSG_WORLD_STATE_ADD, NetworkPacketFlags.Encrypted, false },
         // A negative type: protobuf-net writes it as a ten-byte varint.
-        { 3, NetworkPacketType.ERROR, NetworkPacketFlags.Encrypted, Sealer.Session },
-        // A sealer that writes less than the envelope made room for: the frame closes around what it wrote. 100 bytes,
-        // where a real seal would write 128, so the payload's length varint is a byte shorter.
-        { 100, NetworkPacketType.SMSG_WORLD_STATE_UPDATE, NetworkPacketFlags.Encrypted, Sealer.PassThrough },
+        { 3, NetworkPacketType.ERROR, NetworkPacketFlags.Encrypted, true },
     };
 
     /// <summary>
@@ -53,7 +37,7 @@ public class PacketEnvelopeShould
     [Theory]
     [MemberData(nameof(Frames))]
     public void Write_the_frame_protobuf_net_writes(int payloadLength, NetworkPacketType type, NetworkPacketFlags flags,
-        Sealer sealer)
+        bool sealedConnection)
     {
         byte[] payload = new byte[payloadLength];
         new Random(payloadLength).NextBytes(payload);
@@ -62,7 +46,7 @@ public class PacketEnvelopeShould
             new NetworkPacketHeader { Type = type, Flags = flags, Protocol = NetworkProtocol.Tcp }, pool.Rent(payload));
         (IAvalonCryptoSession writer, IAvalonCryptoSession reference) = TwinSessions();
 
-        bool seals = sealer != Sealer.None && (flags & NetworkPacketFlags.Encrypted) != 0;
+        bool seals = sealedConnection && (flags & NetworkPacketFlags.Encrypted) != 0;
         var expectedPacket = new NetworkPacket
         {
             Header = new NetworkPacketHeader
@@ -71,19 +55,13 @@ public class PacketEnvelopeShould
                 Flags = seals ? flags : flags & ~NetworkPacketFlags.Encrypted,
                 Protocol = NetworkProtocol.Tcp,
             },
-            Payload = seals && sealer == Sealer.Session ? reference.Encrypt(payload) : payload,
+            Payload = seals ? reference.Encrypt(payload) : payload,
         };
         using var expected = new MemoryStream();
         Serializer.SerializeWithLengthPrefix(expected, expectedPacket, PrefixStyle.Base128);
 
-        IAvalonCryptoSession? connectionSealer = sealer switch
-        {
-            Sealer.Session => writer,
-            Sealer.PassThrough => new PassThroughSession(),
-            _ => null,
-        };
         var burst = new ArrayBufferWriter<byte>();
-        int written = PacketEnvelope.Append(burst, packet, connectionSealer);
+        int written = PacketEnvelope.Append(burst, packet, sealedConnection ? writer : null);
 
         Assert.Equal(expected.ToArray(), burst.WrittenSpan.ToArray());
         Assert.Equal(burst.WrittenCount, written);
@@ -136,27 +114,5 @@ public class PacketEnvelopeShould
         first.Initialize(client);
         second.Initialize(client);
         return (first, second);
-    }
-
-    /// <summary>
-    /// The sealing of the world and auth tests' FakeAvalonCryptoSession, which this project cannot reference: the
-    /// plaintext as it is, its own length returned.
-    /// </summary>
-    private sealed class PassThroughSession : IAvalonCryptoSession
-    {
-        public EncryptFunc Encryptor => throw new NotSupportedException();
-
-        public int SealInto(ReadOnlySpan<byte> plaintext, Span<byte> destination)
-        {
-            plaintext.CopyTo(destination);
-            return plaintext.Length;
-        }
-
-        public void Initialize(byte[] otherEndPublicKeyBytes) => throw new NotSupportedException();
-        public byte[] GetPublicKey() => throw new NotSupportedException();
-        public byte[] GetOtherEndPublicKey() => throw new NotSupportedException();
-        public byte[] Encrypt(ReadOnlySpan<byte> data) => throw new NotSupportedException();
-        public int Decrypt(ReadOnlySpan<byte> data, byte[] output) => throw new NotSupportedException();
-        public byte[] GenerateHandshakeData() => throw new NotSupportedException();
     }
 }

@@ -37,7 +37,12 @@ public sealed class PayloadSegment
         Volatile.Write(ref _references, 1);
     }
 
-    internal void AddReference() => Interlocked.Increment(ref _references);
+    internal void AddReference()
+    {
+        // A share after the last release would hold a segment its pool may already have handed to the next packet.
+        int references = Interlocked.Increment(ref _references);
+        Debug.Assert(references > 1, "A payload segment was shared after its last release");
+    }
 
     internal void Release()
     {
