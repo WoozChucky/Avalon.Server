@@ -1,8 +1,11 @@
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
+using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -38,6 +41,13 @@ public sealed class ScenarioConnection : IWorldConnection
         AsymmetricCipherKeyPair client = AsymmetricCipher.GenerateECDHKeyPair(256);
         return (server, AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(client)));
     });
+
+    // As WorldConnection.ProcessQueue dispatches a queued input: through the packet telemetry, so the allocation gate
+    // measures what the tick pays per received packet too (#875). A source and a meter nothing listens to.
+    private static readonly PacketDispatchTelemetry s_telemetry =
+        new(new ActivitySource("avalon-scenarios"), new Meter("avalon-scenarios"));
+
+    private readonly PacketTags _tags = new(Guid.NewGuid(), "scenario", null, null);
 
     private readonly TickDrivenOutbox _outbox;
     private readonly CountingStream _stream = new();
@@ -85,7 +95,21 @@ public sealed class ScenarioConnection : IWorldConnection
 
     public void FlushOutbox() => _outbox.Flush();
 
-    public void UpdateMap() => _onUpdateMap?.Invoke(this);
+    public void UpdateMap()
+    {
+        if (_onUpdateMap is null)
+            return;
+
+        PacketDispatch dispatch = s_telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, _tags, NullLogger.Instance);
+        try
+        {
+            _onUpdateMap(this);
+        }
+        finally
+        {
+            dispatch.Dispose();
+        }
+    }
 
     public Guid Id => throw new NotSupportedException();
     public Task? ExecuteTask => throw new NotSupportedException();

@@ -16,9 +16,14 @@
 message NetworkPacket
 
 variant absent
-  field 1 Header : NetworkPacketHeader = null
+  field 1 Header : NetworkPacketHeader
+    field 1 Type : NetworkPacketType = UNKNOWN (0)
+    field 2 Flags : NetworkPacketFlags = None (0)
+    field 3 Protocol : NetworkProtocol = Invalid (0)
+    field 4 Version : int = 0
   field 2 Payload : byte[] = null
-  bytes 0
+  bytes 2
+    0a 00
 
 variant empty
   field 1 Header : NetworkPacketHeader

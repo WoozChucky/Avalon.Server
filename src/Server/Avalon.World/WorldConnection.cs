@@ -12,6 +12,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
+using Avalon.World.Handlers;
 using Avalon.World.GameAuth;
 using Avalon.World.Maintenance;
 using Avalon.World.Public;
@@ -217,14 +218,17 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         // before this pong landed -- either one turns the offset into the gap between pings.
         TimeSyncOffset = lastServerTimestamp + rtt / 2 - clientReceivedTimestamp;
 
-        if (Latency - latency > 20)
+        if (Latency - latency > 20 && _logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogInformation("[{CharName}] Latency changed: {Latency}ms -> {NewLatency}ms",
-                Character?.Name ?? AccountId?.ToString(), Latency, latency);
+            HighRatePacketLog.LatencyChanged(_logger, Character?.Name ?? AccountId?.ToString(), Latency, latency,
+                NetworkPacketType.CMSG_PONG, Id);
         }
 
-        _logger.LogTrace("[{CharName}] RTT: {Rtt}ticks, Latency: {Latency}ms", Character?.Name ?? AccountId?.ToString(),
-            rtt, latency);
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            HighRatePacketLog.RoundTrip(_logger, Character?.Name ?? AccountId?.ToString(), rtt, latency,
+                NetworkPacketType.CMSG_PONG, Id);
+        }
 
         _lastClientTicks = clientReceivedTimestamp;
         RoundTripTime = rtt;
@@ -288,7 +292,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             CurrentPacketArrivedTicks = packet.ArrivedTicks;
             if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))
             {
-                using PacketDispatch dispatch = telemetry.Begin(packet.Type, TelemetryTags(), _logger);
+                PacketDispatch dispatch = telemetry.Begin(packet.Type, TelemetryTags(), _logger);
                 try
                 {
                     handler.Execute(this, packet.Payload!);
@@ -296,7 +300,11 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
                 catch (Exception ex)
                 {
                     dispatch.Fail(ex);
-                    _logger.LogError(ex, "Error processing packet {PacketType}", packet.Type);
+                    _logger.LogError(ex, "Error processing packet {PacketType} on connection {ConnectionId}", packet.Type, Id);
+                }
+                finally
+                {
+                    dispatch.Dispose();
                 }
             }
             else

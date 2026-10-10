@@ -4,8 +4,8 @@ namespace Avalon.Configuration;
 public class TelemetryConfiguration
 {
     /// <summary>
-    /// Packet types handled without a span (their duration and errors are still counted), by
-    /// NetworkPacketType name. Null keeps the defaults: CMSG_PLAYER_INPUT and CMSG_PONG, sent many
+    /// Packet types handled without a span and without a log scope (their duration and errors are
+    /// still counted), by NetworkPacketType name. Null keeps the defaults: CMSG_PLAYER_INPUT and CMSG_PONG, sent many
     /// times a second per player. An array, not a list: the binder appends to a list that already
     /// holds the defaults instead of replacing it.
     /// </summary>

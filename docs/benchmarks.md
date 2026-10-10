@@ -1105,11 +1105,15 @@ second). It now returns the new end, or -1 once the stream ended, and its state 
 |---|---:|---:|
 | Before, B allocated per frame read | 208.1 | 208.2 |
 | After | 64.1 | 64.2 |
+| After the header struct (#875, 2026-10-10) | 0.0 to 0.1 | 0.0 to 0.1 |
 
-What is left per frame is mostly the frame's `NetworkPacketHeader`, which `InboundPacketFrame.ParseFrame` creates;
-the decrypt and deserialize that follow allocate the `Packet` (80 B, see
+On 2026-10-10 (#875) `NetworkPacketHeader` became a struct, and `InboundPacketFrame.ParseFrame` reads its four
+fields by hand rather than through protobuf-net (which allocates for a struct it deserializes too): before, 64.1 B per
+frame read on Linux and 64.3 to 64.6 B on Windows; after, 0.0 to 0.1 B on both (two runs each, Linux in a 4-CPU
+`dotnet/sdk:10.0` container, .NET 10.0.12). The read loop itself no longer allocates per frame; what is left is the
+`Packet` the decrypt and deserialize that follow create (80 B, see
 [GC-008](#packet-reader-decrypt-gc-008--benchmark-results)). This is off the tick, on the connection's read loop: at
-the ramp's 12,000 packets a second in, about 1.7 MB/s less garbage.
+the ramp's 12,000 packets a second in, the two changes together leave about 2.5 MB/s less garbage.
 
 ---
 
@@ -1169,9 +1173,8 @@ the instance pass, and leaves out:
 - `InstanceRegistry.ProcessExpiredInstances`, the last step. Its walk of the registry allocates a 72 B enumerator per
   tick in an unoptimized (Debug) build and, measured, nothing in Release, so it would add nothing to the committed
   figure and would fail `town-idle`'s gate (4,320 B per window over a 0 B baseline) in every local Debug run.
-- The map pass's dispatch wrapper: `WorldConnection.ProcessQueue` and `PacketDispatchTelemetry.Begin`. `LoopWalker`
-  calls `PlayerInputHandler` directly, so the queue, the per-packet session filter and the dispatch telemetry are not
-  in the numbers.
+- The map pass's queue: `WorldConnection.ProcessQueue`. `LoopWalker` calls `PlayerInputHandler` directly, so the queue
+  and the per-packet session filter are not in the numbers (the dispatch is, since #875; see The allocation gate).
 
 ### How a scenario is measured
 
@@ -1224,11 +1227,12 @@ with the committed figure, in every build (Debug and Release, see below):
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
-- **Detection floor.** With the committed figures, the gate fails on a rise of more than **256 B per window** in
+- **Detection floor.** With the committed figures (regenerated at `44d0db3a`, #875: `town-walk` 1,124,400 and
+  `many-instances` 6,329,728 B per window), the gate fails on a rise of more than **256 B per window** in
   `town-idle` (about 4 B per tick: it allocates nothing since #851, so the floor decides, and any one object allocated
-  every tick fails it), **8 B per player per tick** in `town-walk` (14,402 B per window: it fails from 1,454,643 B), and
-  **3.9 B per player per tick** in `many-instances` (7.7 B per instance per tick, 115,897 B per window: it fails from
-  11,705,626 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
+  every tick fails it), **6.2 B per player per tick** in `town-walk` (11,244 B per window: it fails from 1,135,645 B),
+  and **2.1 B per player per tick** in `many-instances` (4.2 B per instance per tick, 63,297 B per window: it fails
+  from 6,393,026 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
   one per instance per tick in `many-instances`; one object per tick for the whole town (about 1.4 KB per window) does
   not fail `town-walk`. Under the 5% band before #852 the floors were 40 and 19 B per player per tick.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
@@ -1238,6 +1242,11 @@ with the committed figure, in every build (Debug and Release, see below):
 - **Ratchet.** The committed file goes down only by an explicit commit. When a change makes a scenario cheaper,
   regenerate and commit the lower figure, so the gain cannot be lost again unnoticed. When an increase is intended,
   regenerating is also the fix, and the JSON diff shows the reviewer what it costs.
+
+Since #875 each walker's input is dispatched through `PacketDispatchTelemetry`, as `WorldConnection` dispatches a
+received packet, so the gate covers the dispatch too; for a high-rate type such as `CMSG_PLAYER_INPUT` it allocates
+nothing (it was 248 B per packet with a scope-reading log provider: the dispatch object, the log scope's state and
+scope, and the `ExecutionContext` and `OneElementAsyncLocalValueMap` the scope's `AsyncLocal` write creates).
 
 Regenerate (every scenario, in Release; the runner refuses `--write-allocations` for a subset):
 
@@ -1291,6 +1300,26 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 18 s to the World
 suite.
+
+### Results — the header struct (#875, 2026-10-10)
+
+`NetworkPacketHeader` was a class, and every sent packet allocated two of them (32 B each): one from `NetworkPacket`'s
+`Header { get; set; } = new()` initializer and one from `PacketSerializationHelper.Serialize`'s
+`Header = new NetworkPacketHeader { … }`, which replaced it. As a struct it allocates nothing, on the send path as on the
+receive path (`InboundPacketFrame.ParseFrame` reads it by hand). Both moving scenarios fall by about 63.5 B per player per
+tick, the two header objects of the one state ack each walking player is sent per tick (63.7 in `town-walk`, 63.5 in
+`many-instances`). The scenarios now also dispatch each walker's input through `PacketDispatchTelemetry`, as
+`WorldConnection.ProcessQueue` does; for `CMSG_PLAYER_INPUT` that dispatch is measured at 0 B (it was 248 B per packet
+with a scope-reading log provider, see [instrumentation](instrumentation.md#packet-handlers)).
+
+Allocations, from `perf/scenario-allocations.json` regenerated at `44d0db3a` (the developer machine's Release run,
+i9-12900K, Windows 11, .NET 10.0.12):
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Before | Change |
+|---|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 0 | 0 | 0.00 | 0 | 0 |
+| `town-walk` | 30 | 1,124,400 | 18,740 | 624.67 | 1,239,120 | −9.3% |
+| `many-instances` | 500 | 6,329,728 | 105,495 | 210.99 | 8,233,728 | −23.1% |
 
 ### Results — no closure per flusher call (#875, 2026-10-09)
 
