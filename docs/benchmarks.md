@@ -1227,14 +1227,15 @@ with the committed figure, in every build (Debug and Release, see below):
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
-- **Detection floor.** With the committed figures (regenerated at `44d0db3a`, #875: `town-walk` 1,124,400 and
-  `many-instances` 6,329,728 B per window), the gate fails on a rise of more than **256 B per window** in
+- **Detection floor.** With the committed figures (regenerated at `6eafe191`, #875: `town-walk` 92,160 and
+  `many-instances` 1,536,000 B per window), the gate fails on a rise of more than **256 B per window** in
   `town-idle` (about 4 B per tick: it allocates nothing since #851, so the floor decides, and any one object allocated
-  every tick fails it), **6.2 B per player per tick** in `town-walk` (11,244 B per window: it fails from 1,135,645 B),
-  and **2.1 B per player per tick** in `many-instances` (4.2 B per instance per tick, 63,297 B per window: it fails
-  from 6,393,026 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
-  one per instance per tick in `many-instances`; one object per tick for the whole town (about 1.4 KB per window) does
-  not fail `town-walk`. Under the 5% band before #852 the floors were 40 and 19 B per player per tick.
+  every tick fails it), **0.5 B per player per tick** in `town-walk` (921.6 B per window: it fails from 93,082 B),
+  and **0.5 B per player per tick** in `many-instances` (1 B per instance per tick, 15,360 B per window: it fails
+  from 1,551,361 B). So one new object, of any size, per walking player per tick fails both moving scenarios, and so does
+  one per instance per tick in `many-instances`; since the outbound packets stopped allocating their payloads, so does
+  one object per tick for the whole town (about 1.4 KB per window) in `town-walk`. Under the 5% band before #852 the
+  floors were 40 and 19 B per player per tick.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
   CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
@@ -1300,6 +1301,25 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that. The gate adds about 18 s to the World
 suite.
+
+### Results — server packets encoded into pooled segments, sealed at the drain (#875, 2026-10-10)
+
+A server packet's `Create` used to serialize its message, seal it with the session's `Encryptor` into a new array (the
+payload plus the nonce and tag), and wrap that in a `NetworkPacket`; the outbox then serialized the `NetworkPacket`
+again through protobuf-net to frame it (`OutboxSerializer`). Now `Create` encodes the message, plain, into a pooled
+`PayloadSegment` (`PacketEncoder`) and returns an `OutboundPacket` struct; the outbox seals the payload straight into
+its burst buffer as it frames it (`PacketEnvelope`, `SealInto`) and returns the segment to its pool. No array, no
+`NetworkPacket` and no framing serializer per packet sent. What the moving scenarios still allocate, 51.2 B per player
+per tick in both, includes the message object each packet is built from (48 B for a state ack).
+
+Allocations, from `perf/scenario-allocations.json` regenerated at `6eafe191` (the developer machine's Release run,
+i9-12900K, Windows 11, .NET 10.0.12):
+
+| Scenario | Players | bytes/window | B/tick | B/player/tick | Before | Change |
+|---|---:|---:|---:|---:|---:|---:|
+| `town-idle` | 30 | 0 | 0 | 0.00 | 0 | 0 |
+| `town-walk` | 30 | 92,160 | 1,536 | 51.20 | 1,124,400 | −91.8% |
+| `many-instances` | 500 | 1,536,000 | 25,600 | 51.20 | 6,329,728 | −75.7% |
 
 ### Results — the header struct (#875, 2026-10-10)
 
