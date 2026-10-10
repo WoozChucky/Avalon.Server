@@ -28,6 +28,10 @@ public class GcStallShould
         CounterSeries[] restartedCollections = [.. collections, Series("b", (95, 100), (105, 1))];
         Assert.Equal(new GcStall(GcStallReadout.Reported, 30),
             Rounded(GcStall.From(true, 2, restartedPause, restartedCollections, 100)));
+        // A restart is the process's: a young process's pause can drop while its collections rise, and every counter of
+        // it then counts whole (10 ms in 5 collections, not in the 2 the rise alone would give).
+        Assert.Equal(new GcStall(GcStallReadout.Reported, 2),
+            Rounded(GcStall.From(true, 1, [Series("c", (95, 0.500), (105, 0.010))], [Series("c", (95, 3), (105, 5))], 100)));
 
         // A world build without the pause time or the collections: it reports its ticks (the count's anchor) and not both.
         Assert.Equal(new GcStall(GcStallReadout.NotExported, null), GcStall.From(true, 0, [], [], 100));

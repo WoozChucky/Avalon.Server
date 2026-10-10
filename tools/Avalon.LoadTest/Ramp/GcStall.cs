@@ -14,7 +14,7 @@ public enum GcStallReadout
 
     /// <summary>
     /// Nothing to tell: a query failed, Prometheus has nothing from the world at all (a stalled export, a scrape gap, a
-    /// wrong world id), or the window held no sample with one before it, as can happen to any of a step's values.
+    /// wrong world id), or the window held no interval with both counters, as can happen to any of a step's values.
     /// </summary>
     Unknown,
 }
@@ -52,10 +52,16 @@ public sealed record GcStall(GcStallReadout Readout, double? Ms)
     /// <remarks>
     /// <para>
     /// An interval is one sample and the one before it, ending within the window (after <paramref name="windowStart"/>,
-    /// Unix seconds on Prometheus's clock); the world exports both counters together, so a pause interval is matched
-    /// with the collections' by process and end time, and the collections' increases are summed over the generations.
-    /// A sample below the one before it is a restarted process, whose count began again at 0: its whole value is what
-    /// it added.
+    /// Unix seconds on Prometheus's clock); a series's first sample within the window (a new process, or a gap longer
+    /// than the samples reach back) is an interval from 0. The world exports both counters together, so a pause interval
+    /// is matched with the collections' by process and end time, the collections' increases are summed over the
+    /// generations, and the worst interval of any process counts. An interval spanning a missed export averages over the
+    /// whole span: a gap can dilute a long collection, never inflate one.
+    /// </para>
+    /// <para>
+    /// A restart is the process's: when any of its counters (the pause time or a generation's collections) is below
+    /// the sample before it at an interval's end, the process began again from 0 within the interval, and every one of
+    /// its counters counts its whole value there.
     /// </para>
     /// <para>
     /// A count of 0 is <see cref="GcStallReadout.NotExported"/>. A failed or empty count, failed samples, or no interval
@@ -70,42 +76,51 @@ public sealed record GcStall(GcStallReadout Readout, double? Ms)
         if (exportedSeries is not > 0) return new(GcStallReadout.NotExported, null);
         if (pause is null || collections is null) return Unknown;
 
-        Dictionary<(string, long), double> collected = Increases(collections, windowStart);
+        Dictionary<(string, long), Added> collected = Increases(collections, windowStart);
         bool measured = false;
         double worst = 0;
-        foreach (((string, long) interval, double paused) in Increases(pause, windowStart))
+        foreach (((string, long) interval, Added paused) in Increases(pause, windowStart))
         {
-            if (!collected.TryGetValue(interval, out double count)) continue;
+            if (!collected.TryGetValue(interval, out Added count)) continue;
 
             measured = true;
-            if (count > 0 && double.IsFinite(paused)) worst = Math.Max(worst, paused * 1000 / count);
+            bool restarted = paused.Reset || count.Reset;
+            double pauseSeconds = restarted ? paused.Whole : paused.Increase;
+            double gcCount = restarted ? count.Whole : count.Increase;
+            if (gcCount > 0 && double.IsFinite(pauseSeconds)) worst = Math.Max(worst, pauseSeconds * 1000 / gcCount);
         }
 
         return measured ? new(GcStallReadout.Reported, worst) : Unknown;
     }
 
     /// <summary>
-    /// Each interval's increase ending within the window, by process and end time (whole milliseconds), summed over the
-    /// series of one process.
+    /// Each interval ending within the window, by process and end time (whole milliseconds), summed over the series of
+    /// one process: the increase (a series below the sample before it counting its whole value), the whole values at
+    /// the interval's end, and whether any series of it was below the sample before it.
     /// </summary>
-    private static Dictionary<(string, long), double> Increases(IReadOnlyList<CounterSeries> series, double windowStart)
+    private static Dictionary<(string, long), Added> Increases(IReadOnlyList<CounterSeries> series, double windowStart)
     {
-        var increases = new Dictionary<(string, long), double>();
+        var increases = new Dictionary<(string, long), Added>();
         foreach (CounterSeries counter in series)
         {
             IReadOnlyList<CounterSample> samples = counter.Samples;
-            for (int i = 1; i < samples.Count; i++)
+            for (int i = 0; i < samples.Count; i++)
             {
                 if (samples[i].Time <= windowStart) continue;
 
-                double added = samples[i].Value >= samples[i - 1].Value
-                    ? samples[i].Value - samples[i - 1].Value
-                    : samples[i].Value;
+                // A first sample within the window has nothing before it: it counts from 0.
+                double before = i == 0 ? 0 : samples[i - 1].Value;
+                bool reset = samples[i].Value < before;
+                double increase = reset ? samples[i].Value : samples[i].Value - before;
                 (string, long) interval = (counter.Process, (long)Math.Round(samples[i].Time * 1000));
-                increases[interval] = increases.GetValueOrDefault(interval) + added;
+                Added sum = increases.GetValueOrDefault(interval);
+                increases[interval] = new Added(sum.Increase + increase, sum.Whole + samples[i].Value, sum.Reset || reset);
             }
         }
 
         return increases;
     }
+
+    /// <summary>What one process's series of a counter added in one interval.</summary>
+    private readonly record struct Added(double Increase, double Whole, bool Reset);
 }
