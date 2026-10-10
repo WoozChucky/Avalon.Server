@@ -1660,9 +1660,10 @@ Release and reported in Debug (#890):
   256 B floor decides for it too (1% is 162 B): it fails above 16,500 B, about 4 B per tick for the whole fight, so one
   24 B object every six ticks fails it. Its Debug run reads 225 B per window above Release (16,469 B: what the optimised
   JIT keeps off the heap, among it in the vendored navmesh code, which a Debug build compiles unoptimised too), and a
-  whole World suite run reads 80 B per window more or less than the test alone (Release 16,172, Debug 16,557; the cause
-  is not found), so its Debug figure can cross the floor with no change. The escape hatch below applies to it alone
-  (owner, #890): `forest-combat` is decided in Release (CI) and reported in Debug.
+  whole World suite run reads 80 B per window more or less than the test alone (Release 16,164, Debug 16,549; the cause
+  is not found), so its Debug figure can cross the floor with no change, and the Debug suite read does (over 16,500).
+  The escape hatch below applies to it alone (owner, #890): `forest-combat` is decided in Release (CI) and reported,
+  not gated, in Debug.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
   CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the

@@ -2,6 +2,7 @@ using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
@@ -249,13 +250,21 @@ public sealed class WorldMaintenanceCoordinator(
 
     private void Broadcast(string message, DateTime nowUtc, IReadOnlyList<IWorldConnection> connections)
     {
+        // Encoded once, for the first connection in game, and shared by every one (#875).
+        OutboundPacket line = default;
         foreach (IWorldConnection connection in connections)
         {
             if (connection.IsConnected && !connection.IsClosing && connection.InGame)
             {
                 try
                 {
-                    connection.Send(SChatMessagePacket.System(message, nowUtc, PacketEncoder.Shared));
+                    if (line.Payload is null)
+                    {
+                        line = SChatMessagePacket.System(message, nowUtc, PacketEncoder.Shared);
+                    }
+
+                    // A throw after Share leaves its one reference to the GC, which never corrupts the payload.
+                    connection.Send(line.Share());
                 }
                 catch (Exception e)
                 {
@@ -264,6 +273,8 @@ public sealed class WorldMaintenanceCoordinator(
                 }
             }
         }
+
+        line.Release();
     }
 
     /// <summary>Blocks every authenticated non-Admin connection and closes each once, after the zero line.</summary>

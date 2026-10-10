@@ -349,11 +349,11 @@ public sealed class ConnectionSenderShould
     }
 
     /// <summary>
-    /// Review Focus 1: a broadcast's payload, encoded once and shared (#875). Each recipient copies it into its own burst,
-    /// sealing it there when it seals, and gives its reference back as it frames it: one that has closed refuses it at
-    /// once, one whose write is still pending frames it ahead. Every other recipient writes the payload's own bytes, the
-    /// segment is never sealed in place, and it goes back to the pool only once the last recipient has framed it, so a
-    /// packet encoded into it afterwards changes nothing already framed.
+    /// A broadcast's payload, encoded once and shared by its recipients (#875). Each recipient copies it into its own
+    /// burst, sealing it there when it seals, and gives its reference back as it frames it: one that has closed refuses
+    /// it at once, one whose write is still pending frames it ahead. Every other recipient writes the payload's own
+    /// bytes, the segment is never sealed in place, and it goes back to the pool only once the last recipient has framed
+    /// it, so a packet encoded into it afterwards changes nothing already framed.
     /// </summary>
     [Fact]
     public async Task Write_a_shared_payload_to_every_other_recipient_when_one_has_closed()
@@ -383,6 +383,7 @@ public sealed class ConnectionSenderShould
 
         // Encoded into the segment the hit gave back: nothing framed above may change.
         OutboundPacket overwrite = SUnitDamagePacket.Create(new ObjectGuid(ObjectType.Creature, 1), 1, 1, 1, _encoder);
+        Assert.Same(hit.Payload, overwrite.Payload); // the pool hands the hit's segment out again
         stalled.Complete();
         PassUntil(scheduler, pending.OwnerThread, () => stalled.Writes == 2);
 
