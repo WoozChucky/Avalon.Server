@@ -23,7 +23,10 @@ public readonly struct InboundPacketFrame
     /// <summary>
     /// Parses a raw protobuf-encoded NetworkPacket frame without allocating: the payload is a slice of the buffer,
     /// and the header is read field by field (#875), since protobuf-net allocates for a struct it deserializes.
-    /// Field order is fixed (field 1 = header, field 2 = payload) because we own both ends of the wire.
+    /// Fields may come in any order; unknown fields are skipped. A frame is refused with
+    /// <see cref="InvalidDataException"/> where protobuf-net refused it (a header value out of its member's range) and
+    /// wherever it is malformed (a truncated or over-long varint, a length past the end, an unsupported wire type), so
+    /// nothing is read past the frame.
     /// </summary>
     public static InboundPacketFrame ParseFrame(ReadOnlyMemory<byte> buffer)
     {
@@ -44,7 +47,7 @@ public readonly struct InboundPacketFrame
                 continue;
             }
 
-            int len = checked((int)ReadVarint(span, ref pos));
+            int len = ReadLength(span, ref pos);
 
             if (fieldNumber == 1)
                 header = ReadHeader(span.Slice(pos, len));
@@ -58,7 +61,10 @@ public readonly struct InboundPacketFrame
         return new InboundPacketFrame(header, payload);
     }
 
-    /// <summary>The header's four fields, each an int32 varint (sign-extended to ten bytes when negative).</summary>
+    /// <summary>
+    /// The header's four fields, each an int32 varint (sign-extended to ten bytes when negative). Like protobuf-net, a
+    /// value outside int32 is refused, and so is one outside <see cref="short"/> for the three enums declared on it.
+    /// </summary>
     private static NetworkPacketHeader ReadHeader(ReadOnlySpan<byte> span)
     {
         NetworkPacketHeader header = default;
@@ -74,31 +80,57 @@ public readonly struct InboundPacketFrame
                 continue;
             }
 
-            int value = unchecked((int)ReadVarint(span, ref pos));
+            long value = unchecked((long)ReadVarint(span, ref pos));
             switch (fieldNumber)
             {
-                case 1: header.Type = (NetworkPacketType)value; break;
-                case 2: header.Flags = (NetworkPacketFlags)value; break;
-                case 3: header.Protocol = (NetworkProtocol)value; break;
-                case 4: header.Version = value; break;
+                case 1: header.Type = (NetworkPacketType)ToShort(value, fieldNumber); break;
+                case 2: header.Flags = (NetworkPacketFlags)ToShort(value, fieldNumber); break;
+                case 3: header.Protocol = (NetworkProtocol)ToShort(value, fieldNumber); break;
+                case 4: header.Version = ToInt(value, fieldNumber); break;
             }
         }
 
         return header;
     }
 
+    private static short ToShort(long value, int fieldNumber) =>
+        value is >= short.MinValue and <= short.MaxValue
+            ? (short)value
+            : throw new InvalidDataException(
+                $"Header field {fieldNumber} holds {value}, outside its 16-bit range, in a NetworkPacket frame.");
+
+    private static int ToInt(long value, int fieldNumber) =>
+        value is >= int.MinValue and <= int.MaxValue
+            ? (int)value
+            : throw new InvalidDataException(
+                $"Header field {fieldNumber} holds {value}, outside its 32-bit range, in a NetworkPacket frame.");
+
     private static void SkipField(ReadOnlySpan<byte> span, ref int pos, int wireType, int fieldNumber)
     {
+        int skip;
         switch (wireType)
         {
-            case 0: ReadVarint(span, ref pos); break;                          // varint
-            case 1: pos += 8; break;                                           // 64-bit
-            case 2: pos += checked((int)ReadVarint(span, ref pos)); break;     // length-delimited
-            case 5: pos += 4; break;                                           // 32-bit
+            case 0: ReadVarint(span, ref pos); return;          // varint
+            case 1: skip = 8; break;                            // 64-bit
+            case 2: skip = ReadLength(span, ref pos); break;    // length-delimited
+            case 5: skip = 4; break;                            // 32-bit
             default:
                 throw new InvalidDataException(
                     $"Unsupported protobuf wire type {wireType} for field {fieldNumber} in NetworkPacket frame.");
         }
+
+        if (skip > span.Length - pos)
+            throw new InvalidDataException($"Field {fieldNumber} runs past the end of a NetworkPacket frame.");
+        pos += skip;
+    }
+
+    /// <summary>A length prefix, refused when it is longer than what remains (so a slice never runs past the frame).</summary>
+    private static int ReadLength(ReadOnlySpan<byte> span, ref int pos)
+    {
+        ulong len = ReadVarint(span, ref pos);
+        if (len > (ulong)(span.Length - pos))
+            throw new InvalidDataException("A length in a NetworkPacket frame runs past its end.");
+        return (int)len;
     }
 
     private static ulong ReadVarint(ReadOnlySpan<byte> span, ref int pos)
@@ -110,6 +142,8 @@ public readonly struct InboundPacketFrame
         {
             if (shift > 63)
                 throw new InvalidDataException("A varint in a NetworkPacket frame runs past ten bytes.");
+            if (pos >= span.Length)
+                throw new InvalidDataException("A varint in a NetworkPacket frame is cut short.");
             b = span[pos++];
             result |= (ulong)(b & 0x7F) << shift;
             shift += 7;
