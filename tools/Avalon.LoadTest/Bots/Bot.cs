@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
+using Avalon.Common;
 using Avalon.LoadTest.Api;
 using Avalon.LoadTest.World;
 using Avalon.Network.Packets.Abstractions;
@@ -20,14 +21,15 @@ public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, flo
 /// One load-test bot: one account, signed in once, entering the run's world as the game client does (join ticket,
 /// TLS, admission, handshake, character list, create on first entry, select, load report) and leaving it. Its
 /// character is named after the account, with the class and gender its index gives. Entry and leave are driven by one
-/// caller at a time; <see cref="NextInput"/>, <see cref="SendAsync"/> and the properties may be used by another (the
-/// input driver) while the bot is <see cref="BotState.InWorld"/>. Disposed once nothing uses it any more: after its
-/// leave, its life loop and the refresher are done.
+/// caller at a time; <see cref="NextInput"/>, <see cref="SendAsync"/> and the properties may be used by others while
+/// the bot is <see cref="BotState.InWorld"/>: the input driver, and its party's formation (<see cref="PartyFormer"/>),
+/// which sends through it as an <see cref="IPartyMember"/>. Disposed once nothing uses it any more: after its leave,
+/// its life loop and the refresher are done.
 /// </summary>
 /// <param name="signOuts">The ramp's sign-out breaker, shared by its bots and its refresher; null for one of the bot's own.</param>
 /// <param name="leaves">The ramp's leave breaker, shared by its bots; null for one of the bot's own.</param>
 public sealed class Bot(int index, string account, string password, ApiClient api, ushort worldId, string? dialHost,
-    BotMetrics metrics, SignOutBreaker? signOuts = null, Breaker? leaves = null) : IDisposable
+    BotMetrics metrics, SignOutBreaker? signOuts = null, Breaker? leaves = null) : IPartyMember, IDisposable
 {
     /// <summary>The version the handshake sends: the protocol the provider attempt names.</summary>
     public const string ClientVersion = ApiClient.ProtocolVersion;
@@ -118,6 +120,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     private BotAck _lastAck;
     private uint _seq;
     private int _connectionGeneration;
+    private ulong _characterGuid;
 
     /// <summary>The bot's index in the run: it picks the account, the class (<c>index % 4 + 1</c>) and the gender (<c>index % 2</c>).</summary>
     public int Index => index;
@@ -146,6 +149,24 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>What the bot does in the world; set before it enters.</summary>
     public BehaviourKind Behaviour { get; set; }
+
+    /// <summary>
+    /// A fighter's trip, set before the bot enters (with <see cref="Behaviour"/> <see cref="BehaviourKind.Fighter"/>):
+    /// every connection then keeps its <see cref="Bots.Fighter.Table"/> and hands it map transitions, cast refusals and
+    /// the hits on its character (<see cref="Bots.Fighter.OnDamaged"/>). Null for every other behaviour, whose connections
+    /// leave those packets unread.
+    /// </summary>
+    public Fighter? Fighter { get; set; }
+
+    /// <summary>
+    /// The fighter's place in its party, set before the bot enters: every connection then hands it the party packets.
+    /// Null for a fighter that fights solo, whose connections read a roster only to leave a party of an earlier run
+    /// (<see cref="StalePartyLeave"/>), and for every other behaviour, whose connections leave those packets unread.
+    /// </summary>
+    public PartyLink? Party { get; set; }
+
+    /// <summary>The guid of the bot's character in the world; 0 before its first select.</summary>
+    public ulong CharacterGuid => Volatile.Read(ref _characterGuid);
 
     /// <summary>The input driver's state for this bot.</summary>
     internal InputLane Lane { get; } = new();
@@ -420,9 +441,35 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         return SealInput(connection, seq, dirX, dirZ, yaw, noteSent: true);
     }
 
+    /// <summary>
+    /// <paramref name="message"/> sealed for the current connection, ready for <see cref="SendAsync"/>: a fighter's
+    /// packets besides its input. Only while <see cref="BotState.InWorld"/>, as <see cref="NextInput"/>.
+    /// </summary>
+    public NetworkPacket SealInWorld<T>(T message, NetworkPacketType type) where T : class
+    {
+        if (_state != BotState.InWorld) throw new InvalidOperationException($"Bot {index} is not in the world.");
+        WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} has no connection.");
+        return connection.Seal(message, type);
+    }
+
     /// <summary>Sends a packet on the current connection.</summary>
     public ValueTask SendAsync(NetworkPacket packet, CancellationToken ct) =>
         (_connection ?? throw new InvalidOperationException($"Bot {index} has no connection.")).SendAsync(packet, ct);
+
+    string IPartyMember.Name => account;
+
+    bool IPartyMember.InWorld => State == BotState.InWorld;
+
+    int IPartyMember.Generation => ConnectionGeneration;
+
+    async ValueTask<int> IPartyMember.SendAsync<T>(T message, NetworkPacketType type, CancellationToken ct)
+    {
+        // Sealed and sent on one connection: a reconnect between the two would send it sealed for another session.
+        WorldConnection connection = _connection ?? throw new InvalidOperationException($"Bot {index} has no connection.");
+        if (_state != BotState.InWorld) throw new InvalidOperationException($"Bot {index} is not in the world.");
+        await connection.SendAsync(connection.Seal(message, type), ct);
+        return connection.Generation;
+    }
 
     /// <summary>
     /// Signs the game context out, best effort; the bot is <see cref="BotState.Stopped"/> after, with no context, and a
@@ -499,9 +546,36 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         metrics.ForgetPending(index);
         _onAck = packet => OnAck(connection, packet);
         connection.Ack += _onAck;
+        if (Fighter is { } fighter)
+        {
+            // Before the select: the world describes each object in full only in the add that brings it into view.
+            connection.State = fighter.Table;
+            connection.MapTransition += (result, mapId) => fighter.OnTransition(result, mapId, Stopwatch.GetTimestamp());
+            connection.CastRefused += fighter.OnCastRefused;
+            connection.CharacterDamaged += (target, health) => fighter.OnDamaged(target, health, CharacterGuid);
+        }
+
+        int generation = Interlocked.Increment(ref _connectionGeneration);
+        connection.Generation = generation;
         _connection = connection;
         _noLeaveOn = connection;
-        Interlocked.Increment(ref _connectionGeneration);
+        if (Party is { } party)
+        {
+            // Before the select too: the world sends a member its roster as its character spawns. A member of a party
+            // gone solo that was out of the world when the others left it is still in it: it leaves it once back.
+            var stale = new StalePartyLeave(connection, () => party.Party.State == PartyState.Solo);
+            connection.PartyPacket += packet =>
+            {
+                party.OnPacket(packet, connection.Codec, generation);
+                stale.OnPacket(packet);
+            };
+        }
+        else if (Fighter is not null)
+        {
+            // A fighter that fights solo may still be in a party of an earlier run (the world keeps it, offline members
+            // included, until it restarts), whose forest its portal would lead to: it leaves it.
+            connection.PartyPacket += new StalePartyLeave(connection).OnPacket;
+        }
 
         await StepAsync("admission", s_admissionTimeout, async token =>
         {
@@ -547,6 +621,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
 
         uint characterId = character.CharacterId;
+        Volatile.Write(ref _characterGuid, new ObjectGuid(ObjectType.Character, characterId).RawValue);
+        // A character spawning starts with an empty view: what the table held was another connection's or character's.
+        Fighter?.Table.Clear();
         // From the select on, the connection may hold a character: a disconnect sends the leave.
         _noLeaveOn = null;
         (Task spawned, long selectRead) = await StepAsync("select", s_characterTimeout, async token =>

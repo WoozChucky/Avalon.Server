@@ -55,13 +55,18 @@ public static class CommandLine
         return new CleanupOptions(runId);
     }
 
-    /// <summary><c>check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker]</c>.</summary>
+    /// <summary>
+    /// <c>check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker|fighter] [--forest-time 5m] [--party-size 1]</c>;
+    /// a party size above 1 only with <c>--behaviour fighter</c>.
+    /// </summary>
     public static CheckOptions ParseCheck(string[] args)
     {
         string? runId = null;
         string? dial = null;
         int bot = 0;
         BehaviourKind behaviour = BehaviourKind.Idle;
+        TimeSpan forestTime = Fighter.DefaultForestTime;
+        int partySize = 1;
         foreach ((string option, string value) in Pairs(args))
         {
             switch (option)
@@ -78,14 +83,20 @@ public static class CommandLine
                     {
                         "idle" => BehaviourKind.Idle,
                         "walker" => BehaviourKind.Walker,
-                        _ => throw new CommandLineException("--behaviour takes idle or walker."),
+                        "fighter" => BehaviourKind.Fighter,
+                        _ => throw new CommandLineException("--behaviour takes idle, walker or fighter."),
                     };
                     break;
+                case "--forest-time": forestTime = ParseForestTime(value); break;
+                case "--party-size": partySize = ParseCount(option, value, BotParty.MaxSize); break;
                 default: throw new CommandLineException($"Unknown option {option}.");
             }
         }
 
-        return new CheckOptions(runId, dial, bot, behaviour);
+        if (partySize > 1 && behaviour != BehaviourKind.Fighter)
+            throw new CommandLineException("--party-size above 1 needs --behaviour fighter: parties are fighters'.");
+
+        return new CheckOptions(runId, dial, bot, behaviour, forestTime, partySize);
     }
 
     /// <summary>The homelab Prometheus.</summary>
@@ -96,7 +107,8 @@ public static class CommandLine
 
     /// <summary>
     /// <c>ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
-    /// [--limit name=value]... [--dial HOST] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]</c>.
+    /// [--limit name=value]... [--dial HOST] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
+    /// [--forest-time 5m] [--party-size 1]</c>.
     /// </summary>
     public static RampArguments ParseRamp(string[] args)
     {
@@ -111,6 +123,8 @@ public static class CommandLine
         Uri prometheus = new(DefaultPrometheus);
         string pod = DefaultPod;
         int signIns = 8;
+        TimeSpan forestTime = Fighter.DefaultForestTime;
+        int partySize = 1;
         foreach ((string option, string value) in Pairs(args))
         {
             switch (option)
@@ -138,23 +152,40 @@ public static class CommandLine
                         : throw new CommandLineException("--pod takes a pod name: lower-case letters, digits, '-' and '.'.");
                     break;
                 case "--sign-in-concurrency": signIns = ParseCount(option, value, 64); break;
+                case "--forest-time": forestTime = ParseForestTime(value); break;
+                case "--party-size": partySize = ParseCount(option, value, BotParty.MaxSize); break;
                 default: throw new CommandLineException($"Unknown option {option}.");
             }
         }
 
-        return new RampArguments(runId, mix, start, step, hold, max, Limits.WithOverrides(limits), dial, prometheus, pod, signIns);
+        return new RampArguments(runId, mix, start, step, hold, max, Limits.WithOverrides(limits), dial, prometheus, pod, signIns,
+            forestTime, partySize);
     }
 
     /// <summary>A hold: <c>90s</c>, <c>2m</c> or plain seconds; at least the settle and a 20 s judged window.</summary>
     private static TimeSpan ParseHold(string value)
     {
-        (string number, int scale) = value.EndsWith('m') ? (value[..^1], 60) : value.EndsWith('s') ? (value[..^1], 1) : (value, 1);
         TimeSpan minimum = RampRunner.Settle + TimeSpan.FromSeconds(20);
-        return int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out int n) && n <= 3600 &&
-            TimeSpan.FromSeconds(n * scale) is var hold && hold >= minimum && hold <= TimeSpan.FromHours(1)
-                ? hold
-                : throw new CommandLineException(
-                    $"--hold takes a duration such as 90s or 2m, {minimum.TotalSeconds:0} s to 1 h (a {RampRunner.Settle.TotalSeconds:0} s settle, then the judged window).");
+        return TryParseDuration(value, out TimeSpan hold) && hold >= minimum
+            ? hold
+            : throw new CommandLineException(
+                $"--hold takes a duration such as 90s or 2m, {minimum.TotalSeconds:0} s to 1 h (a {RampRunner.Settle.TotalSeconds:0} s settle, then the judged window).");
+    }
+
+    /// <summary>How long a fighter's trip stays in the forest: <c>90s</c>, <c>5m</c> or plain seconds; above 0, at most 1 h.</summary>
+    public static TimeSpan ParseForestTime(string value) =>
+        TryParseDuration(value, out TimeSpan time) && time > TimeSpan.Zero
+            ? time
+            : throw new CommandLineException("--forest-time takes a duration above 0 such as 90s or 5m, at most 1 h.");
+
+    /// <summary>A duration of whole seconds or minutes (<c>90s</c>, <c>2m</c>, or plain seconds), at most 1 h.</summary>
+    private static bool TryParseDuration(string value, out TimeSpan duration)
+    {
+        (string number, int scale) = value.EndsWith('m') ? (value[..^1], 60) : value.EndsWith('s') ? (value[..^1], 1) : (value, 1);
+        duration = int.TryParse(number, NumberStyles.None, CultureInfo.InvariantCulture, out int n) && n <= 3600
+            ? TimeSpan.FromSeconds(n * scale)
+            : TimeSpan.MinValue;
+        return duration >= TimeSpan.Zero && duration <= TimeSpan.FromHours(1);
     }
 
     private static int ParseCount(string option, string value, int max) =>
@@ -213,15 +244,19 @@ public sealed record CleanupOptions(string? RunId);
 /// <param name="RunId">The run, or null for the only one kept.</param>
 /// <param name="Dial">The host to dial instead of the join reply's, or null.</param>
 /// <param name="Bot">The bot's index in the run.</param>
-/// <param name="Behaviour">What the bot does in the world for the check: idle or walker.</param>
-public sealed record CheckOptions(string? RunId, string? Dial, int Bot, BehaviourKind Behaviour);
+/// <param name="Behaviour">What the bot does in the world for the check: idle, walker or fighter.</param>
+/// <param name="ForestTime">How long a fighter's trip stays in the forest.</param>
+/// <param name="PartySize">Fighters only: this many bots from <paramref name="Bot"/> on form one party and each complete a trip; 1 is one bot, solo.</param>
+public sealed record CheckOptions(string? RunId, string? Dial, int Bot, BehaviourKind Behaviour, TimeSpan ForestTime, int PartySize);
 
 /// <summary>The options of <c>ramp</c> as given, before the run is known.</summary>
 /// <param name="RunId">The run, or null for the only one kept.</param>
 /// <param name="Max">The most bots, or null for the run's size.</param>
+/// <param name="ForestTime">How long a fighter's trip stays in the forest.</param>
+/// <param name="PartySize">The fighters' party size, 1 (solo) to <see cref="BotParty.MaxSize"/>.</param>
 public sealed record RampArguments(
     string? RunId, string Mix, int Start, int Step, TimeSpan Hold, int? Max, IReadOnlyList<Limit> Limits, string? Dial,
-    Uri Prometheus, string Pod, int SignInConcurrency)
+    Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize)
 {
     /// <summary>
     /// The options against <paramref name="run"/>, loaded for its bots (<see cref="RunFile.Load"/>, so it lists at
@@ -233,7 +268,8 @@ public sealed record RampArguments(
         if (max > run.Bots.Count)
             throw new CommandLineException($"Run {run.RunId} has {run.Bots.Count} bots: --max takes at most that.");
 
-        return new RampOptions(Mix, Math.Min(Start, max), Step, Hold, max, Limits, Dial, Prometheus, Pod, SignInConcurrency);
+        return new RampOptions(Mix, Math.Min(Start, max), Step, Hold, max, Limits, Dial, Prometheus, Pod, SignInConcurrency,
+            ForestTime, PartySize);
     }
 }
 

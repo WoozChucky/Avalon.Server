@@ -2,10 +2,11 @@
 
 `tools/Avalon.LoadTest` answers one question: how many players one world server holds, and what gives out first.
 It runs headless bots from one PC. Each bot signs in over the REST API as the launcher and the game client do,
-enters a world over TLS as the game client does, and then stands, walks or changes character while a ramp adds
-bots in steps. Each step is judged against a set of limits: the server's numbers come from Prometheus, the bots' from
-the tool, and the bot PC's own load decides whether those numbers can be trusted. The ramp ends at the first limit
-breached twice in a row, and the tool writes a report with the capacity and what failed first.
+enters a world over TLS as the game client does, and then stands, walks, changes character or fights its way through
+a forest of its own while a ramp adds bots in steps. Each step is judged against a set of limits: the server's
+numbers come from Prometheus, the bots' from the tool, and the bot PC's own load decides whether those numbers can be
+trusted. The ramp ends at the first limit breached twice in a row, and the tool writes a report with the capacity and
+what failed first.
 
 It runs against the homelab's load-test world, world 4. Its accounts are real accounts on the live API, created for a
 run and deleted after it, and the run shares the node with the live world.
@@ -57,21 +58,27 @@ Everything here has to be in place, or the run fails early or measures the wrong
    and the other rates come back empty, every step is unknown, and the ramp stops as unknown after its second step.
    To check the interval, ask Prometheus how many samples a minute holds:
    `count_over_time(world_tick_rate_tps{avalon_world_id="4"}[60s])` should read about 6, not 1.
-5. **Prometheus is reachable from the bot PC.** The default is `http://10.10.1.15:30090/` (`--prometheus`). The ramp
+5. **World 4 frees an emptied forest at once.** For [fighters](#fighters), the load-test world runs
+   `Game:AbandonedInstanceLifetimeMinutes = 0` (the world chart's `server.game.abandonedInstanceLifetimeMinutes`, set
+   on the load-test release only: server PR #877, homelab PR #173). An emptied dungeon instance is then freed on the
+   tick after its last player leaves, and every forest entry builds a fresh instance with its creatures
+   ([instanced maps](instanced-maps.md)). At the default of 15 minutes a fighter that leaves and enters again within
+   15 minutes gets its own forest back, already cleared (creatures never respawn), and the ramp measures an empty map.
+6. **Prometheus is reachable from the bot PC.** The default is `http://10.10.1.15:30090/` (`--prometheus`). The ramp
    reads the world's players online before it signs in a single bot and refuses to start when Prometheus does not
    have that value. It first measures the bot PC's clock against Prometheus's (`time()`) and corrects every query's
    time by the difference, which the report's header gives; when the two clocks are more than 60 seconds apart it
    refuses to start and says so: synchronise the bot PC's clock (`w32tm /resync` on Windows) and run again. The
    memory limit comes from kube-state-metrics, by pod (`--pod`, default `avalon-world-loadtest-0`, in namespace
    `avalon`, container `avalon-world`).
-6. **An admin account without MFA.** `provision` and `cleanup` ask for an admin's username and password. The account
+7. **An admin account without MFA.** `provision` and `cleanup` ask for an admin's username and password. The account
    needs the Admin (or Console) role, and MFA has to be off on it: the tool does not answer an MFA challenge. The API
    checks the password again on every create and delete, so a wrong one counts as a failed login.
-7. **A Release build.** The bot PC's CPU is one of the limits, and a Debug build spends more of it per bot. Run the
+8. **A Release build.** The bot PC's CPU is one of the limits, and a Debug build spends more of it per bot. Run the
    tool with `-c Release`, as every example below does. The input driver sleeps towards each 60 Hz step on a
    high-resolution waitable timer on Windows 10 1803 and later, and with `Thread.Sleep` where that timer is missing
    (older Windows, Linux, macOS); on every system it yields the thread through the last millisecond of each step.
-8. **Asthoria is quiet.** See [Cautions](#cautions): check its player count first.
+9. **Asthoria is quiet.** See [Cautions](#cautions): check its player count first.
 
 ## Commands
 
@@ -122,6 +129,8 @@ marked as a load-test one. They have no characters until a bot first enters a wo
 ```bash
 dotnet run -c Release --project tools/Avalon.LoadTest -- check
 dotnet run -c Release --project tools/Avalon.LoadTest -- check --dial 10.10.1.17 --bot 7 --behaviour walker
+dotnet run -c Release --project tools/Avalon.LoadTest -- check --behaviour fighter --forest-time 90s
+dotnet run -c Release --project tools/Avalon.LoadTest -- check --behaviour fighter --party-size 3 --bot 4
 ```
 
 `check` takes one bot through everything a ramp does to every bot. It signs in, enters the run's world (join
@@ -136,7 +145,35 @@ changed on the server or the network: it is the quickest way to see that the who
 | `--run ABC` | the only run kept | The run whose account is used |
 | `--dial HOST` | the join reply's host | A host name or address to connect to instead; TLS still names and pins the reply's server |
 | `--bot N` | `0` | The account's index in the run |
-| `--behaviour idle\|walker` | `idle` | What the bot does for its 10 seconds |
+| `--behaviour idle\|walker\|fighter` | `idle` | What the bot does: idle or walk for 10 seconds, or make forest trips until one completes (3 at most) |
+| `--forest-time T` | `5m` | A fighter's time in the forest: `90s`, `5m` or plain seconds, above 0, at most 1 h |
+| `--party-size N` | `1` | Fighters only, 1 to 6: N bots from `--bot` on check together as one party |
+
+**A fighter's check** (`--behaviour fighter`) drives [forest trips](#fighters) instead of the 10 seconds, at once
+(no first-trip wait): to the town's portal, into the forest, fighting for `--forest-time` (or until no live creature
+is in sight for a minute), back out along its trail, and into town. It prints each stage and how long it took
+(`to-portal`, `enter-map` from the portal request to the transition, `in-forest`, `to-exit`, `exit-map`, or
+`respawn` after a death), then the forest entries and their p50, the casts sent and refused by reason, the kills seen
+and its own deaths, the trips completed, and each failed step by kind. It passes once a trip completed: the fighter
+walked out into town. A trip that ends in a death does not fail it: the death is printed (`Died on trip 1 of 3`), and
+the fighter, already respawned in town (which shows the respawn works too), sets out again. It makes 3 trips at most.
+
+The check fails with one of these kinds:
+
+| Kind | What |
+|---|---|
+| `forest:died-thrice` | The fighter died on each of its 3 trips (it respawned in town each time) |
+| `forest:failed` | A step of a trip failed, with its [failure kinds](#failure-kinds); the fighter is not sent again |
+| `forest:timeout` | The trips had not ended within 3 times the bound of one trip: `--forest-time`, plus the most its exit budget can be (60 seconds or twice `--forest-time` plus 5 seconds (the 10 m from the entry spawn to the back portal), whichever is longer), plus 3 minutes |
+| `forest:closed` | The world closed a connection during the trips |
+| `party:failed` | The party did not form after its second attempt, with the reasons |
+
+With `--party-size N` above 1 (fighters only; any other behaviour refuses it), the N bots from `--bot` on enter
+together, form one party with the party packets once all are in (it prints how long that took), set out at once and
+share one forest. Each member goes again after a death as a solo fighter does, 3 trips at most, its deaths printed
+with its index; the check passes when the party formed and every member completed a trip. A member done first stands
+in town until the others are. At 1 the fighter sends no party packet, except one leave when its character is still in
+a party of an earlier run ([parties](#parties)).
 
 A failure prints `Check failed at <step>: <reason>`, and the bot still leaves and signs out (with 30 seconds of its
 own). A leave or a sign-out that fails after the bot was driven fails the check too: `Check failed at leave:` with
@@ -155,7 +192,7 @@ This is the capacity run, described under [The ramp](#the-ramp).
 | Option | Default | Meaning |
 |---|---|---|
 | `--run ABC` | the only run kept | The run whose accounts are used |
-| `--mix SHARES` | `idle=60,walker=30,churner=10` | Behaviour weights: `name=weight` pairs of `idle`, `walker`, `churner`, each at most once, weights 0 to 1000, at least one above 0; a behaviour left out has weight 0 |
+| `--mix SHARES` | `idle=60,walker=30,churner=10` | Behaviour weights: `name=weight` pairs of `idle`, `walker`, `churner`, `fighter`, each at most once, weights 0 to 1000, at least one above 0; a behaviour left out has weight 0 (for example `idle=40,walker=20,churner=10,fighter=30`) |
 | `--start N` | `50` | The first step's bots, 1 to 5,000 (cut to `--max`) |
 | `--step N` | `50` | Bots added each step, 1 to 5,000 |
 | `--hold T` | `90s` | How long each step holds: `90s`, `2m` or plain seconds, 50 s to 1 h. The judged window is its last 60 s (the whole hold less 30 s when shorter than 90 s); everything before it settles: 30 s, longer when the hold exceeds 90 s |
@@ -165,11 +202,15 @@ This is the capacity run, described under [The ramp](#the-ramp).
 | `--prometheus URL` | `http://10.10.1.15:30090/` | Prometheus's http(s) origin |
 | `--pod NAME` | `avalon-world-loadtest-0` | The world server's pod, for its memory limit |
 | `--sign-in-concurrency N` | `8` | Sign-ins at once, 1 to 64: the ramp's and the context refresher's together |
+| `--forest-time T` | `5m` | How long a [fighter](#fighters)'s trip stays in the forest: `90s`, `5m` or plain seconds, above 0, at most 1 h |
+| `--party-size N` | `1` | The fighters' [party](#parties) size, 1 (solo) to 6 |
 
-The console prints one line per step, then the result and the report's path:
+The console prints one line per step, then the result and the report's path. A step with fighters adds their count,
+the forest instances the world ticked per tick and the trips completed:
 
 ```text
 step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  → pass
+step 4  bots 200  tick p99 9.8 ms  ack p95 35 ms  ws 31%  fighters 60  forest 41.2  trips 18  → pass
 ```
 
 ### cleanup
@@ -285,13 +326,177 @@ rather than sending them in a burst, and its lateness shows it.
 | `idle` | A zero-direction input every step, as the real client sends while standing |
 | `walker` | Walks a random heading. When an ack reports less than 0.1 m/s while it asked to move (a wall), it turns 90 to 270 degrees and goes on. There is no navmesh in the tool, so walkers gather along walls more than players do |
 | `churner` | Walks like a walker. After a random 2 to 5 minutes in the world it changes character on the same connection (leave, the logout save, list, select, load, first ack). Every fourth churn it reconnects instead: it closes the connection, keeps its game context, and enters again with a new join ticket and a takeover |
+| `fighter` | Walks from town into a forest of its own, fights its creatures with its class's basic ability, walks back out and goes again, alone or in a party: see [Fighters](#fighters) |
 
 A connection the world closes while a bot is in the world is counted as a disconnect, and the bot enters again with
 a takeover. A churn that fails is counted, and the bot closes its connection and enters afresh.
 
 **The mix.** Behaviours go to bots by smooth weighted round-robin over the bot index, so every count of bots holds the
 `--mix` shares as closely as whole bots allow, interleaved. With the default mix, every block of ten bot indexes from
-0 (0-9, 10-19, ...) holds 6 idle bots, 3 walkers and 1 churner.
+0 (0-9, 10-19, ...) holds 6 idle bots, 3 walkers and 1 churner. Parties never change a bot's behaviour: see
+[parties](#parties).
+
+### Fighters
+
+A fighter makes round trips from town (map 1) through a forest of its own (map 2) and back for as long as it is in
+the world. Its first trip waits a random 0 to 30 seconds after it entered (a party's members wait one such draw
+together, once their party has formed or gone solo), so that the forests' builds, each a navmesh bake of a quarter to
+half a second on the thread pool, do not all land at once. A trip:
+
+1. **To the portal.** From the town's spawn (15, 15) it walks straight north to the forest portal (15, 45), until its
+   acked position is within 2.5 m of it (the world takes the portal within 3 m).
+2. **In.** It sends `CMSG_ENTER_MAP` for map 2 and stands until `SMSG_MAP_TRANSITION` answers. The **forest entry
+   time** is the portal request to that transition; an entry builds the instance, off the tick, so it includes the
+   bake.
+3. **Fighting.** Ten times a second (the rate the world sends state) it picks the nearest live creature within 60 m
+   from its [world-state table](#the-world-state-table) and walks at it. Within its basic ability's reach, less a
+   margin (1 m, or a fifth of a shorter reach: a creature holds its station 1.5 m from what it fights, so a warrior
+   stops at 2 m), it stands facing the creature and casts every 0.85 s (the basic abilities' 0.8 s cooldown and a
+   margin), aimed at the creature's position: warrior Cleave (200, 2.5 m), wizard Arcane Bolt (210, 20 m), hunter
+   Quick Shot (220, 25 m), healer Smite (230, 18 m); the class is `index % 4 + 1`. The abilities cost nothing. With no
+   creature in sight it walks north, away from the entry. Up to eight creatures it cast at are watched, and each is
+   counted as a **kill** when the table shows it dead (a creature several fighters cast at counts for each of them);
+   one that leaves the view is no longer watched.
+4. **Out.** After `--forest-time`, or after a minute with no live creature within 60 m (the forest around it is
+   cleared), it walks back out along its trail (below), then by the entry spawn (15, 15) to the back portal (15, 5),
+   and sends `CMSG_ENTER_MAP` for map 1. The transition into town completes the trip, and the next one starts at once.
+
+**Moving.** A fighter steers straight at its goal (the portal, a creature, a crumb). When an ack shows its last heading
+stopped against a wall, it turns 90 to 270 degrees away, as a walker does, and holds that heading for a second before
+steering at the goal again. The tool has no navmesh.
+
+**Breadcrumbs.** The forest is built of 30 m chunks with branches, so from deep inside there is no straight way back.
+In the forest a fighter drops a crumb each time it is 4 m from the last one; walking back within 4 m of an older crumb
+cuts the loop since out of the trail. The trail holds 256 crumbs: full, every other one is dropped (the oldest and the
+newest kept), so a longer walk keeps a coarser trail rather than none. On the way out it steers at the crumbs newest
+first, passing each within 1.5 m, then at the entry spawn and the back portal. The way out has an **exit budget**, set
+when the fighter turns for the exit: the longer of 60 seconds and twice the walk back along its trail, then by the
+entry spawn to the back portal, at the base walk speed of 4 m/s. The trail is never longer than the walk in, so the
+budget is at most 60 seconds or twice `--forest-time` plus 5 seconds (the 10 m from the entry spawn to the back
+portal), whichever is longer. A fighter not back in town within it reconnects (`forest:exit-timeout:<where>`, by where
+the way out stalled: on the trail, short of the entry spawn, short of the back portal, or asked and not answered).
+
+**Death.** The world tells a character of each hit it takes (`SMSG_CHARACTER_DAMAGED`, a direct hit or an aura's
+tick), on its own connection only and in the tick of the hit. A fighter decodes it (no other behaviour does), and one
+that left its own character at 0 health is its death: taken on the very next step, not at the next look at the
+table, so it stops casting in the tick it died. The table, which holds its own character too by the guid of the
+character it selected, is the fallback: a death it shows is seen within a tenth of a second. Dead, the fighter counts
+an **own death**, drops whatever it was doing and sends `CMSG_RESPAWN_AT_TOWN`, repeated every 5 seconds until the
+world moves it (the world drops the ask while a move is under way). The transition into town ends the trip as a
+death, and the next trip starts. Still dead 30 seconds after dying, it reconnects (`forest:respawn-timeout`): a fresh
+login lands in town.
+
+**A move it did not ask for.** A move into town in the middle of a trip that is neither the back portal's answer nor a
+respawn fails the trip (`forest:returned`), and the next one starts after 30 seconds: the world returns a party's
+members from the party's forest when the party falls apart ([parties](#parties)). A back portal asked while that move
+is under way is refused with `MoveInProgress`; the fighter then waits for the move instead of asking again, and counts
+only the `forest:returned`, also when the refusal and the move reach it within one step. A party's return that lands
+while the fighter's own back-portal ask is still on its way (one network trip) counts as a completed trip: the world
+sends the same town entry spawn for both moves, so the two cannot be told apart.
+
+**After a transition.** The acks of inputs sent before a map transition may still describe the old map. Until an ack
+answers an input sent since the transition, the fighter stands and reads neither its position nor a wall from them; a
+dead fighter is never held. Held 10 seconds with no such ack, it reconnects (`forest:stale-acks`).
+
+**Reconnecting.** A fighter that asks to reconnect stands still while its bot closes the connection, keeps its game
+context, and enters again with a new join ticket and a takeover, as a churner's reconnect does. That entry is an entry
+like any other, counted in admission. A character that logs out in the forest is saved to its town, so the fighter
+starts again from town.
+
+**Admission.** A forest entry is a map transition inside the world, not an entry into it, and is never part of
+admission. Fighters' entries into the world, and their reconnects, are, and the admission limit applies to them as to
+every bot.
+
+#### The world-state table
+
+Only fighters decode the world-state packets (`SMSG_WORLD_STATE_ADD`, `_UPDATE`, `_REMOVE`), into a table per
+connection of the objects in the character's view by guid: the type (`guid >> 56`: 1 character, 2 creature, ...), the
+position, whether it is dead and its current health. An add replaces what the table held for its guid, an update
+changes only the members it carries, a remove drops the guid. The table is cleared when a character spawns and on
+every map transition. Every other behaviour leaves those packets unread, so the bot PC's cost of them grows only with
+fighters. `WorldStateDecodeShould` checks the decoder against packets built by the server's own code.
+
+#### Timeouts
+
+| What | Time | Then |
+|---|---|---|
+| The walk to the town's portal | 20 s | `forest:portal-timeout`: back to town, and the next trip after 30 s |
+| An entry, portal request to transition | 30 s | `forest:enter:timeout`: back to town, and the next trip after 30 s |
+| An entry refused | at once | `forest:enter:<result>`: back to town, and the next trip after 30 s |
+| No live creature within 60 m | 60 s | The fighter leaves the forest; not a failure |
+| The way out | the exit budget | `forest:exit-timeout:trail`, `:entry`, `:portal` or `:leaving` (by where it stalled): reconnect |
+| The back portal refused | at once | `forest:leave:<result>`: back toward the portal, asked again no sooner than 1 s later, while the exit budget lasts; `MoveInProgress` is not counted: the fighter waits for that move (`forest:returned`) while the exit budget lasts |
+| Dead | respawn asked every 5 s | Still dead at 30 s: `forest:respawn-timeout`, reconnect |
+| A fresh ack after a transition | 10 s | `forest:stale-acks`: reconnect |
+| A party's formation attempt | 20 s | Tried once more from scratch; then counted, and its members fight solo |
+| A formed party's roster on a member's connection | 20 s without the whole party | `party:fell-apart`: its members fight solo |
+
+#### Failure kinds
+
+A fighter's failed step is counted by kind in the step's trip failures; a party that failed to form, or fell apart,
+once by reason in the step's party failures. `<result>` is the world's `MapTransitionResult` (`NotNearPortal`,
+`GenerationFailed`, `InstanceFull`, `MoveInProgress`, ...), and a party's `<result>` its `PartyResult`.
+
+| Kind | What |
+|---|---|
+| `forest:portal-timeout` | The fighter was not within the town portal's radius 20 s after it set out for it |
+| `forest:enter:<result>` | The world refused the forest entry |
+| `forest:enter:timeout` | The world did not answer the forest entry within 30 s |
+| `forest:leave:<result>` | The world refused the back portal; the fighter asks again (one count per refusal). Never `MoveInProgress`, which is the world's own move (`forest:returned`) |
+| `forest:exit-timeout:trail` | Not back in town within the exit budget, with crumbs of the trail still ahead; the fighter reconnects |
+| `forest:exit-timeout:entry` | As above, past the trail but short of the entry spawn |
+| `forest:exit-timeout:portal` | As above, past the entry spawn but not yet asking the back portal (short of it, or waiting to ask again after a refusal) |
+| `forest:exit-timeout:leaving` | As above, having asked the back portal (or waiting for a move under way) with no move into town |
+| `forest:returned` | The world moved the fighter into town in the middle of a trip, without its asking (a party fell apart) |
+| `forest:respawn-timeout` | Still dead 30 s after dying; the fighter reconnects |
+| `forest:stale-acks` | No ack from the new map 10 s after a transition; the fighter reconnects |
+| `party:timeout` | An attempt ran out its 20 s with every member in the world |
+| `party:not-in-world` | An attempt ran out with a member not in the world (its entry failed and is retried), or a member left it as a request went out |
+| `party:decline:<result>`, `party:leave:<result>` | Starting from scratch, a member's decline of an invite it held, or its leave of a party it was in, was refused |
+| `party:invite:<result>` | The world refused the leader's invite |
+| `party:accept:<result>` | The world refused a member's accept |
+| `party:InviteExpired`, `party:InviteDeclined` | An invite of the attempt ended unanswered |
+| `party:io` | A connection failed while a request was sent |
+| `party:unexpected` | Anything else went wrong in the attempt |
+| `party:fell-apart` | A formed party's roster did not list the whole party for 20 s on a member's connection |
+
+A party failure is counted once per party, with the reason of its second failed attempt.
+
+#### Parties
+
+`--party-size N` (1 to 6, the world's `Game:MaxPartySize` and the forest's seats; 1, the default, is solo) groups the
+fighters into parties. Each time the ramp enters bots, the fighters among them are grouped in bot-index order into
+whole parties of N; the fighters left over, fewer than N, fight solo. The mix decides every bot's behaviour as it does
+without parties, so the step's total and the mix's shares stay exact: a step that adds 30 fighters with
+`--party-size 4` makes 7 parties and 2 solo fighters. A party never spans two steps.
+
+**Forming.** A party's members stand in town while it forms. An attempt waits until every member is in the world,
+then starts from scratch: every member, the leader last, declines any invite it holds and leaves any party it is in.
+Then the leader (its first member) invites each member by character name (`CMSG_PARTY_INVITE`), and each member answers
+its `SMSG_PARTY_INVITE` with an accept (`CMSG_PARTY_INVITE_RESPONSE`). The party is formed once the leader's
+`SMSG_PARTY_ROSTER` lists every member. Each attempt has 20 seconds, the wait for the members included; a failed
+attempt is tried once more, and a second failure is counted by reason, every member leaves what was formed, and the
+members fight solo.
+
+**Together.** Once formed (or gone solo), the members set out after one random 0 to 30 second wait, together; a
+member of a formed party sets out once the roster on its current connection lists the whole party. Each enters the
+portal on its own, and the world puts them all in the party's one forest. Each member fights, dies and leaves on its
+own, and goes again on its own.
+
+**Falling apart.** The world keeps a party in memory while it runs, a member who logged out included (shown offline),
+so a member that reconnects is still in it and gets its roster as its character spawns. A member that gave up for
+good stays on the roster, offline, and holds nobody back. A member whose roster on its current connection has not
+listed the whole party for 20 seconds (the world restarted and forgot its parties, or a member was removed) makes the
+party fall apart: counted once (`party:fell-apart`), every member leaves what is left of it, and they fight solo from
+then on. A member in the party's forest as it leaves is returned to town by the world after its 60 second leave
+countdown ([parties](parties.md)), which fails its trip (`forest:returned`).
+
+**Stale parties.** Until it restarts, the world keeps a party for a character that left it only by logging out, and a
+character in a party is taken by the portal to its party's forest. So a fighter that fights solo (`--party-size 1`, a
+fighter left over from whole parties) leaves a party the world still holds for it: on the first roster with members
+that a connection of it reads (the world sends one as a party member's character spawns), it sends one
+`CMSG_PARTY_LEAVE`. A member of a party gone solo that was out of the world when the others left does the same once
+back. A character in no party gets no roster, and nothing is sent.
 
 ## The ramp
 
@@ -301,7 +506,8 @@ a takeover. A churn that fails is counted, and the bot closes its connection and
    last judged window (see [a world restart](#a-world-restart)).
 2. It signs in `--start` bots (at most `--sign-in-concurrency` at once). If a sign-in fails, that account is passed
    over for the next one.
-3. It enters them, 32 at a time, each with its behaviour from the mix.
+3. It enters them, 32 at a time, each with its behaviour from the mix. With `--party-size` above 1, the fighters among
+   them are grouped into [parties](#parties), which form in the background once their members are in.
 4. It holds the step for `--hold`. The judged window is the hold's last 60 seconds (the hold less 30 seconds, for a
    hold under 90 seconds); everything before it settles and is not judged: 30 seconds, longer when the hold exceeds
    90 seconds. While the step holds, the next step's bots sign in.
@@ -447,9 +653,11 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   world restart](#a-world-restart)). A version read only at the end is marked `(read at the end)`, and a check that
   could not be made whole says so: `(restart check: partial, ...)` or `(restart check: unknown, Prometheus gave
   nothing at the end)`. The tool warns when `target_info`'s pod name is not `--pod`. Then the run and its size, the
-  API, the mix, the ramp settings (start, step, hold and judged window, max, sign-in concurrency), Prometheus, the
-  pod, `--dial`, the bot PC's CPU model and logical cores, its clock's offset from Prometheus's at the start (by which
-  every query's time was corrected), and the limits, each marked when overridden.
+  API, the mix, the fighters' settings (`--forest-time` and `--party-size`, with the 0 to 30 second first-trip wait, or
+  `none in the mix` when the mix gives fighters no weight), the ramp settings (start, step, hold and judged window,
+  max, sign-in concurrency), Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its clock's
+  offset from Prometheus's at the start (by which every query's time was corrected), and the limits, each marked when
+  overridden.
 - **Result**: one of `capacity N bots`, `no limit reached up to N bots`, `bot PC saturated: capacity ≥ N bots`,
   `stopped: steps that could not be judged`, or `stopped (<reason>)`, followed by `; does not stand: <reason>` when
   the run does not stand (`the world server restarted during the ramp`, `the world server restarted; not proven after
@@ -459,14 +667,19 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   that no step passed. Then "failed first": each confirmed breach with its value and threshold (`tick-p99 18.2 ms >
   16.7 ms`).
 - **Steps**, one row per held step (a re-hold is a row of its own):
-  - live bots, by behaviour; bots in the world at the hold's end; players online less the count before the ramp;
-  - map instances; tick p99; average TPS; ack p50, p95 and p99; drops; the deepest receive backlog of any
-    connection; working set (MB and % of the limit); gen2 per minute; GC pause; save p95;
+  - live bots, by behaviour (idle / walker / churner / fighter); bots in the world at the hold's end; players online
+    less the count before the ramp;
+  - map instances at the hold's end, every map together (`avalon_world_instances_active` carries no map type; the
+    [fighters' section](#the-fighters-section) splits them); tick p99; average TPS; ack p50, p95 and p99; drops; the
+    deepest receive backlog of any connection; working set (MB and % of the limit); gen2 per minute; GC pause; save
+    p95;
   - admission as bots that never got in ÷ bots that tried; entry attempts and failed attempts, and failures by kind;
     leave failures by kind and sign-in failures by kind (both apart from admission); disconnects;
   - the bot PC's CPU and the driver's lateness p95;
   - the verdict: `pass`, `pass (blip)`, `re-hold (<breaches, or unknown: names>)`, `stop (...)`,
     `stop, unknown (...)`, or `pass, the last step`. A value Prometheus did not give reads `n/a`.
+- **Fighters**, for reading only (see [the fighters' section](#the-fighters-section)); `None: no step held a fighter.`
+  when none did.
 - **Post-update stages**, for reading only (no limit is judged on them): one row per step, one column per stage of
   `world.post_update.duration` (`quests`, `inventory`, `sheet`, `ability_amounts`, `party_status`, `presence`,
   `pings`, `outbox`, `continuations`, in the order the tick runs them; [instrumentation](instrumentation.md#tick-and-instance-time)),
@@ -493,6 +706,53 @@ before it show how that value climbed. A `bot PC saturated` result is a lower bo
 (fewer walkers and churners) or a stronger bot PC. A ramp that stopped unknown usually means a missing metric: check
 [the export interval](#before-a-run) and Prometheus. If the bot count and the two cross-checks disagree, bots were
 not where the tool thought they were. Look at the failure kinds and the disconnects.
+
+### The fighters' section
+
+One row per step, for reading only: no fighter number is a limit, and none changes a verdict.
+Fighters load the world (each forest is about 200 creatures whose AI ticks every tick, and its bake), and the limits
+judge that load as they judge any other; the admission limit still applies to fighters' entries into the world. The
+counts cover the whole step, settle included. The entry percentiles of the settle and of the judged window do not
+merge, so each is the slower of the two, an upper bound.
+
+| Column | What |
+|---|---|
+| Fighters | The step's live fighters |
+| Instances per tick: town / forest | The town and normal-map (forest) instances the world ticked, on average per tick over the judged window (below) |
+| Forest entries | Forest entries answered with the forest |
+| Entry p50 / p95 | Forest entry time, portal request to transition, in ms |
+| Trips completed | Trips that walked out of the forest into town |
+| Casts sent | Casts of the basic abilities |
+| Casts refused (by reason) | Casts the world refused (`SMSG_ABILITY_NOT_READY`), in all and by `CastRejectReason` (`Gcd`, `Cooldown`, `OutOfRange`, `TargetNotFound`, ...). A few `Dead` remain: casts already on the wire when the character died |
+| Kills seen | Creatures a fighter cast at seen dead afterwards, once per fighter that cast at it |
+| Own deaths | Deaths of the fighters' characters |
+| Trip failures by kind | Failed steps of the trips, by [kind](#failure-kinds) |
+| Parties formed | Parties whose leader's roster listed every member |
+| Party failures by reason | Parties that failed to form twice, or fell apart, by [reason](#failure-kinds) |
+
+**Instances by map type.** `avalon_world_instances_active` carries no map type, so the steps table gives the total
+only. Every live instance's update is recorded once per tick in `world.instance.update.duration`, tagged `map.type`
+(`map_type` in Prometheus: `Town` or `Normal`; [instrumentation](instrumentation.md#tick-and-instance-time)), so a map
+type's updates per tick are its mean count of live instances over the window:
+`sum by (map_type)(rate(world_instance_update_duration_microseconds_count[w])) /
+scalar(sum(rate(world_tick_duration_microseconds_count[w])))`. On world 4 the only normal map the portals lead to is the
+forest, and with the [lifetime at 0](#before-a-run) an emptied forest is freed on the next tick, so the forest figure is
+the forests in use. Whether the world exports the updates is asked as for the post-update stages:
+`count(world_instance_update_duration_microseconds_count) or (0 * count(world_tick_duration_microseconds_count))`; 0
+(a world build without it) reads `not exported by this world build`. Nothing from the world at all, a failed query, an
+empty rate (a window too short for one) or no tick to divide by reads `n/a`. With the town's rate there, a map type
+the answer lacks reads 0: no instance of it has ticked since the world started, or its first did so only in the
+window's last sample.
+
+**JSON.** The ramp settings carry `ramp.forestTimeSeconds` and `ramp.partySize`, and each step:
+
+- `byBehaviour.Fighter`, the live fighters;
+- `client.forestEntries`, `client.forestEntryP50` and `client.forestEntryP95` (ms; `NaN` with no entry),
+  `client.forestTrips`, `client.castsSent`, `client.castsRefused` (counts by reason), `client.kills`,
+  `client.ownDeaths`, `client.fighterFailures` (counts by kind), `client.partiesFormed` and
+  `client.partyFormFailures` (counts by reason);
+- `server.instancesByMap`: `readout` (`Reported`, `NotExported` or `Unknown`), `town` and `forest` (instances per
+  tick; null unless reported).
 
 ### A world restart
 

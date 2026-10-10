@@ -26,7 +26,7 @@ namespace Avalon.LoadTest.Ramp;
 /// null when it had saves but no percentile came back or whether it had any cannot be told (too few samples, a failed
 /// query).
 /// </param>
-/// <param name="Instances">Map instances active at the step's end.</param>
+/// <param name="Instances">Map instances active at the step's end, every map type together (the gauge has no map type).</param>
 public sealed record ServerValues(
     double? TickP99Ms, double? Tps, double Drops, double? ReceiveBacklogMax, double? WorkingSetFraction, double? WorkingSetMb,
     double? Gen2PerMin, double? GcPauseFraction, double? SaveP95Ms, double? Instances)
@@ -36,6 +36,12 @@ public sealed record ServerValues(
     /// only: no limit reads it.
     /// </summary>
     public PostUpdateStages PostUpdate { get; init; } = PostUpdateStages.Unknown;
+
+    /// <summary>
+    /// The instances ticked per tick over the window by map type, town and forest (<c>world.instance.update.duration</c>),
+    /// for the report only: no limit reads it. <see cref="Instances"/> is the total at the step's end.
+    /// </summary>
+    public InstancesByMap InstancesByMap { get; init; } = InstancesByMap.Unknown;
 }
 
 /// <summary>
@@ -128,9 +134,20 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
             "stage", at, ct);
         Task<IReadOnlyDictionary<string, double>?> stageP99 = ByLabelAsync(
             $"histogram_quantile(0.99, sum by (stage, le)(rate({PostUpdate}_bucket{{{world}}}{range})))", "stage", at, ct);
+        // The instances by map type: the gauge carries none, but every live instance's update is recorded once per tick,
+        // tagged with its map type, so its updates per tick are its mean instance count over the window. Whether the
+        // world exports the updates is anchored on the tick histogram, as the stages' is.
+        const string InstanceUpdates = "world_instance_update_duration_microseconds_count";
+        const string Ticks = "world_tick_duration_microseconds_count";
+        Task<Answer> instanceUpdateSeries = AnswerAsync(
+            $"count({InstanceUpdates}{{{world}}}) or (0 * count({Ticks}{{{world}}}))", at, ct);
+        Task<IReadOnlyDictionary<string, double>?> instancesPerTick = ByLabelAsync(
+            $"sum by (map_type)(rate({InstanceUpdates}{{{world}}}{range})) / scalar(sum(rate({Ticks}{{{world}}}{range})))",
+            "map_type", at, ct);
 
         await Task.WhenAll(tick, tps, drops, backlog, workingSet, workingSetFraction, gen2, gcPause, save, saveIncrease,
-            saveSamples, savesAtStart, newSaveSeries, instances, postUpdateSeries, stageMean, stageP99);
+            saveSamples, savesAtStart, newSaveSeries, instances, postUpdateSeries, stageMean, stageP99, instanceUpdateSeries,
+            instancesPerTick);
 
         double? saveP95 = SaveP95(tick.Result, save.Result, saveIncrease.Result, saveSamples.Result, savesAtStart.Result,
             newSaveSeries.Result);
@@ -141,6 +158,8 @@ public sealed class PrometheusClient(Uri baseUri, ushort worldId, string pod) : 
         {
             PostUpdate = PostUpdateStages.From(postUpdateSeries.Result.Answered, postUpdateSeries.Result.Value,
                 stageMean.Result, stageP99.Result),
+            InstancesByMap = InstancesByMap.From(instanceUpdateSeries.Result.Answered, instanceUpdateSeries.Result.Value,
+                instancesPerTick.Result),
         };
     }
 

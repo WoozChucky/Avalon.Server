@@ -6,7 +6,7 @@ using Avalon.LoadTest.Report;
 using Avalon.LoadTest.Runs;
 
 // The load-test bot client: headless bots that sign in over the REST API, enter a world over TLS as the game client
-// does, and walk, idle or change character while the run measures how the world server copes.
+// does, and walk, idle, change character or fight through the forest while the run measures how the world server copes.
 using var cancel = new CancellationTokenSource();
 Console.CancelKeyPress += (_, press) =>
 {
@@ -112,17 +112,36 @@ static int Usage()
               with its own id; the file is named after the first. --world is the only world the bots
               enter (default {CommandLine.DefaultWorld}); --api the API origin (default {CommandLine.DefaultApi});
               --run the first run's id, three letters (default: the tool picks one no kept run file lists).
-          check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker]
+          check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker|fighter] [--forest-time 5m]
+                [--party-size 1]
               One bot end to end: signs in, enters the run's world (join ticket, TLS, admission, handshake,
               create or select, loaded), sends input at 60 Hz for 10 s through the input driver, leaves and
               signs out, printing each step's duration, the input-ack latency and the driver's lateness.
               --dial is the host to connect to instead of the join reply's (TLS still names the reply's
-              server); --bot the bot's index in the run (default 0); --behaviour idle (default) or walker.
+              server); --bot the bot's index in the run (default 0); --behaviour idle (default), walker, or
+              fighter: a forest trip instead of the 10 s (portal, fight, exit), passed when it walks out into
+              town; a trip that ends in a death (printed, not failed) is made again, {CheckTrips.MostTrips} trips at
+              most, and dying on every one fails as forest:died-thrice; --forest-time how long it fights
+              (default 5m, as 90s, 5m or seconds). --party-size N (fighter only, 1 to {BotParty.MaxSize}, default 1)
+              checks N bots from --bot on instead: they form one party with the party packets (the first
+              invites the others by name, they accept) and enter one shared forest, each going again after a
+              death as above; passed when the party formed and every member walked out once. At 1 the fighter
+              sends no party packet, except one leave when its character is still in a party of an earlier run
+              (the world keeps parties until it restarts).
           ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
                [--limit name=value]... [--dial HOST] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
+               [--forest-time 5m] [--party-size 1]
               The capacity run: adds bots in steps of --step from --start up to --max (default: the run's size),
               holds each step --hold (a settle of at least 30 s, then judged on up to its last 60 s), and stops
-              at the first limit breached twice in a row. Behaviours are shared by --mix. --limit overrides a limit (repeatable):
+              at the first limit breached twice in a row. Behaviours are shared by --mix (idle, walker, churner,
+              fighter); a fighter's trip stays --forest-time in the forest (default 5m). --party-size N (1 to
+              {BotParty.MaxSize}, default 1: solo) groups the fighters each step adds into parties of N, in bot
+              order: the first invites the others by name, they accept, and once formed they walk to the portal
+              together and share one forest. A party that fails to form tries once more, then its members fight
+              solo; the fighters a step adds beyond a whole number of parties fight solo, so the step's count
+              and the mix stay exact. A solo fighter sends no party packet, except one leave when its character
+              is still in a party of an earlier run (the world keeps parties until it restarts) and would
+              otherwise enter that party's forest. --limit overrides a limit (repeatable):
               {string.Join(", ", Limits.Defaults.Select(l => l.CliName))}; e.g. tick-p99=20, memory=0.9.
               --prometheus (default {CommandLine.DefaultPrometheus}) and --pod (default {CommandLine.DefaultPod})
               locate the server's metrics; --sign-in-concurrency bounds sign-ins at once (default 8). Every bot

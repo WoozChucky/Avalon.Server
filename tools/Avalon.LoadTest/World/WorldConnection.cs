@@ -9,7 +9,9 @@ using Avalon.LoadTest.Api;
 using Avalon.LoadTest.Wire;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.World;
 using Org.BouncyCastle.Crypto;
 
 namespace Avalon.LoadTest.World;
@@ -19,7 +21,9 @@ namespace Avalon.LoadTest.World;
 /// reply names, admission with a join ticket and the client's session key, then the version handshake. A read loop on
 /// its own task drains the socket the whole time, so the server's outbox never backs up behind a busy bot: it raises
 /// <see cref="Ack"/> for each <c>SMSG_PLAYER_STATE_ACK</c>, answers pings, queues the few packets the entry and leave
-/// code waits for on <see cref="Inbound"/>, and drops everything else without decoding it.
+/// code waits for on <see cref="Inbound"/>, applies the world-state packets to <see cref="State"/> when the bot keeps
+/// one (and with it hands over map transitions, cast refusals and the character's own damage), hands a party member's
+/// party packets over, and drops everything else without decoding it.
 /// </summary>
 /// <remarks>
 /// Sends are serialised by one lock, and sealing with the session by another (<see cref="Seal{T}"/>): the codec and the
@@ -43,6 +47,7 @@ public sealed class WorldConnection : IAsyncDisposable
     private int _disposed;
     private volatile string? _closeReason;
     private volatile TaskCompletionSource? _worldState;
+    private volatile WorldStateTable? _state;
 
     private WorldConnection(Socket socket, SslStream stream)
     {
@@ -79,8 +84,56 @@ public sealed class WorldConnection : IAsyncDisposable
     /// </summary>
     public ChannelReader<NetworkPacket> Inbound => _inbound.Reader;
 
+    /// <summary>
+    /// The objects in the character's view, kept from the world-state packets on the read loop; set only for a bot that
+    /// looks for targets (a fighter). Null, the default, leaves those packets unread, as every other behaviour wants:
+    /// decoding them costs the bot PC per object in view, ten times a second.
+    /// </summary>
+    /// <remarks>
+    /// Set it before the character is selected (and so before <see cref="ArmSpawnSignal"/>): the world describes each
+    /// object in full only once, in the add that brings it into view. A table set later misses those adds: a creature
+    /// returns only once it moves or is hurt (its update then carries its position and health), and an object that is
+    /// never updated is never seen.
+    /// </remarks>
+    public WorldStateTable? State
+    {
+        get => _state;
+        set => _state = value;
+    }
+
     /// <summary>Each <c>SMSG_PLAYER_STATE_ACK</c>, still sealed, raised on the read loop: a handler must be quick.</summary>
     public event Action<NetworkPacket>? Ack;
+
+    /// <summary>
+    /// Each <c>SMSG_MAP_TRANSITION</c>'s result and map, raised on the read loop while <see cref="State"/> is set (left
+    /// unread otherwise). A success has cleared the table first: the world sends the new instance's objects only after
+    /// the transition, and the old one's only before it, so the table is emptied between the two on this loop, where
+    /// they arrive, and none of the new adds is lost.
+    /// </summary>
+    public event Action<MapTransitionResult, ushort>? MapTransition;
+
+    /// <summary>Each <c>SMSG_ABILITY_NOT_READY</c>'s reason, raised on the read loop while a handler is set (left unread otherwise).</summary>
+    public event Action<CastRejectReason>? CastRefused;
+
+    /// <summary>
+    /// Each <c>SMSG_CHARACTER_DAMAGED</c>'s target and the health it has left, raised on the read loop while a handler is
+    /// set (a fighter); left unread otherwise. The world sends it only to the hit character's own connection, in the
+    /// tick of the hit, for a direct hit and for an aura's tick: a fighter sees its own death by it ahead of the table.
+    /// </summary>
+    public event Action<ulong, uint>? CharacterDamaged;
+
+    /// <summary>
+    /// Each <c>SMSG_PARTY_INVITE</c>, <c>SMSG_PARTY_RESULT</c> and <c>SMSG_PARTY_ROSTER</c>, still sealed, raised on the
+    /// read loop while a handler is set (a fighter); left unread otherwise, as every
+    /// <c>SMSG_PARTY_MEMBER_STATUS</c> is.
+    /// </summary>
+    public event Action<NetworkPacket>? PartyPacket;
+
+    /// <summary>
+    /// The owner's count of its connections at this one (<see cref="Bots.Bot.ConnectionGeneration"/>), set once before
+    /// the connection is used: what was sent or read on it is told apart from another connection's by it.
+    /// </summary>
+    public int Generation { get; set; }
 
     /// <summary>
     /// Completes when the read loop ends: successfully when the server closed the connection or it was disposed,
@@ -209,7 +262,8 @@ public sealed class WorldConnection : IAsyncDisposable
     /// <summary>
     /// A task that completes on the first world-state frame (<c>SMSG_WORLD_STATE_ADD</c>, <c>_UPDATE</c> or
     /// <c>_REMOVE</c>) read after this call: the world sends them only to a character in an instance, so the first is
-    /// the sign the selected character has spawned. Only the header is looked at.
+    /// the sign the selected character has spawned. Only the header is looked at here; the frame is decoded only for
+    /// <see cref="State"/>.
     /// </summary>
     public Task ArmSpawnSignal()
     {
@@ -281,7 +335,33 @@ public sealed class WorldConnection : IAsyncDisposable
                         break;
                     case NetworkPacketType.SMSG_WORLD_STATE_ADD or NetworkPacketType.SMSG_WORLD_STATE_UPDATE
                         or NetworkPacketType.SMSG_WORLD_STATE_REMOVE:
+                        // Applied first, so a fighter woken by the spawn signal already finds the first add.
+                        _state?.Apply(packet, Codec);
                         if (_worldState is not null) Interlocked.Exchange(ref _worldState, null)?.TrySetResult();
+                        break;
+                    case NetworkPacketType.SMSG_MAP_TRANSITION:
+                        if (_state is { } table)
+                        {
+                            SMapTransitionPacket transition = Codec.Decode<SMapTransitionPacket>(packet);
+                            if (transition.Result == MapTransitionResult.Success) table.Clear();
+                            MapTransition?.Invoke(transition.Result, transition.MapId);
+                        }
+
+                        break;
+                    case NetworkPacketType.SMSG_ABILITY_NOT_READY:
+                        if (CastRefused is { } refused) refused(Codec.Decode<SAbilityNotReadyPacket>(packet).Reason);
+                        break;
+                    case NetworkPacketType.SMSG_CHARACTER_DAMAGED:
+                        if (CharacterDamaged is { } damaged)
+                        {
+                            SCharacterDamagePacket hit = Codec.Decode<SCharacterDamagePacket>(packet);
+                            damaged(hit.Target, hit.CurrentHealth);
+                        }
+
+                        break;
+                    case NetworkPacketType.SMSG_PARTY_INVITE or NetworkPacketType.SMSG_PARTY_RESULT
+                        or NetworkPacketType.SMSG_PARTY_ROSTER:
+                        PartyPacket?.Invoke(packet);
                         break;
                     case NetworkPacketType.SMSG_DISCONNECT:
                         DisconnectReason = Codec.Decode<SDisconnectPacket>(packet).ReasonCode;

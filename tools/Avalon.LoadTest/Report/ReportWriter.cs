@@ -100,6 +100,7 @@ public static class ReportWriter
         md.AppendLine($"- World {run.WorldId} server version: {ServerVersionText(result)}");
         md.AppendLine(Invariant($"- Run: {run.RunId} ({run.Bots.Count} bots) through {run.Api}"));
         md.AppendLine($"- Mix: {options.Mix}");
+        md.AppendLine($"- Fighters: {FightersText(options)}");
         md.AppendLine(Invariant(
             $"- Ramp: start {options.Start}, step {options.Step}, hold {options.Hold.TotalSeconds:0} s (judged on the last {RampRunner.JudgedWindow(options.Hold).TotalSeconds:0} s), max {options.Max}, {options.SignInConcurrency} sign-ins at once"));
         md.AppendLine($"- Prometheus: {options.Prometheus} (pod {options.Pod}){(options.Dial is { } dial ? $"; dialling {dial}" : "")}");
@@ -130,7 +131,7 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Live bots (idle / walker / churner) | In world at hold end | Players online − start | Instances | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
+        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Drops | Receive backlog | Working set | Gen2 / min | GC pause | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
         md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
@@ -141,7 +142,7 @@ public static class ReportWriter
             string leaves = Kinds(c.LeaveFailures);
             string signIns = Kinds(c.SignInFailures);
             string bots = Invariant(
-                $"{step.Bots} ({step.ByBehaviour.GetValueOrDefault(BehaviourKind.Idle)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Walker)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Churner)})");
+                $"{step.Bots} ({step.ByBehaviour.GetValueOrDefault(BehaviourKind.Idle)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Walker)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Churner)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Fighter)})");
             string workingSet = s.WorkingSetMb is { } mb
                 ? Invariant($"{mb:0} MB ({Percent(s.WorkingSetFraction)})")
                 : "n/a";
@@ -171,6 +172,7 @@ public static class ReportWriter
                 RampRunner.Verdict(step, options.Limits) + " |"));
         }
 
+        FightersTable(md, result.Steps);
         PostUpdateTable(md, result.Steps);
 
         md.AppendLine();
@@ -229,6 +231,72 @@ public static class ReportWriter
         }
 
         return md.ToString();
+    }
+
+    /// <summary>
+    /// The header's fighter settings: <c>--forest-time</c> and <c>--party-size</c>, and whether the mix has fighters at
+    /// all (the settings then apply to none).
+    /// </summary>
+    private static string FightersText(RampOptions options)
+    {
+        string parties = options.PartySize == 1
+            ? "--party-size 1 (solo)"
+            : Invariant($"--party-size {options.PartySize} (the fighters a step adds beyond whole parties fight solo)");
+        string settings = Invariant($"--forest-time {options.ForestTime.TotalSeconds:0} s, {parties}");
+        bool inMix = Mix.Parse(options.Mix).Any(entry => entry.Kind == BehaviourKind.Fighter && entry.Weight > 0);
+        return inMix
+            ? Invariant($"{settings}; a fighter's first trip (a party's, together) waits a random 0 to {Fighter.FirstTripJitter.TotalSeconds:0} s")
+            : $"none in the mix ({settings})";
+    }
+
+    /// <summary>
+    /// Each step's fighters: how many, the instances the world ticked by map type, their forest entries (portal request
+    /// to transition), trips, casts sent and refused by reason, kills, deaths, failed trip steps by kind, and parties
+    /// formed and failed by reason. Over the whole step, settle included. For reading only: no limit is judged on them.
+    /// When no step held a fighter, the section says so in one line.
+    /// </summary>
+    private static void FightersTable(StringBuilder md, IReadOnlyList<StepRecord> steps)
+    {
+        md.AppendLine();
+        md.AppendLine("## Fighters");
+        md.AppendLine();
+        if (!steps.Any(step => step.ByBehaviour.GetValueOrDefault(BehaviourKind.Fighter) > 0))
+        {
+            md.AppendLine("None: no step held a fighter.");
+            return;
+        }
+
+        md.AppendLine("Over each whole step, settle included; entry times are the slower of the settle's and the judged window's. Instances are the mean the world ticked per tick over the judged window. Not a limit.");
+        md.AppendLine();
+        md.AppendLine("| Step | Fighters | Instances per tick: town / forest | Forest entries | Entry p50 / p95 | Trips completed | Casts sent | Casts refused (by reason) | Kills seen | Own deaths | Trip failures by kind | Parties formed | Party failures by reason |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        foreach (StepRecord step in steps)
+        {
+            StepClientValues c = step.Client;
+            InstancesByMap instances = step.Server.InstancesByMap;
+            int refused = c.CastsRefused.Values.Sum();
+            md.AppendLine(string.Join(" | ",
+                "| " + step.Index.ToString(CultureInfo.InvariantCulture),
+                step.ByBehaviour.GetValueOrDefault(BehaviourKind.Fighter).ToString(CultureInfo.InvariantCulture),
+                instances.Readout switch
+                {
+                    InstancesReadout.Reported => $"{Number(instances.Town, "0.0")} / {Number(instances.Forest, "0.0")}",
+                    InstancesReadout.NotExported => "not exported by this world build",
+                    _ => "n/a",
+                },
+                c.ForestEntries.ToString(CultureInfo.InvariantCulture),
+                double.IsFinite(c.ForestEntryP50) || double.IsFinite(c.ForestEntryP95)
+                    ? $"{Number(c.ForestEntryP50, "0")} / {Number(c.ForestEntryP95, "0")} ms"
+                    : "n/a",
+                c.ForestTrips.ToString(CultureInfo.InvariantCulture),
+                c.CastsSent.ToString(CultureInfo.InvariantCulture),
+                refused == 0 ? "0" : Invariant($"{refused} ({Kinds(c.CastsRefused)})"),
+                c.Kills.ToString(CultureInfo.InvariantCulture),
+                c.OwnDeaths.ToString(CultureInfo.InvariantCulture),
+                Kinds(c.FighterFailures),
+                c.PartiesFormed.ToString(CultureInfo.InvariantCulture),
+                Kinds(c.PartyFormFailures) + " |"));
+        }
     }
 
     /// <summary>
@@ -313,6 +381,8 @@ public static class ReportWriter
                 options.Dial,
                 Prometheus = options.Prometheus.ToString(),
                 options.Pod,
+                ForestTimeSeconds = options.ForestTime.TotalSeconds,
+                options.PartySize,
             },
             Limits = options.Limits.Select(limit => new { limit.Name, limit.CliName, limit.Threshold, limit.TripsAbove, limit.Unit }),
             BotPc = new { Cpu = cpu, Cores = Environment.ProcessorCount, ClockOffsetSeconds = result.ClockOffset.TotalSeconds },

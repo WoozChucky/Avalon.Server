@@ -6,14 +6,17 @@ namespace Avalon.LoadTest.Bots;
 
 /// <summary>
 /// What the bots measure on the client side, by window: input-to-ack latency, entry time (ticket to first ack), entry
-/// attempts and failures by kind, leave and sign-in failures by kind, sign-out failures and unexpected disconnects.
+/// attempts and failures by kind, leave and sign-in failures by kind, sign-out failures and unexpected disconnects; and
+/// the fighters' trips: forest entry time (portal request to transition), trips completed, casts sent and refused by
+/// reason, kills seen, their own deaths and failed steps by kind, and their parties formed and failed by reason.
 /// <see cref="TakeWindow"/> closes the current window and opens the next. Every recording method is safe from any
 /// thread and takes no lock of its own: counters are interlocked, and a count by kind is a
 /// <see cref="ConcurrentDictionary{TKey,TValue}"/> update, which briefly locks one of its stripes.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The counted events (entries, sign-in, sign-out and leave failures, disconnects) each land in exactly one window,
+/// The counted events (entries, sign-in, sign-out and leave failures, disconnects, every fighter count) each land in
+/// exactly one window,
 /// whole: a recorder registers on the window it read (<see cref="Enter"/>) and moves to the new one if that was
 /// swapped meanwhile, and <see cref="TakeWindow"/> waits for the recorders still registered on the window it closed
 /// before reading it. Entry attempts are not a counter of their own but successes plus failures, so the two always
@@ -172,6 +175,51 @@ public sealed class BotMetrics
         }
     }
 
+    /// <summary>A fighter's request to enter the forest was answered with the forest, <paramref name="portalToTransition"/> after it was sent.</summary>
+    public void ForestEntered(TimeSpan portalToTransition)
+    {
+        Window window = Enter();
+        try
+        {
+            window.ForestEntries.Add(portalToTransition.TotalMilliseconds);
+        }
+        finally
+        {
+            Exit(window);
+        }
+    }
+
+    /// <summary>A fighter walked out of the forest into town.</summary>
+    public void ForestTripCompleted() => Count(static window => ref window.ForestTrips);
+
+    /// <summary>A fighter sent a cast.</summary>
+    public void CastSent() => Count(static window => ref window.CastsSent);
+
+    /// <summary>The world refused a fighter's cast; <paramref name="reason"/> names its <c>CastRejectReason</c>.</summary>
+    public void CastRefused(string reason) => CountKind(static window => window.CastRefusals, reason);
+
+    /// <summary>A creature a fighter cast at was seen dead.</summary>
+    public void KillSeen() => Count(static window => ref window.Kills);
+
+    /// <summary>A fighter's character died.</summary>
+    public void OwnDeath() => Count(static window => ref window.OwnDeaths);
+
+    /// <summary>
+    /// A step of a fighter's trip failed; <paramref name="kind"/> names it (<c>forest:portal-timeout</c>,
+    /// <c>forest:enter:&lt;result&gt;</c>, <c>forest:exit-timeout:trail</c>, ...).
+    /// </summary>
+    public void FighterFailed(string kind) => CountKind(static window => window.FighterFailures, kind);
+
+    /// <summary>A party of fighters formed: its leader's roster listed every member.</summary>
+    public void PartyFormed() => Count(static window => ref window.PartiesFormed);
+
+    /// <summary>
+    /// A party of fighters failed to form twice, or fell apart once formed, and its members fight solo; counted once per
+    /// party. <paramref name="reason"/> names why (<c>party:timeout</c>, <c>party:invite:&lt;result&gt;</c>,
+    /// <c>party:fell-apart</c>, ...).
+    /// </summary>
+    public void PartyFormFailed(string reason) => CountKind(static window => window.PartyFormFailures, reason);
+
     /// <summary>
     /// Everything recorded since the last call (or since construction), and a fresh window for what follows. Read once
     /// no recorder is still registered on the closed window, so each snapshot is whole; its attempts are its successes
@@ -185,6 +233,7 @@ public sealed class BotMetrics
 
         double[] acks = closed.Acks.Sorted();
         double[] entries = closed.Entries.Sorted();
+        double[] forestEntries = closed.ForestEntries.Sorted();
         var entryFailures = new Dictionary<string, int>(closed.EntryFailures, StringComparer.Ordinal);
         int entrySuccesses = (int)Volatile.Read(ref closed.EntrySuccesses);
         return new StepClientValues(
@@ -201,6 +250,17 @@ public sealed class BotMetrics
             SignOutFailures = (int)Volatile.Read(ref closed.SignOutFailures),
             TriedBots = closed.BotsTried.Keys.ToHashSet(),
             GotInBots = closed.BotsGotIn.Keys.ToHashSet(),
+            ForestEntries = (int)closed.ForestEntries.Count,
+            ForestEntryP50 = Percentile(forestEntries, 0.50),
+            ForestEntryP95 = Percentile(forestEntries, 0.95),
+            ForestTrips = (int)Volatile.Read(ref closed.ForestTrips),
+            CastsSent = (int)Volatile.Read(ref closed.CastsSent),
+            CastsRefused = new Dictionary<string, int>(closed.CastRefusals, StringComparer.Ordinal),
+            Kills = (int)Volatile.Read(ref closed.Kills),
+            OwnDeaths = (int)Volatile.Read(ref closed.OwnDeaths),
+            FighterFailures = new Dictionary<string, int>(closed.FighterFailures, StringComparer.Ordinal),
+            PartiesFormed = (int)Volatile.Read(ref closed.PartiesFormed),
+            PartyFormFailures = new Dictionary<string, int>(closed.PartyFormFailures, StringComparer.Ordinal),
         };
     }
 
@@ -225,6 +285,34 @@ public sealed class BotMetrics
 
     private static void Exit(Window window) => Interlocked.Decrement(ref window.Writers);
 
+    /// <summary>Adds one to the current window's counter <paramref name="counter"/> picks, inside the gate.</summary>
+    private void Count(CounterOf counter)
+    {
+        Window window = Enter();
+        try
+        {
+            Interlocked.Increment(ref counter(window));
+        }
+        finally
+        {
+            Exit(window);
+        }
+    }
+
+    /// <summary>Adds one to <paramref name="kind"/> in the current window's count by kind <paramref name="counts"/> picks, inside the gate.</summary>
+    private void CountKind(Func<Window, ConcurrentDictionary<string, int>> counts, string kind)
+    {
+        Window window = Enter();
+        try
+        {
+            counts(window).AddOrUpdate(kind, 1, static (_, n) => n + 1);
+        }
+        finally
+        {
+            Exit(window);
+        }
+    }
+
     /// <summary>The nearest-rank percentile of sorted samples; NaN when there are none.</summary>
     private static double Percentile(double[] sorted, double p) =>
         sorted.Length == 0 ? double.NaN : sorted[Math.Clamp((int)Math.Ceiling(p * sorted.Length) - 1, 0, sorted.Length - 1)];
@@ -248,7 +336,21 @@ public sealed class BotMetrics
         public int Writers;
         public long SignOutFailures;
         public long Disconnects;
+
+        /// <summary>The fighters' forest entry times, portal request to transition, in milliseconds.</summary>
+        public readonly Reservoir ForestEntries = new(MaxEntrySamples);
+        public readonly ConcurrentDictionary<string, int> CastRefusals = new(StringComparer.Ordinal);
+        public readonly ConcurrentDictionary<string, int> FighterFailures = new(StringComparer.Ordinal);
+        public readonly ConcurrentDictionary<string, int> PartyFormFailures = new(StringComparer.Ordinal);
+        public long ForestTrips;
+        public long CastsSent;
+        public long Kills;
+        public long OwnDeaths;
+        public long PartiesFormed;
     }
+
+    /// <summary>Picks one of a window's counters, by reference.</summary>
+    private delegate ref long CounterOf(Window window);
 
     /// <summary>
     /// A uniform sample of at most <c>capacity</c> values, written without a lock. Slots start as NaN, so one a writer
@@ -264,6 +366,9 @@ public sealed class BotMetrics
             _samples = new double[capacity];
             Array.Fill(_samples, double.NaN);
         }
+
+        /// <summary>How many values were added, kept or not.</summary>
+        public long Count => Volatile.Read(ref _count);
 
         public void Add(double value)
         {
@@ -358,6 +463,42 @@ public sealed record StepClientValues(
     /// <summary>The bots, by index, with an entry attempt that succeeded in the window.</summary>
     [JsonIgnore]
     public IReadOnlySet<int> GotInBots { get; init; } = new HashSet<int>();
+
+    /// <summary>Fighters' requests to enter the forest answered with the forest.</summary>
+    public int ForestEntries { get; init; }
+
+    /// <summary>The median forest entry time, a fighter's portal request to its transition, in milliseconds; NaN with none.</summary>
+    public double ForestEntryP50 { get; init; } = double.NaN;
+
+    /// <summary>The 95th percentile of forest entry time in milliseconds; NaN with none.</summary>
+    public double ForestEntryP95 { get; init; } = double.NaN;
+
+    /// <summary>Fighters' trips completed: out of the forest into town.</summary>
+    public int ForestTrips { get; init; }
+
+    /// <summary>Casts the fighters sent.</summary>
+    public int CastsSent { get; init; }
+
+    /// <summary>Casts the world refused, by <c>CastRejectReason</c>.</summary>
+    public IReadOnlyDictionary<string, int> CastsRefused { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
+
+    /// <summary>Creatures a fighter cast at seen dead afterwards; a creature several fighters cast at counts for each.</summary>
+    public int Kills { get; init; }
+
+    /// <summary>Deaths of the fighters' characters.</summary>
+    public int OwnDeaths { get; init; }
+
+    /// <summary>Failed steps of fighters' trips, by kind (<see cref="BotMetrics.FighterFailed"/>).</summary>
+    public IReadOnlyDictionary<string, int> FighterFailures { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
+
+    /// <summary>Parties of fighters formed (<see cref="BotMetrics.PartyFormed"/>).</summary>
+    public int PartiesFormed { get; init; }
+
+    /// <summary>
+    /// Parties of fighters that failed to form or fell apart, their members fighting solo, by reason
+    /// (<see cref="BotMetrics.PartyFormFailed"/>).
+    /// </summary>
+    public IReadOnlyDictionary<string, int> PartyFormFailures { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
 
     /// <summary>Bots that tried to enter in the window (an attempt of theirs ended there), each once.</summary>
     public int BotsTried => TriedBots.Count;
