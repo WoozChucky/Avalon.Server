@@ -104,7 +104,7 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 | `Host`                  | string | `"0.0.0.0"` | Bind address                                         |
 | `Port`                  | int    | `21000`  | TCP listen port (the auth server's `appsettings.json` sets 21000, the world server's 21001; unset is 0). 0 binds a free port, which `ServerBase.BoundEndPoint` and the "Listening for connections on" log report (#841); tests use it |
 | `PacketReaderBufferSize`| int    | `4096`   | Internal read-buffer size in bytes for `PacketReader`   |
-| `SendBufferCapacity`    | int    | `100`    | Packets one connection's outbox holds while waiting to be sent; when it is full, the oldest queued packet is dropped to take the new one |
+| `SendBufferCapacity`    | int    | `100`    | The auth server's outbox (`ChannelOutbox`): packets one connection holds while waiting to be sent; when full, the oldest is dropped. The world server does not read it (#875) |
 | `TcpKeepAliveTimeSeconds` | int | `60` | TCP keepalive on every accepted socket (#571): idle seconds before the first probe |
 | `TcpKeepAliveIntervalSeconds` | int | `10` | Seconds between unanswered keepalive probes |
 | `TcpKeepAliveRetryCount` | int | `3` | Unanswered probes before the OS closes the connection. With the defaults a half-open connection (the peer gone without a FIN or RST) closes within about 90 s |
@@ -128,6 +128,20 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 - Keepalive covers the TCP connection the server accepted. Behind a proxy that terminates TCP it covers only the proxy-to-server leg; the client-to-proxy leg needs the proxy's own keepalive or idle timeout.
 - `Security:CertificatePath`: required on both servers (the auth server's TLS certificate, and the world server's, which
   must be current and carry its private key). `Security:CertificatePassword` is optional.
+
+---
+
+## Network Configuration (`NetworkConfiguration`)
+
+Section in `appsettings.json`: `"Network"` (world server). Read once at startup (#875).
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `SendThreads` | int | about half the processors, 1 to 8 | Dedicated send threads (`Network.Send.<i>`); each connection belongs to one for its life |
+| `MaxPendingBytes` | int | `524288` (512 KiB) | Bytes one connection may have queued or being written; past it the connection is sent `SDisconnect(SlowConnection)` and closed. Nothing is ever dropped |
+| `MaxWriteStall` | TimeSpan | `00:00:10` | How long one write may stay pending; past it the connection is closed without a notice |
+
+**Validation rules:** `SendThreads` 1 to 64; `MaxPendingBytes` 65536 to 67108864; `MaxWriteStall` 1 s to 5 min. Checked at startup, which names the setting.
 
 ---
 

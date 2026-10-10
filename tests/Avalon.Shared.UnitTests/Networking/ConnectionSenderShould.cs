@@ -135,6 +135,34 @@ public sealed class ConnectionSenderShould
     }
 
     /// <summary>
+    /// A write that fails (the socket closed under it) closes the connection, refuses what is sent after, and lets the
+    /// close finish at once, never waiting out its budget for a write that has already ended, with every segment back.
+    /// </summary>
+    [Fact]
+    public async Task Close_the_connection_when_a_write_fails_and_finish_the_close_at_once()
+    {
+        NetworkSendScheduler scheduler = Scheduler();
+        var failing = new PendingStream();
+        int closes = 0;
+        ConnectionSender sender = Open(scheduler, failing, () => Interlocked.Increment(ref closes));
+
+        sender.Enqueue(Numbered(1));
+        scheduler.RunPass(sender.OwnerThread);   // the write goes pending
+        sender.Enqueue(Numbered(2));             // queued behind it
+        failing.Fail(new IOException("the socket closed under the write"));
+        await WaitUntil(() => Volatile.Read(ref closes) == 1, s_guard);
+
+        Assert.False(sender.Enqueue(Numbered(3)));
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        await CloseAsync(scheduler, sender);
+        Assert.True(watch.Elapsed < ConnectionSender.CloseBudget, $"the close took {watch.Elapsed}");
+        Assert.Equal(1, failing.Writes);
+        Assert.Equal(1, Volatile.Read(ref closes));
+        Assert.Equal(0, sender.PendingBytes);
+        Assert.Equal(0, _pool.Outstanding);
+    }
+
+    /// <summary>
     /// Review Focus 4: sends from other threads racing the tick's signal on running send threads. No packet may be
     /// left behind a dirty flag cleared at the wrong moment: the writers stop together at the end of each round, and
     /// everything they queued must go out with no further send (the tick's signals and the threads' timed wakes only

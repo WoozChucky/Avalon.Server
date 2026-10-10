@@ -4,8 +4,8 @@
 > and are kept as a record. Since then: the line numbers no longer match; the client-side types it names
 > (`AvalonSession`, `AvalonTcpClient`) belong to the retired Unity client, and the packet registry types
 > (`IPacketHandler`, `IPacketRegistry`, `PacketRegistry`) are deleted; the accept path is one awaited
-> `AcceptTcpClientAsync` loop (#578, #584), not `OnClientAccepted`; every outbound queue is a bounded `Channel`
-> (`ChannelOutbox`, `TickDrivenOutbox`); entity state is the `ObjectState` message (GC-002); and GC-014's LINQ is gone:
+> `AcceptTcpClientAsync` loop (#578, #584), not `OnClientAccepted`; the auth server's outbound queue is a bounded
+> `Channel` (`ChannelOutbox`) and a world connection's a `ConnectionSender` written by a send thread (#875); entity state is the `ObjectState` message (GC-002); and GC-014's LINQ is gone:
 > `SInstanceStateRemovePacket.Create` fills a list sized to the removes (#640), so one `List<ulong>` per remove packet
 > is what remains.
 

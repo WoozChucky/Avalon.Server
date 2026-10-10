@@ -90,8 +90,6 @@ public sealed class ChannelOutbox : IOutbox
         return true;
     }
 
-    public void Flush() { } // bg drain loop handles writes; no tick-driven flush needed
-
     public async ValueTask DisposeAsync()
     {
         // Closing means: stop accepting new packets, deliver what is already queued, then go.

@@ -1,5 +1,7 @@
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Combat;
+using Avalon.Common.Telemetry;
+using Avalon.Configuration;
 using Avalon.Database;
 using Avalon.Database.Auth.Extensions;
 using Avalon.Database.Auth.Repositories;
@@ -77,6 +79,18 @@ public static class ServiceExtensions
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
+        // The send threads (#875): Network:SendThreads, MaxPendingBytes, MaxWriteStall.
+        services
+            .AddOptions<NetworkConfiguration>()
+            .BindConfiguration(NetworkConfiguration.Section)
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddSingleton(sp => new NetworkSendScheduler(
+            sp.GetRequiredService<IOptions<NetworkConfiguration>>().Value,
+            sp.GetRequiredService<ILoggerFactory>(),
+            sp.GetRequiredService<TimeProvider>(),
+            new NetworkSendMetrics(DiagnosticsConfig.World.Meter)));
 
         services
             .AddOptions<RegenConfiguration>()

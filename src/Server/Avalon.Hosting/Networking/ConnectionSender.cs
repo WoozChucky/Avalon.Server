@@ -149,11 +149,6 @@ public sealed class ConnectionSender : IOutbox
         MarkDirty();
     }
 
-    /// <summary>The send threads write as they are woken: there is nothing to flush. <c>IOutbox.Flush</c> goes with the tick's flush.</summary>
-    void IOutbox.Flush()
-    {
-    }
-
     /// <summary>
     /// Closes the queue and waits, within <see cref="CloseBudget" />, for the owner to write what is left (a disconnect
     /// notice sent just before the close goes last) and finish. Past the budget the write in flight is cancelled and

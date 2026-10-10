@@ -2,8 +2,10 @@ using System.Diagnostics.Metrics;
 using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Configuration;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
@@ -118,6 +120,10 @@ public sealed class ScenarioWorld : IDisposable
     {
         configuration ??= new GameConfiguration();
         Clock = new FakeTimeProvider(s_start);
+        // One send thread, never started: Tick runs its pass inline, on the measured thread (#875).
+        Scheduler = new NetworkSendScheduler(new NetworkConfiguration { SendThreads = 1 }, NullLoggerFactory.Instance,
+            Clock, NetworkSendMetrics.Disabled);
+        NetworkSendScheduler.DeferSignalsOnCurrentThread();
 
         var services = new ServiceCollection();
         services.AddSingleton<TimeProvider>(Clock);
@@ -184,6 +190,12 @@ public sealed class ScenarioWorld : IDisposable
     /// <summary>The world's clock: every instance, character and timer here reads it, and <see cref="Tick" /> advances it.</summary>
     public FakeTimeProvider Clock { get; }
 
+    /// <summary>
+    /// The send threads every connection's sender belongs to. Never started: <see cref="Tick" /> signals it as the tick's
+    /// outbox stage does, then runs its pass on the calling thread, so the measured tick includes the send path (#875).
+    /// </summary>
+    public NetworkSendScheduler Scheduler { get; }
+
     /// <summary>The world the instances belong to, as a packet handler is given it: its registry is the real one here.</summary>
     public IWorld Host => _world;
 
@@ -200,8 +212,8 @@ public sealed class ScenarioWorld : IDisposable
     /// One world tick, in <c>World.Update</c>'s order for the registry: the builds finished since the last tick
     /// published, the parties (in a world with reference data), then every instance through the registry's tick
     /// snapshot (<c>TickInstances</c>); then, as <c>WorldServer</c> runs them after the world update, the inventory,
-    /// sheet and ability-amount flushers, the party members' status and every connection's outbox; then the clock moves
-    /// on a tick.
+    /// sheet and ability-amount flushers, the party members' status and the outbox stage's wake-up, followed here by the
+    /// send thread's pass; then the clock moves on a tick.
     /// The ticker contains an instance's throw, as it does in production; here it ends the scenario instead, since a
     /// tick cut short would be measured as a cheap one. So does an error logged to the <see cref="ErrorLog" />.
     /// </summary>
@@ -241,8 +253,9 @@ public sealed class ScenarioWorld : IDisposable
         // The party members' pools, at most four times a second each, after the flushers as WorldServer sends them.
         _parties?.FlushMemberStatus();
 
-        for (int i = 0; i < _connections.Count; i++)
-            _connections[i].FlushOutbox();
+        // The tick's outbox stage, then the send thread's pass, inline on this thread so the gate measures both (#875).
+        Scheduler.SignalAll();
+        Scheduler.RunAllPasses();
 
         Clock.Advance(Dt);
     }
@@ -430,7 +443,7 @@ public sealed class ScenarioWorld : IDisposable
     /// </summary>
     public ScenarioConnection Connect(CharacterEntity character, Action<ScenarioConnection>? onUpdateMap = null)
     {
-        var connection = new ScenarioConnection(character, onUpdateMap);
+        var connection = new ScenarioConnection(character, Scheduler, onUpdateMap);
         _parties?.CharacterOnline(connection);
         return connection;
     }
@@ -599,6 +612,7 @@ public sealed class ScenarioWorld : IDisposable
 
         _services.Dispose();
         _meter.Dispose();
+        Scheduler.Dispose();
     }
 
     /// <summary>The ticker's log: it logs only an instance's throw, and the first one is kept for <see cref="Tick" /> to raise.</summary>

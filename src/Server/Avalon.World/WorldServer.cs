@@ -76,6 +76,9 @@ public interface IWorldServer
 
     /// <summary>The per-packet telemetry ProcessQueue records into, as CallListener does.</summary>
     PacketDispatchTelemetry PacketTelemetry { get; }
+
+    /// <summary>The send threads every connection's packets leave on (#875).</summary>
+    NetworkSendScheduler SendScheduler { get; }
 }
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
@@ -177,6 +180,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ThrottledErrorLog _maintenanceErrors;
     // The container's clock, so the maintenance cutoff and the entry checks read one time.
     private readonly TimeProvider _time;
+    private readonly NetworkSendScheduler _sendScheduler;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -256,6 +260,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _presenceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The presence capture");
         _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+        // #875. From the container; the tests that build a WorldServer from a bare provider get one with the defaults.
+        _sendScheduler = serviceProvider.GetService<NetworkSendScheduler>()
+            ?? new NetworkSendScheduler(new NetworkConfiguration(), loggerFactory, _time, NetworkSendMetrics.Disabled);
         _maintenanceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The maintenance countdown");
 
@@ -295,7 +302,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _sessionUpdateDuration = WorldHistograms.Microseconds(meter, "world.session_update.duration",
             "Duration of the session update phase of the tick loop in microseconds");
         _postUpdateDuration = WorldHistograms.Microseconds(meter, "world.post_update.duration",
-            "Duration of one stage after the world update (flushers, pings, outbox flush, continuations) in microseconds, by stage",
+            "Duration of one stage after the world update (flushers, pings, the send threads' wake-up, continuations) in microseconds, by stage",
             WorldHistograms.StageMicroseconds);
 
         WorldGauges.Register(DiagnosticsConfig.World.Meter, () => Connections, () => _world.InstanceRegistry);
@@ -308,6 +315,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         connection is WorldConnection world ? world.TelemetryTags() : base.DescribeConnection(connection);
 
     public IWorld World => _world;
+
+    public NetworkSendScheduler SendScheduler => _sendScheduler;
 
     public IReadOnlyList<IWorldConnection> SessionsOf(AccountId accountId, IWorldConnection except)
     {
@@ -380,6 +389,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             TickThreadGuard.Enable();
             _logger.LogInformation("The tick-thread assertion is on (Game:TickThreadGuard)");
         }
+
+        // The send threads before the tick that wakes them (#875).
+        _sendScheduler.Start();
 
         _tickRunning = true;
         _tickThread = new Thread(TickLoop)
@@ -516,6 +528,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     private void TickLoop()
     {
+        // The tick's sends wake their send threads once, at the tick's end (the outbox stage), not once per packet (#875).
+        NetworkSendScheduler.DeferSignalsOnCurrentThread();
         // From here until the loop ends, World-side state that only the tick may change refuses any other thread
         // (while the guard is enabled, #639). Unbound in the finally, so the shutdown despawn that runs once the tick is joined passes.
         _tickThreadGuard?.Bind();
@@ -735,8 +749,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
         // Phase MUST come from a monotonic counter — _tickCount above resets every ~1s.
-        // ENQUEUED BEFORE THE FLUSH BELOW, because SendTimeSyncPing stamps the send time it will
-        // later measure the round trip against. Flushed a tick later, that stamp is ~16 ms old
+        // ENQUEUED BEFORE THE WAKE-UP BELOW, because SendTimeSyncPing stamps the send time it will
+        // later measure the round trip against. Sent a tick later, that stamp is ~16 ms old
         // before the packet leaves, and every reported round trip carries the difference.
         long phase = _pingTickCounter++ % TimeSyncTicksPeriod;
         for (int i = 0; i < conns.Length; i++)
@@ -749,8 +763,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         stageStart = StageDone(stageStart, s_pingsStage);
 
-        for (int i = 0; i < conns.Length; i++)
-            conns[i].FlushOutbox();
+        // The tick never writes (#875): each connection's packets are already queued on its sender, and one signal per
+        // send thread wakes it to seal, frame and write them.
+        _sendScheduler.SignalAll();
         stageStart = StageDone(stageStart, s_outboxStage);
 
         foreach (IWorldConnection worldConnection in conns)

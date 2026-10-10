@@ -16,9 +16,10 @@ Both TCP servers run on one code path:
 - **`AuthServer : ServerBase<AuthConnection>`** — the auth server.
 - **`WorldServer : ServerBase<WorldConnection>`** (`src/Server/Avalon.World/WorldServer.cs`) — the world server.
 - Connections implement **`IConnection`** (in `Avalon.Hosting.Networking`), which exposes:
-  - `void Send(OutboundPacket)` — takes the packet's payload reference: a synchronous enqueue onto the connection's
-    bounded outbox (`ChannelOutbox`; a world connection's is a `TickDrivenOutbox`), at most `Hosting:SendBufferCapacity`
-    packets, the oldest dropped (and released) when full; a packet the outbox refuses is released at once.
+  - `void Send(OutboundPacket)` — takes the packet's payload reference and queues it: on the auth server onto its
+    `ChannelOutbox` (at most `Hosting:SendBufferCapacity`, oldest dropped); on the world server onto the connection's
+    `ConnectionSender`, written by its send thread, never dropped (past `Network:MaxPendingBytes` the connection is
+    closed with `SlowConnection`, #875). A packet the outbox refuses is released at once.
   - `void Close(bool expected = true)` and `Task CloseAsync(bool expected = true)` — terminate the connection.
 
 The standalone TCP server library that once sat beside it (`Avalon.Network.Tcp`, with its development test client) is

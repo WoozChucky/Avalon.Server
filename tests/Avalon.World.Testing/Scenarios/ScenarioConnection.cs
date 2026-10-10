@@ -17,17 +17,17 @@ using Org.BouncyCastle.Crypto;
 namespace Avalon.World.Testing.Scenarios;
 
 /// <summary>
-/// A connection whose send path is production's minus the socket: packets are encoded into pooled segments, queued
-/// by a real <see cref="TickDrivenOutbox"/>, and sealed by a real, initialised server-role
-/// <see cref="AvalonCryptoSession"/> as the outbox flushes and frames them, then written through a real
+/// A connection whose send path is production's minus the socket: packets are encoded into pooled segments, queued on
+/// a real <see cref="ConnectionSender"/> of the scenario's <see cref="NetworkSendScheduler"/>, and sealed by a real,
+/// initialised server-role <see cref="AvalonCryptoSession"/> as its send pass frames them, then written through a real
 /// <see cref="PacketStream"/> to a stream that only counts bytes. An allocation measured through it therefore includes
-/// the encoder, the cipher and the outbox. Everything a scenario does not drive throws.
+/// the encoder, the cipher and the send pass (#875). Everything a scenario does not drive throws.
 /// </summary>
 /// <remarks>
 /// <see cref="Send"/> mirrors <c>WorldConnection.Send</c> and the <c>Connection</c> base it calls, without the
-/// telemetry counters (<c>DiagnosticsConfig.World.BytesSent</c>, <c>PacketsSent</c>, <c>PacketsDropped</c>).
-/// The counting stream completes every write synchronously, so the outbox's write continuation runs inline on
-/// the thread that flushed, as it does in production over a write that completes at once. That stream stands in
+/// telemetry counters (<c>DiagnosticsConfig.World.BytesSent</c>, <c>PacketsSent</c>).
+/// The scheduler's thread never starts: <c>ScenarioWorld.Tick</c> runs its pass inline, on the measured thread, and the
+/// counting stream completes every write synchronously, as a socket with room in its buffer does. That stream stands in
 /// for production's <c>SslStream</c>, so baselines exclude the TLS record layer, and the session keys are identical
 /// across scenario connections (they share one key pair per end), which is fit for cost measurement only.
 /// </remarks>
@@ -49,14 +49,16 @@ public sealed class ScenarioConnection : IWorldConnection
 
     private readonly PacketTags _tags = new(Guid.NewGuid(), "scenario", null, null);
 
-    private readonly TickDrivenOutbox _outbox;
+    private readonly ConnectionSender _sender;
     private readonly CountingStream _stream = new();
     private readonly Action<ScenarioConnection>? _onUpdateMap;
 
+    /// <param name="scheduler">The send threads this connection's sender belongs to; its passes write what is sent.</param>
     /// <param name="sealPayloads">False frames every packet plain, as a connection with no sealer does.</param>
-    public ScenarioConnection(CharacterEntity character, Action<ScenarioConnection>? onUpdateMap = null,
-        bool sealPayloads = true)
+    public ScenarioConnection(CharacterEntity character, NetworkSendScheduler scheduler,
+        Action<ScenarioConnection>? onUpdateMap = null, bool sealPayloads = true)
     {
+        ArgumentNullException.ThrowIfNull(scheduler);
         Character = character;
         _onUpdateMap = onUpdateMap;
 
@@ -65,15 +67,14 @@ public sealed class ScenarioConnection : IWorldConnection
         session.Initialize(clientPublicKey);
         CryptoSession = session;
 
-        _outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 100, onFault: () => { },
-            sealer: sealPayloads ? session : null);
-        _outbox.Connect(new PacketStream(_stream));
+        _sender = scheduler.CreateSender(Guid.NewGuid(), NullLogger.Instance, sealPayloads ? session : null, close: () => { });
+        _sender.Connect(new PacketStream(_stream));
     }
 
-    /// <summary>The bytes the outbox wrote to its stream: sealed payloads plus framing.</summary>
+    /// <summary>The bytes the sender wrote to its stream: sealed payloads plus framing.</summary>
     public long BytesWritten => _stream.BytesWritten;
 
-    /// <summary>The packets the outbox accepted.</summary>
+    /// <summary>The packets the sender accepted.</summary>
     public int Sent { get; private set; }
 
     public ICharacter? Character { get; set; }
@@ -92,11 +93,9 @@ public sealed class ScenarioConnection : IWorldConnection
 
     public void Send(OutboundPacket packet)
     {
-        if (!_outbox.Enqueue(packet)) return;
+        if (!_sender.Enqueue(packet)) return;
         Sent++;
     }
-
-    public void FlushOutbox() => _outbox.Flush();
 
     public void UpdateMap()
     {

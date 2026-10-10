@@ -15,7 +15,8 @@ public class HostingConfiguration
     public int PacketReaderBufferSize { get; set; } = 4096;
 
     /// <summary>
-    /// Per-connection outbound packet buffer capacity. Packets beyond this limit are dropped (oldest first).
+    /// The auth server's per-connection outbound queue (<c>ChannelOutbox</c>): packets beyond it are dropped, oldest
+    /// first. The world server does not read it: its connections send through the send threads (<c>Network</c>, #875).
     /// Valid range: 10–10000. Defaults to 100.
     /// </summary>
     [Range(10, 10000)]

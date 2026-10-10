@@ -7,6 +7,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Common.Cryptography;
+using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
@@ -17,20 +18,21 @@ using Org.BouncyCastle.Crypto;
 namespace Avalon.Benchmarking.OutboxFlush;
 
 /// <summary>
-/// #875: what the tick pays in <c>WorldServer.Update</c>'s outbox stage, <c>FlushOutbox</c> over every connection, with
-/// the world's real <see cref="TickDrivenOutbox" /> in front of each kind of stream. The scenario runner writes to a
-/// stream that only counts bytes, so the TLS record layer and the socket send are not in its numbers; here they are.
-/// Each mode opens <c>connections</c> loopback connections (the server end is what the world holds, the client end is
-/// read and discarded on the thread pool, as a peer would), then ticks at 60 Hz: <c>packets</c> movement acks encoded and
-/// queued on every connection, then every outbox flushed (each packet sealed by the connection's own session as it is
-/// framed), the flush timed. Not a BenchmarkDotNet benchmark: a steady state, timed tick by tick.
+/// #875: what one send pass costs, with the world's real <see cref="ConnectionSender" /> in front of each kind of
+/// stream. The scenario runner writes to a stream that only counts bytes, so the TLS record layer and the socket send
+/// are not in its numbers; here they are. Each mode opens <c>connections</c> loopback connections (the server end is what
+/// the world holds, the client end is read and discarded on the thread pool, as a peer would), then ticks at 60 Hz:
+/// <c>packets</c> movement acks encoded and queued on every connection, then the scheduler's passes run on this thread
+/// (each packet sealed by the connection's own session as it is framed), the passes timed. The send threads never start,
+/// so this times the send threads' work, not the tick's, which since #875 only queues and signals. Not a
+/// BenchmarkDotNet benchmark: a steady state, timed tick by tick.
 /// </summary>
 /// <remarks>
 /// Modes: <c>memory</c> (the scenario runner's counting stream), <c>tcp</c> (a plain socket), <c>tls</c> (an
 /// <see cref="SslStream" /> over the socket, as the world serves), <c>tls-pool</c> (the same, with each connection's
-/// write started on the thread pool instead of the tick: the tick frames the packets and queues the write),
-/// <c>tls-parallel</c> (the same streams, the flush split among four thread-pool workers that the tick waits for, so
-/// every write is still over when the tick ends). The last two are prototypes for #875's decision: they allocate.
+/// write started on the thread pool: the pass frames the packets and queues the write), <c>tls-parallel</c> (the same
+/// streams over four send threads, their passes run by four thread-pool workers that this thread waits for). The last
+/// two are the prototypes #875 was decided on: they allocate.
 /// <c>receive</c> measures the other direction instead: what the read loop allocates per frame it reads over TLS.
 ///
 /// Run: dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush [connections] [packets] [ticks] [modes]
@@ -80,6 +82,8 @@ public static class OutboxFlushHarness
     /// </summary>
     private static async Task RunReceive(int count, int ticks, X509Certificate2 certificate)
     {
+        // Only to open the connections the same way; the senders are closed before anything is sent.
+        using NetworkSendScheduler scheduler = Scheduler(1);
         var pairs = new List<(Stream Server, Stream Client, Task Reader)>(count);
         using var stop = new CancellationTokenSource();
         long frames = 0;
@@ -90,8 +94,8 @@ public static class OutboxFlushHarness
             int port = ((IPEndPoint)listener.LocalEndpoint).Port;
             for (int i = 0; i < count; i++)
             {
-                ConnectionEnds ends = await Open("tls", listener, port, certificate, stop.Token);
-                await ends.Outbox.DisposeAsync();
+                ConnectionEnds ends = await Open("tls", listener, port, certificate, scheduler, stop.Token);
+                await Close(scheduler, ends.Outbox);
                 var server = new PacketStream(ends.Server!);
                 var reader = Task.Run(async () =>
                 {
@@ -157,6 +161,8 @@ public static class OutboxFlushHarness
 
     private static async Task RunMode(string mode, int count, int packets, int ticks, X509Certificate2 certificate)
     {
+        // Never started: this thread runs the passes, so they can be timed and their allocations counted.
+        using NetworkSendScheduler scheduler = Scheduler(mode == "tls-parallel" ? ParallelWorkers : 1);
         var ends = new List<ConnectionEnds>(count);
         using var stop = new CancellationTokenSource();
         try
@@ -165,7 +171,7 @@ public static class OutboxFlushHarness
             listener.Start(count);
             int port = ((IPEndPoint)listener.LocalEndpoint).Port;
             for (int i = 0; i < count; i++)
-                ends.Add(await Open(mode, listener, port, certificate, stop.Token));
+                ends.Add(await Open(mode, listener, port, certificate, scheduler, stop.Token));
 
             int warmup = Math.Min(300, ticks);
             double[] flushMs = new double[ticks];
@@ -195,18 +201,9 @@ public static class OutboxFlushHarness
                 long allocated = GC.GetAllocatedBytesForCurrentThread();
                 long start = Stopwatch.GetTimestamp();
                 if (mode == "tls-parallel")
-                {
-                    Parallel.For(0, ParallelWorkers, w =>
-                    {
-                        for (int i = w; i < ends.Count; i += ParallelWorkers)
-                            ends[i].Outbox.Flush();
-                    });
-                }
+                    Parallel.For(0, ParallelWorkers, scheduler.RunPass);
                 else
-                {
-                    foreach (ConnectionEnds end in ends)
-                        end.Outbox.Flush();
-                }
+                    scheduler.RunAllPasses();
                 long elapsed = Stopwatch.GetTimestamp() - start;
                 if (t >= 0)
                 {
@@ -238,14 +235,13 @@ public static class OutboxFlushHarness
     }
 
     private static async Task<ConnectionEnds> Open(string mode, TcpListener listener, int port, X509Certificate2 certificate,
-        CancellationToken stop)
+        NetworkSendScheduler scheduler, CancellationToken stop)
     {
-        var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 100, onFault: () => { },
-            sealer: Sealer());
+        ConnectionSender outbox = scheduler.CreateSender(Guid.NewGuid(), NullLogger.Instance, Sealer(), close: () => { });
         if (mode == "memory")
         {
             outbox.Connect(new PacketStream(new CountingStream()));
-            return new ConnectionEnds(outbox, null, null, Task.CompletedTask);
+            return new ConnectionEnds(scheduler, outbox, null, null, Task.CompletedTask);
         }
 
         var client = new TcpClient { NoDelay = true };
@@ -279,7 +275,7 @@ public static class OutboxFlushHarness
 
         outbox.Connect(new PacketStream(mode == "tls-pool" ? new ThreadPoolWriteStream(serverStream) : serverStream));
         var reader = Task.Run(() => Drain(clientStream, stop), stop);
-        return new ConnectionEnds(outbox, serverStream, clientStream, reader);
+        return new ConnectionEnds(scheduler, outbox, serverStream, clientStream, reader);
     }
 
     private static async Task Drain(Stream stream, CancellationToken stop)
@@ -291,6 +287,23 @@ public static class OutboxFlushHarness
         }
         catch (Exception e) when (e is OperationCanceledException or IOException or ObjectDisposedException) { }
     }
+
+    /// <summary>Closes a sender of a scheduler whose threads never started: this thread runs the passes its close waits for.</summary>
+    private static async Task Close(NetworkSendScheduler scheduler, ConnectionSender sender)
+    {
+        Task closing = sender.DisposeAsync().AsTask();
+        while (!closing.IsCompleted)
+        {
+            scheduler.RunPass(sender.OwnerThread);
+            await Task.WhenAny(closing, Task.Delay(1, CancellationToken.None));
+        }
+
+        await closing;
+    }
+
+    private static NetworkSendScheduler Scheduler(int threads) =>
+        new(new NetworkConfiguration { SendThreads = threads }, NullLoggerFactory.Instance, TimeProvider.System,
+            NetworkSendMetrics.Disabled);
 
     /// <summary>An initialised server-role session, as an admitted world connection holds.</summary>
     private static AvalonCryptoSession Sealer()
@@ -327,11 +340,12 @@ public static class OutboxFlushHarness
         return X509CertificateLoader.LoadPkcs12(created.Export(X509ContentType.Pkcs12), null);
     }
 
-    private sealed record ConnectionEnds(TickDrivenOutbox Outbox, Stream? Server, Stream? Client, Task Reader) : IAsyncDisposable
+    private sealed record ConnectionEnds(NetworkSendScheduler Scheduler, ConnectionSender Outbox, Stream? Server,
+        Stream? Client, Task Reader) : IAsyncDisposable
     {
         public async ValueTask DisposeAsync()
         {
-            await Outbox.DisposeAsync();
+            await Close(Scheduler, Outbox);
             if (Server is not null) await Server.DisposeAsync();
             if (Client is not null) await Client.DisposeAsync();
             try { await Reader; } catch (Exception e) when (e is OperationCanceledException or IOException) { }

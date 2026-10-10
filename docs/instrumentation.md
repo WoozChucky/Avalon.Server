@@ -42,10 +42,10 @@ The world update is followed by work no other histogram covers, about two thirds
 | `party_status` | `PartyService.FlushMemberStatus` |
 | `presence` | The admin view's presence capture |
 | `pings` | The time-sync pings due this tick |
-| `outbox` | `FlushOutbox` over every connection: each connection's queued packets framed, sealed and written to its stream |
+| `outbox` | `NetworkSendScheduler.SignalAll`: one wake-up per send thread, a few µs whatever the player count (#875) |
 | `continuations` | `FlushContinuations` over every connection: the off-tick results handed back to the tick |
 
-Since #875 the `outbox` stage carries the seal (AES-GCM, in place as it frames each packet), which every packet's `Create` used to pay inside the world update: compare the stage across that change with that cost moved, not added.
+Since #875 the tick neither seals nor writes: the `outbox` stage only wakes the send threads, which seal, frame and write each connection's packets off the tick (their cost is under [Send threads and slow clients](#send-threads-and-slow-clients)). Before that change the stage framed, sealed and wrote every connection's packets on the tick, so compare it across the change with that work moved, not removed.
 
 A stage is usually a small part of a tick, so these buckets start lower (`WorldHistograms.StageMicroseconds`): `25, 50, 100, 250, 500, 1000, 2000, 4000, 8000, 12000, 16667, 25000, 33333, 50000, 100000, 250000, 1000000`. The stages together are the tick's time after the world update. Each stage's mean time per tick: `sum by (stage) (rate(world_post_update_duration_microseconds_sum[1m])) / sum by (stage) (rate(world_post_update_duration_microseconds_count[1m]))`.
 
@@ -53,9 +53,20 @@ The deadline overshoot has its own buckets (`WorldHistograms.OvershootMicrosecon
 
 `-1000, -250, -50, 0, 50, 100, 250, 500, 1000, 2000, 4000, 8000, 16667, 33333, 100000, 1000000`
 
-### Dropped packets
+### Send threads and slow clients
 
-`network.out.dropped` (`{packets}`, Prometheus `network_out_dropped_total`) counts the packets a full outbox evicted, oldest first, to take a newer one; the outbox holds `Hosting:SendBufferCapacity` packets ([configuration reference](configuration-reference.md)). It is tagged with the packet type under `avalon.packet.type` (`avalon_packet_type` in Prometheus), the same key the packet-dispatch telemetry uses. Only these capacity evictions are counted: a packet refused because the outbox is closing is not a drop. Any non-zero rate means a client is being sent more than its connection drains, and what it missed is gone.
+Since #875 the tick only queues packets; the send threads seal, frame and write them, and nothing is dropped.
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `network.out.slow_kicks` | `network_out_slow_kicks_total` | Connections closed as too slow, tagged `reason`: `bytes` (past `Network:MaxPendingBytes`, sent `SDisconnect(SlowConnection)`) or `stall` (a write pending past `Network:MaxWriteStall`, closed without a notice) |
+| `network.out.pending_bytes` | `network_out_pending_bytes_bucket` | Per send pass, the most bytes any one connection it visited had queued or being written |
+| `network.send.pass.duration` | `network_send_pass_duration_microseconds_bucket` | One send thread's pass, tagged `thread`; the `_sum` rate is the threads' busy time |
+| `network.send.bytes` | `network_send_bytes_total` | Bytes handed to the sockets |
+| `network.send.burst_packets` | `network_send_burst_packets_bucket` | Packets per write |
+| `network.send.thread_faults` | `network_send_thread_faults_total` | Failures that escaped a send pass, tagged `thread` (the thread goes on); any non-zero value is a bug |
+
+The send threads' busy time, in cores: `sum(rate(network_send_pass_duration_microseconds_sum[1m])) / 1e6`.
 
 ### Receive backlog
 

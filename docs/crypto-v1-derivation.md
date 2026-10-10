@@ -128,7 +128,7 @@ under a nonce the key has already used.
 AES-256-GCM is the platform's `System.Security.Cryptography.AesGcm` (#850): one instance per
 direction, keyed once in `AvalonCryptoSession.Initialize` from the two derived keys and reused for
 every packet under the session's one lock (an instance is not thread-safe). The server seals as it
-frames a packet (the world's outbox flush, the auth server's drain task) with `SealInto`, which
+frames a packet (a world connection's send thread, the auth server's drain task) with `SealInto`, which
 writes the nonce, ciphertext and tag straight into the frame and allocates nothing (#875). The nonce
 is taken at seal time, so nonce order is the order the frames are written; no receiver checks that
 order. `Encrypt`, which the client-to-server packets' `Create` use, allocates only the sealed packet

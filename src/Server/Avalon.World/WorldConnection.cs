@@ -339,15 +339,22 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         base.Send(packet);
     }
 
-    protected override IOutbox OnCreateOutbox() =>
-        new TickDrivenOutbox(Id, _logger, Server.SendBufferCapacity,
-#pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
-            onFault: () => Close(false),
-#pragma warning restore MA0045
-            sealer: CryptoSession,
-            dropped: DiagnosticsConfig.World.PacketsDropped);
+    private ConnectionSender? _sender;
 
-    public void FlushOutbox() => _outbox?.Flush();
+    /// <summary>
+    /// The connection's sender on its send thread (#875). Its close action runs on that thread or where a write completed:
+    /// <see cref="Connection.Close" /> only starts the teardown (the sender's close is awaited off that thread, then the
+    /// socket closes), so it neither blocks nor throws there, and a close already started makes it a no-op.
+    /// </summary>
+    protected override IOutbox OnCreateOutbox()
+    {
+        NetworkSendScheduler scheduler = _server.SendScheduler
+            ?? throw new InvalidOperationException("The world server has no send scheduler");
+#pragma warning disable MA0045 // a slow connection's close starts on its send thread, which must not wait on it
+        _sender = scheduler.CreateSender(Id, _logger, CryptoSession, close: () => Close(false));
+#pragma warning restore MA0045
+        return _sender;
+    }
 
     public void InitOutboxForTest(PacketStream stream)
     {

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Serialization;
@@ -13,11 +14,15 @@ public class WorldConnectionOutboxShould : IDisposable
 {
     private readonly Avalon.World.WorldConnection _connection;
     private readonly TcpClient _serverSide;
+    private readonly NetworkSendScheduler _scheduler;
 
     public WorldConnectionOutboxShould()
     {
+        // One send thread, never started: the test runs its pass.
+        _scheduler = new NetworkSendScheduler(new NetworkConfiguration { SendThreads = 1 }, NullLoggerFactory.Instance,
+            TimeProvider.System, NetworkSendMetrics.Disabled);
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).SendBufferCapacity.Returns(256);
+        server.SendScheduler.Returns(_scheduler);
 
         (TcpClient? clientSide, TcpClient? serverSide) = CreateLoopbackPair();
         _serverSide = serverSide;
@@ -32,7 +37,10 @@ public class WorldConnectionOutboxShould : IDisposable
     public void Dispose()
     {
         _connection.Close();
+        // The close's last visit, so the sender finishes and gives back its buffers.
+        _scheduler.RunAllPasses();
         _connection.Dispose();
+        _scheduler.Dispose();
         _serverSide.Dispose();
     }
 
@@ -48,21 +56,17 @@ public class WorldConnectionOutboxShould : IDisposable
         return (clientSide, serverSide);
     }
 
+    /// <summary>The tick only queues (#875): the packet reaches the socket when its send thread runs.</summary>
     [Fact]
-    public async Task FlushOutbox_AfterEnqueue_WritesBytes()
+    public void Write_a_queued_packet_when_its_send_thread_runs()
     {
-        // Use an in-memory stream so the test is independent of socket timing.
         var mem = new MemoryStream();
-        var stream = new PacketStream(mem);
-        _connection.InitOutboxForTest(stream);
+        _connection.InitOutboxForTest(new PacketStream(mem));
 
         _connection.Send(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
-        _connection.FlushOutbox();
+        Assert.Equal(0, mem.Length);
 
-        // TickDrivenOutbox.Flush schedules an async WriteAsync continuation.
-        // Give the thread-pool one tick to complete it.
-        await Task.Delay(50);
-
-        Assert.True(mem.Length > 0, "Expected packet bytes written to the outbox stream after FlushOutbox");
+        _scheduler.RunAllPasses();
+        Assert.True(mem.Length > 0, "Expected packet bytes written once the send thread ran");
     }
 }
