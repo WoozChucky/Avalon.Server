@@ -25,7 +25,12 @@ public class SItemUseResultPacket : Packet
 
     public static OutboundPacket Create(uint requestId, ItemUseResult result, uint cooldownMs, string? message,
         PacketEncoder encoder)
-        => encoder.Encode(
-            new SItemUseResultPacket { RequestId = requestId, Result = result, CooldownMs = cooldownMs, Message = message },
-            PacketType, Flags, Protocol);
+    {
+        SItemUseResultPacket packet = PacketEncoder.Scratch<SItemUseResultPacket>();
+        packet.RequestId = requestId;
+        packet.Result = result;
+        packet.CooldownMs = cooldownMs;
+        packet.Message = message;
+        return encoder.Encode(packet, PacketType, Flags, Protocol);
+    }
 }

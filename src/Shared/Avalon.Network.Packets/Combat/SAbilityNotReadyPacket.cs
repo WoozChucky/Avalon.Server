@@ -28,7 +28,11 @@ public class SAbilityNotReadyPacket : Packet
 
     public static OutboundPacket Create(uint abilityId, CastRejectReason reason, uint cooldownMs,
         PacketEncoder encoder)
-        => encoder.Encode(
-            new SAbilityNotReadyPacket { AbilityId = abilityId, CooldownMs = cooldownMs, Reason = reason },
-            PacketType, Flags, Protocol);
+    {
+        SAbilityNotReadyPacket message = PacketEncoder.Scratch<SAbilityNotReadyPacket>();
+        message.AbilityId = abilityId;
+        message.CooldownMs = cooldownMs;
+        message.Reason = reason;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

@@ -24,12 +24,11 @@ public class SUnitRevivePacket : Packet
     [ProtoMember(3)] public uint Health { get; set; }
 
     public static OutboundPacket Create(ObjectGuid unit, Vector3 position, uint health, PacketEncoder encoder)
-        => encoder.Encode(
-            new SUnitRevivePacket
-            {
-                UnitGuid = unit.RawValue,
-                Position = Vector3Dto.From(position),
-                Health = health
-            },
-            PacketType, Flags, Protocol);
+    {
+        SUnitRevivePacket message = PacketEncoder.Scratch<SUnitRevivePacket>();
+        message.UnitGuid = unit.RawValue;
+        message.Position = Vector3Dto.From(position);
+        message.Health = health;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

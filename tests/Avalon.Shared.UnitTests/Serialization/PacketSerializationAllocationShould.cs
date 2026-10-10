@@ -60,9 +60,8 @@ public class PacketSerializationAllocationShould
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
-        // What remains is what every packet costs, however much it holds: the message and what encoding it
-        // takes. The payload's segment goes back to the pool for the next one.
-        Assert.InRange(fewest / 10, 0, 256);
+        // Nothing per packet (#875): the message is a per-thread scratch, the payload a pooled segment.
+        Assert.Equal(0, fewest);
     }
 
     public static TheoryData<int, int> Shapes() => new()
@@ -133,9 +132,8 @@ public class PacketSerializationAllocationShould
         written.Release();
     }
 
-    /// <summary>The id list is built at its final size in one pass, with no LINQ iterator or regrowth.</summary>
     [Fact]
-    public void Build_a_remove_list_at_its_size()
+    public void Build_a_remove_without_allocating()
     {
         List<ObjectGuid> guids = Guids(100);
         SInstanceStateRemovePacket.Create(guids, s_encoder).Release();
@@ -148,9 +146,8 @@ public class PacketSerializationAllocationShould
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
-        // Only what the packet holds: the id list (32 bytes) and its array of 100 ulongs (824), plus the
-        // packet itself (120 allowed). LINQ added its iterator on top, 1,048 in all.
-        Assert.InRange(fewest, 0, 32 + 824 + 120);
+        // The ids go into a per-thread list, the message is a per-thread scratch (#875).
+        Assert.Equal(0, fewest);
     }
 
     [Fact]

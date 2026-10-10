@@ -46,9 +46,18 @@ public class SMapTransitionPacket : Packet
         string mapName,
         string mapDescription,
         PacketEncoder encoder)
-        => encoder.Encode(
-            new SMapTransitionPacket { Result = result, InstanceId = instanceId, MapId = mapId, SpawnX = spawnX, SpawnY = spawnY, SpawnZ = spawnZ, MapName = mapName, MapDescription = mapDescription },
-            PacketType, Flags, Protocol);
+    {
+        SMapTransitionPacket message = PacketEncoder.Scratch<SMapTransitionPacket>();
+        message.Result = result;
+        message.InstanceId = instanceId;
+        message.MapId = mapId;
+        message.SpawnX = spawnX;
+        message.SpawnY = spawnY;
+        message.SpawnZ = spawnZ;
+        message.MapName = mapName;
+        message.MapDescription = mapDescription;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 
     /// <summary>Creates a failure response with only the result code populated.</summary>
     public static OutboundPacket CreateFailure(MapTransitionResult result, PacketEncoder encoder) =>

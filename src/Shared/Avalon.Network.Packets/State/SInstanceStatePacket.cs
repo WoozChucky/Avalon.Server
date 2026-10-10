@@ -17,9 +17,11 @@ public class SInstanceStateAddPacket : Packet
     [ProtoMember(1)] public List<ObjectState> Adds { get; set; }
 
     public static OutboundPacket Create(List<ObjectState> adds, PacketEncoder encoder)
-        => encoder.Encode(
-            new SInstanceStateAddPacket { Adds = adds },
-            PacketType, Flags, Protocol);
+    {
+        SInstanceStateAddPacket message = PacketEncoder.Scratch<SInstanceStateAddPacket>();
+        message.Adds = adds;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]
@@ -32,9 +34,11 @@ public class SInstanceStateUpdatePacket : Packet
     [ProtoMember(1)] public List<ObjectState> Updates { get; set; }
 
     public static OutboundPacket Create(List<ObjectState> updates, PacketEncoder encoder)
-        => encoder.Encode(
-            new SInstanceStateUpdatePacket { Updates = updates },
-            PacketType, Flags, Protocol);
+    {
+        SInstanceStateUpdatePacket message = PacketEncoder.Scratch<SInstanceStateUpdatePacket>();
+        message.Updates = updates;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]
@@ -46,16 +50,22 @@ public class SInstanceStateRemovePacket : Packet
 
     [ProtoMember(1)] public List<ulong> Removes { get; set; }
 
+    // One id list per thread, refilled for every remove: the message is encoded before Create returns (#875).
+#pragma warning disable IDE1006
+    [ThreadStatic] private static List<ulong>? t_ids;
+#pragma warning restore IDE1006
+
     public static OutboundPacket Create(IReadOnlyList<ObjectGuid> removes, PacketEncoder encoder)
     {
-        // Sized and indexed rather than built by LINQ, which added an iterator to every remove (#640).
-        var ids = new List<ulong>(removes.Count);
+        List<ulong> ids = t_ids ??= new List<ulong>(removes.Count);
+        ids.Clear();
+        // Indexed rather than built by LINQ, which added an iterator to every remove (#640).
         for (int i = 0; i < removes.Count; i++)
             ids.Add(removes[i].RawValue);
 
-        return encoder.Encode(
-            new SInstanceStateRemovePacket { Removes = ids },
-            PacketType, Flags, Protocol);
+        SInstanceStateRemovePacket message = PacketEncoder.Scratch<SInstanceStateRemovePacket>();
+        message.Removes = ids;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }
 

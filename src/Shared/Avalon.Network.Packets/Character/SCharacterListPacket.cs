@@ -17,9 +17,13 @@ public class SCharacterListPacket : Packet
 
     public static OutboundPacket Create(int characterCount, int maxCharacterCount,
         CharacterInfo[] characters, PacketEncoder encoder)
-        => encoder.Encode(
-            new SCharacterListPacket { CharacterCount = characterCount, MaxCharacterCount = maxCharacterCount, Characters = characters },
-            PacketType, Flags, Protocol);
+    {
+        SCharacterListPacket message = PacketEncoder.Scratch<SCharacterListPacket>();
+        message.CharacterCount = characterCount;
+        message.MaxCharacterCount = maxCharacterCount;
+        message.Characters = characters;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]

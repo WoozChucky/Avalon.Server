@@ -20,16 +20,15 @@ public class SPlayerStateAckPacket : Packet
     [ProtoMember(7)] public ushort YawDeg { get; set; }
 
     public static OutboundPacket Create(uint seq, float x, float y, float z, float velX, float velZ, ushort yawDeg, PacketEncoder encoder)
-        => encoder.Encode(
-            new SPlayerStateAckPacket
-            {
-                Seq = seq,
-                X = x,
-                Y = y,
-                Z = z,
-                VelX = velX,
-                VelZ = velZ,
-                YawDeg = yawDeg,
-            },
-            PacketType, Flags, Protocol);
+    {
+        SPlayerStateAckPacket message = PacketEncoder.Scratch<SPlayerStateAckPacket>();
+        message.Seq = seq;
+        message.X = x;
+        message.Y = y;
+        message.Z = z;
+        message.VelX = velX;
+        message.VelZ = velZ;
+        message.YawDeg = yawDeg;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

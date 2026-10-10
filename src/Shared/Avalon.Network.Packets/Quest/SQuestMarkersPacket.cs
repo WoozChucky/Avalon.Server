@@ -15,5 +15,9 @@ public class SQuestMarkersPacket : Packet
     [ProtoMember(1)] public List<QuestMarkerDto> Markers { get; set; } = [];
 
     public static OutboundPacket Create(List<QuestMarkerDto> markers, PacketEncoder encoder)
-        => encoder.Encode(new SQuestMarkersPacket { Markers = markers }, PacketType, Flags, Protocol);
+    {
+        SQuestMarkersPacket message = PacketEncoder.Scratch<SQuestMarkersPacket>();
+        message.Markers = markers;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

@@ -33,16 +33,15 @@ public class SUnitHealedPacket : Packet
 
     public static OutboundPacket Create(ulong healer, ulong target, uint amount, uint currentHealth, uint? abilityId,
         HitResult result, PacketEncoder encoder, uint? auraId = null)
-        => encoder.Encode(
-            new SUnitHealedPacket
-            {
-                Healer = healer,
-                Target = target,
-                Amount = amount,
-                CurrentHealth = currentHealth,
-                AbilityId = abilityId,
-                Result = result,
-                AuraId = auraId,
-            },
-            PacketType, Flags, Protocol);
+    {
+        SUnitHealedPacket message = PacketEncoder.Scratch<SUnitHealedPacket>();
+        message.Healer = healer;
+        message.Target = target;
+        message.Amount = amount;
+        message.CurrentHealth = currentHealth;
+        message.AbilityId = abilityId;
+        message.Result = result;
+        message.AuraId = auraId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

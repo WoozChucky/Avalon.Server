@@ -18,7 +18,10 @@ public class SUnitDeathPacket : Packet
     [ProtoMember(2)] public ulong? KillerGuid { get; set; }
 
     public static OutboundPacket Create(ObjectGuid unit, ObjectGuid? killer, PacketEncoder encoder)
-        => encoder.Encode(
-            new SUnitDeathPacket { UnitGuid = unit.RawValue, KillerGuid = killer?.RawValue },
-            PacketType, Flags, Protocol);
+    {
+        SUnitDeathPacket message = PacketEncoder.Scratch<SUnitDeathPacket>();
+        message.UnitGuid = unit.RawValue;
+        message.KillerGuid = killer?.RawValue;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

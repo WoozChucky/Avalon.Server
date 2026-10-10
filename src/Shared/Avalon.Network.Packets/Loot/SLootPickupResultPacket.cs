@@ -41,7 +41,10 @@ public class SLootPickupResultPacket : Packet
     [ProtoMember(2)] public LootPickupResult Result { get; set; }
 
     public static OutboundPacket Create(ulong lootGuid, LootPickupResult result, PacketEncoder encoder)
-        => encoder.Encode(
-            new SLootPickupResultPacket { LootGuid = lootGuid, Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SLootPickupResultPacket message = PacketEncoder.Scratch<SLootPickupResultPacket>();
+        message.LootGuid = lootGuid;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

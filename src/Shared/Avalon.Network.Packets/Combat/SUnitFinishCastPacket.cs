@@ -28,12 +28,20 @@ public class SUnitFinishCastPacket : Packet
     [ProtoMember(4)] public ulong ItemTemplateId { get; set; }
 
     public static OutboundPacket CreateForItem(ObjectGuid caster, ulong itemTemplateId, uint castId, PacketEncoder encoder)
-        => encoder.Encode(
-            new SUnitFinishCastPacket { Caster = caster.RawValue, CastId = castId, ItemTemplateId = itemTemplateId },
-            PacketType, Flags, Protocol);
+    {
+        SUnitFinishCastPacket message = PacketEncoder.Scratch<SUnitFinishCastPacket>();
+        message.Caster = caster.RawValue;
+        message.CastId = castId;
+        message.ItemTemplateId = itemTemplateId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 
     public static OutboundPacket Create(ObjectGuid caster, AbilityId ability, uint castId, PacketEncoder encoder)
-        => encoder.Encode(
-            new SUnitFinishCastPacket { Caster = caster.RawValue, AbilityId = ability.Value, CastId = castId },
-            PacketType, Flags, Protocol);
+    {
+        SUnitFinishCastPacket message = PacketEncoder.Scratch<SUnitFinishCastPacket>();
+        message.Caster = caster.RawValue;
+        message.AbilityId = ability.Value;
+        message.CastId = castId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

@@ -23,9 +23,11 @@ public class SCharacterAbilityAmountsPacket : Packet
     [ProtoMember(1)] public AbilityAmountInfo[] Amounts { get; set; } = [];
 
     public static OutboundPacket Create(AbilityAmountInfo[] amounts, PacketEncoder encoder)
-        => encoder.Encode(
-            new SCharacterAbilityAmountsPacket { Amounts = amounts },
-            PacketType, Flags, Protocol);
+    {
+        SCharacterAbilityAmountsPacket message = PacketEncoder.Scratch<SCharacterAbilityAmountsPacket>();
+        message.Amounts = amounts;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 /// <summary>One ability's amount (#669), with the meaning of AbilityInfo's AmountKind, AmountMin and AmountMax.</summary>

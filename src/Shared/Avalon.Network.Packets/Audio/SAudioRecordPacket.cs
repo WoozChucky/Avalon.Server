@@ -15,11 +15,8 @@ public class SAudioRecordPacket : Packet
 
     public static OutboundPacket Create(byte[] soundBuffer, PacketEncoder encoder)
     {
-        var packet = new SAudioRecordPacket
-        {
-            SoundBuffer = soundBuffer
-        };
-
-        return encoder.Encode(packet, PacketType, Flags, Protocol);
+        SAudioRecordPacket message = PacketEncoder.Scratch<SAudioRecordPacket>();
+        message.SoundBuffer = soundBuffer;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }

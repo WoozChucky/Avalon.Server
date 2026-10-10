@@ -23,16 +23,15 @@ public class SPartyMemberStatusPacket : Packet
 
     public static OutboundPacket Create(uint characterId, uint health, uint maxHealth, uint power, uint maxPower,
         PowerType powerType, bool isDead, PacketEncoder encoder)
-        => encoder.Encode(
-            new SPartyMemberStatusPacket
-            {
-                CharacterId = characterId,
-                Health = health,
-                MaxHealth = maxHealth,
-                Power = power,
-                MaxPower = maxPower,
-                PowerType = powerType,
-                IsDead = isDead
-            },
-            PacketType, Flags, Protocol);
+    {
+        SPartyMemberStatusPacket message = PacketEncoder.Scratch<SPartyMemberStatusPacket>();
+        message.CharacterId = characterId;
+        message.Health = health;
+        message.MaxHealth = maxHealth;
+        message.Power = power;
+        message.MaxPower = maxPower;
+        message.PowerType = powerType;
+        message.IsDead = isDead;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

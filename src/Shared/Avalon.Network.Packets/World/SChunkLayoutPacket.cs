@@ -65,16 +65,17 @@ public class SChunkLayoutPacket : Packet
         IReadOnlyList<PortalPlacementDto> portals,
         PacketEncoder encoder)
     {
-        var pkt = new SChunkLayoutPacket
-        {
-            Seed = seed,
-            InstanceId = instanceId,
-            MapId = mapId,
-            CellSize = cellSize,
-            Chunks = chunks.ToList(),
-            EntrySpawn = Vector3Dto.From(entrySpawn),
-            Portals = portals.ToList(),
-        };
-        return encoder.Encode(pkt, PacketType, Flags, Protocol);
+        // Copied before the scratch is taken: nothing a caller's list runs can reach the message (#875).
+        var chunkList = chunks.ToList();
+        var portalList = portals.ToList();
+        SChunkLayoutPacket message = PacketEncoder.Scratch<SChunkLayoutPacket>();
+        message.Seed = seed;
+        message.InstanceId = instanceId;
+        message.MapId = mapId;
+        message.CellSize = cellSize;
+        message.Chunks = chunkList;
+        message.EntrySpawn = Vector3Dto.From(entrySpawn);
+        message.Portals = portalList;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }

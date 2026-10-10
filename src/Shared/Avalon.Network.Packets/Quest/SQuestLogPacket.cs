@@ -19,6 +19,10 @@ public class SQuestLogPacket : Packet
     [ProtoMember(2)] public List<uint> CompletedQuestIds { get; set; } = [];
 
     public static OutboundPacket Create(List<QuestLogEntryDto> quests, List<uint> completed, PacketEncoder encoder)
-        => encoder.Encode(new SQuestLogPacket { Quests = quests, CompletedQuestIds = completed },
-            PacketType, Flags, Protocol);
+    {
+        SQuestLogPacket message = PacketEncoder.Scratch<SQuestLogPacket>();
+        message.Quests = quests;
+        message.CompletedQuestIds = completed;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

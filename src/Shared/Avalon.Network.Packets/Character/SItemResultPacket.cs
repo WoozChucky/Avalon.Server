@@ -76,7 +76,11 @@ public class SItemResultPacket : Packet
 
     public static OutboundPacket Create(uint requestId, ItemRequestResult result, InventorySlotUpdateDto[] slots,
         PacketEncoder encoder)
-        => encoder.Encode(
-            new SItemResultPacket { RequestId = requestId, Result = result, Slots = slots },
-            PacketType, Flags, Protocol);
+    {
+        SItemResultPacket message = PacketEncoder.Scratch<SItemResultPacket>();
+        message.RequestId = requestId;
+        message.Result = result;
+        message.Slots = slots;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

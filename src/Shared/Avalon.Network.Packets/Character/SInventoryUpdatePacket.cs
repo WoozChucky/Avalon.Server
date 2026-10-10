@@ -25,9 +25,12 @@ public class SInventoryUpdatePacket : Packet
     [ProtoMember(2)] public ulong? Money { get; set; }
 
     public static OutboundPacket Create(InventorySlotUpdateDto[] slots, ulong? money, PacketEncoder encoder)
-        => encoder.Encode(
-            new SInventoryUpdatePacket { Slots = slots, Money = money },
-            PacketType, Flags, Protocol);
+    {
+        SInventoryUpdatePacket message = PacketEncoder.Scratch<SInventoryUpdatePacket>();
+        message.Slots = slots;
+        message.Money = money;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]

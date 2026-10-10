@@ -44,20 +44,24 @@ public class SUnitStartCastPacket : Packet
     /// <summary>An item's cast bar: no ability, no footprint.</summary>
     public static OutboundPacket CreateForItem(ObjectGuid caster, float castTime, ulong itemTemplateId, uint castId,
         PacketEncoder encoder)
-        => encoder.Encode(
-            new SUnitStartCastPacket { Caster = caster.RawValue, CastTime = castTime, CastId = castId, ItemTemplateId = itemTemplateId },
-            PacketType, Flags, Protocol);
+    {
+        SUnitStartCastPacket message = PacketEncoder.Scratch<SUnitStartCastPacket>();
+        message.Caster = caster.RawValue;
+        message.CastTime = castTime;
+        message.CastId = castId;
+        message.ItemTemplateId = itemTemplateId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 
     public static OutboundPacket Create(ObjectGuid caster, float castTime, uint abilityId, uint castId,
         AbilityFootprintDto? footprint, PacketEncoder encoder)
-        => encoder.Encode(
-            new SUnitStartCastPacket
-            {
-                Caster = caster.RawValue,
-                CastTime = castTime,
-                AbilityId = abilityId,
-                CastId = castId,
-                Footprint = footprint,
-            },
-            PacketType, Flags, Protocol);
+    {
+        SUnitStartCastPacket message = PacketEncoder.Scratch<SUnitStartCastPacket>();
+        message.Caster = caster.RawValue;
+        message.CastTime = castTime;
+        message.AbilityId = abilityId;
+        message.CastId = castId;
+        message.Footprint = footprint;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

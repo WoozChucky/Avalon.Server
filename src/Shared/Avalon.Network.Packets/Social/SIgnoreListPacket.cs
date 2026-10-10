@@ -18,6 +18,9 @@ public class SIgnoreListPacket : Packet
     [ProtoMember(1)] public List<IgnoredCharacterDto> Characters { get; set; } = [];
 
     public static OutboundPacket Create(List<IgnoredCharacterDto> characters, PacketEncoder encoder)
-        => encoder.Encode(new SIgnoreListPacket { Characters = characters },
-            PacketType, Flags, Protocol);
+    {
+        SIgnoreListPacket message = PacketEncoder.Scratch<SIgnoreListPacket>();
+        message.Characters = characters;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

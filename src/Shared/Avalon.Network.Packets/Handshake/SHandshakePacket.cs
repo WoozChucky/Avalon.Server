@@ -14,7 +14,9 @@ public class SHandshakePacket : Packet
     [ProtoMember(1)] public byte[] HandshakeData { get; set; }
 
     public static OutboundPacket Create(byte[] handshakeData, PacketEncoder encoder)
-        => encoder.Encode(
-            new SHandshakePacket { HandshakeData = handshakeData },
-            PacketType, Flags, Protocol);
+    {
+        SHandshakePacket message = PacketEncoder.Scratch<SHandshakePacket>();
+        message.HandshakeData = handshakeData;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

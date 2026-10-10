@@ -29,9 +29,12 @@ public class SInventorySnapshotPacket : Packet
     [ProtoMember(2)] public ulong Money { get; set; }
 
     public static OutboundPacket Create(ItemSlotDto[] items, ulong money, PacketEncoder encoder)
-        => encoder.Encode(
-            new SInventorySnapshotPacket { Items = items, Money = money },
-            PacketType, Flags, Protocol);
+    {
+        SInventorySnapshotPacket message = PacketEncoder.Scratch<SInventorySnapshotPacket>();
+        message.Items = items;
+        message.Money = money;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]

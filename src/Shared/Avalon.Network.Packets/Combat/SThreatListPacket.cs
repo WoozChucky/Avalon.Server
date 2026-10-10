@@ -25,7 +25,10 @@ public class SThreatListPacket : Packet
     [ProtoMember(2)] public ThreatEntry[] Entries { get; set; } = System.Array.Empty<ThreatEntry>();
 
     public static OutboundPacket Create(ObjectGuid target, ThreatEntry[] entries, PacketEncoder encoder)
-        => encoder.Encode(
-            new SThreatListPacket { TargetGuid = target.RawValue, Entries = entries },
-            PacketType, Flags, Protocol);
+    {
+        SThreatListPacket message = PacketEncoder.Scratch<SThreatListPacket>();
+        message.TargetGuid = target.RawValue;
+        message.Entries = entries;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

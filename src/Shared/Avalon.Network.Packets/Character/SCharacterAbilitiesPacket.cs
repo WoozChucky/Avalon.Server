@@ -16,9 +16,11 @@ public class SCharacterAbilitiesPacket : Packet
     [ProtoMember(1)] public AbilityInfo[] Abilities { get; set; }
 
     public static OutboundPacket Create(AbilityInfo[] abilities, PacketEncoder encoder)
-        => encoder.Encode(
-            new SCharacterAbilitiesPacket { Abilities = abilities },
-            PacketType, Flags, Protocol);
+    {
+        SCharacterAbilitiesPacket message = PacketEncoder.Scratch<SCharacterAbilitiesPacket>();
+        message.Abilities = abilities;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]

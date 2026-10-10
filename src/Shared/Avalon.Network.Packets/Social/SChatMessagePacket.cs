@@ -37,19 +37,18 @@ public class SChatMessagePacket : Packet
     public static OutboundPacket Create(ulong accountId, ulong characterId, string characterName, string message,
         DateTime dateTime, PacketEncoder encoder, ChatChannel channel = ChatChannel.Say, string? targetName = null,
         ushort characterClass = 0)
-        => encoder.Encode(
-            new SChatMessagePacket
-            {
-                AccountId = accountId,
-                CharacterId = characterId,
-                CharacterName = characterName,
-                Message = message,
-                DateTime = dateTime,
-                Channel = channel,
-                TargetName = targetName,
-                CharacterClass = characterClass
-            },
-            PacketType, Flags, Protocol);
+    {
+        SChatMessagePacket packet = PacketEncoder.Scratch<SChatMessagePacket>();
+        packet.AccountId = accountId;
+        packet.CharacterId = characterId;
+        packet.CharacterName = characterName;
+        packet.Message = message;
+        packet.DateTime = dateTime;
+        packet.Channel = channel;
+        packet.TargetName = targetName;
+        packet.CharacterClass = characterClass;
+        return encoder.Encode(packet, PacketType, Flags, Protocol);
+    }
 
     /// <summary>A line from the server, on the system channel.</summary>
     public static OutboundPacket System(string message, DateTime dateTime, PacketEncoder encoder)

@@ -14,9 +14,11 @@ public class SCharacterDeletedPacket : Packet
     [ProtoMember(1)] public SCharacterDeletedResult Result { get; set; }
 
     public static OutboundPacket Create(SCharacterDeletedResult result, PacketEncoder encoder)
-        => encoder.Encode(
-            new SCharacterDeletedPacket { Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SCharacterDeletedPacket message = PacketEncoder.Scratch<SCharacterDeletedPacket>();
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 public enum SCharacterDeletedResult : short

@@ -19,6 +19,10 @@ public class SAuraUpdatePacket : Packet
     [ProtoMember(2)] public List<AuraEntryDto> Entries { get; set; } = [];
 
     public static OutboundPacket Create(ulong unitGuid, List<AuraEntryDto> entries, PacketEncoder encoder)
-        => encoder.Encode(new SAuraUpdatePacket { UnitGuid = unitGuid, Entries = entries },
-            PacketType, Flags, Protocol);
+    {
+        SAuraUpdatePacket message = PacketEncoder.Scratch<SAuraUpdatePacket>();
+        message.UnitGuid = unitGuid;
+        message.Entries = entries;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

@@ -19,9 +19,12 @@ public class SDisconnectPacket : Packet
     [ProtoMember(2)] public DisconnectReason ReasonCode { get; set; }
 
     public static OutboundPacket Create(string reason, DisconnectReason reasonCode, PacketEncoder encoder)
-        => encoder.Encode(
-            new SDisconnectPacket { Reason = reason, ReasonCode = reasonCode },
-            PacketType, Flags, Protocol);
+    {
+        SDisconnectPacket message = PacketEncoder.Scratch<SDisconnectPacket>();
+        message.Reason = reason;
+        message.ReasonCode = reasonCode;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 public enum DisconnectReason : ushort

@@ -15,7 +15,10 @@ public class SWorldHandshakePacket : Packet
     [ProtoMember(2)] public bool Verified { get; set; }
 
     public static OutboundPacket Create(long accountId, bool verified, PacketEncoder encoder)
-        => encoder.Encode(
-            new SWorldHandshakePacket { AccountId = accountId, Verified = verified },
-            PacketType, Flags, Protocol);
+    {
+        SWorldHandshakePacket message = PacketEncoder.Scratch<SWorldHandshakePacket>();
+        message.AccountId = accountId;
+        message.Verified = verified;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

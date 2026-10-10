@@ -15,9 +15,12 @@ public class SCharacterSelectedPacket : Packet
     [ProtoMember(2)] public MapInfo Map { get; set; }
 
     public static OutboundPacket Create(CharacterInfo character, MapInfo map, PacketEncoder encoder)
-        => encoder.Encode(
-            new SCharacterSelectedPacket { Character = character, Map = map },
-            PacketType, Flags, Protocol);
+    {
+        SCharacterSelectedPacket message = PacketEncoder.Scratch<SCharacterSelectedPacket>();
+        message.Character = character;
+        message.Map = map;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]

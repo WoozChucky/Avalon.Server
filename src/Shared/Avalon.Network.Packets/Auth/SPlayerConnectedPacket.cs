@@ -15,7 +15,11 @@ public class SPlayerConnectedPacket : Packet
     [ProtoMember(3)] public string Name { get; set; }
 
     public static OutboundPacket Create(ulong accountId, ulong characterId, string name, PacketEncoder encoder)
-        => encoder.Encode(
-            new SPlayerConnectedPacket { AccountId = accountId, CharacterId = characterId, Name = name },
-            PacketType, Flags, Protocol);
+    {
+        SPlayerConnectedPacket message = PacketEncoder.Scratch<SPlayerConnectedPacket>();
+        message.AccountId = accountId;
+        message.CharacterId = characterId;
+        message.Name = name;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

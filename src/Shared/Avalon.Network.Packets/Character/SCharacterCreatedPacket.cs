@@ -14,9 +14,11 @@ public class SCharacterCreatedPacket : Packet
     [ProtoMember(1)] public SCharacterCreateResult Result { get; set; }
 
     public static OutboundPacket Create(SCharacterCreateResult result, PacketEncoder encoder)
-        => encoder.Encode(
-            new SCharacterCreatedPacket { Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SCharacterCreatedPacket message = PacketEncoder.Scratch<SCharacterCreatedPacket>();
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 /// <summary>The answer to a character create. Append-only: the values cross the wire.</summary>

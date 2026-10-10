@@ -19,13 +19,12 @@ public class SPartyInvitePacket : Packet
 
     public static OutboundPacket Create(string inviterName, ushort inviterClass, ushort inviterLevel, uint expiresInMs,
         PacketEncoder encoder)
-        => encoder.Encode(
-            new SPartyInvitePacket
-            {
-                InviterName = inviterName,
-                InviterClass = inviterClass,
-                InviterLevel = inviterLevel,
-                ExpiresInMs = expiresInMs
-            },
-            PacketType, Flags, Protocol);
+    {
+        SPartyInvitePacket message = PacketEncoder.Scratch<SPartyInvitePacket>();
+        message.InviterName = inviterName;
+        message.InviterClass = inviterClass;
+        message.InviterLevel = inviterLevel;
+        message.ExpiresInMs = expiresInMs;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

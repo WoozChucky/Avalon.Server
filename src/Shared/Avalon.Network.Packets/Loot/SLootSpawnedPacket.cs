@@ -29,7 +29,9 @@ public class SLootSpawnedPacket : Packet
     [ProtoMember(1)] public List<LootDropDto> Drops { get; set; } = [];
 
     public static OutboundPacket Create(List<LootDropDto> drops, PacketEncoder encoder)
-        => encoder.Encode(
-            new SLootSpawnedPacket { Drops = drops },
-            PacketType, Flags, Protocol);
+    {
+        SLootSpawnedPacket message = PacketEncoder.Scratch<SLootSpawnedPacket>();
+        message.Drops = drops;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

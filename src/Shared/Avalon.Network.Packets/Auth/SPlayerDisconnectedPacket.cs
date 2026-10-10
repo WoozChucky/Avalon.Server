@@ -15,7 +15,10 @@ public class SPlayerDisconnectedPacket : Packet
     [ProtoMember(2)] public ulong CharacterId { get; set; }
 
     public static OutboundPacket Create(ulong accountId, ulong characterId, PacketEncoder encoder)
-        => encoder.Encode(
-            new SPlayerDisconnectedPacket { AccountId = accountId, CharacterId = characterId },
-            PacketType, Flags, Protocol);
+    {
+        SPlayerDisconnectedPacket message = PacketEncoder.Scratch<SPlayerDisconnectedPacket>();
+        message.AccountId = accountId;
+        message.CharacterId = characterId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

@@ -32,9 +32,13 @@ public class SVendorListPacket : Packet
     [ProtoMember(3)] public VendorBuybackDto[] Buyback { get; set; } = [];
 
     public static OutboundPacket Create(ulong vendorGuid, VendorEntryDto[] entries, VendorBuybackDto[] buyback, PacketEncoder encoder)
-        => encoder.Encode(
-            new SVendorListPacket { VendorGuid = vendorGuid, Entries = entries, Buyback = buyback },
-            PacketType, Flags, Protocol);
+    {
+        SVendorListPacket message = PacketEncoder.Scratch<SVendorListPacket>();
+        message.VendorGuid = vendorGuid;
+        message.Entries = entries;
+        message.Buyback = buyback;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 /// <summary>One row the shop sells.</summary>

@@ -40,9 +40,14 @@ public class SPartyRosterPacket : Packet
 
     public static OutboundPacket Create(uint partyId, PartyExperienceMode mode, uint modeLockedForMs,
         List<PartyMemberDto> members, PacketEncoder encoder)
-        => encoder.Encode(
-            new SPartyRosterPacket { PartyId = partyId, ExperienceMode = mode, ModeLockedForMs = modeLockedForMs, Members = members },
-            PacketType, Flags, Protocol);
+    {
+        SPartyRosterPacket message = PacketEncoder.Scratch<SPartyRosterPacket>();
+        message.PartyId = partyId;
+        message.ExperienceMode = mode;
+        message.ModeLockedForMs = modeLockedForMs;
+        message.Members = members;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 
     /// <summary>The recipient is in no party.</summary>
     public static OutboundPacket Empty(PacketEncoder encoder) => Create(0, PartyExperienceMode.Unknown, 0, [], encoder);

@@ -14,7 +14,10 @@ public class SPongPacket : Packet
     [ProtoMember(2)] public long Ticks { get; set; }
 
     public static OutboundPacket Create(long sequenceNumber, PacketEncoder encoder, long? ticks = null)
-        => encoder.Encode(
-            new SPongPacket { SequenceNumber = sequenceNumber, Ticks = ticks ?? DateTime.UtcNow.Ticks },
-            PacketType, NetworkPacketFlags.None, Protocol);
+    {
+        SPongPacket message = PacketEncoder.Scratch<SPongPacket>();
+        message.SequenceNumber = sequenceNumber;
+        message.Ticks = ticks ?? DateTime.UtcNow.Ticks;
+        return encoder.Encode(message, PacketType, NetworkPacketFlags.None, Protocol);
+    }
 }

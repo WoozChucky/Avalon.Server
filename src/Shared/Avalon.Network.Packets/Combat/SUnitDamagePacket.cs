@@ -27,15 +27,14 @@ public class SUnitDamagePacket : Packet
 
     public static OutboundPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, PacketEncoder encoder,
         HitResult result = HitResult.None, uint? auraId = null)
-        => encoder.Encode(
-            new SUnitDamagePacket
-            {
-                Attacker = attacker.RawValue,
-                Target = target,
-                CurrentHealth = currentHealth,
-                Damage = damage,
-                Result = result,
-                AuraId = auraId,
-            },
-            PacketType, Flags, Protocol);
+    {
+        SUnitDamagePacket message = PacketEncoder.Scratch<SUnitDamagePacket>();
+        message.Attacker = attacker.RawValue;
+        message.Target = target;
+        message.CurrentHealth = currentHealth;
+        message.Damage = damage;
+        message.Result = result;
+        message.AuraId = auraId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

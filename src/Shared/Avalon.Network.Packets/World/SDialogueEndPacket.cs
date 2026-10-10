@@ -18,7 +18,9 @@ public class SDialogueEndPacket : Packet
     [ProtoMember(1)] public ulong SpeakerGuid { get; set; }
 
     public static OutboundPacket Create(ulong speakerGuid, PacketEncoder encoder)
-        => encoder.Encode(
-            new SDialogueEndPacket { SpeakerGuid = speakerGuid },
-            PacketType, Flags, Protocol);
+    {
+        SDialogueEndPacket message = PacketEncoder.Scratch<SDialogueEndPacket>();
+        message.SpeakerGuid = speakerGuid;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

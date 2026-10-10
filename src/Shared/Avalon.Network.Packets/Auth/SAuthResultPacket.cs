@@ -17,9 +17,13 @@ public class SAuthResultPacket : Packet
 
     public static OutboundPacket Create(long? accountId, string? hash, AuthResult result,
         PacketEncoder encoder)
-        => encoder.Encode(
-            new SAuthResultPacket { AccountId = accountId ?? 0, Result = result, MfaHash = hash },
-            PacketType, Flags, Protocol);
+    {
+        SAuthResultPacket message = PacketEncoder.Scratch<SAuthResultPacket>();
+        message.AccountId = accountId ?? 0;
+        message.Result = result;
+        message.MfaHash = hash;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 public enum AuthResult : ushort

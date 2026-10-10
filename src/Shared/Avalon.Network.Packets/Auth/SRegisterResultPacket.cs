@@ -14,9 +14,11 @@ public class SRegisterResultPacket : Packet
     [ProtoMember(1)] public RegisterResult Result { get; set; }
 
     public static OutboundPacket Create(RegisterResult result, PacketEncoder encoder)
-        => encoder.Encode(
-            new SRegisterResultPacket { Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SRegisterResultPacket message = PacketEncoder.Scratch<SRegisterResultPacket>();
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 public enum RegisterResult : ushort

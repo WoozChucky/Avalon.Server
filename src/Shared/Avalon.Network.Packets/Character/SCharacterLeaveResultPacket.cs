@@ -47,7 +47,9 @@ public class SCharacterLeaveResultPacket : Packet
     [ProtoMember(1)] public CharacterLeaveResult Result { get; set; }
 
     public static OutboundPacket Create(CharacterLeaveResult result, PacketEncoder encoder)
-        => encoder.Encode(
-            new SCharacterLeaveResultPacket { Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SCharacterLeaveResultPacket message = PacketEncoder.Scratch<SCharacterLeaveResultPacket>();
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

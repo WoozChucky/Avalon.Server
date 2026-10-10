@@ -16,6 +16,10 @@ public class SQuestResultPacket : Packet
     [ProtoMember(2)] public uint QuestId { get; set; }
 
     public static OutboundPacket Create(QuestResult result, uint questId, PacketEncoder encoder)
-        => encoder.Encode(new SQuestResultPacket { Result = result, QuestId = questId },
-            PacketType, Flags, Protocol);
+    {
+        SQuestResultPacket message = PacketEncoder.Scratch<SQuestResultPacket>();
+        message.Result = result;
+        message.QuestId = questId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

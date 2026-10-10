@@ -25,16 +25,15 @@ public class SCharacterDamagePacket : Packet
 
     public static OutboundPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? abilityId,
         PacketEncoder encoder, HitResult result = HitResult.None, uint? auraId = null)
-        => encoder.Encode(
-            new SCharacterDamagePacket
-            {
-                Attacker = attacker,
-                Target = target,
-                CurrentHealth = currentHealth,
-                Damage = damage,
-                AbilityId = abilityId,
-                Result = result,
-                AuraId = auraId,
-            },
-            PacketType, Flags, Protocol);
+    {
+        SCharacterDamagePacket message = PacketEncoder.Scratch<SCharacterDamagePacket>();
+        message.Attacker = attacker;
+        message.Target = target;
+        message.CurrentHealth = currentHealth;
+        message.Damage = damage;
+        message.AbilityId = abilityId;
+        message.Result = result;
+        message.AuraId = auraId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

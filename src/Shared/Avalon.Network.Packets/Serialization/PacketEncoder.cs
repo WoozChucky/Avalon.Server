@@ -1,3 +1,6 @@
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
@@ -30,5 +33,67 @@ public sealed class PacketEncoder(PayloadSegmentPool pool)
         PayloadSegment payload = Pool.Rent(new ReadOnlySpan<byte>(stream.GetBuffer(), 0, (int)stream.Length));
         return new OutboundPacket(
             new NetworkPacketHeader { Type = type, Flags = flags, Protocol = protocol, Version = 0 }, payload);
+    }
+
+    /// <summary>
+    /// The calling thread's instance of <typeparamref name="T" />, reset to a new one's values (#875). A factory fills it
+    /// and encodes it before it returns, so one instance per thread is enough, and a server packet costs no message
+    /// object. Every member is reset on every take, so a value one packet set cannot reach the next.
+    /// </summary>
+    /// <remarks>
+    /// The reset copies a template's member values: a collection a new message starts with is the template's own, so a
+    /// factory assigns collections and never adds to one it found there.
+    /// </remarks>
+    public static T Scratch<T>() where T : class, new()
+    {
+        T? scratch = ScratchOf<T>.t_instance;
+        if (scratch is null)
+        {
+            scratch = new T();
+            ScratchOf<T>.t_instance = scratch;
+            return scratch;
+        }
+
+        ScratchOf<T>.s_reset(scratch, ScratchOf<T>.s_template);
+        return scratch;
+    }
+
+    private static class ScratchOf<T> where T : class, new()
+    {
+#pragma warning disable IDE1006
+        [ThreadStatic] internal static T? t_instance;
+#pragma warning restore IDE1006
+
+        internal static readonly T s_template = new();
+
+        internal static readonly Action<T, T> s_reset = BuildReset();
+
+        private static Action<T, T> BuildReset()
+        {
+            ParameterExpression target = Expression.Parameter(typeof(T), "target");
+            ParameterExpression source = Expression.Parameter(typeof(T), "source");
+            var assignments = new List<Expression>();
+            const BindingFlags Members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+            foreach (PropertyInfo property in typeof(T).GetProperties(Members))
+            {
+                if (property.GetIndexParameters().Length == 0 && property.GetGetMethod(true) is not null
+                    && property.GetSetMethod(true) is not null)
+                {
+                    assignments.Add(Expression.Assign(
+                        Expression.Property(target, property), Expression.Property(source, property)));
+                }
+            }
+
+            foreach (FieldInfo field in typeof(T).GetFields(Members))
+            {
+                // An auto-property's backing field is reset through its property above.
+                if (!field.IsInitOnly && !field.IsDefined(typeof(CompilerGeneratedAttribute), inherit: false))
+                    assignments.Add(Expression.Assign(Expression.Field(target, field), Expression.Field(source, field)));
+            }
+
+            Expression body = assignments.Count == 0 ? Expression.Empty() : Expression.Block(assignments);
+            return Expression.Lambda<Action<T, T>>(body, target, source).Compile();
+        }
     }
 }

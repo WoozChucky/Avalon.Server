@@ -18,7 +18,10 @@ public class SUnitAttackAnimationPacket : Packet
     [ProtoMember(2)] public ushort AnimationId { get; set; }
 
     public static OutboundPacket Create(ObjectGuid attacker, ushort animationId, PacketEncoder encoder)
-        => encoder.Encode(
-            new SUnitAttackAnimationPacket { Attacker = attacker.RawValue, AnimationId = animationId },
-            PacketType, Flags, Protocol);
+    {
+        SUnitAttackAnimationPacket message = PacketEncoder.Scratch<SUnitAttackAnimationPacket>();
+        message.Attacker = attacker.RawValue;
+        message.AnimationId = animationId;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

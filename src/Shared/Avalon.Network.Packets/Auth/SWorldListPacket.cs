@@ -14,9 +14,11 @@ public class SWorldListPacket : Packet
     [ProtoMember(1)] public WorldInfo[] Worlds { get; set; }
 
     public static OutboundPacket Create(WorldInfo[] worlds, PacketEncoder encoder)
-        => encoder.Encode(
-            new SWorldListPacket { Worlds = worlds },
-            PacketType, Flags, Protocol);
+    {
+        SWorldListPacket message = PacketEncoder.Scratch<SWorldListPacket>();
+        message.Worlds = worlds;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 [ProtoContract]

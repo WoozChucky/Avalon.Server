@@ -15,6 +15,10 @@ public sealed class SGameAdmissionPacket : Packet
     [ProtoMember(2)] public GameAdmissionResult Result { get; set; }
     public static OutboundPacket Create(byte[] publicKey, PacketEncoder encoder,
         GameAdmissionResult result = GameAdmissionResult.Accepted)
-        => encoder.Encode(
-            new SGameAdmissionPacket { PublicKey = publicKey, Result = result }, PacketType, Flags, Protocol);
+    {
+        SGameAdmissionPacket message = PacketEncoder.Scratch<SGameAdmissionPacket>();
+        message.PublicKey = publicKey;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

@@ -105,9 +105,14 @@ public class <PacketName> : Packet
 
     [ProtoMember(1)] public <Type> <Field> { get; set; }
 
-    // Encoded, plain, into a pooled segment; the connection's outbox seals it (Flags) as it frames it (#875).
+    // Built in the thread's scratch message and encoded, plain, into a pooled segment before it returns; the
+    // connection's outbox seals it (Flags) as it frames it (#875). Assign collections, never add to one found there.
     public static OutboundPacket Create(<params>, PacketEncoder encoder)
-        => encoder.Encode(new <PacketName> { <Field> = <param> }, PacketType, Flags, Protocol);
+    {
+        <PacketName> message = PacketEncoder.Scratch<<PacketName>>();
+        message.<Field> = <param>;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 ```
 

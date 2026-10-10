@@ -16,7 +16,12 @@ public class SPingPacket : Packet
     [ProtoMember(4)] public long Offset { get; set; }
 
     public static OutboundPacket Create(long serverTicks, long clientTicks, long rtt, long offset, PacketEncoder encoder)
-        => encoder.Encode(
-            new SPingPacket { ServerTimestamp = serverTicks, ClientTimestamp = clientTicks, Rtt = rtt, Offset = offset },
-            PacketType, NetworkPacketFlags.None, Protocol);
+    {
+        SPingPacket message = PacketEncoder.Scratch<SPingPacket>();
+        message.ServerTimestamp = serverTicks;
+        message.ClientTimestamp = clientTicks;
+        message.Rtt = rtt;
+        message.Offset = offset;
+        return encoder.Encode(message, PacketType, NetworkPacketFlags.None, Protocol);
+    }
 }

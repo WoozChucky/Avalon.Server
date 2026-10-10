@@ -59,7 +59,10 @@ public class SVendorResultPacket : Packet
     [ProtoMember(2)] public VendorResult Result { get; set; }
 
     public static OutboundPacket Create(uint requestId, VendorResult result, PacketEncoder encoder)
-        => encoder.Encode(
-            new SVendorResultPacket { RequestId = requestId, Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SVendorResultPacket message = PacketEncoder.Scratch<SVendorResultPacket>();
+        message.RequestId = requestId;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

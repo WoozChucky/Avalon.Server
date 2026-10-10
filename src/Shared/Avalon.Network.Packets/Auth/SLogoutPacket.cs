@@ -14,9 +14,11 @@ public class SLogoutPacket : Packet
     [ProtoMember(1)] public LogoutResult Result { get; set; }
 
     public static OutboundPacket Create(LogoutResult result, PacketEncoder encoder)
-        => encoder.Encode(
-            new SLogoutPacket { Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SLogoutPacket message = PacketEncoder.Scratch<SLogoutPacket>();
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
 
 public enum LogoutResult : short

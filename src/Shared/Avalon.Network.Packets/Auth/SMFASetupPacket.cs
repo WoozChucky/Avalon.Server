@@ -15,7 +15,10 @@ public class SMFASetupPacket : Packet
     [ProtoMember(2)] public MFAOperationResult Result { get; set; }
 
     public static OutboundPacket Create(string otpUri, MFAOperationResult result, PacketEncoder encoder)
-        => encoder.Encode(
-            new SMFASetupPacket { OtpUri = otpUri, Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SMFASetupPacket message = PacketEncoder.Scratch<SMFASetupPacket>();
+        message.OtpUri = otpUri;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

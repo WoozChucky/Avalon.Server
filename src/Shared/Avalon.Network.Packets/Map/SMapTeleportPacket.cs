@@ -17,7 +17,11 @@ public class SMapTeleportPacket : Packet
     [ProtoMember(3)] public float Y { get; set; }
 
     public static OutboundPacket Create(MapInfo mapInfo, float x, float y, PacketEncoder encoder)
-        => encoder.Encode(
-            new SMapTeleportPacket { Map = mapInfo, X = x, Y = y },
-            PacketType, Flags, Protocol);
+    {
+        SMapTeleportPacket message = PacketEncoder.Scratch<SMapTeleportPacket>();
+        message.Map = mapInfo;
+        message.X = x;
+        message.Y = y;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

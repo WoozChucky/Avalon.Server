@@ -51,16 +51,15 @@ public class SAbilityFiredPacket : Packet
 
     public static OutboundPacket Create(ulong caster, uint abilityId, uint castId, AbilityFootprintDto footprint,
         PacketEncoder encoder)
-        => encoder.Encode(
-            new SAbilityFiredPacket
-            {
-                CasterGuid = caster,
-                AbilityId = abilityId,
-                Origin = footprint.Origin ?? new Vector3Dto(),
-                Direction = footprint.Direction,
-                Centre = footprint.Centre,
-                CastId = castId,
-                Footprint = footprint,
-            },
-            PacketType, Flags, Protocol);
+    {
+        SAbilityFiredPacket message = PacketEncoder.Scratch<SAbilityFiredPacket>();
+        message.CasterGuid = caster;
+        message.AbilityId = abilityId;
+        message.Origin = footprint.Origin ?? new Vector3Dto();
+        message.Direction = footprint.Direction;
+        message.Centre = footprint.Centre;
+        message.CastId = castId;
+        message.Footprint = footprint;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

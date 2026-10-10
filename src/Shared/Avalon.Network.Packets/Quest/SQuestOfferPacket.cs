@@ -21,7 +21,12 @@ public class SQuestOfferPacket : Packet
     [ProtoMember(4)] public QuestDisplayDto? Quest { get; set; }
 
     public static OutboundPacket Create(uint questId, ulong npcGuid, QuestOfferMode mode, QuestDisplayDto quest, PacketEncoder encoder)
-        => encoder.Encode(
-            new SQuestOfferPacket { QuestId = questId, NpcGuid = npcGuid, Mode = mode, Quest = quest },
-            PacketType, Flags, Protocol);
+    {
+        SQuestOfferPacket message = PacketEncoder.Scratch<SQuestOfferPacket>();
+        message.QuestId = questId;
+        message.NpcGuid = npcGuid;
+        message.Mode = mode;
+        message.Quest = quest;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

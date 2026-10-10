@@ -20,7 +20,10 @@ public class SPvpStatePacket : Packet
     [ProtoMember(2)] public uint OffInMs { get; set; }
 
     public static OutboundPacket Create(bool enabled, uint offInMs, PacketEncoder encoder)
-        => encoder.Encode(
-            new SPvpStatePacket { Enabled = enabled, OffInMs = offInMs },
-            PacketType, Flags, Protocol);
+    {
+        SPvpStatePacket message = PacketEncoder.Scratch<SPvpStatePacket>();
+        message.Enabled = enabled;
+        message.OffInMs = offInMs;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

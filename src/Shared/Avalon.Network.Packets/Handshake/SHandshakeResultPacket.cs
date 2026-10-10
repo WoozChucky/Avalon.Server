@@ -14,7 +14,9 @@ public class SHandshakeResultPacket : Packet
     [ProtoMember(1)] public bool Verified { get; set; }
 
     public static OutboundPacket Create(bool verified, PacketEncoder encoder)
-        => encoder.Encode(
-            new SHandshakeResultPacket { Verified = verified },
-            PacketType, Flags, Protocol);
+    {
+        SHandshakeResultPacket message = PacketEncoder.Scratch<SHandshakeResultPacket>();
+        message.Verified = verified;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

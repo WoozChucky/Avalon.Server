@@ -15,7 +15,10 @@ public class SMFAConfirmPacket : Packet
     [ProtoMember(2)] public MFAOperationResult Result { get; set; }
 
     public static OutboundPacket Create(string[] recoveryCodes, MFAOperationResult result, PacketEncoder encoder)
-        => encoder.Encode(
-            new SMFAConfirmPacket { RecoveryCodes = recoveryCodes, Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SMFAConfirmPacket message = PacketEncoder.Scratch<SMFAConfirmPacket>();
+        message.RecoveryCodes = recoveryCodes;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

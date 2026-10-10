@@ -47,14 +47,13 @@ public class SDialogueNodePacket : Packet
         string text,
         List<SDialogueOptionInfo> options,
         PacketEncoder encoder)
-        => encoder.Encode(
-            new SDialogueNodePacket
-            {
-                SpeakerGuid = speakerGuid,
-                SpeakerName = speakerName,
-                NodeId = nodeId,
-                Text = text,
-                Options = options
-            },
-            PacketType, Flags, Protocol);
+    {
+        SDialogueNodePacket message = PacketEncoder.Scratch<SDialogueNodePacket>();
+        message.SpeakerGuid = speakerGuid;
+        message.SpeakerName = speakerName;
+        message.NodeId = nodeId;
+        message.Text = text;
+        message.Options = options;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

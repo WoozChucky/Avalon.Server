@@ -16,6 +16,10 @@ public class SAuraCancelResultPacket : Packet
     [ProtoMember(2)] public AuraCancelResult Result { get; set; }
 
     public static OutboundPacket Create(uint auraId, AuraCancelResult result, PacketEncoder encoder)
-        => encoder.Encode(new SAuraCancelResultPacket { AuraId = auraId, Result = result },
-            PacketType, Flags, Protocol);
+    {
+        SAuraCancelResultPacket message = PacketEncoder.Scratch<SAuraCancelResultPacket>();
+        message.AuraId = auraId;
+        message.Result = result;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }
