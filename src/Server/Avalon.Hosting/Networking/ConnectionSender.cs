@@ -163,7 +163,16 @@ public sealed class ConnectionSender : IOutbox
             Interlocked.Decrement(ref _activeEnqueues);
         }
 
-        MarkDirty();
+        // Already listed: a read, not a compare-exchange, so the tick's sends to one connection do not each take the flag's
+        // cache line from the owner. No wake-up is lost. The queue's push and the decrement above are full fences, so this
+        // read comes after them in the order every thread agrees on. A 1 read here was set by a mark that listed the
+        // connection, and the visit that entry leads to clears the flag after this read: had it cleared it before, this
+        // read would see its 0, or a newer 1 whose own visit is still to come. That visit clears with a full fence and
+        // then drains the queue, so it finds this packet. A 0 takes the compare-exchange, as before.
+        if (Volatile.Read(ref _dirty) != 0)
+            _scheduler.Wake(this);
+        else
+            MarkDirty();
         return true;
     }
 

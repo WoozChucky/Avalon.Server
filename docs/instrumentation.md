@@ -42,7 +42,7 @@ The world update is followed by work no other histogram covers, about two thirds
 | `party_status` | `PartyService.FlushMemberStatus` |
 | `presence` | The admin view's presence capture |
 | `pings` | The time-sync pings due this tick |
-| `outbox` | `NetworkSendScheduler.SignalAll`: one wake-up per send thread, the same whatever the player count; tens of µs, about as much as the wake-ups cost on the host ([the send path](benchmarks.md#the-send-path-875)) (#875) |
+| `outbox` | `NetworkSendScheduler.SignalAll`: one wake-up per send thread with work (a thread with nothing queued sleeps on), never more than the thread count whatever the player count; tens of µs, about as much as the wake-ups cost on the host ([the send path](benchmarks.md#the-send-path-875)) (#875) |
 | `continuations` | `FlushContinuations` over every connection: the off-tick results handed back to the tick |
 
 Since #875 the tick neither seals nor writes: the `outbox` stage only wakes the send threads, which seal, frame and write each connection's packets off the tick (their cost is under [Send threads and slow clients](#send-threads-and-slow-clients)). Before that change the stage framed, sealed and wrote every connection's packets on the tick, so compare it across the change with that work moved, not removed.

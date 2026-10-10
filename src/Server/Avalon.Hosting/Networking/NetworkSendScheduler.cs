@@ -11,8 +11,8 @@ namespace Avalon.Hosting.Networking;
 
 /// <summary>
 /// The world server's send threads (#875): <c>Network:SendThreads</c> dedicated threads, <c>Network.Send.0</c> on, each
-/// owning the connections given to it for their lives. The tick only enqueues and wakes every thread once, at its end
-/// (<see cref="SignalAll" />); a send from any other thread wakes its owner at once.
+/// owning the connections given to it for their lives. The tick only enqueues and wakes each thread with work once, at its
+/// end (<see cref="SignalAll" />); a send from any other thread wakes its owner at once.
 /// </summary>
 public sealed class NetworkSendScheduler : IDisposable
 {
@@ -100,11 +100,20 @@ public sealed class NetworkSendScheduler : IDisposable
             onPingWritten);
     }
 
-    /// <summary>The tick's one wake-up per send thread, at its end (the <c>outbox</c> stage).</summary>
+    /// <summary>
+    /// The tick's one wake-up per send thread with work, at its end (the <c>outbox</c> stage). A thread whose dirty list is
+    /// empty is left asleep: nothing the tick sent is its, and its timed wake (<see cref="WakeInterval" />) keeps its stall
+    /// clock running. The tick's sends pushed their connections before this, on this thread, so a list they joined reads
+    /// non-empty here, unless its thread already took them, which needs no wake-up. <c>IsEmpty</c> does not freeze the
+    /// queue's segments, as an enumeration would.
+    /// </summary>
     public void SignalAll()
     {
         foreach (SendThread owner in _threads)
-            owner.Wake.Set();
+        {
+            if (!owner.Dirty.IsEmpty)
+                owner.Wake.Set();
+        }
     }
 
     /// <summary>

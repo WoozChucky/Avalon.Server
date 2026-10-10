@@ -1203,13 +1203,18 @@ interleaved, means of the three. Linux: one run of the after build at 1,000 conn
 
 - **The outbox stage is flat**: about 30 µs on Windows at 200 and at 1,000 connections, where the flush it replaced
   took 3.3 and 17.4 ms (at 1,000 longer than the 16.7 ms tick). What is left is the wake-ups themselves: one
-  `ManualResetEventSlim.Set` per send thread, about 3 to 4 µs each on Windows (8 threads) and about 20 µs each in the
+  `ManualResetEventSlim.Set` per send thread (since [the wake-up change](#the-enqueue-and-the-wake-up-875-2026-10-10),
+  per send thread with work), about 3 to 4 µs each on Windows (8 threads) and about 20 µs each in the
   WSL2 container (2 threads), whatever the connection count. It is not the "few µs" the design hoped for; a probe of
   the bare primitive (8 waiting threads set at 60 Hz, nothing else running) gave the same: 26 µs median on Windows,
   80 µs on Linux in the container. Waking one thread that wakes the next would leave the tick one wake-up, at the cost
   of the later threads starting later; not done here.
 - **The tick keeps the encode and the queue**: 0.46 µs per connection on Windows at 1,000 (0.55 µs at 200), 0 B
-  allocated. The before harness did not time that part (it was the same work).
+  allocated. The before harness did not time that part. The enqueue alone does cost more than the old outbox's:
+  the world-performance review measured it single-threaded on Windows at 18.7 to 21.7 ns before (`TickDrivenOutbox`,
+  a bounded channel) against 27.0 to 28.5 ns after (`ConnectionSender`); with the send threads live it is 56 to 115 ns
+  ([the sender's fields](#the-connection-senders-fields-875-2026-10-10)). See
+  [the enqueue's read of the dirty flag](#the-enqueue-and-the-wake-up-875-2026-10-10) for what was taken back.
 - **The send threads carry the write**: about 25 to 28 µs of thread time per connection per tick over TLS on Windows
   loopback, spread over 8 threads (3.1 ms per thread per tick at 1,000), against 17.4 µs per connection on the tick
   before; 6.4 µs on Linux.
@@ -1295,6 +1300,34 @@ connections × 4 packets, seal on, three interleaved runs each, means in µs for
 An enqueue costs about 55 to 130 ns, and padding made it no faster anywhere, so the layout stays. The tick and the
 owner rarely touch one connection at the same moment: the owner's pass comes after the tick's sends, and `_dirty` and
 `_pendingBytes`, which both write, move between their cores once per tick whatever the layout.
+
+### The enqueue and the wake-up (#875, 2026-10-10)
+
+Two changes after the world-performance review:
+
+- **An enqueue to a connection already listed reads the dirty flag instead of a compare-exchange.** The tick sends
+  several packets per connection per tick, and every one after the first used to take the flag's cache line for
+  writing. Why no wake-up is lost is in `ConnectionSender.Enqueue`. The pair of atomics around the push
+  (`_activeEnqueues`) stays: it is what lets a close know that no enqueue that saw the connection open is still pushing,
+  and no cheaper ordering was proven.
+- **The tick wakes only the send threads that have work**: a thread whose dirty list is empty is left asleep. Its timed
+  wake (100 ms) keeps its stall clock running.
+
+The `outbox-flush` harness, Windows 11, i9-12900K, 8 send threads, Release, seal off. Before is the frame-ahead commit;
+after adds these two. Three runs per side, interleaved, means of the three. The enqueue column is the tick's encode,
+rent and queue together, in µs per tick.
+
+| | Before | After |
+|---|---:|---:|
+| `memory`, 1,000 connections × 4 packets: enqueue mean | 868.9 | 868.8 |
+| `tls`, 1,000 × 4: enqueue mean | 1,195.5 | 1,133.8 |
+| `tls`, 1,000 × 4: outbox stage mean | 29.2 | 28.7 |
+| `tls`, 4 connections × 1 packet: outbox stage mean (p99) | 24.1 (63.0) | 14.5 (42.5) |
+
+- The enqueue's change is within the runs' spread here: the column includes the encode, which costs more than the
+  atomic it saves.
+- The outbox stage falls when some threads have nothing to send: with 4 connections on 8 threads, from 24.1 to 14.5 µs.
+  At 1,000 connections every thread has work every tick, so it is unchanged.
 
 ### A client that stops reading (#875, 2026-10-10)
 
