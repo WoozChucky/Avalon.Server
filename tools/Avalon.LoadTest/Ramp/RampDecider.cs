@@ -61,6 +61,8 @@ public sealed class RampDecider(IReadOnlyList<Limit> limits, int maxBots)
         bool missing = false;
         foreach (Limit limit in limits)
         {
+            if (sample.NotJudged.Contains(limit.Name)) continue;
+
             double? value = sample.Values.TryGetValue(limit.Name, out double? v) ? v : null;
             if (value is null)
             {

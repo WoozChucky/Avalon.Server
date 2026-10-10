@@ -82,6 +82,15 @@ public class RampDeciderShould
         Assert.Equal(RampAction.Rehold, nanDrops.Decide(Sample(50, drops: double.PositiveInfinity)).Action);
         Assert.Equal(RampOutcome.Unknown, nanDrops.Decide(Sample(50, drops: double.NaN)).Outcome);
 
+        // A limit the world build does not export is not judged: its missing value makes no unknown step.
+        StepSample passing = Sample(50);
+        StepSample noGcStall = passing with
+        {
+            Values = new Dictionary<LimitName, double?>(passing.Values) { [LimitName.GcStall] = null },
+            NotJudged = new HashSet<LimitName> { LimitName.GcStall },
+        };
+        Assert.Equal(RampAction.NextStep, new RampDecider(Limits.Defaults, 500).Decide(noGcStall).Action);
+
         // The limits the decider judges on refuse an unknown name, a negative value and a fraction above 1.
         foreach (string refused in new[] { "tick-p98=20", "tick-p99=-1", "memory=1.5" })
             Assert.Throws<CommandLineException>(() => Limits.WithOverrides([refused]));
@@ -98,7 +107,7 @@ public class RampDeciderShould
             [LimitName.Drops] = drops,
             [LimitName.Admission] = 0,
             [LimitName.Memory] = 0.3,
-            [LimitName.Gen2] = 0,
+            [LimitName.GcStall] = 5,
             [LimitName.GcPause] = 0.01,
             [LimitName.SaveP95] = 50,
             [LimitName.GenCpu] = genCpu,

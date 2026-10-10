@@ -541,7 +541,7 @@ A step breaches a limit when its value is on the tripping side of the threshold.
 | `drops` | 0 | count | above | Prometheus: `(sum(increase(network_out_dropped_total[w]) and network_out_dropped_total offset w) or vector(0)) + (sum(network_out_dropped_total unless network_out_dropped_total offset w) or vector(0))`, the packets a full outbox evicted. A packet type's series exists only from its first drop, and `increase` alone misses a new series' first sample, so a series already there at the window's start counts its increase and one first seen within the window counts its whole value |
 | `admission` | 0.01 | fraction | above | Bots: the bots that could not get into the world during the step ÷ the bots that tried, over the whole step, settle included. Each bot counts once: it tried when any entry attempt of its ended in the step, and got in when any of those succeeded, so a failure followed by a success in the step is a bot that got in, and a bot that only failed counts once however many retries it made. An attempt counts in the step its outcome lands in. Entries are first entries, re-entries, reconnects and character changes; sign-in and leave failures are not part of it. The step row also gives the attempts, the failed ones and the failures by kind |
 | `memory` | 0.85 | fraction | above | Prometheus: `max(dotnet_process_memory_working_set_bytes)` ÷ `kube_pod_container_resource_limits{namespace="avalon",pod=<--pod>,container="avalon-world",resource="memory"}`, at the hold's end |
-| `gen2` | 1 | per minute | above | Prometheus: `sum(increase(dotnet_gc_collections_total{gc_heap_generation="gen2"}[w])) * 60 / w` |
+| `gc-stall` | 16.7 | ms | above | Prometheus: the raw samples of `dotnet_gc_pause_time_seconds_total[w+60s]` and `dotnet_gc_collections_total[w+60s]` (every `gc_heap_generation`). For each export interval ending within the window (10 s on world 4), the pause the world added in it ÷ the collections it added in it, summed over the generations. Intervals pair per process (a series' labels except `gc_heap_generation`) by sample time, and the value is the worst interval's average over every process. A series' first sample within the window (a new world, or a gap of more than 60 s before the window) counts from 0. An interval with no collection has no average, and a window with no collection reads 0. The tool takes each sample's increase over the one before it itself, because `increase` and `rate` extrapolate to the range's edges; a process with any counter below the sample before it restarted within that interval, and every one of its counters counts its whole value there. The world's export of both is checked with `(count(dotnet_gc_pause_time_seconds_total) and count(dotnet_gc_collections_total)) or (0 * count(world_tick_duration_microseconds_count))` (see below) |
 | `gc-pause` | 0.05 | fraction | above | Prometheus: `sum(rate(dotnet_gc_pause_time_seconds_total[w]))`, the share of the window the GC paused the process |
 | `save-p95` | 1000 | ms | above | Prometheus: `histogram_quantile(0.95, sum by (le)(rate(world_character_save_duration_milliseconds_bucket[w])))`; 0 when the window is known to have had no save |
 | `gen-cpu` | 0.80 | fraction | above | The tool: its process CPU time over the judged window ÷ (the window × the bot PC's logical cores) |
@@ -551,6 +551,17 @@ Every Prometheus query is filtered to the run's world (`avalon_world_id="W"`). `
 seconds, and the query is evaluated at the hold's end. When a query returns several series, the worst one counts
 (the highest, or the lowest for `tps`). The metrics themselves are described in
 [instrumentation](instrumentation.md#world-metrics-for-load-testing).
+
+**Why the average pause per collection.** The gen2 collections that tripped the old `gen2` limit (1 per minute) were
+background collections during mass logins and forest bakes, which pause the process for a negligible time, so the ramp
+judges the pause itself, against one tick. It judges the average per collection, not the sum per interval: a few
+ordinary collections of about 5 ms each add up past a tick within 10 seconds without any one of them stalling a tick,
+while an average above a tick flags a long collection. An interval spanning a missed export averages over the whole
+span, so a gap can dilute a long collection but never inflate one. Gen2 per minute, background collections included,
+stays in the report for reading only. A world build that reports its ticks and not both series (the count above reads 0)
+has `gc-stall` read `not exported` on its steps and in the notes, and the step is not judged on it. Nothing from the
+world at all, a failed query, or no interval in the window with both counters reads `n/a` and makes the step unknown, as
+any missing value does.
 
 `gen-cpu` and `gen-lag` measure the bot PC, not the server. When the bot PC is saturated, it sends late and reads
 late, so the server's numbers from that step are not trusted.
@@ -563,7 +574,8 @@ Each step gets one verdict:
 - **unknown**: nothing tripped, but at least one value is missing or not a finite number: an empty series, a failed
   query, Prometheus unreachable. A missing `drops` value is not unknown, since its query already reads no series as
   0. A failed `drops` query is unknown.
-- **pass**: every limit was judged and none tripped.
+- **pass**: every limit was judged and none tripped. A limit the world build does not export (`gc-stall` reading
+  `not exported`) is not judged at all: it neither trips nor makes the step unknown.
 
 Then:
 
@@ -671,8 +683,10 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
     less the count before the ramp;
   - map instances at the hold's end, every map together (`avalon_world_instances_active` carries no map type; the
     [fighters' section](#the-fighters-section) splits them); tick p99; average TPS; ack p50, p95 and p99; drops; the
-    deepest receive backlog of any connection; working set (MB and % of the limit); gen2 per minute; GC pause; save
-    p95;
+    deepest receive backlog of any connection; working set (MB and % of the limit); GC stall (`not exported` when the
+    world build has no pause time or collections); GC pause; gen2 per minute (background collections included, not
+    judged); save p95. The JSON has the stall under each step's `server.gcStall`: `readout` (`Reported`, `NotExported`
+    or `Unknown`) and `ms` (null unless reported);
   - admission as bots that never got in ÷ bots that tried; entry attempts and failed attempts, and failures by kind;
     leave failures by kind and sign-in failures by kind (both apart from admission); disconnects;
   - the bot PC's CPU and the driver's lateness p95;
@@ -695,11 +709,12 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   failed, only its half of each cell reads `n/a`. The JSON has them under each step's
   `server.postUpdate`: `readout` (`Reported`, `NotExported` or `Unknown`) and `stages` (`stage`, `meanUs`, `p99Us`).
 - **Notes**: a world that restarted during the ramp, or after its last judged step without proof (the run does not
-  stand: run again); one proven to have restarted after the last judged step (in bold; the verdict stands); or a
-  restart check that was partial or unknown (the run does not stand); the blips; the steps whose drops may be the bot
-  PC's; sign-ins, with their throughput (one every X s with N at once, and per minute; identity's side, apart from the
-  world) and the sign-in and refresh failures, by kind; whether the world drained after the stop; failed sign-outs;
-  the stop's leave failures by kind; and the leaves and sign-outs the breakers skipped.
+  stand: run again); one proven to have restarted after the last judged step (in bold; the verdict stands); or a restart
+  check that was partial or unknown (the run does not stand); the blips; the steps whose drops may be the bot PC's; the
+  steps not judged on `gc-stall` because the world build does not export its GC pause time or collections; sign-ins,
+  with their throughput (one every X s with N at once, and per minute; identity's side, apart from the world) and the
+  sign-in and refresh failures, by kind; whether the world drained after the stop; failed sign-outs; the stop's leave
+  failures by kind; and the leaves and sign-outs the breakers skipped.
 
 **Reading it.** The capacity is the last step that passed. "Failed first" says which limit gave out, and the steps
 before it show how that value climbed. A `bot PC saturated` result is a lower bound: run again with a lighter mix
