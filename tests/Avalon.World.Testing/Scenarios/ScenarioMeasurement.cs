@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 
 namespace Avalon.World.Testing.Scenarios;
 
@@ -49,7 +50,7 @@ public static class ScenarioMeasurement
         ArgumentOutOfRangeException.ThrowIfNegative(measureTicks);
 
         if (scenario.Length is { } length)
-            return RunFixed(scenario, length, warmup, measureTicks > 0);
+            return OnOwnThread(() => RunFixed(scenario, length, warmup, measureTicks > 0));
 
         using ScenarioWorld world = scenario.Build();
 
@@ -76,6 +77,36 @@ public static class ScenarioMeasurement
         return Report(scenario, world, windowBytes.Min(), tickBytes, tickDurations, timing);
     }
 
+    /// <summary>
+    /// Runs a fixed-length measurement on a thread of its own: what a thread keeps for itself (a pool's per-thread
+    /// buffers, a serializer's per-thread scratch) then starts empty on every run, whatever ran on the caller's thread
+    /// before (a test runner's other tests), and the rehearsals fill it the same way each time.
+    /// </summary>
+    private static ScenarioReport OnOwnThread(Func<ScenarioReport> run)
+    {
+        ScenarioReport? report = null;
+        ExceptionDispatchInfo? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                report = run();
+            }
+            catch (Exception e)
+            {
+                failure = ExceptionDispatchInfo.Capture(e);
+            }
+        })
+        {
+            Name = "scenario-tick",
+        };
+        thread.Start();
+        thread.Join();
+
+        failure?.Throw();
+        return report!;
+    }
+
     private static ScenarioReport RunFixed(IScenario scenario, FixedLength length, TimeSpan warmup, bool timed)
     {
         Rehearse(scenario, length, warmup);
@@ -85,14 +116,17 @@ public static class ScenarioMeasurement
         long[] tickBytes = new long[length.MeasuredTicks];
         long[] tickDurations = new long[length.MeasuredTicks];
 
+        // Before the warm-up ticks, not after them: a full collection lets the shared array pools drop what they hold,
+        // and the ticks after it rent those buffers anew. Collected here, the warm-up refills the pools, and the
+        // measured ticks find them as every run does.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
         for (int t = 0; t < length.WarmupTicks; t++)
             world.Tick();
 
         world.MarkProgress();
-
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
 
         TimingPhase timing = MeasureTicks(world, tickBytes, tickDurations);
 
