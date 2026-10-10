@@ -5,6 +5,9 @@ namespace Avalon.Infrastructure.GameAuth;
 
 public sealed record AuthAttemptReply(string AttemptCredential, string ExpectedSteamIdentity, DateTime ExpiresAt)
 {
+    /// <summary>Set, with no attempt, when the context credential the attempt names belongs to an account that may not play (#882).</summary>
+    public string? Error { get; init; }
+    public static AuthAttemptReply Refused(string error) => new(string.Empty, string.Empty, default) { Error = error };
     public override string ToString() => "Game authentication attempt (credential redacted)";
 }
 

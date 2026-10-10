@@ -191,6 +191,25 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
                 .SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1), cancellationToken);
     }
 
+    /// <summary>
+    /// Sets the status by column, on a context the caller owns so the write joins its transaction (a ban revokes the
+    /// account's tokens with it), and writes nothing else. A ban or a deactivation also raises <c>SessionEpoch</c> by
+    /// one in the same statement (#882), as a consolidation does for the account it retires: every game context,
+    /// launcher handoff, link proposal and game session the account holds is bound to the epoch it was issued at, so
+    /// each is void from this commit on, and a later reactivation revives none of them. Returns the rows written: 0
+    /// when no account has <paramref name="id"/>.
+    /// </summary>
+    public static Task<int> SetStatusAsync(AuthDbContext context, AccountId id, AccountStatus status,
+        CancellationToken cancellationToken = default)
+    {
+        IQueryable<Account> account = context.Accounts.Where(a => a.Id == id);
+        return status == AccountStatus.Active
+            ? account.ExecuteUpdateAsync(s => s.SetProperty(a => a.Status, status), cancellationToken)
+            : account.ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.Status, status)
+                .SetProperty(a => a.SessionEpoch, a => a.SessionEpoch + 1), cancellationToken);
+    }
+
     /// <summary>Only an email-change confirmation may establish proof for the replacement address.</summary>
     public static Task<int> SetConfirmedEmailAsync(AuthDbContext context, AccountId id, string email, int expectedVersion,
         DateTime verifiedAt, CancellationToken cancellationToken = default) => context.Accounts

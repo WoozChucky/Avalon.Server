@@ -385,6 +385,8 @@ enum DisconnectReason {
    DisconnectReason_SelectTimeout = 4;
    DisconnectReason_CharacterSaveFailed = 5;
    DisconnectReason_Maintenance = 6;
+   DisconnectReason_Banned = 7;
+   DisconnectReason_Deactivated = 8;
 }
 enum GameAdmissionResult {
    GameAdmissionResult_Accepted = 0;

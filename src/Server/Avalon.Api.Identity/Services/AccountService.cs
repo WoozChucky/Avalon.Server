@@ -71,6 +71,7 @@ public class AccountService : IAccountService
     private readonly IEmailSender? _emailSender;
     private readonly EmailConfig? _emailConfig;
     private readonly IExemptSources? _exemptSources;
+    private readonly Avalon.Infrastructure.GameAuth.IGameContextRevocations? _contextRevocations;
 
     /// <summary>What precedes the token in an email-change confirmation, on a line of its own (#510).</summary>
     public const string EmailChangeTokenLabel = "Confirmation code: ";
@@ -89,8 +90,10 @@ public class AccountService : IAccountService
         IReauthentication reauthentication,
         IEmailSender? emailSender = null,
         EmailConfig? emailConfig = null,
-        IExemptSources? exemptSources = null)
+        IExemptSources? exemptSources = null,
+        Avalon.Infrastructure.GameAuth.IGameContextRevocations? contextRevocations = null)
     {
+        _contextRevocations = contextRevocations;
         // The load machines (Application:RateLimiting:ExemptSources) that skip the per-source login budget and
         // account-creation cap; null, none.
         _exemptSources = exemptSources;
@@ -688,11 +691,11 @@ public class AccountService : IAccountService
         // a ban that revoked no credentials would leave the banned account a live session.
         await _authTransaction.ExecuteAsync(async (context, token) =>
         {
-            Account account = await context.Accounts.FirstOrDefaultAsync(a => a.Id == accountId, token)
-                ?? throw new BusinessException("Account not found");
-
-            account.Status = (Avalon.Domain.Auth.AccountStatus)state;
-            await context.SaveChangesAsync(token);
+            // By column, never the row read back (#882): a lock or a role change written meanwhile survives. A ban or a
+            // deactivation raises the session epoch in the same statement, which voids every game context, handoff and
+            // game session the account holds, durably: a reactivation revives none of them.
+            if (await AccountRepository.SetStatusAsync(context, accountId, (Avalon.Domain.Auth.AccountStatus)state, token) == 0)
+                throw new BusinessException("Account not found");
 
             await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
 
@@ -703,9 +706,26 @@ public class AccountService : IAccountService
             }
         }, cancellationToken);
 
-        if (state is Avalon.Api.Contract.AccountStatus.Banned or Avalon.Api.Contract.AccountStatus.Deactivated)
+        if (AccountStatusNotice.Format(accountId, (Avalon.Domain.Auth.AccountStatus)state) is { } notice)
         {
-            await PublishDisconnectAsync(accountId, "its status changed to " + state);
+            // Instead of the bare disconnect (#882): the world and the auth server close the account's connections with
+            // the reason this names. Then every world holding a session of the account is asked for a heartbeat now,
+            // which the moved epoch refuses; a server that missed the notice ends the session there. Both are best
+            // effort: the change is committed, and the epoch already voided the sessions.
+            await PublishStatusAsync(accountId, notice, state.ToString());
+            if (_contextRevocations is not null) await _contextRevocations.PublishAsync(accountId, Guid.Empty);
+        }
+    }
+
+    private async Task PublishStatusAsync(AccountId accountId, string notice, string state)
+    {
+        try
+        {
+            await _cache.PublishAsync(CacheKeys.WorldAccountsStatusChannel, notice);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish the status change of account {AccountId} to {Status}", accountId.Value, state);
         }
     }
 

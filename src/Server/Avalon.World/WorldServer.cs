@@ -800,6 +800,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private async Task CacheSubscribeAsync()
     {
         await _cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, DelayedDisconnect);
+        await _cache.SubscribeAsync(CacheKeys.WorldAccountsStatusChannel, AccountStatusChanged);
         await _cache.SubscribeAsync(GameContextRevocations.Channel, (_, value) => NotifyGameContextRevocation(Connections, value.ToString()));
         if (_maintenanceCoordinator is not null)
             await _cache.SubscribeAsync(CacheKeys.WorldMaintenance(_world.Id.Value), MaintenanceNotice);
@@ -860,6 +861,32 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         CloseAccountSessions(Connections, value, _logger);
     }
 
+    private void AccountStatusChanged(RedisChannel channel, RedisValue value)
+    {
+        CloseBannedOrDeactivated(Connections, value, _logger);
+    }
+
+    /// <summary>
+    /// Closes every connection of the account a <see cref="CacheKeys.WorldAccountsStatusChannel"/> notice names
+    /// (#882), with the reason it gives (<see cref="DisconnectReason.Banned"/> or <see cref="DisconnectReason.Deactivated"/>),
+    /// and returns how many. A notice that does not parse is ignored: the ban moved the account's session epoch, so the
+    /// next heartbeat of each of its sessions is refused anyway.
+    /// </summary>
+    public static int CloseBannedOrDeactivated(IEnumerable<IWorldConnection> connections, RedisValue message, ILogger logger)
+    {
+        string notice = message.ToString();
+        if (!AccountStatusNotice.TryParse(notice, out AccountId? accountId, out DisconnectReason reason, out string? text))
+        {
+            // Anyone who can publish on the channel chooses this text: never log more than a prefix.
+            logger.LogWarning("Ignored an account status notice that does not parse: {Message}",
+                notice.Length > MaxLoggedMessageLength ? notice[..MaxLoggedMessageLength] : notice);
+            return 0;
+        }
+
+        logger.LogInformation("Disconnecting account {AccountId}: {Reason}", accountId.Value, reason);
+        return CloseAll(connections, accountId, text, reason, logger);
+    }
+
     /// <summary>What a connection closed by an account disconnect is told (#504 review).</summary>
     public const string SessionEndedMessage = "Your session has ended. Please log in again.";
 
@@ -869,8 +896,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     /// <summary>
     /// Closes every connection in <paramref name="connections"/> held by the account
     /// <paramref name="message"/> names, and returns how many. Everything that ends an account's
-    /// sessions publishes that message: a duplicate login, a password, email or role change, an MFA
-    /// reset or removal, a ban, a refresh-token reuse. It is the bare account id, so it cannot say
+    /// sessions publishes that message, but a ban or a deactivation (<see cref="CloseBannedOrDeactivated"/>, #882):
+    /// a duplicate login, a password, email or role change, an MFA reset or removal, a refresh-token reuse. It is the bare account id, so it cannot say
     /// which, and every connection is told the same neutral <see cref="SessionEndedMessage"/> with
     /// <see cref="DisconnectReason.Kicked"/>, never "logged in from another location". All of them,
     /// not the first (#504 review): a second connection of the account, a duplicate session or one
@@ -891,7 +918,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
 
         logger.LogInformation("Disconnecting account {AccountId}", id);
-        var accountId = new AccountId(id);
+        return CloseAll(connections, new AccountId(id), SessionEndedMessage, DisconnectReason.Kicked, logger);
+    }
+
+    private static int CloseAll(IEnumerable<IWorldConnection> connections, AccountId accountId, string text,
+        DisconnectReason reason, ILogger logger)
+    {
         int closed = 0;
         // A snapshot: closing a connection can change the collection it came from.
         foreach (IWorldConnection connection in connections.Where(c => c.AccountId == accountId).ToList())
@@ -899,13 +931,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             try
             {
 #pragma warning disable MA0045 // a cache subscription callback, and the process stays up to finish the close
-                GracefulShutdownHelper.NotifyAndClose(connection, SessionEndedMessage, DisconnectReason.Kicked, logger);
+                GracefulShutdownHelper.NotifyAndClose(connection, text, reason, logger);
 #pragma warning restore MA0045
                 closed++;
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Could not close a world connection of account {AccountId}", id);
+                logger.LogError(ex, "Could not close a world connection of account {AccountId}", accountId.Value);
             }
         }
 

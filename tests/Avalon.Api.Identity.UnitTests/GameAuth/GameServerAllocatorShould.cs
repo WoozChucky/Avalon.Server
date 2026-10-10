@@ -101,9 +101,10 @@ public sealed class GameServerAllocatorShould
         Assert.Null(await Find(_context with { ProtocolVersion = "1" }));
         Assert.Null(await Find(_context with { ProtocolVersion = "0.1.0" }));
         Assert.Null(await Find(_context with { SessionEpoch = 1 }));
-        _account.Locked = true;
+        // A consolidating account is frozen; a password lock is not asked (#882).
+        _account.GameplayConsolidationId = Guid.NewGuid();
         Assert.Null(await Find());
-        _account.Locked = false;
+        _account.GameplayConsolidationId = null;
         _world.AccessLevelRequired = AccountAccessLevel.Admin;
         Assert.Null(await Find());
         _world.AccessLevelRequired = AccountAccessLevel.Player;

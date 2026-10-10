@@ -31,7 +31,8 @@ public sealed class GameServerAllocator(IWorldRepository worlds, IAccountReposit
         GameServerDefinition? server = workloads.Value.Servers.SingleOrDefault(s => s.WorldId == worldId);
         if (server is null || !databases.IsAvailable(new WorldId(worldId))) return null;
         Account? root = await accounts.FindByIdAsync(new AccountId(id), false, cancellationToken);
-        if (root is null || root.Status != AccountStatus.Active || root.IsLockedAt(clock.GetUtcNow().UtcDateTime) ||
+        // The password lock is not asked (#882): it guards the password steps only, never an identity proven another way.
+        if (root is null || root.Status != AccountStatus.Active || root.GameplayConsolidationId is not null ||
             root.CredentialsVersion != context.CredentialsVersion || root.SessionEpoch != context.SessionEpoch)
         {
             return null;

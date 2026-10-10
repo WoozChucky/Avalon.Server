@@ -36,8 +36,9 @@ public sealed partial class GameAuthorizationService
             {
                 if (consent.ReceiptExpiresAt <= Now) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
                 GameAuthReply receipt = crypto.Unprotect(consent.Receipt, key + ":" + binding);
-                return receipt.GameContextCredential is null || await GetContextAsync(receipt.GameContextCredential, false, cancellationToken) is not null
-                    ? receipt : GameAuthReply.Failure(GameAuthErrors.ContextRevoked);
+                if (receipt.GameContextCredential is null) return receipt;
+                GameContextStanding standing = await GetContextStandingAsync(receipt.GameContextCredential, false, cancellationToken);
+                return standing.Context is not null ? receipt : GameAuthReply.Failure(standing.AccountRefusal ?? GameAuthErrors.ContextRevoked);
             }
             if (consent.Binding is null && consent.ExpiresAt <= Now) return GameAuthReply.Failure(GameAuthErrors.InvalidLink);
             if (consent.WorkerUntil > Now) return GameAuthReply.Failure(GameAuthErrors.InProgress);
@@ -87,8 +88,11 @@ public sealed partial class GameAuthorizationService
                 }
                 AccountId resolvedAccountId = operation.AccountId;
                 Account? account = await accounts.FindByIdAsync(resolvedAccountId, false, cancellationToken);
-                if (!Eligible(account, resolvedAccountId.Value) || account!.CredentialsVersion != consent.CredentialsVersion ||
-                    account.SessionEpoch != consent.SessionEpoch + 1)
+                if (account is null || account.Id != resolvedAccountId || account.CredentialsVersion != consent.CredentialsVersion)
+                    return GameAuthReply.Failure(GameAuthErrors.AccountUnavailable);
+                // The consent, its code and PKCE verifier and the context credential are the proof (#882).
+                if (GameAccountStanding.Refusal(account) is { } refusal) return GameAuthReply.Failure(refusal);
+                if (!Eligible(account, resolvedAccountId.Value) || account.SessionEpoch != consent.SessionEpoch + 1)
                 {
                     return GameAuthReply.Failure(GameAuthErrors.AccountUnavailable);
                 }

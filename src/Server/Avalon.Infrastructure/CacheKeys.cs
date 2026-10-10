@@ -35,11 +35,21 @@ public static class CacheKeys
 
     /// <summary>
     /// Published, with the account id, whenever an account's sessions must end: a duplicate login,
-    /// a password change, an MFA reset or removal, a ban, an email change, a refresh-token reuse.
+    /// a password change, an MFA reset or removal, an email change, a refresh-token reuse. A ban or a
+    /// deactivation publishes on <see cref="WorldAccountsStatusChannel"/> instead (#882).
     /// Subscribed by World servers to close the matching in-world connection, and by the Auth server
     /// to close the account's logged-in auth connections (#495).
     /// </summary>
     public const string WorldAccountsDisconnectChannel = "world:accounts:disconnect";
+
+    /// <summary>
+    /// Published by the API's identity service when an account is banned or deactivated (#882), instead of
+    /// <see cref="WorldAccountsDisconnectChannel"/>: <c>{accountId}|BANNED</c> or <c>{accountId}|DEACTIVATED</c>
+    /// (<see cref="AccountStatusNotice"/>). World servers and the Auth server close the account's connections with the
+    /// matching <c>DisconnectReason</c>. A server that does not listen still ends the session: the ban moved the
+    /// account's session epoch, so its next heartbeat is refused.
+    /// </summary>
+    public const string WorldAccountsStatusChannel = "world:accounts:status";
 
     /// <summary>
     /// Published by the Auth server when an account successfully authenticates.

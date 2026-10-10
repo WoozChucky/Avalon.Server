@@ -63,7 +63,9 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
         if (existing is not null) return Matches(existing, request) ? new(null, existing) : new(GameAuthErrors.InvalidConsolidation);
         Account source = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == identity.AccountId, cancellationToken);
         Account target = await db.Accounts.AsNoTracking().SingleAsync(a => a.Id == request.TargetAccountId, cancellationToken);
-        if (!SourceEligible(source) || !Eligible(target) || source.GameplayConsolidationId is not null || target.GameplayConsolidationId is not null ||
+        // The start follows a fresh password proof, a password step, so a lock still refuses it there (#882).
+        if (!SourceEligible(source) || !Eligible(target) || source.IsLockedAt(Now) || target.IsLockedAt(Now) ||
+            source.GameplayConsolidationId is not null || target.GameplayConsolidationId is not null ||
             target.CredentialsVersion != request.CredentialsVersion || target.SessionEpoch != request.SessionEpoch ||
             source.CredentialsVersion == int.MaxValue || source.SessionEpoch >= long.MaxValue - 1 || target.SessionEpoch >= long.MaxValue - 1)
         {
@@ -183,8 +185,10 @@ public sealed class AccountConsolidationRepository(IDbContextFactory<AuthDbConte
     private static Task<bool> ConflictingPurchases(AuthDbContext db, AccountId source, AccountId target, CancellationToken ct) =>
         db.PurchaseOrders.AnyAsync(x => x.AccountId == source && x.Unresolved &&
             db.PurchaseOrders.Any(y => y.AccountId == target && y.Unresolved && y.Product == x.Product && y.LicenseEnvironment == x.LicenseEnvironment), ct);
-    private bool Eligible(Account account) => account.Status == AccountStatus.Active && (account.AccessLevel & AccountAccessLevel.Player) != 0 && !account.IsLockedAt(Now);
-    private bool SourceEligible(Account account) => Eligible(account) && account.AccessLevel == AccountAccessLevel.Player && account.IsStoreGenerated;
+    // The password lock is asked only at the start (#882): a lock landing afterwards must not let a guesser stall the
+    // finalization while both roots are frozen.
+    private static bool Eligible(Account account) => account.Status == AccountStatus.Active && (account.AccessLevel & AccountAccessLevel.Player) != 0;
+    private static bool SourceEligible(Account account) => Eligible(account) && account.AccessLevel == AccountAccessLevel.Player && account.IsStoreGenerated;
     private static bool Matches(AccountConsolidation operation, AccountConsolidationRequest request) => operation.TargetAccountId == request.TargetAccountId &&
         operation.Provider == request.Provider && operation.ProviderSubject == request.ProviderSubject && operation.TargetCredentialsVersion == request.CredentialsVersion &&
         operation.TargetSessionEpoch == request.SessionEpoch && operation.ConfirmedMfaId == request.ConfirmedMfaId &&

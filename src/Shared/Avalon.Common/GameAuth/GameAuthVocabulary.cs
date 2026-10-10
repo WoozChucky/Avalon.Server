@@ -3,6 +3,12 @@ namespace Avalon.Common.GameAuth;
 
 public static class GameAuthErrors
 {
+    /// <summary>The account is banned; named only after the caller proved who they are (#882).</summary>
+    public const string AccountBanned = "ACCOUNT_BANNED";
+    /// <summary>The account is being consolidated into another and plays again once that finishes (#882).</summary>
+    public const string AccountConsolidating = "ACCOUNT_CONSOLIDATING";
+    /// <summary>The account is deactivated; named only after the caller proved who they are (#882).</summary>
+    public const string AccountDeactivated = "ACCOUNT_DEACTIVATED";
     public const string AccountLinkConflict = "ACCOUNT_LINK_CONFLICT";
     public const string AccountLinkRequired = "ACCOUNT_LINK_REQUIRED";
     public const string AccountMismatch = "ACCOUNT_MISMATCH";
@@ -58,6 +64,12 @@ public static class GameAuthErrors
     public const string WorldBarrierPending = "WORLD_BARRIER_PENDING";
     public const string WorldConfigIncomplete = "WORLD_CONFIG_INCOMPLETE";
     public const string WorldUnavailable = "WORLD_UNAVAILABLE";
+
+    /// <summary>
+    /// Whether <paramref name="error"/> names the account's standing (banned, deactivated, consolidating), answered
+    /// 403: the caller proved who they are and the account is refused.
+    /// </summary>
+    public static bool IsAccountStanding(string? error) => error is AccountBanned or AccountDeactivated or AccountConsolidating;
 }
 
 public static class GameAuthStates

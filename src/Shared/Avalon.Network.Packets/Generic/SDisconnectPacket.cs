@@ -35,4 +35,10 @@ public enum DisconnectReason : ushort
     /// <summary>A character leave (#663) whose logout save failed; the player logs in again.</summary>
     CharacterSaveFailed = 5,
     Maintenance = 6,
+
+    /// <summary>The account was banned (#882).</summary>
+    Banned = 7,
+
+    /// <summary>The account was deactivated (#882).</summary>
+    Deactivated = 8,
 }

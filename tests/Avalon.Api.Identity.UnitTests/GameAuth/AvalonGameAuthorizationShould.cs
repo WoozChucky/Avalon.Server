@@ -1,4 +1,6 @@
+using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Identity.Controllers;
 using Avalon.Api.Identity.Services;
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
@@ -8,10 +10,13 @@ using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.GameTickets;
 using Avalon.Infrastructure.StoreAuth;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
+using AccountStatus = Avalon.Domain.Auth.AccountStatus;
 
 namespace Avalon.Api.Identity.UnitTests.GameAuth;
 
@@ -277,13 +282,11 @@ public sealed class AvalonGameAuthorizationShould
         }
     }
     [Theory]
-    [InlineData("account")]
     [InlineData("family")]
     [InlineData("epoch")]
     public async Task Account_and_launcher_family_changes_refuse_renewal(string changed)
     {
         Grant(); GameAuthReply initial = (await Handoff()).Reply;
-        if (changed == "account") _account.Status = AccountStatus.Banned;
         if (changed == "epoch") _account.SessionEpoch++;
         if (changed == "family") _families.IsLiveLauncherFamilyAsync(_account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(false);
         Assert.Equal(GameAuthErrors.ContextRevoked, (await Service().RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default)).Error);
@@ -328,6 +331,109 @@ public sealed class AvalonGameAuthorizationShould
         // An outage neither rotated nor revoked the context: once the database is back, the same token renews it.
         Assert.Equal(GameAuthStates.Authorized, (await Service().RefreshAsync(initial.GameContextRefreshToken!, Guid.NewGuid(), default)).State);
     }
+    /// <summary>
+    /// #882: every game route answered an inactive account as it answers a bad credential, so a banned player was told
+    /// only that authorization was refused. The status is now named (403), but only to a caller whose proof is current
+    /// on its own terms and whose account is still at that proof's credentials version; the ban's own epoch move and
+    /// launcher revocation do not hide it. A proof made stale (a credentials change, a logout, a reuse) or never made
+    /// keeps the generic answer. The password lock no longer gates an identity proven another way.
+    /// </summary>
+    [Theory]
+    [InlineData("handoff", "banned", 403, "ACCOUNT_BANNED")]
+    [InlineData("handoff", "deactivated", 403, "ACCOUNT_DEACTIVATED")]
+    [InlineData("handoff", "consolidating", 403, "ACCOUNT_CONSOLIDATING")]
+    [InlineData("steam", "banned", 403, "ACCOUNT_BANNED")]
+    [InlineData("refresh", "banned", 403, "ACCOUNT_BANNED")]
+    [InlineData("refresh", "consolidating", 403, "ACCOUNT_CONSOLIDATING")]
+    [InlineData("attempt", "deactivated", 403, "ACCOUNT_DEACTIVATED")]
+    [InlineData("worlds", "banned", 403, "ACCOUNT_BANNED")]
+    [InlineData("handoff", "banned-after-password-change", 401, "INVALID_HANDOFF")]
+    [InlineData("handoff", "banned-unknown-ticket", 401, "INVALID_HANDOFF")]
+    [InlineData("steam", "banned-unverified-proof", 401, "INVALID_PROOF")]
+    [InlineData("refresh", "banned-after-password-change", 401, "CONTEXT_REVOKED")]
+    [InlineData("refresh", "banned-after-logout", 401, "CONTEXT_REVOKED")]
+    [InlineData("refresh", "banned-after-reuse", 401, "REFRESH_REUSE")]
+    [InlineData("worlds", "banned-after-logout", 401, "ACCOUNT_REQUIRED")]
+    [InlineData("handoff", "locked", 200, null)]
+    [InlineData("steam", "locked", 200, null)]
+    [InlineData("refresh", "locked", 200, null)]
+    public async Task Name_an_inactive_account_only_to_a_caller_whose_proof_is_current(string route, string change, int status, string? error)
+    {
+        Grant();
+        const string Subject = "76561198000000001";
+        _identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns(new ExternalIdentity
+        { Id = Guid.NewGuid(), AccountId = _account.Id, Provider = "steam", ProviderSubject = Subject });
+        ISteamProofVerifier proof = Substitute.For<ISteamProofVerifier>();
+        proof.VerifyAsync(Arg.Any<uint>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(
+            change == "banned-unverified-proof" ? new SteamProofResult(SteamProofStatus.InvalidProof) : new SteamProofResult(SteamProofStatus.Verified, Subject));
+        ISteamOwnershipClient ownership = Substitute.For<ISteamOwnershipClient>();
+        ownership.CheckAsync(2499460, Subject, Arg.Any<CancellationToken>())
+            .Returns(_ => new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, Now, Now.AddMinutes(5)));
+        GameAuthorizationService service = TestGameAuthorization.Create(_store, new(_store, _crypto, _options, _clock), _crypto,
+            _accounts, _families, _identities, _observations, proof, ownership, _options, _clock, revocations: _revocations, gameLicenses: _licenses);
+        var auth = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        auth.Request.Scheme = "https";
+        var policy = new GameApplicationAccessPolicy(_options);
+        IGameServerAllocator allocator = Substitute.For<IGameServerAllocator>();
+        allocator.ListAsync(Arg.Any<GameContextRecord>(), Arg.Any<CancellationToken>()).Returns([]);
+        var tickets = new JoinTicketStore(_store, _crypto, service, Substitute.For<IGameSessionRepository>(), allocator, _options, _clock, policy);
+        var admission = new GameAdmissionController(service, tickets, allocator, policy)
+        {
+            ControllerContext = new() { HttpContext = new DefaultHttpContext() },
+        };
+        admission.Request.Scheme = "https";
+
+        // A context signed in before the change, for the routes that present one.
+        GameAuthReply? context = route is "refresh" or "attempt" or "worlds" ? (await Handoff(service)).Reply : null;
+        if (change == "banned-after-logout") await service.LogoutAsync(context!.GameContextCredential!, default);
+        if (change == "banned-after-reuse") await service.RefreshAsync(context!.GameContextRefreshToken!, Guid.NewGuid(), default);
+        AuthAttemptReply? attempt = route switch
+        {
+            "handoff" => await service.CreateAttemptAsync("avalon", "1", _run, new string('A', 43), null, null, default),
+            "steam" => await service.CreateAttemptAsync("steam", "1", _run, new string('A', 43), null, null, default),
+            _ => null,
+        };
+        string ticket = GameAuthCryptography.NewToken();
+        if (change != "banned-unknown-ticket") _store.Seed(RedisGameTicketStore.Key(ticket), $"7|{_family:D}|0|0|production");
+
+        // What the change does to the account, with the side effects the real one has: a ban, a deactivation and a
+        // consolidation move the session epoch and end the launcher's session.
+        if (change.StartsWith("banned", StringComparison.Ordinal)) _account.Status = AccountStatus.Banned;
+        if (change == "deactivated") _account.Status = AccountStatus.Deactivated;
+        if (change == "consolidating") _account.GameplayConsolidationId = Guid.NewGuid();
+        if (change != "locked")
+        {
+            _account.SessionEpoch++;
+            _families.IsLiveLauncherFamilyAsync(_account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(false);
+        }
+        if (change.EndsWith("after-password-change", StringComparison.Ordinal)) _account.CredentialsVersion++;
+        if (change == "locked")
+        {
+            _account.Locked = true;
+            _account.LockedUntil = Now.AddMinutes(15);
+        }
+
+        IActionResult result = route switch
+        {
+            "handoff" => await auth.Handoff(new GameHandoffRequest { AttemptCredential = attempt!.AttemptCredential, HandoffTicket = ticket }, Guid.NewGuid(), default),
+            "steam" => await auth.ProviderProof(new GameProviderProofRequest { Provider = "steam", AttemptCredential = attempt!.AttemptCredential, Proof = "ABCD" }, Guid.NewGuid(), default),
+            "refresh" => await auth.Refresh(new GameContextRefreshRequest { GameContextRefreshToken = context!.GameContextRefreshToken! }, Guid.NewGuid(), default),
+            "attempt" => await auth.ProviderAttempt(new GameProviderAttemptRequest
+            {
+                ApplicationKey = "steam.main",
+                ProtocolVersion = GameWorkloadConfiguration.ClientProtocolVersion,
+                ClientRunId = _run,
+                LinkChallenge = new string('A', 43),
+                GameContextCredential = context!.GameContextCredential,
+            }, default),
+            _ => await admission.Worlds(new GameContextCredentialRequest { GameContextCredential = context!.GameContextCredential! }, default),
+        };
+
+        ObjectResult answer = Assert.IsAssignableFrom<ObjectResult>(result);
+        Assert.Equal(status, answer.StatusCode);
+        Assert.Equal(error, answer.Value switch { GameAuthReply reply => reply.Error, GameJoinReply join => join.Error, _ => null });
+    }
+
     [Fact]
     public async Task Unknown_native_provider_is_not_an_attempt_authority()
     {
