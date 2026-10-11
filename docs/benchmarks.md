@@ -1183,6 +1183,47 @@ during a tick.
 The `tls-pool` and `tls-parallel` prototypes are gone: they measured ways to take the old outbox's write off the tick,
 which is now how it works.
 
+### World 4 ramps (#875, 2026-10-11)
+
+Four capacity ramps on the homelab's load-test world 4 ([load testing](load-testing.md)), one on each side of the
+network layer's changes. Each ran the same command, run `DEW`, from an i9-12900K bot PC:
+
+```bash
+dotnet run -c Release --project tools/Avalon.LoadTest -- ramp --run DEW --mix idle=40,walker=20,churner=10,fighter=30 \
+  --forest-time 180s --party-size 3 --start 50 --step 50 --hold 90s --max 1000 --dial 10.10.1.17
+```
+
+The figures at 200 bots are from the step's judged window. The post-update phase is the sum of the stage means of
+`world.post_update.duration` (quests, inventory, sheet, ability amounts, party status, presence, pings, outbox,
+continuations).
+
+| Ramp | Server | Capacity | Failed first | Tick p99 at 200 | Outbox stage mean at 200 | Post-update mean at 200 | Send threads busy at 200 (cores) | Pending bytes p99 | Slow kicks |
+|---|---|---:|---|---:|---:|---:|---:|---:|---:|
+| Before (report `20261010-040445-DEW`) | dev.679: flushed on the tick, always sealed | 350 | tick-p99 23.4 ms at 400 | 16.0 ms | 3,392 µs | 3,477 µs | not exported | not exported | 0 drops |
+| Send threads (#894, `20261010-205813-DEW`) | dev.685: always sealed | 250 | gc-stall 19.1 ms at 300 | 10.9 ms | 30 µs | 133 µs | 0.38 | 1,014 B | 0 |
+| Flag on (#899, `20261010-234848-DEW`) | dev.686, `Network:PacketEncryption` on | 150 | gc-stall 20.5 ms at 200 | 11.3 / 11.6 ms | 30 µs | 134 µs | 0.37 / 0.35 | 1,014 B | 0 |
+| Flag off (#899, `20261011-010327-DEW`) | dev.686, off (TLS alone) | 150 | gc-stall 52.2 ms at 200 | 9.6 / 8.0 ms | 30 µs | 131 µs | 0.34 / 0.35 | 1,014 B | 0 |
+
+Two figures in a cell are the step and its re-hold.
+
+- **The post-update phase.** At 200 players it now costs about 0.13 ms per tick, against 3.5 ms before and the spec's
+  target of under 0.5 ms.
+  - The outbox stage, which used to write every connection's packets on the tick, is a wake-up of about 30 µs, flat
+    with load.
+  - The largest stage is now quests (about 56 µs).
+- **The session layer.** It costs little: at 200 players the send threads used 0.37 cores with it on and 0.34 to 0.35
+  with it off, and the input-ack latency was the same (p95 22 to 30 ms on, 23 to 26 ms off). The tick never seals
+  (send threads seal and the read loop opens), so the gap in tick p99 between the two ramps comes from other noise in
+  the run, mostly the GC below. It is not a sealing cost.
+- **What limits capacity now.** Since the send threads, every ramp has stopped on `gc-stall`, not on tick time, slow
+  clients or the network: a gen0 collection that promotes about 21 MB pauses the world for 15 to 52 ms, about once a
+  minute (#896).
+  - When those pauses land varies from run to run, so capacity read 250, 150 and 150 on servers whose tick costs
+    match.
+  - The capacity figure says nothing about the network until #896 is fixed.
+  - With gc-stall set aside, the send-threads ramp ran 300 players for 11 minutes at a tick p99 of 12.0 ms (report
+    `20261010-211500-DEW`).
+
 ### Results — the send threads (#875, 2026-10-10)
 
 i9-12900K (24 logical processors). Windows 11 (10.0.26200), .NET 10.0.12, workstation GC, 8 send threads. Linux:
