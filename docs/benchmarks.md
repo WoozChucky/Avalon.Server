@@ -22,6 +22,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketRe
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*GetContextPacketGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallListenerGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThreadGuard*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ConnectionTick*" --job short
 
 # Not BenchmarkDotNet: the send path over real loopback sockets, the tick against the send threads (#875)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200,500,1000 1 1800 memory,tcp,tls both
@@ -30,6 +31,37 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 ---
 
 ## Suites
+
+### Connection checks — `ConnectionTickBenchmarks.cs` (#880)
+
+Measures the production readiness sweep with no pending spawn, an admitted connection's lease check before its
+heartbeat is due, and the input session filter for an admitted character in a map. Setup supplies a connected TCP
+socket, a fixed clock and an active lease; authentication setup and substitutes stay outside the measured paths.
+Each invocation performs 300 checks on the same connection, with results normalized per check. This isolates the
+recurring allocation and does not model the cache behavior of 300 distinct connections.
+
+Before/after on 2026-10-11, using the same benchmark against `0b8fc1f2` and the #880 fixes:
+
+| Method | Before mean | After mean | Before allocated | After allocated |
+|---|---:|---:|---:|---:|
+| `ReadinessSweep` | 4.700 ns | 1.193 ns | 48 B | 0 B |
+| `LeaseChecks` | 40.081 ns | 34.516 ns | 32 B | 0 B |
+| `InputFilters` | 15.775 ns | 16.009 ns | 24 B | 0 B |
+
+BenchmarkDotNet 0.15.8, ShortRun (one launch, three warmups and three measured iterations), Windows 11,
+Intel Core i9-12900K, .NET SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC. ShortRun timing confidence
+intervals are wide; the result establishes removal of these recurring allocations, not a server latency improvement.
+The readiness baseline also includes a fixed enumeration/closure cost per sweep, amortized over 300 entries here.
+
+The fixes defer captured callbacks until a spawn release or heartbeat is due, enumerate the connection snapshot as
+a span, and reuse the character's `MapId` while its backing row value is unchanged. A first map read or map change
+still creates a wrapper. `ConnectionTickAllocationShould` guards the idle and waiting readiness paths, idle lease
+checks and input filtering, including map changes through either the character or its row.
+
+Server GC pauses require a repeat of the controlled k3s load runs after deployment; these local measurements do
+not establish a new player-capacity limit or justify GC configuration changes.
+
+---
 
 ### Tick Loop — `TickLoopBenchmarks.cs`
 

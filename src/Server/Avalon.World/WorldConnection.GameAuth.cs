@@ -77,9 +77,15 @@ public partial class WorldConnection
         }
         if (_heartbeat is null && (_time.GetElapsedTime(_lastHeartbeatTicks) >= GameAuthPolicy.HeartbeatInterval || Interlocked.Exchange(ref _revalidateGameplayLease, 0) != 0))
         {
-            _lastHeartbeatTicks = _time.GetTimestamp();
-            _heartbeat = WorldDatabaseWork.Admission.Run(() => ((WorldServer)Server).AdmissionClient.HeartbeatAsync(lease, CancellationToken.None));
+            StartGameplayHeartbeat(lease);
         }
+    }
+
+    // Capture only when a heartbeat is due, not on every tick that checks the lease.
+    private void StartGameplayHeartbeat(GameSessionLease lease)
+    {
+        _lastHeartbeatTicks = _time.GetTimestamp();
+        _heartbeat = WorldDatabaseWork.Admission.Run(() => ((WorldServer)Server).AdmissionClient.HeartbeatAsync(lease, CancellationToken.None));
     }
 
     internal Task DrainGameplayAsync()

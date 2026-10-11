@@ -556,9 +556,23 @@ public partial class CharacterEntity : ICharacter
 
     public CharacterGender Gender => Data?.Gender ?? default;
 
+    private MapId? _map;
+
     public MapId Map
     {
-        get => Data?.Map ?? 0;
+        get
+        {
+            // Transfers can update the row directly. Reuse its wrapper only while the value still matches.
+            ushort value = Data?.Map ?? 0;
+            MapId? map = Volatile.Read(ref _map);
+            if (map is not null && map.Value == value)
+                return map;
+
+            map = new MapId(value);
+            Volatile.Write(ref _map, map);
+            // The receive loop can read alongside the tick; return this read's wrapper, not a later cache write.
+            return map;
+        }
         set
         {
             if (Data != null)
