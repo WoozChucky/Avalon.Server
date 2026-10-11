@@ -12,6 +12,7 @@ using Avalon.Infrastructure.GameTickets;
 using Avalon.Infrastructure.StoreAuth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -384,7 +385,7 @@ public sealed class AvalonGameAuthorizationShould
         IGameServerAllocator allocator = Substitute.For<IGameServerAllocator>();
         allocator.ListAsync(Arg.Any<GameContextRecord>(), Arg.Any<CancellationToken>()).Returns([]);
         var tickets = new JoinTicketStore(_store, _crypto, service, Substitute.For<IGameSessionRepository>(), allocator, _options, _clock, policy);
-        var admission = new GameAdmissionController(service, tickets, allocator, policy)
+        var admission = new GameAdmissionController(NullLogger<GameAdmissionController>.Instance, service, tickets, allocator, policy)
         {
             ControllerContext = new() { HttpContext = new DefaultHttpContext() },
         };

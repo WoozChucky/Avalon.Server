@@ -6,8 +6,10 @@ using System.Text;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Identity.Authentication.Jwt;
+using Avalon.Api.Testing;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
@@ -15,8 +17,6 @@ using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using Xunit;
 using static Avalon.Api.Testing.ApiTestHost;
-using Avalon.Database.Auth.Repositories;
-using Avalon.Api.Testing;
 
 namespace Avalon.Api.Hosting.UnitTests.Authentication;
 

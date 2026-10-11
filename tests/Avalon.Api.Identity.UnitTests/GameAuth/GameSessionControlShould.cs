@@ -9,6 +9,7 @@ using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
@@ -41,7 +42,7 @@ public sealed class GameSessionControlShould
         var http = new DefaultHttpContext();
         http.Request.Scheme = https ? "https" : "http";
         if (server) http.User = new(new ClaimsIdentity([new Claim(GameServerAuthHandler.ServerIdClaim, "world-1")], GameServerAuthHandler.Scheme));
-        var controller = new InternalGameAdmissionController(h.Tickets) { ControllerContext = new() { HttpContext = http } };
+        var controller = new InternalGameAdmissionController(NullLogger<InternalGameAdmissionController>.Instance, h.Tickets) { ControllerContext = new() { HttpContext = http } };
         var request = new GameSessionControlRequest { AccountId = account, FencingToken = fence, GameSessionId = Guid.NewGuid() };
         foreach (IActionResult? result in new[] {
             await controller.Activate(request, service, CancellationToken.None),

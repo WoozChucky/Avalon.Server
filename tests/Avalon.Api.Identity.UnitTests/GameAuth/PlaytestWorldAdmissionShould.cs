@@ -14,6 +14,7 @@ using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.StoreAuth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -327,7 +328,7 @@ public sealed class PlaytestWorldAdmissionShould
         public void Advance(TimeSpan elapsed) => _clock.Advance(elapsed);
         public Task<IActionResult> Worlds(string credential)
         {
-            var controller = new GameAdmissionController(Authorization, Tickets, Allocator, new GameApplicationAccessPolicy(Options.Create(Configuration)))
+            var controller = new GameAdmissionController(NullLogger<GameAdmissionController>.Instance, Authorization, Tickets, Allocator, new GameApplicationAccessPolicy(Options.Create(Configuration)))
             { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
             controller.Request.Scheme = "https";
             return controller.Worlds(new GameContextCredentialRequest { GameContextCredential = credential }, default);

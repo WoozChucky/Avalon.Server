@@ -1,7 +1,7 @@
 using Avalon.Api.Contract;
-using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Hosting.Authentication;
 using Avalon.Api.Hosting.Controllers;
+using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Identity.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
