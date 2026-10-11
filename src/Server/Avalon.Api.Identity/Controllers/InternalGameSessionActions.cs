@@ -45,7 +45,8 @@ public sealed partial class InternalGameAdmissionController
 
         try
         {
-            GameSessionLeaseReply reply = await action(serverId, new AccountId(accountId), request.GameSessionId, fence, cancellationToken);
+            GameSessionLeaseReply reply = await action(serverId, new AccountId(accountId), request.GameSessionId, fence,
+                cancellationToken);
             return reply.Error switch
             {
                 null => Ok(reply),
@@ -54,6 +55,9 @@ public sealed partial class InternalGameAdmissionController
             };
         }
         catch (Exception error) when (error is DbException or RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, GameSessionLeaseReply.Failure(GameAuthErrors.ServiceUnavailable)); }
+        {
+            logger.LogError(error, "An error occurred while performing a game session action '{Action}'", action.Method.Name);
+            return StatusCode(503, GameSessionLeaseReply.Failure(GameAuthErrors.ServiceUnavailable));
+        }
     }
 }

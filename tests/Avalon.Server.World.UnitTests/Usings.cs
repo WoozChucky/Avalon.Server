@@ -1,2 +1,2 @@
-global using Xunit;
 global using Avalon.World.Testing.Fakes;
+global using Xunit;

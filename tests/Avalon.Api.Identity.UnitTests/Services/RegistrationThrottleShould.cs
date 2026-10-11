@@ -1,7 +1,7 @@
 using System.Net;
 using Avalon.Api.Contract;
-using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Hosting.Exceptions;
+using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Identity.Config;
 using Avalon.Api.Identity.Exceptions;
 using Avalon.Api.Identity.Services;

@@ -14,8 +14,9 @@ namespace Avalon.Api.Identity.Controllers;
 [ApiController, AllowAnonymous, Route("game")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [RequestSizeLimit(GameAuthPolicy.MaximumControlBodyBytes), EnableRateLimiting(ClientAuthRateLimiting.Policy)]
-public sealed class GameAdmissionController(GameAuthorizationService authorization, JoinTicketStore tickets,
-    IGameServerAllocator allocator, GameApplicationAccessPolicy applications) : ControllerBase
+public sealed class GameAdmissionController(ILogger<GameAdmissionController> logger,
+    GameAuthorizationService authorization, JoinTicketStore tickets, IGameServerAllocator allocator,
+    GameApplicationAccessPolicy applications) : ControllerBase
 {
     [HttpPost("worlds", Name = "GetGameWorlds")]
     [ProducesResponseType(typeof(IReadOnlyList<GameWorldDestination>), StatusCodes.Status200OK)]
@@ -25,9 +26,11 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
         if (!Request.IsHttps) return BadRequest(new GameJoinReply(GameAuthErrors.HttpsRequired));
         try
         {
-            GameContextStanding standing = await authorization.GetContextStandingAsync(request.GameContextCredential, false, cancellationToken);
+            GameContextStanding standing =
+                await authorization.GetContextStandingAsync(request.GameContextCredential, false, cancellationToken);
             // A current credential whose account may not play: 403 with its standing (#882).
-            if (standing.AccountRefusal is { } refusal) return StatusCode(StatusCodes.Status403Forbidden, new GameJoinReply(refusal));
+            if (standing.AccountRefusal is { } refusal)
+                return StatusCode(StatusCodes.Status403Forbidden, new GameJoinReply(refusal));
             GameContextRecord? context = standing.Context;
             if (context?.AccountId is null) return Unauthorized(new GameJoinReply(GameAuthErrors.AccountRequired));
             if (applications.RequiresLicenseForWorldListing(context.ApplicationKey))
@@ -35,10 +38,14 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
                 context = await authorization.GetContextAsync(request.GameContextCredential, true, cancellationToken);
                 if (context is null) return Unauthorized(new GameJoinReply(GameAuthErrors.AuthorizationRequired));
             }
+
             return Ok(await allocator.ListAsync(context, cancellationToken));
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable)); }
+        {
+            logger.LogError(error, "An error occurred while retrieving the game worlds");
+            return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable));
+        }
     }
 
     [HttpPost("join-tickets", Name = "CreateGameJoinTicket")]
@@ -58,19 +65,25 @@ public sealed class GameAdmissionController(GameAuthorizationService authorizati
         if (!Request.IsHttps) return BadRequest(new GameJoinReply(GameAuthErrors.HttpsRequired));
         try
         {
-            GameJoinReply reply = await tickets.IssueAsync(request.GameContextCredential, request.WorldId, request.CharacterId,
+            GameJoinReply reply = await tickets.IssueAsync(request.GameContextCredential, request.WorldId,
+                request.CharacterId,
                 requestId, request.ConfirmTakeover, reconnect, cancellationToken);
             return reply.Error switch
             {
                 null => Ok(reply),
                 GameAuthErrors.InvalidRequest => BadRequest(reply),
-                GameAuthErrors.ActiveGameSession or GameAuthErrors.IdempotencyConflict or GameAuthErrors.ContextChanged => Conflict(reply),
+                GameAuthErrors.ActiveGameSession or GameAuthErrors.IdempotencyConflict or GameAuthErrors.ContextChanged
+                    => Conflict(reply),
                 GameAuthErrors.WorldUnavailable => StatusCode(503, reply),
-                _ when GameAuthErrors.IsAccountStanding(reply.Error) => StatusCode(StatusCodes.Status403Forbidden, reply),
+                _ when GameAuthErrors.IsAccountStanding(reply.Error) => StatusCode(StatusCodes.Status403Forbidden,
+                    reply),
                 _ => Unauthorized(reply),
             };
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable)); }
+        {
+            logger.LogError(error, "An error occurred while issuing a game join ticket");
+            return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable));
+        }
     }
 }

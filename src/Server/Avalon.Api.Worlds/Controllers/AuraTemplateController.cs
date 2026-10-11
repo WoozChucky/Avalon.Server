@@ -1,5 +1,6 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Hosting.Controllers;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Worlds.Templates;
 using Avalon.Common.ValueObjects;
@@ -10,7 +11,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using WorldData = Avalon.Domain.World;
-using Avalon.Api.Hosting.Controllers;
 
 namespace Avalon.Api.Worlds.Controllers;
 

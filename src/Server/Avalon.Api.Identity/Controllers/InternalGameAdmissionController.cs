@@ -13,7 +13,8 @@ namespace Avalon.Api.Identity.Controllers;
 [ApiController, Route("internal/game")]
 [Authorize(AuthenticationSchemes = GameServerAuthHandler.Scheme, Policy = GameServerAuthHandler.Scheme)]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None), RequestSizeLimit(GameAuthPolicy.MaximumControlBodyBytes)]
-public sealed partial class InternalGameAdmissionController(JoinTicketStore tickets) : ControllerBase
+public sealed partial class InternalGameAdmissionController(ILogger<InternalGameAdmissionController> logger,
+    JoinTicketStore tickets) : ControllerBase
 {
     [HttpPost("join-tickets/redeem", Name = "RedeemGameJoinTicket")]
     [ProducesResponseType(typeof(JoinRedemptionReceipt), StatusCodes.Status200OK)]
@@ -23,7 +24,8 @@ public sealed partial class InternalGameAdmissionController(JoinTicketStore tick
         if (!Request.IsHttps || serverId is null) return Unauthorized(JoinRedemptionReceipt.Failure(GameAuthErrors.WorkloadAuthenticationRequired));
         try
         {
-            JoinRedemptionReceipt receipt = await tickets.RedeemAsync(request.JoinTicket, serverId, request.ConnectionId, request.RedemptionId, cancellationToken);
+            JoinRedemptionReceipt receipt = await tickets.RedeemAsync(request.JoinTicket, serverId,
+                request.ConnectionId, request.RedemptionId, cancellationToken);
             return receipt.Error switch
             {
                 null => Ok(receipt),
@@ -33,6 +35,9 @@ public sealed partial class InternalGameAdmissionController(JoinTicketStore tick
             };
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
-        { return StatusCode(503, JoinRedemptionReceipt.Failure(GameAuthErrors.ServiceUnavailable)); }
+        {
+            logger.LogError(error, "An error occurred while redeeming a game join ticket");
+            return StatusCode(503, JoinRedemptionReceipt.Failure(GameAuthErrors.ServiceUnavailable));
+        }
     }
 }

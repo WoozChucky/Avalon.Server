@@ -2,9 +2,9 @@ using System.Net;
 using System.Net.Sockets;
 using Avalon.Api.Hosting.Config;
 using Avalon.Infrastructure.Login;
+using Microsoft.Extensions.Options;
 using ForwardedHeadersOptions = Microsoft.AspNetCore.Builder.ForwardedHeadersOptions;
 using IPNetwork = System.Net.IPNetwork;
-using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Hosting.Middlewares;
 
