@@ -1,6 +1,5 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
-using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -11,118 +10,121 @@ using BenchmarkDotNet.Attributes;
 
 namespace Avalon.Benchmarking.Benchmarks;
 
-/// <summary>
-/// Benchmarks the current entity tracking system (full snapshot comparison per tick).
-/// These are the BEFORE numbers; re-run after the dirty-flag redesign to compare.
-///
-/// Scenarios:
-///   AllIdle          — no entity changes between updates (the common case at 250 instances)
-///   TenPercentActive — ~10% of creatures change each tick (realistic mid-combat)
-///   AllActive        — every creature changes every tick (stress test)
-///
-/// Scale parameter: CreatureCount mirrors realistic instance density (50–200).
-/// </summary>
+/// <summary>Visibility filtering and tracking with stable membership and prebuilt frame dirty maps.</summary>
 [MemoryDiagnoser]
 public class EntityTrackingBenchmarks
 {
-    [Params(50, 100, 200)]
+    [Params(30, 200)]
     public int CreatureCount { get; set; }
+
+    [Params(0, 10, 100)]
+    public int DirtyPercent { get; set; }
 
     private CharacterCharacterGameState _gameState = null!;
     private Dictionary<ObjectGuid, ICreature> _creatures = null!;
-    private Dictionary<ObjectGuid, ICharacter> _characters = null!;
-    private List<IWorldObject> _worldObjects = null!;
-
-    // The watcher and a range that keeps every creature in view however far it drifts (#593), so the
-    // scenarios measure the interest filter plus the tracking of every creature, as before.
+    private readonly Dictionary<ObjectGuid, ICharacter> _characters = [];
+    private readonly List<IWorldObject> _worldObjects = [];
+    private readonly Dictionary<ObjectGuid, GameEntityFields> _dirty = [];
     private static readonly ObjectGuid s_watcher = new(ObjectType.Character, 1);
     private static readonly InterestRange s_seeEverything = new(float.MaxValue, 0f);
-
-    // Incremented each benchmark iteration so position changes are always novel
-    private uint _tick;
 
     [GlobalSetup]
     public void Setup()
     {
-        _tick = 0;
         _gameState = new CharacterCharacterGameState();
         _creatures = BuildCreatures(CreatureCount);
-        _characters = [];
-        _worldObjects = [];
-
-        // Prime the tracking state: first Update marks all creatures as "known".
-        // Subsequent calls measure steady-state cost, not enter-visibility cost.
-        _gameState.Update(s_watcher, Vector3.zero, s_seeEverything, _creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
-    }
-
-    /// <summary>
-    /// Baseline: all creatures idle, nothing changes between ticks.
-    /// Measures the pure snapshot-comparison overhead for unchanged entities.
-    /// After the redesign this should approach zero for idle entities.
-    /// </summary>
-    [Benchmark(Baseline = true)]
-    public void Update_AllIdle()
-    {
-        _gameState.Update(s_watcher, Vector3.zero, s_seeEverything, _creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
-    }
-
-    /// <summary>
-    /// 10% of creatures change position each tick — realistic mid-instance scenario
-    /// where some creatures are in combat while most are idle or dead.
-    /// </summary>
-    [Benchmark]
-    public void Update_TenPercentActive()
-    {
-        _tick++;
-        int active = Math.Max(1, CreatureCount / 10);
-        int i = 0;
-        foreach (Creature creature in _creatures.Values.Cast<Creature>())
+        _dirty.Clear();
+        int active = CreatureCount * DirtyPercent / 100;
+        foreach (ObjectGuid guid in _creatures.Keys)
         {
-            if (i++ >= active) break;
-            creature.Position = new Vector3(_tick, 0, _tick + i);
-            creature.CurrentHealth = (uint)Math.Max(1, creature.CurrentHealth - 1);
+            if (_dirty.Count >= active)
+                break;
+            _dirty.Add(guid, GameEntityFields.CreatureUpdate);
         }
-        _gameState.Update(s_watcher, Vector3.zero, s_seeEverything, _creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
+
+        // Prime membership and notification-list capacity outside the measured operation.
+        Update();
+        Update();
+        if (_gameState.UpdatedObjects.Count != active || _gameState.NewObjects.Count != 0)
+            throw new InvalidOperationException("Tracking benchmark did not exercise its dirty map.");
     }
 
-    /// <summary>
-    /// Every creature changes position and health each tick — worst-case active scenario.
-    /// Useful for verifying the redesign doesn't regress on fully-dirty frames.
-    /// </summary>
     [Benchmark]
-    public void Update_AllActive()
+    public int Update()
     {
-        _tick++;
-        foreach (Creature creature in _creatures.Values.Cast<Creature>())
-        {
-            creature.Position = new Vector3(_tick, 0, _tick);
-            creature.CurrentHealth = (uint)Math.Max(1, creature.CurrentHealth - 1);
-        }
-        _gameState.Update(s_watcher, Vector3.zero, s_seeEverything, _creatures, _characters, _worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
+        _gameState.Update(s_watcher, Vector3.zero, s_seeEverything, _creatures, _characters, _worldObjects, _dirty);
+        return _gameState.UpdatedObjects.Count;
     }
 
-    private static Dictionary<ObjectGuid, ICreature> BuildCreatures(int count)
+    internal static Dictionary<ObjectGuid, ICreature> BuildCreatures(int count, uint firstGuid = 1)
     {
-        var dict = new Dictionary<ObjectGuid, ICreature>(count);
-        for (uint i = 1; i <= (uint)count; i++)
+        var creatures = new Dictionary<ObjectGuid, ICreature>(count);
+        for (uint i = 0; i < (uint)count; i++)
         {
             var creature = new Creature
             {
-                Guid = new ObjectGuid(ObjectType.Creature, i),
-                Name = $"Creature_{i}",
-                Level = 1,
+                Guid = new ObjectGuid(ObjectType.Creature, firstGuid + i),
+                Name = "Benchmark creature",
                 Health = 1000,
                 CurrentHealth = 1000,
-                PowerType = PowerType.Mana,
-                Power = 100,
-                CurrentPower = 100,
                 Position = new Vector3(i, 0, i),
-                Velocity = Vector3.zero,
-                Orientation = Vector3.zero,
-                MoveState = MoveState.Idle,
             };
-            dict[creature.Guid] = creature;
+            creatures.Add(creature.Guid, creature);
         }
-        return dict;
+        return creatures;
+    }
+}
+
+/// <summary>Alternating prebuilt views exercise removals and additions without allocating inputs per update.</summary>
+[MemoryDiagnoser]
+public class EntityTrackingChurnBenchmarks
+{
+    [Params(30, 200)]
+    public int CreatureCount { get; set; }
+
+    [Params(1, 100)]
+    public int ReplacedPercent { get; set; }
+
+    private CharacterCharacterGameState _gameState = null!;
+    private Dictionary<ObjectGuid, ICreature> _first = null!;
+    private Dictionary<ObjectGuid, ICreature> _second = null!;
+    private readonly Dictionary<ObjectGuid, ICharacter> _characters = [];
+    private readonly List<IWorldObject> _worldObjects = [];
+    private readonly Dictionary<ObjectGuid, GameEntityFields> _dirty = [];
+    private static readonly ObjectGuid s_watcher = new(ObjectType.Character, 1);
+    private static readonly InterestRange s_seeEverything = new(float.MaxValue, 0f);
+    private bool _useSecond;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _gameState = new CharacterCharacterGameState();
+        _first = EntityTrackingBenchmarks.BuildCreatures(CreatureCount);
+        _second = EntityTrackingBenchmarks.BuildCreatures(CreatureCount, (uint)CreatureCount + 1);
+        int replaced = Math.Max(1, CreatureCount * ReplacedPercent / 100);
+        int index = 0;
+        foreach (ICreature creature in _first.Values)
+        {
+            if (index >= replaced)
+            {
+                _second.Remove(new ObjectGuid(ObjectType.Creature, (uint)(CreatureCount + index + 1)));
+                _second.Add(creature.Guid, creature);
+            }
+            index++;
+        }
+        _useSecond = false;
+        for (int i = 0; i < 8; i++)
+            Update();
+        if (_gameState.NewObjects.Count != replaced || _gameState.RemovedObjects.Count != replaced)
+            throw new InvalidOperationException("Tracking benchmark did not exercise membership changes.");
+    }
+
+    [Benchmark]
+    public int Update()
+    {
+        _useSecond = !_useSecond;
+        _gameState.Update(s_watcher, Vector3.zero, s_seeEverything, _useSecond ? _second : _first,
+            _characters, _worldObjects, _dirty);
+        return _gameState.NewObjects.Count + _gameState.RemovedObjects.Count;
     }
 }

@@ -50,6 +50,11 @@ public class EntityTrackingSystem(int capacity)
             }
         }
 
+        // Seen is a subset of tracked after the additions above; equal counts mean no removals.
+        // A failed removal callback can leave pending work even when membership now matches.
+        if (_seenThisFrame.Count == _trackedGuids.Count && _pendingRemovals.Count == 0)
+            return;
+
         foreach (ObjectGuid guid in _trackedGuids)
         {
             if (!_seenThisFrame.Contains(guid))

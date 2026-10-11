@@ -100,4 +100,66 @@ public class EntityTrackingSystemShould
         sut.Update([], EmptyDirty());
         Assert.False(sut.IsTracked(obj.Guid));
     }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Keep_reporting_dirty_fields_when_membership_is_unchanged(int copies)
+    {
+        EntityTrackingSystem sut = MakeSut();
+        var obj = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 1u) };
+        sut.Update([obj], EmptyDirty());
+        var updates = new List<(ObjectGuid Guid, GameEntityFields Fields)>();
+        sut.EntityUpdated += (guid, fields) => updates.Add((guid, fields));
+        List<IWorldObject> visible = copies == 1 ? [obj] : [obj, obj];
+
+        sut.Update(visible, DirtyWith(obj.Guid, GameEntityFields.Position));
+
+        Assert.Equal(copies, updates.Count);
+        Assert.All(updates, update => Assert.Equal((obj.Guid, GameEntityFields.Position), update));
+        Assert.True(sut.IsTracked(obj.Guid));
+    }
+
+    [Fact]
+    public void Remove_disappeared_entities_when_duplicate_inputs_keep_the_list_count_unchanged()
+    {
+        EntityTrackingSystem sut = MakeSut();
+        var kept = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 1u) };
+        var gone = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 2u) };
+        sut.Update([kept, gone], EmptyDirty());
+        var removed = new List<ObjectGuid>();
+        sut.EntityRemoved += removed.Add;
+
+        sut.Update([kept, kept], EmptyDirty());
+
+        Assert.Equal([gone.Guid], removed);
+        Assert.True(sut.IsTracked(kept.Guid));
+        Assert.False(sut.IsTracked(gone.Guid));
+    }
+
+    [Fact]
+    public void Finish_pending_removals_after_a_callback_throws_even_when_membership_matches()
+    {
+        EntityTrackingSystem sut = MakeSut();
+        var gone = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 1u) };
+        var kept = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 2u) };
+        sut.Update([gone, kept], EmptyDirty());
+        bool fail = true;
+        var removed = new List<ObjectGuid>();
+        sut.EntityRemoved += guid =>
+        {
+            if (fail)
+                throw new InvalidOperationException();
+            removed.Add(guid);
+        };
+        Assert.Throws<InvalidOperationException>(() => sut.Update([kept], EmptyDirty()));
+        fail = false;
+
+        sut.Update([kept], EmptyDirty());
+        sut.Update([kept], EmptyDirty());
+
+        Assert.Equal([gone.Guid], removed);
+        Assert.True(sut.IsTracked(kept.Guid));
+        Assert.False(sut.IsTracked(gone.Guid));
+    }
 }
