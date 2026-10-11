@@ -57,6 +57,9 @@ public static class NavmeshBuildSettings
         bs.vertsPerPoly = VertsPerPoly;
         bs.detailSampleDist = DetailSampleDist;
         bs.detailSampleMaxError = DetailSampleMaxError;
+        // The server consumes only the final navmesh. Let completed tiles release their diagnostic
+        // heightfields and contours while the remaining tiles bake; mesh/detail data is still kept.
+        bs.keepInterResults = false;
         bs.buildAll = true;
         bs.tiled = true;
         bs.tileSize = TileSize;

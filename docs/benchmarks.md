@@ -23,6 +23,10 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*GetConte
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallListenerGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThreadGuard*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ConnectionTick*" --job short
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ReceiveQueueBenchmarks*" --job short
+
+# Process-wide allocations and retained memory across the navmesh tile workers
+dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
 
 # Not BenchmarkDotNet: the send path over real loopback sockets, the tick against the send threads (#875)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200,500,1000 1 1800 memory,tcp,tls both
@@ -60,6 +64,69 @@ checks and input filtering, including map changes through either the character o
 
 Server GC pauses require a repeat of the controlled k3s load runs after deployment; these local measurements do
 not establish a new player-capacity limit or justify GC configuration changes.
+
+---
+
+### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
+
+Measures the production `WorldConnection` arrival, session/map filtering and handler dispatch paths. Each operation
+enqueues a burst and runs both tick passes on one admitted connection; 256 operations per invocation are normalized
+per burst. The fixed clock and non-allocating server fixture keep leases active and avoid measuring substitutes.
+Payload construction, deserialization, TLS, socket reads and movement simulation are excluded. The packet object is
+reused because this benchmark measures queue ownership, not packet creation. Arrivals and dispatch run sequentially;
+the unit tests separately exercise a producer and tick consumer on different threads.
+
+Before/after on 2026-10-11, against `6c279a9b` and the queue fix, same machine and harness:
+
+| Packets per burst | Before mean | After mean | Before allocated | After allocated |
+|---:|---:|---:|---:|---:|
+| 1 | 181.5 ns | 154.8 ns | 40 B | 0 B |
+| 32 | 4.008 us | 3.559 us | 1,280 B | 0 B |
+| 150 | 18.751 us | 16.398 us | 5,408 B | 0 B |
+
+BenchmarkDotNet 0.15.8, ShortRun (one launch, three warmups, three measured iterations), i9-12900K, Windows 11,
+SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC. Means improved in this local run; ShortRun timing
+confidence intervals are wide, particularly for the one-packet baseline. These measurements establish allocation
+removal and show no local CPU regression, not a server latency or capacity improvement.
+
+`ConcurrentQueue.TryPeek` preserves the observed segment, preventing dequeues from making its slots reusable. The
+tick now dequeues once and holds a head refused by one filter for the other pass. `ReceiveQueueAllocationShould`
+guards storage reuse at all three burst sizes. Queue behavior tests cover FIFO, held-head depth and arrival stamps,
+authorization revocation/maintenance, character-leave stale packets and the existing filter wedge behavior.
+
+### Navmesh bake — `navmesh-bake` (#880, #896)
+
+Uses the committed four-chunk town: 1,990 vertices, 3,424 triangles, 49 tiles. Tile rows compare
+`keepInterResults=true/false` in alternating AB/BA order with otherwise identical production settings and geometry.
+Production rows call the actual asynchronous baker, including OBJ composition/loading and its tile workers.
+`GC.GetTotalAllocatedBytes` includes allocations on all managed threads. Forced collections happen outside timing,
+first while the complete build result is referenced, then after releasing everything except the finished navmesh.
+This isolates retained result graphs; it does not measure peak live memory during baking or natural GC pause tails.
+
+Same environment as the queue benchmark, with the default workstation GC. Matched repeats used the same executable
+and dependencies, alternating the saved before/after World assemblies in six fresh processes: three per setting,
+24 pairs per process, two warmup bakes per mode. The saved before assembly includes the queue fix; only the navmesh
+retention setting changes between these assemblies.
+
+| Measurement | Retain intermediates | Release intermediates |
+|---|---:|---:|
+| Full tile-build result live memory, mean (144 bakes each) | 7.114 MB | 0.576 MB |
+| Final navmesh live memory | about 0.202 MB | about 0.202 MB |
+| Production bake mean (72 bakes each) | 40.032 ms | 38.017 ms |
+| Production bake median | 39.137 ms | 38.933 ms |
+| Production allocated bytes, mean | 29.154 MB | 29.053 MB |
+
+MB is decimal. The full-result graph shrank by 6.538 MB (91.9%). Initial allocations remain essentially unchanged;
+the small allocation difference varies with tiered warmup and is not attributed to this change. An initial separate
+short before/after run showed a 13.6% production-time increase; it did not reproduce in the alternating repeats.
+The matched medians are nearly unchanged, so the result is a memory-lifetime improvement without a reproducible CPU
+slowdown, not a bake-time speedup claim. No GC tuning was applied. Server GC/load-test pause effects still need a
+controlled deployment comparison with the same generated layouts and schedule.
+
+`NavmeshBakeShould` compares canonical serialized tile data and actual path, raycast and ground queries between
+retained, released and production bakes. Canonical tile order removes worker-completion ordering from the comparison.
+Mesh/detail data and every geometry parameter remain the same. Measurement summaries are committed in
+`perf/queue-navmesh-20261011.json`.
 
 ---
 
@@ -133,6 +200,9 @@ Both paths deserialize an identical `CCharacterListPacket` payload. The residual
 ---
 
 ### World Packet Queue GC-009 — `WorldPacketQueueGcBenchmarks.cs`
+
+This is a historical model comparison, not the current concurrent receive queue. Use `ReceiveQueueBenchmarks` above
+for production arrival/filter/dispatch measurements.
 
 Before/after allocation comparison for the GC-009 fix: `class WorldPacket` + `LinkedList<T>`-backed
 `LockedQueue` versus `readonly record struct WorldPacket` + `Queue<T>` ring buffer.

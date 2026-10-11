@@ -1,0 +1,266 @@
+{
+  "date": "2026-10-11",
+  "baseCommit": "6c279a9b",
+  "environment": {
+    "cpu": "Intel Core i9-12900K",
+    "logicalProcessors": 24,
+    "os": "Windows 11 10.0.26200.9457",
+    "sdk": "10.0.401",
+    "runtime": "10.0.12",
+    "gc": "Concurrent workstation, defaults"
+  },
+  "queue": {
+    "method": "Production arrival, two tick passes and counting handler. Reused payload; sequential arrivals/dispatch on one admitted connection. 256 cycles/invocation, normalized per burst.",
+    "job": "BenchmarkDotNet 0.15.8 ShortRun:1launch,3warmups,3iterations",
+    "rows": [
+      {
+        "packetsPerBurst": 1,
+        "beforeMeanNs": 181.484,
+        "afterMeanNs": 154.8,
+        "beforeAllocatedBytes": 40,
+        "afterAllocatedBytes": 0
+      },
+      {
+        "packetsPerBurst": 32,
+        "beforeMeanNs": 4007.8,
+        "afterMeanNs": 3558.6,
+        "beforeAllocatedBytes": 1280,
+        "afterAllocatedBytes": 0
+      },
+      {
+        "packetsPerBurst": 150,
+        "beforeMeanNs": 18751.1,
+        "afterMeanNs": 16398.2,
+        "beforeAllocatedBytes": 5408,
+        "afterAllocatedBytes": 0
+      }
+    ]
+  },
+  "navmesh": {
+    "fixture": "committed four-chunk town",
+    "vertices": 1990,
+    "triangles": 3424,
+    "tiles": 49,
+    "method": "6alternating fresh-process assembly repeats,3keep+3release,24AB/BA tile pairs+24production bakes each;2warmups per mode. Process-wide allocated bytes; forcedGC liveheap outsidetiming with fullresult then meshonly. Savedbeforeassembly containsqueuefix;only retentionflag changes.",
+    "production": {
+      "keep": {
+        "samples": 72,
+        "meanMs": 40.03184722222221,
+        "medianMs": 39.1365,
+        "meanAllocatedBytes": 29153657.333333332
+      },
+      "release": {
+        "samples": 72,
+        "meanMs": 38.016944444444434,
+        "medianMs": 38.933,
+        "meanAllocatedBytes": 29052549.777777776
+      }
+    },
+    "retention": {
+      "keep": {
+        "samples": 144,
+        "meanMs": 28.08486805555555,
+        "meanBuildLiveBytes": 7114267.5,
+        "meanNavmeshLiveBytes": 202146.38888888888
+      },
+      "release": {
+        "samples": 144,
+        "meanMs": 25.628416666666663,
+        "meanBuildLiveBytes": 576264.7222222222,
+        "meanNavmeshLiveBytes": 202096.72222222222
+      }
+    },
+    "processes": [
+      {
+        "phase": 0,
+        "productionKeepInterResults": true,
+        "rows": [
+          {
+            "mode": "tile-keep",
+            "meanMs": 27.68,
+            "medianMs": 27.633,
+            "meanAllocatedBytes": 24348957,
+            "meanBuildLiveBytes": 7114136,
+            "meanNavmeshLiveBytes": 202072
+          },
+          {
+            "mode": "tile-release",
+            "meanMs": 24.84,
+            "medianMs": 24.669,
+            "meanAllocatedBytes": 24354633,
+            "meanBuildLiveBytes": 576299,
+            "meanNavmeshLiveBytes": 202131
+          },
+          {
+            "mode": "production",
+            "meanMs": 39.84,
+            "medianMs": 39.115,
+            "meanAllocatedBytes": 29125968,
+            "meanBuildLiveBytes": 231440,
+            "meanNavmeshLiveBytes": 231440
+          }
+        ]
+      },
+      {
+        "phase": 1,
+        "productionKeepInterResults": false,
+        "rows": [
+          {
+            "mode": "tile-keep",
+            "meanMs": 28.206,
+            "medianMs": 27.667,
+            "meanAllocatedBytes": 24307442,
+            "meanBuildLiveBytes": 7114154,
+            "meanNavmeshLiveBytes": 202090
+          },
+          {
+            "mode": "tile-release",
+            "meanMs": 25.272,
+            "medianMs": 25.629,
+            "meanAllocatedBytes": 24310254,
+            "meanBuildLiveBytes": 576217,
+            "meanNavmeshLiveBytes": 202049
+          },
+          {
+            "mode": "production",
+            "meanMs": 38.092,
+            "medianMs": 39.088,
+            "meanAllocatedBytes": 29075030,
+            "meanBuildLiveBytes": 229309,
+            "meanNavmeshLiveBytes": 229309
+          }
+        ]
+      },
+      {
+        "phase": 2,
+        "productionKeepInterResults": true,
+        "rows": [
+          {
+            "mode": "tile-keep",
+            "meanMs": 27.974,
+            "medianMs": 27.436,
+            "meanAllocatedBytes": 24436529,
+            "meanBuildLiveBytes": 7114243,
+            "meanNavmeshLiveBytes": 202179
+          },
+          {
+            "mode": "tile-release",
+            "meanMs": 24.911,
+            "medianMs": 24.855,
+            "meanAllocatedBytes": 24444357,
+            "meanBuildLiveBytes": 576217,
+            "meanNavmeshLiveBytes": 202049
+          },
+          {
+            "mode": "production",
+            "meanMs": 41.248,
+            "medianMs": 39.993,
+            "meanAllocatedBytes": 29212119,
+            "meanBuildLiveBytes": 235694,
+            "meanNavmeshLiveBytes": 235694
+          }
+        ]
+      },
+      {
+        "phase": 3,
+        "productionKeepInterResults": false,
+        "rows": [
+          {
+            "mode": "tile-keep",
+            "meanMs": 28.185,
+            "medianMs": 27.575,
+            "meanAllocatedBytes": 24253253,
+            "meanBuildLiveBytes": 7114539,
+            "meanNavmeshLiveBytes": 202132
+          },
+          {
+            "mode": "tile-release",
+            "meanMs": 24.889,
+            "medianMs": 25.129,
+            "meanAllocatedBytes": 24247777,
+            "meanBuildLiveBytes": 576238,
+            "meanNavmeshLiveBytes": 202070
+          },
+          {
+            "mode": "production",
+            "meanMs": 38.735,
+            "medianMs": 38.96,
+            "meanAllocatedBytes": 29017236,
+            "meanBuildLiveBytes": 231438,
+            "meanNavmeshLiveBytes": 231438
+          }
+        ]
+      },
+      {
+        "phase": 4,
+        "productionKeepInterResults": true,
+        "rows": [
+          {
+            "mode": "tile-keep",
+            "meanMs": 28.229,
+            "medianMs": 27.559,
+            "meanAllocatedBytes": 24349519,
+            "meanBuildLiveBytes": 7114376,
+            "meanNavmeshLiveBytes": 202312
+          },
+          {
+            "mode": "tile-release",
+            "meanMs": 27.288,
+            "medianMs": 27.682,
+            "meanAllocatedBytes": 24354923,
+            "meanBuildLiveBytes": 576400,
+            "meanNavmeshLiveBytes": 202232
+          },
+          {
+            "mode": "production",
+            "meanMs": 39.007,
+            "medianMs": 38.814,
+            "meanAllocatedBytes": 29122885,
+            "meanBuildLiveBytes": 231550,
+            "meanNavmeshLiveBytes": 231550
+          }
+        ]
+      },
+      {
+        "phase": 5,
+        "productionKeepInterResults": false,
+        "rows": [
+          {
+            "mode": "tile-keep",
+            "meanMs": 28.235,
+            "medianMs": 27.511,
+            "meanAllocatedBytes": 24291629,
+            "meanBuildLiveBytes": 7114157,
+            "meanNavmeshLiveBytes": 202093
+          },
+          {
+            "mode": "tile-release",
+            "meanMs": 26.57,
+            "medianMs": 27.287,
+            "meanAllocatedBytes": 24304503,
+            "meanBuildLiveBytes": 576217,
+            "meanNavmeshLiveBytes": 202049
+          },
+          {
+            "mode": "production",
+            "meanMs": 37.224,
+            "medianMs": 38.794,
+            "meanAllocatedBytes": 29065384,
+            "meanBuildLiveBytes": 231523,
+            "meanNavmeshLiveBytes": 231523
+          }
+        ]
+      }
+    ],
+    "initialSequentialComparison": {
+      "beforeProductionMeanMs": 44.293,
+      "afterProductionMeanMs": 50.296,
+      "limitation": "13.6% slowdown did not reproduce in matched alternating repeats; raw sequential runs retained with local artifacts."
+    }
+  },
+  "limitations": [
+    "Queue timing is a local ShortRun;confidenceintervalswide,one-packet baseline especially. Does not measure socket/serialization/movement or multicore transport throughput.",
+    "Navmesh forcedGC measures resultgraph retention,not peakbakeheap,natural pauseeffectsor leak. Initial allocated bytes essentially unchanged;small differences tier-warmup-dependent.",
+    "No serverlatency/capacity or navCPU speedup claim;defaultServerGC cluster comparison same-layout stillrequired."
+  ]
+}
