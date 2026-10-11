@@ -108,7 +108,7 @@ public static class CharacterReadinessBarrier
     ///     reported in before the spawn was armed (<see cref="IWorldConnection.LoadReportedEarly" />).
     /// </summary>
     /// <param name="nowTicks">The UTC ticks of the world's <see cref="TimeProvider" />.</param>
-    public static void ReleaseExpired(IEnumerable<IWorldConnection> connections, IWorld world,
+    public static void ReleaseExpired(ReadOnlySpan<IWorldConnection> connections, IWorld world,
         long nowTicks, TimeSpan timeout, ILogger logger, IWorldEntryGate? gate = null,
         WorldMaintenanceCoordinator? maintenance = null, TimeProvider? clock = null)
     {
@@ -128,38 +128,44 @@ public static class CharacterReadinessBarrier
             if (!reported && waited < timeout)
                 continue;
 
-            // Read before the release: it takes the pending spawn.
-            string characterName = pending.Character.Name;
+            ReleaseReady(connection, world, pending.Character.Name, waited, reported, logger, gate, maintenance, clock);
+        }
+    }
 
-            if (reported)
-            {
-                Action entered = () => logger.LogInformation(
-                    "Character {CharacterName} entered the world for account {AccountId}; its load report " +
-                    "arrived before the spawn was armed", characterName, connection.AccountId);
-                if (gate is not null)
-                    RequestRelease(connection, world, logger, gate, entered, maintenance, clock);
-                else if (Release(connection, world, logger))
-                    entered();
-                continue;
-            }
-
+    // Keep the captured callback state off the per-connection sweep, including connections with no pending spawn.
+    // The name is read before entering this path: releasing takes the pending spawn.
+    private static void ReleaseReady(IWorldConnection connection, IWorld world, string characterName,
+        TimeSpan waited, bool reported, ILogger logger, IWorldEntryGate? gate,
+        WorldMaintenanceCoordinator? maintenance, TimeProvider? clock)
+    {
+        if (reported)
+        {
+            Action entered = () => logger.LogInformation(
+                "Character {CharacterName} entered the world for account {AccountId}; its load report " +
+                "arrived before the spawn was armed", characterName, connection.AccountId);
             if (gate is not null)
-            {
-                RequestRelease(connection, world, logger, gate, () => logger.LogWarning(
-                    "Character {CharacterName} for account {AccountId} spawned without a load report; " +
-                    "the readiness barrier expired after {WaitedMs}ms",
-                    characterName, connection.AccountId, (long)waited.TotalMilliseconds), maintenance, clock);
-                continue;
-            }
+                RequestRelease(connection, world, logger, gate, entered, maintenance, clock);
+            else if (Release(connection, world, logger))
+                entered();
+            return;
+        }
 
-            if (!CharacterReadinessBarrier.Release(connection, world, logger))
-                continue;
-
-            logger.LogWarning(
+        if (gate is not null)
+        {
+            RequestRelease(connection, world, logger, gate, () => logger.LogWarning(
                 "Character {CharacterName} for account {AccountId} spawned without a load report; " +
                 "the readiness barrier expired after {WaitedMs}ms",
-                characterName, connection.AccountId, (long)waited.TotalMilliseconds);
+                characterName, connection.AccountId, (long)waited.TotalMilliseconds), maintenance, clock);
+            return;
         }
+
+        if (!Release(connection, world, logger))
+            return;
+
+        logger.LogWarning(
+            "Character {CharacterName} for account {AccountId} spawned without a load report; " +
+            "the readiness barrier expired after {WaitedMs}ms",
+            characterName, connection.AccountId, (long)waited.TotalMilliseconds);
     }
 
     /// <summary>

@@ -678,7 +678,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         long barrierNowTicks = _time.GetUtcNow().UtcTicks;
         var barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
 
-        CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger,
+        CharacterReadinessBarrier.ReleaseExpired(conns.AsSpan(), _world, barrierNowTicks, barrierTimeout, _logger,
             _entryGate, _maintenanceCoordinator, _time);
 
         // The other half of the same failure: a select that never reached a pending spawn at all,
