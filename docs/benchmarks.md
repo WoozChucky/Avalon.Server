@@ -125,8 +125,7 @@ controlled deployment comparison with the same generated layouts and schedule.
 
 `NavmeshBakeShould` compares canonical serialized tile data and actual path, raycast and ground queries between
 retained, released and production bakes. Canonical tile order removes worker-completion ordering from the comparison.
-Mesh/detail data and every geometry parameter remain the same. Measurement summaries are committed in
-`perf/queue-navmesh-20261011.json`.
+Mesh/detail data and every geometry parameter remain the same.
 
 ---
 
