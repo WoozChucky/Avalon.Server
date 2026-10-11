@@ -29,8 +29,13 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private readonly ConcurrentQueue<WorldPacket> _receiveQueue;
 
+    // Only the tick takes a packet. A head refused by one pass stays here for the other pass,
+    // without TryPeek preserving ConcurrentQueue segments and preventing their slot reuse.
+    private WorldPacket _pendingReceivePacket;
+    private int _hasPendingReceivePacket;
+
     /// <summary>Packets received and not yet dispatched; read by the receive-queue gauge off the tick.</summary>
-    internal int ReceiveQueueDepth => _receiveQueue.Count;
+    internal int ReceiveQueueDepth => _receiveQueue.Count + Volatile.Read(ref _hasPendingReceivePacket);
 
     private readonly IWorldServer _server;
 
@@ -263,6 +268,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     {
         if (!IsGameplayAuthorized)
         {
+            ClearPendingReceivePacket();
             while (_receiveQueue.TryDequeue(out _)) { }
             return;
         }
@@ -273,23 +279,31 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         // A substitute server in tests has none.
         PacketDispatchTelemetry telemetry = _server.PacketTelemetry ?? PacketDispatchTelemetry.Disabled;
 
-        // Peek-first: if the front packet doesn't pass the filter, leave it for the other pass.
-        // TryDequeue after TryPeek is safe — only the tick thread dequeues (SPSC).
-        while (IsConnected && _receiveQueue.TryPeek(out WorldPacket packet))
+        while (IsConnected)
         {
+            WorldPacket packet;
+            if (_hasPendingReceivePacket != 0)
+                packet = _pendingReceivePacket;
+            else if (!_receiveQueue.TryDequeue(out packet))
+                break;
+
             if (!predicate(packet))
             {
                 if (!dropStaleMapPackets || Character != null || !MapSessionFilter.IsMapPacket(packet.Type))
+                {
+                    _pendingReceivePacket = packet;
+                    Volatile.Write(ref _hasPendingReceivePacket, 1);
                     break;
+                }
 
-                _receiveQueue.TryDequeue(out _);
+                ClearPendingReceivePacket();
                 _logger.LogDebug("Dropped {PacketType} queued for a character that has left the world", packet.Type);
                 if (++processedPackets > MaxPacketsPerUpdate)
                     break;
                 continue;
             }
 
-            _receiveQueue.TryDequeue(out _);
+            ClearPendingReceivePacket();
             CurrentPacketArrivedTicks = packet.ArrivedTicks;
             if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))
             {
@@ -316,6 +330,15 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             if (++processedPackets > MaxPacketsPerUpdate)
                 break;
         }
+    }
+
+    private void ClearPendingReceivePacket()
+    {
+        if (_hasPendingReceivePacket == 0)
+            return;
+        _pendingReceivePacket = default;
+        // The gauge reads the flag alone; the packet remains owned exclusively by the tick.
+        Volatile.Write(ref _hasPendingReceivePacket, 0);
     }
 
     public uint LastInputSeq { get; set; }
