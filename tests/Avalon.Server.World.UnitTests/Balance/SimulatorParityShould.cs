@@ -25,6 +25,7 @@ using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -48,9 +49,13 @@ public class SimulatorParityShould
     private static ushort SlotOf(ItemTemplate item) =>
         Enumerable.Range(0, EquipmentSlots.FirstReserved).Select(s => (ushort)s).First(s => EquipmentSlots.TypeOf(s) == item.Slot);
 
-    private static MapInstanceClient RealWarrior(MapInstance instance, uint id, params AbilityTemplate[] abilities)
+    private static MapInstanceClient RealWarrior(MapInstance instance, uint id, params AbilityTemplate[] abilities) =>
+        RealWarrior(instance, id, null, abilities);
+
+    private static MapInstanceClient RealWarrior(MapInstance instance, uint id, TimeProvider? time,
+        params AbilityTemplate[] abilities)
     {
-        MapInstanceClient warrior = Join(instance, Inventory.TestCharacters.New(id));   // a Warrior
+        MapInstanceClient warrior = Join(instance, Inventory.TestCharacters.New(id, time: time));   // a Warrior
         warrior.Character.PowerType = PowerType.Fury;
         warrior.Character.Level = Level;
         warrior.Character.Orientation = new Vector3(0f, 0f, 0f);
@@ -209,9 +214,10 @@ public class SimulatorParityShould
     [Fact]
     public void Land_cleave_and_hurled_axe_on_the_same_ticks_through_the_cast_system()
     {
+        var clock = new FakeTimeProvider(s_clockStart);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
-            random: new CombatRandom(new Random(Seed)));
-        MapInstanceClient real = RealWarrior(instance, 6760_151, Row(200), Row(202));
+            random: new CombatRandom(new Random(Seed)), time: clock);
+        MapInstanceClient real = RealWarrior(instance, 6760_151, clock, Row(200), Row(202));
         var simWarrior = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
         SimCreature simBoar = PassiveBoar(Level);
         Creature realBoar = RealBoar(instance, 6760_951, simBoar, s_pointBlank);
@@ -224,7 +230,7 @@ public class SimulatorParityShould
                 $"tick {tick}: the boar has {realBoar.CurrentHealth} health on the server, {simBoar.CurrentHealth} simulated");
             Assert.True(simWarrior.CurrentPower == real.Character.CurrentPower,
                 $"tick {tick}: the Warrior has {real.Character.CurrentPower} Fury on the server, {simWarrior.CurrentPower} simulated");
-        });
+        }, clock);
 
         Assert.True(cast[200] >= 5, $"Cleave was cast {cast[200]} times");
         Assert.True(cast[202] >= 2, $"Hurled Axe was cast {cast[202]} times");
@@ -243,9 +249,9 @@ public class SimulatorParityShould
     public void Suppress_and_resume_mana_regen_around_a_wind_up_as_a_character_entity()
     {
         const uint StartMana = 40;
-        var clock = new FixedTimeProvider(s_clockStart);
+        var clock = new FakeTimeProvider(s_clockStart);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
-            random: new CombatRandom(new Random(Seed)));
+            random: new CombatRandom(new Random(Seed)), time: clock);
         var row = new Avalon.Domain.Characters.Character
         {
             Id = new Avalon.Common.ValueObjects.CharacterId(6760_161),
@@ -341,12 +347,12 @@ public class SimulatorParityShould
     [Fact]
     public async Task Bleed_the_same_as_the_aura_system_tick_for_tick()
     {
-        var clock = new FixedTimeProvider(s_clockStart);
+        var clock = new FakeTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             abilities: () => [TestRend()], auras: () => [TestBleed()]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
-        MapInstanceClient real = RealWarrior(instance, 6760_171, TestRend());
+        MapInstanceClient real = RealWarrior(instance, 6760_171, clock, TestRend());
 
         SeedTables seed = SeedSource.Load();
         seed.AuraTemplates.Add(TestBleed());
@@ -417,12 +423,12 @@ public class SimulatorParityShould
         seed.AuraTemplates.Add(poison);
         var data = BalanceData.From(seed);
 
-        var clock = new FixedTimeProvider(s_clockStart);
+        var clock = new FakeTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             abilities: () => [gore], auras: () => [poison]));
         using MapInstance instance = TestMapInstances.BuildCasting(out _,
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(PoisonSeed)), time: clock);
-        MapInstanceClient real = RealWarrior(instance, 6760_191, Row(200));
+        MapInstanceClient real = RealWarrior(instance, 6760_191, clock, Row(200));
 
         var simWarrior = SimPlayer.Create(data, CharacterClass.Warrior, Level, s_forestWarrior.Select(data.Item));
         var simBoar = SimCreature.Create(data, data.Creature(4), Level, 0);
@@ -437,7 +443,7 @@ public class SimulatorParityShould
 
         for (int tick = 0; tick < 600; tick++)
         {
-            clock.Now = s_clockStart + Ticks(tick);
+            clock.SetUtcNow(s_clockStart + Ticks(tick));
             fight.Tick();
             if (tick == 0)
             {
@@ -481,12 +487,12 @@ public class SimulatorParityShould
     public async Task Gain_the_same_fury_from_each_bleed_tick_as_the_aura_system()
     {
         const int Gain = 8;
-        var clock = new FixedTimeProvider(s_clockStart);
+        var clock = new FakeTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             abilities: () => [TestRend(Gain)], auras: () => [TestBleed()]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
             world: MapInstanceClients.NewWorld(world), random: new CombatRandom(new Random(Seed)), time: clock);
-        MapInstanceClient real = RealWarrior(instance, 6760_172, TestRend(Gain));
+        MapInstanceClient real = RealWarrior(instance, 6760_172, clock, TestRend(Gain));
 
         SeedTables seed = SeedSource.Load();
         seed.AuraTemplates.Add(TestBleed());
@@ -527,7 +533,7 @@ public class SimulatorParityShould
         AbilityTemplate renew = Row(233);
         AuraTemplate renewAura = Data.Tables.AuraTemplates.Single(a => a.Id.Value == renew.AuraId!.Value);
         Assert.Equal(AuraPeriodicKind.Heal, renewAura.PeriodicKind);
-        var clock = new FixedTimeProvider(s_clockStart);
+        var clock = new FakeTimeProvider(s_clockStart);
         StaticData world = await TestStaticData.LoadAsync(TestStaticData.Repositories(
             abilities: () => [renew], auras: () => [renewAura]));
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
@@ -658,25 +664,24 @@ public class SimulatorParityShould
 
     /// <summary>
     /// Drives the simulator and the real instance side by side, one tick at a time. Each tick the simulator ticks
-    /// first; then every entry of its rotation, in order, is offered to the real handler, with the simulator's own
-    /// global cooldown (the handler reads the instance's clock, <paramref name="clock" /> when given and the system
-    /// clock otherwise, so the last cast start is set the simulated time since it back from that clock's now). The
-    /// entry the simulator started this tick must be accepted; every entry before it, or every
+    /// first; then every entry of its rotation, in order, is offered to the real handler. The instance, handler and
+    /// character share <paramref name="clock" />, moved only to each tick's simulated time; the handler owns the last
+    /// cast start, so scheduling pauses cannot advance the global cooldown. The entry the simulator started this tick
+    /// must be accepted; every entry before it, or every
     /// entry when it started nothing, must be refused, so the server can start neither later nor earlier than the
     /// simulator. Then the instance ticks, and each ability's cooldown and the casting state must match.
     /// </summary>
     private static Dictionary<uint, int> Exchange(FightSimulator fight, IReadOnlyList<CompiledRotationEntry> rotation,
         MapInstance instance, CastAbilityHandler handler, MapInstanceClient real, Vector3 aim, int ticks,
-        Action<int> afterTick, FixedTimeProvider? clock = null, Action? beforeUpdate = null)
+        Action<int> afterTick, FakeTimeProvider clock, Action? beforeUpdate = null)
     {
         SimPlayer sim = fight.Player;
         var groundPos = new Vector3Dto { X = aim.x, Y = aim.y, Z = aim.z };
         var casts = rotation.ToDictionary(e => e.AbilityId, _ => 0);
-        long? lastStart = null;
 
         for (int tick = 0; tick < ticks; tick++)
         {
-            if (clock is not null) clock.Now = s_clockStart + Ticks(tick);
+            clock.SetUtcNow(s_clockStart + Ticks(tick));
             double now = tick * FightSimulator.StepSeconds;
             int castsBefore = fight.Result().Casts.Count;
             fight.Tick();
@@ -689,8 +694,6 @@ public class SimulatorParityShould
 
             foreach (CompiledRotationEntry entry in rotation)
             {
-                real.Character.LastCastStartTime = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime
-                    - (lastStart is { } last ? Ticks(tick - last) : TimeSpan.FromHours(1));
                 int sentBefore = real.Sent.Count;
                 handler.Execute(real.Connection, new CCastAbilityPacket { AbilityId = entry.AbilityId, GroundPos = groundPos });
                 int refused = real.Sent.Skip(sentBefore).Count(p => p.Header.Type == NetworkPacketType.SMSG_ABILITY_NOT_READY);
@@ -699,7 +702,6 @@ public class SimulatorParityShould
                 {
                     Assert.True(refused == 0, $"tick {tick}: the server refused ability {entry.AbilityId}, which the simulator cast");
                     casts[entry.AbilityId]++;
-                    lastStart = tick;
                     break;
                 }
 
@@ -728,9 +730,10 @@ public class SimulatorParityShould
     [Fact]
     public void Set_the_same_cooldown_when_cleave_fires()
     {
-        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
-        MapInstanceClient real = RealWarrior(instance, 6760_131, Row(200));
-        real.Character.LastCastStartTime = DateTime.UtcNow.AddSeconds(-1);
+        var clock = new FakeTimeProvider(s_clockStart);
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, time: clock);
+        MapInstanceClient real = RealWarrior(instance, 6760_131, clock, Row(200));
+        real.Character.LastCastStartTime = clock.GetUtcNow().UtcDateTime.AddSeconds(-1);
         var sim = SimPlayer.Create(Data, CharacterClass.Warrior, Level, s_forestWarrior.Select(Data.Item));
 
         handler.Execute(real.Connection, new CCastAbilityPacket { AbilityId = 200 });
