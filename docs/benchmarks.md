@@ -146,16 +146,46 @@ Measures per-tick scheduling overhead of the `WorldServer` throttle mechanism.
 
 ### Entity Tracking — `EntityTrackingBenchmarks.cs`
 
-Benchmarks `EntityTrackingSystem.Update()` — the per-tick cost of computing which entities are
-visible to each connected client.
+Measures the production `CharacterCharacterGameState.Update`: interest filtering plus creature, character and
+world-object tracking. All 30 or 200 creatures are visible; the character and world-object inputs are empty.
+`EntityTrackingBenchmarks` uses stable membership with prebuilt dirty maps for 0%, 10% or 100% of creatures.
+`EntityTrackingChurnBenchmarks` alternates two prebuilt views, replacing 1% (at least one) or 100% of creatures
+on each update. Setup primes membership and notification-list capacity and checks the expected notifications.
+Input construction and dirty-map population stay outside the measured operation.
 
-| Scenario | What it models |
-|---|---|
-| `Update_AllIdle` | No entity changes between ticks (the common case) — baseline |
-| `Update_TenPercentActive` | ~10% of creatures change each tick (realistic mid-combat) |
-| `Update_AllActive` | Every creature changes every tick (worst-case stress) |
+Before/after on 2026-10-11, the same corrected harness against `d9a10051` and the tracking early exit:
 
-Scale parameter `CreatureCount` runs at 50 / 100 / 200 to validate O(n) behaviour.
+| Creatures | Dirty | Before mean | After mean | Reduction | Allocated, both |
+|---:|---:|---:|---:|---:|---:|
+| 30 | 0% | 0.781 us | 0.563 us | 27.8% | 0 B |
+| 30 | 10% | 0.820 us | 0.627 us | 23.6% | 0 B |
+| 30 | 100% | 0.902 us | 0.683 us | 24.3% | 0 B |
+| 200 | 0% | 4.868 us | 3.566 us | 26.7% | 0 B |
+| 200 | 10% | 5.223 us | 4.259 us | 18.4% | 0 B |
+| 200 | 100% | 5.554 us | 4.420 us | 20.4% | 0 B |
+
+| Creatures | Replaced | Before mean | After mean | Reduction | Allocated, both |
+|---:|---:|---:|---:|---:|---:|
+| 30 | 1% | 0.745 us | 0.690 us | 7.4% | 0 B |
+| 30 | 100% | 1.404 us | 1.261 us | 10.2% | 0 B |
+| 200 | 1% | 4.698 us | 4.194 us | 10.7% | 0 B |
+| 200 | 100% | 8.425 us | 8.154 us | 3.2% | 0 B |
+
+BenchmarkDotNet 0.15.8, one launch, ten warmups and eight requested measurements, affinity mask 4,
+i9-12900K, Windows 11, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC. Standard outlier filtering
+retained seven or eight measurements. These are sequential local runs, not a capacity estimate; production uses
+Server GC and varying interest sets. Churn includes the unchanged-membership fast path for the two empty trackers. The 200-creature/full-replacement
+confidence intervals overlap; its 3.2% reduction is an observed mean difference, not an established speedup.
+
+The old active cases mutated creatures but passed an empty dirty map and allocated a new dictionary per call;
+the corrected cases exercise update notifications and report the production path's allocation cost. Comparing
+the old harness's numbers with this table would mix harness changes with the optimization.
+
+After additions and dirty notifications, every seen guid is already tracked. Equal set counts therefore allow
+skipping the removal scan when no pending removals remain. Changing membership retains the original scan;
+the pending-work check also preserves recovery after a removal callback throws. Replication cadence, visibility
+rules and packet contracts are unchanged. Existing reset and same-count replacement coverage remains in place;
+tracking tests additionally protect dirty updates, duplicate inputs and pending-removal recovery.
 
 ---
 
