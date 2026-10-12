@@ -6,6 +6,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Telemetry;
 
 namespace Avalon.World.Entities;
 
@@ -70,6 +71,20 @@ public class CharacterCharacterGameState
         List<IWorldObject> worldObjects,
         IReadOnlyDictionary<ObjectGuid, GameEntityFields> frameDirtyFields)
     {
+        InstanceTickProfile profile = default;
+        UpdateProfiled(watcher, watcherPosition, range, creatures, characters, worldObjects, frameDirtyFields, ref profile);
+    }
+
+    internal void UpdateProfiled(
+        ObjectGuid watcher,
+        Vector3 watcherPosition,
+        InterestRange range,
+        Dictionary<ObjectGuid, ICreature> creatures,
+        Dictionary<ObjectGuid, ICharacter> characters,
+        List<IWorldObject> worldObjects,
+        IReadOnlyDictionary<ObjectGuid, GameEntityFields> frameDirtyFields, ref InstanceTickProfile profile)
+    {
+        long profileStart = profile.Timestamp();
         _newObjects.Clear();
         _updatedObjects.Clear();
         _removedObjects.Clear();
@@ -95,9 +110,23 @@ public class CharacterCharacterGameState
                 _visibleWorldObjects.Add(worldObject);
         }
 
+        profile.VisibilityTicks += profile.Elapsed(profileStart);
+        if (profile.Enabled)
+        {
+            profile.CandidateChecks += (long)creatures.Count + characters.Count + worldObjects.Count;
+            profile.VisiblePairs += (long)_visibleCreatures.Count + _visibleCharacters.Count + _visibleWorldObjects.Count;
+        }
+        profileStart = profile.Timestamp();
         _creatureTrackingSystem.Update(_visibleCreatures, frameDirtyFields);
         _characterTrackingSystem.Update(_visibleCharacters, frameDirtyFields);
         _worldObjectTrackingSystem.Update(_visibleWorldObjects, frameDirtyFields);
+        profile.TrackingTicks += profile.Elapsed(profileStart);
+        if (profile.Enabled)
+        {
+            profile.Added += _newObjects.Count;
+            profile.Updated += _updatedObjects.Count;
+            profile.Removed += _removedObjects.Count;
+        }
     }
 
     /// <summary>

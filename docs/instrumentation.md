@@ -84,3 +84,7 @@ Every handler run records `avalon.packet.handler.duration` (ms, tagged `avalon.p
 - `kind`: `despawn` for the save of a character leaving the world, `periodic` for every other save (the periodic save, instance and map entry, and saves of several characters at once).
 
 The span starts once the batch stops waiting behind an earlier save of the same character, so the queue is not in it, and covers the despawn row preparation and the repository write ([inventory and saves](inventory-and-saves.md)).
+
+## Correlated tick phase traces
+
+For bounded, opt-in visibility, tracking and replication phase records correlated with individual slow ticks, see [tick phase traces](tick-profiling.md).
