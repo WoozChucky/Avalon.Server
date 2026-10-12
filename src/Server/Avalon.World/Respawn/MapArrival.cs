@@ -16,15 +16,18 @@ namespace Avalon.World.Respawn;
 /// </summary>
 public static class MapArrival
 {
-    /// <summary>The instance's entry spawn, or the template's default spawn for an instance with no layout.</summary>
+    /// <summary>
+    /// The instance's entry spawn, or the template's default spawn for an instance that is not a
+    /// <see cref="MapInstance" />.
+    /// </summary>
     public static Vector3 SpawnOf(IMapInstance instance, MapTemplate template) =>
-        instance is MapInstance { EntrySpawnWorldPos: { } entry }
-            ? entry
+        instance is MapInstance built
+            ? built.EntrySpawnWorldPos
             : new Vector3(template.DefaultSpawnX, template.DefaultSpawnY, template.DefaultSpawnZ);
 
     /// <summary>
     /// Sends <paramref name="connection" /> a successful transition into <paramref name="instance" /> at
-    /// <paramref name="at" />, then, for an instance built from a chunk layout, that layout (its chunks and portals).
+    /// <paramref name="at" />, then, for a <see cref="MapInstance" />, its chunk layout (its chunks and portals).
     /// Call it in the same callback as the transfer.
     /// </summary>
     public static void Send(IWorldConnection connection, IMapInstance instance, MapTemplate template, Vector3 at,
@@ -33,9 +36,10 @@ public static class MapArrival
         connection.Send(SMapTransitionPacket.Create(MapTransitionResult.Success, instance.InstanceId, template.Id.Value,
             at.x, at.y, at.z, template.Name, template.Description, PacketEncoder.Shared));
 
-        if (instance is not MapInstance { Layout: { } layout } built)
+        if (instance is not MapInstance built)
             return;
 
+        ChunkLayout layout = built.Layout;
         var chunks = layout.Chunks.Select(c => new PlacedChunkDto
         {
             ChunkTemplateId = c.TemplateId.Value,

@@ -281,9 +281,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     internal bool HasBeenEntered { get; private set; }
     public int Seed { get; }
-    public string ConfigVersion => Layout?.ConfigVersion ?? string.Empty;
-    public ChunkLayout? Layout { get; }
-    public Vector3? EntrySpawnWorldPos { get; }
+    public string ConfigVersion => Layout.ConfigVersion ?? string.Empty;
+
+    /// <summary>
+    /// The chunk layout this instance was built from. Every instance has one (#912): it is what a client is sent
+    /// behind a successful arrival. World-side, not on IMapInstance.
+    /// </summary>
+    public ChunkLayout Layout { get; }
+    public Vector3 EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;
 
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;

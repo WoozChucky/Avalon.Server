@@ -70,9 +70,9 @@ public class EnterMapHandler(
         // Every instance is now chunk-layout-built and carries its portals on Layout.Portals
         // (surfaced as PortalInstance via PortalPlacementService). The legacy DB MapPortal
         // fallback was deleted with this task.
-        if (currentInstance is not MapInstance mi || mi.Layout is null)
+        if (currentInstance is not MapInstance mi)
         {
-            logger.LogError("EnterMap: current instance has no Layout; refusing teleport for character {Name}",
+            logger.LogError("EnterMap: no live map instance for character {Name}; refusing teleport",
                 character.Name);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
                 PacketEncoder.Shared));
@@ -258,12 +258,13 @@ public class EnterMapHandler(
         // the loot snapshot on its next tick, and the client has to know the map before its drops.
         world.TransferPlayer(connection, targetInstance);
 
-        // 10. Resolve spawn coords: every chunk-layout-built instance (town + normal) carries
-        // the canonical entry spawn on its Layout. Fall back to template defaults only if the
-        // instance somehow lacks one (defensive — should not happen post-Task 7).
+        // 10. Resolve spawn coords: every MapInstance (town + normal) carries the canonical
+        // entry spawn of its Layout. The template defaults serve only a target that is not a
+        // MapInstance.
         float spawnX, spawnY, spawnZ;
-        if (targetInstance is MapInstance miSpawn && miSpawn.EntrySpawnWorldPos is Vector3 entrySpawn)
+        if (targetInstance is MapInstance miSpawn)
         {
+            Vector3 entrySpawn = miSpawn.EntrySpawnWorldPos;
             spawnX = entrySpawn.x;
             spawnY = entrySpawn.y;
             spawnZ = entrySpawn.z;
@@ -285,10 +286,11 @@ public class EnterMapHandler(
             targetTemplate.Description,
             PacketEncoder.Shared));
 
-        // 12. Send chunk layout packet for any instance backed by a ChunkLayout
+        // 12. Send the chunk layout packet: every MapInstance is built from a ChunkLayout
         // (town + normal both flow through ChunkLayoutInstanceFactory now).
-        if (targetInstance is MapInstance layoutMi && layoutMi.Layout is { } layout)
+        if (targetInstance is MapInstance layoutMi)
         {
+            ChunkLayout layout = layoutMi.Layout;
             var dtos = layout.Chunks.Select(c => new PlacedChunkDto
             {
                 ChunkTemplateId = c.TemplateId.Value,

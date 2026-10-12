@@ -539,9 +539,9 @@ public class CharacterSelectHandler(
         float spawnX = character.X;
         float spawnY = character.Y;
         float spawnZ = character.Z;
-        if (instance is MapInstance townMi && townMi.Layout is { } townLayout
-            && townTemplate.MapType == MapType.Town)
+        if (instance is MapInstance townMi && townTemplate.MapType == MapType.Town)
         {
+            ChunkLayout townLayout = townMi.Layout;
             spawnX = townLayout.EntrySpawnWorldPos.x;
             spawnY = townLayout.EntrySpawnWorldPos.y;
             spawnZ = townLayout.EntrySpawnWorldPos.z;
@@ -575,9 +575,10 @@ public class CharacterSelectHandler(
 
         // Send chunk layout so the client can compose the stitched map
         // and bake its local navmesh. Town + normal both flow through
-        // ChunkLayoutInstanceFactory now, so any MapInstance with a Layout qualifies.
-        if (instance is MapInstance layoutMi && layoutMi.Layout is { } layout)
+        // ChunkLayoutInstanceFactory now, and every MapInstance has a Layout.
+        if (instance is MapInstance layoutMi)
         {
+            ChunkLayout layout = layoutMi.Layout;
             var dtos = layout.Chunks.Select(c => new PlacedChunkDto
             {
                 ChunkTemplateId = c.TemplateId.Value,
