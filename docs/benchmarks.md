@@ -25,6 +25,8 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThre
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ConnectionTick*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ReceiveQueueBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TimeSync*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AbilityScriptBuild*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveScriptLookup*"
 
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
@@ -36,6 +38,102 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 ---
 
 ## Suites
+
+### Ability script construction — `Benchmarks/AbilityScriptBuildBenchmarks.cs` (#925)
+
+What building one cast's ability script costs, as `InstanceAbilityCastSystem.Build` does it for every cast, a
+character's, a creature's or an item's: a copy of the caster's ability, then the script built from
+`(ability, caster, aim, arena)`. `Activated_per_cast` is what the cast system did before #925: the ability cloned
+whole, its metadata included, and `ActivatorUtilities.CreateInstance`, with its `params` array and the aim boxed.
+`Cached_factory` is what it does now: the copy that shares the ability's metadata (`GameAbility.CloneForCast`), and
+the `AbilityScriptActivator`, one `ActivatorUtilities.CreateFactory` factory per script type, called with an argument
+array and an aim box the cast system keeps. The other rows are parts: each copy alone, and the script built with `new`
+over a copy made beforehand. The caster and the arena are substitutes no constructor calls, and nothing fires. A cone
+builds like a circle (the same fields); a projectile also keeps the set of units it has hit.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AbilityScriptBuild*"
+```
+
+Measured 2026-10-13, BenchmarkDotNet 0.15.8 defaults, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12,
+concurrent workstation GC. Three runs, with other builds running on the machine: the allocations are exact and the
+same in every run, the means are given for each run and move with the load.
+
+| | Circle, allocated | Circle, mean of each run | Projectile, allocated | Projectile, mean of each run |
+|---|---:|---:|---:|---:|
+| `Activated_per_cast` (before) | 456 B | 105.1 / 128.0 / 111.4 ns | 552 B | 109.9 / 168.1 / 125.5 ns |
+| `Cached_factory` (after) | 224 B | 56.8 / 42.5 / 44.7 ns | 320 B | 52.1 / 62.5 / 53.2 ns |
+| `Clone_alone` | 160 B | 16.3 / 19.2 / 16.7 ns | 160 B | 20.5 / 18.3 / 18.2 ns |
+| `Cast_copy_alone` | 48 B | 7.0 / 8.5 / 6.2 ns | 48 B | 3.7 / 6.0 / 5.8 ns |
+| `Constructor_alone` | 176 B | 14.9 / 17.7 / 17.1 ns | 272 B | 20.1 / 29.1 / 20.0 ns |
+
+The quietest rows have 99.9% half-intervals of about 2 ns before and 1 ns after (circle, third run: 111.4 ± 1.9
+against 44.7 ± 0.9 ns; projectile, first run: 109.9 ± 2.1 against 52.1 ± 1.1 ns); the loudest reach 11 ns. Across
+the runs a build takes between a third and a little over half the time it took, and 232 B less. `Activated_per_cast` runs the old call over
+today's script class, which no longer builds its empty chain list, so it reads 32 B under what a build did cost: 488 B
+for a circle or a cone and 584 B for a projectile, measured on `46b38375` on 2026-10-12, where the factory alone, with
+the clone and the box as they were, read 98.1 against 57.1 ns and 101.2 against 63.8 ns (99.9% intervals 96.1–100.1
+against 55.9–58.2 and 99.2–103.2 against 62.5–65.1 ns), 56 B less.
+
+What a build allocates, by part (the copy and the constructor from the rows above; the constructor's parts measured
+one object at a time with `GC.GetAllocatedBytesForCurrentThread`):
+
+| Part | Before #925 | Now, circle or cone | Now, projectile |
+|---|---:|---:|---:|
+| The `params` array of `CreateInstance` | 56 B | | |
+| The aim, boxed for the activation; one box per cast system now | 64 B | | |
+| The ability's copy: a `GameAbility` | 48 B | 48 B | 48 B |
+| Its `AbilityMetadata`, copied; shared now | 112 B | | |
+| The script object | 152 B, a projectile 184 B | 152 B | 184 B |
+| Its `ChainedScripts` list, empty; made on first use now | 32 B | | |
+| Its `State`, a boxed `SpellState` (the property is an `object`) | 24 B | 24 B | 24 B |
+| The projectile's set of units hit | 64 B | | 64 B |
+| **A build** | **488 B, a projectile 584 B** | **224 B** | **320 B** |
+
+Firing it adds its guid (an `ObjectGuid`, 24 B) and, for a circle or a cone, the second boxed `SpellState` when it
+finishes (24 B). What is left, and why, is in [the cast path](#results--the-cast-path-925-883-2026-10-13).
+
+The factory is found in a table held weakly by script type on every cast; that lookup is in the `Cached_factory`
+figure. Making a factory is not: it compiles the constructor call, about 0.5 ms and 10 KB for a script type and about
+12 ms and 27 KB for the first in a cold process (per-cast activation paid about 7 ms for the first type and 0.3 to
+0.6 ms for a later one, over each type's first two calls), read with a stopwatch around the first builds of each type
+in a new process. `ScriptManager.Load` has every ability script's factory made as it registers the type, off the
+tick, so no cast pays it; a type that reaches a cast any other way has its factory made by that cast.
+
+### Active script lookup — `Benchmarks/ActiveScriptLookupBenchmarks.cs` (#883)
+
+`InstanceAbilityCastSystem.GetAbility` over 1 to 64 projectiles in flight. The state broadcast asks it for every
+projectile each viewer is sent, so one invocation is one viewer's share: every active projectile looked up once.
+`Walk_the_list` is the lookup as it was at every size, a walk of the active scripts comparing guids;
+`Cast_system_lookup` is the cast system's own since #883: the same walk up to eight scripts
+(`InstanceAbilityCastSystem.WalkedUpTo`), and an index by guid above that. `Refill_the_index` is what the first
+lookup after a cast or a removal pays once above eight, for every viewer together: the index is emptied by every
+change to the active scripts (a removal sweep that throws part-way included), so it never answers with one that left
+nor keeps it alive, and filled again from the list.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveScriptLookup*"
+```
+
+Measured 2026-10-12, BenchmarkDotNet 0.15.8 defaults, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12,
+concurrent workstation GC (the two lookups from one run, the refill from the run before it):
+
+| Active scripts | `Walk_the_list` (before) | `Cast_system_lookup` (after) | Ratio | `Refill_the_index`, once per change | Allocated, all |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 1.44 ns | 2.45 ns | 1.71 | not indexed | 0 B |
+| 4 | 12.6 ns | 15.7 ns | 1.24 | not indexed | 0 B |
+| 8 | 44.8 ns | 50.5 ns | 1.14 | not indexed | 0 B |
+| 16 | 150.2 ns | 46.1 ns | 0.31 | 76.3 ns | 0 B |
+| 64 | 2,368 ns | 190.8 ns | 0.08 | 269.5 ns | 0 B |
+
+At eight and under both walk, and the cast system's costs 0.6 to 1.0 ns more per lookup: a call into the collection
+that decides between the walk and the index. The run before read 70.8 ns for the cast system at 8, against 42.0 ns
+for the walk, with every other size within 10% of the table. Above eight a lookup costs about 3 ns whatever the
+count, where the walk costs 9.4 ns a lookup at 16 and 37 ns at 64. The index would win from about five scripts on
+lookups alone; it is used from nine because it also costs a refill on every change and its memory: an instance
+allocates it the first time it holds more than eight active scripts, sized for its list (360 B at nine), and again
+only when its peak outgrows it (a peak that creeps from 9 to 72 grows it nine times, about 11 KB in all, once per
+instance). One party's fight seldom gets there: in `forest-combat` one forest does, once in the measured minute.
 
 ### Time sync — `Benchmarks/TimeSyncBenchmarks.cs` (#892)
 
@@ -2096,20 +2194,21 @@ Release and reported in Debug (#890):
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
-  since server packets are built in per-thread messages; the file was last regenerated at `8b497fec`, for `forest-combat`), so the 256 B
+  since server packets are built in per-thread messages; the file was last regenerated at `8ee75204`, for `forest-combat`), so the 256 B
   floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
   per window).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the one figure above 0 (15,635 B per window since #890 took the query out of the melee slots'
-  release), and at that size the 256 B floor decides for it too (1% is 156 B): it fails above 15,891 B, a little over
+  `forest-combat` is the one figure above 0 (11,543 B per window since #925 took most of a cast's script build off
+  the heap), and at that size the 256 B floor decides for it too (1% is 115 B): it fails above 11,799 B, a little over
   4 B per tick for the whole fight, so one 24 B object every five ticks fails it. It reads the same in the gate alone
-  and in a whole World suite run ([the melee slots' release](#results--the-melee-slots-release-890-2026-10-12)). Its
-  Debug run reads 305 B per window above the committed figure (15,940 B, alone and in the suite: objects on the kill
-  and corpse-removal paths and in the creature scripts that only optimised code keeps off the heap), 49 B more than
-  the floor allows, so its Debug figure crosses the floor with no change.
+  and in a whole World suite run ([the cast path](#results--the-cast-path-925-883-2026-10-13)). Its Debug run reads
+  237 B per window above the committed figure (11,780 B, alone and in the suite: objects on the kill path and in the
+  creature scripts that only optimised code keeps off the heap), 19 B less than the floor allows: within the gate,
+  by less than one small object a minute. Until #883 took the closure out of `CancelScriptsOf` it read 305 B above,
+  49 B more than the floor allows, and crossed it with no change.
   The escape hatch below applies to it alone (owner, #890): `forest-combat` is decided in Release (CI) and reported,
   not gated, in Debug.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
@@ -2214,17 +2313,21 @@ no character reaches level 2. `ForestCombatScenarioShould` runs the scenario twi
 same kills and the same bytes per window; the second run's creatures carry higher ids (the process-wide object id
 counter), which changes neither.
 
-**Gate.** Committed at **15,635 B per window** (21.7 B per player per tick, 261 B per tick), a hard gate like the town
+**Gate.** Committed at **11,543 B per window** (16.0 B per player per tick, 192 B per tick), a hard gate like the town
 scenarios: see [The allocation gate](#the-allocation-gate) for the floor. Recorded on the developer machine, Release,
 dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)), #888
 took the send path off the tick thread's bill, #875 encoded each broadcast once
-([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)), and #890 took the query out of the melee slots'
-release ([the melee slots' release](#results--the-melee-slots-release-890-2026-10-12)). The same figure every run: at
+([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)), #890 took the query out of the melee slots'
+release ([the melee slots' release](#results--the-melee-slots-release-890-2026-10-12)), and #925 and #883 took most
+of a cast's script build, and its log lines, off the heap
+([the cast path](#results--the-cast-path-925-883-2026-10-13)). The same figure every run: at
 16,252, five two-run checks in Release on the developer machine, and the gate and the check in a Linux container
 (4 CPUs, 16 GB); at 16,244, three runner runs, the run that wrote it and the Release gate on the developer machine; at
 15,635, two runner runs, the second the one that wrote it, three runs of the Release gate alone and three of the whole
-World suite in Release, the two-run check in each of those, all on the developer machine. No Linux run was made at
-15,635: CI decides on Linux, and its figure is to be read from the first CI run's "Scenario allocation gate" summary.
+World suite in Release, the two-run check in each of those, all on the developer machine; at 11,543, two runner
+runs, the second the one that wrote it, three runs of the Release gate alone and one of the whole World suite in
+Release, on the developer machine. No Linux run was made at 15,635 or at 11,543: CI decides on Linux, and its figure
+is to be read from the first CI run's "Scenario allocation gate" summary.
 
 | `forest-combat`, bytes per window | |
 |---|---:|
@@ -2232,15 +2335,16 @@ World suite in Release, the two-run check in each of those, all on the developer
 | After #880's fix (PGO on) | 201,643 |
 | After #888's outbound packets (PGO on) | 16,252 |
 | After shared broadcasts (#875, PGO on) | 16,244 |
-| After the melee slots' release (#890, PGO on), now | 15,635 |
-| Debug, now | 15,940 |
+| After the melee slots' release (#890, PGO on) | 15,635 |
+| After the cast path (#925, #883, PGO on), now | 11,543 |
+| Debug, now | 11,780 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
 
 Four forests of about 840 creatures and twelve fighters cost about as much per tick as `town-walk`'s 30 walkers: most
 creatures are far from any player, and an idle creature's AI looks for players once a second rather than every tick.
-The minute allocates 0.94 MB on the tick thread.
+The minute allocates 0.69 MB on the tick thread.
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a
@@ -2265,7 +2369,8 @@ Rent runs on the tick and, since #875, the send threads give segments back from 
 them with one lock per size class ([the payload pool under the send threads](#the-payload-pool-under-the-send-threads-875-2026-10-10)). The lock-free alternatives allocate
 (`ConcurrentStack` creates a node per push), which is what the pool exists to avoid.
 
-Of the 938 KB a measured minute allocates, measured with allocation counters around the steps of the tick (Release):
+Of the 938 KB a measured minute allocated at 15,635 B per window, before #925, measured with allocation counters
+around the steps of the tick (Release):
 
 | Share | Where |
 |---:|---|
@@ -2275,7 +2380,13 @@ Of the 938 KB a measured minute allocates, measured with allocation counters aro
 | <1% | Corpse removal (about 60 B a corpse) |
 | <1% | Broadcasts and auras |
 
-The per-cast script construction is the next thing to take out. Before #880's fix, a sampled allocation profile of the
+The per-cast script construction was the next thing to take out, and #925 took out nearly half of it (3,498 B per
+window of 7,322), and the cast's log lines with it: 4,092 B per window in all, 26% of the minute
+([the cast path](#results--the-cast-path-925-883-2026-10-13)). The "about 700 B a cast" above was the whole build,
+488 B for a circle or a cone and 584 B for a projectile, and the lines logged around it; a build is 224 B and 320 B
+now, 229,440 B of the 692,580 B the minute allocates, 33%.
+
+Before #880's fix, a sampled allocation profile of the
 measured ticks (the runtime's `GCAllocationTick` events, about 800 samples over four runs, PGO off; read by type, so a
 share is approximate) read:
 
@@ -2298,6 +2409,76 @@ scenario a `List<IAbility>`) and the closures on the combat path this scenario r
 and `147_0` cannot be matched by name from a profile; any left on paths the forest does not take stay open). It does
 not touch `MapId`, which no forest tick allocates, nor the network-layer items. The driver itself allocates nothing: it
 holds its packets and its ability, and reads the ability's cooldown itself rather than asking the character.
+
+### Results — the cast path (#925, #883, 2026-10-13)
+
+What a cast allocates on its way to a script, taken out one part at a time. `forest-combat`, bytes per window, the
+Release gate alone, i9-12900K, Windows 11 (10.0.26200), .NET 10.0.12, dynamic PGO on; before is `c6d52b01`, which
+read its committed 15,635 B (Debug 15,940). The measured minute builds 795 scripts: 621 for the players' casts (112
+cones and 509 projectiles) and 174 for the creatures' (26 circles, 122 cones and 26 projectiles); it removes 64
+creatures.
+
+| Change | Bytes per window | Step | What went |
+|---|---:|---:|---|
+| Before | 15,635 | | |
+| Ability scripts built through a factory kept per script type (#925) | 14,893 | -742 | The `params` array of `ActivatorUtilities.CreateInstance`, 56 B a cast. On this runtime that was all the activation allocated: it keeps its constructor search in a cache and its argument buffers on the stack. |
+| `CancelScriptsOf` without a closure (#883) | 14,867 | -26 | The closure of its `RemoveAll` predicate, 24 B for each creature removed (Debug also made the delegate, 64 B). |
+| Active scripts found by guid above eight (#883) | 14,873 | +6 | One forest's index, 360 B, the one time its active scripts pass eight ([active script lookup](#active-script-lookup--benchmarksactivescriptlookupbenchmarkscs-883)). |
+| The cast system's Debug lines through `CombatLog`, one list for `CancelCasts` (#925, #883) | 14,299 | -574 | The "fired" line's argument array, 40 B a cast (530 B of the step); the "queued" line's array and its boxed cast time and queue size, the two dropped-cast lines' arrays, and the list `CancelCasts` made for every creature and character that left. |
+| One aim box per cast system (#925) | 13,451 | -848 | The aim boxed for the factory, 64 B a cast. |
+| The ability's metadata shared with the cast's copy (#925) | 11,967 | -1,484 | The `AbilityMetadata` copied with the ability, 112 B a cast. |
+| The chain list made on first use (#925) | 11,543 | -424 | The empty `ChainedScripts` list, 32 B a cast. |
+
+4,092 B per window less, 26%. Every row from the log lines down was read twice, the same; the first three once on
+this base and three times, with the same steps, on the base before it. Two commits in between change no figure and
+have no row: the factories made at `ScriptManager.Load` (not read on its own), and the index emptied when a removal
+sweep throws (14,873, read once).
+
+| `forest-combat`, bytes per window | The gate alone | The whole World suite |
+|---|---:|---:|
+| Release, committed | 11,543 | 11,543 |
+| Debug | 11,780 | 11,780 |
+
+The runner read 11,543 twice, the second run the one that wrote the file, and `town-idle`, `town-walk` and
+`many-instances` read 0 in every run. Debug's excess over the committed figure is 237 B per window (14,208 B a
+minute): the table under [the melee slots' release](#results--the-melee-slots-release-890-2026-10-12) less its first
+row, the `RemoveAll` delegate of `CancelScriptsOf` (4,096 B a minute), which is gone. That is 19 B under the 256 B
+floor, so a Debug run now reads Within. `forest-combat` is still decided in Release and reported in Debug
+([The allocation gate](#the-allocation-gate)): that rule is the owner's (#890) and is not changed here.
+
+**What made each one safe.**
+
+- **The factory.** It binds by the declared types `IAbility`, `IUnit`, `AbilityAim` and `IAbilityArena`, which every
+  shipped and seeded script declares. A script has exactly one public constructor accepting the four, or marks one
+  `[ActivatorUtilitiesConstructor]`. Factories are held weakly by script type, and the script manager is asked for
+  the type on every cast ([packet handlers](packet-handlers.md)).
+- **The aim box.** The factory unboxes the aim into the constructor's `AbilityAim` parameter, a copy, so a script
+  keeps the aim it was built with whatever is cast next (`Fire_each_script_with_the_aim_of_its_own_cast`: a cast still
+  winding up when the next one's aim goes into the box). A constructor that could take the aim as a reference
+  (`object`, `ValueType`, an interface the aim implements) would be handed the box itself; a script type with such a
+  parameter is refused when its factory is made.
+- **The shared metadata.** A script is still handed a copy of the ability, so nothing it writes reaches its caster's
+  cooldown, cast timer or casting flag (`Keep_the_casters_cooldown_and_cast_state_out_of_its_scripts_reach`). Only the
+  metadata is shared, and it cannot change once built: every member is an init-only number, flag, enum or string
+  (`AbilityMetadataShould`), nothing writes one after `AbilityMetadataMapper` built it, and a reload or a template
+  edit makes new metadata for the abilities loaded afterwards, never rewriting one in use, so a cast in flight keeps
+  the row it started with. `IAbility.Clone` is unchanged and still copies it.
+- **The chain list.** `ChainedScripts` keeps its type, its accessors and what a script sees: one that adds to it or
+  walks it finds a list. The base class's own `Update` and `Clone` read the field, so neither makes one.
+
+**What a cast still allocates.** A build is 224 B for a circle or a cone and 320 B for a projectile
+([ability script construction](#ability-script-construction--benchmarksabilityscriptbuildbenchmarkscs-925)): 229,440 B
+of the 692,580 B the minute allocates, 33%, from 439,320 B of 938,100 B, 47%. By part, with what would take it out:
+
+| Part of a build | Per cast | Per window | Share | Why it is left |
+|---|---:|---:|---:|---|
+| The script object | 152 B, a projectile 184 B | 2,299 B | 20% | A script is a new object for every cast. Reusing one needs a way to reset it, on the scripts' public base class, and a script that forgot a field would carry it into the next cast. |
+| The ability's copy | 48 B | 636 B | 6% | It is what keeps a script from its caster's cooldown, cast timer and casting flag. |
+| The projectile's set of units hit | 64 B | 571 B | 5% | Made with the projectile; one that hits nothing never uses it. Not looked at in this change. |
+| The script's `State`, boxed | 24 B | 318 B | 3% | The property is an `object` on the scripts' public base class. |
+
+The first, second and fourth are decisions on the script contract and stay open on #925; none is a fix to make
+unasked.
 
 ### Results — the melee slots' release (#890, 2026-10-12)
 
