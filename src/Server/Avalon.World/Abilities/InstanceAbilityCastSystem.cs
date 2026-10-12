@@ -332,7 +332,17 @@ public class InstanceAbilityCastSystem(
 
     public void CancelScriptsOf(IUnit caster)
     {
-        int dropped = _activeAbilities.RemoveAll(a => ReferenceEquals(a.Caster, caster));
+        // A loop, not RemoveAll: its predicate would close over the caster, a closure and a delegate per call (#883).
+        int dropped = 0;
+        for (int i = _activeAbilities.Count - 1; i >= 0; i--)
+        {
+            if (ReferenceEquals(_activeAbilities[i].Caster, caster))
+            {
+                _activeAbilities.RemoveAt(i);
+                dropped++;
+            }
+        }
+
         if (dropped > 0)
         {
             CombatLog.ScriptsDroppedCasterLeft(_logger, dropped, caster.Guid);
