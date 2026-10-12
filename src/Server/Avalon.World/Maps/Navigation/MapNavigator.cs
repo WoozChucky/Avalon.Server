@@ -284,8 +284,38 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
         }
     }
 
-    public Vector3 RaycastWalkable(Vector3 from, Vector3 to)
+    /// <summary>
+    /// The player's horizontal raycast and ground snap, reusing the start query only when the
+    /// resulting ground query has exactly the same centre. No polygon hint survives this call.
+    /// Moving endpoints still search independently: the raycast's last polygon need not be the
+    /// nearest ground polygon on overlapping floors.
+    /// </summary>
+    public Vector3 MoveOnGround(Vector3 from, Vector3 to)
     {
+        Vector3 clamped = RaycastWalkable(from, to, out long startRef);
+        if (startRef == 0) return new Vector3(clamped.x, from.y, clamped.z);
+        float groundY;
+        if (clamped.x == from.x && clamped.z == from.z)
+        {
+            // The legacy ground sample uses from.y, not the raycast's interpolated Y. Its centre,
+            // extents and filter are identical to the start search, even when the raycast failed.
+            var center = new RcVec3f(from.x, from.y, from.z);
+            groundY = _query!.GetPolyHeight(startRef, center, out float h).Succeeded() ? h : from.y;
+        }
+        else
+        {
+            groundY = SampleGroundHeight(clamped.x, from.y, clamped.z);
+        }
+
+        return new Vector3(clamped.x, groundY, clamped.z);
+    }
+
+    public Vector3 RaycastWalkable(Vector3 from, Vector3 to)
+        => RaycastWalkable(from, to, out _);
+
+    private Vector3 RaycastWalkable(Vector3 from, Vector3 to, out long startRef)
+    {
+        startRef = 0;
         if (_navMesh == null) return to;
 
         ReusingNavMeshQuery query = _query!;
@@ -294,7 +324,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
         // baked navmesh without any axis flip (see ChunkLayoutNavmeshBuilder.AppendTransformed).
         // Queries must use the same coords — do NOT negate X.
         var startVec = new RcVec3f(from.x, from.y, from.z);
-        DtStatus status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out long startRef, out _, out _);
+        DtStatus status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out startRef, out _, out _);
         if (status.Failed() || startRef == 0)
         {
             return from;

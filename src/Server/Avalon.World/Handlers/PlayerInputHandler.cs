@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -55,18 +56,25 @@ public class PlayerInputHandler(
         Vector3 step = dir * speed * TickDt;
         var desired = new Vector3(ch.Position.x + step.x, ch.Position.y, ch.Position.z + step.z);
 
-        // Horizontal collision via navmesh raycast.
-        Vector3 clamped = navigator.RaycastWalkable(ch.Position, desired);
-        // Y from ground sample — pass current Y so the navmesh search box finds the correct
-        // floor on multi-storey maps. Returns ch.Position.y unchanged on lookup failure.
-        float groundY = navigator.SampleGroundHeight(clamped.x, ch.Position.y, clamped.z);
-        var newPosition = new Vector3(clamped.x, groundY, clamped.z);
+        Vector3 newPosition;
+        if (navigator is MapNavigator mapNavigator)
+        {
+            newPosition = mapNavigator.MoveOnGround(ch.Position, desired);
+        }
+        else
+        {
+            // Other IMapNavigator implementations retain the separate queries. Current Y selects
+            // the correct floor and is retained when the ground lookup fails.
+            Vector3 clamped = navigator.RaycastWalkable(ch.Position, desired);
+            float groundY = navigator.SampleGroundHeight(clamped.x, ch.Position.y, clamped.z);
+            newPosition = new Vector3(clamped.x, groundY, clamped.z);
+        }
 
         // Metres per second, and the step actually taken rather than the one asked for (#424): other
         // clients extrapolate this character as position + Velocity * seconds, so a character pressed
         // into a wall must publish zero, not full speed into the wall. Horizontal only, as before: the
         // ground snap is not motion to extrapolate.
-        var velocity = new Vector3((clamped.x - ch.Position.x) / TickDt, 0f, (clamped.z - ch.Position.z) / TickDt);
+        var velocity = new Vector3((newPosition.x - ch.Position.x) / TickDt, 0f, (newPosition.z - ch.Position.z) / TickDt);
 
         // Setting these properties marks the dirty fields automatically on CharacterEntity.
         ch.Position = newPosition;

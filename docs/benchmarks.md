@@ -36,6 +36,39 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 
 ## Suites
 
+### Grounded player movement — `NavigationMovementBenchmarks.cs` (#880, #896)
+
+Compares the existing `RaycastWalkable` + `SampleGroundHeight` composition with `MoveOnGround` over the committed
+town navmesh. Each invocation visits 256 positions, with bake and input selection outside timing. Idle inputs have
+zero horizontal displacement, blocked inputs press into real town walls, walking inputs take an unobstructed
+4/60-metre step, and mixed inputs alternate two idle with three walking inputs. Results are normalized per input.
+Setup checks exact output equality for every input. This measures the navigation operation, not the whole input
+handler, tick or live bot workload; the separate-query baseline shares the current raycast helper.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*NavigationMovementBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4
+```
+
+Measured 2026-10-12, BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12,
+concurrent workstation GC, one launch, five warmups and eight measured iterations:
+
+| Input | Separate queries | Combined operation | Ratio | Allocated, both |
+|---|---:|---:|---:|---:|
+| Idle | 1,274.9 ns | 631.1 ns | 0.50 | 0 B |
+| Blocked | 1,658.9 ns | 861.7 ns | 0.52 | 0 B |
+| Mixed (40% idle) | 1,170.1 ns | 949.7 ns | 0.81 | 0 B |
+| Walking | 1,191.0 ns | 1,197.4 ns | 1.01 | 0 B |
+
+Walking's 99.9% confidence intervals overlap (1,183.1–1,199.0 ns and 1,170.4–1,224.3 ns): this run does not
+establish a walking gain or regression. Idle's separate-query estimate has wider error (±156.1 ns); the large
+reduction remains clear, but its precise percentage is not a capacity forecast. Live tick and GC effects require
+the matched load test after deployment.
+
+The combined operation reuses the raycast's starting nearest-polygon result only when the ground query has the
+same X/Z and original Y. Moving endpoints retain their independent search, including multi-storey floor selection.
+There is no cross-call cache or change to input/ACK cadence. `GroundedMovementShould` checks town walls, relocations,
+missing polygons, overlapping floors and slopes; `PlayerInputHandlerShould` checks real-navigator input results.
+
 ### Character dirty deltas — `CharacterDeltaBenchmarks.cs` (#880, #896)
 
 Six hundred characters in twenty real town instances (thirty mutually visible characters each), with repeated
