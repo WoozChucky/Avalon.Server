@@ -18,8 +18,17 @@ public static class ServiceExtensions
         services.AddSingleton<IDbContextFactory<AuthDbContext>>(provider =>
         {
             ILoggerFactory loggerFactory = provider.GetRequiredService<ILoggerFactory>();
-            IOptions<DatabaseConfiguration> options = provider.GetRequiredService<IOptions<DatabaseConfiguration>>();
-            return new DelegateDbContextFactory<AuthDbContext>(() => new AuthDbContext(loggerFactory, options));
+            DatabaseConfiguration configuration = provider.GetRequiredService<IOptions<DatabaseConfiguration>>().Value;
+            var builder = new DbContextOptionsBuilder<AuthDbContext>();
+            builder.UseLoggerFactory(loggerFactory);
+            // AddAvalonDatabases postconfigures this flag: parameter values stay Development-only.
+            if (configuration.EnableSensitiveDataLogging)
+                builder.EnableSensitiveDataLogging();
+            builder.UseNpgsql(configuration.Auth!.ConnectionString);
+
+            // Reuse immutable configuration, never a context or its change tracker.
+            DbContextOptions<AuthDbContext> options = builder.Options;
+            return new DelegateDbContextFactory<AuthDbContext>(() => new AuthDbContext(options));
         });
         services.AddSingleton<IDbTransactionRunner<AuthDbContext>, DbTransactionRunner<AuthDbContext>>();
 

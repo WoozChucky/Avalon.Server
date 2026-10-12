@@ -36,6 +36,36 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 
 ## Suites
 
+### Database context setup — `Database/DbContextFactoryBenchmarks.cs` (#880, #896)
+
+Measures fresh Auth and Character contexts from their actual singleton DI factories, an `AsNoTracking().Take(1)`
+query translated with `ToQueryString()`, and disposal. No database connection is opened. Model creation and query
+compilation are warmed outside measurement; each case additionally prewarms for 30 seconds to let tiered PGO settle.
+This is the cost of local context setup and warm query translation, not database execution or admission latency.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*DbContextFactoryBenchmarks*" --job short --warmupCount 10 --iterationCount 8
+```
+
+Before/after on 2026-10-12, same committed harness against production factories at `7e2d7afd` and the options-reuse change:
+
+| Context | Before mean | After mean | Before allocated | After allocated |
+|---|---:|---:|---:|---:|
+| Auth | 41.96 us | 30.83 us | 58,790 B | 42,352 B |
+| Character | 44.15 us | 29.90 us | 56,933 B | 40,496 B |
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC, affinity
+mask 4. One launch, ten warmups and eight measured iterations per case (seven retained for the Auth baseline after
+outlier filtering). The 99.9% timing intervals were Auth 38.80–45.11 us before / 29.78–31.87 us after and Character
+40.78–47.52 us before / 26.40–33.41 us after. This run reduced local time by 26.5% / 32.3% and allocations by about
+16.4 KB per operation. Raw reports stay outside the repository.
+
+The factories reuse immutable typed options but still construct a fresh context for every operation. Connection
+strings and logging remain local to each factory/host; sensitive logging still follows the Development-only
+postconfiguration. The API per-world Character factories are outside this change.
+
+Server GC pause and admission measurements require a follow-up controlled load run after CI deployment.
+
 ### Connection checks — `ConnectionTickBenchmarks.cs` (#880)
 
 Measures the production readiness sweep with no pending spawn, an admitted connection's lease check before its
