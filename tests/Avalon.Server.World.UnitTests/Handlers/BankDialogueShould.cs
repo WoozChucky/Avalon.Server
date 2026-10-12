@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 

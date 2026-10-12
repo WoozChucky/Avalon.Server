@@ -17,40 +17,39 @@ message CItemUsePacket
 
 variant absent
   field 1 RequestId : uint = 0
-  field 2 Container : uint = 0
+  field 2 Container : InventoryType = Equipment (0)
   field 3 Slot : uint = 0
   bytes 0
 
 variant empty
   field 1 RequestId : uint = 0
-  field 2 Container : uint = 0
+  field 2 Container : InventoryType = Equipment (0)
   field 3 Slot : uint = 0
   bytes 0
 
 variant populated
   field 1 RequestId : uint = 65535
-  field 2 Container : uint = 1000000
+  field 2 Container : InventoryType = Bank (2)
   field 3 Slot : uint = 19
-  bytes 10
-    08 ff ff 03 10 c0 84 3d 18 13
+  bytes 8
+    08 ff ff 03 10 02 18 13
 
 variant maxima
   field 1 RequestId : uint = 4294967295
-  field 2 Container : uint = 4294967295
+  field 2 Container : InventoryType = Bank (2)
   field 3 Slot : uint = 4294967295
-  bytes 18
-    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
-    ff 0f
+  bytes 14
+    08 ff ff ff ff 0f 10 02 18 ff ff ff ff 0f
 
 variant minima
   field 1 RequestId : uint = 0
-  field 2 Container : uint = 0
+  field 2 Container : InventoryType = Equipment (0)
   field 3 Slot : uint = 0
   bytes 0
 
 variant varint-edges
   field 1 RequestId : uint = 268435455
-  field 2 Container : uint = 16384
+  field 2 Container : InventoryType = <not a declared member> (3)
   field 3 Slot : uint = 16383
-  bytes 12
-    08 ff ff ff 7f 10 80 80 01 18 ff 7f
+  bytes 10
+    08 ff ff ff 7f 10 03 18 ff 7f

@@ -1,5 +1,5 @@
+using Avalon.Common;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;

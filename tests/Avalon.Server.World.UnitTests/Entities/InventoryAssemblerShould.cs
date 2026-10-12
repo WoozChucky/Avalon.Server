@@ -4,7 +4,6 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Server.World.UnitTests.Entities;

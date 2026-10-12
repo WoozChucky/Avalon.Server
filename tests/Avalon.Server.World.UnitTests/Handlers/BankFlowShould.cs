@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -40,9 +40,9 @@ public class BankFlowShould : IAsyncLifetime
             .Execute(_w.Connection, new CItemMovePacket
             {
                 RequestId = request,
-                FromContainer = (uint)from,
+                FromContainer = from,
                 FromSlot = fromSlot,
-                ToContainer = (uint)to,
+                ToContainer = to,
                 ToSlot = toSlot,
             });
 
@@ -64,8 +64,8 @@ public class BankFlowShould : IAsyncLifetime
         InventoryUpdateFlusher.Flush(_w.Connection);
 
         SInventoryUpdatePacket deposit = Updates().Last();
-        Assert.Equal(5u, deposit.Slots.Single(s => s.Container == (ushort)InventoryType.Bank && s.Slot == 6).Item!.Count);
-        Assert.Null(deposit.Slots.Single(s => s.Container == (ushort)InventoryType.Bag && s.Slot == 0).Item);
+        Assert.Equal(5u, deposit.Slots.Single(s => s.Container == InventoryType.Bank && s.Slot == 6).Item!.Count);
+        Assert.Null(deposit.Slots.Single(s => s.Container == InventoryType.Bag && s.Slot == 0).Item);
 
         Move(2, InventoryType.Bank, 6, InventoryType.Bag, 9);
         Assert.Equal(ItemRequestResult.Ok, LastResult());

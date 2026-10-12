@@ -4,7 +4,6 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Inventory;
 

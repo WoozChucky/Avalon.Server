@@ -1,9 +1,9 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Inventory;
 
@@ -34,7 +34,7 @@ public static class ItemRequestReply
                 .Where(slot => bankOpen || slot.Container != InventoryType.Bank)
                 .Select(slot => new InventorySlotUpdateDto
                 {
-                    Container = (ushort)slot.Container,
+                    Container = slot.Container,
                     Slot = slot.Slot,
                     Item = character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
                         ? ItemSlotDtoMapper.ToDto(slot.Container, item)

@@ -17,18 +17,18 @@ message CItemMovePacket
 
 variant absent
   field 1 RequestId : uint = 0
-  field 2 FromContainer : uint = 0
+  field 2 FromContainer : InventoryType = Equipment (0)
   field 3 FromSlot : uint = 0
-  field 4 ToContainer : uint = 0
+  field 4 ToContainer : InventoryType = Equipment (0)
   field 5 ToSlot : uint = 0
   field 6 Count : uint? = null
   bytes 0
 
 variant empty
   field 1 RequestId : uint = 0
-  field 2 FromContainer : uint = 0
+  field 2 FromContainer : InventoryType = Equipment (0)
   field 3 FromSlot : uint = 0
-  field 4 ToContainer : uint = 0
+  field 4 ToContainer : InventoryType = Equipment (0)
   field 5 ToSlot : uint = 0
   field 6 Count : uint? = 0
   bytes 2
@@ -36,31 +36,30 @@ variant empty
 
 variant populated
   field 1 RequestId : uint = 65535
-  field 2 FromContainer : uint = 7
+  field 2 FromContainer : InventoryType = Bank (2)
   field 3 FromSlot : uint = 42
-  field 4 ToContainer : uint = 1000000
+  field 4 ToContainer : InventoryType = Bag (1)
   field 5 ToSlot : uint = 7
   field 6 Count : uint? = 7
-  bytes 16
-    08 ff ff 03 10 07 18 2a 20 c0 84 3d 28 07 30 07
+  bytes 14
+    08 ff ff 03 10 02 18 2a 20 01 28 07 30 07
 
 variant maxima
   field 1 RequestId : uint = 4294967295
-  field 2 FromContainer : uint = 4294967295
+  field 2 FromContainer : InventoryType = Bank (2)
   field 3 FromSlot : uint = 4294967295
-  field 4 ToContainer : uint = 4294967295
+  field 4 ToContainer : InventoryType = Bank (2)
   field 5 ToSlot : uint = 4294967295
   field 6 Count : uint? = 4294967295
-  bytes 36
-    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
-    ff 0f 20 ff ff ff ff 0f 28 ff ff ff ff 0f 30 ff
-    ff ff ff 0f
+  bytes 28
+    08 ff ff ff ff 0f 10 02 18 ff ff ff ff 0f 20 02
+    28 ff ff ff ff 0f 30 ff ff ff ff 0f
 
 variant minima
   field 1 RequestId : uint = 0
-  field 2 FromContainer : uint = 0
+  field 2 FromContainer : InventoryType = Equipment (0)
   field 3 FromSlot : uint = 0
-  field 4 ToContainer : uint = 0
+  field 4 ToContainer : InventoryType = Equipment (0)
   field 5 ToSlot : uint = 0
   field 6 Count : uint? = 0
   bytes 2
@@ -68,11 +67,11 @@ variant minima
 
 variant varint-edges
   field 1 RequestId : uint = 268435455
-  field 2 FromContainer : uint = 268435456
+  field 2 FromContainer : InventoryType = <not a declared member> (3)
   field 3 FromSlot : uint = 268435455
-  field 4 ToContainer : uint = 268435455
+  field 4 ToContainer : InventoryType = <not a declared member> (3)
   field 5 ToSlot : uint = 128
   field 6 Count : uint? = 16384
-  bytes 28
-    08 ff ff ff 7f 10 80 80 80 80 01 18 ff ff ff 7f
-    20 ff ff ff 7f 28 80 01 30 80 80 01
+  bytes 21
+    08 ff ff ff 7f 10 03 18 ff ff ff 7f 20 03 28 80
+    01 30 80 80 01

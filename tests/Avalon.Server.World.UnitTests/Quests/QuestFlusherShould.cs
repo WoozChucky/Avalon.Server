@@ -189,8 +189,8 @@ public class QuestFlusherShould
         w.Place(Giver);
         c.Character.Quests.Start(Tusks, DateTime.UnixEpoch);
         w.Economy.InventoryOf(c.Character).TryAdd(new ItemTemplateId(Tusk), 1);   // marks a Bag slot
-        InventoryItem tusk = Assert.Single(c.Character.Container(Avalon.World.Public.Enums.InventoryType.Bag).Items);
-        c.Character.Container(Avalon.World.Public.Enums.InventoryType.Bag).Load(
+        InventoryItem tusk = Assert.Single(c.Character.Container(Avalon.Common.InventoryType.Bag).Items);
+        c.Character.Container(Avalon.Common.InventoryType.Bag).Load(
         [
             tusk,
             new InventoryItem(1, new ItemInstanceId(Guid.CreateVersion7()), null!, 1, 0, ItemInstanceFlags.None, 0),

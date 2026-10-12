@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Combat;
@@ -32,7 +33,7 @@ public class ItemUsePacketsShould
     public void Keep_the_use_field_numbers_the_client_writes()
     {
         Assert.Equal("0801", Hex(new CItemUsePacket { RequestId = 1 }));
-        Assert.Equal("1001", Hex(new CItemUsePacket { Container = 1 }));
+        Assert.Equal("1001", Hex(new CItemUsePacket { Container = InventoryType.Bag }));
         Assert.Equal("1803", Hex(new CItemUsePacket { Slot = 3 }));
     }
 

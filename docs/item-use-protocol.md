@@ -27,7 +27,7 @@ Both are encrypted, over TCP. The request is accepted only while the character i
 | Field | Proto # | Type | Notes |
 |---|---|---|---|
 | `RequestId` | 1 | `uint32` | Chosen by the client; echoed in the answer, so the client can pair answers with requests. |
-| `Container` | 2 | `uint32` | The `InventoryType` number of the slot: `1`, the Bag (use or equip), or `0`, Equipment (take off). Anything else is answered `NotFound`. |
+| `Container` | 2 | `InventoryType` | The container of the slot: `1`, the Bag (use or equip), or `0`, Equipment (take off). Anything else is answered `NotFound`. |
 | `Slot` | 3 | `uint32` | The Bag slot, or the Equipment slot (0 Head to 10 OffHand; 11-13 are reserved and answered `NotFound`). |
 
 Send one per click. Do not pre-gate on cooldowns, casts or health: the server checks everything and answers every

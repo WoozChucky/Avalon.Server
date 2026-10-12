@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -106,7 +107,7 @@ public class VendorListBuilderShould : IAsyncLifetime
         Assert.Equal((Blade.Id.Value, (ushort)4, 42u, 25UL),
             (list.Buyback[0].Item!.ItemTemplateId, list.Buyback[0].Item!.Slot, list.Buyback[0].Item!.Durability, list.Buyback[0].Price));
         Assert.Equal((5u, 20UL), (list.Buyback[1].Item!.Count, list.Buyback[1].Price));
-        Assert.Equal((ushort)1, list.Buyback[1].Item!.Container);   // the Bag
+        Assert.Equal(InventoryType.Bag, list.Buyback[1].Item!.Container);
     }
 
     /// <summary>

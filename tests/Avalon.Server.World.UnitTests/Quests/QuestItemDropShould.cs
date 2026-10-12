@@ -12,7 +12,6 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Loot;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;

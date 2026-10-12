@@ -1,6 +1,6 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Persistence;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Server.World.UnitTests.Persistence;
 

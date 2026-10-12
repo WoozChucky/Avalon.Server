@@ -12,7 +12,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Public;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -189,7 +188,7 @@ public class LootPickupHandlerShould
         SInventoryUpdatePacket update = FlushedUpdate();
 
         InventorySlotUpdateDto slot = Assert.Single(update.Slots);
-        Assert.Equal((ushort)InventoryType.Bag, slot.Container);
+        Assert.Equal(InventoryType.Bag, slot.Container);
         Assert.Equal((ushort)0, slot.Slot);
         Assert.Equal(Potion.Id.Value, slot.Item!.ItemTemplateId);
         Assert.Equal(3u, slot.Item.Count);

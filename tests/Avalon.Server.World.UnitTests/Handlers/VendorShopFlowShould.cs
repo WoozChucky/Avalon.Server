@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -5,7 +6,6 @@ using Avalon.Server.World.UnitTests.Vendors;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using static Avalon.Server.World.UnitTests.Vendors.VendorTestData;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
@@ -40,7 +40,7 @@ public class VendorShopFlowShould : IAsyncLifetime
         Assert.Equal(VendorResult.Ok, _w.Buy(_w.Main, 1, BladeSequence));
         SInventoryUpdatePacket bought = Flush();
         Assert.Equal(900UL, bought.Money);
-        ItemSlotDto blade = bought.Slots.Single(s => s.Container == (ushort)InventoryType.Bag && s.Slot == 0).Item!;
+        ItemSlotDto blade = bought.Slots.Single(s => s.Container == InventoryType.Bag && s.Slot == 0).Item!;
         Assert.Equal((Blade.Id.Value, 42u), (blade.ItemTemplateId, blade.Durability));
         _w.EndOfTick();
         Assert.Equal((uint?)1, _w.Main.Lists()[^1].Entries.Single(e => e.Sequence == BladeSequence).Stock);

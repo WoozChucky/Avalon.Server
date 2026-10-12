@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
@@ -6,7 +7,6 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,7 +42,8 @@ public sealed class ItemUseService(
     private readonly Dictionary<Type, ItemScript?> _built = [];
     private readonly Dictionary<string, (DateTimeOffset LastLogged, int Suppressed)> _errorLogs = new(StringComparer.Ordinal);
 
-    public void Use(IWorldConnection connection, CharacterEntity character, uint requestId, uint container, uint slot)
+    public void Use(IWorldConnection connection, CharacterEntity character, uint requestId, InventoryType container,
+        uint slot)
     {
         ItemUseAnswer? answer;
         try
@@ -61,8 +62,8 @@ public sealed class ItemUseService(
     }
 
     /// <summary>The answer to send now, or null when a cast bar started and its end answers.</summary>
-    private ItemUseAnswer? Begin(IWorldConnection connection, CharacterEntity character, uint requestId, uint container,
-        uint slot)
+    private ItemUseAnswer? Begin(IWorldConnection connection, CharacterEntity character, uint requestId,
+        InventoryType container, uint slot)
     {
         if (character.IsDead)
             return ItemUseAnswer.Of(ItemUseResult.Dead);

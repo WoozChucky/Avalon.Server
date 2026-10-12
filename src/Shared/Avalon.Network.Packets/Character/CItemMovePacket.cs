@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
@@ -11,10 +12,10 @@ namespace Avalon.Network.Packets.Character;
 /// SItemResultPacket. An accepted change also arrives in the tick's SInventoryUpdatePacket.
 /// </summary>
 /// <remarks>
-/// Containers cross as InventoryType numbers: 0 Equipment, 1 Bag, 2 Bank. Equipment slots are
-/// 0 Head, 1 Neck, 2 Shoulder, 3 Chest, 4 Hands, 5 Legs, 6 Feet, 7 and 8 Finger, 9 MainHand,
-/// 10 OffHand; 11-13 are reserved and always refused. A Bank slot is only usable while a
-/// banker conversation that opened the bank is still open.
+/// Containers are InventoryType: 0 Equipment, 1 Bag, 2 Bank; any other number is refused as
+/// InvalidSlot. Equipment slots are 0 Head, 1 Neck, 2 Shoulder, 3 Chest, 4 Hands, 5 Legs, 6 Feet,
+/// 7 and 8 Finger, 9 MainHand, 10 OffHand; 11-13 are reserved and always refused. A Bank slot is
+/// only usable while a banker conversation that opened the bank is still open.
 /// </remarks>
 [ProtoContract]
 [Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_ITEM_MOVE)]
@@ -27,13 +28,13 @@ public class CItemMovePacket : Packet
     /// <summary>Chosen by the client and echoed in the result, so it can pair answers with requests.</summary>
     [ProtoMember(1)] public uint RequestId { get; set; }
 
-    /// <summary>InventoryType number of the slot the item leaves.</summary>
-    [ProtoMember(2)] public uint FromContainer { get; set; }
+    /// <summary>The container of the slot the item leaves.</summary>
+    [ProtoMember(2)] public InventoryType FromContainer { get; set; }
 
     [ProtoMember(3)] public uint FromSlot { get; set; }
 
-    /// <summary>InventoryType number of the slot the item goes to.</summary>
-    [ProtoMember(4)] public uint ToContainer { get; set; }
+    /// <summary>The container of the slot the item goes to.</summary>
+    [ProtoMember(4)] public InventoryType ToContainer { get; set; }
 
     [ProtoMember(5)] public uint ToSlot { get; set; }
 

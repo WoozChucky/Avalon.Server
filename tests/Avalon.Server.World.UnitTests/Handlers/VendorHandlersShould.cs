@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -7,7 +8,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 using NSubstitute;

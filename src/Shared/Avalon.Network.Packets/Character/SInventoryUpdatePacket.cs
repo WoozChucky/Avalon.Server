@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
@@ -36,8 +37,8 @@ public class SInventoryUpdatePacket : Packet
 [ProtoContract]
 public class InventorySlotUpdateDto
 {
-    /// <summary>InventoryType, numeric, as on ItemSlotDto.</summary>
-    [ProtoMember(1)] public ushort Container { get; set; }
+    /// <summary>The container of the slot, as on ItemSlotDto.</summary>
+    [ProtoMember(1)] public InventoryType Container { get; set; }
 
     [ProtoMember(2)] public ushort Slot { get; set; }
 

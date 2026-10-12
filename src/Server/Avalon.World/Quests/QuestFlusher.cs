@@ -1,7 +1,7 @@
+using Avalon.Common;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Quests;
 

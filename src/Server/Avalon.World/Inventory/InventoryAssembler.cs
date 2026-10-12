@@ -1,7 +1,7 @@
+using Avalon.Common;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Inventory;

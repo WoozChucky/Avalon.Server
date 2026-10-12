@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Vendor;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 
 namespace Avalon.World.Vendors;

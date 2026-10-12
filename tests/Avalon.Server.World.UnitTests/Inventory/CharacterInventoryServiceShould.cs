@@ -1,8 +1,8 @@
+using Avalon.Common;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
 namespace Avalon.Server.World.UnitTests.Inventory;

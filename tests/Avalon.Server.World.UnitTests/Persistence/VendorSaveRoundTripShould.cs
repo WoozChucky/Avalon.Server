@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Database;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
@@ -10,7 +11,6 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using static Avalon.Server.World.UnitTests.Vendors.VendorTestData;
 

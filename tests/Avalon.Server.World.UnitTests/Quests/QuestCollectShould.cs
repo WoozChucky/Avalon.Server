@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -6,7 +7,6 @@ using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;

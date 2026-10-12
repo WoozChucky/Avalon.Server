@@ -480,11 +480,11 @@ public class CharacterSelectHandlerShould
 
         SInventorySnapshotPacket snapshot = DeserializeInventorySnapshot(f);
         Assert.Equal(5, snapshot.Items.Length);
-        Assert.DoesNotContain(snapshot.Items, item => item.Container == (ushort)InventoryType.Bank);
+        Assert.DoesNotContain(snapshot.Items, item => item.Container == InventoryType.Bank);
 
         ItemSlotDto slot = Assert.Single(
             snapshot.Items, item => item.ItemInstanceId == instances[0].Id.Value);
-        Assert.Equal((ushort)InventoryType.Equipment, slot.Container);
+        Assert.Equal(InventoryType.Equipment, slot.Container);
         Assert.Equal((ushort)0, slot.Slot);
         Assert.Equal(10ul, slot.ItemTemplateId);
         Assert.Equal(3u, slot.Count);

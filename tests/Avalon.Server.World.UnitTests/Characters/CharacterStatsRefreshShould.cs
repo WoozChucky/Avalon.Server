@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Characters;

@@ -163,7 +163,7 @@ public class SInventorySnapshotPacket : Packet
 [ProtoContract]
 public class ItemSlotDto
 {
-    [ProtoMember(1)] public ushort Container      { get; set; } // InventoryType, numeric
+    [ProtoMember(1)] public InventoryType Container { get; set; } // 0 Equipment, 1 Bag, 2 Bank (an enum in the schema)
     [ProtoMember(2)] public ushort Slot           { get; set; }
     [ProtoMember(3)] public ulong  ItemTemplateId { get; set; } // ItemTemplateId.Value
     [ProtoMember(4)] public Guid   ItemInstanceId { get; set; } // ItemInstanceId.Value, .bcl.Guid
@@ -204,7 +204,7 @@ public class SInventoryUpdatePacket : Packet   // SMSG_INVENTORY_UPDATE, 0x3029
 
 public class InventorySlotUpdateDto
 {
-    [ProtoMember(1)] public ushort Container { get; set; }
+    [ProtoMember(1)] public InventoryType Container { get; set; }
     [ProtoMember(2)] public ushort Slot { get; set; }
     [ProtoMember(3)] public ItemSlotDto? Item { get; set; } // absent: the slot is now empty
 }

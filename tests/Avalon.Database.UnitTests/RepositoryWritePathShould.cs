@@ -1,9 +1,9 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 

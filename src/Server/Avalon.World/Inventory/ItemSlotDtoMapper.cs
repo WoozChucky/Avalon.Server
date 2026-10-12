@@ -1,6 +1,6 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Inventory;
 
@@ -9,7 +9,7 @@ public static class ItemSlotDtoMapper
 {
     public static ItemSlotDto ToDto(InventoryType container, InventoryItem item) => new()
     {
-        Container = (ushort)container,
+        Container = container,
         Slot = item.Slot,
         ItemTemplateId = item.TemplateId.Value,
         ItemInstanceId = item.InstanceId.Value,
