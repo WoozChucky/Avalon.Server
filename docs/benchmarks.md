@@ -36,6 +36,33 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 
 ## Suites
 
+### Character dirty deltas — `CharacterDeltaBenchmarks.cs` (#880, #896)
+
+Six hundred characters in twenty real town instances (thirty mutually visible characters each), with repeated
+position/velocity/yaw assignments every tick. Moving populations are 0%, 60% and 100%, interleaved within each town.
+A batch is 42 ticks, six complete broadcast cycles, to avoid sampling different counts of broadcasts. Setup warms
+for 15 seconds; the benchmark includes the scenario's inline send/sealing path. It excludes input ACKs, navigation,
+combat, database work and real sockets, so it is not a server-capacity measurement or the live mixed load test.
+
+Before/after on 2026-10-12, identical harness on `895956ed` and the character-delta change:
+
+| Moving | Before mean/tick | After mean/tick | Before / after allocated per tick | Before / after bytes per 42 ticks |
+|---|---:|---:|---:|---:|
+| 0% | 1.425 ms | 0.601 ms | 3 / 1 B | 7,642,860 / 0 |
+| 60% | 1.490 ms | 1.053 ms | 0 / 0 B | 7,995,210 / 3,183,498 |
+| 100% | 1.313 ms | 1.290 ms | 3 / 3 B | 8,230,110 / 5,217,558 |
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC,
+affinity mask 4; one launch, five warmups, eight measured iterations. The 99.9% intervals are 1.310–1.541 /
+0.574–0.629 ms for idle, 1.389–1.591 / 0.955–1.152 ms for mixed and 1.251–1.375 / 1.216–1.364 ms for all moving.
+Idle and mixed means fell about 58% and 29%; the all-moving intervals overlap, so no timing improvement is claimed
+there. Bytes written (including the scenario's packet framing/sealing) fell 100%, 60% and 37%. Each non-idle batch
+still sent 3,600 update packets; the changed idle batch sent none. The small 1–3 B/tick allocation readings are amortized measurements, not evidence of a recurring allocation
+change; all four scenario allocation gates pass without raising their baselines.
+Raw benchmark logs stay outside the repository.
+
+`dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CharacterDeltaBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4`
+
 ### Database context setup — `Database/DbContextFactoryBenchmarks.cs` (#880, #896)
 
 Measures fresh Auth and Character contexts from their actual singleton DI factories, an `AsNoTracking().Take(1)`

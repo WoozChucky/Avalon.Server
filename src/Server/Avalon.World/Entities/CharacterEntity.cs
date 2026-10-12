@@ -500,7 +500,7 @@ public partial class CharacterEntity : ICharacter
         get => new(Data?.X ?? 0, Data?.Y ?? 0, Data?.Z ?? 0);
         set
         {
-            if (Data == null)
+            if (Data == null || (Data.X == value.x && Data.Y == value.y && Data.Z == value.z))
             {
                 return;
             }
@@ -517,6 +517,8 @@ public partial class CharacterEntity : ICharacter
         get => _velocity;
         set
         {
+            // Exact comparison: Vector3.operator == uses an epsilon and can lose small corrections.
+            if (_velocity.Equals(value)) return;
             _velocity = value;
             _dirtyFields |= GameEntityFields.Velocity;
         }
@@ -527,7 +529,7 @@ public partial class CharacterEntity : ICharacter
         get => new(0, Data?.Rotation ?? 0, 0);
         set
         {
-            if (Data != null)
+            if (Data != null && Data.Rotation != value.y)
             {
                 Data.Rotation = value.y;
                 _dirtyFields |= GameEntityFields.Orientation;
