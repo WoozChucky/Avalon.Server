@@ -201,6 +201,66 @@ Measures per-tick scheduling overhead of the `WorldServer` throttle mechanism.
 
 ---
 
+### Tracking frame stamps (#880, #896)
+
+`EntityTrackingSystem` uses one dictionary keyed by the stable raw GUID. Each entry retains the original GUID
+for notifications and its last-seen frame, replacing the two sets and their repeated hash lookups. An empty dirty
+map skips dirty lookups. Unique seen counts retain the no-removal early exit; duplicates, pending callbacks,
+reset and frame wrap keep their existing observable behavior. Candidate collection and visibility rules are
+unchanged: this saves work per candidate, not the number of candidates scanned per recipient.
+
+Before/after on 2026-10-12, identical harness on `65dda551` and the frame-stamp change:
+
+| Creatures | Dirty | Before mean | After mean | Allocated, both |
+|---:|---:|---:|---:|---:|
+| 30 | 0% | 0.587 us | 0.337 us | 0 B |
+| 30 | 10% | 0.650 us | 0.421 us | 0 B |
+| 30 | 100% | 0.706 us | 0.487 us | 0 B |
+| 200 | 0% | 3.756 us | 2.110 us | 0 B |
+| 200 | 10% | 4.238 us | 2.723 us | 0 B |
+| 200 | 100% | 4.610 us | 3.117 us | 0 B |
+
+| Creatures | Replaced | Before mean | After mean | Allocated, both |
+|---:|---:|---:|---:|---:|
+| 30 | 1% | 0.735 us | 0.369 us | 0 B |
+| 30 | 100% | 1.239 us | 0.723 us | 0 B |
+| 200 | 1% | 4.003 us | 2.379 us | 0 B |
+| 200 | 100% | 8.413 us | 4.712 us | 0 B |
+
+`InterestVisibilityBenchmarks` adds 200-creature views with the actual 60 m entry radius and 10 m removal margin:
+all nearby, mostly distant, or all previously tracked at 65 m. Ten percent have dirty fields. It exercises the real
+`CharacterCharacterGameState.Update`, with stable inputs and no setup work in the timed operation.
+
+| Layout | Before mean | After mean | Reduction | Allocated, both |
+|---|---:|---:|---:|---:|
+| Dense | 4.069 us | 2.976 us | 27% | 0 B |
+| Sparse | 1.075 us | 0.901 us | 16% | 0 B |
+| Margin | 4.653 us | 3.317 us | 29% | 0 B |
+
+The existing 600-character / twenty-instance `CharacterDeltaBenchmarks` includes whole ticks and inline sealing:
+
+| Moving | Before mean/tick | After mean/tick | Before / after allocated per tick |
+|---|---:|---:|---:|
+| 0% | 0.561 ms | 0.435 ms | 0 / 0 B |
+| 60% | 1.190 ms | 0.805 ms | 5 / 2 B |
+| 100% | 1.151 ms | 1.104 ms | 16 / 2 B |
+
+Idle whole-tick time fell 22%, with non-overlapping 99.9% intervals (0.538-0.583 / 0.422-0.449 ms).
+The moving intervals overlap (60%: 0.844-1.535 / 0.744-0.867 ms; 100%: 1.064-1.239 / 0.958-1.251 ms),
+so their lower means do not establish a whole-tick speedup. Wire samples are identical before/after: 0,
+3,183,498 and 5,217,558 bytes per 42 ticks; 0, 3,600 and 3,600 packets. Small whole-tick allocation readings
+are amortized measurements, not evidence of a recurring allocation change. All four scenario allocation gates
+pass against the unchanged baseline.
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC,
+affinity mask 4; one launch, five warmups, eight measured iterations. Tracking and visibility confidence
+intervals do not overlap. These are short sequential local runs: some visibility iterations are below the
+recommended 100 ms (minimum 58 ms after), and production uses Server GC. They establish local path savings,
+not a live capacity increase; the mixed server load and phase trace must be repeated after deployment.
+Raw logs stay outside the repository.
+
+`dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EntityTracking*" "*InterestVisibilityBenchmarks*" "*CharacterDeltaBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4`
+
 ### Entity Tracking — `EntityTrackingBenchmarks.cs`
 
 Measures the production `CharacterCharacterGameState.Update`: interest filtering plus creature, character and
