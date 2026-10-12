@@ -12,7 +12,6 @@ using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Abilities;
@@ -85,6 +84,7 @@ public class InstanceAbilityCastSystem(
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
+    private readonly AbilityScriptActivator _scriptActivator = new();
     private uint _lastCastId;
 
     public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false)
@@ -374,8 +374,7 @@ public class InstanceAbilityCastSystem(
 
         try
         {
-            return ActivatorUtilities.CreateInstance(serviceProvider, scriptType, ability.Clone(), caster, aim, arena)
-                as AbilityScript;
+            return _scriptActivator.Build(serviceProvider, scriptType, ability.Clone(), caster, aim, arena);
         }
         catch (Exception e)
         {

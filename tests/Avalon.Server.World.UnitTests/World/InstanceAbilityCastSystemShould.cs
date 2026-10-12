@@ -223,6 +223,25 @@ public class InstanceAbilityCastSystemShould
         Assert.Equal(2f, ability.CooldownTimer);
     }
 
+    /// <summary>
+    /// The script manager is asked for the type on every cast, and a type's factory is kept by the type, not by the
+    /// name (#925): once a name answers with another type (a reload), the next cast builds that one.
+    /// </summary>
+    [Fact]
+    public void Build_the_type_a_script_name_answers_with_now_not_the_one_it_built_before()
+    {
+        ICharacter caster = Caster();
+        Assert.True(_sut.RunInstant(caster, s_aim, Ability()));
+        _scripts.GetAbilityScript("Recording").Returns(typeof(UpdateThrowingAbilityScript));
+
+        Assert.True(_sut.RunInstant(caster, s_aim, Ability()));
+
+        List<IWorldObject> objects = [];
+        _sut.Update(s_tick, objects);
+        Assert.IsType<UpdateThrowingAbilityScript>(Assert.Single(objects));
+        Assert.Single(RecordingAbilityScript.Prepared);
+    }
+
     // ── #521 item 2: one power rule on both paths ──
 
     [Theory]
