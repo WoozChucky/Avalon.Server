@@ -16,7 +16,7 @@ namespace Avalon.World.Scripts.Creatures.Forest;
 public sealed class HuskOfTheWoldScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
     TimeProvider? time = null, IWorld? world = null)
     : AggroDefendScript(creature, context,
-        new HuskOfTheWoldScript.HuskOfTheWoldCombat(loggerFactory, creature, context, time, world))
+        new HuskOfTheWoldScript.HuskOfTheWoldCombat(loggerFactory, creature, context, time, world), idleTimerOnly: true)
 {
     /// <summary>Its basic: a 1.8 m cone.</summary>
     public static readonly AbilityId Slam = new(306);

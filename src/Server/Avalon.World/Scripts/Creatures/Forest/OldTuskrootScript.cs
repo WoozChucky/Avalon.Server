@@ -16,7 +16,7 @@ namespace Avalon.World.Scripts.Creatures.Forest;
 public sealed class OldTuskrootScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
     TimeProvider? time = null, IWorld? world = null)
     : AggroDefendScript(creature, context,
-        new OldTuskrootScript.OldTuskrootCombat(loggerFactory, creature, context, time, world))
+        new OldTuskrootScript.OldTuskrootCombat(loggerFactory, creature, context, time, world), idleTimerOnly: true)
 {
     /// <summary>Its basic: a 2 m cone.</summary>
     public static readonly AbilityId TuskGore = new(311);

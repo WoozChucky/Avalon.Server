@@ -17,7 +17,7 @@ namespace Avalon.World.Scripts.Creatures.Forest;
 public sealed class BramblemawAlphaScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
     TimeProvider? time = null, IWorld? world = null)
     : AggroDefendScript(creature, context,
-        new BramblemawAlphaScript.BramblemawAlphaCombat(loggerFactory, creature, context, time, world))
+        new BramblemawAlphaScript.BramblemawAlphaCombat(loggerFactory, creature, context, time, world), idleTimerOnly: true)
 {
     /// <summary>Its basic: a 2 m cone.</summary>
     public static readonly AbilityId Maul = new(308);

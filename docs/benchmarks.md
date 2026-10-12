@@ -36,6 +36,43 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 
 ## Suites
 
+### Idle creature dispatch — `Benchmarks/CreatureDispatchBenchmarks.cs` (#880, #896)
+
+Eleven thousand real `AggroDefendScript` instances, with 0%, 5% or 100% kept in combat. Three out-of-range
+characters exercise periodic searches; active creatures keep a nearby, living target and run kitless combat
+decisions. Each invocation advances 61 ticks, one full interval of the detector's existing float timer at 60 Hz,
+and reports cost per tick for the entire population. Setup warms for 15 seconds; setup and cleanup verify the
+active population. This isolates script dispatch: it excludes locomotion integration, abilities, replication,
+networking and many-instance locality, and is not a live capacity measurement.
+
+Before/after on 2026-10-12, baseline `516cdf12` and the idle timer shortcut, with the same measured loop:
+
+| Active | Before mean/tick | After mean/tick | Allocated, both |
+|---|---:|---:|---:|
+| 0% | 248.1 µs | 188.6 µs | 0 B |
+| 5% | 273.4 µs | 188.3 µs | 0 B |
+| 100% | 846.0 µs | 798.5 µs | 0 B |
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC,
+affinity mask 4; one launch, five warmups and eight measured iterations. The 99.9% intervals are 210.1–286.2 /
+172.9–204.3 µs for idle and 245.3–301.5 / 169.2–207.3 µs for 5% active. These runs show lower idle/mixed costs;
+the fully active intervals overlap widely (718.0–974.0 / 647.9–949.0 µs), so no active gain is established.
+The setup/cleanup population assertion was added after the baseline; the measured loop and population are unchanged.
+
+The separate deterministic `forest-combat` scenario exercises real kits, movement, casts and replication over
+four forests and twelve players. One paired run measured mean tick 0.1060 → 0.0864 ms and p99 0.2792 → 0.1869 ms,
+with the same 16,244 B per 60-tick window and no collections. It used server GC and a 15-second rehearsal before
+600 warmup and 3,600 measured ticks. A separate diagnostic replay preserved every pre-tick state-count total and
+all 71 kills: 97.8% of creature states were idle, and 98.4% of searching-detector visits were waiting for their timer.
+Those proportions describe this local scenario, not the live 600-bot population. The single full-scenario timing
+pair is supporting evidence, not a statistical whole-world or capacity claim. Raw measurements stay outside Git;
+the live effect still requires a matched load test after deployment.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CreatureDispatchBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4
+dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario forest-combat --warmup-seconds 15 --measure-ticks 3600
+```
+
 ### Grounded player movement — `NavigationMovementBenchmarks.cs` (#880, #896)
 
 Compares the existing `RaycastWalkable` + `SampleGroundHeight` composition with `MoveOnGround` over the committed
