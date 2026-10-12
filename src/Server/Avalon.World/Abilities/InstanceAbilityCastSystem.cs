@@ -91,6 +91,7 @@ public class InstanceAbilityCastSystem(
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
+    private readonly List<AbilityInstance> _cancelled = [];
     private readonly AbilityScriptActivator _scriptActivator = new();
     private uint _lastCastId;
 
@@ -136,8 +137,7 @@ public class InstanceAbilityCastSystem(
             AbilityCost.Pay(caster, ability.Metadata);
         }
 
-        _logger.LogDebug("QueueAbility queued ability={AbilityId} caster={CharId} castTime={CastTime}s queueSize={Size}",
-            ability.AbilityId, caster.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
+        CombatLog.CastQueued(_logger, ability.AbilityId, caster.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
 
         arena.BroadcastUnitStartCast(caster, ability, castId, FootprintOf(caster, aim, ability));
         return true;
@@ -175,7 +175,7 @@ public class InstanceAbilityCastSystem(
         // ended on the tick it was first seen. Updates go out only on broadcast ticks, so that can be
         // a few ticks later.
         _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished
-            && (a.Script.Guid.Type != ObjectType.SpellProjectile || !a.Script.HasUnsentChanges));
+            && (a.Script.Guid?.Type != ObjectType.SpellProjectile || !a.Script.HasUnsentChanges));
 
         AdvanceQueue(deltaTime);
         SendInterrupts();
@@ -204,8 +204,7 @@ public class InstanceAbilityCastSystem(
             // never lands the hit.
             if (IsAbandonedByCreature(cast.Caster))
             {
-                _logger.LogDebug("Dropped the cast of a creature that died or turned for home ability={AbilityId} caster={CasterId}",
-                    ability.AbilityId, cast.Caster.Guid);
+                CombatLog.CastDroppedCreatureGone(_logger, ability.AbilityId, cast.Caster.Guid);
                 ResetCast(ability);
                 _interrupts.Add((cast.Caster, ability, cast.CastId));
                 _dequeued.Add(cast);
@@ -236,8 +235,7 @@ public class InstanceAbilityCastSystem(
             // is interrupted out loud (#530), as moving does, so every client's cast bar for it ends.
             if (IsDead(cast.Caster))
             {
-                _logger.LogDebug("Dropped the cast of a dead caster ability={AbilityId} caster={CharId}",
-                    ability.AbilityId, cast.Caster.Guid);
+                CombatLog.CastDroppedCasterDead(_logger, ability.AbilityId, cast.Caster.Guid);
                 _interrupts.Add((cast.Caster, ability, cast.CastId));
                 continue;
             }
@@ -263,7 +261,7 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>
     /// Ticks every unfinished script and hands each projectile to <paramref name="objects" />. Each Update
-    /// is contained (#530): a script that throws is dropped, and the others still tick.
+    /// is contained (#530): a script that throws, or runs without a guid, is dropped, and the others still tick.
     /// </summary>
     private void TickScripts(TimeSpan deltaTime, List<IWorldObject> objects)
     {
@@ -297,7 +295,18 @@ public class InstanceAbilityCastSystem(
                 }
             }
 
-            if (script.Guid.Type == ObjectType.SpellProjectile)
+            // A script must carry a guid from Prepare on. One without (its Prepare set none, or its Update took it
+            // away) is contained like one that threw: read unchecked here, it would throw out of every tick.
+            if (script.Guid is not { } guid)
+            {
+                _failed.Add(active);
+                Failed(active.Caster, active.Ability,
+                    new InvalidOperationException($"{script.GetType().Name} is running without a guid."), "Update",
+                    active.CastId);
+                continue;
+            }
+
+            if (guid.Type == ObjectType.SpellProjectile)
             {
                 objects.Add(script);
             }
@@ -313,27 +322,36 @@ public class InstanceAbilityCastSystem(
 
     public void CancelCasts(IUnit caster)
     {
-        // Collected first: nothing is removed from the queue while it is enumerated.
-        List<AbilityInstance> cancelled = [];
+        // Collected first: nothing is removed from the queue while it is enumerated. Into a list of this call's own,
+        // kept between calls: it runs for every character and creature that leaves, most of them casting nothing.
+        _cancelled.Clear();
         foreach (AbilityInstance cast in _abilityQueue)
         {
             if (ReferenceEquals(cast.Caster, caster))
             {
-                cancelled.Add(cast);
+                _cancelled.Add(cast);
             }
         }
 
-        foreach (AbilityInstance cast in cancelled)
+        foreach (AbilityInstance cast in _cancelled)
         {
             _abilityQueue.Remove(cast);
             ResetCast(cast.Ability);
         }
 
-        // Sent once every cast is already cleared, so a failing send cannot leave one stuck.
-        foreach (AbilityInstance cast in cancelled)
+        try
         {
-            CombatLog.CastCancelledCasterLeft(_logger, cast.Ability.AbilityId, caster.Guid);
-            arena.BroadcastInterruptedCast(caster, cast.Ability, cast.CastId);
+            // Sent once every cast is already cleared, so a failing send cannot leave one stuck.
+            foreach (AbilityInstance cast in _cancelled)
+            {
+                CombatLog.CastCancelledCasterLeft(_logger, cast.Ability.AbilityId, caster.Guid);
+                arena.BroadcastInterruptedCast(caster, cast.Ability, cast.CastId);
+            }
+        }
+        finally
+        {
+            // Emptied now: until the next leave it would hold the casts of a caster who is gone, and the caster.
+            _cancelled.Clear();
         }
     }
 
@@ -453,7 +471,7 @@ public class InstanceAbilityCastSystem(
             _activeAbilities.Add(new ActiveScript(caster, ability, script, castId));
         }
 
-        _logger.LogDebug("Fired ability {AbilityId} by {CasterId}", ability.AbilityId, caster.Guid);
+        CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
     }
 
     /// <summary>

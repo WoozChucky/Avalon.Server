@@ -7,11 +7,12 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.Combat;
 
 /// <summary>
-/// The combat path's routine lines (#819): one per hit on a character, per death, and per cast refused for its cost,
-/// interrupted by movement or dropped because its caster left. They run on the tick many times a second in a busy
-/// instance, so they are Debug lines through generated methods that check the level before formatting anything: at
-/// the world server's Information default each costs a few nanoseconds and allocates nothing, where a written line
-/// costs hundreds (<c>CombatLoggingBenchmarks</c>). Faults stay at Warning and Error where they are.
+/// The combat path's routine lines (#819): one per hit on a character, per death, and per cast queued, fired, refused
+/// for its cost, interrupted by movement or dropped because its caster died or left. They run on the tick many times
+/// a second in a busy instance, so they are Debug lines through generated methods that check the level before
+/// formatting anything: at the world server's Information default each costs a few nanoseconds and allocates nothing,
+/// where a written line costs hundreds (<c>CombatLoggingBenchmarks</c>). Faults stay at Warning and Error where they
+/// are.
 /// </summary>
 internal static partial class CombatLog
 {
@@ -26,6 +27,18 @@ internal static partial class CombatLog
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "RunInstant reject {Cost} ability={AbilityId} powerType={PowerType}")]
     public static partial void InstantCastRefused(ILogger logger, CostCheck cost, AbilityId abilityId, PowerType powerType);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "QueueAbility queued ability={AbilityId} caster={CharId} castTime={CastTime}s queueSize={Size}")]
+    public static partial void CastQueued(ILogger logger, AbilityId abilityId, ObjectGuid charId, float castTime, int size);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Fired ability {AbilityId} by {CasterId}")]
+    public static partial void AbilityFired(ILogger logger, AbilityId abilityId, ObjectGuid casterId);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped the cast of a creature that died or turned for home ability={AbilityId} caster={CasterId}")]
+    public static partial void CastDroppedCreatureGone(ILogger logger, AbilityId abilityId, ObjectGuid casterId);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped the cast of a dead caster ability={AbilityId} caster={CharId}")]
+    public static partial void CastDroppedCasterDead(ILogger logger, AbilityId abilityId, ObjectGuid charId);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Cast interrupted by movement ability={AbilityId} caster={CharId}")]
     public static partial void CastInterruptedByMovement(ILogger logger, AbilityId abilityId, ObjectGuid charId);

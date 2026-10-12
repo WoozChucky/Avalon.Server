@@ -40,7 +40,7 @@ public class InstanceAbilityCastSystemContainmentShould
                  {
                      typeof(RecordingAbilityScript), typeof(PrepareThrowingAbilityScript),
                      typeof(UpdateThrowingAbilityScript), typeof(ProjectileAbilityScript),
-                     typeof(StateThrowingAbilityScript),
+                     typeof(StateThrowingAbilityScript), typeof(GuidlessAbilityScript),
                  })
         {
             _scripts.GetAbilityScript(script.Name).Returns(script);
@@ -158,6 +158,33 @@ public class InstanceAbilityCastSystemContainmentShould
 
         Assert.Equal(UpdateThrowingAbilityScript.ThrowOnUpdate, thrower.Updates);
         Assert.Single(_arena.Damaged());
+        Assert.Single(_arena.InterruptsOf(failing));
+    }
+
+    /// <summary>
+    /// A script that leaves Prepare running without a guid is contained like one that throws: logged, dropped and
+    /// its caster sent the interrupt, while the other scripts tick, on that update and the next. Read unchecked, its
+    /// missing guid threw out of every update of the instance.
+    /// </summary>
+    [Fact]
+    public void Drop_a_script_running_without_a_guid_and_keep_ticking_the_others()
+    {
+        ICharacter failing = Caster(541_070);
+        ICharacter flyer = _arena.Player(541_071, 0f, 0f);
+        Assert.True(_sut.RunInstant(failing, s_aim, Ability(541_072, nameof(GuidlessAbilityScript))));
+        Assert.True(_sut.RunInstant(flyer, s_aim, Projectile(541_073)));
+
+        List<IWorldObject> objects = [];
+        _sut.Update(s_tick, objects);
+
+        Assert.Single(objects);   // the projectile still ticked
+        AssertLoggedError(541_072, failing);
+        Assert.Single(_arena.InterruptsOf(failing));
+
+        objects.Clear();
+        _sut.Update(s_tick, objects);   // the script is gone: nothing throws, nothing is sent again
+
+        Assert.Single(objects);
         Assert.Single(_arena.InterruptsOf(failing));
     }
 

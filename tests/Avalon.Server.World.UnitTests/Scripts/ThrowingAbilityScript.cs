@@ -52,6 +52,25 @@ public sealed class StateThrowingAbilityScript(IAbility ability, IUnit caster, A
     protected override bool ShouldRun() => true;
 }
 
+/// <summary>An ability script that builds and keeps running, and whose Prepare sets no guid.</summary>
+public sealed class GuidlessAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
+    : AbilityScript(ability, caster, aim)
+{
+    public IAbilityArena Arena { get; } = arena;
+
+    public override object State { get; set; } = SpellState.Executing;
+    public override Vector3 Position { get; set; }
+    public override Vector3 Velocity { get; set; }
+    public override Vector3 Orientation { get; set; }
+    public override ObjectGuid Guid { get; set; } = null!;
+
+    public override void Prepare()
+    {
+    }
+
+    protected override bool ShouldRun() => true;
+}
+
 /// <summary>An ability script that builds, and whose Prepare throws (#530).</summary>
 public sealed class PrepareThrowingAbilityScript : AbilityScript
 {
