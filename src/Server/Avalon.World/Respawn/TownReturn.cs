@@ -144,11 +144,13 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
             // the loot snapshot on its next tick, and the client has to know the map before its drops.
             world.TransferPlayer(connection, townInstance);
 
-            // Resolve spawn coords from the town's chunk layout. Fall back to template defaults defensively.
+            // Resolve spawn coords from the town's chunk layout. The template defaults serve only an instance
+            // that is not a MapInstance.
             float spawnX, spawnY, spawnZ;
             MapTemplate townTemplate = world.MapTemplates.First(t => t.Id == townMapId);
-            if (townInstance is MapInstance mi && mi.EntrySpawnWorldPos is { } s)
+            if (townInstance is MapInstance mi)
             {
+                Vector3 s = mi.EntrySpawnWorldPos;
                 spawnX = s.x; spawnY = s.y; spawnZ = s.z;
             }
             else

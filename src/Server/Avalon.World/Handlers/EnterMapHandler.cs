@@ -258,12 +258,13 @@ public class EnterMapHandler(
         // the loot snapshot on its next tick, and the client has to know the map before its drops.
         world.TransferPlayer(connection, targetInstance);
 
-        // 10. Resolve spawn coords: every chunk-layout-built instance (town + normal) carries
-        // the canonical entry spawn on its Layout. Fall back to template defaults only if the
-        // instance somehow lacks one (defensive — should not happen post-Task 7).
+        // 10. Resolve spawn coords: every MapInstance (town + normal) carries the canonical
+        // entry spawn of its Layout. The template defaults serve only a target that is not a
+        // MapInstance.
         float spawnX, spawnY, spawnZ;
-        if (targetInstance is MapInstance miSpawn && miSpawn.EntrySpawnWorldPos is Vector3 entrySpawn)
+        if (targetInstance is MapInstance miSpawn)
         {
+            Vector3 entrySpawn = miSpawn.EntrySpawnWorldPos;
             spawnX = entrySpawn.x;
             spawnY = entrySpawn.y;
             spawnZ = entrySpawn.z;

@@ -250,7 +250,7 @@ public sealed class FightForest
     public FightForest(MapInstance instance)
     {
         Instance = instance ?? throw new ArgumentNullException(nameof(instance));
-        Entry = instance.EntrySpawnWorldPos ?? throw new ArgumentException("The forest has no entry", nameof(instance));
+        Entry = instance.EntrySpawnWorldPos;
         _creatures = [.. instance.Creatures.Values];
         if (_creatures.Length == 0)
             throw new ArgumentException("The forest has no creatures", nameof(instance));

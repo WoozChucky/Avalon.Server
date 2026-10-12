@@ -288,7 +288,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// behind a successful arrival. World-side, not on IMapInstance.
     /// </summary>
     public ChunkLayout Layout { get; }
-    public Vector3? EntrySpawnWorldPos { get; }
+    public Vector3 EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;
 
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
