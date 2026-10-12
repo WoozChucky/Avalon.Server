@@ -26,6 +26,11 @@ namespace Avalon.World.Abilities;
 /// cast, so a type the manager no longer names is never built, whatever is still held here.
 /// </para>
 /// <para>
+/// <b>Making a factory</b> compiles the constructor call: about half a millisecond for a type, and some ten more for
+/// the first in a process. <c>ScriptManager.Load</c> asks for each type's with <see cref="Prepare" />, off the tick;
+/// a type that reaches a cast any other way has its factory made by that cast.
+/// </para>
+/// <para>
 /// <b>Threads.</b> The factories are shared and safe to share. The argument array is not: each cast system owns one
 /// activator, and so one array, used on its instance's tick alone.
 /// </para>
@@ -40,6 +45,12 @@ public sealed class AbilityScriptActivator
     private readonly object?[] _arguments = new object?[4];
 
     /// <summary>
+    /// Makes <paramref name="scriptType" />'s factory now, so its first cast does not. Throws
+    /// <see cref="InvalidOperationException" /> for a type whose constructors do not fit the four arguments.
+    /// </summary>
+    public static void Prepare(Type scriptType) => FactoryOf(scriptType);
+
+    /// <summary>
     /// A new <paramref name="scriptType" /> script; null when the type is not an <see cref="AbilityScript" />. Throws
     /// what the constructor throws, and <see cref="InvalidOperationException" /> for a type whose constructors do not
     /// fit the four arguments or want a service the container lacks. A type that cannot be bound leaves no factory
@@ -48,8 +59,7 @@ public sealed class AbilityScriptActivator
     public AbilityScript? Build(IServiceProvider services, Type scriptType, IAbility ability, IUnit caster,
         AbilityAim aim, IAbilityArena arena)
     {
-        ObjectFactory factory = s_factories.GetValue(scriptType,
-            static type => ActivatorUtilities.CreateFactory(type, s_argumentTypes));
+        ObjectFactory factory = FactoryOf(scriptType);
 
         // A factory reads every argument before the constructor's body runs, so a constructor that casts through the
         // same cast system finds the array free.
@@ -68,4 +78,7 @@ public sealed class AbilityScriptActivator
             Array.Clear(arguments);
         }
     }
+
+    private static ObjectFactory FactoryOf(Type scriptType) =>
+        s_factories.GetValue(scriptType, static type => ActivatorUtilities.CreateFactory(type, s_argumentTypes));
 }

@@ -1,21 +1,26 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using Avalon.Common;
-using Avalon.Common.Mathematics;
 using Avalon.World.Abilities;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
 
 /// <summary>
+/// Run alone: a test that scans every loaded assembly for scripts at the wrong moment (any that loads a ScriptManager
+/// or builds a world host) holds the emitted type while it scans, and the type would be found alive.
+/// </summary>
+[CollectionDefinition(nameof(AbilityScriptActivatorShould), DisableParallelization = true)]
+public sealed class AbilityScriptActivatorCollection;
+
+/// <summary>
 /// The activator keeps one factory per script type for the life of the process, shared by every cast system (#925).
 /// A factory holds its type, so held any other way than weakly it would keep a reloaded script's old assembly loaded
 /// for good.
 /// </summary>
+[Collection(nameof(AbilityScriptActivatorShould))]
 public class AbilityScriptActivatorShould
 {
     private static readonly Type[] s_castArguments =
@@ -36,8 +41,9 @@ public class AbilityScriptActivatorShould
     }
 
     /// <summary>
-    /// Emits a script type into a collectible assembly and builds it twice, the second time through the factory the
-    /// first one left. Not inlined, so nothing of it is still on the caller's stack when the caller collects.
+    /// Emits a type with a script's constructor into a collectible assembly and builds it twice, the second time
+    /// through the factory the first one left. Not inlined, so nothing of it is still on the caller's stack when the
+    /// caller collects.
     /// </summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static WeakReference BuildAScriptFromACollectibleAssembly()
@@ -45,41 +51,36 @@ public class AbilityScriptActivatorShould
         var assembly = AssemblyBuilder.DefineDynamicAssembly(
             new AssemblyName("CollectibleAbilityScripts"), AssemblyBuilderAccess.RunAndCollect);
         TypeBuilder type = assembly.DefineDynamicModule("Scripts")
-            .DefineType("CollectibleAbilityScript", TypeAttributes.Public | TypeAttributes.Class, typeof(InertAbilityScript));
+            .DefineType("CollectibleAbilityScript", TypeAttributes.Public | TypeAttributes.Class, typeof(Built));
         ILGenerator il = type.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard, s_castArguments)
             .GetILGenerator();
         il.Emit(OpCodes.Ldarg_0);
-        il.Emit(OpCodes.Ldarg_1);
-        il.Emit(OpCodes.Ldarg_2);
-        il.Emit(OpCodes.Ldarg_3);
-        il.Emit(OpCodes.Call, typeof(InertAbilityScript).GetConstructors().Single());
+        il.Emit(OpCodes.Call, typeof(Built).GetConstructor(Type.EmptyTypes)!);
         il.Emit(OpCodes.Ret);
         Type scriptType = type.CreateType();
 
         var activator = new AbilityScriptActivator();
+        int before = Built.Count;
         for (int cast = 0; cast < 2; cast++)
         {
-            AbilityScript? built = activator.Build(Substitute.For<IServiceProvider>(), scriptType,
-                Substitute.For<IAbility>(), Substitute.For<IUnit>(), default, Substitute.For<IAbilityArena>());
-            Assert.IsType(scriptType, built);
+            activator.Build(Substitute.For<IServiceProvider>(), scriptType, Substitute.For<IAbility>(),
+                Substitute.For<IUnit>(), default, Substitute.For<IAbilityArena>());
         }
 
+        Assert.Equal(before + 2, Built.Count);
         return new WeakReference(scriptType);
     }
 
-    /// <summary>A script that does nothing: the base the emitted type needs, so it has only a constructor to emit.</summary>
-    public class InertAbilityScript(IAbility ability, IUnit caster, AbilityAim aim) : AbilityScript(ability, caster, aim)
+    /// <summary>
+    /// The emitted type's base, counting what was built. Deliberately not an AbilityScript: a ScriptManager that
+    /// another test loads meanwhile scans every assembly, and would name the emitted type and keep it alive.
+    /// </summary>
+    public class Built
     {
-        public override object State { get; set; } = null!;
-        public override Vector3 Position { get; set; }
-        public override Vector3 Velocity { get; set; }
-        public override Vector3 Orientation { get; set; }
-        public override ObjectGuid Guid { get; set; } = null!;
+        private static int s_count;
 
-        public override void Prepare()
-        {
-        }
+        public Built() => Interlocked.Increment(ref s_count);
 
-        protected override bool ShouldRun() => false;
+        public static int Count => Volatile.Read(ref s_count);
     }
 }
