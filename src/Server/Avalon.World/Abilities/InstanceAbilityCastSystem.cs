@@ -546,7 +546,19 @@ public class InstanceAbilityCastSystem(
 
         public int RemoveAll(Predicate<ActiveScript> match)
         {
-            int removed = _scripts.RemoveAll(match);
+            int removed;
+            try
+            {
+                removed = _scripts.RemoveAll(match);
+            }
+            catch
+            {
+                // The list compacts as it goes and sets its size last: a predicate that throws part-way (it reads the
+                // script's own state) has already overwritten scripts it matched, and the index would still name them.
+                Changed();
+                throw;
+            }
+
             if (removed > 0)
                 Changed();
             return removed;

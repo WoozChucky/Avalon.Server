@@ -40,6 +40,7 @@ public class InstanceAbilityCastSystemContainmentShould
                  {
                      typeof(RecordingAbilityScript), typeof(PrepareThrowingAbilityScript),
                      typeof(UpdateThrowingAbilityScript), typeof(ProjectileAbilityScript),
+                     typeof(StateThrowingAbilityScript),
                  })
         {
             _scripts.GetAbilityScript(script.Name).Returns(script);
@@ -279,6 +280,34 @@ public class InstanceAbilityCastSystemContainmentShould
         }
 
         Assert.Null(_sut.GetAbility(thrower.Guid));
+    }
+
+    /// <summary>
+    /// A script whose state cannot be read stops the sweep for finished scripts part-way, after the list has already
+    /// let go of the ones the sweep matched before it. The index must not go on answering with those (#883).
+    /// </summary>
+    [Fact]
+    public void Forget_a_script_that_a_failed_sweep_had_already_dropped()
+    {
+        ICharacter caster = _arena.Player(541_050, 0f, 0f);
+        Assert.True(_sut.RunInstant(caster, s_aim,
+            AbilityTestData.Game(AbilityTestData.Projectile(541_051, reach: 0.05f, speed: 20f))));
+        for (uint i = 0; i < InstanceAbilityCastSystem.WalkedUpTo; i++)
+        {
+            Assert.True(_sut.RunInstant(caster, s_aim, Projectile(541_060 + i)));
+        }
+
+        Assert.True(_sut.RunInstant(caster, s_aim, Ability(541_052, nameof(StateThrowingAbilityScript))));
+        List<IWorldObject> objects = [];
+        _sut.Update(s_tick, objects);
+        IWorldObject ended = objects[0];
+        var unreadable = (StateThrowingAbilityScript)objects[^1];
+        Assert.Same(ended, _sut.GetAbility(ended.Guid));
+
+        unreadable.Armed = true;
+        Assert.Throws<InvalidOperationException>(_sut.DropFinished);
+
+        Assert.Null(_sut.GetAbility(ended.Guid));
     }
 
     private sealed class RecordingLoggerFactory : ILoggerFactory, ILogger

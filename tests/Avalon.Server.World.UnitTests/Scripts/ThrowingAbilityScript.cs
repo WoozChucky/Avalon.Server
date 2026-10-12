@@ -25,6 +25,33 @@ public sealed class ThrowingAbilityScript : AbilityScript
     protected override bool ShouldRun() => true;
 }
 
+/// <summary>
+/// A projectile-typed world object that stands still, and whose State throws once <see cref="Armed" /> is set: what
+/// the cast system reads when it looks for finished scripts to drop.
+/// </summary>
+public sealed class StateThrowingAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
+    : AbilityScript(ability, caster, aim)
+{
+    public IAbilityArena Arena { get; } = arena;
+
+    public bool Armed { get; set; }
+
+    public override object State
+    {
+        get => Armed ? throw new InvalidOperationException("This script's state cannot be read.") : SpellState.Executing;
+        set { }
+    }
+
+    public override Vector3 Position { get; set; }
+    public override Vector3 Velocity { get; set; }
+    public override Vector3 Orientation { get; set; }
+    public override ObjectGuid Guid { get; set; } = null!;
+
+    public override void Prepare() => Guid = new ObjectGuid(ObjectType.SpellProjectile, IObject.GenerateId());
+
+    protected override bool ShouldRun() => true;
+}
+
 /// <summary>An ability script that builds, and whose Prepare throws (#530).</summary>
 public sealed class PrepareThrowingAbilityScript : AbilityScript
 {
