@@ -1,13 +1,6 @@
-using System.Net;
-using System.Net.Sockets;
-using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
-using Avalon.World;
-using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Time.Testing;
-using NSubstitute;
 using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
@@ -15,67 +8,38 @@ namespace Avalon.Server.World.UnitTests.WorldConnection;
 /// <summary>
 /// A connection's time sync (#892). The round trip is the server's own measurement: from the stamp its send thread put
 /// on a ping as it wrote it, to the arrival of the pong that echoes that stamp. The echo only says which ping a pong
-/// answers, each ping is answered once, and the client's own times place its clock and nothing else. Every case runs a
-/// real connection and its sender, reads each ping off the wire as a client would, and drives the clock.
+/// answers, each ping written lets one pong in, and the client's own times place its clock and nothing else. Every case
+/// runs an admitted connection with its real sender and pong handler: each ping is read off the wire as a client reads
+/// it, each pong arrives as the read loop delivers it and is handled by the tick's session pass, and the test drives
+/// the clock.
 /// </summary>
 public sealed class WorldConnectionTimeSyncShould : IDisposable
 {
     private const long TicksPerMs = TimeSpan.TicksPerMillisecond;
     private const long TicksPerSecond = TimeSpan.TicksPerSecond;
 
-    private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 10, 12, 0, 0, TimeSpan.Zero));
-    private readonly NetworkSendScheduler _scheduler;
-    private readonly Avalon.World.WorldConnection _connection;
-    private readonly TcpClient _serverSide;
     private readonly MemoryStream _wire = new();
+    private readonly ReceiveQueueFixture _fixture;
 
-    public WorldConnectionTimeSyncShould()
-    {
-        // Its send threads never start: each test runs the passes itself, so a ping is written when the test says.
-        _scheduler = new NetworkSendScheduler(new NetworkConfiguration { SendThreads = 1 }, NullLoggerFactory.Instance,
-            _clock, NetworkSendMetrics.Disabled);
-        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
-        server.SendScheduler.Returns(_scheduler);
+    public WorldConnectionTimeSyncShould() => _fixture = new ReceiveQueueFixture(_wire);
 
-        (TcpClient clientSide, TcpClient serverSide) = CreateLoopbackPair();
-        _serverSide = serverSide;
-        _connection = new Avalon.World.WorldConnection(server, clientSide, NullLoggerFactory.Instance,
-            Substitute.For<IPacketReader>(), _clock);
-        _connection.InitOutboxForTest(new PacketStream(_wire));
-    }
+    private Avalon.World.WorldConnection Connection => _fixture.Connection;
 
-    public void Dispose()
-    {
-        _connection.Close();
-        _scheduler.RunAllPasses();   // the close's last visit, so the sender finishes and gives back its buffers
-        _connection.Dispose();
-        _scheduler.Dispose();
-        _serverSide.Dispose();
-    }
+    public void Dispose() => _fixture.Dispose();
 
-    private static (TcpClient clientSide, TcpClient serverSide) CreateLoopbackPair()
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        int port = ((IPEndPoint)listener.LocalEndpoint!).Port;
-        var clientSide = new TcpClient();
-        clientSide.Connect(IPAddress.Loopback, port);
-        TcpClient serverSide = listener.AcceptTcpClient();
-        listener.Stop();
-        return (clientSide, serverSide);
-    }
+    private void Advance(TimeSpan by) => _fixture.Clock.Now += by;
 
     /// <summary>The tick queues a ping and its send thread writes it now: the ping as the client reads it.</summary>
     private Task<SPingPacket> WritePingAsync()
     {
-        _connection.SendTimeSyncPing();
+        Connection.SendTimeSyncPing();
         return WriteQueuedPingAsync();
     }
 
     /// <summary>The send thread's pass, now: the ping it writes, as the client reads it.</summary>
     private async Task<SPingPacket> WriteQueuedPingAsync()
     {
-        _scheduler.RunAllPasses();
+        _fixture.Scheduler!.RunAllPasses();
 
         SPingPacket? newest = null;
         using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -90,6 +54,25 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
         return newest ?? throw new InvalidOperationException("No ping was written");
     }
 
+    /// <summary>The read loop delivers a pong at <paramref name="arrivesAt" /> on the server's clock.</summary>
+    private void Arrive(long echo, long clientReceived, long clientSent, long arrivesAt)
+    {
+        _fixture.Clock.Now = new DateTimeOffset(arrivesAt, TimeSpan.Zero);
+        _fixture.Connection.Deliver(NetworkPacketType.CMSG_PONG, new CPongPacket
+        {
+            LastServerTimestamp = echo,
+            ClientReceivedTimestamp = clientReceived,
+            ClientSentTimestamp = clientSent,
+        });
+    }
+
+    /// <summary>A pong arrives and the tick's next pass handles it, if it was let in.</summary>
+    private void Pong(long echo, long clientReceived, long clientSent, long arrivesAt)
+    {
+        Arrive(echo, clientReceived, clientSent, arrivesAt);
+        _fixture.Pump();
+    }
+
     /// <summary>
     /// A whole honest exchange: <paramref name="oneWayTicks" /> out and as long back, answered the instant it lands, by a
     /// client whose clock runs <paramref name="clientAheadTicks" /> ahead of the server's.
@@ -98,8 +81,7 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     {
         long stamp = (await WritePingAsync()).ServerTimestamp;
         long clientTouchedAt = stamp + oneWayTicks + clientAheadTicks;
-        _clock.Advance(TimeSpan.FromTicks(2 * oneWayTicks));
-        _connection.OnPongReceived(stamp, clientTouchedAt, clientTouchedAt, stamp + 2 * oneWayTicks);
+        Pong(stamp, clientTouchedAt, clientTouchedAt, stamp + 2 * oneWayTicks);
         return stamp;
     }
 
@@ -118,55 +100,76 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     {
         long stamp = (await WritePingAsync()).ServerTimestamp;
 
-        _connection.OnPongReceived(stamp, stamp + receivedAfterStamp, stamp + sentAfterStamp, stamp + 20 * TicksPerMs);
+        Pong(stamp, stamp + receivedAfterStamp, stamp + sentAfterStamp, stamp + 20 * TicksPerMs);
 
-        Assert.Equal(20 * TicksPerMs, _connection.RoundTripTime);
-        Assert.Equal(20, _connection.Latency);
+        Assert.Equal(20 * TicksPerMs, Connection.RoundTripTime);
+        Assert.Equal(20, Connection.Latency);
     }
 
     /// <summary>
     /// A pong whose echo is the stamp of no ping (a tick either side of the one in flight, the next ping's likely stamp
-    /// sent ahead of it, or zero, which an empty place in the record holds) changes nothing, and the next ping tells the
-    /// client what the last answered one left.
+    /// sent ahead of it, or zero, which an empty place in the record holds) changes nothing, and it was the ping's one
+    /// answer: the true echo sent after it is dropped as it arrives. The next ping tells the client what the last
+    /// answered one left, and is measured as any other.
     /// </summary>
     [Theory]
     [InlineData(1L, false)]
     [InlineData(-1L, false)]
     [InlineData(10 * TicksPerSecond, false)]
     [InlineData(0L, true)]
-    public async Task ChangeNothing_WhenAPongEchoesTheStampOfNoPing(long echo, bool absolute)
+    public async Task ChangeNothing_AndSpendThePingsOneAnswer_WhenAPongEchoesTheStampOfNoPing(long echo, bool absolute)
     {
         long answeredAt = await ExchangeAsync(oneWayTicks: 10 * TicksPerMs, clientAheadTicks: TicksPerSecond)
             + 10 * TicksPerMs + TicksPerSecond;
-        _clock.Advance(TimeSpan.FromSeconds(10));
+        Advance(TimeSpan.FromSeconds(10));
         long inFlight = (await WritePingAsync()).ServerTimestamp;
 
-        long forged = absolute ? echo : inFlight + echo;
-        _connection.OnPongReceived(forged, forged, forged, inFlight + TicksPerMs);
+        long guess = absolute ? echo : inFlight + echo;
+        Pong(guess, guess, guess, inFlight + TicksPerMs);
+        Pong(inFlight, inFlight + 15 * TicksPerMs, inFlight + 15 * TicksPerMs, inFlight + 30 * TicksPerMs);
 
-        Assert.Equal(20 * TicksPerMs, _connection.RoundTripTime);
-        Assert.Equal(20, _connection.Latency);
-        Assert.Equal(-TicksPerSecond, _connection.TimeSyncOffset);
+        Assert.Equal(2, _fixture.Dispatched);   // the first exchange's pong and the guess; the true echo never got in
+        Assert.Equal(20 * TicksPerMs, Connection.RoundTripTime);
+        Assert.Equal(20, Connection.Latency);
+        Assert.Equal(-TicksPerSecond, Connection.TimeSyncOffset);
 
         SPingPacket next = await WritePingAsync();
         Assert.Equal(20 * TicksPerMs, next.Rtt);
         Assert.Equal(-TicksPerSecond, next.Offset);
         Assert.Equal(answeredAt, next.ClientTimestamp);
+
+        Pong(next.ServerTimestamp, next.ServerTimestamp, next.ServerTimestamp, next.ServerTimestamp + 50 * TicksPerMs);
+        Assert.Equal(50 * TicksPerMs, Connection.RoundTripTime);
     }
 
-    /// <summary>A ping is answered once: the same pong again, arriving later, is not a second measurement.</summary>
+    /// <summary>
+    /// A ping is answered once. Of a burst of pongs after one ping, the first is let in and the rest are dropped as they
+    /// arrive: never queued, never handled. And the first pong sent again once a later ping has let another pong in
+    /// reaches the handler but is no second measurement: its stamp was taken.
+    /// </summary>
     [Fact]
-    public async Task IgnoreASecondPong_ForTheSamePing()
+    public async Task AnswerEachPingOnce()
     {
         long stamp = (await WritePingAsync()).ServerTimestamp;
-        _connection.OnPongReceived(stamp, stamp + 10 * TicksPerMs, stamp + 10 * TicksPerMs, stamp + 20 * TicksPerMs);
 
-        _connection.OnPongReceived(stamp, stamp + 10 * TicksPerMs, stamp + 10 * TicksPerMs, stamp + 500 * TicksPerMs);
-        _connection.OnPongReceived(stamp, stamp, stamp, stamp);
+        Arrive(stamp, stamp + 10 * TicksPerMs, stamp + 10 * TicksPerMs, stamp + 20 * TicksPerMs);
+        for (int extra = 1; extra <= 9; extra++)
+            Arrive(stamp + extra % 3, stamp, stamp, stamp + (20 + extra) * TicksPerMs);
+        Assert.Equal(1, _fixture.QueueDepth);
+        _fixture.Pump();
 
-        Assert.Equal(20 * TicksPerMs, _connection.RoundTripTime);
-        Assert.Equal(20, _connection.Latency);
-        Assert.Equal(0, _connection.TimeSyncOffset);
+        Assert.Equal(1, _fixture.Dispatched);
+        Assert.Equal(20 * TicksPerMs, Connection.RoundTripTime);
+        Assert.Equal(0, Connection.TimeSyncOffset);
+
+        Advance(TimeSpan.FromSeconds(10));
+        await WritePingAsync();
+        Pong(stamp, stamp, stamp, stamp + 500 * TicksPerMs);
+
+        Assert.Equal(2, _fixture.Dispatched);
+        Assert.Equal(20 * TicksPerMs, Connection.RoundTripTime);
+        Assert.Equal(20, Connection.Latency);
+        Assert.Equal(0, Connection.TimeSyncOffset);
     }
 
     /// <summary>
@@ -180,20 +183,20 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     public async Task TimeEachPong_FromItsOwnPing_WhenTwoAreInFlight(bool secondAnsweredFirst)
     {
         long first = (await WritePingAsync()).ServerTimestamp;
-        _clock.Advance(TimeSpan.FromMilliseconds(30));
+        Advance(TimeSpan.FromMilliseconds(30));
         long second = (await WritePingAsync()).ServerTimestamp;
         Assert.Equal(first + 30 * TicksPerMs, second);
 
         void AnswerFirst()
         {
-            _connection.OnPongReceived(first, first + 50 * TicksPerMs, first + 55 * TicksPerMs, first + 100 * TicksPerMs);
-            Assert.Equal(100 * TicksPerMs, _connection.RoundTripTime);
+            Pong(first, first + 50 * TicksPerMs, first + 55 * TicksPerMs, first + 100 * TicksPerMs);
+            Assert.Equal(100 * TicksPerMs, Connection.RoundTripTime);
         }
 
         void AnswerSecond()
         {
-            _connection.OnPongReceived(second, second + 20 * TicksPerMs, second + 25 * TicksPerMs, second + 40 * TicksPerMs);
-            Assert.Equal(40 * TicksPerMs, _connection.RoundTripTime);
+            Pong(second, second + 20 * TicksPerMs, second + 25 * TicksPerMs, second + 40 * TicksPerMs);
+            Assert.Equal(40 * TicksPerMs, Connection.RoundTripTime);
         }
 
         if (secondAnsweredFirst)
@@ -209,46 +212,57 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     }
 
     /// <summary>
-    /// The record of unanswered pings is a fixed size: one ping more than it holds, none answered, and the oldest is the
-    /// one forgotten. Its pong is ignored, and every later ping can still be answered.
+    /// The record of unanswered pings is a fixed size, and so is the number of pongs they let in. Two pings more than it
+    /// holds, none answered: the two oldest stamps are forgotten, and only as many pongs get in as it holds stamps. A
+    /// pong for a forgotten ping is ignored and uses one of those up, so the last of the recorded pings, still
+    /// answerable by its stamp, is left without an answer.
     /// </summary>
     [Fact]
-    public async Task ForgetTheOldestPing_WhenMoreAreUnansweredThanItRecords()
+    public async Task KeepNoMoreStampsOrAnswers_ThanItRecords_WhenPingsGoUnanswered()
     {
         var stamps = new List<long>();
-        for (int ping = 0; ping <= ConnectionSender.PingStampCapacity; ping++)
+        for (int ping = 0; ping < ConnectionSender.PingStampCapacity + 2; ping++)
         {
             stamps.Add((await WritePingAsync()).ServerTimestamp);
-            _clock.Advance(TimeSpan.FromSeconds(10));
+            Advance(TimeSpan.FromSeconds(1));
         }
 
-        _connection.OnPongReceived(stamps[0], stamps[0], stamps[0], stamps[0] + 20 * TicksPerMs);
-        Assert.Equal(0, _connection.RoundTripTime);
+        long lastArrival = stamps[^1] + TicksPerSecond;
+        Pong(stamps[1], stamps[1], stamps[1], lastArrival);
+        Assert.Equal(1, _fixture.Dispatched);
+        Assert.Equal(0, Connection.RoundTripTime);
 
-        for (int ping = 1; ping < stamps.Count; ping++)
+        for (int ping = stamps.Count - 1; ping > 2; ping--)
         {
-            long roundTrip = (20 + ping) * TicksPerMs;
-            _connection.OnPongReceived(stamps[ping], stamps[ping], stamps[ping], stamps[ping] + roundTrip);
-            Assert.Equal(roundTrip, _connection.RoundTripTime);
+            lastArrival += TicksPerMs;
+            Pong(stamps[ping], stamps[ping], stamps[ping], lastArrival);
+            Assert.Equal(lastArrival - stamps[ping], Connection.RoundTripTime);
         }
+
+        long roundTrip = Connection.RoundTripTime;
+        Pong(stamps[2], stamps[2], stamps[2], lastArrival + TicksPerMs);
+        Assert.Equal(ConnectionSender.PingStampCapacity, _fixture.Dispatched);
+        Assert.Equal(roundTrip, Connection.RoundTripTime);
     }
 
     /// <summary>
-    /// The pong's arrival comes from the server's wall clock, which can be set back under an exchange. A pong that
-    /// arrives "before" its ping was written measures nothing: no negative round trip, the last one stays.
+    /// A pong that arrives "before" its ping was stamped measures nothing: no negative round trip, the last one stays.
+    /// Here the server's wall clock, which both times come from, was set back under the exchange; an echo sent ahead of
+    /// its ping reads the same.
     /// </summary>
     [Fact]
     public async Task KeepTheLastRoundTrip_WhenAPongArrivesBeforeItsPingWasStamped()
     {
         await ExchangeAsync(oneWayTicks: 10 * TicksPerMs);
-        _clock.Advance(TimeSpan.FromSeconds(10));
+        Advance(TimeSpan.FromSeconds(10));
         long stamp = (await WritePingAsync()).ServerTimestamp;
 
-        _connection.OnPongReceived(stamp, stamp, stamp, stamp - TicksPerSecond);
+        Pong(stamp, stamp, stamp, stamp - TicksPerSecond);
 
-        Assert.Equal(20 * TicksPerMs, _connection.RoundTripTime);
-        Assert.Equal(20, _connection.Latency);
-        Assert.Equal(0, _connection.TimeSyncOffset);
+        Assert.Equal(2, _fixture.Dispatched);
+        Assert.Equal(20 * TicksPerMs, Connection.RoundTripTime);
+        Assert.Equal(20, Connection.Latency);
+        Assert.Equal(0, Connection.TimeSyncOffset);
     }
 
     /// <summary>
@@ -263,11 +277,11 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     public async Task ReportTheOffset_OfTheClientClock_FromEachExchangeAlone(long clientAheadTicks)
     {
         await ExchangeAsync(oneWayTicks: 10 * TicksPerMs, clientAheadTicks);
-        Assert.Equal(-clientAheadTicks, _connection.TimeSyncOffset);
+        Assert.Equal(-clientAheadTicks, Connection.TimeSyncOffset);
 
-        _clock.Advance(TimeSpan.FromSeconds(10));
+        Advance(TimeSpan.FromSeconds(10));
         await ExchangeAsync(oneWayTicks: 10 * TicksPerMs, clientAheadTicks);
-        Assert.Equal(-clientAheadTicks, _connection.TimeSyncOffset);
+        Assert.Equal(-clientAheadTicks, Connection.TimeSyncOffset);
     }
 
     /// <summary>
@@ -279,13 +293,13 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     {
         long stamp = (await WritePingAsync()).ServerTimestamp;
         long clientTouchedAt = stamp + TicksPerMs;
-        long arrived = clientTouchedAt + TicksPerMs;
-        _clock.Advance(TimeSpan.FromMilliseconds(18));   // handled a tick after it arrived
 
-        _connection.OnPongReceived(stamp, clientTouchedAt, clientTouchedAt, arrived);
+        Arrive(stamp, clientTouchedAt, clientTouchedAt, arrivesAt: clientTouchedAt + TicksPerMs);
+        Advance(TimeSpan.FromMilliseconds(16));   // handled a tick after it arrived
+        _fixture.Pump();
 
-        Assert.Equal(2 * TicksPerMs, _connection.RoundTripTime);
-        Assert.Equal(0, _connection.TimeSyncOffset);
+        Assert.Equal(2 * TicksPerMs, Connection.RoundTripTime);
+        Assert.Equal(0, Connection.TimeSyncOffset);
     }
 
     [Fact]
@@ -293,12 +307,12 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     {
         // The tick asks every connection every tick, so a request that did not clear would ping on
         // all of them -- once per 16 ms rather than once per ten seconds.
-        Assert.False(_connection.TakeInitialTimeSyncPingRequest());
+        Assert.False(Connection.TakeInitialTimeSyncPingRequest());
 
-        _connection.RequestInitialTimeSyncPing();
+        Connection.RequestInitialTimeSyncPing();
 
-        Assert.True(_connection.TakeInitialTimeSyncPingRequest());
-        Assert.False(_connection.TakeInitialTimeSyncPingRequest());
+        Assert.True(Connection.TakeInitialTimeSyncPingRequest());
+        Assert.False(Connection.TakeInitialTimeSyncPingRequest());
     }
 
     /// <summary>
@@ -308,15 +322,15 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     [Fact]
     public async Task StampThePing_WhenItIsWritten()
     {
-        long queuedAt = _clock.GetUtcNow().UtcTicks;
-        _connection.SendTimeSyncPing();
-        _clock.Advance(TimeSpan.FromMilliseconds(50));   // the ping waits for its send thread
+        long queuedAt = _fixture.Clock.Now.UtcTicks;
+        Connection.SendTimeSyncPing();
+        Advance(TimeSpan.FromMilliseconds(50));   // the ping waits for its send thread
         long stamp = (await WriteQueuedPingAsync()).ServerTimestamp;
         Assert.Equal(queuedAt + 50 * TicksPerMs, stamp);
 
         // The client has it a millisecond after it left and answers at once; the pong lands a millisecond later.
         // The round trip is those two milliseconds, not the 50 the ping spent queued.
-        _connection.OnPongReceived(stamp, stamp + TicksPerMs, stamp + TicksPerMs, stamp + 2 * TicksPerMs);
-        Assert.Equal(2 * TicksPerMs, _connection.RoundTripTime);
+        Pong(stamp, stamp + TicksPerMs, stamp + TicksPerMs, stamp + 2 * TicksPerMs);
+        Assert.Equal(2 * TicksPerMs, Connection.RoundTripTime);
     }
 }

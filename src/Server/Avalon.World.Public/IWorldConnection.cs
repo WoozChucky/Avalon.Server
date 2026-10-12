@@ -109,7 +109,9 @@ public interface IWorldConnection : IConnection
 
     /// <summary>
     ///     The last round trip in whole milliseconds, as the server measured it (#892): never negative, and 0 until
-    ///     the first pong that answers a ping. Read-only: a client cannot state it, and nothing here sets it.
+    ///     the first pong that answers a ping. Advisory: it has no age (a client that stops answering keeps its last
+    ///     reading) and a client can raise it by answering late. It has no setter; <see cref="OnPongReceived" />
+    ///     changes it, from the arrival time its caller passes.
     /// </summary>
     long Latency { get; }
 
@@ -198,7 +200,9 @@ public interface IWorldConnection : IConnection
     ///     this connection's send thread wrote and no pong has answered yet; the stamp is then spent. The round trip
     ///     is <paramref name="serverReceivedTicks" /> minus that stamp, both the server's own, and the clock offset is
     ///     the stamp plus half the round trip minus <paramref name="clientReceivedTimestamp" />. Any other pong
-    ///     (an echo of no ping, a second answer to one ping) changes nothing and is not answered.
+    ///     (an echo of no ping, a second answer to one ping, one that arrived before its stamp) changes nothing and is
+    ///     not answered. The world calls this for a client's pong at most once per ping it wrote: a pong beyond that is
+    ///     dropped as it arrives, before any handler.
     /// </summary>
     /// <param name="lastServerTimestamp">The echo of a ping's server timestamp: which ping this answers, nothing more.</param>
     /// <param name="clientReceivedTimestamp">

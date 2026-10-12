@@ -36,6 +36,14 @@ namespace Avalon.Hosting.Networking;
 /// writes over the place a take is reading stays, and that take fails. What it failed to take was the oldest stamp,
 /// which the full ring was dropping. No lock, and nothing allocated.
 /// </para>
+/// <para>
+/// Each ping written also grants one pong credit (<c>_pongCredits</c>, #892), after its stamp is in the ring and before
+/// its burst is written, and never more credits than the ring has places. The read loop takes one as a pong arrives
+/// (<see cref="TryTakePongCredit" />) and drops the pong when there is none, so a client gets one answer per ping. The
+/// grant and the take are compare-exchanges on the one count: each changes the value it read or tries again on the newer
+/// one, so no grant or take is lost, and the count stays between zero and the capacity. A take that reads zero while a
+/// grant is on its way drops a pong that arrived before the ping it could answer had left.
+/// </para>
 /// </remarks>
 public sealed class ConnectionSender : IOutbox
 {
@@ -95,6 +103,7 @@ public sealed class ConnectionSender : IOutbox
     private long _pingOffset;
     private PingStamps _pingStamps; // each place: written by the owner, cleared by the pong's thread
     private int _pingStampNext; // owner thread only: the place the next stamp goes, the oldest
+    private int _pongCredits; // granted by the owner with each stamp, taken by the read loop as a pong arrives
     private bool _finishedFlag;
     private bool _doomHandled; // owner thread only
     private bool _noticeWritten; // owner thread only: a disconnect notice went out, so no ping follows it
@@ -220,13 +229,32 @@ public sealed class ConnectionSender : IOutbox
 
         for (int i = 0; i < PingStampCapacity; i++)
         {
-            // Read first: a pong that answers nothing, which a client can send as often as it likes, costs the reads and
-            // never takes the record's cache line from the owner.
+            // Read first: a pong that answers nothing only reads the record, so it never writes its cache line.
             if (Volatile.Read(ref _pingStamps[i]) == serverTicks
                 && Interlocked.CompareExchange(ref _pingStamps[i], 0, serverTicks) == serverTicks)
             {
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Takes one pong credit (#892): true when a ping was written that no arriving pong has been counted against yet.
+    /// Called for each pong as it arrives, before it is queued, whatever it echoes: a client gets one answer per ping, and
+    /// a pong that finds no credit is dropped. Any thread (the read loop); never blocks or allocates.
+    /// </summary>
+    public bool TryTakePongCredit()
+    {
+        int credits = Volatile.Read(ref _pongCredits);
+        while (credits > 0)
+        {
+            int seen = Interlocked.CompareExchange(ref _pongCredits, credits - 1, credits);
+            if (seen == credits)
+                return true;
+
+            credits = seen;
         }
 
         return false;
@@ -429,6 +457,19 @@ public sealed class ConnectionSender : IOutbox
             // place, answered or not.
             Interlocked.Exchange(ref _pingStamps[_pingStampNext], serverTicks);
             _pingStampNext = (_pingStampNext + 1) % PingStampCapacity;
+
+            // One pong may now come in for it. Never more credits than the record has stamps: however many pings go
+            // unanswered, that many pongs at most get in at once.
+            int credits = Volatile.Read(ref _pongCredits);
+            while (credits < PingStampCapacity)
+            {
+                int seen = Interlocked.CompareExchange(ref _pongCredits, credits + 1, credits);
+                if (seen == credits)
+                    break;
+
+                credits = seen;
+            }
+
             _onPingWritten?.Invoke(size);
             _nextPackets++;
             return true;

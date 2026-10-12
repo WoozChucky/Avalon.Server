@@ -5,8 +5,9 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Generic;
 
 /// <summary>
-/// The client's answer to one <see cref="SPingPacket" />. A pong that answers no ping the server has outstanding, or
-/// answers one a second time, is ignored.
+/// The client's answer to one <see cref="SPingPacket" />: one pong per ping, and no other. The server lets one pong in
+/// for each ping it wrote (#892), whatever that pong echoes, and drops any beyond that as it arrives. One that is let
+/// in and answers no ping the server has outstanding is ignored.
 /// </summary>
 [ProtoContract]
 [Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_PONG)]

@@ -221,7 +221,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     {
         // The echo only says which ping is answered (#892): it must be the stamp the send thread put on a ping it wrote
         // that no pong has answered yet, and it is taken here. A pong that echoes anything else (forged, sent twice, or
-        // answering a ping the record has dropped) changes nothing. At Debug only: a client can send one at will.
+        // answering a ping the record has dropped) changes nothing. At Debug, and at most once per ping written: a pong
+        // reaches this handler only with a credit (OnReceive).
         if (_sender is null || !_sender.TryTakePingStamp(lastServerTimestamp))
         {
             HighRatePacketLog.PongAnswersNoPing(_logger, NetworkPacketType.CMSG_PONG, Id);
@@ -237,7 +238,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         long rtt = serverReceivedTicks - lastServerTimestamp;
         if (rtt < 0)
         {
-            // Both are wall-clock times: the clock was set back between the write and the arrival. Nothing was measured.
+            // The pong arrived before its ping was stamped. Either its echo was sent ahead of the ping (a guess that hit:
+            // it came in on the credit of an earlier, unanswered ping), or the wall clock, which both times come from, was
+            // set back in between. Nothing was measured, and the stamp is spent.
             HighRatePacketLog.PongBeforeItsPing(_logger, NetworkPacketType.CMSG_PONG, Id);
             return;
         }
@@ -464,6 +467,15 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         if (header.Type == NetworkPacketType.CMSG_WORLD_HANDSHAKE && GameSessionLease?.IsActive == true)
             return new ValueTask(Server.CallListener(this, header, payload));
         if (!IsGameplayAuthorized) return ValueTask.CompletedTask;
+        // One pong per ping written (#892): each ping its send thread writes grants one credit, and a pong takes one as
+        // it arrives, whatever it echoes. A pong with none is dropped here, never queued: a client cannot send guesses
+        // of a stamp, or a flood for the tick to dispatch. After the admission check, so no credit is spent or probed
+        // before it. At Trace: a client can send them at any rate.
+        if (header.Type == NetworkPacketType.CMSG_PONG && _sender?.TryTakePongCredit() != true)
+        {
+            ReceiveLog.PongWithoutPing(_logger, header.Type);
+            return ValueTask.CompletedTask;
+        }
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
             _receiveQueue.Enqueue(new WorldPacket(header.Type, payload, _time.GetUtcNow().UtcTicks));
@@ -528,6 +540,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
         [LoggerMessage(Level = LogLevel.Trace, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
         public static partial void DroppedForStateFrequent(ILogger logger, NetworkPacketType packetType);
+
+        [LoggerMessage(Level = LogLevel.Trace, Message = "Dropped {PacketType}: every ping written has had its one answer")]
+        public static partial void PongWithoutPing(ILogger logger, NetworkPacketType packetType);
 
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Could not find a handler for packet {PacketType}; further ones on this connection are logged at Debug")]

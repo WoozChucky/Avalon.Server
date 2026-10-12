@@ -266,6 +266,7 @@ public sealed class ConnectionSenderShould
         Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, header.Type);
         Assert.Equal(DisconnectReason.SlowConnection, Serializer.Deserialize<SDisconnectPacket>(payload.AsSpan()).ReasonCode);
         Assert.False(sender.TryTakePingStamp(_time.GetUtcNow().UtcTicks)); // the clock never moved: this would be its stamp
+        Assert.False(sender.TryTakePongCredit()); // and no pong is let in for a ping that was never written
 
         await CloseAsync(scheduler, sender);
         Assert.Equal(0, _pool.Outstanding);
@@ -291,6 +292,7 @@ public sealed class ConnectionSenderShould
         (NetworkPacketHeader header, byte[] _) = Assert.Single(await Frames(wire.ToArray()));
         Assert.Equal(NetworkPacketType.SMSG_DISCONNECT, header.Type);
         Assert.False(sender.TryTakePingStamp(_time.GetUtcNow().UtcTicks)); // the clock never moved: this would be its stamp
+        Assert.False(sender.TryTakePongCredit()); // and no pong is let in for a ping that was never written
 
         await CloseAsync(scheduler, sender);
         Assert.Equal(0, _pool.Outstanding);

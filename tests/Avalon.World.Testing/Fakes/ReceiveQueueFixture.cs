@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using Avalon.Common.ValueObjects;
+using Avalon.Configuration;
 using Avalon.Domain.Characters;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
@@ -10,12 +11,17 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World.Entities;
 using Avalon.World.GameAuth;
+using Avalon.World.Handlers;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.World.Testing.Fakes;
 
-/// <summary>The real receive/dispatch path, without a read loop, serialization or allocating substitutes.</summary>
+/// <summary>
+/// The real receive/dispatch path, without a read loop, serialization or allocating substitutes. Given a stream for
+/// the time sync, the connection also has its real sender, on a scheduler whose send threads never start
+/// (<see cref="Scheduler" />: the caller runs its passes), and pongs reach the real <see cref="PongHandler" />.
+/// </summary>
 public sealed class ReceiveQueueFixture : IDisposable
 {
     private static readonly Func<WorldConnection, int> s_queueDepth = typeof(WorldConnection)
@@ -25,15 +31,24 @@ public sealed class ReceiveQueueFixture : IDisposable
     private readonly TcpClient _peer;
     private readonly Recorder _recorder = new();
 
-    public ReceiveQueueFixture()
+    /// <param name="timeSyncWire">What the connection's sender writes to; null, the connection has no sender.</param>
+    public ReceiveQueueFixture(Stream? timeSyncWire = null)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         _client = new TcpClient();
         _client.Connect((IPEndPoint)listener.LocalEndpoint);
         _peer = listener.AcceptTcpClient();
-        var server = new QueueServer(_recorder);
+        if (timeSyncWire is not null)
+        {
+            Scheduler = new NetworkSendScheduler(new NetworkConfiguration { SendThreads = 1 }, NullLoggerFactory.Instance,
+                Clock, NetworkSendMetrics.Disabled);
+        }
+
+        var server = new QueueServer(_recorder, Scheduler);
         Connection = new ReceiveConnection(server, _client, Clock);
+        if (timeSyncWire is not null)
+            Connection.InitOutboxForTest(new PacketStream(timeSyncWire));
         // Transport authentication is setup only; the TLS tests exercise the real handshake.
         typeof(WorldConnection).GetField("_tlsAuthenticated", BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(Connection, true);
@@ -59,6 +74,7 @@ public sealed class ReceiveQueueFixture : IDisposable
 
     public ReceiveConnection Connection { get; }
     public QueueClock Clock { get; } = new();
+    public NetworkSendScheduler? Scheduler { get; }
     public int Dispatched => _recorder.Count;
     public int QueueDepth => s_queueDepth(Connection);
     public Action<IWorldConnection, Packet>? OnDispatch { get => _recorder.OnDispatch; set => _recorder.OnDispatch = value; }
@@ -72,7 +88,9 @@ public sealed class ReceiveQueueFixture : IDisposable
     public void Dispose()
     {
         Connection.Close();
+        Scheduler?.RunAllPasses(); // the close's last visit, so the sender finishes and gives back its buffers
         Connection.Dispose();
+        Scheduler?.Dispose();
         _client.Dispose();
         _peer.Dispose();
     }
@@ -104,10 +122,23 @@ public sealed class ReceiveQueueFixture : IDisposable
         }
     }
 
+    /// <summary>Counts a dispatch, then runs the real handler.</summary>
+    private sealed class Counted(Recorder recorder, IWorldPacketHandler handler) : IWorldPacketHandler
+    {
+        public void Execute(IWorldConnection connection, Packet packet)
+        {
+            recorder.Execute(connection, packet);
+            handler.Execute(connection, packet);
+        }
+    }
+
     private sealed class QueueServer : IWorldServer, IServerBase
     {
-        public QueueServer(IWorldPacketHandler handler)
+        private readonly NetworkSendScheduler? _scheduler;
+
+        public QueueServer(Recorder handler, NetworkSendScheduler? scheduler)
         {
+            _scheduler = scheduler;
             PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>
             {
                 [NetworkPacketType.CMSG_PLAYER_INPUT] = handler,
@@ -115,6 +146,8 @@ public sealed class ReceiveQueueFixture : IDisposable
                 [NetworkPacketType.CMSG_CHARACTER_LEAVE] = handler,
                 [NetworkPacketType.CMSG_CHARACTER_LOADED] = handler,
             };
+            if (scheduler is not null)
+                PacketHandlers[NetworkPacketType.CMSG_PONG] = new Counted(handler, new PongHandler());
         }
 
         public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
@@ -122,7 +155,7 @@ public sealed class ReceiveQueueFixture : IDisposable
         public bool PacketEncryption => false;
         public ImmutableArray<IWorldConnection> Connections => throw new NotSupportedException();
         public IWorld World => throw new NotSupportedException();
-        public NetworkSendScheduler SendScheduler => throw new NotSupportedException();
+        public NetworkSendScheduler SendScheduler => _scheduler ?? throw new NotSupportedException();
         public IReadOnlyList<IWorldConnection> SessionsOf(AccountId accountId, IWorldConnection except) => throw new NotSupportedException();
         public IReadOnlyList<IWorldConnection> SessionsHoldingCharacter(CharacterId id, IWorldConnection except) => throw new NotSupportedException();
         public Task RemoveConnection(IConnection connection) => throw new NotSupportedException();

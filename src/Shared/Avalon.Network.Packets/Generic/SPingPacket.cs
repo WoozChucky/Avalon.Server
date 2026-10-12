@@ -6,7 +6,7 @@ namespace Avalon.Network.Packets.Generic;
 
 /// <summary>
 /// The server's time-sync ping: about every ten seconds on a world connection, and once right after its handshake. The
-/// client answers each one, once, with a <see cref="CPongPacket" />.
+/// client answers each one, once, with a <see cref="CPongPacket" />, and sends no other pong.
 /// </summary>
 [ProtoContract]
 public class SPingPacket : Packet
