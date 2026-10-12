@@ -52,6 +52,32 @@ public sealed class InstanceTicker
     /// <param name="deltaTime">The tick's delta, handed to each instance.</param>
     public void Tick(ReadOnlySpan<IMapInstance> instances, TimeSpan deltaTime)
     {
+        if (!WorldTickTrace.Log.IsEnabled())
+        {
+            TickCore(instances, deltaTime);
+            return;
+        }
+
+        long start = Stopwatch.GetTimestamp();
+        long previous = WorldTickTrace.TickId;
+        long tickId = previous == 0 ? start : previous;
+        WorldTickTrace.TickId = tickId;
+        bool completed = false;
+        try
+        {
+            TickCore(instances, deltaTime);
+            completed = true;
+        }
+        finally
+        {
+            WorldTickTrace.TickId = previous;
+            WorldTickTrace.Log.InstanceBatch(tickId, Stopwatch.GetTimestamp() - start,
+                Stopwatch.Frequency, instances.Length, completed ? 1 : 0);
+        }
+    }
+
+    private void TickCore(ReadOnlySpan<IMapInstance> instances, TimeSpan deltaTime)
+    {
         foreach (IMapInstance instance in instances)
         {
             long start = Stopwatch.GetTimestamp();

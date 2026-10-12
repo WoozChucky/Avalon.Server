@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
@@ -42,6 +43,7 @@ using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
 using Avalon.World.Serialization;
+using Avalon.World.Telemetry;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -53,6 +55,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     IItemUseHost, IItemCastAudience, IAuraHost, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
+    private InstanceTickProfile _tickProfile;
 
     private readonly Dictionary<ObjectGuid, ICharacter> _characters = [];
     private readonly Dictionary<ObjectGuid, IWorldConnection> _connections = [];
@@ -1018,6 +1021,34 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public void Update(TimeSpan deltaTime)
     {
+        if (!WorldTickTrace.Log.IsEnabled())
+        {
+            UpdateCore(deltaTime);
+            return;
+        }
+
+        _tickProfile = new InstanceTickProfile
+        {
+            Enabled = true,
+            StartTimestamp = Stopwatch.GetTimestamp(),
+            Players = _characters.Count,
+            Creatures = _creatures.Count,
+        };
+        bool completed = false;
+        try
+        {
+            UpdateCore(deltaTime);
+            completed = true;
+        }
+        finally
+        {
+            WorldTickTrace.Log.RecordInstance(in _tickProfile, InstanceId, (int)MapType, completed);
+            _tickProfile = default;
+        }
+    }
+
+    private void UpdateCore(TimeSpan deltaTime)
+    {
         // Every hit list the last tick handed out was read within it: the hit query may reuse them (#880).
         _hits.Recycle();
 
@@ -1048,7 +1079,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         DespawnExpiredSummons();
 
         // Step 2: Process character packets
+        long profileStart = _tickProfile.Timestamp();
         UpdateCharacters(deltaTime);
+        _tickProfile.InputTicks += _tickProfile.Elapsed(profileStart);
 
         // Step 2b: Vendors (#432). After the packets, so this tick's trades are in the lists. The
         // pass refills due stock, adopts a /reload vendors, and sends each connection whose shop is
@@ -1061,13 +1094,25 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _objectAbilities.Clear();
 
         // Step 3: abilities, combat and threat.
+        profileStart = _tickProfile.Timestamp();
         UpdateCombat(deltaTime, _objectAbilities);
+        _tickProfile.CombatTicks += _tickProfile.Elapsed(profileStart);
 
         // Step 4: creature scripts, then the locomotion that executes what they decided.
+        profileStart = _tickProfile.Timestamp();
         UpdateCreatures(deltaTime);
+        _tickProfile.CreatureTicks += _tickProfile.Elapsed(profileStart);
 
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks.
+        profileStart = _tickProfile.Timestamp();
         SnapshotDirtyFields(_objectAbilities);
+        _tickProfile.DirtyTicks += _tickProfile.Elapsed(profileStart);
+        if (_tickProfile.Enabled)
+        {
+            _tickProfile.Broadcast = _lastBroadcastTime >= BroadcastInterval;
+            _tickProfile.Projectiles = _objectAbilities.Count;
+            _tickProfile.DirtyEntities = _frameDirtyFields.Count;
+        }
 
         // Step 5b and 6: visibility, then the state broadcast, per character.
         BroadcastState(_objectAbilities);
@@ -1246,8 +1291,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             {
                 if (character is CharacterEntity entity)
                 {
-                    entity.CharacterGameState.Update(entity.Guid, entity.Position, _interest, _creatures,
-                        _characters, objectAbilities, _frameDirtyFields);
+                    entity.CharacterGameState.UpdateProfiled(entity.Guid, entity.Position, _interest, _creatures,
+                        _characters, objectAbilities, _frameDirtyFields, ref _tickProfile);
                 }
             }
 
@@ -1288,6 +1333,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     private void BroadcastStateTo(CharacterEntity character)
     {
+        long profileStart = _tickProfile.Timestamp();
         IWorldConnection connection = _connections[character.Guid];
         PerPlayerBroadcastState state = _broadcastStates[character.Guid];
 
@@ -1319,24 +1365,48 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
         }
 
+        _tickProfile.StatePreparationTicks += _tickProfile.Elapsed(profileStart);
         if (state.AddedObjects.Count > 0)
-            connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, PacketEncoder.Shared));
+        {
+            profileStart = _tickProfile.Timestamp();
+            SendStatePacket(connection, SInstanceStateAddPacket.Create(state.AddedObjects, PacketEncoder.Shared), profileStart);
+        }
 
         // Auras: a list for every unit that came into view this tick, and the changes of every other unit in view. After
         // the add, so the client knows the unit before it hears its auras.
+        profileStart = _tickProfile.Timestamp();
         SendAuraLists(connection, character, newObjects);
         SendAuraUpdates(connection, character, newObjects);
+        _tickProfile.AuraTicks += _tickProfile.Elapsed(profileStart);
 
         // _frameDirtyFields is populated only on broadcast ticks (see Step 5a in Update),
         // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
         if (state.UpdatedObjects.Count > 0)
-            connection.Send(SInstanceStateUpdatePacket.Create(state.UpdatedObjects, PacketEncoder.Shared));
+        {
+            profileStart = _tickProfile.Timestamp();
+            SendStatePacket(connection, SInstanceStateUpdatePacket.Create(state.UpdatedObjects, PacketEncoder.Shared), profileStart);
+        }
 
         if (character.CharacterGameState.RemovedObjects.Count > 0)
         {
-            connection.Send(SInstanceStateRemovePacket.Create(
-                character.CharacterGameState.RemovedObjects, PacketEncoder.Shared));
+            profileStart = _tickProfile.Timestamp();
+            SendStatePacket(connection, SInstanceStateRemovePacket.Create(
+                character.CharacterGameState.RemovedObjects, PacketEncoder.Shared), profileStart);
         }
+    }
+
+    private void SendStatePacket(IWorldConnection connection, OutboundPacket packet, long encodingStart)
+    {
+        _tickProfile.StateEncodingTicks += _tickProfile.Elapsed(encodingStart);
+        if (_tickProfile.Enabled)
+        {
+            _tickProfile.StatePackets++;
+            // Read before Send transfers ownership; includes the plain packet header, not TLS or sealing.
+            _tickProfile.StateBytes += packet.Size;
+        }
+        long enqueueStart = _tickProfile.Timestamp();
+        connection.Send(packet);
+        _tickProfile.EnqueueTicks += _tickProfile.Elapsed(enqueueStart);
     }
 
     /// <summary>

@@ -640,6 +640,30 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     // protected so a test can drive one tick without a socket loop behind it.
     protected void Update(TimeSpan elapsedTime, long tickStart)
     {
+        if (!WorldTickTrace.Log.IsEnabled())
+        {
+            UpdateCore(elapsedTime, tickStart);
+            return;
+        }
+
+        long previous = WorldTickTrace.TickId;
+        WorldTickTrace.TickId = tickStart;
+        bool completed = false;
+        try
+        {
+            UpdateCore(elapsedTime, tickStart);
+            completed = true;
+        }
+        finally
+        {
+            WorldTickTrace.TickId = previous;
+            WorldTickTrace.Log.WorldTick(tickStart, Stopwatch.GetTimestamp() - tickStart,
+                Stopwatch.Frequency, completed ? 1 : 0);
+        }
+    }
+
+    private void UpdateCore(TimeSpan elapsedTime, long tickStart)
+    {
         long t0 = Stopwatch.GetTimestamp();
         // Process disconnects on the tick thread to avoid racing with MapInstance.Update
         while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
