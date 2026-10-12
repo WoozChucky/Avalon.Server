@@ -20,8 +20,17 @@ public static class ServiceExtensions
         services.AddSingleton<IDbContextFactory<CharacterDbContext>>(provider =>
         {
             ILoggerFactory loggerFactory = provider.GetRequiredService<ILoggerFactory>();
-            IOptions<DatabaseConfiguration> options = provider.GetRequiredService<IOptions<DatabaseConfiguration>>();
-            return new DelegateDbContextFactory<CharacterDbContext>(() => new CharacterDbContext(loggerFactory, options));
+            DatabaseConfiguration configuration = provider.GetRequiredService<IOptions<DatabaseConfiguration>>().Value;
+            var builder = new DbContextOptionsBuilder<CharacterDbContext>();
+            builder.UseLoggerFactory(loggerFactory);
+            // AddAvalonDatabases postconfigures this flag: parameter values stay Development-only.
+            if (configuration.EnableSensitiveDataLogging)
+                builder.EnableSensitiveDataLogging();
+            builder.UseNpgsql(configuration.Characters!.ConnectionString);
+
+            // Reuse immutable configuration, never a context or its change tracker.
+            DbContextOptions<CharacterDbContext> options = builder.Options;
+            return new DelegateDbContextFactory<CharacterDbContext>(() => new CharacterDbContext(options));
         });
 
         return services.AddCharacterRepositories();

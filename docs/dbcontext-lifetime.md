@@ -9,6 +9,11 @@
 
 A repository creates a `DbContext` per method call and never holds one.
 
+The Auth and single-world Character factories build their typed `DbContextOptions` once when the singleton factory
+is resolved. Each call still creates and disposes a fresh context, connection and change tracker. Only immutable
+configuration is reused, scoped to that factory and host; sensitive logging uses the Development-only postconfigured
+flag. The API's per-world Character routing and the design-time constructors keep their existing behavior.
+
 ## What was wrong
 
 Every world packet handler is built once, from the **root** provider, in the `WorldServer`

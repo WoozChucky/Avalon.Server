@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Avalon.Database;
 
 /// <summary>
-/// An <see cref="IDbContextFactory{TContext}"/> over a construction delegate, for contexts that
-/// configure themselves in <c>OnConfiguring</c> rather than from <c>DbContextOptions</c>.
+/// An <see cref="IDbContextFactory{TContext}"/> over a delegate that creates a fresh context per call.
 /// Disposing what it returns is the caller's job.
 /// </summary>
 public sealed class DelegateDbContextFactory<TContext>(Func<TContext> create) : IDbContextFactory<TContext>
