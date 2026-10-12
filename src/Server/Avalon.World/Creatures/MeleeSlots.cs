@@ -18,6 +18,9 @@ public sealed class MeleeSlots(int slotCount, float radius) : IMeleeSlots
 {
     private readonly Dictionary<ObjectGuid, Dictionary<ObjectGuid, int>> _claims = [];
 
+    /// <summary>The targets <see cref="ReleaseClaimant" /> found the claimant on, reused so a release allocates nothing (#890).</summary>
+    private readonly List<ObjectGuid> _heldOn = [];
+
     /// <summary>
     /// Claims the free slot nearest <paramref name="claimantPosition"/>'s bearing from
     /// <paramref name="targetPosition"/> — not simply the lowest free index, which is unrelated
@@ -97,13 +100,21 @@ public sealed class MeleeSlots(int slotCount, float radius) : IMeleeSlots
     /// </summary>
     public void ReleaseClaimant(ObjectGuid claimant)
     {
-        foreach (ObjectGuid target in _claims
-                     .Where(entry => entry.Value.ContainsKey(claimant))
-                     .Select(entry => entry.Key)
-                     .ToList())
+        // Walked with the dictionary's own enumerator into a reused list, never queried (#890): every kill and every
+        // corpse removal comes through here, and a Where/Select/ToList over the dictionary allocated its closure,
+        // delegate, iterators and list on each call (256 B). It also boxed the dictionary's enumerator (56 B) or kept
+        // it on the stack depending on how the JIT had compiled the query's code, which every such query in the
+        // process shares and whose first callers decide. Release prunes the outer dictionary, hence the two passes.
+        foreach ((ObjectGuid target, Dictionary<ObjectGuid, int> taken) in _claims)
         {
-            Release(target, claimant);
+            if (taken.ContainsKey(claimant))
+                _heldOn.Add(target);
         }
+
+        foreach (ObjectGuid target in _heldOn)
+            Release(target, claimant);
+
+        _heldOn.Clear();
     }
 
     /// <summary>Where a slot sits, given where the target currently is.</summary>
