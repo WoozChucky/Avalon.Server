@@ -391,7 +391,10 @@ public class InstanceAbilityCastSystem(
 
         try
         {
-            return _scriptActivator.Build(serviceProvider, scriptType, ability.Clone(), caster, aim, arena);
+            // The script's own copy: its timers and casting flag are not its caster's. A World-side ability shares
+            // its metadata with the copy, which cannot change; any other ability is copied whole, as before.
+            IAbility own = ability is GameAbility held ? held.CloneForCast() : ability.Clone();
+            return _scriptActivator.Build(serviceProvider, scriptType, own, caster, aim, arena);
         }
         catch (Exception e)
         {

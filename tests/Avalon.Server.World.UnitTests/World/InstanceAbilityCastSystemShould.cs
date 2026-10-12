@@ -264,6 +264,28 @@ public class InstanceAbilityCastSystemShould
         Assert.Same(first, RecordingAbilityScript.Prepared[1].Caster);
     }
 
+    /// <summary>
+    /// A script is handed a copy of its caster's ability, which shares only the ability's metadata (#925): whatever
+    /// the script writes to its copy, the caster's cooldown, cast timer and casting flag stay the cast system's.
+    /// </summary>
+    [Fact]
+    public void Keep_the_casters_cooldown_and_cast_state_out_of_its_scripts_reach()
+    {
+        GameAbility ability = Ability(castTime: 1f);
+        Assert.True(_sut.RunInstant(Caster(), s_aim, ability));
+        IAbility held = RecordingAbilityScript.LastBuilt!.Held;
+
+        held.CooldownTimer = 0f;
+        held.CastTimeTimer = 0f;
+        held.Casting = true;
+
+        Assert.NotSame(ability, held);
+        Assert.Equal(ability.AbilityId, held.AbilityId);
+        Assert.Equal(2f, ability.CooldownTimer);
+        Assert.Equal(1f, ability.CastTimeTimer);
+        Assert.False(ability.Casting);
+    }
+
     // ── #521 item 2: one power rule on both paths ──
 
     [Theory]

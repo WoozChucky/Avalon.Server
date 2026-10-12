@@ -20,6 +20,9 @@ public sealed class RecordingAbilityScript(IAbility ability, IUnit caster, Abili
     public static readonly List<(IUnit Caster, AbilityAim Aim, IAbilityArena Arena)> Prepared = [];
     public static RecordingAbilityScript? LastBuilt;
 
+    /// <summary>The ability the script was handed.</summary>
+    public IAbility Held => Ability;
+
     public override object State { get; set; } = SpellState.Executing;
     public override Vector3 Position { get; set; }
     public override Vector3 Velocity { get; set; }
