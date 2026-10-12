@@ -22,8 +22,19 @@ namespace Avalon.Hosting.Networking;
 /// and its writes are sequential, so the nonce order is still the wire order.
 /// <para>
 /// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the next buffer and its counts, the swap of the two
-/// buffers (only while no write is in flight), <c>_finishedFlag</c>, <c>_doomHandled</c>, <c>_noticeWritten</c> and
-/// <c>_pingPending</c>. Every other field is read and written with <see cref="Interlocked" /> or <see cref="Volatile" />.
+/// buffers (only while no write is in flight), <c>_finishedFlag</c>, <c>_doomHandled</c>, <c>_noticeWritten</c>,
+/// <c>_pingPending</c> and <c>_pingStampNext</c>. Every other field is read and written with <see cref="Interlocked" /> or
+/// <see cref="Volatile" />.
+/// </para>
+/// <para>
+/// The stamps of the pings written and not yet answered (#892) are kept in a ring of
+/// <see cref="PingStampCapacity" /> places, zero for an empty one. The owner puts each stamp in the oldest place with an
+/// exchange, whatever that place holds, before the ping's burst is written. <see cref="TryTakePingStamp" />, on the
+/// thread that handles the pong (the tick), clears a place only by a compare-exchange from the stamp the pong echoes to
+/// zero. So a stamp is taken once: the exchange succeeds for one pong, and the place then holds zero or a later stamp.
+/// And no stamp is lost to a take: a take cannot clear a value other than the one it was given, so a stamp the owner
+/// writes over the place a take is reading stays, and that take fails. What it failed to take was the oldest stamp,
+/// which the full ring was dropping. No lock, and nothing allocated.
 /// </para>
 /// </remarks>
 public sealed class ConnectionSender : IOutbox
@@ -36,6 +47,15 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>What a connection closed past the byte cap is told.</summary>
     public const string SlowConnectionMessage = "Your connection could not keep up with the server.";
+
+    /// <summary>
+    /// How many written pings stay answerable (#892). A connection is pinged once per period (about ten seconds), plus
+    /// once after its handshake, and a ping is answered within a round trip, so two are unanswered at most in ordinary
+    /// play; a third is one a mass disconnect brought forward, as the period's phase follows the connection's place in
+    /// the list. Four keeps a stamp for thirty seconds or more at that cadence: the fourth ping written after it takes
+    /// its place, answered or not. A pong for it is then ignored, and the next ping measures again.
+    /// </summary>
+    public const int PingStampCapacity = 4;
 
     // The time-sync ping's place in the queue: no payload, since the owner encodes the ping as it writes it.
     private static readonly OutboundPacket s_pingMarker = new(
@@ -73,7 +93,8 @@ public sealed class ConnectionSender : IOutbox
     private long _pingClientTicks;
     private long _pingRoundTrip;
     private long _pingOffset;
-    private long _lastPingServerTicks;
+    private PingStamps _pingStamps; // each place: written by the owner, cleared by the pong's thread
+    private int _pingStampNext; // owner thread only: the place the next stamp goes, the oldest
     private bool _finishedFlag;
     private bool _doomHandled; // owner thread only
     private bool _noticeWritten; // owner thread only: a disconnect notice went out, so no ping follows it
@@ -111,9 +132,6 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>True once the connection was found too slow; it is closing.</summary>
     public bool IsDoomed => Volatile.Read(ref _doomed) != 0;
-
-    /// <summary>The server timestamp of the last ping written, in UTC ticks; 0 before the first.</summary>
-    public long LastPingServerTicks => Interlocked.Read(ref _lastPingServerTicks);
 
     internal bool IsWriteInFlight => Volatile.Read(ref _writeInFlight) != 0;
 
@@ -177,9 +195,10 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>
     /// Queues a time-sync ping. Its server timestamp is taken by the owner send thread as the ping's burst is written
-    /// (#875), so the round trip a pong reports holds no queueing or tick wait. A second ping queued before the first
-    /// went out carries the latest values. A ping still queued when the connection closes, or found too slow, is dropped
-    /// unstamped, and none follows a disconnect notice.
+    /// (#875), so the round trip measured from it holds no queueing or tick wait, and is kept until a pong echoes it
+    /// (<see cref="TryTakePingStamp" />, #892). A second ping queued before the first went out carries the latest
+    /// values. A ping still queued when the connection closes, or found too slow, is dropped unstamped, and none follows
+    /// a disconnect notice.
     /// </summary>
     public void EnqueuePing(long clientTicks, long roundTrip, long offset)
     {
@@ -187,6 +206,30 @@ public sealed class ConnectionSender : IOutbox
         Volatile.Write(ref _pingRoundTrip, roundTrip);
         Volatile.Write(ref _pingOffset, offset);
         Enqueue(s_pingMarker);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="serverTicks" /> is the stamp of a ping this sender wrote that no pong has answered yet
+    /// (#892). The stamp is taken, so the first pong that echoes it answers that ping and the same echo again answers
+    /// nothing. Zero is the stamp of no ping. Any thread (the tick, as it handles a pong); never blocks or allocates.
+    /// </summary>
+    public bool TryTakePingStamp(long serverTicks)
+    {
+        if (serverTicks == 0)
+            return false;
+
+        for (int i = 0; i < PingStampCapacity; i++)
+        {
+            // Read first: a pong that answers nothing, which a client can send as often as it likes, costs the reads and
+            // never takes the record's cache line from the owner.
+            if (Volatile.Read(ref _pingStamps[i]) == serverTicks
+                && Interlocked.CompareExchange(ref _pingStamps[i], 0, serverTicks) == serverTicks)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -382,7 +425,10 @@ public sealed class ConnectionSender : IOutbox
                 stamped.Release();
             }
 
-            Interlocked.Exchange(ref _lastPingServerTicks, serverTicks);
+            // Before the burst is written, so the pong that answers this ping finds its stamp (#892). Over the oldest
+            // place, answered or not.
+            Interlocked.Exchange(ref _pingStamps[_pingStampNext], serverTicks);
+            _pingStampNext = (_pingStampNext + 1) % PingStampCapacity;
             _onPingWritten?.Invoke(size);
             _nextPackets++;
             return true;
@@ -638,5 +684,12 @@ public sealed class ConnectionSender : IOutbox
         // A shutdown-timeout Delay: it bounds the close, so a peer that stopped reading cannot hold it open.
         await Task.WhenAny(task, Task.Delay(budget, CancellationToken.None)).ConfigureAwait(false);
         return task.IsCompleted;
+    }
+
+    /// <summary>The stamps of the pings written and not yet answered, inline in the sender; zero is an empty place.</summary>
+    [InlineArray(PingStampCapacity)]
+    private struct PingStamps
+    {
+        private long _first;
     }
 }

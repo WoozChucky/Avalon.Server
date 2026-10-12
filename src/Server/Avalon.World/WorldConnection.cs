@@ -177,10 +177,16 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         return pending;
     }
 
+    // The three below change only when a pong answers a ping this connection wrote (OnPongReceived, #892), and read 0
+    // until the first one does.
+
+    /// <summary>The last round trip in whole milliseconds; never negative.</summary>
     public long Latency { get; private set; }
+
+    /// <summary>The last round trip in ticks, measured by the server alone; never negative.</summary>
     public long RoundTripTime { get; private set; }
 
-    /// <summary>Server time minus client time, in ticks, as of the last pong.</summary>
+    /// <summary>Server time minus client time, in ticks, as of the last answered ping.</summary>
     public long TimeSyncOffset { get; private set; }
 
     /// <inheritdoc />
@@ -209,19 +215,39 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     public void SendTimeSyncPing() => _sender?.EnqueuePing(_lastClientTicks, RoundTripTime, TimeSyncOffset);
 
+    /// <inheritdoc />
     public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp,
         long serverReceivedTicks)
     {
+        // The echo only says which ping is answered (#892): it must be the stamp the send thread put on a ping it wrote
+        // that no pong has answered yet, and it is taken here. A pong that echoes anything else (forged, sent twice, or
+        // answering a ping the record has dropped) changes nothing. At Debug only: a client can send one at will.
+        if (_sender is null || !_sender.TryTakePingStamp(lastServerTimestamp))
+        {
+            HighRatePacketLog.PongAnswersNoPing(_logger, NetworkPacketType.CMSG_PONG, Id);
+            return;
+        }
+
+        // Both ends are the server's own: the stamp it wrote, which the echo now equals, and the pong's arrival. The
+        // client's send time plays no part, so the time it took to answer stays in the round trip.
         // serverReceivedTicks rather than the clock: this runs on the world tick, so a pong that landed
         // while the server slept out the rest of a tick would otherwise be charged that whole wait --
         // a round trip of one tick on a loopback connection, and half of it again as a clock offset,
         // because splitting an asymmetric round trip down the middle misattributes the difference.
-        long rtt = clientReceivedTimestamp - lastServerTimestamp + (serverReceivedTicks - clientSentTimestamp);
+        long rtt = serverReceivedTicks - lastServerTimestamp;
+        if (rtt < 0)
+        {
+            // Both are wall-clock times: the clock was set back between the write and the arrival. Nothing was measured.
+            HighRatePacketLog.PongBeforeItsPing(_logger, NetworkPacketType.CMSG_PONG, Id);
+            return;
+        }
+
         long latency = rtt / TimeSpan.TicksPerMillisecond;
 
         // Every term from THIS exchange. _lastClientTicks still holds the previous pong's stamp here
-        // (it is assigned below), and the sender's last ping stamp can already have advanced if a ping went out
-        // before this pong landed -- either one turns the offset into the gap between pings.
+        // (it is assigned below), and a later ping can already have gone out before this pong landed --
+        // either one turns the offset into the gap between pings. The client's receive time is the one
+        // term of its own left: it is its clock, and a false one moves only its own idea of server time.
         TimeSyncOffset = lastServerTimestamp + rtt / 2 - clientReceivedTimestamp;
 
         if (Latency - latency > 20 && _logger.IsEnabled(LogLevel.Information))

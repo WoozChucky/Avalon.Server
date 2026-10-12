@@ -108,12 +108,14 @@ public interface IWorldConnection : IConnection
     PendingSpawn? TakePendingSpawn();
 
     /// <summary>
-    ///     Gets the latency of the connection.
+    ///     The last round trip in whole milliseconds, as the server measured it (#892): never negative, and 0 until
+    ///     the first pong that answers a ping. Read-only: a client cannot state it, and nothing here sets it.
     /// </summary>
     long Latency { get; }
 
     /// <summary>
-    ///     Gets the round-trip time of the connection.
+    ///     The last round trip in ticks: from the server's stamp on a time-sync ping, taken as the ping was written,
+    ///     to the arrival of the pong that echoes it. Never negative, and 0 until the first such pong.
     /// </summary>
     long RoundTripTime { get; }
 
@@ -192,11 +194,17 @@ public interface IWorldConnection : IConnection
     bool TakeInitialTimeSyncPingRequest();
 
     /// <summary>
-    ///     Called when a pong response is received.
+    ///     Handles a pong (#892). It counts only when <paramref name="lastServerTimestamp" /> is the stamp of a ping
+    ///     this connection's send thread wrote and no pong has answered yet; the stamp is then spent. The round trip
+    ///     is <paramref name="serverReceivedTicks" /> minus that stamp, both the server's own, and the clock offset is
+    ///     the stamp plus half the round trip minus <paramref name="clientReceivedTimestamp" />. Any other pong
+    ///     (an echo of no ping, a second answer to one ping) changes nothing and is not answered.
     /// </summary>
-    /// <param name="lastServerTimestamp">The last server timestamp.</param>
-    /// <param name="clientReceivedTimestamp">The client received timestamp.</param>
-    /// <param name="clientSentTimestamp">The client sent timestamp.</param>
+    /// <param name="lastServerTimestamp">The echo of a ping's server timestamp: which ping this answers, nothing more.</param>
+    /// <param name="clientReceivedTimestamp">
+    ///     When the client says it received the ping, on its own clock. Used for the clock offset only.
+    /// </param>
+    /// <param name="clientSentTimestamp">When the client says it sent the pong. Not used.</param>
     /// <param name="serverReceivedTicks">When the pong was read off the socket, NOT when it was handled.</param>
     void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp,
         long clientSentTimestamp, long serverReceivedTicks);

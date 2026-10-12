@@ -24,6 +24,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallList
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThreadGuard*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ConnectionTick*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ReceiveQueueBenchmarks*" --job short
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TimeSync*"
 
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
@@ -35,6 +36,47 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 ---
 
 ## Suites
+
+### Time sync — `Benchmarks/TimeSyncBenchmarks.cs` (#892)
+
+The ping and pong exchange on a real `WorldConnection` and its `ConnectionSender`, over a stream that discards what it
+is given. The send thread's pass runs on the benchmark's thread (a scheduler whose threads never start, as in the
+scenario runner), and the clock is the system's. Setup runs one exchange, so every measured ping carries a round trip,
+an offset and a client time, as every ping but a connection's first does. Each invocation runs 256 operations.
+
+| Method | What one operation is |
+|---|---|
+| `PingWritten` | The tick queues a ping (`SendTimeSyncPing`) and one send pass stamps, encodes, frames and writes it. Since #892 the pass also records the stamp, where it used to store the last one |
+| `PingWrittenAndPongHandled` | The same, then `OnPongReceived` with that ping's echo: one whole exchange |
+| `PongAnsweringNoPing` | `OnPongReceived` with an echo that is the stamp of no ping, one ping being unanswered. A client can send this as often as it likes. Before #892 it was computed like any other pong; now it is looked up and ignored |
+
+Before/after on 2026-10-12, `46b38375` and the change (#892: the server measures the round trip itself, from a record
+of the stamps it wrote), the same benchmark file on both sides. Three runs per side, interleaved; each figure is the
+mean of the three runs' means, with their range.
+
+| Method | Before | After | Allocated, both |
+|---|---:|---:|---:|
+| `PingWritten` | 298.2 ns (292.9 to 307.2) | 296.9 ns (294.7 to 298.5) | 0 B |
+| `PingWrittenAndPongHandled` | 297.2 ns (292.5 to 303.0) | 308.7 ns (307.3 to 309.8) | 0 B |
+| `PongAnsweringNoPing` | 0.75 ns (0.74 to 0.77) | 1.84 ns (1.77 to 1.98) | 0 B |
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC, affinity
+mask 4; one launch, six warmups and fifteen measured iterations per run. Another build was running on the machine, so
+the runs of one side differ by up to 5%.
+
+- **The ping's write did not move.** The stamp goes into a four-place ring inside the sender with the one interlocked
+  exchange the last-stamp field took before; the two sides' ranges overlap.
+- **An accepted pong costs about 12 ns more** (the exchange less the ping: under 1 ns before, about 12 ns after): the
+  scan of the ring and the compare-exchange that takes the stamp. A connection has one exchange about every ten
+  seconds, so 1,000 connections spend about 1.2 µs a second on it.
+- **A pong that answers nothing costs about 1 ns more**, four reads and no write, against the roughly 110 ns each
+  packet costs to queue and dispatch before its handler runs (`ReceiveQueueBenchmarks`, 150 packets per burst). Its
+  Debug line is a generated `LoggerMessage`, off in production; the benchmark's logger has it off as well.
+- **Nothing is allocated** per ping or per pong, on either side. The scenario gate does not run this path (its
+  connections refuse a time-sync ping) and is unchanged.
+- **Not measured**: the two threads together. In the world the send thread writes the record and the tick reads it, so
+  its cache line moves between their cores about once per exchange; here one thread does both. Sockets and TLS are not
+  in it either.
 
 ### Idle creature dispatch — `Benchmarks/CreatureDispatchBenchmarks.cs` (#880, #896)
 
