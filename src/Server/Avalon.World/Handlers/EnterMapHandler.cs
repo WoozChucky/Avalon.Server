@@ -70,9 +70,9 @@ public class EnterMapHandler(
         // Every instance is now chunk-layout-built and carries its portals on Layout.Portals
         // (surfaced as PortalInstance via PortalPlacementService). The legacy DB MapPortal
         // fallback was deleted with this task.
-        if (currentInstance is not MapInstance mi || mi.Layout is null)
+        if (currentInstance is not MapInstance mi)
         {
-            logger.LogError("EnterMap: current instance has no Layout; refusing teleport for character {Name}",
+            logger.LogError("EnterMap: no live map instance for character {Name}; refusing teleport",
                 character.Name);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
                 PacketEncoder.Shared));
@@ -285,10 +285,11 @@ public class EnterMapHandler(
             targetTemplate.Description,
             PacketEncoder.Shared));
 
-        // 12. Send chunk layout packet for any instance backed by a ChunkLayout
+        // 12. Send the chunk layout packet: every MapInstance is built from a ChunkLayout
         // (town + normal both flow through ChunkLayoutInstanceFactory now).
-        if (targetInstance is MapInstance layoutMi && layoutMi.Layout is { } layout)
+        if (targetInstance is MapInstance layoutMi)
         {
+            ChunkLayout layout = layoutMi.Layout;
             var dtos = layout.Chunks.Select(c => new PlacedChunkDto
             {
                 ChunkTemplateId = c.TemplateId.Value,

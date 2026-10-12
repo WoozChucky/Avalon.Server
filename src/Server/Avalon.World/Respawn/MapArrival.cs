@@ -33,9 +33,10 @@ public static class MapArrival
         connection.Send(SMapTransitionPacket.Create(MapTransitionResult.Success, instance.InstanceId, template.Id.Value,
             at.x, at.y, at.z, template.Name, template.Description, PacketEncoder.Shared));
 
-        if (instance is not MapInstance { Layout: { } layout } built)
+        if (instance is not MapInstance built)
             return;
 
+        ChunkLayout layout = built.Layout;
         var chunks = layout.Chunks.Select(c => new PlacedChunkDto
         {
             ChunkTemplateId = c.TemplateId.Value,

@@ -282,7 +282,7 @@ public class SMapTransitionPacket : Packet
 1.  Guard: connection.InGame — else ignore; a dead character — ignore
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
        a respawn or a party return) → send MoveInProgress, return, before anything is looked up
-2.  Resolve current instance from InstanceRegistry (must be a MapInstance with Layout)
+2.  Resolve current instance from InstanceRegistry (must be a MapInstance)
 3.  Load MapTemplate for packet.TargetMapId
 4.  Look up matching PortalInstance on mi.Portals where TargetMapId == packet.TargetMapId
        (portals are surfaced from ChunkLayout.Portals at instance build time —
