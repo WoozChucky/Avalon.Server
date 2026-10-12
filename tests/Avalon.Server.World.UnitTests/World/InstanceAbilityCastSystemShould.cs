@@ -242,6 +242,28 @@ public class InstanceAbilityCastSystemShould
         Assert.Single(RecordingAbilityScript.Prepared);
     }
 
+    /// <summary>
+    /// Every cast's aim is handed to its script's constructor out of one box the cast system keeps and overwrites
+    /// (#925). A script must keep the aim it was built with: the first cast here is still winding up, its script
+    /// already built, when the second cast's aim goes into the box.
+    /// </summary>
+    [Fact]
+    public void Fire_each_script_with_the_aim_of_its_own_cast()
+    {
+        var other = new AbilityAim(new Vector3(1f, 0f, 0f), new Vector3(-7f, 0f, 2f));
+        ICharacter first = Caster();
+        ICharacter second = Caster();
+        Assert.True(_sut.QueueAbility(first, s_aim, Ability(castTime: 0.01f)));
+        Assert.True(_sut.RunInstant(second, other, Ability()));
+
+        _sut.Update(s_tick, []);
+
+        Assert.Equal(2, RecordingAbilityScript.Prepared.Count);
+        Assert.Equal(other with { Origin = Vector3.zero }, RecordingAbilityScript.Prepared[0].Aim);
+        Assert.Equal(s_taken, RecordingAbilityScript.Prepared[1].Aim);
+        Assert.Same(first, RecordingAbilityScript.Prepared[1].Caster);
+    }
+
     // ── #521 item 2: one power rule on both paths ──
 
     [Theory]

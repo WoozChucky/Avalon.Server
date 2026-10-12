@@ -41,6 +41,26 @@ public class AbilityScriptActivatorShould
     }
 
     /// <summary>
+    /// The aim reaches a constructor out of a box every cast of an instance shares (#925). Taken as a reference, it
+    /// would be that box, holding whatever aim was cast last.
+    /// </summary>
+    [Fact]
+    public void Refuse_a_script_that_would_take_the_aim_boxed()
+    {
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() =>
+            new AbilityScriptActivator().Build(Substitute.For<IServiceProvider>(), typeof(TakesTheAimBoxed),
+                Substitute.For<IAbility>(), Substitute.For<IUnit>(), default, Substitute.For<IAbilityArena>()));
+
+        Assert.Contains(nameof(TakesTheAimBoxed), refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Not an AbilityScript, for the reason <see cref="Built" /> gives.</summary>
+    public sealed class TakesTheAimBoxed(IAbility ability, IUnit caster, object aim, IAbilityArena arena)
+    {
+        public object[] Taken { get; } = [ability, caster, aim, arena];
+    }
+
+    /// <summary>
     /// Emits a type with a script's constructor into a collectible assembly and builds it twice, the second time
     /// through the factory the first one left. Not inlined, so nothing of it is still on the caller's stack when the
     /// caller collects.
