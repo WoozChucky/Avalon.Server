@@ -6,7 +6,6 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using NSubstitute;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -49,7 +48,7 @@ public class InventoryUpdateFlusherShould
 
         SInventoryUpdatePacket update = Read(Assert.Single(_sent));
         InventorySlotUpdateDto slot = Assert.Single(update.Slots);
-        Assert.Equal((ushort)InventoryType.Bag, slot.Container);
+        Assert.Equal(InventoryType.Bag, slot.Container);
         Assert.Equal((ushort)0, slot.Slot);
         Assert.Equal(5u, slot.Item!.Count);
         Assert.Equal(Potion.Id.Value, slot.Item.ItemTemplateId);
@@ -133,7 +132,7 @@ public class InventoryUpdateFlusherShould
 
         SInventoryUpdatePacket update = Read(Assert.Single(_sent));
         Assert.Equal(2, update.Slots.Length);
-        InventorySlotUpdateDto bank = update.Slots.Single(s => s.Container == (ushort)InventoryType.Bank);
+        InventorySlotUpdateDto bank = update.Slots.Single(s => s.Container == InventoryType.Bank);
         Assert.Equal((ushort)4, bank.Slot);
         Assert.Null(bank.Item);
     }
@@ -155,6 +154,6 @@ public class InventoryUpdateFlusherShould
         InventoryUpdateFlusher.Flush(connection);
 
         InventorySlotUpdateDto slot = Assert.Single(Read(Assert.Single(_sent)).Slots);
-        Assert.Equal((ushort)InventoryType.Bag, slot.Container);
+        Assert.Equal(InventoryType.Bag, slot.Container);
     }
 }

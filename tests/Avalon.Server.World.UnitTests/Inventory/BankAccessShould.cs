@@ -6,7 +6,6 @@ using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.World;
 using Avalon.World.Dialogue;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Enums;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -108,7 +107,7 @@ public class BankAccessShould
         InventorySlotUpdateDto[] snapshot = BankAccess.Snapshot(w.Character);
 
         Assert.Equal(30, snapshot.Length);
-        Assert.All(snapshot, s => Assert.Equal((ushort)InventoryType.Bank, s.Container));
+        Assert.All(snapshot, s => Assert.Equal(InventoryType.Bank, s.Container));
         Assert.Equal(Enumerable.Range(0, 30).Select(i => (ushort)i), snapshot.Select(s => s.Slot));
         Assert.Equal(7u, snapshot[2].Item!.Count);
         Assert.Equal(29, snapshot.Count(s => s.Item is null));

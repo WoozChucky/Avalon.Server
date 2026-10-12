@@ -2,7 +2,6 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Server.World.UnitTests.Entities;

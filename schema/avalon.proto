@@ -206,21 +206,21 @@ message CInteractPacket {
 }
 message CItemDestroyPacket {
    uint32 RequestId = 1;
-   uint32 Container = 2;
+   InventoryType Container = 2;
    uint32 Slot = 3;
    optional uint32 Count = 4;
 }
 message CItemMovePacket {
    uint32 RequestId = 1;
-   uint32 FromContainer = 2;
+   InventoryType FromContainer = 2;
    uint32 FromSlot = 3;
-   uint32 ToContainer = 4;
+   InventoryType ToContainer = 4;
    uint32 ToSlot = 5;
    optional uint32 Count = 6;
 }
 message CItemUsePacket {
    uint32 RequestId = 1;
-   uint32 Container = 2;
+   InventoryType Container = 2;
    uint32 Slot = 3;
 }
 message CLogoutPacket {
@@ -408,9 +408,14 @@ message IgnoredCharacterDto {
    optional string Name = 2;
 }
 message InventorySlotUpdateDto {
-   uint32 Container = 1;
+   InventoryType Container = 1;
    uint32 Slot = 2;
    ItemSlotDto Item = 3;
+}
+enum InventoryType {
+   InventoryType_Equipment = 0;
+   InventoryType_Bag = 1;
+   InventoryType_Bank = 2;
 }
 enum ItemRequestResult {
    ItemRequestResult_Ok = 0;
@@ -428,7 +433,7 @@ enum ItemRequestResult {
    ItemRequestResult_Blocked = 12;
 }
 message ItemSlotDto {
-   uint32 Container = 1;
+   InventoryType Container = 1;
    uint32 Slot = 2;
    uint64 ItemTemplateId = 3;
    .bcl.Guid ItemInstanceId = 4; // default value could not be applied: 00000000-0000-0000-0000-000000000000

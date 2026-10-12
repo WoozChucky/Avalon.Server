@@ -1,6 +1,6 @@
+using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
 
@@ -33,7 +33,7 @@ public class EquipmentSlotsShould
     [InlineData(1u, 70000u, false)]
     public void Read_A_Slot_Off_The_Wire_Only_When_It_Can_Name_One(uint container, uint slot, bool readable)
     {
-        Assert.Equal(readable, SlotRef.TryParse(container, slot, out SlotRef parsed));
+        Assert.Equal(readable, SlotRef.TryParse((InventoryType)container, slot, out SlotRef parsed));
         if (readable)
             Assert.Equal(new SlotRef((InventoryType)container, (ushort)slot), parsed);
     }

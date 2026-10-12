@@ -17,14 +17,14 @@ message CItemDestroyPacket
 
 variant absent
   field 1 RequestId : uint = 0
-  field 2 Container : uint = 0
+  field 2 Container : InventoryType = Equipment (0)
   field 3 Slot : uint = 0
   field 4 Count : uint? = null
   bytes 0
 
 variant empty
   field 1 RequestId : uint = 0
-  field 2 Container : uint = 0
+  field 2 Container : InventoryType = Equipment (0)
   field 3 Slot : uint = 0
   field 4 Count : uint? = 0
   bytes 2
@@ -32,24 +32,24 @@ variant empty
 
 variant populated
   field 1 RequestId : uint = 42
-  field 2 Container : uint = 300
+  field 2 Container : InventoryType = Bag (1)
   field 3 Slot : uint = 19
   field 4 Count : uint? = 4000000000
-  bytes 13
-    08 2a 10 ac 02 18 13 20 80 d0 ac f3 0e
+  bytes 12
+    08 2a 10 01 18 13 20 80 d0 ac f3 0e
 
 variant maxima
   field 1 RequestId : uint = 4294967295
-  field 2 Container : uint = 4294967295
+  field 2 Container : InventoryType = Bank (2)
   field 3 Slot : uint = 4294967295
   field 4 Count : uint? = 4294967295
-  bytes 24
-    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
-    ff 0f 20 ff ff ff ff 0f
+  bytes 20
+    08 ff ff ff ff 0f 10 02 18 ff ff ff ff 0f 20 ff
+    ff ff ff 0f
 
 variant minima
   field 1 RequestId : uint = 0
-  field 2 Container : uint = 0
+  field 2 Container : InventoryType = Equipment (0)
   field 3 Slot : uint = 0
   field 4 Count : uint? = 0
   bytes 2
@@ -57,8 +57,8 @@ variant minima
 
 variant varint-edges
   field 1 RequestId : uint = 128
-  field 2 Container : uint = 2097151
+  field 2 Container : InventoryType = <not a declared member> (3)
   field 3 Slot : uint = 268435456
   field 4 Count : uint? = 127
-  bytes 15
-    08 80 01 10 ff ff 7f 18 80 80 80 80 01 20 7f
+  bytes 13
+    08 80 01 10 03 18 80 80 80 80 01 20 7f

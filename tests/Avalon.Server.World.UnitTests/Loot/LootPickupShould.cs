@@ -5,7 +5,6 @@ using Avalon.Network.Packets.Loot;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;

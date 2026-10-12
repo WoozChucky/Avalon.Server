@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
@@ -22,8 +23,8 @@ public class CItemUsePacket : Packet
     /// <summary>Chosen by the client and echoed in the result, so it can pair answers with requests.</summary>
     [ProtoMember(1)] public uint RequestId { get; set; }
 
-    /// <summary>InventoryType number of the slot: 1, the Bag, or 0, Equipment.</summary>
-    [ProtoMember(2)] public uint Container { get; set; }
+    /// <summary>The container of the slot: 1, the Bag, or 0, Equipment.</summary>
+    [ProtoMember(2)] public InventoryType Container { get; set; }
 
     [ProtoMember(3)] public uint Slot { get; set; }
 }

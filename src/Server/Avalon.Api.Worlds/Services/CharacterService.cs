@@ -266,7 +266,7 @@ public class CharacterService : ICharacterService
     private async Task<(uint Min, uint Max)> MainHandRangeAsync(CharacterId id, CancellationToken cancellationToken)
     {
         var worn = (await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken))
-            .Where(r => r.Container == Avalon.World.Public.Enums.InventoryType.Equipment)
+            .Where(r => r.Container == Avalon.Common.InventoryType.Equipment)
             .Select(r => r.ItemId)
             .ToHashSet();
         if (worn.Count == 0) return (0, 0);

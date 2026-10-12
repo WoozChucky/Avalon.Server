@@ -1,7 +1,7 @@
+using Avalon.Common;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Inventory;
@@ -34,7 +34,7 @@ public static class InventoryAssembler
             {
                 logger.LogWarning(
                     "Skipping inventory row in slot {Slot}: {Container} is not a known container",
-                    row.Slot, (ushort)row.Container);
+                    row.Slot, (byte)row.Container);
                 continue;
             }
 

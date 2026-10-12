@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
@@ -19,8 +20,8 @@ public class CItemDestroyPacket : Packet
     /// <summary>Chosen by the client and echoed in the result.</summary>
     [ProtoMember(1)] public uint RequestId { get; set; }
 
-    /// <summary>InventoryType number: 0 Equipment, 1 Bag, 2 Bank.</summary>
-    [ProtoMember(2)] public uint Container { get; set; }
+    /// <summary>The container of the slot. A number that is no container is refused as InvalidSlot.</summary>
+    [ProtoMember(2)] public InventoryType Container { get; set; }
 
     [ProtoMember(3)] public uint Slot { get; set; }
 

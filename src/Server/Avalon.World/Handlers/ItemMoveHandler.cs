@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;

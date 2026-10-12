@@ -7,7 +7,6 @@ using Avalon.Domain.World;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Persistence;
 

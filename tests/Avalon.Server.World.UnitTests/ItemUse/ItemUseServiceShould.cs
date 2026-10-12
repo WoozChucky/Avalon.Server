@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Combat;
@@ -6,7 +7,6 @@ using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 using static Avalon.Server.World.UnitTests.ItemUse.ItemUseWorld;
@@ -45,13 +45,13 @@ public class ItemUseServiceShould : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData((uint)InventoryType.Bag, 3u)]     // empty
-    [InlineData((uint)InventoryType.Bag, 400u)]   // out of range
-    [InlineData((uint)InventoryType.Bank, 0u)]    // the Bank: only Bag and Equipment items are used
-    [InlineData((uint)InventoryType.Equipment, 0u)]   // an empty equipment slot
-    [InlineData((uint)InventoryType.Equipment, 11u)]  // a reserved equipment slot
-    [InlineData(9u, 0u)]                          // no such container
-    public void Answer_NotFound_for_a_slot_that_holds_nothing_usable(uint container, uint slot)
+    [InlineData(InventoryType.Bag, 3u)]     // empty
+    [InlineData(InventoryType.Bag, 400u)]   // out of range
+    [InlineData(InventoryType.Bank, 0u)]    // the Bank: only Bag and Equipment items are used
+    [InlineData(InventoryType.Equipment, 0u)]   // an empty equipment slot
+    [InlineData(InventoryType.Equipment, 11u)]  // a reserved equipment slot
+    [InlineData((InventoryType)9, 0u)]                          // no such container
+    public void Answer_NotFound_for_a_slot_that_holds_nothing_usable(InventoryType container, uint slot)
     {
         _w.Bag(Item(0, Tonic, count: 5));
 
@@ -385,8 +385,8 @@ public class ItemUseServiceShould : IAsyncLifetime
         _w.Use(41, 1);
         _w.Use(42, 0);
 
-        _w.Use(43, EquipmentSlots.MainHand, (uint)InventoryType.Equipment);
-        _w.Use(44, EquipmentSlots.Head, (uint)InventoryType.Equipment);
+        _w.Use(43, EquipmentSlots.MainHand, InventoryType.Equipment);
+        _w.Use(44, EquipmentSlots.Head, InventoryType.Equipment);
 
         Assert.Equal(
             [(41u, ItemUseResult.Ok), (42u, ItemUseResult.Interrupted), (43u, ItemUseResult.Ok), (44u, ItemUseResult.Ok)],

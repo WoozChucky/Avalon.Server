@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 using CharacterRow = Avalon.Domain.Characters.Character;

@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
@@ -44,9 +45,9 @@ public class ItemRequestPacketsShould
     public void Keep_The_Move_Field_Numbers_The_Client_Writes()
     {
         Assert.Equal("0801", Hex(new CItemMovePacket { RequestId = 1 }));
-        Assert.Equal("1002", Hex(new CItemMovePacket { FromContainer = 2 }));
+        Assert.Equal("1002", Hex(new CItemMovePacket { FromContainer = InventoryType.Bank }));
         Assert.Equal("1803", Hex(new CItemMovePacket { FromSlot = 3 }));
-        Assert.Equal("2001", Hex(new CItemMovePacket { ToContainer = 1 }));
+        Assert.Equal("2001", Hex(new CItemMovePacket { ToContainer = InventoryType.Bag }));
         Assert.Equal("2805", Hex(new CItemMovePacket { ToSlot = 5 }));
         Assert.Equal("3004", Hex(new CItemMovePacket { Count = 4 }));
     }
@@ -55,7 +56,7 @@ public class ItemRequestPacketsShould
     public void Keep_The_Destroy_Field_Numbers_The_Client_Writes()
     {
         Assert.Equal("0801", Hex(new CItemDestroyPacket { RequestId = 1 }));
-        Assert.Equal("1002", Hex(new CItemDestroyPacket { Container = 2 }));
+        Assert.Equal("1002", Hex(new CItemDestroyPacket { Container = InventoryType.Bank }));
         Assert.Equal("1803", Hex(new CItemDestroyPacket { Slot = 3 }));
         Assert.Equal("2004", Hex(new CItemDestroyPacket { Count = 4 }));
     }
@@ -78,7 +79,7 @@ public class ItemRequestPacketsShould
         // Field 3, length 4: an InventorySlotUpdateDto with Container 1 and Slot 2 and no item.
         Assert.Equal("1a0408011002", Hex(new SItemResultPacket
         {
-            Slots = [new InventorySlotUpdateDto { Container = 1, Slot = 2 }],
+            Slots = [new InventorySlotUpdateDto { Container = InventoryType.Bag, Slot = 2 }],
         }));
     }
 
@@ -108,10 +109,10 @@ public class ItemRequestPacketsShould
         [
             new InventorySlotUpdateDto
             {
-                Container = 1, Slot = 0,
-                Item = new ItemSlotDto { Container = 1, Slot = 0, ItemTemplateId = 100, Count = 20 },
+                Container = InventoryType.Bag, Slot = 0,
+                Item = new ItemSlotDto { Container = InventoryType.Bag, Slot = 0, ItemTemplateId = 100, Count = 20 },
             },
-            new InventorySlotUpdateDto { Container = 1, Slot = 4 },
+            new InventorySlotUpdateDto { Container = InventoryType.Bag, Slot = 4 },
         ], PacketEncoder.Shared);
 
         Assert.Equal(NetworkPacketType.SMSG_ITEM_RESULT, packet.Header.Type);

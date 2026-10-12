@@ -1,8 +1,8 @@
+using Avalon.Common;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.Character.Repositories;

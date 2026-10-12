@@ -140,9 +140,9 @@ public class CharacterSheetShould
         move.Execute(w.Connection, new CItemMovePacket
         {
             RequestId = 1,
-            FromContainer = (uint)InventoryType.Bag,
+            FromContainer = InventoryType.Bag,
             FromSlot = 1,
-            ToContainer = (uint)InventoryType.Equipment,
+            ToContainer = InventoryType.Equipment,
             ToSlot = EquipmentSlots.Finger1,
         });
         CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat.Formula);
@@ -151,9 +151,9 @@ public class CharacterSheetShould
         move.Execute(w.Connection, new CItemMovePacket
         {
             RequestId = 2,
-            FromContainer = (uint)InventoryType.Bag,
+            FromContainer = InventoryType.Bag,
             FromSlot = 0,
-            ToContainer = (uint)InventoryType.Equipment,
+            ToContainer = InventoryType.Equipment,
             ToSlot = EquipmentSlots.Chest,
         });
         CharacterSheetFlusher.Flush(w.Connection, w.Data.Combat.Formula);

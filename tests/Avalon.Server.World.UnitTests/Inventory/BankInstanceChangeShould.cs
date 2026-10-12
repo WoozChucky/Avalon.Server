@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
@@ -7,7 +8,6 @@ using Avalon.World.Configuration;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Maps;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Abstractions;
 using Avalon.World.Vendors;
@@ -51,8 +51,8 @@ public class BankInstanceChangeShould
         SDialogueEndPacket end = Assert.Single(w.Read<SDialogueEndPacket>(NetworkPacketType.SMSG_DIALOGUE_END));
         Assert.Equal(BankerWorld.BankerGuid.RawValue, end.SpeakerGuid);
 
-        Assert.True(SlotRef.TryParse((uint)InventoryType.Bank, 2, out SlotRef banked));
-        Assert.True(SlotRef.TryParse((uint)InventoryType.Bag, 0, out SlotRef bag));
+        Assert.True(SlotRef.TryParse(InventoryType.Bank, 2, out SlotRef banked));
+        Assert.True(SlotRef.TryParse(InventoryType.Bag, 0, out SlotRef bag));
         ItemRequestResult result = InventoryFor(w.Character)
             .TryMove(banked, bag, null, BankAccess.TryUse(w.Connection, w.Character, w.World));
         Assert.Equal(ItemRequestResult.BankClosed, result);

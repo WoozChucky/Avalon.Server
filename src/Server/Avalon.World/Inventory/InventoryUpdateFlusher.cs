@@ -1,9 +1,9 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Inventory;
 
@@ -49,7 +49,7 @@ public static class InventoryUpdateFlusher
             .ThenBy(s => s.Slot)
             .Select(s => new InventorySlotUpdateDto
             {
-                Container = (ushort)s.Container,
+                Container = s.Container,
                 Slot = s.Slot,
                 Item = character.Container(s.Container).TryGet(s.Slot, out InventoryItem item)
                     ? ItemSlotDtoMapper.ToDto(s.Container, item)

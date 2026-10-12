@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -17,7 +18,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Dialogue;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
 using Avalon.World.Public.Scripts;

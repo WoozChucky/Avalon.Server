@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
@@ -40,8 +41,8 @@ public class SInventorySnapshotPacket : Packet
 [ProtoContract]
 public class ItemSlotDto
 {
-    /// <summary>InventoryType. Crosses as a number, as Class does on SCharacterSelectedPacket.</summary>
-    [ProtoMember(1)] public ushort Container { get; set; }
+    /// <summary>The container the item is in.</summary>
+    [ProtoMember(1)] public InventoryType Container { get; set; }
 
     [ProtoMember(2)] public ushort Slot { get; set; }
 

@@ -5,7 +5,6 @@ using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 
 namespace Avalon.World.Inventory;
@@ -62,7 +61,7 @@ public static class BankAccess
         {
             slots[slot] = new InventorySlotUpdateDto
             {
-                Container = (ushort)InventoryType.Bank,
+                Container = InventoryType.Bank,
                 Slot = slot,
                 Item = bank.TryGet(slot, out InventoryItem item) ? ItemSlotDtoMapper.ToDto(InventoryType.Bank, item) : null,
             };

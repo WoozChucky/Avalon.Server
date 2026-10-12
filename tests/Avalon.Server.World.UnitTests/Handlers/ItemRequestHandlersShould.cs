@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -5,7 +6,6 @@ using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -35,9 +35,9 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         MoveHandler().Execute(_w.Connection, new CItemMovePacket
         {
             RequestId = request,
-            FromContainer = (uint)from,
+            FromContainer = from,
             FromSlot = fromSlot,
-            ToContainer = (uint)to,
+            ToContainer = to,
             ToSlot = toSlot,
             Count = count,
         });
@@ -46,7 +46,7 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         DestroyHandler().Execute(_w.Connection, new CItemDestroyPacket
         {
             RequestId = request,
-            Container = (uint)container,
+            Container = container,
             Slot = slot,
             Count = count,
         });
@@ -110,17 +110,17 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         MoveHandler().Execute(_w.Connection, new CItemMovePacket
         {
             RequestId = 46,
-            FromContainer = 7,
+            FromContainer = (InventoryType)7,
             FromSlot = 0,
-            ToContainer = (uint)InventoryType.Bag,
+            ToContainer = InventoryType.Bag,
             ToSlot = 3,
         });
         MoveHandler().Execute(_w.Connection, new CItemMovePacket
         {
             RequestId = 47,
-            FromContainer = (uint)InventoryType.Bag,
+            FromContainer = InventoryType.Bag,
             FromSlot = 0,
-            ToContainer = (uint)InventoryType.Bag,
+            ToContainer = InventoryType.Bag,
             ToSlot = 70000,
         });
         Move(48, InventoryType.Bag, 0, InventoryType.Bag, 3, count: 0);
@@ -165,7 +165,7 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         SItemResultPacket result = Assert.Single(Results());
         Assert.Equal(expected, result.Result);
         Assert.Equal(slots, result.Slots.Length);
-        Assert.Contains(result.Slots, s => s.Container == (ushort)InventoryType.Bag);
+        Assert.Contains(result.Slots, s => s.Container == InventoryType.Bag);
     }
 
     [Fact]
@@ -223,9 +223,9 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         MoveHandler(economy).Execute(_w.Connection, new CItemMovePacket
         {
             RequestId = 57,
-            FromContainer = (uint)InventoryType.Bag,
+            FromContainer = InventoryType.Bag,
             FromSlot = 0,
-            ToContainer = (uint)InventoryType.Bag,
+            ToContainer = InventoryType.Bag,
             ToSlot = 1,
         });
 

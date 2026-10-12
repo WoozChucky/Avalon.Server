@@ -30,7 +30,7 @@ public class CharacterServiceShould
         ICharacterInventoryRepository slots = Substitute.For<ICharacterInventoryRepository>();
         slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterInventory>
         {
-            new() { CharacterId = id, Container = Avalon.World.Public.Enums.InventoryType.Bag, Slot = 3, ItemId = itemId },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 3, ItemId = itemId },
         });
 
         IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
@@ -82,7 +82,7 @@ public class CharacterServiceShould
         ICharacterInventoryRepository slots = Substitute.For<ICharacterInventoryRepository>();
         slots.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(new List<CharacterInventory>
         {
-            new() { CharacterId = id, Container = Avalon.World.Public.Enums.InventoryType.Bag, Slot = 0, ItemId = itemId },
+            new() { CharacterId = id, Container = Avalon.Common.InventoryType.Bag, Slot = 0, ItemId = itemId },
         });
 
         IItemInstanceRepository items = Substitute.For<IItemInstanceRepository>();
@@ -126,7 +126,7 @@ public class CharacterServiceShould
             ? new List<CharacterInventory>()
             : new List<CharacterInventory>
             {
-                new() { CharacterId = id, Container = Avalon.World.Public.Enums.InventoryType.Equipment, Slot = 9, ItemId = weaponId },
+                new() { CharacterId = id, Container = Avalon.Common.InventoryType.Equipment, Slot = 9, ItemId = weaponId },
             });
         IItemInstanceRepository instances = Substitute.For<IItemInstanceRepository>();
         instances.GetByCharacterIdAsync(id, Arg.Any<CancellationToken>()).Returns(mainHand is null

@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Quest;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
-using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;

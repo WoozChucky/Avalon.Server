@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Serialization;
@@ -117,7 +118,7 @@ public class VendorPacketsShould
         {
             Index = 2,
             Price = 30,
-            Item = new ItemSlotDto { Container = 1, Slot = 4, ItemTemplateId = 701, Count = 1, Durability = 42 },
+            Item = new ItemSlotDto { Container = InventoryType.Bag, Slot = 4, ItemTemplateId = 701, Count = 1, Durability = 42 },
         });
         Assert.Equal((2u, 30UL, 701UL, 42u), (read.Index, read.Price, read.Item!.ItemTemplateId, read.Item.Durability));
     }
@@ -161,7 +162,7 @@ public class VendorPacketsShould
                     Costs = [new VendorCostDto { ItemTemplateId = 700, Count = 2 }],
                 },
             ],
-            [new VendorBuybackDto { Index = 0, Price = 20, Item = new ItemSlotDto { Container = 1, ItemTemplateId = 700, Count = 5 } }],
+            [new VendorBuybackDto { Index = 0, Price = 20, Item = new ItemSlotDto { Container = InventoryType.Bag, ItemTemplateId = 700, Count = 5 } }],
             PacketEncoder.Shared);
 
         Assert.Equal(NetworkPacketType.SMSG_VENDOR_LIST, packet.Header.Type);

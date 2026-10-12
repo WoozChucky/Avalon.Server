@@ -304,8 +304,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<long>("CharacterId")
                         .HasColumnType("bigint");
 
-                    b.Property<int>("Container")
-                        .HasColumnType("integer");
+                    b.Property<byte>("Container")
+                        .HasColumnType("smallint");
 
                     b.Property<int>("Slot")
                         .HasColumnType("integer");
