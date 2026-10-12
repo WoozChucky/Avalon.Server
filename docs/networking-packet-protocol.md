@@ -109,6 +109,93 @@ packet by its header too.
 | current | flag on | sealed | sealed |
 | current | before #875 (field absent, reads false) | plain; that server decides by the header | sealed; the client follows the header |
 
+## Time Sync: `SMSG_PING` and `CMSG_PONG`
+
+The world server's tick queues a ping for every connection in its list once every 600 ticks (about ten seconds, each
+connection on the tick its place in the list gives it), whether or not the connection has been admitted yet, and one
+more right after a connection's version handshake. The client answers each ping with one pong. From the exchange the
+server measures the connection's round trip (`IWorldConnection.RoundTripTime` in ticks, `Latency` in whole
+milliseconds) and the offset between the two clocks, and tells the client both on the next ping. The character row
+and the REST API carry `Latency` as of character select (`CharacterSelectHandler` copies it once): often the
+handshake ping's reading, or 0. Both packets are plain inside TLS, whatever `Network:PacketEncryption` says. Every
+time is in UTC ticks (100 ns, counted from year 1).
+
+| Packet | Field | Meaning |
+|---|---|---|
+| `SPingPacket` | `ServerTimestamp` (1) | Server time as the connection's send thread wrote the ping (#875). It also names the ping |
+| | `ClientTimestamp` (2) | The `ClientReceivedTimestamp` of the last pong the server accepted |
+| | `Rtt` (3) | The last round trip the server measured |
+| | `Offset` (4) | Server time minus client time, from that same exchange |
+| `CPongPacket` | `LastServerTimestamp` (1) | The `ServerTimestamp` of the ping it answers, echoed exactly |
+| | `ClientReceivedTimestamp` (2) | When the client received the ping, on its own clock |
+| | `ClientSentTimestamp` (3) | When the client sent the pong. Still on the wire; the server does not read it |
+
+**The server measures the round trip alone (#892).** Before, the round trip was computed from the echo and the client's
+receive and send times, so a client could report any round trip it liked, zero and negative ones included. Now:
+
+- The send thread records the stamp of each ping as it writes it, before the ping can reach the client. It keeps the
+  stamps of the last four pings it wrote (`ConnectionSender.PingStampCapacity`), each until a pong answers it. A
+  connection has one ping unanswered at a time, two when the handshake's ping sits beside a periodic one, so a stamp
+  stays answerable for thirty seconds or more.
+- **One pong per ping.** Each ping written grants the connection one pong credit, never more than four at once. A pong
+  takes a credit as the read loop receives it, whatever it echoes, and a pong that finds none is dropped there
+  (`WorldConnection.OnReceive`), before it is queued for the tick. The check comes after the admission check, so a pong
+  sent before admission is dropped as it always was and spends nothing: the credits of the pings written before
+  admission are still there after it, up to the four.
+- A pong that got in is accepted only when its `LastServerTimestamp` equals one of the recorded stamps. The stamp is
+  then spent. The echo plays no other part.
+- `round trip = the pong's arrival - the ping's stamp`. Both are the server's own readings of its own clock: the stamp
+  taken at the write, and the arrival taken by the read loop as it reads the pong off the socket, not when the tick
+  handles it. `Latency` is the round trip in whole milliseconds.
+- `offset = the ping's stamp + round trip / 2 - ClientReceivedTimestamp`. That is the one term of the client's left. It
+  is the client's own clock by nature, and a false value moves only that client's own idea of server time.
+- The next ping carries `Rtt`, `Offset` and `ClientTimestamp` from the last accepted pong. All three are 0, as are
+  `Latency` and `RoundTripTime`, until the first one.
+
+**What a client must do.** Echo `ServerTimestamp` unchanged, answer each ping once, and send no other pong: a pong
+that echoes anything else uses up that ping's one answer, and the true echo sent after it is dropped. Answer as it
+reads the ping: the time between receiving a ping and sending its pong is part of the round trip (it used to be
+subtracted), and half of it lands in `Offset`. Fill `ClientReceivedTimestamp` from the clock it applies `Offset` to.
+After a stall in which pings went unanswered, answer only the newest ones, at most four, and drop the rest: the server
+remembers the last four stamps and lets at most four pongs in, whatever they echo, so an answer to an older ping
+takes the place of an answer to a newer one.
+
+**What the server drops and ignores.** In every case below `Latency`, `RoundTripTime` and the offset stay as they
+were, the next ping repeats the old `Rtt` and `Offset`, and the connection stays open. No metric counts any of them.
+
+- *Dropped as it arrives*: a pong beyond one per ping written (a second answer, a burst, a pong before any ping). It is
+  never queued and no handler runs. Logged at Trace only (`Avalon.World.WorldConnection`), since a client can send
+  them at any rate. This also catches a client that stalls past four pings and then answers them all, oldest first:
+  its first pongs spend the four credits on pings the record has forgotten, and the answers to its newest pings are
+  dropped. With five unanswered, the newest ping's answer is the one dropped and the reading left is the one before
+  it, stretched by the stall; with eight, all four pongs let in answer forgotten pings and nothing is measured. The
+  next ping measures again.
+- *Let in, then ignored by the handler*: a pong whose echo is the stamp of no unanswered ping (a forged or guessed
+  one, the echo of a ping already answered, or of a ping that four later pings have pushed out of the record). Logged
+  at Debug, at most once per ping written.
+- *Let in, matched, then ignored*: a pong whose arrival reads earlier than the stamp it echoes. Either the echo was
+  sent ahead of its ping (a guess that hit) or the server's clock was set back in between. The stamp is spent, nothing
+  is measured, and the round trip is never negative. Logged at Debug.
+
+**What the measurement does not prove: `Latency` is advisory, in both directions.**
+
+- *Guessing the stamp.* The echo is a reading of the server's clock, not a secret. A client sees every earlier
+  `ServerTimestamp` and the pings follow the tick's deadlines, so it can predict the next stamp to within about 0.1 to
+  2 ms: 1,000 to 20,000 candidate values at 100 ns. A pong carrying the right one, arriving just after the ping is
+  written and before the client could have read it, reads a round trip shorter than the client's own. The credit
+  leaves it one guess per ping against those thousands of candidates (up to four at once after letting pings go
+  unanswered), where it used to have as many as it could send. That lowers the odds and does not close guessing. A
+  ping identifier the client cannot predict would close it, and is a wire change.
+- *Answering late* raises the reading. How long a stamp stays answerable follows from the cadence alone (until four
+  later pings are written, some forty seconds at one ping per ten seconds). Nothing in the code caps the round trip.
+- *The reading has no age.* A client that stops answering keeps its last reading, and one that never answers reads 0.
+
+Code that would trust latency (lag compensation, cheat heuristics, matchmaking) needs more than this. An age for the
+reading and a ping identifier the client cannot predict would close staleness and guessing, and no more. A client could
+still raise its reading at will, so a use that a high reading benefits also needs a bound on readings. And what would
+be left is only a floor: the reading would be no lower than the real round trip to the connection's endpoint, which is
+whatever terminates its TLS (a proxy or a relay as well as a player's machine), not to the player.
+
 ## Redis Usage in Flow
 
 - `auth:account:{accountId}:mfa` and `auth:mfa:hash:{sha256}` — the MFA step's state.

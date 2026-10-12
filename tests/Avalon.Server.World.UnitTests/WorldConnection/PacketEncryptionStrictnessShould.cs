@@ -1,3 +1,4 @@
+using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
@@ -7,6 +8,7 @@ using Avalon.Network.Packets.Movement;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
 using Avalon.World.Public;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Packet = Avalon.Network.Packets.Packet;
 
@@ -28,8 +30,8 @@ public sealed class PacketEncryptionStrictnessShould
         { true, NetworkPacketType.CMSG_WORLD_HANDSHAKE, NetworkPacketFlags.None, true, false },
         { true, NetworkPacketType.CMSG_PLAYER_INPUT, NetworkPacketFlags.None, true, false },
         { true, NetworkPacketType.CMSG_CHARACTER_LIST, NetworkPacketFlags.Encrypted, false, true },
-        // Plain by design: admission (run on arrival, never queued) and pong. A ClearText opcode the world never runs is
-        // dropped, never refused.
+        // Plain by design: admission (run on arrival, never queued) and pong (the answer to the ping the connection
+        // wrote, #892). A ClearText opcode the world never runs is dropped, never refused.
         { true, NetworkPacketType.CMSG_GAME_ADMISSION, NetworkPacketFlags.ClearText, false, false },
         { true, NetworkPacketType.CMSG_PONG, NetworkPacketFlags.None, false, true },
         { true, NetworkPacketType.CMSG_PING, NetworkPacketFlags.ClearText, false, false },
@@ -51,8 +53,15 @@ public sealed class PacketEncryptionStrictnessShould
             [NetworkPacketType.CMSG_CHARACTER_LIST] = new Recorder(NetworkPacketType.CMSG_CHARACTER_LIST, dispatched),
             [NetworkPacketType.CMSG_PONG] = new Recorder(NetworkPacketType.CMSG_PONG, dispatched),
         });
+        // Its send threads never start: the pass below writes the ping a pong answers.
+        using var scheduler = new NetworkSendScheduler(new NetworkConfiguration { SendThreads = 1 }, NullLoggerFactory.Instance,
+            TimeProvider.System, NetworkSendMetrics.Disabled);
+        server.SendScheduler.Returns(scheduler);
         using var connection = WorldAdmissionConnection.Create(server);
         GameplayTestAdmission.Admit(connection);
+        connection.InitOutboxForTest(new PacketStream(Stream.Null));
+        connection.SendTimeSyncPing();
+        scheduler.RunAllPasses();
 
         connection.Deliver(type, type switch
         {
@@ -68,6 +77,9 @@ public sealed class PacketEncryptionStrictnessShould
         // The session pass runs what was queued at arrival.
         connection.UpdateSession();
         Assert.Equal(queued ? [type] : [], dispatched);
+
+        connection.Close();
+        scheduler.RunAllPasses();   // the close's last visit, so the sender finishes and gives back its buffers
     }
 
     private sealed class Recorder(NetworkPacketType type, List<NetworkPacketType> log) : IWorldPacketHandler

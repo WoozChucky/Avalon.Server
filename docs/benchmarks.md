@@ -24,6 +24,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallList
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThreadGuard*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ConnectionTick*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ReceiveQueueBenchmarks*" --job short
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TimeSync*"
 
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
@@ -35,6 +36,85 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 ---
 
 ## Suites
+
+### Time sync — `Benchmarks/TimeSyncBenchmarks.cs` (#892)
+
+The ping and pong exchange on an admitted `WorldConnection` with its real `ConnectionSender` and `PongHandler`
+(`ReceiveQueueFixture` with a sender), over a stream that discards what it is given. The send thread's pass runs on the
+benchmark's thread (a scheduler whose threads never start, as in the scenario runner). A pong is delivered as the read
+loop delivers it (`OnReceive`) and handled by the tick's session pass. The fixture's clock writes every ping at one
+time and lands its pong 20 ms later. Setup runs one exchange and throws unless the connection then reads that 20 ms
+round trip, so the benchmark cannot come to time a pong the server ignores without saying so; it also means every
+measured ping carries a round trip, an offset and a client time. Each invocation runs 256 operations.
+
+| Method | What one operation is |
+|---|---|
+| `PingWritten` | The tick queues a ping (`SendTimeSyncPing`) and one send pass stamps, encodes, frames and writes it. Since #892 the pass also records the stamp and grants a pong credit. No pong is delivered here, so from the fifth operation on the credits are at their cap of four and the grant is a read: this row times the saturated grant only |
+| `PingWrittenAndPongHandled` | The same, then the pong that echoes it arrives, takes the credit, is queued, dispatched and accepted: one whole exchange |
+| `PingWrittenAndWrongPongHandled` | The same with an echo that is the stamp of no ping: it takes the credit, reaches the handler and is ignored there. Before #892 it was computed like any other pong |
+| `SurplusPong` | A pong beyond one per ping, 32 of them between two session passes, which a client can send at any rate. Since #892 it is dropped as it arrives; before, it was queued, dispatched and computed |
+
+Before/after on 2026-10-12, `46b38375` and the change (#892: the server measures the round trip itself, from a record
+of the stamps it wrote, and lets one pong in per ping), the same benchmark and fixture on both sides. Five runs per
+side, interleaved; each figure is the median of the five runs' means, with their range.
+
+| Method | Before | After | Allocated, both |
+|---|---:|---:|---:|
+| `PingWritten` | 249.6 ns (247.3 to 256.3) | 254.3 ns (244.5 to 298.9) | 0 B |
+| `PingWrittenAndPongHandled` | 395.7 ns (390.3 to 601.0) | 410.5 ns (396.4 to 456.1) | 0 B |
+| `PingWrittenAndWrongPongHandled` | 394.6 ns (392.4 to 567.6) | 400.8 ns (396.9 to 435.9) | 0 B |
+| `SurplusPong` | 99.8 ns (99.5 to 109.5) | 16.9 ns (16.7 to 17.1) | 0 B |
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC, affinity
+mask 4; one launch, six warmups and fifteen measured iterations per run. Taken after the day's load-test ramp had
+ended, on a machine other builds still used: one or two runs of the five on each side were disturbed (the top of each
+range; a run's own standard deviation was then 10 to 50 ns against 1 to 3 ns otherwise), which is why the figure is
+the median.
+
+The credit count was then moved beside the stamps (below). Three more interleaved runs, the same day, against the
+commit before the move, as the range of each side's means: `PingWritten` 247.5 to 254.4 ns before the move and 250.6
+to 252.1 after, `PingWrittenAndPongHandled` 405.8 to 412.1 and 404.9 to 410.7, `PingWrittenAndWrongPongHandled` 396.5
+to 405.1 and 395.7 to 403.1, `SurplusPong` 16.0 to 17.0 and 16.5 to 17.6. No row moved, and none could: the benchmark
+runs on one thread, and the move matters between cores. Other benchmarks may have been running on the machine during
+these runs.
+
+- **The ping's write is within the spread** (about 5 ns, 2%, between the medians; the ranges overlap). The stamp goes
+  into a four-place ring inside the sender with the one interlocked exchange the last-stamp field took before. The
+  credit's grant is a read alone in this row, the credits being at their cap. The grant a client that answers takes,
+  a compare-exchange from 0 to 1, is timed only inside the two exchange rows, with the pong's own costs.
+- **A whole exchange costs about 15 ns more** (4%): the credit taken at arrival, the scan of the ring and the
+  compare-exchange that takes the stamp. A connection has one exchange about every ten seconds, so 1,000 connections
+  spend about 1.5 µs a second on it.
+- **A pong beyond one per ping costs 17 ns instead of 100 ns, and none of it on the tick.** It used to be queued,
+  dispatched and computed by the session pass. Now the read loop drops it after the admission check and one read of
+  the credit count, which finds zero and writes nothing; what is left is the arrival path every packet pays (the
+  admission and lease checks) and, upstream of this benchmark, reading and decoding the frame.
+- **What a flood costs is bounded.** However many pongs a client sends, one per ping written reaches the tick, so the
+  tick's work for a connection's pongs is one dispatch per ten seconds, and the Debug line for an unmatched pong is
+  written at most as often. The rest cost the connection's own read loop 17 ns each plus the frame's read and decode,
+  and nothing is queued for them.
+- **Nothing is allocated after decode**, per ping or per pong, on either side. The benchmark reuses one `CPongPacket`.
+  In the world every pong frame, a surplus one included, is decoded into a new packet object before `OnReceive` can
+  drop it; that allocation is upstream of this benchmark and unchanged by #892. The drop itself is held at 0 B by
+  `ReceiveQueueAllocationShould` (one ping, its pong, then 32,000 surplus pongs). The scenario gate does not run this
+  path (its connections refuse a time-sync ping) and is unchanged.
+- **Where the credit count lies.** The read loop reads it for every pong, so a flood keeps its cache line at the read
+  loop's core. It is the last field of the struct that holds the stamps, which the runtime lays out after the sender's
+  integers: in the Release build, counted from the object's start, the count is at 272, the group of integers the tick's
+  enqueue and the send thread's framing write ends at 207 (`_doomed`, its last), and the object's fields end at 296.
+  However the object falls across 64-byte lines, the count shares none with `_pendingBytes`, `_dirty`,
+  `_activeEnqueues`, the bursts' counts or the int flags, so a flood never makes the tick's enqueue or the send thread's
+  framing of a packet take a line back. It shares its line with the stamps and the connection's id (seven placements of
+  eight each), the pending write's awaiter (three of eight) and the send thread's bool flags (one of eight). What the
+  send thread takes back because of a flood is therefore that line once per ping, for the stamp and the grant, and once
+  more when a socket write goes pending or ends, in the placements where the awaiter shares it. Before the move the
+  count sat among the integers and shared a line with `_doomed` in seven placements of eight, `_activeEnqueues` in six
+  and `_dirty` in four. What lies past the object's end, within the count's line in some placements, is the heap's
+  choice.
+- **Not measured**: the threads together. In the world the send thread writes the stamps and grants credits, the read
+  loop takes credits and the tick takes stamps, so that line moves between those cores a few times per exchange; here
+  one thread does all three, and no flood runs beside an enqueue on another core. Sockets, TLS and the frame's decode
+  are not in it either.
 
 ### Idle creature dispatch — `Benchmarks/CreatureDispatchBenchmarks.cs` (#880, #896)
 

@@ -24,4 +24,12 @@ internal static partial class HighRatePacketLog
         Message = "[{CharName}] RTT: {Rtt}ticks, Latency: {Latency}ms ({PacketType} on connection {ConnectionId})")]
     public static partial void RoundTrip(ILogger logger, string? charName, long rtt, long latency,
         NetworkPacketType packetType, Guid connectionId);
+
+    [LoggerMessage(Level = LogLevel.Debug,
+        Message = "Ignored {PacketType} on connection {ConnectionId}: its echo is the stamp of no unanswered ping")]
+    public static partial void PongAnswersNoPing(ILogger logger, NetworkPacketType packetType, Guid connectionId);
+
+    [LoggerMessage(Level = LogLevel.Debug,
+        Message = "Ignored {PacketType} on connection {ConnectionId}: it arrived before its ping was stamped (sent ahead of its ping, or the clock was set back)")]
+    public static partial void PongBeforeItsPing(ILogger logger, NetworkPacketType packetType, Guid connectionId);
 }

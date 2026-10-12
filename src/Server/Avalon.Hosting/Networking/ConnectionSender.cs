@@ -22,8 +22,38 @@ namespace Avalon.Hosting.Networking;
 /// and its writes are sequential, so the nonce order is still the wire order.
 /// <para>
 /// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the next buffer and its counts, the swap of the two
-/// buffers (only while no write is in flight), <c>_finishedFlag</c>, <c>_doomHandled</c>, <c>_noticeWritten</c> and
-/// <c>_pingPending</c>. Every other field is read and written with <see cref="Interlocked" /> or <see cref="Volatile" />.
+/// buffers (only while no write is in flight), <c>_finishedFlag</c>, <c>_doomHandled</c>, <c>_noticeWritten</c>,
+/// <c>_pingPending</c> and <c>_pingStampNext</c>. Every other field is read and written with <see cref="Interlocked" /> or
+/// <see cref="Volatile" />.
+/// </para>
+/// <para>
+/// The stamps of the pings written and not yet answered (#892) are kept in a ring of
+/// <see cref="PingStampCapacity" /> places, zero for an empty one. The owner puts each stamp in the oldest place with an
+/// exchange, whatever that place holds, before the ping's burst is written. <see cref="TryTakePingStamp" />, on the
+/// thread that handles the pong (the tick), clears a place only by a compare-exchange from the stamp the pong echoes to
+/// zero. So a stamp is taken once: the exchange succeeds for one pong, and the place then holds zero or a later stamp.
+/// And no stamp is lost to a take: a take cannot clear a value other than the one it was given, so a stamp the owner
+/// writes over the place a take is reading stays, and that take fails. What it failed to take was the oldest stamp,
+/// which the full ring was dropping. No lock, and nothing allocated.
+/// </para>
+/// <para>
+/// Each ping written also grants one pong credit (#892), after its stamp is in the ring and before its burst is
+/// written, and never more credits than the ring has places. The read loop takes one as a pong arrives
+/// (<see cref="TryTakePongCredit" />) and drops the pong when there is none, so a client gets one answer per ping. The
+/// grant and the take are compare-exchanges on the one count: each changes the value it read or tries again on the newer
+/// one, so no grant or take is lost, and the count stays between zero and the capacity. A take that reads zero while a
+/// grant is on its way drops a pong that arrived before the ping it could answer had left.
+/// </para>
+/// <para>
+/// The stamps and the credit count are one struct (<c>_pings</c>), the count last. The read loop reads the count for
+/// every pong that arrives, a client's flood included, and each read brings the count's cache line to the read loop's
+/// core. The runtime lays a class's struct fields out after its integers, in the order they are declared, which puts
+/// the count more than a cache line past <c>_pendingBytes</c>, <c>_dirty</c>, <c>_activeEnqueues</c>, the bursts'
+/// counts and the int flags: whichever way the object falls across cache lines, the count's line is none that the
+/// tick's enqueue writes, nor the one holding what the owner writes for each packet it frames. What can share it: the
+/// stamps, the pending write's awaiter (written when a socket write goes pending and when it ends), the connection's
+/// id (never written), and, in one placement of the object in eight, the owner's bool flags. A field added among the
+/// struct fields, or the count moved back among the integers, changes this.
 /// </para>
 /// </remarks>
 public sealed class ConnectionSender : IOutbox
@@ -36,6 +66,15 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>What a connection closed past the byte cap is told.</summary>
     public const string SlowConnectionMessage = "Your connection could not keep up with the server.";
+
+    /// <summary>
+    /// How many written pings stay answerable (#892). A connection is pinged once per period (about ten seconds), plus
+    /// once after its handshake, and a ping is answered within a round trip, so two are unanswered at most in ordinary
+    /// play; a third is one a mass disconnect brought forward, as the period's phase follows the connection's place in
+    /// the list. Four keeps a stamp for thirty seconds or more at that cadence: the fourth ping written after it takes
+    /// its place, answered or not. A pong for it is then ignored, and the next ping measures again.
+    /// </summary>
+    public const int PingStampCapacity = 4;
 
     // The time-sync ping's place in the queue: no payload, since the owner encodes the ping as it writes it.
     private static readonly OutboundPacket s_pingMarker = new(
@@ -73,7 +112,8 @@ public sealed class ConnectionSender : IOutbox
     private long _pingClientTicks;
     private long _pingRoundTrip;
     private long _pingOffset;
-    private long _lastPingServerTicks;
+    private PingRecord _pings; // the stamps and the pong credits: see the remarks for who writes each and where it lies
+    private int _pingStampNext; // owner thread only: the place the next stamp goes, the oldest
     private bool _finishedFlag;
     private bool _doomHandled; // owner thread only
     private bool _noticeWritten; // owner thread only: a disconnect notice went out, so no ping follows it
@@ -111,9 +151,6 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>True once the connection was found too slow; it is closing.</summary>
     public bool IsDoomed => Volatile.Read(ref _doomed) != 0;
-
-    /// <summary>The server timestamp of the last ping written, in UTC ticks; 0 before the first.</summary>
-    public long LastPingServerTicks => Interlocked.Read(ref _lastPingServerTicks);
 
     internal bool IsWriteInFlight => Volatile.Read(ref _writeInFlight) != 0;
 
@@ -177,9 +214,10 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>
     /// Queues a time-sync ping. Its server timestamp is taken by the owner send thread as the ping's burst is written
-    /// (#875), so the round trip a pong reports holds no queueing or tick wait. A second ping queued before the first
-    /// went out carries the latest values. A ping still queued when the connection closes, or found too slow, is dropped
-    /// unstamped, and none follows a disconnect notice.
+    /// (#875), so the round trip measured from it holds no queueing or tick wait, and is kept until a pong echoes it
+    /// (<see cref="TryTakePingStamp" />, #892). A second ping queued before the first went out carries the latest
+    /// values. A ping still queued when the connection closes, or found too slow, is dropped unstamped, and none follows
+    /// a disconnect notice.
     /// </summary>
     public void EnqueuePing(long clientTicks, long roundTrip, long offset)
     {
@@ -187,6 +225,49 @@ public sealed class ConnectionSender : IOutbox
         Volatile.Write(ref _pingRoundTrip, roundTrip);
         Volatile.Write(ref _pingOffset, offset);
         Enqueue(s_pingMarker);
+    }
+
+    /// <summary>
+    /// Whether <paramref name="serverTicks" /> is the stamp of a ping this sender wrote that no pong has answered yet
+    /// (#892). The stamp is taken, so the first pong that echoes it answers that ping and the same echo again answers
+    /// nothing. Zero is the stamp of no ping. Any thread (the tick, as it handles a pong); never blocks or allocates.
+    /// </summary>
+    public bool TryTakePingStamp(long serverTicks)
+    {
+        if (serverTicks == 0)
+            return false;
+
+        for (int i = 0; i < PingStampCapacity; i++)
+        {
+            // Read first: a pong that answers nothing only reads the record, so it never writes its cache line.
+            if (Volatile.Read(ref _pings.Stamps[i]) == serverTicks
+                && Interlocked.CompareExchange(ref _pings.Stamps[i], 0, serverTicks) == serverTicks)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Takes one pong credit (#892): true when a ping was written that no arriving pong has been counted against yet.
+    /// Called for each pong as it arrives, before it is queued, whatever it echoes: a client gets one answer per ping, and
+    /// a pong that finds no credit is dropped. Any thread (the read loop); never blocks or allocates.
+    /// </summary>
+    public bool TryTakePongCredit()
+    {
+        int credits = Volatile.Read(ref _pings.PongCredits);
+        while (credits > 0)
+        {
+            int seen = Interlocked.CompareExchange(ref _pings.PongCredits, credits - 1, credits);
+            if (seen == credits)
+                return true;
+
+            credits = seen;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -382,7 +463,23 @@ public sealed class ConnectionSender : IOutbox
                 stamped.Release();
             }
 
-            Interlocked.Exchange(ref _lastPingServerTicks, serverTicks);
+            // Before the burst is written, so the pong that answers this ping finds its stamp (#892). Over the oldest
+            // place, answered or not.
+            Interlocked.Exchange(ref _pings.Stamps[_pingStampNext], serverTicks);
+            _pingStampNext = (_pingStampNext + 1) % PingStampCapacity;
+
+            // One pong may now come in for it. Never more credits than the record has stamps: however many pings go
+            // unanswered, that many pongs at most get in at once.
+            int credits = Volatile.Read(ref _pings.PongCredits);
+            while (credits < PingStampCapacity)
+            {
+                int seen = Interlocked.CompareExchange(ref _pings.PongCredits, credits + 1, credits);
+                if (seen == credits)
+                    break;
+
+                credits = seen;
+            }
+
             _onPingWritten?.Invoke(size);
             _nextPackets++;
             return true;
@@ -638,5 +735,25 @@ public sealed class ConnectionSender : IOutbox
         // A shutdown-timeout Delay: it bounds the close, so a peer that stopped reading cannot hold it open.
         await Task.WhenAny(task, Task.Delay(budget, CancellationToken.None)).ConfigureAwait(false);
         return task.IsCompleted;
+    }
+
+    /// <summary>
+    /// The time sync's state that crosses threads, inline in the sender: the stamps, then the pong credits. The count
+    /// comes last so that it lies as far as the struct allows from the sender's integers (see the remarks).
+    /// </summary>
+    private struct PingRecord
+    {
+        /// <summary>Each place: written by the owner, cleared by the thread that handles the pong.</summary>
+        public PingStamps Stamps;
+
+        /// <summary>Granted by the owner with each stamp, taken by the read loop as a pong arrives.</summary>
+        public int PongCredits;
+    }
+
+    /// <summary>The stamps of the pings written and not yet answered; zero is an empty place.</summary>
+    [InlineArray(PingStampCapacity)]
+    private struct PingStamps
+    {
+        private long _first;
     }
 }
