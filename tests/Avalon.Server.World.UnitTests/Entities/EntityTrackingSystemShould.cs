@@ -162,4 +162,40 @@ public class EntityTrackingSystemShould
         Assert.True(sut.IsTracked(kept.Guid));
         Assert.False(sut.IsTracked(gone.Guid));
     }
+
+    [Fact]
+    public void Keep_membership_and_finish_removals_across_frame_wrap_after_an_interrupted_update()
+    {
+        EntityTrackingSystem sut = MakeSut();
+        var kept = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 31u) };
+        var gone = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 32u) };
+        var incoming = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 33u) };
+        sut.Update([kept, gone], EmptyDirty()); // both last seen in frame 1
+
+        // Seed the clock only, avoiding billions of updates. All assertions observe normal notifications.
+        typeof(EntityTrackingSystem).GetField("_frame", System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.NonPublic)!.SetValue(sut, uint.MaxValue);
+        bool fail = true;
+        sut.EntityAdded += _ =>
+        {
+            if (fail)
+                throw new InvalidOperationException();
+        };
+        Assert.Throws<InvalidOperationException>(() => sut.Update([incoming], EmptyDirty()));
+        fail = false;
+        var removed = new List<ObjectGuid>();
+        var updated = new List<ObjectGuid>();
+        sut.EntityRemoved += removed.Add;
+        sut.EntityUpdated += (guid, _) => updated.Add(guid);
+
+        sut.Update([incoming, kept], DirtyWith(kept.Guid, GameEntityFields.CurrentHealth));
+        Assert.Equal([gone.Guid], removed); // removal must happen in this update, not a later frame
+        sut.Update([incoming, kept], EmptyDirty());
+
+        Assert.Equal([gone.Guid], removed);
+        Assert.Equal([kept.Guid], updated);
+        Assert.True(sut.IsTracked(kept.Guid));
+        Assert.True(sut.IsTracked(incoming.Guid));
+        Assert.False(sut.IsTracked(gone.Guid));
+    }
 }
