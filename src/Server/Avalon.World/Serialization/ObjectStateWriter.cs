@@ -145,21 +145,20 @@ public static class ObjectStateWriter
         if (Has(fields, GameEntityFields.PowerType))
         {
             state.PowerType = unit.PowerType;
+        }
 
-            // A unit that spends nothing has no pool to report, so neither amount is sent
-            // however they are marked. The amounts themselves are optional on the unit, and
-            // an absent one stays absent rather than becoming a zero.
-            if (unit.PowerType != PowerType.None)
+        // Amounts change independently of the type (spending, regeneration, gear). An unchanged type
+        // must not suppress those deltas. A unit that spends nothing still reports neither amount.
+        if (unit.PowerType != PowerType.None)
+        {
+            if (Has(fields, GameEntityFields.Power))
             {
-                if (Has(fields, GameEntityFields.Power))
-                {
-                    state.Power = unit.Power;
-                }
+                state.Power = unit.Power;
+            }
 
-                if (Has(fields, GameEntityFields.CurrentPower))
-                {
-                    state.CurrentPower = unit.CurrentPower;
-                }
+            if (Has(fields, GameEntityFields.CurrentPower))
+            {
+                state.CurrentPower = unit.CurrentPower;
             }
         }
 

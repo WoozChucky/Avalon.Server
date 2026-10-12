@@ -270,11 +270,8 @@ internal static class EntityStateScenarios
     };
 
     /// <summary>
-    /// Both power amounts asked for and the power type not asked for. The amounts are written
-    /// inside the conditional the type opens, so the type selection gates all three and nothing
-    /// about the pool travels — which is not what three separate flags suggest.
-    /// <see cref="GameEntityFields.CharacterUpdate"/> carries both amount bits; only the type
-    /// bit is cleared here.
+    /// Both power amounts changed but their type did not. Each selected amount must travel
+    /// independently, as on a resource spend, regeneration tick or maximum-pool change.
     /// </summary>
     private static EntityStateScenario CharacterUpdateWithoutThePowerTypeSelected() => new()
     {
@@ -286,15 +283,11 @@ internal static class EntityStateScenarios
         Expected = CharacterBase() with
         {
             PowerType = null,
-            Power = null,
-            CurrentPower = null,
         },
     };
 
     /// <summary>
-    /// A character asked for without either experience member. Every selection the broadcast
-    /// path uses today asks for both, so nothing else here observes them being left out: a
-    /// writer that sent them unconditionally would satisfy every other scenario.
+    /// A character asked for without either experience member, as on a routine movement delta.
     /// </summary>
     private static EntityStateScenario CharacterUpdateWithoutExperienceSelected() => new()
     {

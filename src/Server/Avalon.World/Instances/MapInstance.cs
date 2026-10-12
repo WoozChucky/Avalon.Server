@@ -1532,10 +1532,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             case ObjectType.Character:
                 if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
                     return null;
-                return ObjectStateWriter.From(
-                    updatedCharacter,
-                    MaskSelfSuppression(GameEntityFields.CharacterUpdate, updatedObject.Guid, recipientGuid),
-                    _statePool);
+                GameEntityFields fields = MaskSelfSuppression(updatedObject.Fields, updatedObject.Guid, recipientGuid);
+                // None is a sentinel bit, not zero. Motion alone has nothing left for its owner, whose ACK
+                // carries it; gameplay changes (including PvP turning off) must still produce a state.
+                if ((fields & ~GameEntityFields.None) == 0)
+                    return null;
+                return ObjectStateWriter.From(updatedCharacter, fields, _statePool);
 
             case ObjectType.Creature:
                 if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
