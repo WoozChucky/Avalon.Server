@@ -115,9 +115,10 @@ The world server's tick queues a ping for every connection in its list once ever
 connection on the tick its place in the list gives it), whether or not the connection has been admitted yet, and one
 more right after a connection's version handshake. The client answers each ping with one pong. From the exchange the
 server measures the connection's round trip (`IWorldConnection.RoundTripTime` in ticks, `Latency` in whole
-milliseconds, which the character row and the REST API carry) and the offset between the two clocks, and tells the
-client both on the next ping. Both packets are plain inside TLS, whatever `Network:PacketEncryption` says. Every time
-is in UTC ticks (100 ns, counted from year 1).
+milliseconds) and the offset between the two clocks, and tells the client both on the next ping. The character row
+and the REST API carry `Latency` as of character select (`CharacterSelectHandler` copies it once): often the
+handshake ping's reading, or 0. Both packets are plain inside TLS, whatever `Network:PacketEncryption` says. Every
+time is in UTC ticks (100 ns, counted from year 1).
 
 | Packet | Field | Meaning |
 |---|---|---|
@@ -155,13 +156,20 @@ receive and send times, so a client could report any round trip it liked, zero a
 that echoes anything else uses up that ping's one answer, and the true echo sent after it is dropped. Answer as it
 reads the ping: the time between receiving a ping and sending its pong is part of the round trip (it used to be
 subtracted), and half of it lands in `Offset`. Fill `ClientReceivedTimestamp` from the clock it applies `Offset` to.
+After a stall in which pings went unanswered, answer only the newest ones, at most four, and drop the rest: the server
+remembers the last four stamps and lets at most four pongs in, whatever they echo, so an answer to an older ping
+takes the place of an answer to a newer one.
 
 **What the server drops and ignores.** In every case below `Latency`, `RoundTripTime` and the offset stay as they
 were, the next ping repeats the old `Rtt` and `Offset`, and the connection stays open. No metric counts any of them.
 
 - *Dropped as it arrives*: a pong beyond one per ping written (a second answer, a burst, a pong before any ping). It is
   never queued and no handler runs. Logged at Trace only (`Avalon.World.WorldConnection`), since a client can send
-  them at any rate.
+  them at any rate. This also catches a client that stalls past four pings and then answers them all, oldest first:
+  its first pongs spend the four credits on pings the record has forgotten, and the answers to its newest pings are
+  dropped. With five unanswered, the newest ping's answer is the one dropped and the reading left is the one before
+  it, stretched by the stall; with eight, all four pongs let in answer forgotten pings and nothing is measured. The
+  next ping measures again.
 - *Let in, then ignored by the handler*: a pong whose echo is the stamp of no unanswered ping (a forged or guessed
   one, the echo of a ping already answered, or of a ping that four later pings have pushed out of the record). Logged
   at Debug, at most once per ping written.
@@ -182,8 +190,11 @@ were, the next ping repeats the old `Rtt` and `Offset`, and the connection stays
   later pings are written, some forty seconds at one ping per ten seconds). Nothing in the code caps the round trip.
 - *The reading has no age.* A client that stops answering keeps its last reading, and one that never answers reads 0.
 
-Code that would trust latency (lag compensation, cheat heuristics, matchmaking) needs more than this: an age for the
-reading, and a ping identifier the client cannot predict.
+Code that would trust latency (lag compensation, cheat heuristics, matchmaking) needs more than this. An age for the
+reading and a ping identifier the client cannot predict would close staleness and guessing, and no more. A client could
+still raise its reading at will, so a use that a high reading benefits also needs a bound on readings. And what would
+be left is only a floor: the reading would be no lower than the real round trip to the connection's endpoint, which is
+whatever terminates its TLS (a proxy or a relay as well as a player's machine), not to the player.
 
 ## Redis Usage in Flow
 

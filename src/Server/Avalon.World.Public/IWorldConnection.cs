@@ -109,15 +109,18 @@ public interface IWorldConnection : IConnection
 
     /// <summary>
     ///     The last round trip in whole milliseconds, as the server measured it (#892): never negative, and 0 until
-    ///     the first pong that answers a ping. Advisory: it has no age (a client that stops answering keeps its last
-    ///     reading) and a client can raise it by answering late. It has no setter; <see cref="OnPongReceived" />
-    ///     changes it, from the arrival time its caller passes.
+    ///     the first pong that answers a ping. Advisory, in both directions, and nothing to base a decision about a
+    ///     player on. It has no age: a client that stops answering keeps its last reading, and one that never answers
+    ///     reads 0. A client can raise it by answering late. A client that guesses the next ping's timestamp, which is
+    ///     a clock reading it can predict, can lower it below its real round trip. It has no setter;
+    ///     <see cref="OnPongReceived" /> changes it, from the arrival time its caller passes.
     /// </summary>
     long Latency { get; }
 
     /// <summary>
     ///     The last round trip in ticks: from the server's stamp on a time-sync ping, taken as the ping was written,
-    ///     to the arrival of the pong that echoes it. Never negative, and 0 until the first such pong.
+    ///     to the arrival of the pong that echoes it. Never negative, and 0 until the first such pong. Advisory, as
+    ///     <see cref="Latency" /> is: see there.
     /// </summary>
     long RoundTripTime { get; }
 

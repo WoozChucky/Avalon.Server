@@ -37,12 +37,23 @@ namespace Avalon.Hosting.Networking;
 /// which the full ring was dropping. No lock, and nothing allocated.
 /// </para>
 /// <para>
-/// Each ping written also grants one pong credit (<c>_pongCredits</c>, #892), after its stamp is in the ring and before
-/// its burst is written, and never more credits than the ring has places. The read loop takes one as a pong arrives
+/// Each ping written also grants one pong credit (#892), after its stamp is in the ring and before its burst is
+/// written, and never more credits than the ring has places. The read loop takes one as a pong arrives
 /// (<see cref="TryTakePongCredit" />) and drops the pong when there is none, so a client gets one answer per ping. The
 /// grant and the take are compare-exchanges on the one count: each changes the value it read or tries again on the newer
 /// one, so no grant or take is lost, and the count stays between zero and the capacity. A take that reads zero while a
 /// grant is on its way drops a pong that arrived before the ping it could answer had left.
+/// </para>
+/// <para>
+/// The stamps and the credit count are one struct (<c>_pings</c>), the count last. The read loop reads the count for
+/// every pong that arrives, a client's flood included, and each read brings the count's cache line to the read loop's
+/// core. The runtime lays a class's struct fields out after its integers, in the order they are declared, which puts
+/// the count more than a cache line past <c>_pendingBytes</c>, <c>_dirty</c>, <c>_activeEnqueues</c>, the bursts'
+/// counts and the int flags: whichever way the object falls across cache lines, the count's line is none that the
+/// tick's enqueue writes, nor the one holding what the owner writes for each packet it frames. What can share it: the
+/// stamps, the pending write's awaiter (written when a socket write goes pending and when it ends), the connection's
+/// id (never written), and, in one placement of the object in eight, the owner's bool flags. A field added among the
+/// struct fields, or the count moved back among the integers, changes this.
 /// </para>
 /// </remarks>
 public sealed class ConnectionSender : IOutbox
@@ -101,9 +112,8 @@ public sealed class ConnectionSender : IOutbox
     private long _pingClientTicks;
     private long _pingRoundTrip;
     private long _pingOffset;
-    private PingStamps _pingStamps; // each place: written by the owner, cleared by the pong's thread
+    private PingRecord _pings; // the stamps and the pong credits: see the remarks for who writes each and where it lies
     private int _pingStampNext; // owner thread only: the place the next stamp goes, the oldest
-    private int _pongCredits; // granted by the owner with each stamp, taken by the read loop as a pong arrives
     private bool _finishedFlag;
     private bool _doomHandled; // owner thread only
     private bool _noticeWritten; // owner thread only: a disconnect notice went out, so no ping follows it
@@ -230,8 +240,8 @@ public sealed class ConnectionSender : IOutbox
         for (int i = 0; i < PingStampCapacity; i++)
         {
             // Read first: a pong that answers nothing only reads the record, so it never writes its cache line.
-            if (Volatile.Read(ref _pingStamps[i]) == serverTicks
-                && Interlocked.CompareExchange(ref _pingStamps[i], 0, serverTicks) == serverTicks)
+            if (Volatile.Read(ref _pings.Stamps[i]) == serverTicks
+                && Interlocked.CompareExchange(ref _pings.Stamps[i], 0, serverTicks) == serverTicks)
             {
                 return true;
             }
@@ -247,10 +257,10 @@ public sealed class ConnectionSender : IOutbox
     /// </summary>
     public bool TryTakePongCredit()
     {
-        int credits = Volatile.Read(ref _pongCredits);
+        int credits = Volatile.Read(ref _pings.PongCredits);
         while (credits > 0)
         {
-            int seen = Interlocked.CompareExchange(ref _pongCredits, credits - 1, credits);
+            int seen = Interlocked.CompareExchange(ref _pings.PongCredits, credits - 1, credits);
             if (seen == credits)
                 return true;
 
@@ -455,15 +465,15 @@ public sealed class ConnectionSender : IOutbox
 
             // Before the burst is written, so the pong that answers this ping finds its stamp (#892). Over the oldest
             // place, answered or not.
-            Interlocked.Exchange(ref _pingStamps[_pingStampNext], serverTicks);
+            Interlocked.Exchange(ref _pings.Stamps[_pingStampNext], serverTicks);
             _pingStampNext = (_pingStampNext + 1) % PingStampCapacity;
 
             // One pong may now come in for it. Never more credits than the record has stamps: however many pings go
             // unanswered, that many pongs at most get in at once.
-            int credits = Volatile.Read(ref _pongCredits);
+            int credits = Volatile.Read(ref _pings.PongCredits);
             while (credits < PingStampCapacity)
             {
-                int seen = Interlocked.CompareExchange(ref _pongCredits, credits + 1, credits);
+                int seen = Interlocked.CompareExchange(ref _pings.PongCredits, credits + 1, credits);
                 if (seen == credits)
                     break;
 
@@ -727,7 +737,20 @@ public sealed class ConnectionSender : IOutbox
         return task.IsCompleted;
     }
 
-    /// <summary>The stamps of the pings written and not yet answered, inline in the sender; zero is an empty place.</summary>
+    /// <summary>
+    /// The time sync's state that crosses threads, inline in the sender: the stamps, then the pong credits. The count
+    /// comes last so that it lies as far as the struct allows from the sender's integers (see the remarks).
+    /// </summary>
+    private struct PingRecord
+    {
+        /// <summary>Each place: written by the owner, cleared by the thread that handles the pong.</summary>
+        public PingStamps Stamps;
+
+        /// <summary>Granted by the owner with each stamp, taken by the read loop as a pong arrives.</summary>
+        public int PongCredits;
+    }
+
+    /// <summary>The stamps of the pings written and not yet answered; zero is an empty place.</summary>
     [InlineArray(PingStampCapacity)]
     private struct PingStamps
     {

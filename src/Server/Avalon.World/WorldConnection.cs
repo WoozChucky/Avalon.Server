@@ -197,9 +197,13 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     public bool InMap => InGame && _characterEntity?.Map > 0;
 #pragma warning restore CS8604
 
-    // Set by a packet handler and taken by the tick. Both run on the tick thread -- handlers are
-    // dispatched from ProcessQueue -- so this needs no interlocking, and would need it the day they
-    // do not.
+    // Set once per connection by the version handshake's handler, which runs on the connection's read
+    // loop (OnReceive hands CMSG_WORLD_HANDSHAKE to CallListener), and taken by the tick, which asks
+    // every connection every tick. Two threads, and no interlocking: the handler sets it only after
+    // AcceptProtocol succeeded, which it does once per connection (a second handshake closes the
+    // connection), so there is one write to see and none to lose; the tick clears it only after reading
+    // it set, and a tick that reads it a moment early pings on the next one. A second writer, or a
+    // request made more than once, would need an exchange.
     private bool _initialPingRequested;
 
     /// <inheritdoc />
