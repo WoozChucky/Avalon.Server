@@ -162,6 +162,16 @@ it gets "not found" rather than a script that fails to construct.
 
 ### Hooks
 
+The range detector searches once its accumulated tick time reaches one second. While waiting, the plain
+`AggroDefendScript` and the seven sealed forest scripts advance only that same timer when combat is idle;
+they skip the detector/combat chain until it has work. The due tick still searches and can begin combat in
+that tick. Hits and dodged attacks change combat state immediately, so the next update runs combat even
+when the search timer is not due. Active combat, returns home and re-arming detection keep their cadence.
+
+Custom subclasses keep the original chain dispatch. The timer-only shortcut is an internal opt-in for
+sealed built-in scripts with the original two-member chain and the default idle combat predicate. A
+built-in script gaining an idle callback or another chain member must drop that opt-in.
+
 `AiScript` has these hooks. By default each one forwards to the chained scripts.
 
 | Hook | Called when |

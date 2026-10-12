@@ -16,7 +16,7 @@ namespace Avalon.World.Scripts.Creatures.Forest;
 public sealed class GreyFenWolfScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
     TimeProvider? time = null, IWorld? world = null)
     : AggroDefendScript(creature, context,
-        new GreyFenWolfScript.GreyFenWolfCombat(loggerFactory, creature, context, time, world))
+        new GreyFenWolfScript.GreyFenWolfCombat(loggerFactory, creature, context, time, world), idleTimerOnly: true)
 {
     /// <summary>Its basic: a 1.8 m cone.</summary>
     public static readonly AbilityId Bite = new(302);

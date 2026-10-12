@@ -39,6 +39,23 @@ public class CreatureRangeDetectorScript : AiScript
         return State is RangeDetectionState.Searching;
     }
 
+    // The caller may skip the chain only when this is exactly the work Update would do.
+    // Leave a due timer untouched: the ordinary Update then adds this tick once and searches.
+    internal bool AdvanceWhileWaiting(TimeSpan deltaTime)
+    {
+        if (State is not RangeDetectionState.Searching)
+            return false;
+
+        float next = _searchTimer + (float)deltaTime.TotalSeconds;
+        if (next < SearchInterval)
+        {
+            _searchTimer = next;
+            return true;
+        }
+
+        return false;
+    }
+
     public override void Update(TimeSpan deltaTime)
     {
         _searchTimer += (float)deltaTime.TotalSeconds;

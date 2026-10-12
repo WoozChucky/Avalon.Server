@@ -17,8 +17,9 @@ public class AggroDefendScript : AiScript, IReturningHome
 {
     private const float DefaultAggroRange = 10.0f;
 
-    private readonly AiScript _detector;
+    private readonly CreatureRangeDetectorScript _detector;
     private readonly AiScript _combat;
+    private readonly bool _idleTimerOnly;
 
     public AggroDefendScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
         TimeProvider? time = null)
@@ -31,6 +32,14 @@ public class AggroDefendScript : AiScript, IReturningHome
     /// must be built for this same creature and context.
     /// </summary>
     protected AggroDefendScript(ICreature creature, ISimulationContext context, CreatureCombatScript combat)
+        : this(creature, context, combat, idleTimerOnly: false)
+    {
+    }
+
+    // Only sealed built-in scripts with the original pair and no custom idle combat predicate may opt in.
+    // External extensions use the protected constructor and keep every virtual chain callback.
+    private protected AggroDefendScript(ICreature creature, ISimulationContext context, CreatureCombatScript combat,
+        bool idleTimerOnly)
         : base(creature, context)
     {
         float aggroRange = creature.Metadata.DetectionRange > 0f ? creature.Metadata.DetectionRange : DefaultAggroRange;
@@ -40,6 +49,7 @@ public class AggroDefendScript : AiScript, IReturningHome
         _detector = detector;
 
         _combat = combat;
+        _idleTimerOnly = idleTimerOnly || GetType() == typeof(AggroDefendScript);
 
         Chain(_detector);
         Chain(_combat);
@@ -54,6 +64,14 @@ public class AggroDefendScript : AiScript, IReturningHome
 
     public override void Update(TimeSpan deltaTime)
     {
+        // Idle detection already runs once per second. Between searches only its timer changes.
+        // Hits and dodges change combat state immediately, so they bypass this wait on the next tick.
+        if (_idleTimerOnly && _combat.State is CreatureCombatScript.CombatState.None
+            && _detector.AdvanceWhileWaiting(deltaTime))
+        {
+            return;
+        }
+
         // After combat resolves (target died / left leash), put the detector back into search
         // mode so the creature can re-aggro a fresh threat.
         if (_combat.State is CreatureCombatScript.CombatState.None
