@@ -226,6 +226,61 @@ public class InstanceAbilityCastSystemContainmentShould
             .GetArguments()[0]);
     }
 
+    // ── #883: the index GetAbility answers from follows the active scripts ──
+
+    /// <summary>
+    /// With more active scripts than it walks, GetAbility answers from an index by guid, filled again after the
+    /// active scripts change (#883). Each way a script leaves is followed here by a lookup made after an earlier
+    /// lookup filled the index: a removal that did not reach the index would answer with a script that left.
+    /// </summary>
+    [Fact]
+    public void Find_exactly_the_scripts_still_running_however_they_came_and_went()
+    {
+        // In flight for the whole test, and enough of them that every lookup below is answered from the index.
+        ICharacter crowd = _arena.Player(541_029, 0f, 0f);
+        for (uint i = 0; i <= InstanceAbilityCastSystem.WalkedUpTo; i++)
+        {
+            Assert.True(_sut.RunInstant(crowd, s_aim, Projectile(541_040 + i)));
+        }
+
+        ICharacter leaving = _arena.Player(541_030, 0f, 0f);
+        ICharacter staying = _arena.Player(541_031, 0f, 0f);
+        Assert.True(_sut.RunInstant(leaving, s_aim, Projectile(541_032)));
+        List<IWorldObject> objects = [];
+        _sut.Update(s_tick, objects);
+        IWorldObject flying = objects[^1];
+        Assert.Same(flying, _sut.GetAbility(flying.Guid));
+
+        // Two join: one that throws on a later update, and one that ends at its reach on its first.
+        Assert.True(_sut.RunInstant(staying, s_aim, Ability(541_033, nameof(UpdateThrowingAbilityScript))));
+        Assert.True(_sut.RunInstant(staying, s_aim,
+            AbilityTestData.Game(AbilityTestData.Projectile(541_034, reach: 0.05f, speed: 20f))));
+        objects.Clear();
+        _sut.Update(s_tick, objects);
+        IWorldObject thrower = Assert.Single(objects, o => o is UpdateThrowingAbilityScript);
+        IWorldObject ended = objects[^1];
+        Assert.Same(thrower, _sut.GetAbility(thrower.Guid));
+        Assert.Same(ended, _sut.GetAbility(ended.Guid));
+
+        // One leaves with its caster.
+        _sut.CancelScriptsOf(leaving);
+        Assert.Null(_sut.GetAbility(flying.Guid));
+        Assert.Same(ended, _sut.GetAbility(ended.Guid));
+
+        // One is dropped finished, its final state unsent.
+        _sut.DropFinished();
+        Assert.Null(_sut.GetAbility(ended.Guid));
+        Assert.Same(thrower, _sut.GetAbility(thrower.Guid));
+
+        // One is dropped for throwing.
+        for (int i = 0; i < UpdateThrowingAbilityScript.ThrowOnUpdate; i++)
+        {
+            _sut.Update(s_tick, []);
+        }
+
+        Assert.Null(_sut.GetAbility(thrower.Guid));
+    }
+
     private sealed class RecordingLoggerFactory : ILoggerFactory, ILogger
     {
         public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];

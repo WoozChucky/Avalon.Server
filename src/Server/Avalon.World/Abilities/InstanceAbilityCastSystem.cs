@@ -78,7 +78,14 @@ public class InstanceAbilityCastSystem(
     IAbilityArena arena)
     : IAbilityCastSystem
 {
-    private readonly List<ActiveScript> _activeAbilities = [];
+    /// <summary>
+    /// Up to this many active scripts <see cref="GetAbility" /> walks their list; above it, it answers from an index by
+    /// guid (#883). A walk that short is as fast as the index, and an instance that never holds more (one party's
+    /// fight) never allocates one. Public for the tests, which put the lookup on its index by firing more.
+    /// </summary>
+    public const int WalkedUpTo = 8;
+
+    private readonly ActiveScripts _activeAbilities = new();
     private readonly List<ActiveScript> _failed = [];
     private readonly List<(IUnit Caster, IAbility Ability, uint CastId)> _interrupts = [];
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
@@ -332,17 +339,7 @@ public class InstanceAbilityCastSystem(
 
     public void CancelScriptsOf(IUnit caster)
     {
-        // A loop, not RemoveAll: its predicate would close over the caster, a closure and a delegate per call (#883).
-        int dropped = 0;
-        for (int i = _activeAbilities.Count - 1; i >= 0; i--)
-        {
-            if (ReferenceEquals(_activeAbilities[i].Caster, caster))
-            {
-                _activeAbilities.RemoveAt(i);
-                dropped++;
-            }
-        }
-
+        int dropped = _activeAbilities.RemoveCastBy(caster);
         if (dropped > 0)
         {
             CombatLog.ScriptsDroppedCasterLeft(_logger, dropped, caster.Guid);
@@ -352,20 +349,12 @@ public class InstanceAbilityCastSystem(
     public void DropFinished() => _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished);
 
     /// <summary>
-    /// The active script of that guid. A plain loop: the state broadcast asks for every spell object each viewer is
-    /// sent, and a <c>Find</c> over a lambda on the guid allocated its closure and delegate on every call (#880).
+    /// The active script of that guid: found by a walk of the active scripts while they are few, and from their index
+    /// by guid above <see cref="WalkedUpTo" /> (#883). The state broadcast asks for every spell object each viewer is
+    /// sent, so with the walk alone a crowded fight cost viewers times projectiles squared. Neither allocates: a
+    /// <c>Find</c> over a lambda on the guid allocated its closure and delegate on every call (#880).
     /// </summary>
-    public IWorldObject? GetAbility(ObjectGuid guid)
-    {
-        for (int i = 0; i < _activeAbilities.Count; i++)
-        {
-            AbilityScript script = _activeAbilities[i].Script;
-            if (script.Guid == guid)
-                return script;
-        }
-
-        return null;
-    }
+    public IWorldObject? GetAbility(ObjectGuid guid) => _activeAbilities.Find(guid);
 
     private static void ResetCast(IAbility ability)
     {
@@ -528,5 +517,110 @@ public class InstanceAbilityCastSystem(
         public IAbility Ability { get; } = ability;
         public AbilityScript Script { get; } = script;
         public uint CastId { get; } = castId;
+    }
+
+    /// <summary>
+    /// The running scripts in the order they fired, with an index by guid for <see cref="Find" /> (#883). The list is
+    /// reachable only through this class, and every change to it empties the index; the first lookup after a change
+    /// fills it again from the list, so the index never answers with a script the list has dropped.
+    /// </summary>
+    private sealed class ActiveScripts
+    {
+        private readonly List<ActiveScript> _scripts = [];
+        private readonly Dictionary<ulong, AbilityScript> _byGuid = [];
+        private bool _indexed;
+
+        public List<ActiveScript>.Enumerator GetEnumerator() => _scripts.GetEnumerator();
+
+        public void Add(ActiveScript script)
+        {
+            _scripts.Add(script);
+            Changed();
+        }
+
+        public void Remove(ActiveScript script)
+        {
+            if (_scripts.Remove(script))
+                Changed();
+        }
+
+        public int RemoveAll(Predicate<ActiveScript> match)
+        {
+            int removed = _scripts.RemoveAll(match);
+            if (removed > 0)
+                Changed();
+            return removed;
+        }
+
+        /// <summary>
+        /// Removes every script <paramref name="caster" /> cast and answers how many. A loop, not
+        /// <see cref="RemoveAll" />: its predicate would close over the caster, a closure and a delegate per call (#883).
+        /// </summary>
+        public int RemoveCastBy(IUnit caster)
+        {
+            int removed = 0;
+            for (int i = _scripts.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(_scripts[i].Caster, caster))
+                {
+                    _scripts.RemoveAt(i);
+                    removed++;
+                }
+            }
+
+            if (removed > 0)
+                Changed();
+            return removed;
+        }
+
+        /// <summary>
+        /// The first script in the list with that guid, as a walk of the list answers. The index is trusted only for a
+        /// script that still carries the guid it was indexed under: a script may set its guid again while it runs, and
+        /// one the index cannot answer for is looked for in the list.
+        /// </summary>
+        public AbilityScript? Find(ObjectGuid guid)
+        {
+            if (_scripts.Count > WalkedUpTo)
+            {
+                if (!_indexed)
+                    Index();
+
+                if (_byGuid.TryGetValue(guid.RawValue, out AbilityScript? indexed) && indexed.Guid == guid)
+                    return indexed;
+            }
+
+            for (int i = 0; i < _scripts.Count; i++)
+            {
+                AbilityScript script = _scripts[i].Script;
+                if (script.Guid == guid)
+                    return script;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Emptied now rather than at the next lookup, which may never come: until then the index would keep the
+        /// scripts that left, and through them their casters, alive.
+        /// </summary>
+        private void Changed()
+        {
+            _byGuid.Clear();
+            _indexed = false;
+        }
+
+        private void Index()
+        {
+            // Sized once for the list: filled from empty it would grow, and allocate, three times on its way to nine.
+            _byGuid.EnsureCapacity(_scripts.Count);
+            foreach (ActiveScript active in _scripts)
+            {
+                // The first of a guid wins, as in a walk. A script that left Prepare without a guid is not indexed.
+                if (active.Script.Guid is { } guid)
+                    _byGuid.TryAdd(guid.RawValue, active.Script);
+            }
+
+            _indexed = true;
+        }
     }
 }
