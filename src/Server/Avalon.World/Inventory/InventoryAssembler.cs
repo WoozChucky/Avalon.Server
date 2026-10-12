@@ -34,7 +34,7 @@ public static class InventoryAssembler
             {
                 logger.LogWarning(
                     "Skipping inventory row in slot {Slot}: {Container} is not a known container",
-                    row.Slot, (ushort)row.Container);
+                    row.Slot, (byte)row.Container);
                 continue;
             }
 

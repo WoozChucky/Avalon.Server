@@ -97,7 +97,7 @@ public class InventoryAssemblerShould
     {
         var id = Guid.NewGuid();
         CharacterInventory row = Row(InventoryType.Bag, 0, id);
-        row.Container = (InventoryType)999;
+        row.Container = (InventoryType)99;
 
         IReadOnlyDictionary<InventoryType, List<InventoryItem>> result = Assemble([row], [Instance(id)]);
 
