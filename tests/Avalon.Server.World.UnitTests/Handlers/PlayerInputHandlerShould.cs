@@ -1,7 +1,9 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Movement;
+using Avalon.Server.World.UnitTests.Creatures;
 using Avalon.World;
 using Avalon.World.Handlers;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -15,7 +17,8 @@ public class PlayerInputHandlerShould
 {
     private const float TickDt = 1f / 60f;
 
-    private static (PlayerInputHandler handler, IWorldConnection conn, ICharacter ch, IMapNavigator nav) Setup(float speed = 5f, Vector3 startPos = default)
+    private static (PlayerInputHandler handler, IWorldConnection conn, ICharacter ch, IMapNavigator nav) Setup(
+        float speed = 5f, Vector3 startPos = default, IMapNavigator? navigator = null)
     {
         var instanceId = Guid.NewGuid();
 
@@ -29,11 +32,14 @@ public class PlayerInputHandlerShould
         conn.LastInputSeq.Returns(0u);
         conn.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
-        IMapNavigator nav = Substitute.For<IMapNavigator>();
-        // Default: clear path — RaycastWalkable returns whatever the desired endpoint was.
-        nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>())
-            .Returns(call => call.ArgAt<Vector3>(1));   // returns 'to'
-        nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(0f);
+        IMapNavigator nav = navigator ?? Substitute.For<IMapNavigator>();
+        if (navigator is null)
+        {
+            // Default: clear path — RaycastWalkable returns whatever the desired endpoint was.
+            nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>())
+                .Returns(call => call.ArgAt<Vector3>(1));   // returns 'to'
+            nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(0f);
+        }
 
         IMapInstance instance = Substitute.For<IMapInstance>();
         instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(nav);
@@ -54,9 +60,10 @@ public class PlayerInputHandlerShould
     /// extrapolate the character as position + Velocity x seconds, and a ground-height change is a snap, not motion.
     /// </summary>
     [Theory]
-    [InlineData(1f)]
-    [InlineData(10f)]
-    public void Step_along_the_input_onto_the_ground_and_publish_the_velocity(float dirX)
+    [InlineData(0f, 0f)]
+    [InlineData(1f, 5f)]
+    [InlineData(10f, 5f)]
+    public void Step_along_the_input_onto_the_ground_and_publish_the_velocity(float dirX, float expectedSpeed)
     {
         (PlayerInputHandler? handler, IWorldConnection? conn, ICharacter? ch, IMapNavigator? nav) = Setup(speed: 5f);
         nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(2.5f);
@@ -64,9 +71,9 @@ public class PlayerInputHandlerShould
         handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = dirX, DirZ = 0, YawDeg = 90 });
 
         ch.Received(1).Position = Arg.Is<Vector3>(p =>
-            Math.Abs(p.x - (5f * TickDt)) < 1e-4 && Math.Abs(p.y - 2.5f) < 1e-4 && Math.Abs(p.z) < 1e-4);
+            Math.Abs(p.x - (expectedSpeed * TickDt)) < 1e-4 && Math.Abs(p.y - 2.5f) < 1e-4 && Math.Abs(p.z) < 1e-4);
         ch.Received(1).Velocity = Arg.Is<Vector3>(v =>
-            Math.Abs(v.x - 5f) < 1e-3 && Math.Abs(v.y) < 1e-6 && Math.Abs(v.z) < 1e-6);
+            Math.Abs(v.x - expectedSpeed) < 1e-3 && Math.Abs(v.y) < 1e-6 && Math.Abs(v.z) < 1e-6);
     }
 
     /// <summary>
@@ -86,6 +93,29 @@ public class PlayerInputHandlerShould
 
         ch.Received(1).Position = Arg.Is<Vector3>(p => Math.Abs(p.x - allowedX) < 1e-4);
         ch.Received(1).Velocity = Arg.Is<Vector3>(v => Math.Abs(v.x - allowedX / TickDt) < 1e-2 && Math.Abs(v.z) < 1e-6);
+    }
+
+    [Theory]
+    [InlineData(0f, 0f)]
+    [InlineData(1f, 5f)]
+    public void Snap_and_acknowledge_input_through_the_real_navigator(float direction, float expectedSpeed)
+    {
+        var nav = new MapNavigator(NullLoggerFactory.Instance);
+        nav.LoadFromNavMesh(CrowdLocomotionShould.s_flatNavMesh.Value);
+        (PlayerInputHandler handler, IWorldConnection conn, ICharacter ch, IMapNavigator _) =
+            Setup(startPos: new Vector3(0, 0.5f, 0), navigator: nav);
+        // This test does not retain the ACK's pooled payload.
+        conn.When(c => c.Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.OutboundPacket>()))
+            .Do(call => call.Arg<global::Avalon.Network.Packets.Abstractions.OutboundPacket>().Release());
+
+        handler.Execute(conn, new CPlayerInputPacket { Seq = 7, DirX = direction, YawDeg = 90 });
+
+        ch.Received(1).Position = Arg.Is<Vector3>(p =>
+            Math.Abs(p.x - expectedSpeed * TickDt) < 1e-4 && Math.Abs(p.y - 0.2f) < 1e-4 && p.z == 0);
+        ch.Received(1).Velocity = Arg.Is<Vector3>(v => Math.Abs(v.x - expectedSpeed) < 1e-3 && v.y == 0 && v.z == 0);
+        ch.Received(1).Orientation = new Vector3(0, 90, 0);
+        conn.Received(1).LastInputSeq = 7u;
+        conn.Received(1).Send(Arg.Any<global::Avalon.Network.Packets.Abstractions.OutboundPacket>());
     }
 
     /// <summary>An accepted input is acknowledged with the authoritative state and advances the last sequence seen.</summary>
