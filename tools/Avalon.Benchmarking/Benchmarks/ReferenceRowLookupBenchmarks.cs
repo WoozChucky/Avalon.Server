@@ -6,37 +6,41 @@ using BenchmarkDotNet.Attributes;
 namespace Avalon.Benchmarking.Benchmarks;
 
 /// <summary>
-/// What a kill looks up in the reference data (#883): the item template of each drop (<c>LootRoller.FindItem</c>) and
-/// the experience requirement of a level (<c>ExperienceAward.Requirement</c>, asked twice for each member the kill's
-/// experience is split among and twice more for each award). One invocation looks every row up once, so it is
-/// <see cref="Rows" /> lookups, one at each position of the list. The <c>Walk</c> cases are the lookups as they were,
-/// a walk of the rows comparing keys; the <c>Keyed</c> cases are <see cref="KeyedRows{TKey,TRow}" />, which the Items
-/// and Progression areas now publish their rows as. The seed holds 31 item templates.
+/// What a kill looks up in the reference data (#883): the item template of each drop and the experience requirement
+/// of a level (asked twice for each member the kill's experience is split among and twice more for each award). One
+/// invocation looks every row up once, so it is <see cref="Rows" /> lookups, one at each position of the list.
 /// </summary>
+/// <remarks>
+/// The <c>Walk</c> cases are the lookups as they were, over the collections production held: the item templates a
+/// read-only view of the repository's list (<c>LootRoller.FindItem</c>, which still walks a collection that carries no
+/// lookup), the level rows the repository's list itself (<c>ExperienceAward.Requirement</c>, whose walk is gone and is
+/// copied here). The <c>Keyed</c> cases are the lookups production runs now, <see cref="ItemsPatch.Find" /> and
+/// <see cref="ProgressionPatch.FindLevel" />. The seed holds 31 item templates and 15 level rows.
+/// </remarks>
 [MemoryDiagnoser]
 public class ReferenceRowLookupBenchmarks
 {
     private IReadOnlyCollection<ItemTemplate> _items = null!;
-    private IReadOnlyCollection<ItemTemplate> _keyedItems = null!;
+    private ItemsPatch _itemsPatch = null!;
     private ItemTemplateId[] _itemIds = null!;
     private IReadOnlyCollection<CharacterLevelExperience> _levels = null!;
-    private IReadOnlyCollection<CharacterLevelExperience> _keyedLevels = null!;
+    private ProgressionPatch _progressionPatch = null!;
 
-    [Params(8, 32, 128)]
+    [Params(8, 15, 32, 128)]
     public int Rows { get; set; }
 
     [GlobalSetup]
     public void Setup()
     {
-        // As the repositories hand them over: a read-only view of a list.
+        // As StaticData held them: FindAllAsync(...).AsReadOnly() for the items, the list GetAllAsync returns for the levels.
         _items = Enumerable.Range(1, Rows)
             .Select(id => new ItemTemplate { Id = new ItemTemplateId((ulong)id), Name = "Bench" }).ToList().AsReadOnly();
-        _keyedItems = KeyedRows<ulong, ItemTemplate>.Over(_items, static template => template.Id?.Value);
+        _itemsPatch = new ItemsPatch(_items);
         _itemIds = _items.Select(template => new ItemTemplateId(template.Id.Value)).ToArray();
 
         _levels = Enumerable.Range(1, Rows)
-            .Select(level => new CharacterLevelExperience { Level = (ushort)level, Experience = 100 }).ToList().AsReadOnly();
-        _keyedLevels = KeyedRows<ushort, CharacterLevelExperience>.Over(_levels, static row => row.Level);
+            .Select(level => new CharacterLevelExperience { Level = (ushort)level, Experience = 100 }).ToList();
+        _progressionPatch = new ProgressionPatch(_levels, [], []);
 
         if (Walk_item_templates() != Rows || Keyed_item_templates() != Rows || Walk_level_rows() != Rows
             || Keyed_level_rows() != Rows)
@@ -46,47 +50,60 @@ public class ReferenceRowLookupBenchmarks
     }
 
     [Benchmark(Baseline = true)]
-    public int Walk_item_templates() => FindItems(_items);
-
-    [Benchmark]
-    public int Keyed_item_templates() => FindItems(_keyedItems);
-
-    [Benchmark]
-    public int Walk_level_rows() => FindLevels(_levels);
-
-    [Benchmark]
-    public int Keyed_level_rows() => FindLevels(_keyedLevels);
-
-    private int FindItems(IReadOnlyCollection<ItemTemplate> items)
+    public int Walk_item_templates()
     {
         int found = 0;
         foreach (ItemTemplateId id in _itemIds)
         {
-            if (FindItem(items, id) is not null)
+            if (WalkItems(_items, id) is not null)
                 found++;
         }
 
         return found;
     }
 
-    private int FindLevels(IReadOnlyCollection<CharacterLevelExperience> rows)
+    [Benchmark]
+    public int Keyed_item_templates()
+    {
+        int found = 0;
+        foreach (ItemTemplateId id in _itemIds)
+        {
+            if (_itemsPatch.Find(id) is not null)
+                found++;
+        }
+
+        return found;
+    }
+
+    [Benchmark]
+    public int Walk_level_rows()
     {
         int found = 0;
         for (int level = 1; level <= Rows; level++)
         {
-            if (Requirement(rows, (ushort)level) is not null)
+            if (WalkLevels(_levels, (ushort)level) is not null)
                 found++;
         }
 
         return found;
     }
 
-    // LootRoller.FindItem, as it is.
-    private static ItemTemplate? FindItem(IReadOnlyCollection<ItemTemplate> items, ItemTemplateId itemId)
+    [Benchmark]
+    public int Keyed_level_rows()
     {
-        if (items is KeyedRows<ulong, ItemTemplate> keyed)
-            return keyed.Find(itemId.Value);
+        int found = 0;
+        for (int level = 1; level <= Rows; level++)
+        {
+            if (_progressionPatch.FindLevel((ushort)level) is not null)
+                found++;
+        }
 
+        return found;
+    }
+
+    // LootRoller.FindItem's walk, as it was for the world's templates and still is for a collection with no lookup.
+    private static ItemTemplate? WalkItems(IReadOnlyCollection<ItemTemplate> items, ItemTemplateId itemId)
+    {
         if (items is IReadOnlyList<ItemTemplate> list)
         {
             for (int i = 0; i < list.Count; i++)
@@ -99,12 +116,9 @@ public class ReferenceRowLookupBenchmarks
         return null;
     }
 
-    // ExperienceAward.Requirement, as it is.
-    private static CharacterLevelExperience? Requirement(IReadOnlyCollection<CharacterLevelExperience> rows, ushort level)
+    // ExperienceAward.Requirement's walk, as it was.
+    private static CharacterLevelExperience? WalkLevels(IReadOnlyCollection<CharacterLevelExperience> rows, ushort level)
     {
-        if (rows is KeyedRows<ushort, CharacterLevelExperience> keyed)
-            return keyed.Find(level);
-
         if (rows is IReadOnlyList<CharacterLevelExperience> list)
         {
             for (int i = 0; i < list.Count; i++)

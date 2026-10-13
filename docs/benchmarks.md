@@ -220,38 +220,46 @@ instance). One party's fight seldom gets there: in `forest-combat` one forest do
 
 What a kill looks up in the reference data: the item template of each drop (`LootRoller.FindItem`), and a level's
 experience row (`ExperienceAward.Requirement`: twice for each member the experience is split among, twice more for
-each award). `Walk` is the lookup as it was, a walk of the rows comparing keys; `Keyed` is `KeyedRows.Find`
-(`Avalon.World/Reload`), the lookup the Items and Progression areas publish their rows with since #883
-([the kill path](#results--the-kill-path-890-883-2026-10-13)). One invocation looks every row up once, so the mean
-is for `Rows` lookups, one at each position of the list.
+each award). The `Walk` cases are the lookups as they were, over the collections production held: the item templates
+a read-only view of the repository's list, the level rows the repository's list itself (the item walk is still what
+`LootRoller` does for a collection that carries no lookup; the level walk is gone and is copied in the benchmark).
+The `Keyed` cases are what production runs since #883 ([the kill path](#results--the-kill-path-890-883-2026-10-13)):
+`ItemsPatch.Find` and `ProgressionPatch.FindLevel`, over `KeyedRows` (`Avalon.World/Reload`), which
+`StaticData.FindItemTemplate` and `FindLevel` answer from. One invocation looks every row up once, so the mean is
+for `Rows` lookups, one at each position of the list. The seed holds 31 item templates and 15 level rows.
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ReferenceRowLookup*"
 ```
 
-Measured 2026-10-13, a short run (`-j short`: three iterations), Windows 11, i9-12900K, runtime 10.0.12, while
-other work loaded the machine, so the errors are wide (up to the mean itself in the walked rows); the ratios are not
-in doubt. The seed holds 31 item templates.
+Measured 2026-10-13, BenchmarkDotNet 0.15.8, a short run (`-j short`: three iterations), Windows 11, i9-12900K,
+runtime 10.0.12, concurrent workstation GC, while other work loaded the machine: the error of a mean is 6% to 41%
+in the cases above 100 ns and up to several times the mean in the smallest ones.
 
 | Method | Rows | Mean | Per lookup | Allocated |
 |---|---:|---:|---:|---:|
-| `Walk_item_templates` | 8 | 117.2 ns | 14.6 ns | 0 B |
-| `Keyed_item_templates` | 8 | 29.6 ns | 3.7 ns | 0 B |
-| `Walk_level_rows` | 8 | 51.6 ns | 6.4 ns | 0 B |
-| `Keyed_level_rows` | 8 | 18.2 ns | 2.3 ns | 0 B |
-| `Walk_item_templates` | 32 | 1,657 ns | 51.8 ns | 0 B |
-| `Keyed_item_templates` | 32 | 78.5 ns | 2.5 ns | 0 B |
-| `Walk_level_rows` | 32 | 724.3 ns | 22.6 ns | 0 B |
-| `Keyed_level_rows` | 32 | 82.3 ns | 2.6 ns | 0 B |
-| `Walk_item_templates` | 128 | 18,693 ns | 146.0 ns | 0 B |
-| `Keyed_item_templates` | 128 | 309.3 ns | 2.4 ns | 0 B |
-| `Walk_level_rows` | 128 | 8,671 ns | 67.7 ns | 0 B |
-| `Keyed_level_rows` | 128 | 249.7 ns | 2.0 ns | 0 B |
+| `Walk_item_templates` | 8 | 79.4 ns | 9.9 ns | 0 B |
+| `Keyed_item_templates` | 8 | 24.5 ns | 3.1 ns | 0 B |
+| `Walk_level_rows` | 8 | 32.1 ns | 4.0 ns | 0 B |
+| `Keyed_level_rows` | 8 | 22.0 ns | 2.8 ns | 0 B |
+| `Walk_item_templates` | 15 | 270.8 ns | 18.1 ns | 0 B |
+| `Keyed_item_templates` | 15 | 36.9 ns | 2.5 ns | 0 B |
+| `Walk_level_rows` | 15 | 88.3 ns | 5.9 ns | 0 B |
+| `Keyed_level_rows` | 15 | 31.7 ns | 2.1 ns | 0 B |
+| `Walk_item_templates` | 32 | 1,033 ns | 32.3 ns | 0 B |
+| `Keyed_item_templates` | 32 | 77.6 ns | 2.4 ns | 0 B |
+| `Walk_level_rows` | 32 | 434.8 ns | 13.6 ns | 0 B |
+| `Keyed_level_rows` | 32 | 69.0 ns | 2.2 ns | 0 B |
+| `Walk_item_templates` | 128 | 16,174 ns | 126.4 ns | 0 B |
+| `Keyed_item_templates` | 128 | 292.6 ns | 2.3 ns | 0 B |
+| `Walk_level_rows` | 128 | 4,994 ns | 39.0 ns | 0 B |
+| `Keyed_level_rows` | 128 | 268.6 ns | 2.1 ns | 0 B |
 
-A walked item template costs about 3 ns a row passed (each comparison of two ids goes through the value object's
-equality), so about 50 ns a drop over the seed's 31 templates and more with every template added; keyed, about
-2.5 ns whatever the count. The map template's lookup is not benchmarked: it is a field read where it was a walk of
-the world's map templates, two today.
+At the seed's sizes a walked item template costs about 32 ns a drop (about 2 ns a row passed: each comparison of two
+ids goes through the value object's equality) and a walked level row about 6 ns; keyed, either is 2 to 2.5 ns
+whatever the count. The gain today is small, a few tens of nanoseconds a kill, and it grows with every item template
+added, where the level rows are bounded by the level cap. The map template's lookup is not benchmarked: it is a
+field read where it was a walk of the world's map templates, two today.
 
 ### Time sync — `Benchmarks/TimeSyncBenchmarks.cs` (#892)
 
@@ -2832,8 +2840,11 @@ steps of `DropLoot`, every one of which read the same in both builds, which left
   returns; a message holds numbers only. The snapshot a character entering an instance is sent still builds its own.
 - **The lookups by key** (`KeyedRows`) are the rows themselves: the Items and Progression patches publish their rows
   and the rows' index as one object, so `/reload items` and `/reload progression` replace both together and no
-  lookup can outlive its rows. The first row of a key answers, as the walk did, and a collection that carries no
-  lookup (a test's list) is walked as before. Map templates are never reloaded; an instance keeps its own template
+  lookup can outlive its rows. The first row of a key answers, as the walk did, and a collection handed to the loot
+  roller that carries no lookup (a test's list) is walked as before. `StaticData.FindItemTemplate` and `FindLevel`
+  are the way in for any reader that wants one row: character select's level row and six lookups of one item
+  template (character creation, the vendor trade, item use, quest rewards and pickups, the vendor list) use them,
+  where each walked the rows through LINQ with a closure. Map templates are never reloaded; an instance keeps its own template
   with the world's list it found it in, and looks again only if the world holds another list.
 - **Heal threat** is counted and shared out in two walks of the encounter's hostiles in place. Joining the encounter
   and adding threat, which happen between the two, write the threat lists only, so both walks see the same hostiles.
