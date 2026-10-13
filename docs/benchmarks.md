@@ -65,8 +65,9 @@ three runs, and no claim is made from them beyond "not slower".
 
 **The flush.** `Queried` is the flush as it was, kept in the benchmark; `Flusher` is `InventoryUpdateFlusher.Flush`.
 One invocation marks the Bag slots changed, highest first, and flushes them to a connection that counts the packet
-and gives its payload back to the pool; with no slot, only the money changed. Both rows of a run are measured in the
-same process.
+and gives its payload back to the pool; with no slot, only the money changed. Both rows come from the same run, one
+after the other, each in its own child process, so a ratio compares two processes under whatever the machine was
+doing at the time.
 
 | Changed slots | `Queried` (before), allocated | `Flusher` (after), allocated | `Queried`, mean of each run | `Flusher`, mean of each run | Ratio in each run |
 |---:|---:|---:|---:|---:|---:|
@@ -79,6 +80,14 @@ What is left is the packet's own entries, to the byte: the array (24 B and 8 B a
 for each slot (32 B) and an `ItemSlotDto` for each slot holding an item (56 B). The query cost 448 B when it had
 nothing to walk, on every tick a character's money changed and no slot did, and 752 B, 808 B and 1,056 B on top of
 the entries at 1, 8 and 30 slots.
+
+**The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
+whether a Bag slot changed. It walked the changed slots through the set's interface, which boxed the set's enumerator:
+40 B per connection on every tick with any slot change, a cost the finding did not list. It now uses the struct
+enumerator on `InventoryClientChanges`. No benchmark or scenario runs the quest flusher, so the figures are from a
+probe of the same loop over the built class (Release, best of 7 runs of 20 million calls, loaded machine): with no
+changed slot, 0 B and about 1.7 ns before and after; with three slots outside the Bag, 40 B and 30 to 58 ns before,
+0 B and about 4 ns after.
 
 **An item request.** The handlers run over an economy that hands back one inventory service kept for the character,
 so a row is the handler, the move rules and the reply; production's `CharacterEconomy.InventoryOf` builds a service
