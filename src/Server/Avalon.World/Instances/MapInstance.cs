@@ -108,6 +108,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>Who shares a kill, and how its experience is split (2026-09-30). Null in tests built without one: solo rules.</summary>
     private readonly PartyService? _parties;
 
+    // Whether a character is in a party leave countdown, asked once per member of every kill: made once, where a
+    // delegate made from the party service's method at each kill was an object per kill (#890).
+    private readonly Func<uint, bool> _inCountdown;
+
+    // One kill's lists, emptied when it is done (#890). A kill reached while another is being handled (nothing does
+    // that today: a hook run by a kill would have to kill another creature here) takes lists of its own.
+    private readonly KillBuffers _killBuffers = new();
+    private bool _killInProgress;
+
     /// <summary>
     /// Vendor stock (#432): one state per vendor creature that has had a shop open here. It lives as
     /// long as the instance, so for the persistent town a restart is what resets it.
@@ -241,6 +250,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Optional too: an instance built without it (tests) shares nothing, so every kill is its killer's alone.
         _parties = serviceProvider.GetService<PartyService>();
+        _inCountdown = _parties is null ? static _ => false : _parties.InCountdown;
 
         // Vendor quest gates (#432). Falls back, so an instance built without it (tests) still
         // ticks; production registers it.
@@ -1922,33 +1932,44 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
-        // Taken first, once, while the creature is still in its encounter (spec 2026-09-30 section 4). Contained: a
-        // throw here must not leave a creature at 0 health with its script and no corpse teardown. Nobody is eligible
-        // then: nobody gains experience from it, and a party instance's drops are free for all.
-        IReadOnlyList<ICharacter> eligible;
+        bool nested = _killInProgress;
+        KillBuffers buffers = nested ? new KillBuffers() : _killBuffers;
+        _killInProgress = true;
         try
         {
-            eligible = EligibleFor(creature, killer);
+            // Taken first, once, while the creature is still in its encounter (spec 2026-09-30 section 4). Contained:
+            // a throw here must not leave a creature at 0 health with its script and no corpse teardown. Nobody is
+            // eligible then: nobody gains experience from it, and a party instance's drops are free for all.
+            List<ICharacter> eligible = buffers.Eligible;
+            try
+            {
+                FillEligible(eligible, buffers.MemberKey, creature, killer);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Working out who shares the kill of {CreatureGuid} in instance {InstanceId} failed",
+                    creature.Guid, InstanceId);
+                eligible.Clear();
+            }
+
+            creature.Script = null;
+            TearDownCorpse(creature);
+            _corpseRemover.ScheduleRemoval(creature);
+
+            // #433: kill credit for everyone who shares the kill, before the drops, which read the same quests.
+            CreditQuests(creature, eligible);
+
+            // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
+            // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
+            // A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all.
+            DropLoot(creature, eligible, credited: killer is not null);
+            AwardExperience(creature, eligible);
         }
-        catch (Exception e)
+        finally
         {
-            _logger.LogError(e, "Working out who shares the kill of {CreatureGuid} in instance {InstanceId} failed",
-                creature.Guid, InstanceId);
-            eligible = [];
+            buffers.Clear();
+            _killInProgress = nested;
         }
-
-        creature.Script = null;
-        TearDownCorpse(creature);
-        _corpseRemover.ScheduleRemoval(creature);
-
-        // #433: kill credit for everyone who shares the kill, before the drops, which read the same quests.
-        CreditQuests(creature, eligible);
-
-        // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
-        // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
-        // A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all.
-        DropLoot(creature, eligible, credited: killer is not null);
-        AwardExperience(creature, eligible);
     }
 
     /// <summary>
@@ -1972,17 +1993,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// The characters that share this kill: the killer alone outside a party, or every present, eligible member of
-    /// its party. Empty when there is no killer, or it is not a character or is in a leave countdown.
+    /// Adds the characters that share this kill to <paramref name="eligible" />: the killer alone outside a party, or
+    /// every present, eligible member of its party. None when there is no killer, or it is not a character or is in a
+    /// leave countdown.
     /// </summary>
-    private IReadOnlyList<ICharacter> EligibleFor(ICreature creature, IUnit? killer)
+    private void FillEligible(List<ICharacter> eligible, ObjectGuid memberKey, ICreature creature, IUnit? killer)
     {
         var character = killer as ICharacter;
         Party? party = character is null ? null : _parties?.PartyOf(character.Guid.Id);
-        Func<uint, bool> inCountdown = _parties is null ? static _ => false : _parties.InCountdown;
 
-        return PartyEligibility.For(character, party, _characters, inCountdown,
-            _combatService.GetEncounterFor(creature), creature.Position, _world.Configuration.PartyEligibilityRange);
+        PartyEligibility.Fill(eligible, character, party, _characters, _inCountdown,
+            _combatService.GetEncounterFor(creature), creature.Position, _world.Configuration.PartyEligibilityRange,
+            memberKey);
     }
 
     /// <summary>
