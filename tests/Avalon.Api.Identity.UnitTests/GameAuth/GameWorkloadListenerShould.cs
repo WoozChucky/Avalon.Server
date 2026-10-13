@@ -72,7 +72,11 @@ public sealed class GameWorkloadListenerShould
     {
         var handler = new HttpClientHandler { UseProxy = false, ServerCertificateCustomValidationCallback = (_, cert, _, _) => cert is not null && Pin(cert) == serverPin };
         if (certificate is not null) handler.ClientCertificates.Add(certificate);
-        return new(handler) { Timeout = TimeSpan.FromSeconds(5) };
+        // The limit ends a request that hangs; it does not time the listener. The accept, the handshake and the request
+        // run on the thread pool, which every test in the process shares: with four processors and 149 work items
+        // queued, the listener took a connection 2.4 s after the client dialled, and the first request took up to
+        // 4.6 s of the 5 s it had here (#942). Every request still ended as the test expects.
+        return new(handler) { Timeout = TimeSpan.FromSeconds(30) };
     }
     private static string Pin(X509Certificate2 certificate) => Convert.ToHexString(SHA256.HashData(certificate.RawData));
     private static X509Certificate2 Certificate(bool client)
