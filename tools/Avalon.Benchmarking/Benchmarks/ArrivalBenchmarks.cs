@@ -219,6 +219,32 @@ public class ArrivalBenchmarks
         return sent;
     }
 
+    /// <summary>
+    /// A new instance of the forest's layout whose build the registry has not published yet: a request for it is
+    /// answered with a task that is not finished, completed as the registry completes its own (its continuations
+    /// run on the thread pool). For <see cref="FirstArrivalBenchmarks" />.
+    /// </summary>
+    internal ArrivalInstance NewForestBeingBuilt() =>
+        new(Build(_forest.Instance.TemplateId, _forest.Instance.Layout, MapType.Normal),
+            new TaskCompletionSource<IMapInstance>(TaskCreationOptions.RunContinuationsAsynchronously));
+
+    /// <summary>
+    /// A portal entry into <paramref name="forest" />, whose build is not published when the request is handled: the
+    /// request, then the build's publication, then the flush that runs the arrival, which waits here for the
+    /// continuation the connection was handed to be ready, as the tick's flush finds it ready or leaves it for the
+    /// next tick.
+    /// </summary>
+    internal int EnterForestBeingBuilt(ArrivalInstance forest)
+    {
+        _registry.Forest = forest;
+        Stand(_town, _townPortal);
+        _enterMap.Execute(_connection, _toForest);
+        forest.Publish();
+        _connection.RunHeld();
+        _registry.Forest = _forest;
+        return _connection.Sent;
+    }
+
     /// <summary><see cref="Portal_entry_into_the_town" />, into <paramref name="town" /> in place of the town kept here.</summary>
     internal int EnterTown(ArrivalInstance town)
     {
@@ -469,10 +495,48 @@ public class ArrivalBenchmarks
             PendingSpawn = null;
         }
 
+        // The one continuation whose task had not finished when it was queued, until RunHeld runs it.
+        private Task? _heldTask;
+        private Delegate? _heldCallback;
+
         public void EnqueueContinuation<T>(Task<T> task, Action<T> callback)
         {
+            if (!task.IsCompleted)
+            {
+                if (_heldTask is not null)
+                    throw new InvalidOperationException("A row queued a second continuation before its first had run.");
+
+                _heldTask = task;
+                _heldCallback = callback;
+                return;
+            }
+
             if (!task.IsCompletedSuccessfully)
-                throw new InvalidOperationException("A row handed the connection a task that has not finished.");
+                throw new InvalidOperationException("A row handed the connection a task that failed.");
+
+#pragma warning disable MA0045 // the task has completed successfully: reading its result does not block
+            callback(task.Result);
+#pragma warning restore MA0045
+        }
+
+        /// <summary>
+        /// The flush after a build was published: waits for the held continuation's task to end, spinning (the wait
+        /// is what an arrival waits for the thread pool), and runs its callback, as the drain runs one that is ready.
+        /// </summary>
+        public void RunHeld()
+        {
+            if (_heldTask is not Task<IMapInstance?> task || _heldCallback is not Action<IMapInstance?> callback)
+                throw new InvalidOperationException("The row queued no arrival to wait for.");
+
+            _heldTask = null;
+            _heldCallback = null;
+
+            var spin = new SpinWait();
+            while (!task.IsCompleted)
+                spin.SpinOnce(sleep1Threshold: -1);
+
+            if (!task.IsCompletedSuccessfully)
+                throw new InvalidOperationException("The held arrival's task failed.");
 
 #pragma warning disable MA0045 // the task has completed successfully: reading its result does not block
             callback(task.Result);
@@ -695,13 +759,35 @@ public class ArrivalBenchmarks
 /// An instance as <see cref="ArrivalBenchmarks" /> hands it to a handler: itself, the finished task a request for it is
 /// answered with, and its id as a character's row holds it, each made once so that a row allocates none of them.
 /// </summary>
-internal sealed class ArrivalInstance(MapInstance instance)
+internal sealed class ArrivalInstance
 {
-    public MapInstance Instance { get; } = instance;
+    private readonly TaskCompletionSource<IMapInstance>? _build;
 
-    public Task<IMapInstance> Request { get; } = Task.FromResult<IMapInstance>(instance);
+    /// <summary>An instance already built: a request for it is a finished task.</summary>
+    public ArrivalInstance(MapInstance instance)
+    {
+        Instance = instance;
+        Request = Task.FromResult<IMapInstance>(instance);
+        IdText = instance.InstanceId.ToString();
+    }
 
-    public string IdText { get; } = instance.InstanceId.ToString();
+    /// <summary>An instance whose build is not published yet: a request for it ends with <see cref="Publish" />.</summary>
+    public ArrivalInstance(MapInstance instance, TaskCompletionSource<IMapInstance> build)
+    {
+        Instance = instance;
+        _build = build;
+        Request = build.Task;
+        IdText = instance.InstanceId.ToString();
+    }
+
+    public MapInstance Instance { get; }
+
+    public Task<IMapInstance> Request { get; }
+
+    public string IdText { get; }
+
+    /// <summary>Finishes the request, as the registry does on the tick that publishes the build.</summary>
+    public void Publish() => _build!.SetResult(Instance);
 }
 
 /// <summary>
@@ -714,6 +800,8 @@ internal sealed class ArrivalInstance(MapInstance instance)
 /// does; when the entries were built by the first arrival, this row was that arrival and paid for them on the tick.
 /// The instances of an iteration are built before it (<see cref="Instances" /> of them, the iteration's every call),
 /// so a row is the arrival alone. They hold no creatures: an arrival reads the layout, the entry spawn and the portals.
+/// <see cref="Portal_entry_into_a_forest_still_being_built" /> is the same arrival asked for before its instance's
+/// build is published, as an entry that starts the build is.
 /// </remarks>
 [MemoryDiagnoser]
 [InvocationCount(Instances, 16)]
@@ -733,7 +821,8 @@ public class FirstArrivalBenchmarks
         int before = _arrivals.EnterForest(_arrivals.NewForest());
         int forest = _arrivals.EnterForest(_arrivals.NewForest());
         int town = _arrivals.EnterTown(_arrivals.NewTown());
-        if (forest - before != 2 || town - forest != 2)
+        int built = _arrivals.EnterForestBeingBuilt(_arrivals.NewForestBeingBuilt());
+        if (forest - before != 2 || town - forest != 2 || built - town != 2)
             throw new InvalidOperationException("An arrival in a new instance did not send its transition and its layout.");
     }
 
@@ -756,8 +845,24 @@ public class FirstArrivalBenchmarks
         _next = 0;
     }
 
+    [IterationSetup(Target = nameof(Portal_entry_into_a_forest_still_being_built))]
+    public void NewBuilds()
+    {
+        for (int i = 0; i < _fresh.Length; i++)
+            _fresh[i] = _arrivals.NewForestBeingBuilt();
+        _next = 0;
+    }
+
     [Benchmark]
     public int First_portal_entry_into_a_forest() => _arrivals.EnterForest(_fresh[_next++]);
+
+    /// <summary>
+    /// The usual entry of a character's own forest: the request is handled while the instance is still being built,
+    /// and the arrival runs once the build is published. On top of <see cref="First_portal_entry_into_a_forest" />
+    /// it holds what the handler does so that a build that fails still ends the move, and the wait for it.
+    /// </summary>
+    [Benchmark]
+    public int Portal_entry_into_a_forest_still_being_built() => _arrivals.EnterForestBeingBuilt(_fresh[_next++]);
 
     [Benchmark]
     public int First_portal_entry_into_the_town() => _arrivals.EnterTown(_fresh[_next++]);
