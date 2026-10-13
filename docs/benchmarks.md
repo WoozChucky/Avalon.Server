@@ -2587,9 +2587,12 @@ cap, catches up, and does so again ten seconds later, under a clock the probe mo
   framed ahead keeps both buffers, since they are never both idle.
 - `ConnectionSenderShould` holds it in one case: two buffers grown by a stall, the second while the first is still
   being written; a second stall inside the delay with nothing given back in between; both kept at the delay's end
-  because they were filled within it; both given back after a delay of small bursts. Every packet carries its number
-  and all arrive once and in order, read as each write ends, which fails when a buffer is given back while a write
-  still reads it. It fails with no delay, with the writer's length in place of the largest burst, and with no
+  because they were filled within it, though a small burst came last; a second delay of small bursts that ends
+  during a pending write, with nothing given back on the visit that frames ahead of it nor on the one that starts
+  the next write; both given back at the first visit that finds them idle. Every packet carries its number and all
+  arrive once and in order, read as each write ends. Each of these was checked by breaking it: the case fails when
+  a buffer is given back while a write still reads it, when the watch is looked at on a visit with a write in
+  flight, with no delay, with the last burst or the writer's length in place of the largest burst, and with no
   give-back.
 
 **Serializers at startup (row 24, the send half).** protobuf-net builds a type's serializer on its first use and the

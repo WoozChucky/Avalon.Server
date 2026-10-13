@@ -152,8 +152,11 @@ public sealed class ConnectionSenderShould
     /// without writing a burst that fills a quarter of it, and not before: a peer decides when its connection stalls
     /// and catches up, so a buffer given back as soon as it looked idle is one the peer has the server rent again in
     /// a loop. So a second stall inside the delay finds both buffers still there, the delay's end keeps them because
-    /// they were filled within it, and only a quiet delay gives them back. And never while a write still reads one:
-    /// a buffer given back in flight is rented again by the burst framed ahead of it, which would be written over the
+    /// they were filled within it, though the last burst before it was a small one (what counts is the largest burst
+    /// of the delay, not the last), and only a quiet delay gives them back. And never while a write still reads one,
+    /// or while a burst is framed ahead: when the delay ends during a pending write, the visits that frame ahead and
+    /// that start the next write leave both buffers alone, and the first visit that finds both idle gives them back.
+    /// A buffer given back in flight is rented again by the burst framed ahead of it, which would be written over the
     /// bytes still going out, so every packet carries its number and all must arrive, once and in order.
     /// </summary>
     [Fact]
@@ -177,14 +180,21 @@ public sealed class ConnectionSenderShould
         _time.Advance(TimeSpan.FromSeconds(10));
         Stall(); // inside the delay: nothing was given back, so nothing is rented again
         Assert.Equal(grown, sender.BurstCapacity);
+        Small(); // a small burst after the large ones: the last of the delay, not its largest
         _time.Advance(TimeSpan.FromSeconds(21));
         Small(); // the delay is over, and both buffers were filled within it: they stay
         Assert.Equal(grown, sender.BurstCapacity);
         _time.Advance(TimeSpan.FromSeconds(29));
-        Small(); // small bursts since, but not yet for the delay
+        Write(100); // small bursts since, but not yet for the delay; this one's write stays pending
         Assert.Equal(grown, sender.BurstCapacity);
         _time.Advance(TimeSpan.FromSeconds(2));
-        Small(); // a whole delay of them: both go back
+        sender.Enqueue(Marked(sent++, 100));
+        scheduler.RunPass(owner); // the delay ends on a visit that frames ahead of a pending write: nothing is idle
+        Assert.Equal(grown, sender.BurstCapacity);
+        EndWrite(startsAnother: true); // nor on the visit that starts the burst framed ahead
+        Assert.Equal(grown, sender.BurstCapacity);
+        EndWrite(startsAnother: false);
+        Small(); // the first visit that finds both idle, after a whole delay of small bursts: both go back
         Assert.Equal(asNew, sender.BurstCapacity);
 
         Assert.Equal(Enumerable.Range(0, sent), (await Frames(stalled.ReadAtCompletion.ToArray()))
