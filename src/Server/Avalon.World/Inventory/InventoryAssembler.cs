@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Public.Characters;
@@ -13,18 +14,22 @@ namespace Avalon.World.Inventory;
 /// </summary>
 public static class InventoryAssembler
 {
+    /// <summary>Every container, read off the enum once rather than at each login (#883).</summary>
+    private static readonly InventoryType[] s_containers = Enum.GetValues<InventoryType>();
+
     public static IReadOnlyDictionary<InventoryType, List<InventoryItem>> Assemble(
         IReadOnlyCollection<CharacterInventory> rows,
         IReadOnlyCollection<ItemInstance> instances,
         ILogger logger)
     {
-        var instanceById = instances
-            .GroupBy(instance => instance.Id)
-            .ToDictionary(group => group.Key, group => group.First());
+        // The first instance read under an id is the one kept.
+        var instanceById = new Dictionary<ItemInstanceId, ItemInstance>(instances.Count);
+        foreach (ItemInstance instance in instances)
+            instanceById.TryAdd(instance.Id, instance);
 
-        Dictionary<InventoryType, List<InventoryItem>> assembled = Enum
-            .GetValues<InventoryType>()
-            .ToDictionary(container => container, _ => new List<InventoryItem>());
+        var assembled = new Dictionary<InventoryType, List<InventoryItem>>(s_containers.Length);
+        foreach (InventoryType container in s_containers)
+            assembled[container] = [];
 
         HashSet<(InventoryType, ushort)> taken = [];
 
