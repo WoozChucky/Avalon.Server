@@ -188,7 +188,7 @@ public class WorldServerShutdownShould : IDisposable
         Assert.False(server.SendScheduler.IsRunning);
         SDisconnectPacket? notice = null;
         using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire.ToArray())).EnumerateRawFramesAsync(256, guard.Token))
+        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire.ToArray())).EnumerateRawFramesAsync(256, int.MaxValue, guard.Token))
         {
             var frame = InboundPacketFrame.ParseFrame(raw);
             if (frame.Header.Type == NetworkPacketType.SMSG_DISCONNECT)

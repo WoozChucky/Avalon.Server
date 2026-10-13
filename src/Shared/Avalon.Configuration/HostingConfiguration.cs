@@ -14,6 +14,18 @@ public class HostingConfiguration
     [Range(512, 65535)]
     public int PacketReaderBufferSize { get; set; } = 4096;
 
+    /// <summary>The default of <see cref="MaxInboundFrameSize" />.</summary>
+    public const int DefaultMaxInboundFrameSize = 16_384;
+
+    /// <summary>
+    /// The most bytes a frame a peer sends may declare after its length prefix (its header and payload). A frame that
+    /// declares more, or whose length prefix is malformed, is never buffered: the connection is closed, on either
+    /// server, before admission or login as after. Frames the servers send are not limited by it.
+    /// Valid range: 1024–16777216. Defaults to 16384.
+    /// </summary>
+    [Range(1024, 16_777_216)]
+    public int MaxInboundFrameSize { get; set; } = DefaultMaxInboundFrameSize;
+
     /// <summary>
     /// The auth server's per-connection outbound queue (<c>ChannelOutbox</c>): packets beyond it are dropped, oldest
     /// first. The world server does not read it: its connections send through the send threads (<c>Network</c>, #875).

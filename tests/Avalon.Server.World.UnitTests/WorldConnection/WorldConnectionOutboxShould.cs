@@ -103,7 +103,7 @@ public class WorldConnectionOutboxShould : IDisposable
     private static async Task<List<(NetworkPacketHeader Header, byte[] Payload)>> FramesAsync(byte[] wire, CancellationToken ct)
     {
         var frames = new List<(NetworkPacketHeader, byte[])>();
-        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire)).EnumerateRawFramesAsync(256, ct))
+        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire)).EnumerateRawFramesAsync(256, int.MaxValue, ct))
         {
             var frame = InboundPacketFrame.ParseFrame(raw);
             frames.Add((frame.Header, frame.Payload.ToArray()));

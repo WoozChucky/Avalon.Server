@@ -655,6 +655,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         DiagnosticsConfig.World.PacketsReceived.Add(1);
     }
 
+    protected override void OnFrameRefused() => DiagnosticsConfig.World.FrameKicks.Add(1);
+
     protected override long GetServerTime() => Server.ServerTime;
 
     private readonly record struct WorldPacket(NetworkPacketType Type, Packet? Payload, long ArrivedTicks);

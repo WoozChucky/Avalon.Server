@@ -46,7 +46,7 @@ public class WireRoundTripShould
             await writer.WriteAsync(packet, ct);
         wire.Position = 0;
         uint expected = 1;
-        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(wire).EnumerateRawFramesAsync(256, ct))
+        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(wire).EnumerateRawFramesAsync(256, int.MaxValue, ct))
         {
             var frame = InboundPacketFrame.ParseFrame(raw);
             Assert.Equal(NetworkPacketType.CMSG_PLAYER_INPUT, frame.Header.Type);

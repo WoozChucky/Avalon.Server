@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Common.Cryptography;
+using Avalon.Configuration;
 using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
@@ -31,10 +32,23 @@ public interface IConnection
     Task StartAsync(CancellationToken token = default);
 }
 
-public abstract class Connection : BackgroundService, IConnection, IConnectionRates
+public abstract partial class Connection : BackgroundService, IConnection, IConnectionRates
 {
+    private static partial class ReadLog
+    {
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Closing connection {ConnectionId} from {RemoteEndPoint}: a frame declared {Length} bytes, more than Hosting:MaxInboundFrameSize ({MaxInboundFrameSize})")]
+        public static partial void FrameTooLong(ILogger logger, Guid connectionId, string remoteEndPoint, long length,
+            int maxInboundFrameSize);
+
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Closing connection {ConnectionId} from {RemoteEndPoint}: a frame's length prefix is not a length")]
+        public static partial void MalformedFrameLength(ILogger logger, Guid connectionId, string remoteEndPoint);
+    }
+
     protected readonly ILogger _logger;
     private readonly IPacketReader _packetReader;
+    private readonly int _maxInboundFrameSize;
 
     // CryptoSession.Decrypt as a delegate, created once. Passing the method group made a new delegate per packet, and
     // the Release JIT did not keep it off the heap (PacketReaderDecryptGcBenchmarks, #854).
@@ -63,6 +77,9 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
         _logger = logger;
         _packetReader = packetReader;
         Server = server;
+        // A substitute server in tests has none.
+        int maxInboundFrameSize = server.MaxInboundFrameSize;
+        _maxInboundFrameSize = maxInboundFrameSize > 0 ? maxInboundFrameSize : HostingConfiguration.DefaultMaxInboundFrameSize;
 
         // Per connection, not per process. The session nonce is a counter from zero, so two
         // connections that agreed the same key would seal their first packets under the same key
@@ -209,6 +226,12 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
 
     protected virtual void OnPacketAccounted(NetworkPacketType type, int size) { }
 
+    /// <summary>
+    /// The read loop ended on a frame longer than <c>Hosting:MaxInboundFrameSize</c>, or with a malformed length, and
+    /// the connection is about to close: a server counts it in its telemetry here, once per connection.
+    /// </summary>
+    protected virtual void OnFrameRefused() { }
+
     protected abstract long GetServerTime();
 
     /// <summary>
@@ -278,7 +301,8 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
 
             try
             {
-                await foreach (ReadOnlyMemory<byte> raw in _stream!.EnumerateRawFramesAsync(_packetReader.BufferSize, stoppingToken))
+                await foreach (ReadOnlyMemory<byte> raw in _stream!.EnumerateRawFramesAsync(_packetReader.BufferSize,
+                                   _maxInboundFrameSize, stoppingToken))
                 {
                     var frame = InboundPacketFrame.ParseFrame(raw);
 
@@ -301,6 +325,18 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
                     ValueTask receiveTask = OnReceive(frame.Header, payload);
                     if (!receiveTask.IsCompletedSuccessfully)
                         await receiveTask.ConfigureAwait(false);
+                }
+
+                // The stream stopped at a frame it would not read (Hosting:MaxInboundFrameSize): nothing was rented
+                // or read for it, and the close below is the one any ended stream gets. Any peer that completes TLS
+                // can come here, before admission or login, so it is one Debug line and a count, never an exception.
+                if (_stream.FrameRefused)
+                {
+                    if (_stream.RefusedFrameLength == PacketStream.MalformedLength)
+                        ReadLog.MalformedFrameLength(_logger, Id, RemoteEndPoint);
+                    else
+                        ReadLog.FrameTooLong(_logger, Id, RemoteEndPoint, _stream.RefusedFrameLength, _maxInboundFrameSize);
+                    OnFrameRefused();
                 }
             }
             catch (IOException e)

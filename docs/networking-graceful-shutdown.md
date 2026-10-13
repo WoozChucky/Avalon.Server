@@ -77,7 +77,9 @@ Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 
 Not every close the world starts carries one. A connection closed for what it sent is closed without a notice, as a
 dropped connection is: a plain packet while the world seals (`Network:PacketEncryption`, #875), and a packet arriving
-with `Network:MaxReceiveQueueDepth` already waiting for the tick (#927, [packet handlers](packet-handlers.md)).
+with `Network:MaxReceiveQueueDepth` already waiting for the tick (#927, [packet handlers](packet-handlers.md)). On
+either server, so is one whose frame declares more than `Hosting:MaxInboundFrameSize`
+([packet protocol](networking-packet-protocol.md#the-inbound-frame-length-limit)).
 
 ### Factory method
 

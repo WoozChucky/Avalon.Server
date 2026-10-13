@@ -130,6 +130,8 @@ public class AuthConnection : Connection, IAuthConnection
         DiagnosticsConfig.Auth.PacketsReceived.Add(1);
     }
 
+    protected override void OnFrameRefused() => DiagnosticsConfig.Auth.FrameKicks.Add(1);
+
     protected override long GetServerTime() => Server.ServerTime;
 
     private bool OnClientCertificateValidation(object sender, X509Certificate? certificate, X509Chain? chain,

@@ -78,6 +78,16 @@ The send threads' busy time, in cores: `sum(rate(network_send_pass_duration_micr
 
 Any count is worth a look: a client sending faster than the tick takes (151 packets a pass per connection), a tick stalled for as long as the cap is deep (about 34 s of input at the default), or a connection whose queue is wedged ([packet handlers](packet-handlers.md)). The counter does not see a flood the tick keeps up with, nor packets dropped as they arrive.
 
+### Refused frames
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `network.in.frame_kicks` | `network_in_frame_kicks_total` | Connections closed for a frame that declared more than `Hosting:MaxInboundFrameSize`, or whose length prefix was malformed ([packet protocol](networking-packet-protocol.md#the-inbound-frame-length-limit)). No tags. On the world's meter (`world-server`) and on the auth server's (`auth-server`), each counting its own connections |
+
+A client never sends such a frame, and any peer that completes TLS can, before it is admitted or logged in: a count is
+a peer that is not a client, or a client newer than the limit allows. Each also writes one Debug line (the connection,
+its address and the declared length), and nothing above Debug.
+
 ### Packet handlers
 
 Every handler run records `avalon.packet.handler.duration` (ms, tagged `avalon.packet.type` and `avalon.outcome`) and, when it throws, `avalon.packet.handler.errors`. A packet of a high-rate type (`Hosting:Telemetry:NoSpanPacketTypes`, default `CMSG_PLAYER_INPUT` and `CMSG_PONG`) opens no span and no log scope (#875): at 60 inputs a second per player those cost the tick several objects per packet (248 B with a scope-reading provider). The default types' handlers write `{ConnectionId}` and `{PacketType}` into their own lines (`HighRatePacketLog`); a type added to the list loses its handlers' log scope with nothing in its place. Every other packet opens its span and a log scope with `PacketType`, `ConnectionId`, `AccountId` and `CharacterId`.
