@@ -25,13 +25,16 @@ public static class WorldStartup
     {
         host.Services.GetRequiredService<IStartupValidator>().Validate();
 
-        // Every server packet's scratch reset is compiled here, before the port opens, and never on the tick (#875).
-        PacketEncoder.PrepareServerPackets();
-
         // The packet reader is built here, and with it the decoder of every packet this server reads (#897): a
         // contract that cannot be decoded stops the start, and no decoder is built on a connection's read loop. Left
-        // to the container it was built by the first connection accepted.
+        // to the container it was built by the first connection accepted. First of the two: it sets the depth limit
+        // of the process's one protobuf model (PacketReader.MaxDecodeDepth), so nothing is built before the limit is.
         _ = host.Services.GetRequiredService<IPacketReader>();
+
+        // Every server packet is prepared here, before the port opens: its scratch reset is compiled (#875) and its
+        // serializer built (#883), so neither is left to the first packet of the type, which a world sends on the
+        // tick. A packet that cannot be encoded stops the start.
+        PacketEncoder.PrepareServerPackets();
 
         ILogger logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(Program));
         await using AsyncServiceScope scope = host.Services.CreateAsyncScope();

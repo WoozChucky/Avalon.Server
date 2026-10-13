@@ -21,6 +21,10 @@ public sealed class PacketEncoder(PayloadSegmentPool pool)
     [ThreadStatic] private static MemoryStream? t_stream;
 #pragma warning restore IDE1006
 
+    private static readonly MethodInfo s_writeSample = typeof(PacketEncoder)
+        .GetMethod(nameof(WriteSample), BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException($"Could not reflect {nameof(PacketEncoder)}.{nameof(WriteSample)}.");
+
     /// <summary>The encoder every server packet uses, over <see cref="PayloadSegmentPool.Shared" />.</summary>
     public static PacketEncoder Shared { get; } = new(PayloadSegmentPool.Shared);
 
@@ -74,14 +78,16 @@ public sealed class PacketEncoder(PayloadSegmentPool pool)
     }
 
     /// <summary>
-    /// Builds the reset of every server packet's scratch message (#875): a <see cref="Packet" /> with a public static
-    /// method returning an <see cref="OutboundPacket" />. Run once at startup, before the port opens, so that no reset
-    /// is compiled on the tick and a message with a member its reset cannot clear refuses to start.
+    /// Prepares every server packet (<see cref="PrepareServerPacket" />): a <see cref="Packet" /> with a public static
+    /// method returning an <see cref="OutboundPacket" />. Run once at startup, off the tick and before the port opens,
+    /// so that nothing a send needs is built by the first packet of its type, which on a world is on the tick, and a
+    /// packet that could never be sent refuses to start.
     /// </summary>
     /// <returns>The number of message types prepared.</returns>
     public static int PrepareServerPackets()
     {
         int prepared = 0;
+        using var sink = new MemoryStream(4096);
         foreach (Type type in typeof(Packet).Assembly.GetTypes())
         {
             if (!type.IsSubclassOf(typeof(Packet)) || type.IsAbstract || type.GetConstructor(Type.EmptyTypes) is null
@@ -90,20 +96,78 @@ public sealed class PacketEncoder(PayloadSegmentPool pool)
                 continue;
             }
 
-            try
-            {
-                RuntimeHelpers.RunClassConstructor(typeof(ScratchOf<>).MakeGenericType(type).TypeHandle);
-            }
-            catch (TypeInitializationException e) when (e.InnerException is not null)
-            {
-                ExceptionDispatchInfo.Capture(e.InnerException).Throw();
-            }
-
+            Prepare(type, sink);
             prepared++;
         }
 
         return prepared;
     }
+
+    /// <summary>
+    /// Prepares one message type to be sent: the reset of its scratch message (#875), and its protobuf serializer
+    /// (#883), with those of the messages inside it.
+    /// </summary>
+    /// <remarks>
+    /// protobuf-net builds a type's serializer on its first use, and the runtime compiles it as it first runs: a
+    /// millisecond or two for a packet, and up to some thirty for one that nests several messages, which was paid by
+    /// the first packet of each type a server sent. Here the type is written once, into a stream of its own, as a
+    /// message with something in every member (<see cref="SampleMessage" />), so all of it is built before any packet
+    /// is sent. The model's depth limit (<c>PacketReader.MaxDecodeDepth</c>) need not be set first: protobuf-net reads
+    /// it as it writes and reads, not as it builds, so a serializer built before it is set is bound by it all the same
+    /// (measured: a type built and used at the default depth is refused past the limit once the limit is set).
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// The type's scratch cannot be reset, protobuf-net cannot build its contract or that of a message inside it, or
+    /// a member is of a shape <see cref="SampleMessage" /> has no value for: a defect of the server, which then does
+    /// not start. Left to the first send, a contract that cannot be built fails every send of the type, on the tick.
+    /// </exception>
+    public static void PrepareServerPacket(Type type)
+    {
+        if (type is null)
+            throw new ArgumentNullException(nameof(type));
+
+        using var sink = new MemoryStream();
+        Prepare(type, sink);
+    }
+
+    private static void Prepare(Type type, MemoryStream sink)
+    {
+        try
+        {
+            RuntimeHelpers.RunClassConstructor(typeof(ScratchOf<>).MakeGenericType(type).TypeHandle);
+        }
+        catch (TypeInitializationException e) when (e.InnerException is not null)
+        {
+            ExceptionDispatchInfo.Capture(e.InnerException).Throw();
+        }
+
+        object sample;
+        try
+        {
+            sample = SampleMessage.Of(type);
+        }
+        catch (NotSupportedException e)
+        {
+            throw new InvalidOperationException($"Packet type {type.FullName} cannot be prepared: {e.Message}", e);
+        }
+
+        try
+        {
+            sink.SetLength(0);
+            s_writeSample.MakeGenericMethod(type).Invoke(null, [sink, sample]);
+        }
+        catch (Exception e)
+        {
+            throw new InvalidOperationException(
+                $"Packet type {type.FullName} cannot be encoded: protobuf-net could not build its contract, or that of "
+                + "a message inside it. A server does not start with a packet it could never send.",
+                e is TargetInvocationException { InnerException: { } inner } ? inner : e);
+        }
+    }
+
+    /// <summary>The write <see cref="Encode{T}" /> makes, so what it needs for a <typeparamref name="T" /> is what is built.</summary>
+    private static void WriteSample<T>(MemoryStream sink, object sample) where T : class =>
+        Serializer.Serialize(sink, (T)sample);
 
     /// <summary>The thread's scratch of <typeparamref name="T" />, and its reset, where <see cref="Encode{T}" /> can see them.</summary>
     private static class ScratchSlot<T> where T : class
