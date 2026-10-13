@@ -284,10 +284,11 @@ public class AuraApplyShould
 
     /// <summary>
     /// The removal paths copy the auras they end into lists the system keeps (#883): the owner's cancel, the removal on
-    /// death and the removal on a creature's reset allocate nothing for auras with no script and no stat modifier.
+    /// death and the removal on a creature's reset allocate nothing for auras with no script and no stat modifier. Nor
+    /// does an application that is refused: an ability's aura on a corpse costs nothing before its refusal.
     /// </summary>
     [Fact]
-    public void End_auras_on_cancel_death_and_reset_without_allocating()
+    public void Refuse_and_end_auras_without_allocating()
     {
         CharacterEntity healer = _h.Player(909_120);
         var cancelling = new CharacterEntity[3];
@@ -306,14 +307,21 @@ public class AuraApplyShould
             }
         }
 
+        Creature corpse = _h.Creature(909_950);
+        corpse.CurrentHealth = 0;
+        AuraTemplate bleed = AuraTestData.Bleed();
+        var fromAnAbility = new AuraSource(new AbilityId(203), 1f, 0f, 0u, AbilityAffects.Hostile);
+
         // The first unit of each path is its warm-up: the system's lists take their size there.
         var renew = new AuraId(904);
         uint key = cancelling[2].Auras.All[0].Key;
+        _h.Auras.Apply(healer, corpse, bleed, fromAnAbility);
         _h.Auras.Cancel(cancelling[0], renew);
         _h.Auras.RemoveAll(dying[0], AuraRemoveReason.Death);
         _h.Auras.RemoveHarmful(resetting[0], AuraRemoveReason.Reset);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
+        AuraApplyResult refused = _h.Auras.Apply(healer, corpse, bleed, fromAnAbility);
         AuraCancelResult first = _h.Auras.Cancel(cancelling[1], renew);
         AuraCancelResult second = _h.Auras.Cancel(cancelling[2], renew, key);
         _h.Auras.RemoveAll(dying[1], AuraRemoveReason.Death);
@@ -323,6 +331,7 @@ public class AuraApplyShould
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.Equal(0, allocated);
+        Assert.Equal(AuraApplyResult.Refused, refused);
         Assert.Equal((AuraCancelResult.Ok, AuraCancelResult.Ok), (first, second));
         Assert.All(cancelling, character => Assert.Equal(0, character.Auras.Count));
         Assert.All(dying.Concat(resetting), creature => Assert.Equal(0, creature.Auras.Count));

@@ -119,7 +119,9 @@ public sealed class AuraSystem
     /// </summary>
     public AuraApplyResult Apply(IUnit? caster, IUnit target, AuraTemplate template, AuraSource source)
     {
-        if (source.Affects is { } affects && AuraRules.LinkProblem(affects, template.Id, _ => template) is { } misfit)
+        // The fit alone: the row is in hand, and a lookup delegate over it cost every application a closure, made on
+        // entry and so before any refusal, and a delegate with it for an ability's aura.
+        if (source.Affects is { } affects && AuraRules.FitProblem(affects, template) is { } misfit)
         {
             if (ShouldLogRefusal("misfit", template.Id.Value))
                 _logger.LogWarning("Ability {AbilityId} applies no aura: {Problem}", source.AbilityId?.Value, misfit);
