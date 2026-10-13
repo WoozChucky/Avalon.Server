@@ -2502,17 +2502,17 @@ Release and reported in Debug (#890):
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
-  since server packets are built in per-thread messages; the file was last regenerated at `30217003`, for `forest-combat`), so the 256 B
+  since server packets are built in per-thread messages; the file was last regenerated at `8f21757d`, for `forest-combat`), so the 256 B
   floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
   per window).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the one figure above 0 (10,396 B per window since #890 and #883 took a kill's lists, closures
+  `forest-combat` is the one figure above 0 (10,385 B per window since #890 and #883 took a kill's lists, closures
   and delegates off the heap), and at that size the 256 B floor decides for it too (1% is 104 B): it fails above
-  10,652 B, a little over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. It reads the
-  same in the gate alone and in a whole World suite run. Its Debug run reads the committed figure too, 10,396 B, and
+  10,641 B, a little over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. It reads the
+  same in the gate alone and in a whole World suite run. Its Debug run reads the committed figure too, 10,385 B, and
   so does a Release run with dynamic PGO off ([the kill path](#results--the-kill-path-890-883-2026-10-13)): nothing
   on the fight's path is kept off the heap only by optimised code any more. Before that a Debug build read 237 B per
   window above the committed 11,543 B (objects on the kill path and in the creature scripts), 19 B less than the
@@ -2666,7 +2666,7 @@ no character reaches level 2. `ForestCombatScenarioShould` runs the scenario twi
 same kills and the same bytes per window; the second run's creatures carry higher ids (the process-wide object id
 counter), which changes neither.
 
-**Gate.** Committed at **10,396 B per window** (14.4 B per player per tick, 173 B per tick), a hard gate like the town
+**Gate.** Committed at **10,385 B per window** (14.4 B per player per tick, 173 B per tick), a hard gate like the town
 scenarios: see [The allocation gate](#the-allocation-gate) for the floor. Recorded on the developer machine, Release,
 dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)), #888
 took the send path off the tick thread's bill, #875 encoded each broadcast once
@@ -2680,10 +2680,10 @@ delegates with them ([the kill path](#results--the-kill-path-890-883-2026-10-13)
 15,635, two runner runs, the second the one that wrote it, three runs of the Release gate alone and three of the whole
 World suite in Release, the two-run check in each of those, all on the developer machine; at 11,543, two runner
 runs, the second the one that wrote it, three runs of the Release gate alone and one of the whole World suite in
-Release, on the developer machine; at 10,396, two runner runs, the second the one that wrote it, four runs of the
-Release gate alone, four of the Debug gate alone, three of the Release gate with dynamic PGO off, and one of the
+Release, on the developer machine; at 10,385, two runner runs, the second the one that wrote it, three runs of the
+Release gate alone, three of the Debug gate alone, two of the Release gate with dynamic PGO off, and one of the
 whole World suite in each of Release and Debug, on the developer machine. No Linux run was made at 15,635, at 11,543
-or at 10,396: CI decides on Linux, and its figure is to be read from the first CI run's "Scenario allocation gate"
+or at 10,385: CI decides on Linux, and its figure is to be read from the first CI run's "Scenario allocation gate"
 summary.
 
 | `forest-combat`, bytes per window | |
@@ -2694,9 +2694,9 @@ summary.
 | After shared broadcasts (#875, PGO on) | 16,244 |
 | After the melee slots' release (#890, PGO on) | 15,635 |
 | After the cast path (#925, #883, PGO on) | 11,543 |
-| After the kill path (#890, #883, PGO on), now | 10,396 |
-| Release with PGO off, now | 10,396 |
-| Debug, now | 10,396 |
+| After the kill path (#890, #883, PGO on), now | 10,385 |
+| Release with PGO off, now | 10,385 |
+| Debug, now | 10,385 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
@@ -2743,7 +2743,7 @@ The per-cast script construction was the next thing to take out, and #925 took o
 window of 7,322), and the cast's log lines with it: 4,092 B per window in all, 26% of the minute
 ([the cast path](#results--the-cast-path-925-883-2026-10-13)). The "about 700 B a cast" above was the whole build,
 488 B for a circle or a cone and 584 B for a projectile, and the lines logged around it; a build is 224 B and 320 B
-now, 229,440 B of the 692,580 B the minute allocated then, 33%, and of the 623,760 B it allocates since
+now, 229,440 B of the 692,580 B the minute allocated then, 33%, and of the 623,100 B it allocates since
 [the kill path](#results--the-kill-path-890-883-2026-10-13), 37%.
 
 Before #880's fix, a sampled allocation profile of the
@@ -2788,8 +2788,9 @@ committed 11,543 B. The measured minute kills 60 creatures (parties of three) an
 | Item templates, level rows and the map template found by key (#883, row 7) | 10,407 | 10,407 | 10,407 | Nothing allocated: three walks per kill ([below](#reference-row-lookup--benchmarksreferencerowlookupbenchmarkscs-883)). |
 | A heal's threat shared out in place (#883, row 6a) | 10,407 | 10,407 | 10,407 | No healer fights in the forest; measured by its own test, below. Read together with the row above. |
 | Auras ended without a copy, a closure or a delegate (#883, row 6c) | 10,396 | 10,396 | 10,396 | The forest's few poisons: a closure for every apply, tick and removal of an aura, and a closure, a delegate and an array for each removal. |
+| An aura's fit checked without a closure (#883) | 10,385 | 10,385 | 10,385 | `AuraSystem.Apply` handed the aura's row to the link check through a lambda: a closure for every application (24 B, made on entry, so before any refusal) and a delegate with it for an ability's aura (64 B). Read together with the lookups of one row by key through `StaticData`, none of which is on the fight's path. |
 
-1,147 B per window less in Release, 9.9%, and 1,384 B less in Debug. **The three builds read the same figure**, for
+1,158 B per window less in Release, 10.0%, and 1,395 B less in Debug. **The three builds read the same figure**, for
 the first time: nothing on the fight's path is kept off the heap by optimised code alone, and nothing by the
 profile. With `DOTNET_TieredPGO=0` Release read 205 B above the committed figure before (the 273 B recorded under
 [the melee slots' release](#results--the-melee-slots-release-890-2026-10-12), less the 68 B of `CancelScriptsOf`'s
@@ -2798,13 +2799,14 @@ again at the end, as below. `ForestCombatScenarioShould` reads 71 kills on both 
 
 | `forest-combat`, bytes per window, after | The gate alone | The whole World suite |
 |---|---:|---:|
-| Release, committed | 10,396 (four runs) | 10,396 |
-| Debug | 10,396 (four runs) | 10,396 |
-| Release, `DOTNET_TieredPGO=0` | 10,396 (three runs) | not run |
+| Release, committed | 10,385 (three runs) | 10,385 |
+| Debug | 10,385 (three runs) | 10,385 |
+| Release, `DOTNET_TieredPGO=0` | 10,385 (two runs) | not run |
 
-The runner read 10,396 twice, the second run the one that wrote the file at `30217003`, and `town-idle`, `town-walk`
+The runner read 10,385 twice, the second run the one that wrote the file at `8f21757d`, and `town-idle`, `town-walk`
 and `many-instances` read 0 in every run, in both builds. In each suite run the two-run check read 71 kills and
-10,396 B twice. These are Windows figures; CI decides on Linux, where no run was made for this change: read its
+10,385 B twice. (At 10,396, before the last row, the same runs read the same: four of the gate alone in each build,
+three with PGO off, one suite run in each build and two of the runner.) These are Windows figures; CI decides on Linux, where no run was made for this change: read its
 figure from the first CI run's "Scenario allocation gate" summary. `forest-combat` is still decided in Release and
 reported in Debug ([The allocation gate](#the-allocation-gate)): that rule is the owner's (#890) and is not changed
 here, though a Debug run now reads Within with nothing to spare or to explain.
@@ -2851,6 +2853,8 @@ steps of `DropLoot`, every one of which read the same in both builds, which left
 - **Aura removals** copy the auras they end into lists the aura system keeps, one per depth: ending an aura runs its
   script's `OnRemove`, which may kill the unit and so end the rest from inside the walk. The auras end in the order
   held, and one already gone by its turn is passed over, as before.
+- **An aura's fit** is asked of `AuraRules.FitProblem`, the half of `LinkProblem` that takes the row itself;
+  `LinkProblem` ends in it, so the rule and its wording are one.
 
 **Rows 6a and 6c, which the forest does not reach** (it has no healer, and few auras), each have an allocation
 assertion, read before and after on the same test:
@@ -2858,7 +2862,8 @@ assertion, read before and after on the same test:
 | Test | Before | After |
 |---|---:|---:|
 | `CombatServiceHealShould.Share_out_heal_threat_without_allocating`: 100 heals on a character two creatures fight | 16,800 B | 0 B |
-| `AuraApplyShould.End_auras_on_cancel_death_and_reset_without_allocating`: two cancels, two removals on death and two on a reset, ten auras in all | 1,904 B | 0 B |
+| `AuraApplyShould.Refuse_and_end_auras_without_allocating`: two cancels, two removals on death and two on a reset, ten auras in all | 1,904 B | 0 B |
+| The same test: an ability's aura refused on a corpse | 88 B | 0 B |
 
 A heal cost 168 B (the query's iterator, the boxed enumerator of the set, the list and its array). An aura's removal
 cost 88 B for the closure and delegate of its `OnRemove` hook, and 32 B more for the hook's own closure, whether the
