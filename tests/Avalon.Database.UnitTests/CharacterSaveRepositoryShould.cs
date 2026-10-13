@@ -113,6 +113,40 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         Assert.Equal(refill.Id, left.Single(r => r.CharacterId == saved.Id && r.Container == InventoryType.Bag && r.Slot == 2).ItemId);
     }
 
+    /// <summary>
+    /// One statement deletes the rows of every quest a save rewrites (#883), so the quests it does not name, and
+    /// another character's rows for the quests it does, stay as they are.
+    /// </summary>
+    [Fact]
+    public async Task Rewrite_only_the_quests_named_and_only_for_that_character()
+    {
+        CharacterRow saved = await SeedCharacterAsync(1);
+        CharacterRow other = await SeedCharacterAsync(2);
+        static CharacterQuest Quest(CharacterRow row, uint id, int stage) =>
+            new() { CharacterId = row.Id, QuestId = id, State = CharacterQuestState.Active, Stage = stage, AcceptedAt = DateTime.UtcNow };
+        static CharacterQuestObjective Objective(CharacterRow row, uint quest, uint id, uint progress) =>
+            new() { CharacterId = row.Id, QuestId = quest, ObjectiveId = id, Progress = progress };
+        static CharacterSaveBatch Write(CharacterRow row, uint[] rewrite, CharacterQuest[] active, CharacterQuestObjective[] objectives) =>
+            new(row, [], [], [], [], Quests: new CharacterQuestWrite(rewrite, active, objectives, [])) { Authority = s_authority };
+        await _saves.WriteAsync(
+        [
+            Write(saved, [], [Quest(saved, 5, 0), Quest(saved, 6, 0), Quest(saved, 7, 0)],
+                [Objective(saved, 5, 51, 2), Objective(saved, 6, 61, 4), Objective(saved, 7, 71, 9)]),
+            Write(other, [], [Quest(other, 5, 0), Quest(other, 6, 0)], [Objective(other, 5, 51, 3)]),
+        ]);
+
+        // Quest 5 moves on a stage, and quest 6 is abandoned.
+        await _saves.WriteAsync([Write(saved, [5, 6], [Quest(saved, 5, 1)], [Objective(saved, 5, 52, 1)])]);
+
+        await using CharacterDbContext read = _database.CreateDbContext();
+        (uint Owner, uint Quest, int Stage)[] quests = [(1, 5, 1), (1, 7, 0), (2, 5, 0), (2, 6, 0)];
+        (uint Owner, uint Quest, uint Objective, uint Progress)[] objectives = [(1, 5, 52, 1), (1, 7, 71, 9), (2, 5, 51, 3)];
+        Assert.Equal(quests, (await read.CharacterQuests.AsNoTracking().ToListAsync())
+            .Select(q => (q.CharacterId.Value, q.QuestId, q.Stage)).Order());
+        Assert.Equal(objectives, (await read.CharacterQuestObjectives.AsNoTracking().ToListAsync())
+            .Select(o => (o.CharacterId.Value, o.QuestId, o.ObjectiveId, o.Progress)).Order());
+    }
+
     [Fact]
     public async Task Commit_every_batch_or_none()
     {

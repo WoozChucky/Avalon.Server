@@ -81,17 +81,16 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
                 if (batch.DeleteSlots.Count > 0)
                     await DeleteSlotsAsync(context, owner, batch.DeleteSlots, token);
 
-                if (batch.Quests is { } quests)
+                if (batch.Quests is { Rewrite.Count: > 0 } quests)
                 {
-                    foreach (uint questId in quests.Rewrite)
-                    {
-                        await context.CharacterQuestObjectives
-                            .Where(o => o.CharacterId == owner && o.QuestId == questId)
-                            .ExecuteDeleteAsync(token);
-                        await context.CharacterQuests
-                            .Where(q => q.CharacterId == owner && q.QuestId == questId)
-                            .ExecuteDeleteAsync(token);
-                    }
+                    // Two statements per batch, not two per rewritten quest (#883): the objectives, then the quests.
+                    var rewrite = quests.Rewrite.ToList();
+                    await context.CharacterQuestObjectives
+                        .Where(o => o.CharacterId == owner && rewrite.Contains(o.QuestId))
+                        .ExecuteDeleteAsync(token);
+                    await context.CharacterQuests
+                        .Where(q => q.CharacterId == owner && rewrite.Contains(q.QuestId))
+                        .ExecuteDeleteAsync(token);
                 }
 
                 if (batch.Ignores is { } ignores)
