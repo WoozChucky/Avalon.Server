@@ -21,10 +21,24 @@ namespace Avalon.Hosting.Networking;
 /// tick's packets, and neither grows on the tick. The next write sends the next buffer. Only the owner seals and frames,
 /// and its writes are sequential, so the nonce order is still the wire order.
 /// <para>
+/// A burst buffer doubles as it fills and keeps its size when it is emptied, and what it can be asked to hold is what
+/// <c>Network:MaxPendingBytes</c> lets a connection queue: 512 KiB of payload, which framed is up to 1 MiB of buffer
+/// with the world sending plain and 2 MiB with it sealing (each frame adds 10 to 16 bytes, and a seal 28 more, to a
+/// payload of some twenty). A peer that stops reading for a few seconds grows one buffer to that, and a second stall
+/// the other: 2 to 4 MiB a connection, kept for its life (#883). So a buffer above <see cref="BurstTrimThreshold" />
+/// is given back for a small one once the connection has outgrown it for <see cref="BurstTrimDelay" />: a watch
+/// begins at the first visit that finds a buffer that large with nothing framed ahead and no write in flight, and the
+/// first such visit after the delay gives back each large buffer that no burst written during the watch filled more
+/// than a quarter of (<see cref="WatchGrownBursts" />). A buffer some burst did fill that far stays, and a new watch
+/// begins. So what a peer can make the server give back and rent again, by stalling and catching up, is a
+/// connection's two buffers once per delay, however fast it does it; a connection whose stalls come more often than
+/// the delay keeps its buffers, and one whose large bursts go on keeps the buffer they fill.
+/// </para>
+/// <para>
 /// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the next buffer and its counts, the swap of the two
 /// buffers (only while no write is in flight), <c>_finishedFlag</c>, <c>_doomHandled</c>, <c>_noticeWritten</c>,
-/// <c>_pingPending</c> and <c>_pingStampNext</c>. Every other field is read and written with <see cref="Interlocked" /> or
-/// <see cref="Volatile" />.
+/// <c>_pingPending</c>, <c>_pingStampNext</c>, <c>_burstWatch</c> and <c>_burstWatchStarted</c>. Every other field is read
+/// and written with <see cref="Interlocked" /> or <see cref="Volatile" />.
 /// </para>
 /// <para>
 /// The stamps of the pings written and not yet answered (#892) are kept in a ring of
@@ -76,6 +90,25 @@ public sealed class ConnectionSender : IOutbox
     /// </summary>
     public const int PingStampCapacity = 4;
 
+    /// <summary>
+    /// A burst buffer larger than this is given back once its connection no longer fills a quarter of it (#883).
+    /// 64 KiB: the largest size a buffer grows to that is still under the 85,000 bytes from which an array is allocated
+    /// on the large object heap, so a buffer that is kept is never there, and some sixty times what a connection had
+    /// pending at the 99th percentile of the capacity ramps (about 1 KiB, docs/benchmarks.md).
+    /// </summary>
+    public const int BurstTrimThreshold = 64 * 1024;
+
+    /// <summary>
+    /// How long a connection must go without filling a quarter of a burst buffer above
+    /// <see cref="BurstTrimThreshold" /> before the buffer is given back (#883), and so the least time between two
+    /// give-backs of one connection, whatever its peer does. Half a minute: three times the longest a stalled write is
+    /// let live (<c>Network:MaxWriteStall</c>, 10 s by default), so a connection whose stalls recur keeps what they
+    /// need, and three ping periods, so even a connection that is sent nothing else is visited within it. Given back
+    /// at once, a peer that stalled and caught up in a loop had the server rent a megabyte or two for it on every
+    /// turn, past what the array pool keeps.
+    /// </summary>
+    public static readonly TimeSpan BurstTrimDelay = TimeSpan.FromSeconds(30);
+
     // The time-sync ping's place in the queue: no payload, since the owner encodes the ping as it writes it.
     private static readonly OutboundPacket s_pingMarker = new(
         new NetworkPacketHeader { Type = NetworkPacketType.SMSG_PING, Protocol = NetworkProtocol.Tcp }, payload: null);
@@ -112,12 +145,14 @@ public sealed class ConnectionSender : IOutbox
     private long _pingClientTicks;
     private long _pingRoundTrip;
     private long _pingOffset;
+    private long _burstWatchStarted; // owner thread only: when the watch over a grown burst buffer began
     private PingRecord _pings; // the stamps and the pong credits: see the remarks for who writes each and where it lies
     private int _pingStampNext; // owner thread only: the place the next stamp goes, the oldest
     private bool _finishedFlag;
     private bool _doomHandled; // owner thread only
     private bool _noticeWritten; // owner thread only: a disconnect notice went out, so no ping follows it
     private bool _pingPending; // owner thread only: a ping's marker was drained; the ping is stamped as its burst leaves
+    private bool _burstWatch; // owner thread only: a burst buffer is above the threshold and its use is being watched
 
     internal ConnectionSender(NetworkSendScheduler scheduler, int ownerThread, Guid connectionId, ILogger logger,
         IAvalonCryptoSession? sealer, PacketEncoder encoder, Action close, TimeProvider time, long maxPendingBytes,
@@ -151,6 +186,12 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>True once the connection was found too slow; it is closing.</summary>
     public bool IsDoomed => Volatile.Read(ref _doomed) != 0;
+
+    /// <summary>
+    /// The bytes of burst buffer this connection holds: the one being written and the next. Exact on the owner thread;
+    /// from another it may read a buffer the owner is swapping or trimming, and is then a pass old.
+    /// </summary>
+    public int BurstCapacity => _burst.Capacity + _next.Capacity;
 
     internal bool IsWriteInFlight => Volatile.Read(ref _writeInFlight) != 0;
 
@@ -221,6 +262,13 @@ public sealed class ConnectionSender : IOutbox
     /// </summary>
     public void EnqueuePing(long clientTicks, long roundTrip, long offset)
     {
+        // Three writes, not one publish, so the three can be torn: the owner may stamp a ping between them and send
+        // one value of this call with two of the call before it. That is harmless only because nothing on the server
+        // reads them back. They are told to the client, which is told the right ones with the next ping, and the round
+        // trip the server keeps is measured from its own stamps (TryTakePingStamp), never from these. If the server
+        // ever reads them, or a client must be able to rely on the three belonging together, they have to be
+        // published as one: under a version the owner re-reads until it is unchanged and even, or as one immutable
+        // object swapped in, which costs an allocation per ping. Neither is cheaper than this, so neither is done.
         Volatile.Write(ref _pingClientTicks, clientTicks);
         Volatile.Write(ref _pingRoundTrip, roundTrip);
         Volatile.Write(ref _pingOffset, offset);
@@ -373,6 +421,9 @@ public sealed class ConnectionSender : IOutbox
         if (_next.Written == 0)
         {
             (_burst, _next) = (_next, _burst);
+            // No write reads either buffer here. Two compares while both are small; nothing else then, and no clock.
+            if (_burst.Capacity > BurstTrimThreshold || _next.Capacity > BurstTrimThreshold)
+                WatchGrownBursts();
             _next.Reset();
         }
 
@@ -491,6 +542,58 @@ public sealed class ConnectionSender : IOutbox
         }
     }
 
+    /// <summary>
+    /// Owner thread, no write in flight and nothing framed ahead, a burst buffer above
+    /// <see cref="BurstTrimThreshold" /> (#883). The first such visit begins a watch; the first one
+    /// <see cref="BurstTrimDelay" /> or more later ends it, gives back to the array pool each large buffer that no
+    /// burst written during the watch filled more than a quarter of, and begins another if a large buffer is left.
+    /// </summary>
+    /// <remarks>
+    /// What a buffer was used for is the largest burst written from it during the watch
+    /// (<see cref="PooledArrayBufferWriter.PeakWritten" />, counted as each write starts), not what it holds at the
+    /// visit: a buffer is emptied before it is looked at whenever a write went pending, whatever it carried, and a
+    /// buffer nothing was written from all watch long reads zero, which is the buffer a stall grew and nothing
+    /// needs since. The delay is what bounds a peer: it decides when its writes go pending and when it catches up,
+    /// so a buffer given back as soon as it looked idle was one the peer could have the server rent again on every
+    /// burst. A connection that stalls again inside the watch writes a large burst from the buffer and keeps it.
+    /// </remarks>
+    private void WatchGrownBursts()
+    {
+        // A clock read of its own, though the same visit reads the clock again as it starts its write (StartWrite, for
+        // the stall clock). The two are not one instant: between them the visit seals and frames what is queued. One
+        // timestamp for both would start a write's stall clock before the write, by the framing of up to a cap's worth
+        // of packets, or move this check behind the framing, when the buffer just framed into can no longer be given
+        // back. So a watched connection reads the clock twice per burst, and only while a buffer is above the
+        // threshold.
+        long now = _time.GetTimestamp();
+        if (!_burstWatch)
+        {
+            // What was written before the watch does not count: the burst that grew the buffer came before it.
+            _burstWatch = true;
+            _burstWatchStarted = now;
+            _burst.ClearPeak();
+            _next.ClearPeak();
+            return;
+        }
+
+        if (_time.GetElapsedTime(_burstWatchStarted, now) < BurstTrimDelay)
+            return;
+
+        TrimIfOutgrown(_burst);
+        TrimIfOutgrown(_next);
+        _burst.ClearPeak();
+        _next.ClearPeak();
+        _burstWatchStarted = now;
+        _burstWatch = _burst.Capacity > BurstTrimThreshold || _next.Capacity > BurstTrimThreshold;
+    }
+
+    private static void TrimIfOutgrown(PooledArrayBufferWriter burst)
+    {
+        int capacity = burst.Capacity;
+        if (capacity > BurstTrimThreshold && burst.PeakWritten <= capacity / 4)
+            burst.Trim();
+    }
+
     /// <summary>Owner thread: the next burst, never to be written, is dropped and its payload bytes stop counting.</summary>
     private void DiscardNext()
     {
@@ -561,6 +664,8 @@ public sealed class ConnectionSender : IOutbox
     {
         (_burst, _next) = (_next, _burst);
         _next.Reset();
+        // What this buffer is used for, should it be watched as outgrown: one compare of two of its own fields.
+        _burst.NotePeak();
         _burstPayloadBytes = _nextPayloadBytes;
         _scheduler.CountWrite(this, _nextPackets, _burst.Written);
         _nextPayloadBytes = 0;

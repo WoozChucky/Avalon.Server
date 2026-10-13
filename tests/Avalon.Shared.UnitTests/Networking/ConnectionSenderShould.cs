@@ -109,6 +109,158 @@ public sealed class ConnectionSenderShould
     }
 
     /// <summary>
+    /// While a write is pending the owner frames what is queued into the other burst buffer, over as many visits as
+    /// it takes, and what is queued when the write ends goes behind it. Every packet reaches the wire once, in the
+    /// order it was sent, across the burst in flight, the one framed ahead of it and the one after. The bytes are
+    /// read when each write ends, as a socket reads them, so a burst framed over the one in flight would show.
+    /// </summary>
+    [Fact]
+    public async Task Write_what_is_framed_ahead_of_a_pending_write_in_the_order_it_was_sent()
+    {
+        NetworkSendScheduler scheduler = Scheduler();
+        var stalled = new PendingStream();
+        ConnectionSender sender = Open(scheduler, stalled);
+        int owner = sender.OwnerThread;
+
+        sender.Enqueue(Numbered(1));
+        scheduler.RunPass(owner);     // 1 goes out, and its write stays pending
+        sender.Enqueue(Numbered(2));
+        sender.Enqueue(Numbered(3));
+        scheduler.RunPass(owner);     // framed ahead
+        sender.Enqueue(Numbered(4));
+        scheduler.RunPass(owner);     // framed ahead on a second visit, behind them
+        Assert.Equal(1, stalled.Writes);
+        sender.Enqueue(Numbered(5));  // still queued when the write ends
+        stalled.Complete();
+        PassUntil(scheduler, owner, () => stalled.Writes == 2);
+        sender.Enqueue(Numbered(6));
+        scheduler.RunPass(owner);     // framed ahead in its turn, into the buffer the first write used
+        stalled.Complete();
+        PassUntil(scheduler, owner, () => stalled.Writes == 3);
+        stalled.Complete();
+
+        Assert.Equal([1L, 2, 3, 4, 5, 6], (await Frames(stalled.ReadAtCompletion.ToArray()))
+            .Select(frame => Serializer.Deserialize<SPingPacket>(frame.Payload.AsSpan()).ClientTimestamp));
+        await CloseAsync(scheduler, sender);
+        Assert.Equal(0, _pool.Outstanding);
+    }
+
+    /// <summary>
+    /// A stall makes a connection frame ahead, and the burst buffer that holds it grows with what is queued, up to what
+    /// <c>Network:MaxPendingBytes</c> allows; the next grows the other. They were kept for the connection's life
+    /// (#883). A grown buffer is given back once the connection has gone <see cref="ConnectionSender.BurstTrimDelay" />
+    /// without writing a burst that fills a quarter of it, and not before: a peer decides when its connection stalls
+    /// and catches up, so a buffer given back as soon as it looked idle is one the peer has the server rent again in
+    /// a loop. So a second stall inside the delay finds both buffers still there, the delay's end keeps them because
+    /// they were filled within it, though the last burst before it was a small one (what counts is the largest burst
+    /// of the delay, not the last), and only a quiet delay gives them back. And never while a write still reads one,
+    /// or while a burst is framed ahead: when the delay ends during a pending write, the visits that frame ahead and
+    /// that start the next write leave both buffers alone, and the first visit that finds both idle gives them back.
+    /// A buffer given back in flight is rented again by the burst framed ahead of it, which would be written over the
+    /// bytes still going out, so every packet carries its number and all must arrive, once and in order.
+    /// </summary>
+    [Fact]
+    public async Task Give_back_a_grown_burst_buffer_only_after_a_delay_in_which_no_burst_filled_it()
+    {
+        const int Batch = 60; // 60 packets of 4 KiB: a burst of some 246 KiB, in a buffer grown to 256 KiB
+        NetworkSendScheduler scheduler = Scheduler();
+        var stalled = new PendingStream();
+        ConnectionSender sender = Open(scheduler, stalled);
+        int owner = sender.OwnerThread;
+        int asNew = sender.BurstCapacity;
+        int sent = 0;
+        Assert.True(asNew < ConnectionSender.BurstTrimThreshold);
+
+        Stall();
+        int grown = sender.BurstCapacity;
+        Assert.True(grown > 2 * Batch * 4_096);
+
+        Small(); // caught up: from here the two buffers are watched
+        Assert.Equal(grown, sender.BurstCapacity);
+        _time.Advance(TimeSpan.FromSeconds(10));
+        Stall(); // inside the delay: nothing was given back, so nothing is rented again
+        Assert.Equal(grown, sender.BurstCapacity);
+        Small(); // a small burst after the large ones: the last of the delay, not its largest
+        _time.Advance(TimeSpan.FromSeconds(21));
+        Small(); // the delay is over, and both buffers were filled within it: they stay
+        Assert.Equal(grown, sender.BurstCapacity);
+        _time.Advance(TimeSpan.FromSeconds(29));
+        Write(100); // small bursts since, but not yet for the delay; this one's write stays pending
+        Assert.Equal(grown, sender.BurstCapacity);
+        _time.Advance(TimeSpan.FromSeconds(2));
+        sender.Enqueue(Marked(sent++, 100));
+        scheduler.RunPass(owner); // the delay ends on a visit that frames ahead of a pending write: nothing is idle
+        Assert.Equal(grown, sender.BurstCapacity);
+        EndWrite(startsAnother: true); // nor on the visit that starts the burst framed ahead
+        Assert.Equal(grown, sender.BurstCapacity);
+        EndWrite(startsAnother: false);
+        Small(); // the first visit that finds both idle, after a whole delay of small bursts: both go back
+        Assert.Equal(asNew, sender.BurstCapacity);
+
+        Assert.Equal(Enumerable.Range(0, sent), (await Frames(stalled.ReadAtCompletion.ToArray()))
+            .Select(frame => BitConverter.ToInt32(frame.Payload, 0)));
+        await CloseAsync(scheduler, sender);
+        Assert.Equal(0, _pool.Outstanding);
+
+        // The peer stops reading: one buffer grows with what is framed ahead, then the other while the first is
+        // still being written. Then it reads everything.
+        void Stall()
+        {
+            Write(100);
+            FrameAhead();
+            EndWrite(startsAnother: true);
+            FrameAhead();
+            EndWrite(startsAnother: true);
+            EndWrite(startsAnother: false);
+        }
+
+        void Small()
+        {
+            Write(100);
+            EndWrite(startsAnother: false);
+        }
+
+        // With no write in flight: one packet, whose write starts and stays pending.
+        void Write(int length)
+        {
+            int writes = stalled.Writes;
+            sender.Enqueue(Marked(sent++, length));
+            PassUntil(scheduler, owner, () => stalled.Writes > writes);
+        }
+
+        // With a write pending: a batch framed into the other buffer.
+        void FrameAhead()
+        {
+            for (int packet = 0; packet < Batch; packet++)
+                sender.Enqueue(Marked(sent++, 4_096));
+            scheduler.RunPass(owner);
+        }
+
+        // The pending write ends, and the owner's next visit starts the burst framed ahead. The end runs here, inside
+        // Complete, and not on the thread pool as under the test's synchronization context: what this case asserts is
+        // which visit gives a buffer back, so a write still ending on another thread while the next burst is sent
+        // would make that visit the one after.
+        void EndWrite(bool startsAnother)
+        {
+            int writes = stalled.Writes;
+            long pendingBefore = sender.PendingBytes;
+            SynchronizationContext? context = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(null);
+            try
+            {
+                stalled.Complete();
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(context);
+            }
+
+            Assert.True(sender.PendingBytes < pendingBefore, "The write's end did not run inside Complete");
+            PassUntil(scheduler, owner, () => startsAnother ? stalled.Writes > writes : sender.PendingBytes == 0);
+        }
+    }
+
+    /// <summary>
     /// A packet the session cannot seal (one that never completed its exchange, or spent its counter): the burst it was
     /// in is discarded, nothing of it reaches the wire, and the connection closes, refusing what is sent after.
     /// </summary>
@@ -137,6 +289,59 @@ public sealed class ConnectionSenderShould
         Assert.Equal(0, sender.PendingBytes);
         Assert.False(sender.Enqueue(Numbered(3)));
         await CloseAsync(scheduler, sender);
+        Assert.Equal(0, _pool.Outstanding);
+    }
+
+    /// <summary>
+    /// The same failure while a write is pending: what was framed ahead goes with the packet that could not be sealed
+    /// and is never written, whether the pending write then ends well or fails; the bytes still held are the burst in
+    /// flight; and the connection is closed once, though the write its close breaks fails after the seal did.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Write_nothing_framed_ahead_and_close_once_when_a_packet_cannot_be_sealed_while_a_write_is_pending(
+        bool pendingWriteFails)
+    {
+        NetworkSendScheduler scheduler = Scheduler();
+        var stalled = new PendingStream();
+        int closes = 0;
+        ConnectionSender sender = scheduler.CreateSender(Guid.NewGuid(), NullLogger.Instance, new RefusingSealer(),
+            () => Interlocked.Increment(ref closes));
+        sender.Connect(new PacketStream(stalled));
+        int owner = sender.OwnerThread;
+        var sealedHeader = new NetworkPacketHeader
+        {
+            Type = NetworkPacketType.SMSG_WORLD_STATE_UPDATE,
+            Flags = NetworkPacketFlags.Encrypted,
+            Protocol = NetworkProtocol.Tcp,
+        };
+
+        OutboundPacket first = Numbered(1);
+        int inFlight = first.PayloadLength;
+        sender.Enqueue(first);
+        scheduler.RunPass(owner);     // its write stays pending
+        sender.Enqueue(Numbered(2));
+        scheduler.RunPass(owner);     // framed ahead
+        sender.Enqueue(new OutboundPacket(sealedHeader, _pool.Rent(new byte[10])));
+        sender.Enqueue(Numbered(3));
+        scheduler.RunPass(owner);     // the seal fails
+
+        Assert.Equal(1, Volatile.Read(ref closes));
+        Assert.Equal(inFlight, sender.PendingBytes);
+        Assert.False(sender.Enqueue(Numbered(4)));
+
+        if (pendingWriteFails)
+            stalled.Fail(new IOException("the socket closed under the write"));
+        else
+            stalled.Complete();
+        PassUntil(scheduler, owner, () => sender.PendingBytes == 0);
+        await CloseAsync(scheduler, sender);
+
+        Assert.Equal(1, Volatile.Read(ref closes));
+        Assert.Equal(1, stalled.Writes);
+        (NetworkPacketHeader _, byte[] payload) = Assert.Single(await Frames(stalled.Written.ToArray()));
+        Assert.Equal(1, Serializer.Deserialize<SPingPacket>(payload.AsSpan()).ClientTimestamp);
         Assert.Equal(0, _pool.Outstanding);
     }
 
@@ -173,7 +378,8 @@ public sealed class ConnectionSenderShould
     /// left behind a dirty flag cleared at the wrong moment: the writers stop together at the end of each round, and
     /// everything they queued must go out with no further send (the tick's signals and the threads' timed wakes only
     /// drain the dirty lists, which a stranded connection is not on). Every third write ends asynchronously, as a socket
-    /// with a full buffer does, so the end of a pending write races the sends too.
+    /// with a full buffer does, so the end of a pending write races the sends too, and what is sent meanwhile is framed
+    /// ahead: each writer's packets must still reach the wire in the order it sent them.
     /// </summary>
     [Fact]
     public async Task Deliver_every_send_from_off_the_tick_while_the_tick_signals_running_send_threads()
@@ -200,7 +406,7 @@ public sealed class ConnectionSenderShould
                 {
                     Assert.True(round.SignalAndWait(s_guard));
                     for (long seq = 1; seq <= PerRound; seq++)
-                        senders[writer % 2].Enqueue(Numbered(seq));
+                        senders[writer % 2].Enqueue(Numbered(writer * 1_000_000L + r * PerRound + seq));
                     Assert.True(round.SignalAndWait(s_guard));
                     if (writer == 0)
                     {
@@ -212,8 +418,21 @@ public sealed class ConnectionSenderShould
             await stop.CancelAsync();
             await tick.WaitAsync(s_guard);
 
-            Assert.Equal(2 * Rounds * PerRound, (await Frames(wires[0].ToArray())).Count);
-            Assert.Equal(2 * Rounds * PerRound, (await Frames(wires[1].ToArray())).Count);
+            foreach (SometimesPendingStream wire in wires)
+            {
+                var last = new Dictionary<long, long>();
+                List<(NetworkPacketHeader Header, byte[] Payload)> frames = await Frames(wire.ToArray());
+                foreach ((NetworkPacketHeader _, byte[] payload) in frames)
+                {
+                    long stamp = Serializer.Deserialize<SPingPacket>(payload.AsSpan()).ClientTimestamp;
+                    long writer = stamp / 1_000_000;
+                    Assert.Equal(last.GetValueOrDefault(writer) + 1, stamp % 1_000_000);
+                    last[writer] = stamp % 1_000_000;
+                }
+
+                Assert.Equal(2 * Rounds * PerRound, frames.Count);
+            }
+
             Assert.Equal(0, _pool.Outstanding);
         }
         finally
@@ -450,6 +669,16 @@ public sealed class ConnectionSenderShould
         new(new NetworkPacketHeader { Type = NetworkPacketType.SMSG_WORLD_STATE_UPDATE, Protocol = NetworkProtocol.Tcp },
             _pool.Rent(new byte[length]));
 
+    /// <summary>A payload of <paramref name="length" /> bytes that starts with <paramref name="number" />.</summary>
+    private OutboundPacket Marked(int number, int length)
+    {
+        byte[] payload = new byte[length];
+        BitConverter.TryWriteBytes(payload, number);
+        return new OutboundPacket(
+            new NetworkPacketHeader { Type = NetworkPacketType.SMSG_WORLD_STATE_UPDATE, Protocol = NetworkProtocol.Tcp },
+            _pool.Rent(payload));
+    }
+
     /// <summary>The frames on a wire, read as the server reads its own (#875).</summary>
     private static Task<List<(NetworkPacketHeader Header, byte[] Payload)>> Frames(byte[] wire) =>
         ReadFramesAsync(wire).WaitAsync(s_guard);
@@ -547,16 +776,30 @@ public sealed class ConnectionSenderShould
 
         public int Writes { get; private set; }
 
+        private ReadOnlyMemory<byte> _pending;
+
         /// <summary>The bytes of each write as it was handed them, as a socket copies them.</summary>
         public MemoryStream Written { get; } = new();
 
-        public void Complete() => _write.TrySetResult();
+        /// <summary>
+        /// The bytes of each write as its buffer held them when the write was ended: a socket whose buffer is full
+        /// reads the rest of a write later, so the sender must leave the burst in flight alone until then.
+        /// </summary>
+        public MemoryStream ReadAtCompletion { get; } = new();
+
+        public void Complete()
+        {
+            ReadAtCompletion.Write(_pending.Span);
+            _pending = default;
+            _write.TrySetResult();
+        }
 
         public void Fail(Exception error) => _write.TrySetException(error);
 
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             Written.Write(buffer.Span);
+            _pending = buffer;
             Writes++;
             _write = new TaskCompletionSource();
             return new ValueTask(_write.Task);

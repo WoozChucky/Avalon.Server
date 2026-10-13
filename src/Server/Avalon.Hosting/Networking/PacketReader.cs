@@ -62,7 +62,10 @@ public class PacketReader : IPacketReader
         _logger = loggerFactory.CreateLogger<PacketReader>();
         _bufferSize = options.Value.PacketReaderBufferSize;
 
-        // Before any decoder is built or used. Every reader sets the same value, so in effect it is set once.
+        // Before any decoder is built or used, and a server builds its reader before it prepares what it sends
+        // (PacketEncoder.PrepareServerPackets), so before any serializer too. Every reader sets the same value, so in
+        // effect it is set once. protobuf-net reads the limit as it reads and writes, not as it builds, so a type
+        // built before this line (by a test or a tool that encodes first) is bound by it from here on as well.
         RuntimeTypeModel.Default.MaxDepth = MaxDecodeDepth;
 
         MethodInfo buildMethod = typeof(PacketReader)
@@ -103,7 +106,8 @@ public class PacketReader : IPacketReader
     /// (<see cref="IsMalformedPayload" />). Here it stops the reader from being built, and so the server from
     /// starting, which builds its reader before it opens its port. It also moves the build of each decoder (a
     /// millisecond or two a type, and some seventy more for the first in a process) from the read loop that
-    /// received the first packet of the type to startup.
+    /// received the first packet of the type to startup. What a server sends is built the same way, by
+    /// <c>PacketEncoder.PrepareServerPackets</c> (#883).
     /// </summary>
     private static void Prepare(Type packetType, Func<ReadOnlyMemory<byte>, Packet?> deserializer)
     {
@@ -127,6 +131,7 @@ public class PacketReader : IPacketReader
             return null;
 
         byte[]? rented = null;
+        int opened = 0;
 
         try
         {
@@ -135,6 +140,9 @@ public class PacketReader : IPacketReader
             if (decrypt != null)
             {
                 rented = ArrayPool<byte>.Shared.Rent(frame.Payload.Length);
+                // Until the open has said how much it wrote: no more than it was given, and an open that fails may
+                // have written part of it first.
+                opened = frame.Payload.Length;
                 int len;
                 try
                 {
@@ -153,6 +161,7 @@ public class PacketReader : IPacketReader
                     throw new PacketReadException(PacketReadFailure.SealNotAuthentic, frame.Header.Type, e);
                 }
 
+                opened = len;
                 payload = rented.AsMemory(0, len);
             }
             else
@@ -171,7 +180,15 @@ public class PacketReader : IPacketReader
         }
         finally
         {
-            if (rented != null) ArrayPool<byte>.Shared.Return(rented);
+            if (rented != null)
+            {
+                // The opened payload is cleared before its buffer goes back to the pool: on the auth server it is a
+                // login or a registration, and the pool hands the array to whoever rents next. Nothing that rents
+                // reads before it writes, so this is a second line and not a fix. Only what was written is cleared,
+                // not the whole array: a frame is at most Hosting:MaxInboundFrameSize, and most are tens of bytes.
+                rented.AsSpan(0, opened).Clear();
+                ArrayPool<byte>.Shared.Return(rented);
+            }
         }
     }
 

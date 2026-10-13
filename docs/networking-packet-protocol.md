@@ -40,7 +40,9 @@ is the header and field 2 the payload, each length-delimited (a tag byte, a vari
 fixed length. The header is itself a protobuf message of four varint fields, and a field that is 0 is not written: the
 header of a sealed gameplay packet takes 7 bytes (3 for the opcode, 2 for `Encrypted`, 2 for `Tcp`, none for the
 version), and 5 when the same packet goes plain. `NetworkPacketHeader.Size`, a constant 10, is what the byte counters
-add for a header, not its length on the wire. A frame a peer sends is limited in length
+add for a header, not its length on the wire: the counters are approximate, exact for a small plain packet and up to
+6 bytes short for a sealed or a longer one ([instrumentation](instrumentation.md#protocol-violations)). A frame a peer
+sends is limited in length
 ([below](#the-inbound-frame-length-limit)); a frame a server sends is not.
 
 ## The inbound frame length limit
@@ -103,9 +105,11 @@ it needs a per-unit cache across that pass (#898).
 
 Nor a message object per packet. `Create` fills the calling thread's instance of its message type
 (`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that
-type. A resetter compiled once per type, at the world server's startup (`PacketEncoder.PrepareServerPackets`, before
+type. A resetter compiled once per type, at each server's startup (`PacketEncoder.PrepareServerPackets`, before
 the port opens), sets every field back to a new message's value on every take and again once the message is written,
-so no value of one packet reaches the next or stays referenced after it. A collection comes back null (protobuf-net
+so no value of one packet reaches the next or stays referenced after it. The same call builds each type's protobuf
+serializer, and those of the messages inside it, by writing the type once with something in every member (#883), so
+the first packet of a type builds nothing on the tick ([packet handlers](packet-handlers.md)). A collection comes back null (protobuf-net
 writes a null repeated field as it writes an empty one), so a factory assigns each collection it sends; a nested
 message the template creates is shared by every thread, so a factory assigns it whole and never writes into it. A
 member the reset cannot assign (a read-only field, a property without a setter) makes the type refuse to start.
@@ -334,7 +338,10 @@ in it, so a fix will turn that test red rather than pass unnoticed.
   `[Packet(HandleOn = ComponentType.Auth)]` or `ComponentType.World`: `HandleOn` is what gives that server a decoder
   for the opcode (`AddCoreServices`), and without it the read loop drops the frame and logs "Unknown packet type" (at
   Warning for the first on a connection, at Trace after that). A server decodes once with every packet it is the
-  `HandleOn` of as it starts, so a contract protobuf-net cannot build stops that server from starting (#897). The
+  `HandleOn` of as it starts, and encodes every server packet once (#883), so a contract protobuf-net cannot build
+  stops that server from starting (#897). A server packet with a member of a shape no packet has yet (anything but a
+  scalar, a string, bytes, an enum, a date, a `Guid`, a message, or a `List<>` or array of those) stops it as well,
+  until `SampleMessage` is taught the shape; so does a message that declares subtypes (`[ProtoInclude]`). The
   attribute's `Type`
   repeats the opcode; no server code reads it (the host graph tests do). After any contract change, re-export the wire
   schema (`tools/Avalon.Exporter -- proto`, `opcodes`, `corpus`).

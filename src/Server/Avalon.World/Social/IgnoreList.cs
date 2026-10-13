@@ -72,7 +72,12 @@ public sealed class IgnoreList(SaveStateTracker save, TickThreadGuard? tickThrea
     }
 
     /// <summary>SMSG_IGNORE_LIST: the whole list, oldest first.</summary>
-    public OutboundPacket ToPacket(PacketEncoder encoder) =>
-        SIgnoreListPacket.Create(
-            _entries.Select(e => new IgnoredCharacterDto { CharacterId = e.Id, Name = e.Name }).ToList(), encoder);
+    public OutboundPacket ToPacket(PacketEncoder encoder)
+    {
+        var characters = new List<IgnoredCharacterDto>(_entries.Count);
+        foreach (IgnoredCharacter entry in _entries)
+            characters.Add(new IgnoredCharacterDto { CharacterId = entry.Id, Name = entry.Name });
+
+        return SIgnoreListPacket.Create(characters, encoder);
+    }
 }

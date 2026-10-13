@@ -869,7 +869,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public VendorStocks Vendors => _vendors;
 
-    public void BroadcastLootDespawned(IReadOnlyCollection<ObjectGuid> lootGuids)
+    public void BroadcastLootDespawned(IReadOnlyList<ObjectGuid> lootGuids)
     {
         // Encoded once, for the first connection here, and shared by every one (#875).
         OutboundPacket despawned = default;

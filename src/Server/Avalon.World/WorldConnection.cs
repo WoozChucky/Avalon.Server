@@ -334,6 +334,13 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         ProcessContinuations();
     }
 
+    /// <summary>
+    /// The most packets one pass takes out of a connection's receive queue, dispatched or dropped as stale: a pass
+    /// that has taken this many stops, and the rest wait for the next. A held head that the pass refuses again is not
+    /// one of them. Each tick runs two passes (session, then map), so a connection is taken at most twice this a tick.
+    /// </summary>
+    public const uint MaxPacketsPerUpdate = 150;
+
     /// <param name="dropStaleMapPackets">
     ///     The session pass drops, rather than stops at, an in-map packet that reaches the head of the
     ///     queue while the connection holds no character. It was queued while a character was in the
@@ -351,7 +358,6 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             return;
         }
 
-        const uint MaxPacketsPerUpdate = 150;
         uint processedPackets = 0;
 
         // A substitute server in tests has none.
@@ -375,8 +381,13 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
                 }
 
                 ReleaseReceivePacket();
-                _logger.LogDebug("Dropped {PacketType} queued for a character that has left the world", packet.Type);
-                if (++processedPackets > MaxPacketsPerUpdate)
+                // Input is kept out of Debug, as where a packet is dropped at arrival: a client sends it 60 times a
+                // second, so it is most of what a leave finds queued behind it.
+                if (packet.Type == NetworkPacketType.CMSG_PLAYER_INPUT)
+                    ReceiveLog.DroppedForCharacterGoneFrequent(_logger, packet.Type);
+                else
+                    ReceiveLog.DroppedForCharacterGone(_logger, packet.Type);
+                if (++processedPackets >= MaxPacketsPerUpdate)
                     break;
                 continue;
             }
@@ -405,7 +416,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
                 _logger.LogWarning("No handler for packet {PacketType}", packet.Type);
             }
 
-            if (++processedPackets > MaxPacketsPerUpdate)
+            if (++processedPackets >= MaxPacketsPerUpdate)
                 break;
         }
     }
@@ -638,6 +649,14 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
         [LoggerMessage(Level = LogLevel.Trace, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
         public static partial void DroppedForStateFrequent(ILogger logger, NetworkPacketType packetType);
+
+        // A stale in-map packet, dropped by the session pass on the tick. A client causes one with every packet it
+        // sends between its leave and the answer to it, so the lines check the level before anything is built.
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {PacketType} queued for a character that has left the world")]
+        public static partial void DroppedForCharacterGone(ILogger logger, NetworkPacketType packetType);
+
+        [LoggerMessage(Level = LogLevel.Trace, Message = "Dropped {PacketType} queued for a character that has left the world")]
+        public static partial void DroppedForCharacterGoneFrequent(ILogger logger, NetworkPacketType packetType);
 
         [LoggerMessage(Level = LogLevel.Trace, Message = "Dropped {PacketType}: every ping written has had its one answer")]
         public static partial void PongWithoutPing(ILogger logger, NetworkPacketType packetType);
