@@ -581,7 +581,7 @@ are `--job short`, three runs a side taking turns, as the range of the runs' mea
 most of them (the top of a range is a disturbed run): with #883's changes to the packet path, which leave `Send` as
 it was and add compares to the pass where the burst buffers are swapped
 ([burst buffers](#results--the-network-path-883-2026-10-13)). First two compares, with a buffer given back as soon as
-it looked outgrown (`c897e211`); then three, with a buffer given back only after a delay. In their undisturbed runs
+it looked outgrown; then three, with a buffer given back only after a delay. In their undisturbed runs
 the two read the same to within 1 ns in the plain arms and 2 ns in the sealed ones, and the same as the first rows:
 the pass's new check costs a connection whose buffers are small nothing that shows.
 
@@ -1786,7 +1786,7 @@ well since #883 ([the network path](#results--the-network-path-883-2026-10-13)).
 wrote before the array goes back: on the auth server that is a login or a registration, and the pool hands the array
 to whoever rents next. Nothing that rents reads before it writes, so it is a second line. Only the opened length is
 cleared (the frame's length when the open failed), at most `Hosting:MaxInboundFrameSize` and tens of bytes for most
-packets. `--job short`, four runs before (`c897e211`) and four after, taking turns, each run's mean, lowest first:
+packets. `--job short`, four runs before and four after, taking turns, each run's mean, lowest first:
 
 | Method | Before | After | Allocated, both |
 |---|---:|---:|---:|
@@ -2492,6 +2492,9 @@ Low findings of #883 on the packet path: rows 1, 3, 10 to 13 and the send half o
 (10.0.26200), .NET 10.0.12, Release; before is `808eec90`. **Other builds, test runs and benchmarks were using the
 machine for every timing here**, so each is a range over several runs; the bytes and the buffer sizes are exact. The
 bytes, the buffer sizes and the startup times are from a probe over the built assemblies, a new process for each run.
+Every figure is from runtime 10.0.12. The bytes, the buffer sizes and the pool's rents were read again on runtime
+10.0.13 (the same assemblies, run on an SDK of its own) and are the same to the byte; no timing was taken again
+there.
 
 **A stale packet's drop (row 1).** In-map packets still queued when their character has gone are dropped by the
 session pass, on the tick (`WorldConnection.ProcessQueue`); a client causes one with every packet it sends between its
@@ -2626,7 +2629,12 @@ member set, after the server's own startup calls, five runs before and six after
   nothing was built for it and 74,952 to 130,160 B when only a new message was written. It measures the first
   packets of three types of one shape and takes the fewest bytes: a first send happens once, and one window alone
   read 24,648 B in about one run in thirty of its project, something the runtime allocates once in a process on
-  whichever thread first needs it (not identified). 100 of 100 runs of the project pass since.
+  whichever thread first needs it (not identified; the shared array pool's per-processor stacks for a size, made by
+  the first thread to return a second array of that size, are one such thing, 7,728 B at 24 processors, and not this
+  one). The test has passed in every one of some 340 runs of its project since, 60 of them on runtime 10.0.13. In
+  the 101 of those runs that recorded them (61 on 10.0.13, 40 on 10.0.12) all three windows read 0 B every time, so
+  the one-off no longer falls in a window at all, on either runtime, and the fewest of three is there for the day it
+  does.
 - **What stops a start** is any packet the preparation cannot write in full, named: a contract protobuf-net cannot
   build, a member of a shape it has no value for, a message it cannot create, a setter that refuses the value, and a
   message that declares subtypes (`[ProtoInclude]`), which would be written as the base alone and have each subtype
@@ -2669,7 +2677,7 @@ gave a buffer back at once:
 | `slow-tls`, seal off: send threads, µs a connection (7 runs) | 27.5 to 29.3 | 25.9 to 29.6 |
 | `slow-tls`: runs in which the tick allocated nothing | 2 of 7 | 5 of 7 |
 
-The same harness on a quiet machine, the first version (`c897e211`) against the delay, three runs a side taking turns:
+The same harness on a quiet machine, the first version against the delay, three runs a side taking turns:
 `memory`, seal off, enqueue 751 to 783 µs a tick before and 745 to 748 after, send threads 0.42 to 0.44 µs a
 connection before and 0.40 to 0.41 after; seal on, enqueue 726 to 771 and 754 to 805, send threads 1.74 to 1.76 and
 1.74. The tick allocated 0 B in all twelve runs.
