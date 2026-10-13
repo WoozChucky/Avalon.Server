@@ -68,6 +68,23 @@ public sealed class CreatureAbilities
         }
     }
 
+    /// <summary>
+    /// Whether <paramref name="ability" /> is one of this creature's own clones. Asked for every attack, so it walks
+    /// the array itself: a <c>foreach</c> over <see cref="All" /> boxes the array's enumerator (#890).
+    /// </summary>
+    public bool Holds(IAbility ability)
+    {
+        foreach (IAbility held in _abilities)
+        {
+            if (ReferenceEquals(held, ability))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Whether <paramref name="ability" /> is this creature's own basic clone.</summary>
     public bool IsBasic(IAbility ability) => Basic is not null && ReferenceEquals(ability, Basic);
 

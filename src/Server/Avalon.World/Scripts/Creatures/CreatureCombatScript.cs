@@ -785,7 +785,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
     {
         float distance = MathF.Max(0f, HitShapes.Distance2D(currentPosition, targetPosition) - target.BodyRadius);
         if (ChooseAbility(target, distance) is not { } ability
-            || !Holds(ability)
+            || !_abilities.Holds(ability)   // a script casts only what its creature holds
             || !CreatureAbilities.IsReady(ability)
             || !InReach(ability, distance))
         {
@@ -813,20 +813,6 @@ public class CreatureCombatScript : AiScript, IReturningHome
         // The start, with its footprint, went out with the queue (#648).
         Context.Locomotion.Stop(Creature);
         return true;
-    }
-
-    /// <summary>Whether <paramref name="ability" /> is one of this creature's own clones: a script casts only what it holds.</summary>
-    private bool Holds(IAbility ability)
-    {
-        foreach (IAbility held in _abilities.All)
-        {
-            if (ReferenceEquals(held, ability))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /// <summary>
