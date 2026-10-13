@@ -1,8 +1,11 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
+using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
+using Avalon.World.Testing;
+using Microsoft.Extensions.Logging.Abstractions;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
 namespace Avalon.Server.World.UnitTests.Performance;
@@ -72,23 +75,56 @@ public class InventoryAllocationShould
     }
 
     /// <summary>
+    /// The paths that go through the character's economy (#883): an item request, and what a pickup, a vendor trade
+    /// and a quest do to the Bag (an add, a removal by template, the count a Unique item is checked by). The economy
+    /// is production's, so the service it hands out and its template lookup are in the figure.
+    /// </summary>
+    [Fact]
+    public async Task Change_items_through_the_economy_allocating_nothing()
+    {
+        var world = new QuietWorld(await TestStaticData.LoadAsync(items: [Potion, Sword, Relic]));
+        var economy = new CharacterEconomy(world, new ItemIdAllocator());
+        var move = new ItemMoveHandler(NullLogger<ItemMoveHandler>.Instance, world, economy);
+        _character.Container(InventoryType.Bag).Load([Item(0, Potion, count: 5), Item(3, Sword), Item(4, Relic)]);
+        CItemMovePacket there = Move(0, 1);
+        CItemMovePacket back = Move(1, 0);
+
+        long moved = Allocated(() =>
+        {
+            move.Execute(_connection, there);
+            move.Execute(_connection, back);
+        });
+        long traded = Allocated(() =>
+        {
+            economy.InventoryOf(_character).TryAdd(Potion.Id, 3);
+            economy.InventoryOf(_character).TryRemove(Potion.Id, 3);
+        });
+        long fitted = Allocated(() => economy.InventoryOf(_character).CanAdd(Potion.Id, 3));
+        long owned = Allocated(() => economy.InventoryOf(_character).CanAdd(Relic.Id, 1));
+
+        Assert.Multiple(
+            () => Assert.Equal(0, moved),
+            () => Assert.Equal(0, traded),
+            () => Assert.Equal(0, fitted),
+            () => Assert.Equal(0, owned));
+        Assert.Equal(InventoryAddResult.UniqueAlreadyOwned, economy.InventoryOf(_character).CanAdd(Relic.Id, 1));
+        Assert.Equal(5u, At(_character, InventoryType.Bag, 0).Count);
+        Assert.Equal(2 * 4 * Rounds, _connection.Sent);
+    }
+
+    private static CItemMovePacket Move(uint from, uint to) => new()
+    {
+        RequestId = 7,
+        FromContainer = InventoryType.Bag,
+        FromSlot = from,
+        ToContainer = InventoryType.Bag,
+        ToSlot = to,
+    };
+
+    /// <summary>
     /// What <see cref="Rounds" /> calls allocate on this thread: the fewest of three windows, after one to warm up.
     /// </summary>
-    private static long Allocated(Action round)
-    {
-        long fewest = long.MaxValue;
-        for (int window = 0; window < 4; window++)
-        {
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            for (int i = 0; i < Rounds; i++)
-                round();
-
-            if (window > 0)
-                fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
-        }
-
-        return fewest;
-    }
+    private static long Allocated(Action round) => ThreadAllocations.FewestOfThreeWindows(Rounds, round);
 
     /// <summary>The entries a packet naming the first <paramref name="count" /> slots carries: the array, and each slot with its item.</summary>
     private InventorySlotUpdateDto[] Entries(int count)

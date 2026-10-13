@@ -231,6 +231,14 @@ public partial class CharacterEntity : ICharacter
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
     };
 
+    /// <summary>
+    /// The inventory service the economy made for this character, with the economy that made it (#883): kept here so
+    /// that an item request, a pickup or a trade asks for the one it has, where each used to build a service. It
+    /// lives and dies with the character, and it holds no state of its own: the containers, the save marks and the
+    /// client changes above are what it writes. Tick thread only, as every use of the inventory is.
+    /// </summary>
+    internal (ICharacterEconomy? Economy, IInventoryService? Service) EconomyInventory { get; set; }
+
     /// <summary>Slots and money the client must be told about at the end of this tick.</summary>
     public InventoryClientChanges ClientChanges { get; } = new();
 
