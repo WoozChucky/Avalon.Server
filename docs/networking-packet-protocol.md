@@ -325,8 +325,10 @@ in it, so a fix will turn that test red rather than pass unnoticed.
 - **Version evolution:** there is no version per packet. `Header.Version` is always 0, and no handler is chosen by it.
   A client states its version once per connection, and a server refuses one that is too old:
   `CRequestServerInfoPacket.ClientVersion` against `Application:MinClientVersion` on the auth server (step 1 above),
-  `CWorldHandshakePacket.Version` against 0.2.0 and the world's `MinVersion` on a world (step 15). Neither server
-  looks at a version anywhere else, so those minimums are what refuses a client older than a wire change. What the
+  `CWorldHandshakePacket.Version` against 0.3.0 and the world's `MinVersion` on a world (step 15). Neither server
+  looks at a version anywhere else. Before either, the REST game sign-in and world allocation require the client's
+  protocol version to equal `GameWorkloadConfiguration.ClientProtocolVersion` (0.3.0, #948), which is what refuses a
+  client from the other side of a wire change. What the
   wire is at a given commit is the generated schema: `tools/Avalon.Exporter` writes `schema/avalon.proto`,
   `schema/opcodes.json` and `schema/corpus/` from the packet contracts (the corpus from its fixtures of them),
   `WireSchemaShould` and `WireCorpusShould` fail when they are stale, and the game client vendors them. A retired opcode is deleted, and its number may be
