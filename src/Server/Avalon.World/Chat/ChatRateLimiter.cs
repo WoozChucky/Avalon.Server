@@ -30,9 +30,26 @@ public sealed class ChatRateLimiter(IOptions<GameConfiguration> options, TimePro
     private readonly object _gate = new();
     private readonly Dictionary<uint, Queue<long>> _sent = [];
 
+    // The refusal for each whole second of the window, written once: the sender over its limit is the client that
+    // sends the most, and a line built per refusal was a string per message (#883). Never changed once built.
+    private static readonly string[] s_tooFast = TooFastLines();
+
     /// <summary>The line a sender over the limit is told, with the wait rounded up to whole seconds (at least 1).</summary>
-    public static string TooFast(TimeSpan retryAfter) =>
-        $"You're sending messages too fast. Try again in {Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))}s.";
+    public static string TooFast(TimeSpan retryAfter)
+    {
+        int seconds = Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds));
+        return seconds < s_tooFast.Length ? s_tooFast[seconds] : TooFastLine(seconds);
+    }
+
+    private static string TooFastLine(int seconds) => $"You're sending messages too fast. Try again in {seconds}s.";
+
+    private static string[] TooFastLines()
+    {
+        string[] lines = new string[(int)Window.TotalSeconds + 1];
+        for (int seconds = 0; seconds < lines.Length; seconds++)
+            lines[seconds] = TooFastLine(seconds);
+        return lines;
+    }
 
     /// <summary>
     /// Whether the character may send a message now. When not, <paramref name="retryAfter" /> is the time until the

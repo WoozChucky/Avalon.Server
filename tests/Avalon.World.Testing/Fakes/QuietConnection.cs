@@ -54,7 +54,7 @@ public sealed class QuietConnection(CharacterEntity character) : IWorldConnectio
     public uint LastInputSeq { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     public ulong? CurrentTargetGuid { get; set; }
     public AccountLocale Locale { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
-    public AccountAccessLevel AccessLevel => throw new NotSupportedException();
+    public AccountAccessLevel AccessLevel { get; set; } = AccountAccessLevel.Player;
     public bool RespawnInFlight { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     public void Close(bool expected = true) => throw new NotSupportedException();
     public Task CloseAsync(bool expected = true) => throw new NotSupportedException();

@@ -17,6 +17,31 @@ public class CommandDispatcherShould
         command.Received(1).Execute(Arg.Any<CommandContext>(), Arg.Is<string[]>(a => a.SequenceEqual(new[] { "dialogue" })));
     }
 
+    /// <summary>
+    /// How a message is read: every leading slash is dropped, then it is cut at spaces (the space character only),
+    /// empty pieces left out; the first piece names the command, whatever its case, and the rest are its arguments as
+    /// typed. Nothing is quoted. A null list of arguments stands for a message that runs no command.
+    /// </summary>
+    [Theory]
+    [InlineData("/reload", new string[0])]
+    [InlineData("//RELOAD  Items   all ", new[] { "Items", "all" })]
+    [InlineData("/ reload x", new[] { "x" })]
+    [InlineData("/reload \"two words\"", new[] { "\"two", "words\"" })]
+    [InlineData("/reload a\tb", new[] { "a\tb" })]
+    [InlineData("/reload\tx", null)]
+    [InlineData("/ /reload", null)]
+    [InlineData("/reloadx", null)]
+    [InlineData("/ ", null)]
+    public void Read_the_command_word_and_the_arguments_between_spaces(string message, string[]? arguments)
+    {
+        ICommand command = Command("reload", AccessLevels.Player);
+        string[]? ranWith = null;
+        command.When(c => c.Execute(Arg.Any<CommandContext>(), Arg.Any<string[]>())).Do(ci => ranWith = ci.Arg<string[]>());
+
+        Assert.Equal(arguments is not null, Dispatch(command, message, AccountAccessLevel.Player, out _));
+        Assert.Equal(arguments, ranWith);
+    }
+
     [Theory]
     [InlineData(AccountAccessLevel.Player)]
     [InlineData(AccountAccessLevel.Tournament)]
