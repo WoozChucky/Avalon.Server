@@ -309,6 +309,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// behind a successful arrival. World-side, not on IMapInstance.
     /// </summary>
     public ChunkLayout Layout { get; }
+
+    // The layout as its packet carries it, built at the first arrival and kept (#883). Tick thread.
+    private MapLayoutEntries? _layoutEntries;
+
+    /// <summary>
+    /// The <c>SMSG_CHUNK_LAYOUT</c> a character arriving here is sent, for map <paramref name="mapId" />. Its chunk and
+    /// portal entries are built once, from <see cref="Layout" /> and the names <paramref name="chunkLibrary" /> gives
+    /// its chunks, and written into every later packet (<see cref="MapLayoutEntries" />). Tick thread, as every arrival
+    /// is. World-side, not on IMapInstance.
+    /// </summary>
+    internal OutboundPacket LayoutPacket(ushort mapId, IChunkLibrary chunkLibrary, PacketEncoder encoder)
+    {
+        _layoutEntries ??= new MapLayoutEntries(Layout, chunkLibrary);
+        return _layoutEntries.Encode(InstanceId, mapId, encoder);
+    }
+
     public Vector3 EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;
 

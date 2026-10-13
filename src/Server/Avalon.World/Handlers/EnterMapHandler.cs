@@ -14,6 +14,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -277,61 +278,11 @@ public class EnterMapHandler(
         // 10. Resolve spawn coords: every MapInstance (town + normal) carries the canonical
         // entry spawn of its Layout. The template defaults serve only a target that is not a
         // MapInstance.
-        float spawnX, spawnY, spawnZ;
-        if (targetInstance is MapInstance miSpawn)
-        {
-            Vector3 entrySpawn = miSpawn.EntrySpawnWorldPos;
-            spawnX = entrySpawn.x;
-            spawnY = entrySpawn.y;
-            spawnZ = entrySpawn.z;
-        }
-        else
-        {
-            spawnX = targetTemplate.DefaultSpawnX;
-            spawnY = targetTemplate.DefaultSpawnY;
-            spawnZ = targetTemplate.DefaultSpawnZ;
-        }
+        Vector3 spawn = MapArrival.SpawnOf(targetInstance, targetTemplate);
 
-        // 11. Send success response
-        connection.Send(SMapTransitionPacket.Create(
-            MapTransitionResult.Success,
-            targetInstance.InstanceId,
-            targetMapId,
-            spawnX, spawnY, spawnZ,
-            targetTemplate.Name,
-            targetTemplate.Description,
-            PacketEncoder.Shared));
-
-        // 12. Send the chunk layout packet: every MapInstance is built from a ChunkLayout
-        // (town + normal both flow through ChunkLayoutInstanceFactory now).
-        if (targetInstance is MapInstance layoutMi)
-        {
-            ChunkLayout layout = layoutMi.Layout;
-            var dtos = layout.Chunks.Select(c => new PlacedChunkDto
-            {
-                ChunkTemplateId = c.TemplateId.Value,
-                ChunkName = chunkLibrary.GetById(c.TemplateId).Name,
-                GridX = c.GridX,
-                GridZ = c.GridZ,
-                Rotation = c.Rotation,
-            }).ToList();
-            var portalDtos = layout.Portals.Select(p => new PortalPlacementDto
-            {
-                Role = (byte)p.Role,
-                WorldPos = Vector3Dto.From(p.WorldPos),
-                Radius = p.Radius,
-                TargetMapId = p.TargetMapId,
-            }).ToList();
-            connection.Send(SChunkLayoutPacket.Create(
-                layout.Seed,
-                layoutMi.InstanceId,
-                targetMapId.Value,
-                layout.CellSize,
-                dtos,
-                layout.EntrySpawnWorldPos,
-                portalDtos,
-                PacketEncoder.Shared));
-        }
+        // 11. Send success response, then 12. the chunk layout packet of a MapInstance: what every
+        // arrival sends (MapArrival), with the layout's entries built once for the instance (#883).
+        MapArrival.Send(connection, targetInstance, targetTemplate, spawn, chunkLibrary);
 
         // 13. Persist updated map and position, with any dirty inventory and money, through the one
         // save path (spec #459 section 1).
@@ -339,9 +290,9 @@ public class EnterMapHandler(
         {
             dbCharacter.Map = targetMapId;
             dbCharacter.InstanceId = targetInstance.InstanceId.ToString();
-            dbCharacter.X = spawnX;
-            dbCharacter.Y = spawnY;
-            dbCharacter.Z = spawnZ;
+            dbCharacter.X = spawn.x;
+            dbCharacter.Y = spawn.y;
+            dbCharacter.Z = spawn.z;
 
             // The saver logs a failure itself; this logs the transfer once the save has finished.
             connection.EnqueueContinuation(characterSaver.Save(connection, entity), committed =>

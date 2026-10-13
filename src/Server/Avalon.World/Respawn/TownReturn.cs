@@ -1,10 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.Network.Packets.Serialization;
-using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
-using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -145,24 +142,13 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
             // the loot snapshot on its next tick, and the client has to know the map before its drops.
             world.TransferPlayer(connection, townInstance);
 
-            // Resolve spawn coords from the town's chunk layout. The template defaults serve only an instance
+            // The spawn is the entry spawn of the town's chunk layout. The template defaults serve only an instance
             // that is not a MapInstance.
-            float spawnX, spawnY, spawnZ;
             MapTemplate townTemplate = world.MapTemplates.FindById(townMapId)
                                        ?? throw new InvalidOperationException($"The world has no template for town map {townMapId.Value}");
-            if (townInstance is MapInstance mi)
-            {
-                Vector3 s = mi.EntrySpawnWorldPos;
-                spawnX = s.x; spawnY = s.y; spawnZ = s.z;
-            }
-            else
-            {
-                spawnX = townTemplate.DefaultSpawnX;
-                spawnY = townTemplate.DefaultSpawnY;
-                spawnZ = townTemplate.DefaultSpawnZ;
-            }
+            Vector3 spawn = MapArrival.SpawnOf(townInstance, townTemplate);
 
-            ch.Position = new Vector3(spawnX, spawnY, spawnZ);
+            ch.Position = spawn;
 
             // Revive() atomically clears IsDead and restores HP. Both fields dirty in a single
             // method so the next broadcast tick emits "alive + full HP" together. A countdown member who
@@ -170,47 +156,9 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
             if (revive || ch.IsDead)
                 ch.Revive();
 
-            // Send the standard transition packet the client already handles.
-            connection.Send(SMapTransitionPacket.Create(
-                MapTransitionResult.Success,
-                townInstance.InstanceId,
-                townMapId,
-                spawnX, spawnY, spawnZ,
-                townTemplate.Name,
-                townTemplate.Description,
-                PacketEncoder.Shared));
-
-            // Mirror EnterMapHandler.OnInstanceReceived: every chunk-layout-built instance ships
-            // its layout to the client, which bakes the same navmesh from it and builds the map's
-            // geometry and portals. Every MapInstance has a Layout.
-            if (townInstance is MapInstance layoutMi)
-            {
-                ChunkLayout layout = layoutMi.Layout;
-                var dtos = layout.Chunks.Select(c => new PlacedChunkDto
-                {
-                    ChunkTemplateId = c.TemplateId.Value,
-                    ChunkName = chunkLibrary.GetById(c.TemplateId).Name,
-                    GridX = c.GridX,
-                    GridZ = c.GridZ,
-                    Rotation = c.Rotation,
-                }).ToList();
-                var portalDtos = layout.Portals.Select(p => new PortalPlacementDto
-                {
-                    Role = (byte)p.Role,
-                    WorldPos = Vector3Dto.From(p.WorldPos),
-                    Radius = p.Radius,
-                    TargetMapId = p.TargetMapId,
-                }).ToList();
-                connection.Send(SChunkLayoutPacket.Create(
-                    layout.Seed,
-                    layoutMi.InstanceId,
-                    townMapId.Value,
-                    layout.CellSize,
-                    dtos,
-                    layout.EntrySpawnWorldPos,
-                    portalDtos,
-                    PacketEncoder.Shared));
-            }
+            // The transition the client already handles, then the town's chunk layout, which the client builds the
+            // map's geometry and portals from and bakes the same navmesh from: as every arrival sends them.
+            MapArrival.Send(connection, townInstance, townTemplate, spawn, chunkLibrary);
 
             logger.LogInformation("Character {Name} returned to town {Map} instance {Instance}",
                 ch.Name, townMapId.Value, townInstance.InstanceId);

@@ -17,7 +17,6 @@ using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.State;
-using Avalon.Network.Packets.World;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
@@ -574,37 +573,9 @@ public class CharacterSelectHandler(
 
         connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, PacketEncoder.Shared));
 
-        // Send chunk layout so the client can compose the stitched map
-        // and bake its local navmesh. Town + normal both flow through
-        // ChunkLayoutInstanceFactory now, and every MapInstance has a Layout.
-        if (instance is MapInstance layoutMi)
-        {
-            ChunkLayout layout = layoutMi.Layout;
-            var dtos = layout.Chunks.Select(c => new PlacedChunkDto
-            {
-                ChunkTemplateId = c.TemplateId.Value,
-                ChunkName = chunkLibrary.GetById(c.TemplateId).Name,
-                GridX = c.GridX,
-                GridZ = c.GridZ,
-                Rotation = c.Rotation,
-            }).ToList();
-            var portalDtos = layout.Portals.Select(p => new PortalPlacementDto
-            {
-                Role = (byte)p.Role,
-                WorldPos = Vector3Dto.From(p.WorldPos),
-                Radius = p.Radius,
-                TargetMapId = p.TargetMapId,
-            }).ToList();
-            connection.Send(SChunkLayoutPacket.Create(
-                layout.Seed,
-                layoutMi.InstanceId,
-                character.Map,
-                layout.CellSize,
-                dtos,
-                layout.EntrySpawnWorldPos,
-                portalDtos,
-                PacketEncoder.Shared));
-        }
+        // The chunk layout, so the client can compose the stitched map and bake its local navmesh: as every arrival
+        // sends it, behind this handler's own answer where the others send a transition.
+        MapArrival.SendLayout(connection, instance, character.Map, chunkLibrary);
 
         Step(connection, select, _databaseWork.Run(() => characterRepository.UpdateForGameplayAsync(entity.GameplayAuthority!, character, CancellationToken.None)), _ =>
         {

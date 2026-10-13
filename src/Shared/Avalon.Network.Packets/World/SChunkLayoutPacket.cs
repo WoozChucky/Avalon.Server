@@ -55,27 +55,30 @@ public class SChunkLayoutPacket : Packet
     [ProtoMember(6)] public List<PortalPlacementDto> Portals { get; set; } = new();
     [ProtoMember(7)] public ushort MapId { get; set; }
 
+    /// <summary>
+    /// Encodes an instance's layout. <paramref name="chunks" /> and <paramref name="portals" /> are written as they are
+    /// and not copied, so a caller may hand in the same two lists for every packet of one layout (#883): the message
+    /// holds them only while it is encoded, and neither they nor their entries are changed. They are lists, as every
+    /// other factory takes its entries, so that nothing of the caller's runs once the scratch message is taken (#875).
+    /// </summary>
     public static OutboundPacket Create(
         int seed,
         Guid instanceId,
         ushort mapId,
         float cellSize,
-        IReadOnlyList<PlacedChunkDto> chunks,
+        List<PlacedChunkDto> chunks,
         Vector3 entrySpawn,
-        IReadOnlyList<PortalPlacementDto> portals,
+        List<PortalPlacementDto> portals,
         PacketEncoder encoder)
     {
-        // Copied before the scratch is taken: nothing a caller's list runs can reach the message (#875).
-        var chunkList = chunks.ToList();
-        var portalList = portals.ToList();
         SChunkLayoutPacket message = PacketEncoder.Scratch<SChunkLayoutPacket>();
         message.Seed = seed;
         message.InstanceId = instanceId;
         message.MapId = mapId;
         message.CellSize = cellSize;
-        message.Chunks = chunkList;
+        message.Chunks = chunks;
         message.EntrySpawn = Vector3Dto.From(entrySpawn);
-        message.Portals = portalList;
+        message.Portals = portals;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }
