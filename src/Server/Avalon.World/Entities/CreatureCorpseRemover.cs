@@ -1,4 +1,3 @@
-using Avalon.Common.Utils;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 
@@ -25,43 +24,41 @@ public interface ICorpseRemover
 
 public class CreatureCorpseRemover(ISimulationContext context) : ICorpseRemover
 {
-    // The concrete type, so the tick walks it with its struct enumerator (#640).
-    private readonly Dictionary<IntervalTimer, ICreature> _removeTimers = new();
+    // Each waiting corpse with the moment, on this remover's own clock, its body goes. Keyed by the order the corpses
+    // were scheduled in, a number: a timer object per corpse as the key was 32 B for every kill (#883). The concrete
+    // type, so the tick walks it with its struct enumerator (#640); and still a dictionary added to and removed from
+    // exactly as before, so corpses that go on the same tick go in the order they always went.
+    private readonly Dictionary<int, (ICreature Creature, long RemoveAtMs)> _waiting = new();
 
-    /// <summary>This tick's expired timers, reused so a tick allocates nothing (#640).</summary>
-    private readonly List<IntervalTimer> _expired = new();
+    /// <summary>This tick's expired corpses, reused so a tick allocates nothing (#640).</summary>
+    private readonly List<int> _expired = new();
 
-    public void ScheduleRemoval(ICreature creature)
-    {
-        IntervalTimer removeTimer = new();
-        removeTimer.SetInterval((long)creature.Metadata.BodyRemoveTimer.TotalMilliseconds);
-        removeTimer.SetCurrent(0);
-        _removeTimers.Add(removeTimer, creature);
-    }
+    // Whole milliseconds of every Update so far: what a timer per corpse counted for itself, counted once.
+    private long _elapsedMs;
+    private int _scheduled;
+
+    public void ScheduleRemoval(ICreature creature) =>
+        _waiting.Add(_scheduled++, (creature, _elapsedMs + (long)creature.Metadata.BodyRemoveTimer.TotalMilliseconds));
 
     public void Update(TimeSpan deltaTime)
     {
         _expired.Clear();
+        _elapsedMs += (long)deltaTime.TotalMilliseconds;
 
-        foreach ((IntervalTimer timer, ICreature creature) in _removeTimers)
+        foreach ((int scheduled, (ICreature creature, long removeAtMs)) in _waiting)
         {
-            if (timer.GetCurrent() >= 0)
-            {
-                timer.Update((long)deltaTime.TotalMilliseconds);
-            }
-
-            if (!timer.Passed())
+            if (_elapsedMs < removeAtMs)
             {
                 continue;
             }
 
             context.RemoveCreature(creature);
-            _expired.Add(timer);
+            _expired.Add(scheduled);
         }
 
-        foreach (IntervalTimer timer in _expired)
+        foreach (int scheduled in _expired)
         {
-            _removeTimers.Remove(timer);
+            _waiting.Remove(scheduled);
         }
     }
 }
