@@ -6,20 +6,40 @@ Custom TCP layer with Protobuf-net serialization. Every client↔server message 
 
 | Field | Type | Purpose |
 |---|---|---|
-| `Type` | `NetworkPacketType` | Semantic opcode / message type (e.g., `CAuthPacket` → `CMSG_AUTH`) |
-| `Flags` | `NetworkPacketFlags` | Bitmask: Encryption, Compression, Reserved — enables fast checks without parsing payload |
-| `Protocol` | `NetworkProtocol` | Logical channel grouping (Authentication, World, Social, Character) |
-| `Version` | `int` | Protocol version for backward compatibility |
+| `Type` (1) | `NetworkPacketType` | The opcode: which message the payload holds (e.g., `CAuthPacket` → `CMSG_AUTH`). The one field a packet is decoded and dispatched by |
+| `Flags` (2) | `NetworkPacketFlags` | Bitmask: `None` 0, `ClearText` 1, `Handshake` 2, `Encrypted` 4. Only `Encrypted` is read: the payload is sealed with the session keys (below) |
+| `Protocol` (3) | `NetworkProtocol` | `Invalid` 0, `Tcp` 1, `Udp` 2, `Both` 3. Every packet is sent as `Tcp`, and nothing reads the field |
+| `Version` (4) | `int` | 0 in every header that is built, and nothing reads it. The protocol is versioned in the handshakes ([Extensibility](#extensibility)) |
+
+The number beside each field is its protobuf field number.
 
 The header is a struct (`NetworkPacketHeader`), read by hand from each frame by `InboundPacketFrame.ParseFrame`, so
 neither a received frame nor a sent packet allocates a header (#875); the wire is unchanged.
+
+`Encrypted` is the only flag anything acts on. A receiver opens the payload with the session keys when the header
+carries the flag and takes the payload as plain when it does not (`Connection`'s read loop). A packet class declares
+its flags in a static `Flags` field; the outbox seals a packet flagged `Encrypted` when its connection seals, and when
+it does not, the payload goes plain and the flag is cleared from the header as the frame is written
+([Sending a packet](#sending-a-packet)). A world with `Network:PacketEncryption` on closes a connection that sends
+plain a packet it must seal ([World Admission](#world-admission)). `ClearText` is declared by the server-info,
+client-info and game-admission packets (`CRequestServerInfoPacket`, `SServerInfoPacket`, `CClientInfoPacket`,
+`CGameAdmissionPacket`, `SGameAdmissionPacket`) and by `CPingPacket`; `None` by `SPingPacket`, `SPongPacket`,
+`CPongPacket` and `SDisconnectPacket`. The servers treat the two alike: neither is `Encrypted`. No packet declares `Handshake`. There is
+no compression flag, and nothing compresses a payload. `schema/opcodes.json` lists the flags each packet class
+declares.
 
 Transport: TCP inside TLS, one connection per phase (Auth, then World). The auth server wraps every accepted socket in
 TLS 1.2 with its certificate, the world server in TLS 1.2 or 1.3 with its own (both `Hosting:Security:CertificatePath`),
 and a client pins the world's leaf named in its join reply. Ordering guaranteed by TCP.  
 Encryption: inside TLS, session crypto negotiated via ephemeral public key exchange during handshake stages; on the
 world server the per-packet session layer is a per-world setting, `Network:PacketEncryption`, off by default (#875).  
-Size calculation uses fixed field lengths; header marshaled first enabling preallocation.
+Framing: a frame is a varint length prefix, then that many bytes: one protobuf `NetworkPacket` message, whose field 1
+is the header and field 2 the payload, each length-delimited (a tag byte, a varint length, the bytes). No part has a
+fixed length. The header is itself a protobuf message of four varint fields, and a field that is 0 is not written: the
+header of a sealed gameplay packet takes 7 bytes (3 for the opcode, 2 for `Encrypted`, 2 for `Tcp`, none for the
+version), and 5 when the same packet goes plain. `NetworkPacketHeader.Size`, a constant 10, is what the byte counters
+add for a header, not its length on the wire. A frame a peer sends is limited in length
+([below](#the-inbound-frame-length-limit)); a frame a server sends is not.
 
 ## The inbound frame length limit
 
@@ -293,9 +313,26 @@ in it, so a fix will turn that test red rather than pass unnoticed.
 
 ## Extensibility
 
-- **Add a new packet type:** define Protobuf contract, assign `NetworkPacketType` enum value, implement handler (`IAuthPacketHandler<T>` or `IWorldPacketHandler<T>`), register via reflection scan (attribute-driven).
-- **Version evolution:** introduce parallel handlers keyed off `Header.Version` while keeping backward compatibility.
-- **Optional compression:** introduce via `Flags` without breaking existing decoding.
+- **Add a packet or a handler:** the recipe is in [packet handlers](packet-handlers.md), with the session filter entry
+  a world game packet needs: without one the packet is dropped at arrival and its handler never runs. What identifies
+  a packet is the `public static NetworkPacketType PacketType` field on its class, found by reflection at startup
+  (`PacketReader`, `PacketManager`, and `tools/Avalon.Exporter` for `schema/opcodes.json`), so a new packet class
+  declares a new `NetworkPacketType` value there. A packet a server receives also derives from `Packet` and carries
+  `[Packet(HandleOn = ComponentType.Auth)]` or `ComponentType.World`: `HandleOn` is what gives that server a decoder
+  for the opcode (`AddCoreServices`), and without it `PacketReader` logs "Unknown packet type". The attribute's `Type`
+  repeats the opcode; no server code reads it (the host graph tests do). After any contract change, re-export the wire
+  schema (`tools/Avalon.Exporter -- proto`, `opcodes`, `corpus`).
+- **Version evolution:** there is no version per packet. `Header.Version` is always 0, and no handler is chosen by it.
+  A client states its version once per connection, and a server refuses one that is too old:
+  `CRequestServerInfoPacket.ClientVersion` against `Application:MinClientVersion` on the auth server (step 1 above),
+  `CWorldHandshakePacket.Version` against 0.2.0 and the world's `MinVersion` on a world (step 15). Neither server
+  looks at a version anywhere else, so those minimums are what refuses a client older than a wire change. What the
+  wire is at a given commit is the generated schema: `tools/Avalon.Exporter` writes `schema/avalon.proto`,
+  `schema/opcodes.json` and `schema/corpus/` from the packet contracts (the corpus from its fixtures of them),
+  `WireSchemaShould` and `WireCorpusShould` fail when they are stale, and the game client vendors them. A retired opcode is deleted, and its number may be
+  reused once clients have re-vendored the schema ([packet handlers](packet-handlers.md)); every other wire enum is
+  append-only.
+- **Compression:** there is none, and no header flag for it (see [the header](#header-fields-networkpacketheader)).
 
 ## Sequence Diagram
 
