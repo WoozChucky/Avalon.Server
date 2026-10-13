@@ -13,6 +13,7 @@ using Avalon.World.Entities;
 using Avalon.World.GameAuth;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.World.Testing.Fakes;
@@ -32,7 +33,10 @@ public sealed class ReceiveQueueFixture : IDisposable
     private readonly Recorder _recorder = new();
 
     /// <param name="timeSyncWire">What the connection's sender writes to; null, the connection has no sender.</param>
-    public ReceiveQueueFixture(Stream? timeSyncWire = null)
+    /// <param name="receiveQueueLimit">The receive queue's depth cap and its counter; null, the world's default.</param>
+    /// <param name="loggerFactory">Where the connection logs; null, nowhere.</param>
+    public ReceiveQueueFixture(Stream? timeSyncWire = null, ReceiveQueueLimit? receiveQueueLimit = null,
+        ILoggerFactory? loggerFactory = null)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -45,8 +49,8 @@ public sealed class ReceiveQueueFixture : IDisposable
                 Clock, NetworkSendMetrics.Disabled);
         }
 
-        var server = new QueueServer(_recorder, Scheduler);
-        Connection = new ReceiveConnection(server, _client, Clock);
+        var server = new QueueServer(_recorder, Scheduler, receiveQueueLimit ?? ReceiveQueueLimit.Default);
+        Connection = new ReceiveConnection(server, _client, Clock, loggerFactory ?? NullLoggerFactory.Instance);
         if (timeSyncWire is not null)
             Connection.InitOutboxForTest(new PacketStream(timeSyncWire));
         // Transport authentication is setup only; the TLS tests exercise the real handshake.
@@ -102,8 +106,8 @@ public sealed class ReceiveQueueFixture : IDisposable
         public override long GetTimestamp() => 0;
     }
 
-    public sealed class ReceiveConnection(IWorldServer server, TcpClient client, TimeProvider clock)
-        : WorldConnection(server, client, NullLoggerFactory.Instance, new UnusedReader(), clock)
+    public sealed class ReceiveConnection(IWorldServer server, TcpClient client, TimeProvider clock,
+        ILoggerFactory loggerFactory) : WorldConnection(server, client, loggerFactory, new UnusedReader(), clock)
     {
         public void Deliver(NetworkPacketType type, Packet payload) =>
             OnReceive(new NetworkPacketHeader { Type = type }, payload).GetAwaiter().GetResult();
@@ -136,9 +140,10 @@ public sealed class ReceiveQueueFixture : IDisposable
     {
         private readonly NetworkSendScheduler? _scheduler;
 
-        public QueueServer(Recorder handler, NetworkSendScheduler? scheduler)
+        public QueueServer(Recorder handler, NetworkSendScheduler? scheduler, ReceiveQueueLimit receiveQueueLimit)
         {
             _scheduler = scheduler;
+            ReceiveQueueLimit = receiveQueueLimit;
             PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>
             {
                 [NetworkPacketType.CMSG_PLAYER_INPUT] = handler,
@@ -153,6 +158,7 @@ public sealed class ReceiveQueueFixture : IDisposable
         public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
         public PacketDispatchTelemetry PacketTelemetry => PacketDispatchTelemetry.Disabled;
         public bool PacketEncryption => false;
+        public ReceiveQueueLimit ReceiveQueueLimit { get; }
         public ImmutableArray<IWorldConnection> Connections => throw new NotSupportedException();
         public IWorld World => throw new NotSupportedException();
         public NetworkSendScheduler SendScheduler => _scheduler ?? throw new NotSupportedException();

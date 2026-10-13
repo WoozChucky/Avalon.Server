@@ -24,6 +24,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallList
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThreadGuard*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ConnectionTick*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ReceiveQueueBenchmarks*" --job short
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketStreamBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TimeSync*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AbilityScriptBuild*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveScriptLookup*"
@@ -401,6 +402,95 @@ removal and show no local CPU regression, not a server latency or capacity impro
 tick now dequeues once and holds a head refused by one filter for the other pass. `ReceiveQueueAllocationShould`
 guards storage reuse at all three burst sizes. Queue behavior tests cover FIFO, held-head depth and arrival stamps,
 authorization revocation/maintenance, character-leave stale packets and the existing filter wedge behavior.
+
+**The depth cap (#927).** A connection may have `Network:MaxReceiveQueueDepth` packets (2,048) waiting; one that arrives
+with that many waiting closes it ([packet handlers](packet-handlers.md)). The depth is two counts, each with one writer:
+the read loop counts a packet before it queues it and the tick counts it out as it takes it, so the arrival path gains
+three reads of its own fields, a compare and a store, and the dispatch path a read and a store. The benchmark's bursts
+(at most 150) are emptied every cycle, so the check's other branch, the read of the tick's count, runs once in about a
+cap's worth of packets, as it does for a connection the tick keeps up with. The runs below were taken with the cap at
+1,024, the default before the owner set 2,048; at 2,048 that branch runs half as often and nothing else differs.
+
+Before/after on 2026-10-13, `814a9105` and the change, the same benchmark both sides. Twelve runs before and eleven
+after, interleaved (a twelfth run of the change did not build: a file held by another process); each figure is the
+median of the runs' means with their range, then the median of each run's fastest iteration.
+
+| Packets per burst | Before mean | After mean | Before fastest | After fastest | Allocated, both |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 158.4 ns (153.8 to 213.7) | 158.2 ns (155.4 to 213.5) | 155.0 ns | 156.0 ns | 0 B |
+| 32 | 3,551 ns (3,484 to 4,599) | 3,595 ns (3,494 to 4,602) | 3,525 ns | 3,517 ns | 0 B |
+| 150 | 16,374 ns (16,184 to 21,678) | 16,398 ns (16,268 to 20,158) | 16,243 ns | 16,226 ns | 0 B |
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC; one launch,
+six warmups and fifteen measured iterations per run, pinned to one performance core (affinity mask 1024 for the first
+six pairs, 4096 for the rest). Other builds and benchmarks were using the machine: the last three runs, of both sides,
+were about a third slower (the top of every range), and several earlier ones had a spread of 100 to 600 ns at 32
+packets against 3 to 60 ns in a quiet run. No row moved by more than the runs differ among themselves. The fastest
+iterations, the figure the disturbance touches least, differ by 1 ns at one packet and by less than 0.3% at 32 and
+150, there in the change's favour, which is the same noise.
+
+- **Nothing is allocated.** `ReceiveQueueAllocationShould` still reads exactly 0 B at all three burst sizes, and the
+  close itself (one generated Warning, one counter increment) happens once per connection.
+- **What the benchmark cannot show.** It runs arrivals and the tick on one thread; in the world they are two, and a
+  field one writes for every packet costs the other a cache line whenever they share it. So the read loop's side
+  (its count, the tick's count as it last read it, and the cap) is a struct with 64 bytes of nothing before and after
+  it. Measured on the Release build of the branch's last commit, counted from the object's start: those three fields
+  are at 536, 540 and 544, the field before them (`_pendingReceivePacket`) ends at 472 and the one after
+  (`CurrentTargetGuid`) starts at 616. However the object falls across 64-byte lines, the line or two they occupy hold
+  nothing else, so the read loop's store per packet takes no line from the tick, and the tick's writes take none from
+  the check. The tick's count (`_handledPackets`) is at 412, between `_hasPendingReceivePacket` (408), which the tick
+  reads for every packet it takes, and `LastInputSeq` (416), which it writes for every input;
+  `CurrentPacketArrivedTicks`, which it writes for every packet it dispatches, is at 384. An object starts on a
+  multiple of 8, so there are eight placements against the 64-byte lines. In seven the count shares its line with
+  `LastInputSeq`; in the eighth (the object at 32 mod 64) the line ends between them and the count shares it with
+  `CurrentPacketArrivedTicks` instead. So in every placement the count lies on a line the tick already writes for the
+  same input, and counting an input out dirties no other. For a packet that is not an input the tick's write is
+  `CurrentPacketArrivedTicks` alone, on the count's line in five placements of eight: in the other three the count
+  dirties one line more for that packet. The flags the read loop reads for every packet (`_packetEncryption`,
+  `_maintenanceBlocked`, `_tlsAuthenticated`, `_protocolAccepted`, at 432 to 440) are on the count's line in at most five
+  placements, each of them one where `LastInputSeq` is on it too: the read loop was already taking that line back
+  after each input the tick handled, and the count adds no placement where it must. The closing check the read loop
+  makes for every frame reads `_closed` (172), which in every placement shares a line with a counter the read loop
+  itself writes for that frame (`PacketReceivedCount` at 176, or `BytesReceivedCount` at 120).
+- **The gauge is cheaper.** `world.receive_queue.depth` reads the two counts where it called `ConcurrentQueue.Count`
+  on every connection (which can take the queue's cross-segment lock), on the exporter's thread.
+- **The connection is about 150 bytes larger** (the padded struct, the tick's count and a reference): about 150 KB at
+  1,000 connections.
+
+### Read loop framing — `PacketStreamBenchmarks.cs` (#927)
+
+`PacketStream.EnumerateRawFramesAsync` alone, over 4,096 frames laid back to back in a `MemoryStream`, normalized per
+frame: the read into the buffer, the length prefix and the slice handed out. No socket, TLS, parsing or decoding. An
+80-byte frame has a one-byte length prefix and a 300-byte one two.
+
+Before/after on 2026-10-13: `0f1d2132` (main) against the branch that gives a frame a maximum length
+(`Hosting:MaxInboundFrameSize`). It reads the prefix as up to 35 bits where main read 32 and threw past them, and
+compares it with the maximum before anything is sized by it. The benchmark is the same on both sides but for the
+argument that carries the maximum (16,384). Six runs a side, interleaved; the median of the runs' means, with their
+range.
+
+| Frame | Before | After | Allocated, both |
+|---:|---:|---:|---:|
+| 80 bytes | 14.67 ns (14.27 to 17.52) | 14.34 ns (14.04 to 18.30) | 0 B |
+| 300 bytes | 17.73 ns (17.41 to 25.79) | 18.09 ns (17.96 to 19.66) | 0 B |
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC; one launch,
+six warmups and fifteen measured iterations per run, pinned to one performance core (affinity mask 4096). Other
+builds and benchmarks were using the machine: one or two runs a side were disturbed (the top of each range, with a
+spread of 2 to 4 ns inside the run against 0.02 to 0.7 ns otherwise).
+
+- **One-byte prefix: no difference.** The ranges cover each other and the medians differ by a third of a nanosecond,
+  in the change's favour.
+- **Two-byte prefix: about a third of a nanosecond more**, 2%. The undisturbed runs do not overlap (17.41 to 17.83
+  before, 17.96 to 18.11 after), so this one is likely real: the prefix is assembled in 64 bits and the frame gets
+  its compare. A connection that sends 60 frames a second pays 20 ns a second for it.
+- **Nothing is allocated per frame** on either side; the enumerator itself is one object per connection.
+- A review of the change measured the same with a harness of its own and saw no cost: 80-byte frames 23.8 to 24.6 ns
+  on main against 23.7 to 24.4 on the branch, 300-byte frames 35.3 to 36.6 against 35.2 to 36.5, 0 B.
+- The read loop around the framing gained one read of `_closed` per frame (it discards what arrives on a closing
+  connection, [graceful shutdown](networking-graceful-shutdown.md#what-a-closing-connection-reads)). No benchmark
+  runs that loop, which needs a socket and a stream to authenticate; the field's place is under the receive queue
+  section above.
 
 ### Navmesh bake — `navmesh-bake` (#880, #896)
 

@@ -5,6 +5,11 @@ namespace Avalon.Common.Telemetry;
 
 public static class DiagnosticsConfig
 {
+    private const string FrameKicksName = "network.in.frame_kicks";
+
+    private const string FrameKicksDescription =
+        "Connections closed for a frame that declared more than Hosting:MaxInboundFrameSize or had a malformed length";
+
     public static class World
     {
         private const string ServiceName = "world-server";
@@ -21,6 +26,9 @@ public static class DiagnosticsConfig
 
         public static Counter<long> BytesSent =
             Meter.CreateCounter<long>("network.out.bytes", "bytes", "Number of bytes sent");
+
+        public static readonly Counter<long> FrameKicks = Meter.CreateCounter<long>(FrameKicksName, "{connections}",
+            FrameKicksDescription);
 
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
@@ -45,6 +53,9 @@ public static class DiagnosticsConfig
             Meter.CreateCounter<long>("network.out.bytes", "bytes", "Number of bytes sent");
 
         public static readonly ActivitySource Source = new(ServiceName);
+
+        public static readonly Counter<long> FrameKicks = Meter.CreateCounter<long>(FrameKicksName, "{connections}",
+            FrameKicksDescription);
 
         public static readonly Counter<long> Logins =
             Meter.CreateCounter<long>("avalon.auth.logins", "{logins}", "Password logins, by result");

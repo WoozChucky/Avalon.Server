@@ -457,7 +457,7 @@ public sealed class ConnectionSenderShould
     private static async Task<List<(NetworkPacketHeader Header, byte[] Payload)>> ReadFramesAsync(byte[] wire)
     {
         var frames = new List<(NetworkPacketHeader, byte[])>();
-        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire)).EnumerateRawFramesAsync(256))
+        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire)).EnumerateRawFramesAsync(256, int.MaxValue))
         {
             var frame = InboundPacketFrame.ParseFrame(raw);
             frames.Add((frame.Header, frame.Payload.ToArray()));

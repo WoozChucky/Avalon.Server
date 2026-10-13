@@ -21,6 +21,43 @@ Encryption: inside TLS, session crypto negotiated via ephemeral public key excha
 world server the per-packet session layer is a per-world setting, `Network:PacketEncryption`, off by default (#875).  
 Size calculation uses fixed field lengths; header marshaled first enabling preallocation.
 
+## The inbound frame length limit
+
+Every frame on the wire is `[varint length][NetworkPacket{1: header, 2: payload}]`. **A frame a client sends may not
+declare more than `Hosting:MaxInboundFrameSize` bytes (16,384 by default), on the auth server and on a world server
+alike.** The length counted is the one the prefix declares: the `NetworkPacket`'s bytes, header and payload, the
+payload in the form it is sent (sealed, it carries a 12-byte nonce and a 16-byte tag); the prefix itself is not
+counted.
+
+The read loop compares the prefix before it sizes anything by it (`PacketStream.EnumerateRawFramesAsync`). A frame that
+declares more than the maximum, or whose prefix is not a length (a varint that runs past five bytes; a five-byte one
+carries up to 35 bits and is compared as that, never narrowed first), is not buffered and not read: nothing is rented
+for it, the stream ends there, and the connection is closed without a notice, as it is when a peer goes away. This
+holds before admission or login as after: the prefix is the first thing any peer that completes TLS sends, and the
+servers used to rent a buffer of whatever size it declared. The close writes one line at Debug (the connection, its
+address and the declared length), never an exception or a stack trace, and counts one in `network.in.frame_kicks` on
+the server's meter ([instrumentation](instrumentation.md#refused-frames)).
+
+Frames the servers send are not limited by it: a chunk layout or a world-state snapshot is far larger than anything a
+client sends, and a client sets its own limit on what it receives.
+
+What a client sends against the limit (client 0.2.0, measured from its code on 2026-10-13; sizes are of the whole
+frame as declared):
+
+| Frame | Largest | What bounds it |
+|---|---:|---|
+| `CMSG_CHAT_MESSAGE` | about 570 bytes sealed | At most 511 bytes of UTF-8, which the world enforces (#936): the chat box takes 255, and a whisper typed after `/w Name` goes out with its prefix |
+| `CMSG_GAME_ADMISSION` | about 150 bytes | A 43-character ticket and a 91-byte P-256 public key, both checked for exactly that size by the world |
+| `CMSG_CHARACTER_CREATE` | about 80 bytes sealed | A name of 3 to 12 letters (`CharacterName`) |
+| `CMSG_PARTY_INVITE` | about 60 bytes sealed | A character's name, 3 to 12 letters, which the world checks before any lookup (#936) |
+| `CMSG_WORLD_HANDSHAKE` | about 50 bytes sealed | The client's version string |
+| Every other world packet | a few tens of bytes | Numbers only: no string, byte or repeated field |
+| Auth server: login, key exchange, MFA | under 200 bytes | A username of 3 to 16 characters, a password field of 64 bytes, a 91-byte key, 32 bytes of handshake data, codes of 16 characters; the client no longer dials the auth server |
+
+So the default leaves a factor of about 28 over the largest frame a client sends, and the setting's minimum (1,024)
+still admits it. No client-to-server message has a repeated field. The auth server puts no length rule of its own on the
+password it is sent: for that field the frame limit is the bound.
+
 ## Sending a packet
 
 A server packet's `Create` (`S*Packet.Create`) returns an `OutboundPacket`: its header, and its message encoded, plain,
@@ -211,6 +248,12 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
 - A malformed, expired, spent or foreign join ticket → `SGameAdmissionPacket` refusal and the connection closed; a
   world connection that is not admitted within 15 seconds is closed.
 - Multiple logins for same account → previously connected session force-disconnected via pub/sub event.
+- A frame that declares more than `Hosting:MaxInboundFrameSize` bytes, or a malformed length prefix, on either server →
+  nothing is buffered for it and the connection is closed without a notice ([above](#the-inbound-frame-length-limit)).
+- A world connection with `Network:MaxReceiveQueueDepth` packets (2,048) received and waiting for the tick that sends
+  another → the packet is not queued and the connection is closed without a notice (#927,
+  [packet handlers](packet-handlers.md)). The outbound mirror is the slow-connection close past
+  `Network:MaxPendingBytes` (#875).
 
 ## Open Defect — a `DateTime` loses its kind
 

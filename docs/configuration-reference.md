@@ -104,6 +104,7 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 | `Host`                  | string | `"0.0.0.0"` | Bind address                                         |
 | `Port`                  | int    | `21000`  | TCP listen port (the auth server's `appsettings.json` sets 21000, the world server's 21001; unset is 0). 0 binds a free port, which `ServerBase.BoundEndPoint` and the "Listening for connections on" log report (#841); tests use it |
 | `PacketReaderBufferSize`| int    | `4096`   | Internal read-buffer size in bytes for `PacketReader`   |
+| `MaxInboundFrameSize` | int | `16384` | The most bytes a frame a peer sends may declare after its length prefix (header and payload). One that declares more, or has a malformed length, is never buffered: the connection is closed without a notice, counted in `network.in.frame_kicks`. Applies before admission or login as after; frames the servers send are not limited by it. The largest frame a client sends is about 570 bytes ([packet protocol](networking-packet-protocol.md#the-inbound-frame-length-limit)) |
 | `SendBufferCapacity`    | int    | `100`    | The auth server's outbox (`ChannelOutbox`): packets one connection holds while waiting to be sent; when full, the oldest is dropped. The world server does not read it (#875) |
 | `TcpKeepAliveTimeSeconds` | int | `60` | TCP keepalive on every accepted socket (#571): idle seconds before the first probe |
 | `TcpKeepAliveIntervalSeconds` | int | `10` | Seconds between unanswered keepalive probes |
@@ -123,6 +124,7 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 
 **Validation rules:**
 - `PacketReaderBufferSize`: minimum `512`, maximum `65535`.
+- `MaxInboundFrameSize`: minimum `1024`, maximum `16777216`. It may be below `PacketReaderBufferSize`, which is only the read buffer's first size.
 - `SendBufferCapacity`: minimum `10`, maximum `10000`.
 - `TcpKeepAliveTimeSeconds`, `TcpKeepAliveIntervalSeconds`: minimum `1`, maximum `32767`; `TcpKeepAliveRetryCount`: minimum `1`, maximum `127`. Checked at startup, which names the setting. An option the platform cannot set is skipped with one Warning, and the connection is still served.
 - Keepalive covers the TCP connection the server accepted. Behind a proxy that terminates TCP it covers only the proxy-to-server leg; the client-to-proxy leg needs the proxy's own keepalive or idle timeout.
@@ -133,16 +135,17 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 
 ## Network Configuration (`NetworkConfiguration`)
 
-Section in `appsettings.json`: `"Network"` (world server). Read once at startup (#875).
+Section in `appsettings.json`: `"Network"` (world server). Read once at startup (#875, #927).
 
 | Key | Type | Default | Description |
 |---|---|---|---|
 | `SendThreads` | int | about half the processors, 1 to 8 | Dedicated send threads (`Network.Send.<i>`); each connection belongs to one for its life |
 | `MaxPendingBytes` | int | `524288` (512 KiB) | Payload bytes one connection may hold, queued, framed ahead while a write is in flight, or being written; past it the connection is sent `SDisconnect(SlowConnection)` and closed. Nothing is ever dropped |
 | `MaxWriteStall` | TimeSpan | `00:00:10` | How long one write may stay pending; past it the connection is closed without a notice |
+| `MaxReceiveQueueDepth` | int | `2048` | Packets one connection may have received and waiting for the tick (#927). One that arrives with that many waiting is not queued and closes the connection without a notice, counted in `network.in.backlog_kicks`. About 34 seconds of one client's input at 60 a second, and about twice what a client's socket can hold back through a stalled path and deliver at once. Packets, not bytes; a packet dropped as it arrives is not counted ([packet handlers](packet-handlers.md)) |
 | `PacketEncryption` | bool | `false` | Seal every gameplay payload with the session layer (AES-GCM) inside TLS. Off: TLS alone. Read at startup; each connection keeps the mode it was created and admitted under. Helm: `server.network.packetEncryption` |
 
-**Validation rules:** `SendThreads` 1 to 64; `MaxPendingBytes` 65536 to 67108864; `MaxWriteStall` 1 s to 5 min. Checked at startup, which names the setting.
+**Validation rules:** `SendThreads` 1 to 64; `MaxPendingBytes` 65536 to 67108864; `MaxWriteStall` 1 s to 5 min; `MaxReceiveQueueDepth` 64 to 65536 (it cannot be switched off). Checked at startup, which names the setting. Only `PacketEncryption` is a Helm value; the others are set through the environment (`Network__MaxReceiveQueueDepth`).
 
 ---
 

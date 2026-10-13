@@ -44,7 +44,7 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
         SPingPacket? newest = null;
         using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(_wire.ToArray()))
-            .EnumerateRawFramesAsync(256, guard.Token))
+            .EnumerateRawFramesAsync(256, int.MaxValue, guard.Token))
         {
             var frame = InboundPacketFrame.ParseFrame(raw);
             Assert.Equal(NetworkPacketType.SMSG_PING, frame.Header.Type);

@@ -27,14 +27,39 @@ public class PacketStream(Stream stream) : Stream
     public override long Length => stream.Length;
     public override long Position { get => stream.Position; set => stream.Position = value; }
 
+    /// <summary>A length prefix is a varint of at most this many bytes: 32 bits, seven to a byte.</summary>
+    private const int MaxLengthPrefixBytes = 5;
+
+    /// <summary>What <see cref="RefusedFrameLength" /> reads for a length prefix that is not a length at all.</summary>
+    public const long MalformedLength = long.MaxValue;
+
+    /// <summary>
+    /// Whether the enumeration ended on a frame it would not read: one that declared more than the maximum, or whose
+    /// length prefix was malformed. Nothing was buffered for it; the stream is at no frame boundary any more and
+    /// cannot be read further.
+    /// </summary>
+    public bool FrameRefused { get; private set; }
+
+    /// <summary>The length the refused frame declared, or <see cref="MalformedLength" />; 0 while none was refused.</summary>
+    public long RefusedFrameLength { get; private set; }
+
     /// <summary>
     /// Yields raw payload slices (varint length-prefix stripped). Slice memory is
     /// valid only until the next iteration — consumers must materialize before advancing.
     /// Public for testability of the buffered read loop independent of frame parsing.
     /// </summary>
+    /// <param name="initialBufferSize">The read buffer to start with; it grows to the largest frame read.</param>
+    /// <param name="maxFrameLength">
+    /// The most bytes a frame may declare after its length prefix. A frame that declares more, or whose prefix is
+    /// not a length, ends the enumeration before anything is rented or read for it (<see cref="FrameRefused" />):
+    /// the prefix is the peer's word, and a buffer of that size was otherwise rented on it alone.
+    /// </param>
+    /// <param name="token">Ends the enumeration.</param>
     public async IAsyncEnumerable<ReadOnlyMemory<byte>> EnumerateRawFramesAsync(int initialBufferSize,
-        [EnumeratorCancellation] CancellationToken token = default)
+        int maxFrameLength, [EnumeratorCancellation] CancellationToken token = default)
     {
+        // Whatever the caller asks, a frame and its prefix fit one array.
+        long maxDeclared = Math.Min(maxFrameLength, Array.MaxLength - MaxLengthPrefixBytes);
         byte[] buffer = ArrayPool<byte>.Shared.Rent(initialBufferSize);
         int dataStart = 0;   // first unread byte
         int dataEnd = 0;     // first empty byte
@@ -43,8 +68,8 @@ public class PacketStream(Stream stream) : Stream
             while (true)
             {
                 // 1) Try to parse varint length from already-buffered bytes.
-                (int packetSize, int varintLen)? lenResult = TryReadVarint(buffer.AsSpan(dataStart, dataEnd - dataStart));
-                if (lenResult is null)
+                int varintBytes = TryReadLength(buffer.AsSpan(dataStart, dataEnd - dataStart), out long declared);
+                if (varintBytes == 0)
                 {
                     // Need more bytes for the varint. Refill or yield break on EOF/error.
                     dataEnd = await RefillAsync(buffer, dataEnd, token).ConfigureAwait(false);
@@ -61,7 +86,16 @@ public class PacketStream(Stream stream) : Stream
                     continue;
                 }
 
-                (int payloadLen, int varintBytes) = lenResult.Value;
+                // The one check a frame's length gets, before anything is sized by it. A malformed prefix reads as
+                // more than any maximum, so it ends here too.
+                if (declared > maxDeclared)
+                {
+                    RefusedFrameLength = declared;
+                    FrameRefused = true;
+                    yield break;
+                }
+
+                int payloadLen = (int)declared;
                 int frameTotal = varintBytes + payloadLen;
 
                 // 2) Grow buffer if the frame is larger than current capacity.
@@ -139,22 +173,26 @@ public class PacketStream(Stream stream) : Stream
     }
 
     /// <summary>
-    /// Attempts to read a varint from the front of <paramref name="span"/>. Returns null
-    /// if more bytes are needed. Returns (value, bytesConsumed) on success.
+    /// Reads a frame's length prefix, a varint, from the front of <paramref name="span" />. Returns the bytes it
+    /// took, or 0 when more bytes are needed. The length is a <see cref="long" /> and never negative: five bytes carry
+    /// 35 bits, more than an <see cref="int" /> holds, and the caller compares before it narrows. A prefix that runs
+    /// past five bytes is no length: it reads as <see cref="MalformedLength" />, which no maximum admits, rather than
+    /// throwing, so the caller has one refusal to handle.
     /// </summary>
-    private static (int value, int bytesConsumed)? TryReadVarint(ReadOnlySpan<byte> span)
+    private static int TryReadLength(ReadOnlySpan<byte> span, out long length)
     {
-        int value = 0;
-        int shift = 0;
-        for (int i = 0; i < span.Length; i++)
+        length = 0;
+        int available = Math.Min(span.Length, MaxLengthPrefixBytes);
+        for (int i = 0; i < available; i++)
         {
             byte b = span[i];
-            value |= (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) return (value, i + 1);
-            shift += 7;
-            if (shift >= 35) throw new InvalidDataException("Varint too large for int32.");
+            length |= (long)(b & 0x7F) << (7 * i);
+            if ((b & 0x80) == 0) return i + 1;
         }
-        return null;
+
+        if (available < MaxLengthPrefixBytes) return 0;
+        length = MalformedLength;
+        return MaxLengthPrefixBytes;
     }
 
 }

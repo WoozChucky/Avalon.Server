@@ -2,7 +2,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Avalon.Configuration;
 
-/// <summary>The world server's send path (#875), under <c>Network</c>. Read once at startup.</summary>
+/// <summary>
+/// The world server's send path (#875) and the bound on what a connection may have waiting to be handled (#927), under
+/// <c>Network</c>. Read once at startup.
+/// </summary>
 public sealed class NetworkConfiguration
 {
     public const string Section = "Network";
@@ -24,6 +27,15 @@ public sealed class NetworkConfiguration
     /// <summary>How long one write may stay pending before the connection is closed as stalled, without a notice. Default 10 s.</summary>
     [Range(typeof(TimeSpan), "00:00:01", "00:05:00")]
     public TimeSpan MaxWriteStall { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Packets one connection may have received and waiting for the tick (#927). One that arrives with this many
+    /// waiting is not queued and closes the connection, without a notice. Default 2,048: about 34 seconds of one
+    /// client's input at 60 a second, left unhandled, and about twice what a client's socket can hold back through a
+    /// stalled path and deliver at once.
+    /// </summary>
+    [Range(64, 65_536)]
+    public int MaxReceiveQueueDepth { get; set; } = 2048;
 
     /// <summary>
     /// Seal every gameplay payload with the session layer (AES-GCM) inside TLS (#875). Off, the default: TLS alone protects

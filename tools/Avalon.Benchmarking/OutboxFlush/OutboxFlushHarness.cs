@@ -269,7 +269,7 @@ public static class OutboxFlushHarness
                 {
                     try
                     {
-                        await foreach (ReadOnlyMemory<byte> raw in server.EnumerateRawFramesAsync(4096, stop.Token))
+                        await foreach (ReadOnlyMemory<byte> raw in server.EnumerateRawFramesAsync(4096, int.MaxValue, stop.Token))
                         {
                             InboundPacketFrame.ParseFrame(raw);
                             Interlocked.Increment(ref frames);
