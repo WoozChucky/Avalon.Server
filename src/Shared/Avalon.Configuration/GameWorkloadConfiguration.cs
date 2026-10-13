@@ -3,7 +3,12 @@ namespace Avalon.Configuration;
 /// <summary>Trusted deployment bindings. One world process per configured world in the initial admission protocol.</summary>
 public sealed class GameWorkloadConfiguration
 {
-    public const string ClientProtocolVersion = "0.2.0";
+    /// <summary>
+    /// The one client version game sign-in and world allocation accept, compared for equality: a client
+    /// and the services it signs in to are released together. From 0.3.0 a client follows the
+    /// packet-encryption mode a world states at admission and needs no world key when it is off.
+    /// </summary>
+    public const string ClientProtocolVersion = "0.3.0";
     public List<GameServerDefinition> Servers { get; set; } = [];
     public void Validate()
     {

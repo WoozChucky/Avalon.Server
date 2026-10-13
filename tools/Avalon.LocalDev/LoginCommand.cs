@@ -19,7 +19,7 @@ namespace Avalon.LocalDev;
 /// </summary>
 public static class LoginCommand
 {
-    private const string ProtocolVersion = "0.2.0";
+    private const string ProtocolVersion = "0.3.0";
     private const string ApplicationKey = "avalon.base";
     private const string TicketVariable = "AVALON_GAME_TICKET_STDIN";
 

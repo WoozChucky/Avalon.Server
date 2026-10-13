@@ -10,7 +10,7 @@ public sealed class WorldHandshakeHandler(IWorld world) : IWorldPacketHandler<CW
     public Task ExecuteAsync(WorldPacketContext<CWorldHandshakePacket> ctx, CancellationToken token = default)
     {
         if (ctx.Connection is not WorldConnection connection || connection.GameSessionLease?.IsActive != true ||
-            !SemVerPacker.TryPack(ctx.Packet.Version, out uint version) || version < SemVerPacker.Pack("0.2.0") ||
+            !SemVerPacker.TryPack(ctx.Packet.Version, out uint version) || version < SemVerPacker.Pack("0.3.0") ||
             !SemVerPacker.TryPack(world.MinVersion, out uint minimum) || version < minimum || !connection.AcceptProtocol())
         {
             return ctx.Connection.CloseAsync(false);

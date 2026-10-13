@@ -122,7 +122,7 @@ leaf pin; no optional reference or unpinned fallback is available. The transport
 under `/run/avalon-auth`. These are deployment credentials; only SOPS-encrypted copies belong in source control.
 
 Updated clients use CGameAdmissionPacket/SGameAdmissionPacket (0x201E/0x301E) inside TLS, then the
-existing encrypted version handshake. Minimum supported gameplay client version is 0.2.0. Retired
+existing encrypted version handshake. Minimum supported gameplay client version is 0.3.0. Retired
 TCP handoff, world-select and world-key opcodes 0x200F, 0x201B/0x301B and 0x201C/0x301C are unassigned.
 The launcher handoff issuer and inherited-stdin contract remain; updated clients redeem the handoff
 through `/client/auth` for a restricted context and separately request licensed world admission.
