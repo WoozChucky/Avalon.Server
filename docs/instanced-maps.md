@@ -351,7 +351,9 @@ pass, so without it a second `CMSG_ENTER_MAP` handled in the same pass, or while
 would pass the checks the first one passed and arrive, and save, once more. The second is answered `MoveInProgress`
 in step 1, and so is any other move asked for meanwhile.
 
-Every ending clears it, in `EnterMapHandler.Arrive`, on every path out and in a `finally`:
+Every ending clears it. One that reaches the arrival is cleared in `EnterMapHandler.Arrive`, in a `finally`, on
+every path out of it; the one that does not (asking for the instance throws, so no arrival is queued) is cleared in
+`Execute`'s `catch`:
 
 | Ending | What the client is sent | The flag |
 |---|---|---|
@@ -360,16 +362,25 @@ Every ending clears it, in `EnterMapHandler.Arrive`, on every path out and in a 
 | The instance was released before the arrival, the first time | nothing yet: the target is resolved again | kept: the second resolve is the move now, and ends as any other |
 | Released a second time | `MapNotFound` | cleared |
 | No longer in the party the instance is for, or the instance is full | `MapNotFound`, `InstanceFull` | cleared |
-| The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error | cleared |
+| The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error by the task that settles the request, as the build ends and on the thread that ends it, inside a `catch` so that a log provider that throws cannot fault it | cleared |
 | A step of the arrival throws (the transfer, a send) | whatever was sent before it | cleared; the throw is logged by the continuation drain |
 | Asking for the instance throws, before anything is queued | nothing; the throw is logged by the packet dispatch | cleared |
 | The character left the connection meanwhile | nothing | left alone: the connection cleared it as the character left (`ResetCharacterState`), and it may be the next character's |
 
 The request for the instance is handed to the connection as a task that never faults (`Settled`): the connection's
 drain drops the callback of a task that did not succeed, which would leave the flag set for good, the reason
-`TownReturn` and `MapTeleport` settle theirs. What none of the three bounds is a build that never ends: nothing in
-`InstanceRegistry` times a build out, so a request for an instance whose build hangs holds the flag until the
-character leaves the world.
+`TownReturn` and `MapTeleport` settle theirs. A request already finished (a town, an instance still alive) is handed
+over as it is. One still being built is settled by a continuation, 160 B on the tick
+([benchmarks](benchmarks.md#arrival-in-a-map--benchmarksarrivalbenchmarkscs-883)), which a thread-pool thread runs
+once the registry has published the build: the arrival runs in the first flush after that, which need not be the
+flush of the tick that published it.
+
+A build that never finishes keeps the move under way until the character leaves the world, as it does for a return
+to town and a teleport: nothing times a build out (#969).
+
+A party's leave countdown that runs out while a portal entry is under way finds the move in flight, as it does for
+a respawn: it is re-armed as a failed return (logged at Warning, "A return to town was already under way") and
+spends one of its retries ([parties](parties.md)).
 
 ### What an arrival is sent
 

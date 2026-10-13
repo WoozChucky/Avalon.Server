@@ -106,8 +106,8 @@ and 29,226 B now, 48 B more on both sides, the other rows the same.
 
 - **The layout cost 1,608 B for 19 chunks and 768 B for 4**, 56 B a chunk on top of 544 B: an entry (40 B) and its
   place in the list the handler built and in the copy the factory made. A portal entry is now 504 B whatever the
-  size of the map it leads to and whether or not anyone arrived in the instance before (below), and a return to
-  town or a select 768 B less.
+  size of the map it leads to and whether or not anyone arrived in the instance before, and 664 B when it is asked
+  for before the instance is built (both below); a return to town or a select is 768 B less.
 - **A refused portal entry allocates nothing.** It cost 56 to 352 B, and at Warning one written line for every
   request from too far away.
 - **The lookups** were 80 to 104 B of a portal entry that got as far as looking a template up, arrived or refused,
@@ -146,15 +146,22 @@ them.
 ([instanced maps](instanced-maps.md#a-portal-entry-is-a-move-under-way)), and counts each refusal
 (`world.portal_entry.refusals`, [instrumentation](instrumentation.md#refused-portal-entries)). Both are in the last
 figures: an accepted entry whose instance request has already finished is still 504 B, and a refusal still 0 B with
-its count in place (one tag, passed as a struct; no benchmark here attaches a listener to the meter). An entry
-whose instance is still being built allocates one continuation task and its state more, so that a build that fails
-still ends the move; the benchmark's requests are all finished, so no row shows it.
+its count in place (one tag, passed as a struct; no benchmark here attaches a listener to the meter).
+
+**An entry whose instance is still being built costs 160 B more: 664 B.** That is the usual entry of a character's
+own forest, which starts the build. `Portal_entry_into_a_forest_still_being_built` (`FirstArrivalBenchmarks`, two
+runs) hands the handler a request that is not finished, completed as the registry completes its own, publishes the
+build and runs the arrival once the continuation the connection was handed is ready. The 160 B are the task and the
+state that settle the request, so that a build that fails still ends the move; a request already finished is handed
+over as it is and costs none of it (504 B, the rows above). The settled task is completed by a thread-pool thread
+after the build is published, so the arrival no longer runs in the flush of the tick that published it but in the
+first one after that thread has run; the row waits for it, and took 8.9 and 24.5 us a call on an idle pool. On the
+server that pool also bakes navmeshes.
 
 **Time per call**, the mean of each run. The machine was shared with other builds and test runs: for the arrivals
 the spread between two runs of the same code is as large as the difference between the columns, so the claim is only
-that nothing is slower. Two rows do not overlap: a dead character's request (31 to 37 ns, now 6 to 7) and one during
-a move (122 to 153 ns, now 91 to 113). The first run of the code as it was is BenchmarkDotNet's default job; every
-other run is `--job short`. The second column is the finished change.
+that nothing is slower, for every row: short jobs on a shared machine do not show more. The first run of the code as
+it was is BenchmarkDotNet's default job; every other run is `--job short`. The second column is the finished change.
 
 | | As it was, each run | Now, each run |
 |---|---:|---:|
