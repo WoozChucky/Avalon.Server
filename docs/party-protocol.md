@@ -64,9 +64,11 @@ what a payload without the field decodes as.
 | 14 | `Invalid` | The request could not be read: an experience mode of `Unknown`. |
 | 15 | `Error` | The server failed while handling the request; nothing is known to have changed. |
 
-`Name` carries the character involved where the server knows it: the name as sent on an invite (none when
-what was sent is not a character name, #936), the member's name on a kick or promote, the other side on an
-unasked result.
+`Name` carries the character involved where the server knows it: the name as sent on an invite, the member's
+name on a kick or promote, the other side on an unasked result. A `CMSG_PARTY_INVITE` whose `TargetName` is
+not a character name is answered `NotFound` with no `Name` (#936). The `/invite` command is different there:
+it puts what was typed in `Name` and in its "Could not find X." line, to the sender only, and the chat
+limit (section 5) bounds it.
 
 **Unasked results.** Some results arrive without a request:
 - `InviteDeclined` (with the target's name) to the inviter when the target declines.
@@ -128,7 +130,8 @@ over the whole field as sent: a command's word, its name and its text together. 
 it, the longest message being a whisper sent as `/w `, a name of at most 252 bytes, a space and 255 bytes of text. A
 longer message is refused whole, never cut: it is said to nobody, no command runs, it does not count against the
 rate limit, and the sender gets one `System` line, "Your message is too long and was not sent.". Send valid UTF-8:
-each malformed byte is read as a replacement character and counted as three.
+each malformed sequence is read as one or more replacement characters, three bytes each, so such a message can
+count for more than it took on the wire.
 
 `SChatMessagePacket` has a `Channel` (field 6, `ChatChannel`):
 
