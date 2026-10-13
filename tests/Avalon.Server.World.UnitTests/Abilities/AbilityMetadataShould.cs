@@ -18,11 +18,17 @@ public class AbilityMetadataShould
         Type metadata = typeof(AbilityMetadata);
         const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
+        // Sealed, and straight under object: what is checked below is then everything an instance can hold.
+        Assert.True(metadata.IsSealed, "A subclass could add a member that changes.");
+        Assert.Equal(typeof(object), metadata.BaseType);
+
         List<string> changeable = [];
         foreach (FieldInfo field in metadata.GetFields(Instance))
         {
-            if (!field.IsDefined(typeof(CompilerGeneratedAttribute)))
-                changeable.Add($"field {field.Name}");
+            // The field behind a get-and-init property is init-only; the one behind a settable property, or a
+            // captured constructor parameter, is not.
+            if (!field.IsInitOnly)
+                changeable.Add($"{field.Name} can be written after construction");
             else if (!Unchanging(field.FieldType))
                 changeable.Add($"{field.Name}: {field.FieldType.Name} can be changed in place");
         }
@@ -37,7 +43,7 @@ public class AbilityMetadataShould
         }
 
         Assert.Empty(changeable);
-        Assert.NotEmpty(metadata.GetProperties(Instance));
+        Assert.NotEmpty(metadata.GetFields(Instance));
     }
 
     /// <summary>A number, a flag, an enum or a string: a value nothing can change through a reference to it.</summary>
