@@ -226,11 +226,26 @@ public sealed class ConnectionSenderShould
             scheduler.RunPass(owner);
         }
 
-        // The pending write ends where the stream completes it; the owner's next visit starts the burst framed ahead.
+        // The pending write ends, and the owner's next visit starts the burst framed ahead. The end runs here, inside
+        // Complete, and not on the thread pool as under the test's synchronization context: what this case asserts is
+        // which visit gives a buffer back, so a write still ending on another thread while the next burst is sent
+        // would make that visit the one after.
         void EndWrite(bool startsAnother)
         {
             int writes = stalled.Writes;
-            stalled.Complete();
+            long pendingBefore = sender.PendingBytes;
+            SynchronizationContext? context = SynchronizationContext.Current;
+            SynchronizationContext.SetSynchronizationContext(null);
+            try
+            {
+                stalled.Complete();
+            }
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(context);
+            }
+
+            Assert.True(sender.PendingBytes < pendingBefore, "The write's end did not run inside Complete");
             PassUntil(scheduler, owner, () => startsAnother ? stalled.Writes > writes : sender.PendingBytes == 0);
         }
     }
