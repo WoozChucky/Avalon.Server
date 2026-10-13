@@ -78,6 +78,26 @@ The send threads' busy time, in cores: `sum(rate(network_send_pass_duration_micr
 
 Any count is worth a look: a client sending faster than the tick takes (151 packets a pass per connection), a tick stalled for as long as the cap is deep (about 34 s of input at the default), or a connection whose queue is wedged ([packet handlers](packet-handlers.md)). The counter does not see a flood the tick keeps up with, nor packets dropped as they arrive.
 
+### Failed handshakes
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `network.in.handshake_failures` | `network_in_handshake_failures_total` | Connections dropped before their TLS handshake completed (#897), tagged `reason`: `failed` (the handshake ended in an authentication failure) or `timeout` (the peer did not finish it within the world's five seconds; the auth server's handshake has no timeout, #938). On the world's meter (`world-server`) and on the auth server's (`auth-server`), each counting its own connections |
+
+No TLS is needed to cause one: `failed` is a peer that speaks something else to the port (an HTTP probe, a port scan),
+and `timeout` one that connects and says nothing. Each writes one Debug line (the connection and its address) and no
+exception; each was an Error, "Failed to establish connection", with a stack trace. `reason` takes those two values
+and no other.
+
+`failed` is every handshake that ended in an authentication failure, whichever end caused it: the server cannot tell a
+peer that does not speak TLS from a client it could not agree a protocol version or a certificate with. So it has a
+server-side cause too. A rate of `failed` that follows client launches rather than scans, with no logins or
+admissions behind it, is the server's TLS setup (its certificate, its protocol versions) and not its peers; the line
+that would say why is no longer written, so reproduce it with a client.
+
+Not counted: a peer that closes its socket during the handshake (that was, and is, one Debug line as the peer going
+away), and a handshake cut short by the server stopping (one Debug line; it was an Error).
+
 ### Refused frames
 
 | Metric | Prometheus | Measures |
@@ -88,7 +108,36 @@ A client never sends such a frame, and any peer that completes TLS can, before i
 a peer that is not a client, or a client newer than the limit allows. Each also writes one Debug line (the connection,
 its address and the declared length), and nothing above Debug.
 
-`network.in.packets` and `network.in.bytes`, on both meters, count what the read loop decoded. A frame that arrives
+### Protocol violations
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `network.in.protocol_kicks` | `network_in_protocol_kicks_total` | Connections closed for a frame the peer got wrong (#897, [packet handlers](packet-handlers.md)), tagged `reason`: `malformed_frame` (not a `NetworkPacket`), `sealed_before_key` (flagged `Encrypted` before the session had keys), `seal_not_authentic` (flagged `Encrypted`, and does not authenticate or is shorter than a nonce and a tag) or `undecodable_payload` (not an encoding of its opcode's packet). On the world's meter (`world-server`) and on the auth server's (`auth-server`), each counting its own connections |
+
+`reason` takes those four values and no other: nothing a peer sends becomes a tag. Each count is one connection closed
+and one Warning (the connection, its account once it has one, its address, how many packets it had delivered and, but
+for `malformed_frame`, the opcode), without the exception. Each
+was an Error with a stack trace, but a payload cut short, which was reported at Debug as the peer having closed the
+connection. A world's close for a packet that arrives unsealed while it seals
+(`Network:PacketEncryption`) is not counted here; it writes its own Warning. Nor is an opcode the server has no packet
+type for, which leaves the connection open.
+
+What each reason can mean, and who can cause it. None is only ever the peer's doing: the line and the count say
+what arrived, not whose fault it is, and the packets the connection had delivered (in the Warning) tell a peer that
+never was a client from a session that worked until then.
+
+| `reason` | Who can cause it | The peer's causes | The server's own |
+|---|---|---|---|
+| `malformed_frame` | Any peer that completes TLS, on either server, before admission or login | A peer that speaks something else inside TLS; a client that frames a packet another way | A frame the hand-written header parser (`InboundPacketFrame.ParseFrame`) refuses and should not |
+| `sealed_before_key` | Any peer that completes TLS, on either server | A peer that flags a frame `Encrypted` without a key exchange; a client that seals before it has the server's answer to its exchange | A server that had not keyed the session when a correct client's sealed packet arrived: the auth server leaves a connection open and unkeyed after a client-info packet whose public key it refuses, and a world keys the session on the tick, after the admission it waits for off the tick |
+| `seal_not_authentic` | On the auth server, any peer after a key exchange, which needs no login. On a world, only a connection admitted as an account: before admission its session has no key, and a sealed frame is `sealed_before_key` | A frame altered or made up; a sealed frame shorter than a nonce and a tag; a client that derives another key | A server that derives another key than its clients do: the two cannot be told apart from one connection, and it is every client, at its first sealed packet ([session crypto](crypto-v1-derivation.md)) |
+| `undecodable_payload` | Any peer that completes TLS, with a plain frame; with a sealed one, whoever can seal one that opens: on the auth server any peer after a key exchange, on a world an admitted account | A peer that is no client; a client built against another wire schema; a payload nested more than 32 deep | A contract changed so that current clients no longer match it; a packet class whose own code throws one of the five types the decode is classified by ([packet handlers](packet-handlers.md)). A contract that cannot be built at all stops the server from starting instead |
+
+A rate of `seal_not_authentic` or `undecodable_payload` that follows logins or world entries rather than scans, on
+connections with few packets delivered, is the two ends disagreeing, and the change to look at may be the server's.
+
+`network.in.packets` and `network.in.bytes`, on both meters, count what the read loop decoded. A frame whose opcode
+the server has no packet type for is counted in both, though nothing is decoded for it. A frame that arrives
 while its connection is closing is read and discarded undecoded
 ([graceful shutdown](networking-graceful-shutdown.md#what-a-closing-connection-reads)): it adds its length to
 `network.in.bytes` and nothing to `network.in.packets`.

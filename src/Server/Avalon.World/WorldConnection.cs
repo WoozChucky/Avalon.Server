@@ -660,6 +660,14 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     protected override void OnFrameRefused() => DiagnosticsConfig.World.FrameKicks.Add(1);
 
+    protected override void OnHandshakeFailed(string reason) =>
+        DiagnosticsConfig.World.HandshakeFailures.Add(1, new KeyValuePair<string, object?>("reason", reason));
+
+    protected override void OnProtocolViolation(string reason) =>
+        DiagnosticsConfig.World.ProtocolKicks.Add(1, new KeyValuePair<string, object?>("reason", reason));
+
+    protected override long? AccountIdForLog => AccountId?.Value;
+
     protected override long GetServerTime() => Server.ServerTime;
 
     private readonly record struct WorldPacket(NetworkPacketType Type, Packet? Payload, long ArrivedTicks);

@@ -139,7 +139,10 @@ order. `Encrypt`, which the client-to-server packets' `Create` use, allocates on
 and writes into it the same way. Opening writes into the caller's buffer and allocates nothing. A
 packet shorter than a nonce and a tag, or one that does not authenticate, is refused as a
 `CryptographicException` (the platform throws the derived `AuthenticationTagMismatchException` and
-clears what it had written). The key agreement and the derivation stay on BouncyCastle, which is
+clears what it had written). A server's read loop takes both as the sender's protocol violation: the
+connection is closed with one Warning and a count, `network.in.protocol_kicks` with `reason`
+`seal_not_authentic` (#897). Two ends that derive different keys fail the same way, so that count is
+also where a derivation that diverged shows on a live server. The key agreement and the derivation stay on BouncyCastle, which is
 also what sealed the vectors in the file, so the vectors (those recorded before #850) hold the
 platform cipher to a second implementation.
 
@@ -170,7 +173,11 @@ claims the session first, so a second call is refused even after a failed first 
 both ciphers, and only then marks the session ready, with a volatile write that publishes the
 ciphers with it. An `Initialize` that throws (a peer key that does not parse, say) leaves the session failed
 for good, and every later `Encrypt` or `Decrypt` refuses with an `InvalidOperationException` rather
-than reaching a missing cipher. `GetPublicKey` and `GetOtherEndPublicKey` refuse the same way
+than reaching a missing cipher. A session with no exchange yet (none started, or one under way) refuses
+with the derived `CryptoSessionNotInitializedException` (#897): of the refusals it is the one the other
+end causes, by flagging a packet `Encrypted` before it has exchanged keys, and a server's read loop
+closes that connection with a Warning where a failed or spent session stays an Error
+([packet handlers](packet-handlers.md)). `GetPublicKey` and `GetOtherEndPublicKey` refuse the same way
 until the exchange has completed; a spent session still returns them, since exhaustion ends what
 it may seal, not which exchange it was. The ready check is one volatile read before each packet, so it
 adds no lock and no allocation. Exhaustion is written by the one thread sealing, so no seal passes the

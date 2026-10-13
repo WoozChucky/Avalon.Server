@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
 using Avalon.Hosting.Telemetry;
@@ -44,6 +45,82 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         [LoggerMessage(Level = LogLevel.Debug,
             Message = "Closing connection {ConnectionId} from {RemoteEndPoint}: a frame's length prefix is not a length")]
         public static partial void MalformedFrameLength(ILogger logger, Guid connectionId, string remoteEndPoint);
+
+        // A connection that never completed TLS (#897). No TLS is needed to cause one, so a port scan causes one per
+        // port it tries: a line at Debug, of fixed text, and a count.
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Dropped connection {ConnectionId} from {RemoteEndPoint}: the TLS handshake failed (a peer that does not speak TLS, or one the server could not agree a session with)")]
+        public static partial void HandshakeFailed(ILogger logger, Guid connectionId, string remoteEndPoint);
+
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Dropped connection {ConnectionId} from {RemoteEndPoint}: the TLS handshake did not finish in time")]
+        public static partial void HandshakeTimedOut(ILogger logger, Guid connectionId, string remoteEndPoint);
+
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Connection {ConnectionId} from {RemoteEndPoint} was not established: the server is stopping")]
+        public static partial void StoppedBeforeEstablished(ILogger logger, Guid connectionId, string remoteEndPoint);
+
+        // The four below are what a peer can make of a frame the stream did read (#897). Any peer that completes TLS
+        // can, before admission or login, and can reconnect to do it again: each is one line per connection, at
+        // Warning, of fixed text, with no exception and nothing the peer wrote but its opcode. Each says how many
+        // packets the connection had delivered, which tells a first frame (a peer that is no client, or a client that
+        // derives another key) from a session that worked and then received a bad one, and the account, once there
+        // is one.
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: a frame is not a packet (its header, or a length in it, does not parse)")]
+        public static partial void MalformedFrame(ILogger logger, Guid connectionId, long? accountId,
+            string remoteEndPoint, int packetsReceived);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: {PacketType} arrived sealed before the connection had a session key")]
+        public static partial void SealedBeforeKey(ILogger logger, Guid connectionId, long? accountId,
+            string remoteEndPoint, int packetsReceived, NetworkPacketType packetType);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: {PacketType} arrived sealed and does not open under the connection's session key")]
+        public static partial void SealNotAuthentic(ILogger logger, Guid connectionId, long? accountId,
+            string remoteEndPoint, int packetsReceived, NetworkPacketType packetType);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: the payload of {PacketType} does not decode as that packet")]
+        public static partial void UndecodablePayload(ILogger logger, Guid connectionId, long? accountId,
+            string remoteEndPoint, int packetsReceived, NetworkPacketType packetType);
+
+        // A packet the server does not serve leaves the connection open, so a peer can send them at any rate: the
+        // first on a connection is a Warning, the rest Trace. Not Debug: the auth server ships with Debug as its
+        // minimum level, and would write one for every frame.
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Unknown packet type {PacketType} on connection {ConnectionId}: dropped; further packets this server does not serve are logged at Trace on this connection")]
+        public static partial void UnknownPacketType(ILogger logger, NetworkPacketType packetType, Guid connectionId);
+
+        [LoggerMessage(Level = LogLevel.Trace,
+            Message = "Unknown packet type {PacketType} on connection {ConnectionId}: dropped")]
+        public static partial void UnknownPacketTypeRepeated(ILogger logger, NetworkPacketType packetType,
+            Guid connectionId);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Could not find a handler for packet {PacketType} on connection {ConnectionId}; further packets this server does not serve are logged at Trace on this connection")]
+        public static partial void NoHandler(ILogger logger, NetworkPacketType packetType, Guid connectionId);
+
+        [LoggerMessage(Level = LogLevel.Trace,
+            Message = "Could not find a handler for packet {PacketType} on connection {ConnectionId}")]
+        public static partial void NoHandlerRepeated(ILogger logger, NetworkPacketType packetType, Guid connectionId);
+    }
+
+    /// <summary>The <c>reason</c> a server's <c>network.in.handshake_failures</c> counts a connection under: a fixed set.</summary>
+    protected static class HandshakeFailure
+    {
+        public const string Failed = "failed";
+        public const string TimedOut = "timeout";
+    }
+
+    /// <summary>The <c>reason</c> a server's <c>network.in.protocol_kicks</c> counts a close under: a fixed set.</summary>
+    protected static class ProtocolViolation
+    {
+        public const string MalformedFrame = "malformed_frame";
+        public const string SealedBeforeKey = "sealed_before_key";
+        public const string SealNotAuthentic = "seal_not_authentic";
+        public const string UndecodablePayload = "undecodable_payload";
     }
 
     protected readonly ILogger _logger;
@@ -55,6 +132,11 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     private readonly DecryptFunc _decrypt;
 
     protected readonly IServerBase Server;
+
+    // Whether this connection has had its one Warning for a packet the server does not serve (an opcode it has no
+    // packet type for, or one it has no handler for). Read and written only by the connection's read loop, which
+    // delivers one packet at a time.
+    private bool _warnedUnserved;
 
     private TcpClient? _client;
     private int _closed; // 0 = open, 1 = closed
@@ -238,6 +320,87 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     /// </summary>
     protected virtual void OnFrameRefused() { }
 
+    /// <summary>
+    /// The connection never completed its TLS handshake, because of what the peer did or did not send, and is about to
+    /// be dropped: a server counts it in its telemetry here, once per connection, under <paramref name="reason" />,
+    /// one of <see cref="HandshakeFailure" />'s constants. A handshake cut short by the server stopping is not one.
+    /// </summary>
+    protected virtual void OnHandshakeFailed(string reason) { }
+
+    /// <summary>
+    /// The read loop ended on a frame the peer got wrong (not a packet, sealed before the session had a key, sealed
+    /// and not authentic, or a payload that is not its packet), and the connection is about to close: a server
+    /// counts it in its telemetry here, once per connection, under <paramref name="reason" />, one of
+    /// <see cref="ProtocolViolation" />'s constants.
+    /// </summary>
+    protected virtual void OnProtocolViolation(string reason) { }
+
+    /// <summary>
+    /// The account this connection is logged in or admitted as, for the lines that close it; null until there is one,
+    /// and on a connection that has none.
+    /// </summary>
+    protected virtual long? AccountIdForLog => null;
+
+    /// <summary>
+    /// A frame whose opcode this server has no packet type for: an opcode a newer server retired, one meant for the
+    /// other server, or noise. Dropped, and the connection stays open (an older client may still send what was
+    /// retired, #697). The first packet a connection sends that the server does not serve is a Warning and the rest
+    /// are Trace, so a peer cannot write a line per frame (#897).
+    /// </summary>
+    private void DropUnknown(NetworkPacketType type)
+    {
+        if (_warnedUnserved)
+        {
+            ReadLog.UnknownPacketTypeRepeated(_logger, type, Id);
+            return;
+        }
+
+        _warnedUnserved = true;
+        ReadLog.UnknownPacketType(_logger, type, Id);
+    }
+
+    /// <summary>
+    /// A packet the server decoded and has no handler for (<see cref="ServerBase{T}.CallListener" />, which runs on
+    /// this connection's read loop): logged as <see cref="DropUnknown" /> logs, under the same once per connection.
+    /// </summary>
+    internal void LogNoHandler(NetworkPacketType type)
+    {
+        if (_warnedUnserved)
+        {
+            ReadLog.NoHandlerRepeated(_logger, type, Id);
+            return;
+        }
+
+        _warnedUnserved = true;
+        ReadLog.NoHandler(_logger, type, Id);
+    }
+
+    /// <summary>
+    /// The one line and the one count a connection gets for a payload the peer got wrong
+    /// (<see cref="PacketReadException" />). The exception is not logged: its text and its stack trace are as long as
+    /// the peer cares to make them (nesting past the decoder's depth is tens of kilobytes), and a peer can reconnect.
+    /// </summary>
+    private void RefusePayload(PacketReadException refusal)
+    {
+        // The frame that was refused is not among them: a packet is counted once it has been read.
+        int packetsReceived = Volatile.Read(ref PacketReceivedCount);
+        switch (refusal.Failure)
+        {
+            case PacketReadFailure.SealedBeforeKey:
+                ReadLog.SealedBeforeKey(_logger, Id, AccountIdForLog, RemoteEndPoint, packetsReceived, refusal.PacketType);
+                OnProtocolViolation(ProtocolViolation.SealedBeforeKey);
+                break;
+            case PacketReadFailure.SealNotAuthentic:
+                ReadLog.SealNotAuthentic(_logger, Id, AccountIdForLog, RemoteEndPoint, packetsReceived, refusal.PacketType);
+                OnProtocolViolation(ProtocolViolation.SealNotAuthentic);
+                break;
+            default:
+                ReadLog.UndecodablePayload(_logger, Id, AccountIdForLog, RemoteEndPoint, packetsReceived, refusal.PacketType);
+                OnProtocolViolation(ProtocolViolation.UndecodablePayload);
+                break;
+        }
+    }
+
     protected abstract long GetServerTime();
 
     /// <summary>
@@ -340,6 +503,14 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
                     Interlocked.Increment(ref PacketReceivedCount);
                     OnPacketAccounted(frame.Header.Type, packetSize);
 
+                    // No packet type for the opcode (#897): counted as received, and dropped here. Nothing downstream
+                    // is handed a packet that was never decoded.
+                    if (payload is null)
+                    {
+                        DropUnknown(frame.Header.Type);
+                        continue;
+                    }
+
                     ValueTask receiveTask = OnReceive(frame.Header, payload);
                     if (!receiveTask.IsCompletedSuccessfully)
                         await receiveTask.ConfigureAwait(false);
@@ -357,10 +528,27 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
                     OnFrameRefused();
                 }
             }
+            // A frame the peer got wrong is a protocol violation, not a server error (#897): one Warning without
+            // the exception, one count, and the close below. The two catches cost nothing until a frame is refused,
+            // and each ends the loop, so each is once per connection. ParseFrame is the loop's one source of an
+            // InvalidDataException: the reader wraps what a payload makes it throw, and a handler's exception ends
+            // in CallListener.
+            catch (PacketReadException e)
+            {
+                RefusePayload(e);
+            }
+            catch (InvalidDataException)
+            {
+                ReadLog.MalformedFrame(_logger, Id, AccountIdForLog, RemoteEndPoint,
+                    Volatile.Read(ref PacketReceivedCount));
+                OnProtocolViolation(ProtocolViolation.MalformedFrame);
+            }
             catch (IOException e)
             {
                 _logger.LogDebug(e, "Connection was closed. Probably by the other party");
             }
+            // Anything else is not the peer's doing and keeps its exception: a session whose exchange failed, a
+            // cipher or a packet class that threw, a fault in the loop itself.
             catch (Exception e)
             {
                 _logger.LogError(e, "Failed to read from stream");
@@ -374,6 +562,25 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         catch (IOException e)
         {
             _logger.LogDebug(e, "Connection ended before it was established. Probably by the other party");
+        }
+        // A peer that does not speak TLS, or says nothing until the handshake's timeout, is the same step earlier
+        // (#897): an HTTP probe or a port scan was an Error with a stack trace per connection here. One line at
+        // Debug without the exception, and a count. Above the read loop only the handshake throws either type: the
+        // PROXY header's read handles its own timeout, and the loop below has its own catches.
+        catch (AuthenticationException)
+        {
+            ReadLog.HandshakeFailed(_logger, Id, RemoteEndPoint);
+            OnHandshakeFailed(HandshakeFailure.Failed);
+        }
+        catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+        {
+            ReadLog.HandshakeTimedOut(_logger, Id, RemoteEndPoint);
+            OnHandshakeFailed(HandshakeFailure.TimedOut);
+        }
+        // Cut short by the server stopping: not the peer's doing, so not counted as its, and not an error.
+        catch (OperationCanceledException)
+        {
+            ReadLog.StoppedBeforeEstablished(_logger, Id, RemoteEndPoint);
         }
         catch (Exception e)
         {

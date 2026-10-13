@@ -134,6 +134,14 @@ public class AuthConnection : Connection, IAuthConnection
 
     protected override void OnFrameRefused() => DiagnosticsConfig.Auth.FrameKicks.Add(1);
 
+    protected override void OnHandshakeFailed(string reason) =>
+        DiagnosticsConfig.Auth.HandshakeFailures.Add(1, new KeyValuePair<string, object?>("reason", reason));
+
+    protected override void OnProtocolViolation(string reason) =>
+        DiagnosticsConfig.Auth.ProtocolKicks.Add(1, new KeyValuePair<string, object?>("reason", reason));
+
+    protected override long? AccountIdForLog => AccountId?.Value;
+
     protected override long GetServerTime() => Server.ServerTime;
 
     private bool OnClientCertificateValidation(object sender, X509Certificate? certificate, X509Chain? chain,

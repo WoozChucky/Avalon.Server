@@ -330,7 +330,13 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         // path writes shared state, so connections dispatching their first packets at once cannot race.
         if (!PacketManager.TryGetPacketInfo(header.Type, out PacketInfo details) || details.HandlerFactory is not { } handlerFactory)
         {
-            _logger.LogWarning("Could not find a handler for packet {PacketType}", header.Type);
+            // The connection stays open, so a peer can send these at any rate, before login: the first on a
+            // connection is a Warning and the rest are Trace (#897). The connection holds the once, as this runs on
+            // its read loop.
+            if (connection is Connection known)
+                known.LogNoHandler(header.Type);
+            else
+                _logger.LogWarning("Could not find a handler for packet {PacketType}", header.Type);
             return;
         }
 

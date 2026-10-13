@@ -345,7 +345,10 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     /// <paramref name="output"/>).
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    /// The session never completed its exchange, or its send counter is spent.
+    /// The session never completed its exchange, or its send counter is spent. While no exchange has completed (none
+    /// was started, or one is under way) it is the derived <see cref="CryptoSessionNotInitializedException" />: a
+    /// packet flagged Encrypted that arrives before the keys is the sender's doing. After an exchange that failed, or
+    /// with the counter spent, it is a plain one.
     /// </exception>
     public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
     {
@@ -384,7 +387,8 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     {
         Failed => new InvalidOperationException("Crypto session failed to initialize"),
         Exhausted => new InvalidOperationException("Crypto session nonce counter exhausted"),
-        _ => new InvalidOperationException("Crypto session not initialized"),
+        // The one refusal a peer can cause, so it has a type of its own (#897).
+        _ => new CryptoSessionNotInitializedException(),
     };
 
     public byte[] GenerateHandshakeData()

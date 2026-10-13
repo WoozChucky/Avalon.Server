@@ -8,13 +8,20 @@ internal sealed class CapturingLogger : ILogger
 {
     public ConcurrentQueue<(LogLevel Level, string Message)> Entries { get; } = new();
 
+    /// <summary>The exception of every entry that was logged with one, and the entry's level.</summary>
+    public ConcurrentQueue<(LogLevel Level, Exception Exception)> Exceptions { get; } = new();
+
     public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
     public bool IsEnabled(LogLevel logLevel) => true;
 
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
-        Func<TState, Exception?, string> formatter) =>
+        Func<TState, Exception?, string> formatter)
+    {
         Entries.Enqueue((logLevel, formatter(state, exception)));
+        if (exception is not null)
+            Exceptions.Enqueue((logLevel, exception));
+    }
 
     public int Count(LogLevel level) => Entries.Count(e => e.Level == level);
 }
