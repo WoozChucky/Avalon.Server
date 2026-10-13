@@ -280,7 +280,10 @@ public class MapArrivalShould
     {
         PartyClient client = _parties.Online(id, level: Math.Max((ushort)1, _forestTemplate.MinLevel ?? 1));
         client.Connection.InGame.Returns(true);
-        RunInline<IMapInstance>(client.Connection);
+        // A portal entry's arrival, queued to run whatever becomes of its instance request.
+        ((ISettledContinuations)client.Connection)
+            .When(c => c.EnqueueSettled(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<Task<IMapInstance>>>()))
+            .Do(call => call.Arg<Action<Task<IMapInstance>>>()(call.Arg<Task<IMapInstance>>()));
         client.Connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
             .Do(call => call.Arg<Action>()());
         return client;

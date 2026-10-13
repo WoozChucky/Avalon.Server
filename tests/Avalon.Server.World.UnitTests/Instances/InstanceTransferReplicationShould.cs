@@ -213,11 +213,12 @@ public class InstanceTransferReplicationShould
     private static void RunContinuationsInline(IWorldConnection connection, Avalon.World.World world)
     {
         // A build is published on the tick (#639): publish first, as the tick would before the continuation runs.
-        connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
+        ((Avalon.World.ISettledContinuations)connection)
+            .When(c => c.EnqueueSettled(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<Task<IMapInstance>>>()))
             .Do(call =>
             {
                 world.PublishBuiltInstances();
-                call.Arg<Action<IMapInstance>>()(call.Arg<Task<IMapInstance>>().GetAwaiter().GetResult());
+                call.Arg<Action<Task<IMapInstance>>>()(call.Arg<Task<IMapInstance>>());
             });
         connection.When(c => c.EnqueueContinuation(Arg.Any<Task<MapTemplateId>>(), Arg.Any<Action<MapTemplateId>>()))
             .Do(call => call.Arg<Action<MapTemplateId>>()(call.Arg<Task<MapTemplateId>>().GetAwaiter().GetResult()));

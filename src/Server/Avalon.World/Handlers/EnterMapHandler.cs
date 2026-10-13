@@ -29,9 +29,10 @@ namespace Avalon.World.Handlers;
 /// <c>RespawnInFlight</c> is set, as it is during a return to town or a teleport, so a second portal entry, and any
 /// other move, is refused until this one ends. Every ending clears it (<see cref="Arrive" />): the arrival, a
 /// refusal on arrival (a character that died meanwhile among them), an instance that could not be built, and
-/// anything that throws on the way. The one ending
-/// that leaves it alone is the character having left the connection meanwhile: the connection cleared it as the
-/// character left, and it may already be the next character's.
+/// anything that throws on the way. The one ending that leaves it alone is the character having left the connection
+/// meanwhile: the connection cleared it as the character left, and it may already be the next character's. The
+/// arrival is queued to run whatever becomes of the instance's build (<see cref="ISettledContinuations" />), so no
+/// outcome of the build can leave the move without its ending.
 /// </remarks>
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 public partial class EnterMapHandler(
@@ -218,14 +219,14 @@ public partial class EnterMapHandler(
         uint characterId = character.Guid.Id;
 
         // One continuation per branch, each capturing only what its branch has: an arrival outside a party allocates
-        // the closure it always did, with nothing of a party's in it.
+        // the closure it always did, with nothing of a party's in it. Each is queued to run whatever becomes of the
+        // request (ISettledContinuations): a build that fails must still reach the arrival, which ends the move.
         if (targetTemplate.MapType == MapType.Town)
         {
-            connection.EnqueueContinuation(
-                Settled(world.InstanceRegistry.GetOrCreateTownInstanceAsync(targetTemplate.Id,
-                    targetTemplate.MaxPlayers ?? 30), character, targetMapId),
-                targetInstance => Arrive(connection, character, targetInstance, targetTemplate, targetMapId, null,
-                    int.MaxValue, reResolved));
+            SettledOf(connection).EnqueueSettled(
+                world.InstanceRegistry.GetOrCreateTownInstanceAsync(targetTemplate.Id, targetTemplate.MaxPlayers ?? 30),
+                request => Arrive(connection, character, request, targetTemplate, targetMapId, null, int.MaxValue,
+                    reResolved));
         }
         else if (parties?.PartyOf(characterId) is { } party)
         {
@@ -233,74 +234,35 @@ public partial class EnterMapHandler(
             int capacity = Math.Min(world.Configuration.MaxPartySize,
                 targetTemplate.MaxPlayers is { } max ? max : world.Configuration.MaxPartySize);
 
-            connection.EnqueueContinuation(
-                Settled(world.PartyInstances.GetOrCreatePartyInstanceAsync(partyId, targetTemplate.Id), character,
-                    targetMapId),
-                targetInstance => Arrive(connection, character, targetInstance, targetTemplate, targetMapId, partyId,
-                    capacity, reResolved));
+            SettledOf(connection).EnqueueSettled(
+                world.PartyInstances.GetOrCreatePartyInstanceAsync(partyId, targetTemplate.Id),
+                request => Arrive(connection, character, request, targetTemplate, targetMapId, partyId, capacity,
+                    reResolved));
         }
         else
         {
-            connection.EnqueueContinuation(
-                Settled(world.InstanceRegistry.GetOrCreateNormalInstanceAsync(characterId, targetTemplate.Id), character,
-                    targetMapId),
-                targetInstance => Arrive(connection, character, targetInstance, targetTemplate, targetMapId, null,
-                    int.MaxValue, reResolved));
+            SettledOf(connection).EnqueueSettled(
+                world.InstanceRegistry.GetOrCreateNormalInstanceAsync(characterId, targetTemplate.Id),
+                request => Arrive(connection, character, request, targetTemplate, targetMapId, null, int.MaxValue,
+                    reResolved));
         }
     }
 
     /// <summary>
-    /// <paramref name="request" /> itself once it has succeeded, which costs nothing; otherwise a task that ends when
-    /// it does and never faults: with the instance, or with null when the build faulted or was cancelled. The
-    /// connection's continuation drain logs and drops the callback of a task that did not succeed, and a dropped
-    /// arrival would leave RespawnInFlight set for good, so the arrival is always given a task whose callback runs, as
-    /// TownReturn and MapTeleport give theirs.
+    /// The connection's queue for a continuation that runs whatever its task's outcome. Every connection the server
+    /// makes has one; a connection without it cannot take a portal entry, and the request fails as a throw does
+    /// anywhere else on its way: the move is ended where it was started or resolved again, and the throw logged.
     /// </summary>
-    /// <remarks>
-    /// A failed build is logged here, where it ends and its exception is at hand (on whichever thread ends it, with
-    /// the character's name and the map read now, on the tick), as the drain logged it before; the arrival then only
-    /// ends the move. Nothing here may throw: a log provider that does (the logger rethrows what its providers throw)
-    /// would fault this task after all, and the arrival that clears RespawnInFlight would be dropped with it.
-    /// </remarks>
-    private Task<IMapInstance?> Settled(Task<IMapInstance> request, ICharacter character, MapId targetMapId)
-    {
-        if (request.IsCompletedSuccessfully)
-        {
-            return request!;
-        }
-
-        return request.ContinueWith(static IMapInstance? (built, state) =>
-            {
-                if (built.IsCompletedSuccessfully)
-                {
-#pragma warning disable MA0045 // the task has completed successfully: reading its result does not block
-                    return built.Result;
-#pragma warning restore MA0045
-                }
-
-                try
-                {
-                    (ILogger log, string name, MapId map) = ((ILogger, string, MapId))state!;
-                    log.LogError(built.Exception, "EnterMap: the instance of map {MapId} could not be built for {Name}",
-                        map, name);
-                }
-                catch (Exception)
-                {
-                    // The line is lost; the arrival still runs and ends the move.
-                }
-
-                return null;
-            },
-            ((ILogger)logger, character.Name, targetMapId), CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-    }
+    private static ISettledContinuations SettledOf(IWorldConnection connection) =>
+        connection as ISettledContinuations
+        ?? throw new InvalidOperationException("The connection cannot queue a portal entry's arrival: it is not the server's own.");
 
     /// <summary>
     /// The end of an accepted request, on the tick, once its instance request has ended: the arrival (steps 8 to 13)
     /// or whatever stops it. Whichever it is, the move is over and RespawnInFlight is cleared, on every path out, a
     /// throw included, unless the move was handed to a second resolve, which then ends it the same way.
     /// </summary>
-    private void Arrive(IWorldConnection connection, ICharacter character, IMapInstance? targetInstance,
+    private void Arrive(IWorldConnection connection, ICharacter character, Task<IMapInstance> request,
         MapTemplate targetTemplate, MapId targetMapId, PartyId? partyId, int capacity, bool reResolved)
     {
         // The character can leave the connection while the instance loads: a select of it on
@@ -327,12 +289,19 @@ public partial class EnterMapHandler(
                 return;
             }
 
-            if (targetInstance is null)
+            if (!request.IsCompletedSuccessfully)
             {
-                // The build faulted or was cancelled, and was logged as it ended (Settled). The client is told
-                // nothing, as before, when the drain dropped the arrival; the character may ask again.
+                // The build faulted or was cancelled. Logged here, on the tick, where the connection's drain logged
+                // it when it dropped the arrival of a request that failed; the client is told nothing, as then, and
+                // the character may ask again. The line is inside the try: a log that throws still ends the move.
+                logger.LogError(request.Exception, "EnterMap: the instance of map {MapId} could not be built for {Name}",
+                    targetMapId, character.Name);
                 return;
             }
+
+#pragma warning disable MA0045 // the task has completed successfully: reading its result does not block
+            IMapInstance targetInstance = request.Result;
+#pragma warning restore MA0045
 
             // Before the membership and capacity checks: a released instance holds nobody, and the second resolve
             // repeats both.

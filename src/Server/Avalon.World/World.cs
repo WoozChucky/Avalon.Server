@@ -522,8 +522,9 @@ public class World : IWorld
         }
 
         // Instances whose builds finished since the last tick join the registry here (#639), after the hot reload
-        // above and before the parties and the instance ticks below, so those see them and their requesters'
-        // continuations run this tick. After the reload rather than before it: a just-published instance whose build
+        // above and before the parties and the instance ticks below, so those see them and the continuations of
+        // the requesters that poll the build's task (a select, a portal entry) run in this tick's flush. After the
+        // reload rather than before it: a just-published instance whose build
         // saw the old script types is brought up to date once, as it is published, instead of being rebuilt by the
         // reload's walk and then checked again. Contained: a throw here must not cost the instances their tick.
         try

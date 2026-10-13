@@ -60,13 +60,14 @@ public class EnterMapHandlerShould
             new() { Id = new MapTemplateId(TargetMap), MapType = MapType.Town, Name = "target", Description = "" }
         });
 
-        IWorldConnection connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection, ISettledContinuations>();
         connection.InGame.Returns(true);
         connection.Character.Returns(character);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        Action<IMapInstance>? onInstance = null;
-        connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
-            .Do(call => onInstance = call.Arg<Action<IMapInstance>>());
+        Action<Task<IMapInstance>>? onInstance = null;
+        ((ISettledContinuations)connection)
+            .When(c => c.EnqueueSettled(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<Task<IMapInstance>>>()))
+            .Do(call => onInstance = call.Arg<Action<Task<IMapInstance>>>());
 
         ICharacterSaver saver = Substitute.For<ICharacterSaver>();
         var handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, saver, world);
@@ -79,7 +80,7 @@ public class EnterMapHandlerShould
         connection.Character.Returns((ICharacter?)null);
         connection.RespawnInFlight = true;
 
-        Exception? escaped = Record.Exception(() => onInstance!(target));
+        Exception? escaped = Record.Exception(() => onInstance!(Task.FromResult(target)));
 
         Assert.Null(escaped);
         world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
@@ -108,7 +109,7 @@ public class EnterMapHandlerShould
             new() { Id = new MapTemplateId(TargetMap), MapType = MapType.Town, Name = "target", Description = "" }
         });
 
-        IWorldConnection connection = Substitute.For<IWorldConnection>();
+        IWorldConnection connection = Substitute.For<IWorldConnection, ISettledContinuations>();
         connection.InGame.Returns(true);
         var sent = new List<OutboundPacket>();
         TestTown.Record(connection, character, sent);
@@ -120,7 +121,7 @@ public class EnterMapHandlerShould
 
         Assert.Equal(MapTransitionResult.MoveInProgress,
             Assert.Single(TestTown.Read<SMapTransitionPacket>(sent, NetworkPacketType.SMSG_MAP_TRANSITION)).Result);
-        connection.DidNotReceiveWithAnyArgs().EnqueueContinuation(default(Task<IMapInstance>)!, default!);
+        ((ISettledContinuations)connection).DidNotReceiveWithAnyArgs().EnqueueSettled(default(Task<IMapInstance>)!, default!);
         registry.DidNotReceiveWithAnyArgs().GetInstanceById(default);
         _ = world.DidNotReceive().MapTemplates;
     }
@@ -179,7 +180,8 @@ public class EnterMapHandlerShould
     [InlineData(Ending.TheCharacterDiesWhileItsInstanceIsBuilt)]
     public void Take_a_later_portal_entry_after_one_that_ended_without_arriving(Ending ending)
     {
-        // The failed build's Error line is written by a logger that rethrows what its providers throw.
+        // The failed build's Error line is written on the tick, in the arrival, by a logger that rethrows what its
+        // providers throw.
         var entry = new Entry(log: ending == Ending.TheBuildFaultsAndItsLogLineThrows ? new ThrowingLog() : null);
         bool failing = true;
         switch (ending)
@@ -367,15 +369,16 @@ public class EnterMapHandlerShould
     }
 
     /// <summary>
-    /// A character standing on a portal to the town, behind a connection that records what it is sent and queues its
-    /// continuations for <see cref="Flush" />, which runs them as the connection's drain does once the packet pass is
-    /// over: the callback of a task that did not succeed is dropped, and a callback that throws is contained. Given
-    /// a party world, the character leads a party of two and the portal leads to a Normal map, so to the party's
-    /// instance of it.
+    /// A character standing on a portal to the town, behind a connection that records what it is sent and queues the
+    /// arrivals it is handed for <see cref="Flush" />, which runs them as the connection's drain runs a continuation
+    /// queued whatever its task's outcome (<see cref="ISettledContinuations" />), once the packet pass is over: when
+    /// the task has ended, succeeded or not, with a callback that throws contained. An arrival handed to the ordinary
+    /// queue instead, whose drain drops the callback of a task that failed, is never run here. Given a party world,
+    /// the character leads a party of two and the portal leads to a Normal map, so to the party's instance of it.
     /// </summary>
     private sealed class Entry
     {
-        private readonly List<(Task<IMapInstance> Task, Action<IMapInstance> Callback)> _queued = [];
+        private readonly List<(Task<IMapInstance> Task, Action<Task<IMapInstance>> Callback)> _queued = [];
         private readonly List<OutboundPacket> _sent = [];
         private readonly EnterMapHandler _handler;
         private readonly MapInstance _source = Source();
@@ -398,8 +401,9 @@ public class EnterMapHandlerShould
 
             Connection.InGame.Returns(true);
             TestTown.Record(Connection, Character, _sent);
-            Connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
-                .Do(call => _queued.Add((call.Arg<Task<IMapInstance>>(), call.Arg<Action<IMapInstance>>())));
+            ((ISettledContinuations)Connection)
+                .When(c => c.EnqueueSettled(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<Task<IMapInstance>>>()))
+                .Do(call => _queued.Add((call.Arg<Task<IMapInstance>>(), call.Arg<Action<Task<IMapInstance>>>())));
 
             if (parties is not null)
             {
@@ -432,7 +436,7 @@ public class EnterMapHandlerShould
         public IMapInstance Target { get; } = Substitute.For<IMapInstance>();
         public IInstanceRegistry Registry { get; } = Substitute.For<IInstanceRegistry>();
         public IWorld World { get; } = Substitute.For<IWorld>();
-        public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection>();
+        public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection, ISettledContinuations>();
         public ICharacterSaver Saver { get; } = Substitute.For<ICharacterSaver>();
 
         public void Request(ushort map = TargetMap) => _handler.Execute(Connection, new CEnterMapPacket { TargetMapId = map });
@@ -447,12 +451,14 @@ public class EnterMapHandlerShould
         /// <summary>Runs the continuations queued so far, as one tick's flush; any they queue wait for the next call.</summary>
         public void Flush()
         {
-            List<(Task<IMapInstance> Task, Action<IMapInstance> Callback)> due = [.. _queued];
+            List<(Task<IMapInstance> Task, Action<Task<IMapInstance>> Callback)> due = [.. _queued];
             _queued.Clear();
-            foreach ((Task<IMapInstance> task, Action<IMapInstance> callback) in due)
+            foreach ((Task<IMapInstance> task, Action<Task<IMapInstance>> callback) in due)
             {
-                if (task.IsCompletedSuccessfully)
-                    Record.Exception(() => callback(task.Result));
+                if (task.IsCompleted)
+                    Record.Exception(() => callback(task));
+                else
+                    _queued.Add((task, callback));
             }
         }
 

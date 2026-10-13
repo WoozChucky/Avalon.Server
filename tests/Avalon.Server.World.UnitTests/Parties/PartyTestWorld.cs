@@ -40,7 +40,8 @@ internal sealed class PartyTestWorld
         character.InstanceId = instance ?? Guid.Empty;
 
         var sent = new List<OutboundPacket>();
-        IWorldConnection connection = Substitute.For<IWorldConnection>();
+        // The server's own connection also queues continuations that run whatever their task's outcome.
+        IWorldConnection connection = Substitute.For<IWorldConnection, Avalon.World.ISettledContinuations>();
         connection.Character.Returns(character);
         connection.AccountId.Returns(new AccountId(id));
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());

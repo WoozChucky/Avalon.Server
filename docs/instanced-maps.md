@@ -362,18 +362,22 @@ every path out of it; the one that does not (asking for the instance throws, so 
 | The instance was released before the arrival, the first time | nothing yet: the target is resolved again | kept: the second resolve is the move now, and ends as any other |
 | Released a second time | `MapNotFound` | cleared |
 | No longer in the party the instance is for, or the instance is full | `MapNotFound`, `InstanceFull` | cleared |
-| The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error by the task that settles the request, as the build ends and on the thread that ends it, inside a `catch` so that a log provider that throws cannot fault it | cleared |
+| The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error by the arrival, on the tick | cleared, in the same `finally`: a log provider that throws does not keep it |
 | A step of the arrival throws (the transfer, a send) | whatever was sent before it | cleared; the throw is logged by the continuation drain |
 | Asking for the instance throws, before anything is queued | nothing; the throw is logged by the packet dispatch | cleared |
 | The character left the connection meanwhile | nothing | left alone: the connection cleared it as the character left (`ResetCharacterState`), and it may be the next character's |
 
-The request for the instance is handed to the connection as a task that never faults (`Settled`): the connection's
-drain drops the callback of a task that did not succeed, which would leave the flag set for good, the reason
-`TownReturn` and `MapTeleport` settle theirs. A request already finished (a town, an instance still alive) is handed
-over as it is. One still being built is settled by a continuation, 160 B on the tick
-([benchmarks](benchmarks.md#arrival-in-a-map--benchmarksarrivalbenchmarkscs-883)), which a thread-pool thread runs
-once the registry has published the build: the arrival runs in the first flush after that, which need not be the
-flush of the tick that published it.
+The arrival is queued on the connection to run whatever becomes of the request for the instance
+(`ISettledContinuations.EnqueueSettled`, World-side: an interface of `Avalon.World` that `WorldConnection`
+implements, beside the modding API's two continuations and in the same queue). The ordinary continuation would not
+do: its drain logs and drops the callback of a task that did not succeed, and the arrival is what ends the move, so
+a failed build would leave the flag set for good. `TownReturn`, `MapTeleport` and a chat command's `ctx.Then` get
+their callback run another way, by wrapping the task in one that cannot fault, which costs a task per request and
+hands the outcome to a thread-pool thread first; they still do. A portal entry's arrival is one queued entry, as the
+direct hand-off was before the move was marked, ready the moment the registry completes the build's task: it runs in
+the flush of the tick that published the build, and an entry asked for while the instance is still being built
+allocates no more than one whose instance already exists
+([benchmarks](benchmarks.md#arrival-in-a-map--benchmarksarrivalbenchmarkscs-883)).
 
 A build that never finishes keeps the move under way until the character leaves the world, as it does for a return
 to town and a teleport: nothing times a build out (#969).

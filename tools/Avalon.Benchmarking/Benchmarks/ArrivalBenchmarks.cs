@@ -439,11 +439,18 @@ public class ArrivalBenchmarks
     }
 
     /// <summary>
-    /// A connection that counts what it is sent and runs a continuation where it is queued: every task a row hands it
-    /// has finished. It holds what a select reads and writes on its connection.
+    /// A connection that counts what it is sent and runs a continuation where it is queued, when its task has
+    /// finished: every task but one that a row hands it has. The one is a portal entry's request for an instance still
+    /// being built, whose arrival it holds until <see cref="RunHeld" />. It allocates nothing of its own: the server's
+    /// connection queues one object per continuation, of either kind. It holds what a select reads and writes on its
+    /// connection.
     /// </summary>
-    private sealed class ArrivalConnection(AccountId account) : IWorldConnection
+    private sealed class ArrivalConnection(AccountId account) : IWorldConnection, ISettledContinuations
     {
+        // The one continuation whose task had not ended when it was queued, until RunHeld runs it.
+        private Task? _heldTask;
+        private Delegate? _heldCallback;
+
         public int Sent { get; private set; }
 
         /// <summary>The pending spawn of the last select, kept when <see cref="EndSelect" /> clears the connection's.</summary>
@@ -495,24 +502,10 @@ public class ArrivalBenchmarks
             PendingSpawn = null;
         }
 
-        // The one continuation whose task had not finished when it was queued, until RunHeld runs it.
-        private Task? _heldTask;
-        private Delegate? _heldCallback;
-
         public void EnqueueContinuation<T>(Task<T> task, Action<T> callback)
         {
-            if (!task.IsCompleted)
-            {
-                if (_heldTask is not null)
-                    throw new InvalidOperationException("A row queued a second continuation before its first had run.");
-
-                _heldTask = task;
-                _heldCallback = callback;
-                return;
-            }
-
             if (!task.IsCompletedSuccessfully)
-                throw new InvalidOperationException("A row handed the connection a task that failed.");
+                throw new InvalidOperationException("A row handed the connection a task that has not finished.");
 
 #pragma warning disable MA0045 // the task has completed successfully: reading its result does not block
             callback(task.Result);
@@ -520,12 +513,32 @@ public class ArrivalBenchmarks
         }
 
         /// <summary>
-        /// The flush after a build was published: waits for the held continuation's task to end, spinning (the wait
-        /// is what an arrival waits for the thread pool), and runs its callback, as the drain runs one that is ready.
+        /// A continuation to run whatever its task's outcome, as a portal entry queues its arrival: run here when the
+        /// task has ended, held for <see cref="RunHeld" /> when the instance asked for is still being built.
+        /// </summary>
+        public void EnqueueSettled<T>(Task<T> task, Action<Task<T>> callback)
+        {
+            if (task.IsCompleted)
+            {
+                callback(task);
+                return;
+            }
+
+            if (_heldTask is not null)
+                throw new InvalidOperationException("A row queued a second arrival before its first had run.");
+
+            _heldTask = task;
+            _heldCallback = callback;
+        }
+
+        /// <summary>
+        /// The flush after a build was published: runs the held arrival, as the drain runs a continuation whose task
+        /// has ended. Should the task not have ended yet, it waits, spinning: nothing but the task's own completion
+        /// is waited for, so with the registry's task that is no wait at all.
         /// </summary>
         public void RunHeld()
         {
-            if (_heldTask is not Task<IMapInstance?> task || _heldCallback is not Action<IMapInstance?> callback)
+            if (_heldTask is not Task<IMapInstance> task || _heldCallback is not Action<Task<IMapInstance>> callback)
                 throw new InvalidOperationException("The row queued no arrival to wait for.");
 
             _heldTask = null;
@@ -535,12 +548,7 @@ public class ArrivalBenchmarks
             while (!task.IsCompleted)
                 spin.SpinOnce(sleep1Threshold: -1);
 
-            if (!task.IsCompletedSuccessfully)
-                throw new InvalidOperationException("The held arrival's task failed.");
-
-#pragma warning disable MA0045 // the task has completed successfully: reading its result does not block
-            callback(task.Result);
-#pragma warning restore MA0045
+            callback(task);
         }
 
         public void EnqueueContinuation(Task task, Action callback)
@@ -858,8 +866,10 @@ public class FirstArrivalBenchmarks
 
     /// <summary>
     /// The usual entry of a character's own forest: the request is handled while the instance is still being built,
-    /// and the arrival runs once the build is published. On top of <see cref="First_portal_entry_into_a_forest" />
-    /// it holds what the handler does so that a build that fails still ends the move, and the wait for it.
+    /// and the arrival runs once the build is published. It should cost what
+    /// <see cref="First_portal_entry_into_a_forest" /> does: the arrival is queued to run whatever the build's outcome,
+    /// and that queue entry is the connection's own. When the handler wrapped the request in a task that cannot fault
+    /// instead, this row held the wrapper (160 B) and the wait for the thread pool to run it.
     /// </summary>
     [Benchmark]
     public int Portal_entry_into_a_forest_still_being_built() => _arrivals.EnterForestBeingBuilt(_fresh[_next++]);

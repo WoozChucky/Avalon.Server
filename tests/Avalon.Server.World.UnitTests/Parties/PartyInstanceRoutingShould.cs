@@ -236,7 +236,7 @@ public class PartyMapEntryShould
         instance.PlayerCount.Returns(players);
 
         handler.Execute(a.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
-        captured.Callback!(instance);
+        captured.Callback!(Task.FromResult(instance));
 
         world.Received(expected == MapTransitionResult.Success ? 1 : 0).TransferPlayer(a.Connection, instance);
         Assert.Equal(expected, captured.LastTransition(a).Result);
@@ -265,8 +265,8 @@ public class PartyMapEntryShould
 
         handler.Execute(a.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
         handler.Execute(b.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
-        capturedA.Callback!(instance); // A built it and goes in first
-        capturedB.Callback!(instance);
+        capturedA.Callback!(Task.FromResult(instance)); // A built it and goes in first
+        capturedB.Callback!(Task.FromResult(instance));
 
         world.Received(1).TransferPlayer(a.Connection, instance);
         world.Received(1).TransferPlayer(b.Connection, instance);
@@ -282,7 +282,7 @@ public class PartyMapEntryShould
 
         handler.Execute(a.Connection, new CEnterMapPacket { TargetMapId = Dungeon });
         parties.Parties.Leave(a.Id); // the party is gone before the build finishes
-        captured.Callback!(built);
+        captured.Callback!(Task.FromResult(built));
 
         world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
         Assert.Equal(MapTransitionResult.MapNotFound, captured.LastTransition(a).Result);
@@ -340,8 +340,9 @@ public class PartyMapEntryShould
     {
         var captured = new Captured();
         client.Connection.InGame.Returns(true);
-        client.Connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
-            .Do(call => captured.Callback = call.Arg<Action<IMapInstance>>());
+        ((ISettledContinuations)client.Connection)
+            .When(c => c.EnqueueSettled(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<Task<IMapInstance>>>()))
+            .Do(call => captured.Callback = call.Arg<Action<Task<IMapInstance>>>());
         return captured;
     }
 
@@ -368,7 +369,7 @@ public class PartyMapEntryShould
 
     private sealed class Captured
     {
-        public Action<IMapInstance>? Callback { get; set; }
+        public Action<Task<IMapInstance>>? Callback { get; set; }
 
         public SMapTransitionPacket LastTransition(PartyClient client) =>
             client.Read<SMapTransitionPacket>(NetworkPacketType.SMSG_MAP_TRANSITION).Last();

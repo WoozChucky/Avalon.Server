@@ -72,7 +72,8 @@ internal static class MapInstanceClients
         character.InstanceId = instance.InstanceId;         // a cast looks its instance up by this
 
         var sent = new List<OutboundPacket>();
-        IWorldConnection connection = Substitute.For<IWorldConnection>();
+        // The server's own connection also queues continuations that run whatever their task's outcome.
+        IWorldConnection connection = Substitute.For<IWorldConnection, ISettledContinuations>();
         connection.Character.Returns(character);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
