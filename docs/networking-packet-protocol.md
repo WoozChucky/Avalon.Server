@@ -46,18 +46,17 @@ frame as declared):
 
 | Frame | Largest | What bounds it |
 |---|---:|---|
-| `CMSG_CHAT_MESSAGE` | about 570 bytes sealed | The chat box takes 255 bytes of UTF-8; a whisper typed after `/w Name` goes out with its prefix, at most 511 bytes of text |
+| `CMSG_CHAT_MESSAGE` | about 570 bytes sealed | At most 511 bytes of UTF-8, which the world enforces (#936): the chat box takes 255, and a whisper typed after `/w Name` goes out with its prefix |
 | `CMSG_GAME_ADMISSION` | about 150 bytes | A 43-character ticket and a 91-byte P-256 public key, both checked for exactly that size by the world |
 | `CMSG_CHARACTER_CREATE` | about 80 bytes sealed | A name of 3 to 12 letters (`CharacterName`) |
-| `CMSG_PARTY_INVITE` | about 60 bytes sealed | A character's name, as the world replicated it |
+| `CMSG_PARTY_INVITE` | about 60 bytes sealed | A character's name, 3 to 12 letters, which the world checks before any lookup (#936) |
 | `CMSG_WORLD_HANDSHAKE` | about 50 bytes sealed | The client's version string |
 | Every other world packet | a few tens of bytes | Numbers only: no string, byte or repeated field |
 | Auth server: login, key exchange, MFA | under 200 bytes | A username of 3 to 16 characters, a password field of 64 bytes, a 91-byte key, 32 bytes of handshake data, codes of 16 characters; the client no longer dials the auth server |
 
 So the default leaves a factor of about 28 over the largest frame a client sends, and the setting's minimum (1,024)
-still admits it. No client-to-server message has a repeated field. The servers put no length rule of their own on a
-chat message, a password sent to the auth server or a party invite's name: for those the frame limit is the bound, so a
-client that grows one of them past it must raise the setting with it.
+still admits it. No client-to-server message has a repeated field. The auth server puts no length rule of its own on the
+password it is sent: for that field the frame limit is the bound.
 
 ## Sending a packet
 
