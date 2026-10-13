@@ -115,6 +115,171 @@ public class EnterMapHandlerShould
         _ = world.DidNotReceive().MapTemplates;
     }
 
+    /// <summary>
+    /// A request the handler accepts is a move under way until it ends. Continuations run after the packet pass, so
+    /// without that a second request in the same pass would pass every check the first one passed and arrive, and
+    /// save, once more. Once the first has arrived the move is over, and the next request is taken.
+    /// </summary>
+    [Fact]
+    public void Refuse_a_second_portal_entry_while_the_first_is_under_way_and_take_the_next_once_it_has_arrived()
+    {
+        var entry = new Entry();
+
+        entry.Request();
+        entry.Request(); // in the same pass: the first one's continuation has not run yet
+        entry.Flush();
+
+        entry.World.Received(1).TransferPlayer(entry.Connection, entry.Target);
+        entry.Saver.Received(1).Save(entry.Connection, entry.Character);
+        Assert.Equal([MapTransitionResult.MoveInProgress, MapTransitionResult.Success], entry.Results());
+        Assert.False(entry.Connection.RespawnInFlight);
+
+        entry.StandOnThePortal(); // the arrival moved the character to the target
+        entry.Request();
+        entry.Flush();
+
+        entry.World.Received(2).TransferPlayer(entry.Connection, entry.Target);
+        Assert.Equal(MapTransitionResult.Success, entry.Results()[^1]);
+    }
+
+    public enum Ending
+    {
+        TheBuildFaults,
+        TheBuildIsCancelled,
+        TheRequestForTheInstanceThrows,
+        TheInstanceIsReleasedTwice,
+        TheTransferThrows,
+    }
+
+    /// <summary>
+    /// A portal entry that ends without arriving still ends: the move is no longer under way, so the character's next
+    /// portal entry, return to town or teleport is not refused for the rest of its session.
+    /// </summary>
+    [Theory]
+    [InlineData(Ending.TheBuildFaults)]
+    [InlineData(Ending.TheBuildIsCancelled)]
+    [InlineData(Ending.TheRequestForTheInstanceThrows)]
+    [InlineData(Ending.TheInstanceIsReleasedTwice)]
+    [InlineData(Ending.TheTransferThrows)]
+    public void Take_a_later_portal_entry_after_one_that_ended_without_arriving(Ending ending)
+    {
+        var entry = new Entry();
+        bool failing = true;
+        switch (ending)
+        {
+            case Ending.TheBuildFaults:
+                entry.Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(Task.FromException<IMapInstance>(new InvalidOperationException("bake failed")),
+                    Task.FromResult(entry.Target));
+                break;
+            case Ending.TheBuildIsCancelled:
+                entry.Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(Task.FromCanceled<IMapInstance>(new CancellationToken(canceled: true)),
+                    Task.FromResult(entry.Target));
+                break;
+            case Ending.TheRequestForTheInstanceThrows:
+                entry.Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(
+                    _ => failing ? throw new InvalidOperationException("no registry") : Task.FromResult(entry.Target));
+                break;
+            case Ending.TheInstanceIsReleasedTwice:
+                entry.Registry.GetInstanceById(entry.Target.InstanceId).Returns(_ => failing ? null : entry.Target);
+                break;
+            case Ending.TheTransferThrows:
+                entry.World.When(w => w.TransferPlayer(entry.Connection, entry.Target)).Do(_ =>
+                {
+                    if (failing)
+                        throw new InvalidOperationException("transfer failed");
+                });
+                break;
+        }
+
+        // The dispatch contains what the handler throws, and the continuation drain what an arrival throws.
+        Record.Exception(entry.Request);
+        entry.Flush();
+        if (ending == Ending.TheInstanceIsReleasedTwice)
+        {
+            // Released once: the arrival resolved the target again, and the move is that second resolve now.
+            Assert.True(entry.Connection.RespawnInFlight);
+            entry.Flush();
+        }
+
+        Assert.DoesNotContain(MapTransitionResult.Success, entry.Results());
+        Assert.False(entry.Connection.RespawnInFlight);
+
+        failing = false;
+        entry.Request();
+        entry.Flush();
+
+        Assert.Equal(MapTransitionResult.Success, entry.Results()[^1]);
+        Assert.False(entry.Connection.RespawnInFlight);
+    }
+
+    /// <summary>
+    /// A character standing on a portal to the town, behind a connection that records what it is sent and queues its
+    /// continuations for <see cref="Flush" />, which runs them as the connection's drain does once the packet pass is
+    /// over: the callback of a task that did not succeed is dropped, and a callback that throws is contained.
+    /// </summary>
+    private sealed class Entry
+    {
+        private readonly List<(Task<IMapInstance> Task, Action<IMapInstance> Callback)> _queued = [];
+        private readonly List<OutboundPacket> _sent = [];
+        private readonly EnterMapHandler _handler;
+        private readonly MapInstance _source = Source();
+
+        public Entry()
+        {
+            StandOnThePortal();
+
+            Target.InstanceId.Returns(Guid.NewGuid());
+            Registry.GetInstanceById(_source.InstanceId).Returns(_source);
+            Registry.GetInstanceById(Target.InstanceId).Returns(Target);
+            Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(Task.FromResult(Target));
+
+            World.InstanceRegistry.Returns(Registry);
+            World.MapTemplates.Returns(new List<MapTemplate>
+            {
+                new() { Id = new MapTemplateId(TargetMap), MapType = MapType.Town, Name = "target", Description = "" }
+            });
+
+            Connection.InGame.Returns(true);
+            TestTown.Record(Connection, Character, _sent);
+            Connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
+                .Do(call => _queued.Add((call.Arg<Task<IMapInstance>>(), call.Arg<Action<IMapInstance>>())));
+
+            _handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, Saver, World);
+        }
+
+        public CharacterEntity Character { get; } = New(7);
+        public IMapInstance Target { get; } = Substitute.For<IMapInstance>();
+        public IInstanceRegistry Registry { get; } = Substitute.For<IInstanceRegistry>();
+        public IWorld World { get; } = Substitute.For<IWorld>();
+        public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection>();
+        public ICharacterSaver Saver { get; } = Substitute.For<ICharacterSaver>();
+
+        public void Request() => _handler.Execute(Connection, new CEnterMapPacket { TargetMapId = TargetMap });
+
+        /// <summary>Puts the character in the source instance, on its portal to the town.</summary>
+        public void StandOnThePortal()
+        {
+            Character.InstanceId = _source.InstanceId;
+            Character.Position = Vector3.zero;
+        }
+
+        /// <summary>Runs the continuations queued so far, as one tick's flush; any they queue wait for the next call.</summary>
+        public void Flush()
+        {
+            List<(Task<IMapInstance> Task, Action<IMapInstance> Callback)> due = [.. _queued];
+            _queued.Clear();
+            foreach ((Task<IMapInstance> task, Action<IMapInstance> callback) in due)
+            {
+                if (task.IsCompletedSuccessfully)
+                    Record.Exception(() => callback(task.Result));
+            }
+        }
+
+        /// <summary>The result of every transition the connection was sent, in order.</summary>
+        public List<MapTransitionResult> Results() =>
+            TestTown.Read<SMapTransitionPacket>(_sent, NetworkPacketType.SMSG_MAP_TRANSITION).ConvertAll(t => t.Result);
+    }
+
     /// <summary>A real instance with a layout and a portal to the target map at the origin, so Execute reaches the continuation.</summary>
     private static MapInstance Source()
     {

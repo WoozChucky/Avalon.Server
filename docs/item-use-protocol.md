@@ -150,8 +150,8 @@ Item scripts can do more than the seeded items do. What a client sees of each:
   into a party's instance can also be answered `MapNotFound` (the character left the party meanwhile) or
   `InstanceFull`, as a portal entry can. When the destination instance cannot be built, no `SMSG_MAP_TRANSITION`
   is sent at all, as for a portal entry or a respawn whose build fails, and the item is still spent.
-- **A move under way** (a Town Portal Scroll's return, a teleport, a respawn or a party's return to town) refuses a
-  portal entry meanwhile: `CMSG_ENTER_MAP` is answered `SMSG_MAP_TRANSITION` with `Result` `MoveInProgress` (8),
+- **A move under way** (a Town Portal Scroll's return, a teleport, a respawn, a party's return to town, or an earlier
+  portal entry that has not arrived yet) refuses a portal entry meanwhile: `CMSG_ENTER_MAP` is answered `SMSG_MAP_TRANSITION` with `Result` `MoveInProgress` (8),
   and the character stays where it was until the move under way arrives.
 - **A summoned creature** is an ordinary creature (added, updated, attacked, killed and looted as any other). If it
   is not killed it leaves view after its lifetime, 5 minutes unless the item says otherwise, on the instance's next

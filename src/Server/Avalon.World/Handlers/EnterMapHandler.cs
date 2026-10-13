@@ -23,6 +23,14 @@ namespace Avalon.World.Handlers;
 /// "EnterMapHandler Flow": 1 to 7 run as the packet is handled, up to the request for the target instance, and 8 to 13
 /// in the connection continuation, once that instance is ready.
 /// </summary>
+/// <remarks>
+/// From the moment a request is accepted (step 7) until it ends, the character is moving to a map: the connection's
+/// <c>RespawnInFlight</c> is set, as it is during a return to town or a teleport, so a second portal entry, and any
+/// other move, is refused until this one ends. Every ending clears it (<see cref="Arrive" />): the arrival, a
+/// refusal on arrival, an instance that could not be built, and anything that throws on the way. The one ending
+/// that leaves it alone is the character having left the connection meanwhile: the connection cleared it as the
+/// character left, and it may already be the next character's.
+/// </remarks>
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 public partial class EnterMapHandler(
     ILogger<EnterMapHandler> logger,
@@ -117,8 +125,20 @@ public partial class EnterMapHandler(
             return;
         }
 
-        // 7. Resolve the target instance; the rest runs once it is ready.
-        ResolveTarget(connection, character, targetTemplate, targetMap, reResolved: false);
+        // 7. Resolve the target instance; the rest runs once it is ready. The request is accepted, so the move is
+        // under way from here: a second portal entry in this same pass, before the first one's continuation has run,
+        // is refused in step 1 rather than arriving and saving once more.
+        connection.RespawnInFlight = true;
+        try
+        {
+            ResolveTarget(connection, character, targetTemplate, targetMap, reResolved: false);
+        }
+        catch
+        {
+            // Nothing was queued, so nothing would ever end the move.
+            connection.RespawnInFlight = false;
+            throw;
+        }
     }
 
     /// <summary>The first portal of <paramref name="instance" /> that leads to <paramref name="targetMap" />, or null.</summary>
@@ -138,7 +158,8 @@ public partial class EnterMapHandler(
 
     /// <summary>
     /// Resolves the target instance and enqueues the arrival. Procedural maps key per CHARACTER (not per account) so
-    /// alts on the same account get fresh instances even within the re-entry window. Town instances are shared and
+    /// alts on the same account get fresh instances even within the re-entry window; in a party, a Normal map leads to
+    /// the party's instance of it (2026-09-30), which the first member through builds. Town instances are shared and
     /// don't need an owner identity. <paramref name="reResolved" /> marks the one second resolve an arrival may make
     /// when its instance was released before it got there (<see cref="ArrivesInReleasedInstance" />).
     /// </summary>
@@ -146,33 +167,105 @@ public partial class EnterMapHandler(
         MapId targetMapId, bool reResolved)
     {
         uint characterId = character.Guid.Id;
+        Task<IMapInstance> request;
+        PartyId? partyId = null;
+        int capacity = int.MaxValue;
 
         if (targetTemplate.MapType == MapType.Town)
         {
-            connection.EnqueueContinuation(
-                world.InstanceRegistry.GetOrCreateTownInstanceAsync(targetTemplate.Id,
-                    targetTemplate.MaxPlayers ?? 30),
-                targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, targetMapId,
-                    reResolved));
+            request = world.InstanceRegistry.GetOrCreateTownInstanceAsync(targetTemplate.Id,
+                targetTemplate.MaxPlayers ?? 30);
         }
         else if (parties?.PartyOf(characterId) is { } party)
         {
-            // In a party, a Normal map leads to the party's instance of it (2026-09-30); the first member through builds it.
-            PartyId partyId = party.Id;
-            int capacity = Math.Min(world.Configuration.MaxPartySize,
+            partyId = party.Id;
+            capacity = Math.Min(world.Configuration.MaxPartySize,
                 targetTemplate.MaxPlayers is { } max ? max : world.Configuration.MaxPartySize);
-
-            connection.EnqueueContinuation(
-                world.PartyInstances.GetOrCreatePartyInstanceAsync(partyId, targetTemplate.Id),
-                targetInstance => OnPartyInstanceReceived(connection, character, targetInstance, targetTemplate,
-                    targetMapId, partyId, capacity, reResolved));
+            request = world.PartyInstances.GetOrCreatePartyInstanceAsync(party.Id, targetTemplate.Id);
         }
         else
         {
-            connection.EnqueueContinuation(
-                world.InstanceRegistry.GetOrCreateNormalInstanceAsync(characterId, targetTemplate.Id),
-                targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, targetMapId,
-                    reResolved));
+            request = world.InstanceRegistry.GetOrCreateNormalInstanceAsync(characterId, targetTemplate.Id);
+        }
+
+        connection.EnqueueContinuation(Settled(request), targetInstance =>
+            Arrive(connection, character, request, targetInstance, targetTemplate, targetMapId, partyId, capacity, reResolved));
+    }
+
+    /// <summary>
+    /// <paramref name="request" /> itself once it has succeeded; otherwise a task that ends when it does and never
+    /// faults: with the instance, or with null when the build faulted or was cancelled. The connection's continuation
+    /// drain logs and drops the callback of a task that did not succeed, and a dropped arrival would leave
+    /// RespawnInFlight set for good, so the arrival is always given a task whose callback runs, as TownReturn and
+    /// MapTeleport give theirs.
+    /// </summary>
+    private static Task<IMapInstance?> Settled(Task<IMapInstance> request)
+    {
+        if (request.IsCompletedSuccessfully)
+        {
+            return request!;
+        }
+
+#pragma warning disable MA0045 // read only once the task has completed successfully: it does not block
+        return request.ContinueWith(static IMapInstance? (built) => built.IsCompletedSuccessfully ? built.Result : null,
+            CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+#pragma warning restore MA0045
+    }
+
+    /// <summary>
+    /// The end of an accepted request, on the tick, once its instance request has ended: the arrival (steps 8 to 13)
+    /// or whatever stops it. Whichever it is, the move is over and RespawnInFlight is cleared, on every path out, a
+    /// throw included, unless the move was handed to a second resolve, which then ends it the same way.
+    /// </summary>
+    private void Arrive(IWorldConnection connection, ICharacter character, Task<IMapInstance> request,
+        IMapInstance? targetInstance, MapTemplate targetTemplate, MapId targetMapId, PartyId? partyId, int capacity,
+        bool reResolved)
+    {
+        // The character can leave the connection while the instance loads: a select of it on
+        // another connection despawns it here and kicks this one. Transferring then would put a
+        // discarded entity back into an instance, beside the new session's copy. The flag is left alone: the
+        // connection cleared it as the character left, and it may already be the next character's.
+        if (!ReferenceEquals(connection.Character, character))
+        {
+            Log.LeftBeforeInstanceReady(logger, character.Name);
+            return;
+        }
+
+        // Set when the arrival is handed to a second resolve, which then owns RespawnInFlight.
+        bool resolvingAgain = false;
+        try
+        {
+            if (targetInstance is null)
+            {
+                // The build faulted or was cancelled. The client is told nothing, as before, when the drain dropped
+                // the arrival and logged the fault itself; the character may ask again.
+                logger.LogError(request.Exception, "EnterMap: the instance of map {MapId} could not be built for {Name}",
+                    targetMapId, character.Name);
+                return;
+            }
+
+            // Before the membership and capacity checks: a released instance holds nobody, and the second resolve
+            // repeats both.
+            if (ArrivesInReleasedInstance(connection, character, targetInstance, targetTemplate, targetMapId, reResolved,
+                    out resolvingAgain))
+            {
+                return;
+            }
+
+            if (partyId is not null && PartyRefusal(character, targetInstance, partyId, capacity) is { } refusal)
+            {
+                connection.Send(SMapTransitionPacket.CreateFailure(refusal, PacketEncoder.Shared));
+                return;
+            }
+
+            Enter(connection, character, targetInstance, targetTemplate, targetMapId);
+        }
+        finally
+        {
+            if (!resolvingAgain)
+            {
+                connection.RespawnInFlight = false;
+            }
         }
     }
 
@@ -180,12 +273,14 @@ public partial class EnterMapHandler(
     /// The resolved instance was released before the arrival reached it: an abandoned instance's lifetime
     /// (<c>Game:AbandonedInstanceLifetimeMinutes</c>) can run out between the resolve and this continuation, at 0
     /// within a tick (the last member inside a party instance left meanwhile). The character is never added to a
-    /// released instance: the first time, the target is resolved again through the same path, and true is returned.
-    /// A second release in a row, which nothing is known to cause, fails the move rather than resolving forever.
+    /// released instance: the first time, the target is resolved again through the same path, true is returned and
+    /// <paramref name="resolvingAgain" /> says the move goes on. A second release in a row, which nothing is known to
+    /// cause, fails the move rather than resolving forever.
     /// </summary>
     private bool ArrivesInReleasedInstance(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
-        MapTemplate targetTemplate, MapId targetMapId, bool reResolved)
+        MapTemplate targetTemplate, MapId targetMapId, bool reResolved, out bool resolvingAgain)
     {
+        resolvingAgain = false;
         if (world.InstanceRegistry.GetInstanceById(targetInstance.InstanceId) is not null)
             return false;
 
@@ -195,6 +290,7 @@ public partial class EnterMapHandler(
                 "EnterMap: instance {InstanceId} of map {MapId} was released before {Name} arrived; resolving again",
                 targetInstance.InstanceId, targetMapId, character.Name);
             ResolveTarget(connection, character, targetTemplate, targetMapId, reResolved: true);
+            resolvingAgain = true; // after: a resolve that throws leaves the flag to be cleared by the arrival
             return true;
         }
 
@@ -205,57 +301,28 @@ public partial class EnterMapHandler(
         return true;
     }
 
-    private void OnPartyInstanceReceived(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
-        MapTemplate targetTemplate, MapId targetMapId, PartyId partyId, int capacity, bool reResolved)
+    /// <summary>
+    /// For a party's instance: a character no longer in that party is refused MapNotFound (the party can end, or the
+    /// character leave it, while the instance builds: it is not let in as a member), then a full instance
+    /// InstanceFull. Null when the arrival may go on. Continuations run one after another on the tick and
+    /// TransferPlayer adds at once, so two members arriving in one tick are counted correctly.
+    /// </summary>
+    private MapTransitionResult? PartyRefusal(ICharacter character, IMapInstance targetInstance, PartyId partyId,
+        int capacity)
     {
-        if (!ReferenceEquals(connection.Character, character))
-        {
-            return;
-        }
-
-        // Before the membership and capacity checks: a released instance holds nobody, and the second resolve repeats both.
-        if (ArrivesInReleasedInstance(connection, character, targetInstance, targetTemplate, targetMapId, reResolved))
-        {
-            return;
-        }
-
-        // The party can end, or the character leave it, while the instance builds: it is not let in as a member.
         if (parties?.PartyOf(character.Guid.Id)?.Id.Equals(partyId) != true)
-        {
-            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                PacketEncoder.Shared));
-            return;
-        }
+            return MapTransitionResult.MapNotFound;
 
-        // Continuations run one after another on the tick and TransferPlayer adds at once, so two members
-        // arriving in one tick are counted correctly.
         if (targetInstance.PlayerCount >= capacity)
-        {
-            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.InstanceFull,
-                PacketEncoder.Shared));
-            return;
-        }
+            return MapTransitionResult.InstanceFull;
 
-        OnInstanceReceived(connection, character, targetInstance, targetTemplate, targetMapId, reResolved);
+        return null;
     }
 
-    private void OnInstanceReceived(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
-        MapTemplate targetTemplate, MapId targetMapId, bool reResolved)
+    /// <summary>The arrival itself, steps 8 to 13: every check has passed and the instance is registered.</summary>
+    private void Enter(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
+        MapTemplate targetTemplate, MapId targetMapId)
     {
-        // The character can leave the connection while the instance loads: a select of it on
-        // another connection despawns it here and kicks this one. Transferring then would put a
-        // discarded entity back into an instance, beside the new session's copy.
-        if (!ReferenceEquals(connection.Character, character))
-        {
-            Log.LeftBeforeInstanceReady(logger, character.Name);
-            return;
-        }
-
-        if (ArrivesInReleasedInstance(connection, character, targetInstance, targetTemplate, targetMapId, reResolved))
-        {
-            return;
-        }
-
         // 8. Exit path: drop the character from any encounter in progress on the source instance before the
         // transfer. A map transition is allowed in combat, and the encounter would be left dangling otherwise: the
         // transfer moves instance membership, not combat membership.

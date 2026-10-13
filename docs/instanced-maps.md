@@ -291,7 +291,8 @@ only when Debug is written, as a packet refused for the connection's current sta
 
 1.  Guards: not connection.InGame → ignored, no reply; a dead character → ignored, no reply
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
-       a respawn or a party return) → send MoveInProgress, return, before anything is looked up
+       a respawn, a party return, or an earlier portal entry that has not ended) → send
+       MoveInProgress, return, before anything is looked up
 2.  Resolve the current instance: InstanceRegistry.GetInstanceById(character.InstanceId)
 3.  Find the MapTemplate of packet.TargetMapId among world.MapTemplates, by id
        (MapTemplateRows.FindById: the map manager holds the templates with a lookup by id)
@@ -306,7 +307,9 @@ only when Debug is written, as a packet refused for the connection's current sta
        → too far: send NotNearPortal, return
 6.  Level checks against the template's MinLevel and MaxLevel, each only when set
        → send LevelTooLow / LevelTooHigh, return
-7.  Resolve the target instance (built off the tick when there is none to reuse):
+7.  The request is accepted: set connection.RespawnInFlight (the move is under way until it
+       ends, see below), then resolve the target instance (built off the tick when there is
+       none to reuse):
        Town   → GetOrCreateTownInstanceAsync(templateId, MaxPlayers ?? 30)
        Normal → in a party: GetOrCreatePartyInstanceAsync(partyId, templateId), then re-check the
                 party (MapNotFound) and the seats (InstanceFull) once it is built;
@@ -335,6 +338,33 @@ only when Debug is written, as a packet refused for the connection's current sta
 13. Save the character (ICharacterSaver.Save: the row's map, instance and the spawn of step 10
        as its position, with any dirty inventory and money)
 ```
+
+### A portal entry is a move under way
+
+From step 7 until it ends, an accepted portal entry holds `connection.RespawnInFlight`, as a return to town
+(`TownReturn`), a teleport (`MapTeleport`) and a respawn hold it: the continuation that arrives runs after the packet
+pass, so without it a second `CMSG_ENTER_MAP` handled in the same pass, or while the instance is still being built,
+would pass the checks the first one passed and arrive, and save, once more. The second is answered `MoveInProgress`
+in step 1, and so is any other move asked for meanwhile.
+
+Every ending clears it, in `EnterMapHandler.Arrive`, on every path out and in a `finally`:
+
+| Ending | What the client is sent | The flag |
+|---|---|---|
+| The arrival (steps 8 to 13) | the transition and the layout | cleared |
+| The instance was released before the arrival, the first time | nothing yet: the target is resolved again | kept: the second resolve is the move now, and ends as any other |
+| Released a second time | `MapNotFound` | cleared |
+| No longer in the party the instance is for, or the instance is full | `MapNotFound`, `InstanceFull` | cleared |
+| The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error | cleared |
+| A step of the arrival throws (the transfer, a send) | whatever was sent before it | cleared; the throw is logged by the continuation drain |
+| Asking for the instance throws, before anything is queued | nothing; the throw is logged by the packet dispatch | cleared |
+| The character left the connection meanwhile | nothing | left alone: the connection cleared it as the character left (`ResetCharacterState`), and it may be the next character's |
+
+The request for the instance is handed to the connection as a task that never faults (`Settled`): the connection's
+drain drops the callback of a task that did not succeed, which would leave the flag set for good, the reason
+`TownReturn` and `MapTeleport` settle theirs. What none of the three bounds is a build that never ends: nothing in
+`InstanceRegistry` times a build out, so a request for an instance whose build hangs holds the flag until the
+character leaves the world.
 
 ### What an arrival is sent
 
