@@ -34,4 +34,27 @@ public static class ThreadAllocations
         GC.Collect(0, GCCollectionMode.Forced, blocking: true);
         return GC.GetAllocatedBytesForCurrentThread();
     }
+
+    /// <summary>
+    /// What <paramref name="rounds" /> calls of <paramref name="round" /> allocate on the calling thread: the fewest
+    /// bytes of three windows, after one window to warm up. For a path that allocates a known amount, or that sends: a
+    /// send takes its payload segment from the process's one pool, and one sent on another thread in between costs
+    /// this thread a new segment. Neither that nor a background collection is in all three windows; an allocation the
+    /// path itself makes is.
+    /// </summary>
+    public static long FewestOfThreeWindows(int rounds, Action round)
+    {
+        long fewest = long.MaxValue;
+        for (int window = 0; window < 4; window++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < rounds; i++)
+                round();
+
+            if (window > 0)
+                fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        return fewest;
+    }
 }

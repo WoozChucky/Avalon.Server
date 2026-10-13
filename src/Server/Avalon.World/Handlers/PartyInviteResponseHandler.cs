@@ -11,6 +11,6 @@ namespace Avalon.World.Handlers;
 public class PartyInviteResponseHandler(PartyService parties, ILogger<PartyInviteResponseHandler> logger) : WorldPacketHandler<CPartyInviteResponsePacket>
 {
     public override void Execute(IWorldConnection connection, CPartyInviteResponsePacket packet) =>
-        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE, character =>
-            (parties.Respond(character.Guid.Id, packet.Accept), null));
+        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_INVITE_RESPONSE, (parties, packet),
+            static (character, request) => (request.parties.Respond(character.Guid.Id, request.packet.Accept), null));
 }
