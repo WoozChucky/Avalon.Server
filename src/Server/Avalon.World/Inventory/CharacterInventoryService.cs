@@ -108,7 +108,7 @@ public sealed class CharacterInventoryService(
     {
         foreach (InventoryType container in s_allContainers)
         {
-            foreach (InventoryItem item in owner.Container(container).Items)
+            foreach (InventoryItem item in owner.Container(container).Held)
             {
                 if (item.InstanceId != itemInstanceId)
                     continue;

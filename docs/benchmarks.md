@@ -179,6 +179,14 @@ add).
   count walk the container's own collection (`CharacterInventoryContainer.Held`), whose enumerator is a struct. Eight
   ways of getting a walk wrong (turned round, the room miscounted, a held copy missed, the first free slot not the
   lowest) were tried against the existing inventory, vendor, loot and quest tests: each failed between 1 and 54.
+  The removal by instance id (an item used up, a quest's items taken at turn-in) walked the interface collection
+  and boxed an enumerator per container: 72 B with the item in the Bag, 144 B in the Bank or not held, 0 B now.
+- **Times.** No benchmark runs these; the review's probe (Release, best of 7, a loaded machine) read an add and a
+  removal into a stack at 1,200 to 1,750 ns before and 270 to 500 ns after, the fit check at 300 to 520 ns and 34 to
+  76 ns, and a command nobody has at 122 to 163 ns and about 57 ns (about 300 ns and 75 ns at 255 characters). The
+  same review ran the old inventory service against the new over 240,000 random operations and the old command
+  reading against the new over 1.5 million messages, and the old corpse remover against the new over 3,000 random
+  schedules, and found no difference in any.
 
 **Quests.** One character holding three quests, none scripted, over a quest service whose world is no substitute
 (`QuestTestWorld.QuietQuests`; a substitute allocates on every call it records).
