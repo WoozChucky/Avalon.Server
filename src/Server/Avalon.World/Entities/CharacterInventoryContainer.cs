@@ -21,6 +21,13 @@ public class CharacterInventoryContainer(ILoggerFactory loggerFactory, Inventory
 
     public IReadOnlyCollection<InventoryItem> Items => _items.Values;
 
+    /// <summary>
+    /// The same items as <see cref="Items" />, as the dictionary's own collection: a <c>foreach</c> over it uses a
+    /// struct enumerator and allocates nothing, where one over the interface boxes its enumerator (#883). In no
+    /// order a caller may rely on; a walk that needs slot order asks <see cref="TryGet" /> slot by slot.
+    /// </summary>
+    public Dictionary<ushort, InventoryItem>.ValueCollection Held => _items.Values;
+
     /// <summary>How many slots this container has.</summary>
     public ushort Capacity => MaxSlots;
 

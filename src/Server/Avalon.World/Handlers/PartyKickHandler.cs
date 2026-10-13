@@ -11,9 +11,10 @@ namespace Avalon.World.Handlers;
 public class PartyKickHandler(PartyService parties, ILogger<PartyKickHandler> logger) : WorldPacketHandler<CPartyKickPacket>
 {
     public override void Execute(IWorldConnection connection, CPartyKickPacket packet) =>
-        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_KICK, character =>
-        {
-            string? name = parties.PartyOf(character.Guid.Id)?.Find(packet.CharacterId)?.Name;
-            return (parties.Kick(character.Guid.Id, packet.CharacterId), name);
-        });
+        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_KICK, (parties, packet),
+            static (character, request) =>
+            {
+                string? name = request.parties.PartyOf(character.Guid.Id)?.Find(request.packet.CharacterId)?.Name;
+                return (request.parties.Kick(character.Guid.Id, request.packet.CharacterId), name);
+            });
 }

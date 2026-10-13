@@ -10,11 +10,35 @@ namespace Avalon.World.Chat;
 /// A faulted or cancelled task and a callback that throws are all reported through the dispatcher,
 /// exactly as a command that throws: logged at Error, and told to GameMaster and Admin only.
 /// </summary>
-public sealed class CommandContext(IWorldConnection connection, CChatMessagePacket packet, Action<Exception> onFailure)
+public sealed class CommandContext
 {
-    public IWorldConnection Connection { get; } = connection;
+    // Where a failure goes: the callback this was built with, or the dispatcher that ran the command.
+    private readonly Action<Exception>? _onFailure;
+    private readonly CommandDispatcher? _dispatcher;
+    private readonly ICommand? _command;
 
-    public CChatMessagePacket Packet { get; } = packet;
+    public CommandContext(IWorldConnection connection, CChatMessagePacket packet, Action<Exception> onFailure)
+    {
+        Connection = connection;
+        Packet = packet;
+        _onFailure = onFailure;
+    }
+
+    /// <summary>
+    /// The dispatcher's own: a failure is reported through it, for <paramref name="command" />. It names the two
+    /// where it used to take a callback, which cost every command a closure and a delegate (#883).
+    /// </summary>
+    internal CommandContext(IWorldConnection connection, CChatMessagePacket packet, CommandDispatcher dispatcher, ICommand command)
+    {
+        Connection = connection;
+        Packet = packet;
+        _dispatcher = dispatcher;
+        _command = command;
+    }
+
+    public IWorldConnection Connection { get; }
+
+    public CChatMessagePacket Packet { get; }
 
     /// <summary>A system line to the caller.</summary>
     public void Reply(string message) =>
@@ -26,7 +50,7 @@ public sealed class CommandContext(IWorldConnection connection, CChatMessagePack
         {
             if (!task.IsCompletedSuccessfully)
             {
-                onFailure(FailureOf(task));
+                Failed(FailureOf(task));
                 return;
             }
 
@@ -38,7 +62,7 @@ public sealed class CommandContext(IWorldConnection connection, CChatMessagePack
             }
             catch (Exception e)
             {
-                onFailure(e);
+                Failed(e);
             }
         });
 
@@ -48,7 +72,7 @@ public sealed class CommandContext(IWorldConnection connection, CChatMessagePack
         {
             if (!task.IsCompletedSuccessfully)
             {
-                onFailure(FailureOf(task));
+                Failed(FailureOf(task));
                 return;
             }
 
@@ -58,9 +82,17 @@ public sealed class CommandContext(IWorldConnection connection, CChatMessagePack
             }
             catch (Exception e)
             {
-                onFailure(e);
+                Failed(e);
             }
         });
+
+    private void Failed(Exception failure)
+    {
+        if (_dispatcher is not null)
+            _dispatcher.ReportFailure(Connection, Packet, _command!, failure);
+        else
+            _onFailure!(failure);
+    }
 
     /// <summary>
     /// A task that completes when <paramref name="task" /> does and never faults, so the connection's

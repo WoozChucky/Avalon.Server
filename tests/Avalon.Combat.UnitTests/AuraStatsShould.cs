@@ -11,7 +11,7 @@ public class AuraStatsShould
         new() { AuraId = new AuraId(1), Stat = stat, Kind = kind, Value = value };
 
     private static AuraStatTotals Of(params (AuraStatModifier Modifier, uint Stacks)[] auras) =>
-        AuraStatTotals.Of(auras.Select(a => ((IReadOnlyList<AuraStatModifier>)[a.Modifier], a.Stacks)));
+        AuraStatTotals.Of(auras, static a => ((IReadOnlyList<AuraStatModifier>)[a.Modifier], a.Stacks));
 
     [Fact]
     public void Leave_stats_alone_with_no_aura()

@@ -207,6 +207,42 @@ public class QuestScriptShould
         Assert.Equal(1u, c.Character.Quests.Get(Other)!.ProgressOf(OtherKill));
     }
 
+    /// <summary>
+    /// A kill is credited to the quests held when it happened, each once, whatever a hook does to the log meanwhile
+    /// (#883): the walk goes over a copy the log keeps for it. Here the first quest's hook accepts a quest and has
+    /// the log walked again, both from inside the kill's walk.
+    /// </summary>
+    [Fact]
+    public async Task Credit_a_kill_to_the_quests_held_when_it_happened_whatever_a_hook_does_to_the_log()
+    {
+        const uint Late = 7607, LateKill = 76071;
+        List<QuestTemplate> quests = Quests();
+        quests.Add(Quest(Late).WithStage(0, Kill(LateKill, Boar, 3)));
+        (QuestTestWorld w, QuestScriptRecorder r, QuestClient c) = await WorldAsync(quests: quests);
+        w.Accept(c, Scripted);
+        w.Accept(c, Other);
+        r.OnKill = context =>
+        {
+            if (context.QuestId != Scripted)
+                return;
+
+            r.OnKill = null;
+            c.Character.Quests.Start(Late, DateTime.UnixEpoch);
+            w.Quests.RecountCollect(c.Character);
+        };
+
+        w.Quests.CreatureKilled(w.Place(Boar), [c.Character]);
+
+        Assert.Equal(1u, c.Character.Quests.Get(Other)!.ProgressOf(OtherKill));   // walked after the hook: still credited, once
+        Assert.Equal(0u, c.Character.Quests.Get(Late)!.ProgressOf(LateKill));     // accepted during the kill: not part of it
+
+        // The next kill walks the three, each once: the first walk left nothing behind.
+        w.Quests.CreatureKilled(w.Place(Boar), [c.Character]);
+
+        Assert.Equal(2u, c.Character.Quests.Get(Other)!.ProgressOf(OtherKill));
+        Assert.Equal(1u, c.Character.Quests.Get(Late)!.ProgressOf(LateKill));
+    }
+
     [Fact]
     public async Task Accept_the_quest_when_its_accept_hook_throws()
     {

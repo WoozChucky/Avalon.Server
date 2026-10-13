@@ -46,16 +46,32 @@ public static class CharacterStatsRefresh
         IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
         CurrentValues current,
+        CombatFormula formula) =>
+        Apply(character, classStats, classFactors, new Templates(findTemplate, null), current, formula);
+
+    /// <summary>
+    /// The refresh itself. The class row is the first of the character's class and level, and the worn items are read
+    /// in the Equipment container's own order, as they always were; neither is found through a query any more (#883):
+    /// the row lookup was a closure, a delegate and an enumerator per refresh, and so was each worn item's template
+    /// over the current reference data, which walked every item template for it besides. The list of worn templates
+    /// stays: it is what the calculator, shared with the simulator and the API, is handed.
+    /// </summary>
+    private static bool Apply(
+        CharacterEntity character,
+        IReadOnlyCollection<ClassLevelStat> classStats,
+        IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
+        Templates templates,
+        CurrentValues current,
         CombatFormula formula)
     {
-        ClassLevelStat? row = classStats.FirstOrDefault(s => s.Class == character.Class && s.Level == character.Level);
+        ClassLevelStat? row = RowOf(classStats, character.Class, character.Level);
         if (row is null || !classFactors.TryGetValue(character.Class, out ClassStatFactors? factors))
             return false;
 
         List<ItemTemplate> worn = [];
-        foreach (InventoryItem item in character.Container(InventoryType.Equipment).Items)
+        foreach (InventoryItem item in character.Container(InventoryType.Equipment).Held)
         {
-            if (findTemplate(item.TemplateId) is { } template && EquipmentSlots.Accepts(item.Slot, template.Slot))
+            if (templates.Find(item.TemplateId) is { } template && EquipmentSlots.Accepts(item.Slot, template.Slot))
                 worn.Add(template);
         }
 
@@ -69,11 +85,42 @@ public static class CharacterStatsRefresh
     /// <summary>The same, over the current generation of reference data.</summary>
     public static bool Apply(CharacterEntity character, StaticData data, CurrentValues current)
     {
-        IReadOnlyCollection<ItemTemplate> templates = data.ItemTemplates;
         // The combat area is read once, so the factors and the formula are one generation.
         CombatPatch combat = data.Combat;
-        return Apply(character, data.ClassLevelStats, combat.Factors, id => templates.FirstOrDefault(t => t.Id == id),
-            current, combat.Formula);
+        return Apply(character, data.ClassLevelStats, combat.Factors, new Templates(null, data), current, combat.Formula);
+    }
+
+    /// <summary>The first row of that class and level, in the rows' order, or null.</summary>
+    private static ClassLevelStat? RowOf(IReadOnlyCollection<ClassLevelStat> classStats, CharacterClass characterClass, ushort level)
+    {
+        // By index where the rows allow it (the reference data's do): a foreach over the interface boxes an enumerator.
+        if (classStats is IReadOnlyList<ClassLevelStat> rows)
+        {
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (rows[i].Class == characterClass && rows[i].Level == level)
+                    return rows[i];
+            }
+
+            return null;
+        }
+
+        foreach (ClassLevelStat row in classStats)
+        {
+            if (row.Class == characterClass && row.Level == level)
+                return row;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Where a worn item's template is found: the caller's lookup, or the current reference data by id (its keyed
+    /// lookup, the first template of an id as the walk it replaces answered). A value, so neither costs a delegate.
+    /// </summary>
+    private readonly struct Templates(Func<ItemTemplateId, ItemTemplate?>? find, StaticData? data)
+    {
+        public ItemTemplate? Find(ItemTemplateId id) => data is not null ? data.FindItemTemplate(id) : find!(id);
     }
 
     /// <summary>

@@ -16,11 +16,12 @@ namespace Avalon.World.Handlers;
 public class PartyInviteHandler(PartyService parties, ILogger<PartyInviteHandler> logger) : WorldPacketHandler<CPartyInvitePacket>
 {
     public override void Execute(IWorldConnection connection, CPartyInvitePacket packet) =>
-        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_INVITE, character =>
-        {
-            if (packet.TargetName is not { } name || !CharacterName.IsValid(name))
-                return (PartyResult.NotFound, null);
+        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_INVITE, (parties, packet),
+            static (character, request) =>
+            {
+                if (request.packet.TargetName is not { } name || !CharacterName.IsValid(name))
+                    return (PartyResult.NotFound, null);
 
-            return (parties.Invite(character.Guid.Id, name), name);
-        });
+                return (request.parties.Invite(character.Guid.Id, name), name);
+            });
 }

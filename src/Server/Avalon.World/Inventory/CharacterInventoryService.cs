@@ -32,11 +32,17 @@ public sealed class CharacterInventoryService(
 
         uint maxStack = MaxStack(template!);
         uint remaining = count;
+        CharacterInventoryContainer bag = Bag;
 
         // Existing stacks first, in slot order, so a new stack is never started while one of the
-        // same item still has room.
-        foreach (InventoryItem stack in PartialStacks(templateId, maxStack).OrderBy(i => i.Slot).ToList())
+        // same item still has room. Both walks go by slot number over the Bag as it is: a step writes
+        // only the slot it stands on, so the slots still to come are as they were when the walk began,
+        // which is what the lists copied before each walk used to hold (#883).
+        for (ushort slot = 0; slot < bag.Capacity; slot++)
         {
+            if (!bag.TryGet(slot, out InventoryItem stack) || !IsPartialStack(stack, templateId, maxStack))
+                continue;
+
             uint take = Math.Min(maxStack - stack.Count, remaining);
             Replace(InventoryType.Bag, stack with { Count = stack.Count + take });
             remaining -= take;
@@ -44,8 +50,11 @@ public sealed class CharacterInventoryService(
                 return InventoryAddResult.Ok;
         }
 
-        foreach (ushort slot in Bag.FreeSlots().ToList())
+        for (ushort slot = 0; slot < bag.Capacity; slot++)
         {
+            if (bag.TryGet(slot, out _))
+                continue;
+
             uint take = Math.Min(maxStack, remaining);
             Create(InventoryType.Bag, new InventoryItem(slot, itemIds.Next(), templateId, take,
                 ItemInstanceDefaults.InitialDurability(template!), ItemInstanceFlags.None));
@@ -61,22 +70,31 @@ public sealed class CharacterInventoryService(
 
     public InventoryRemoveResult TryRemove(ItemTemplateId templateId, uint count)
     {
-        var stacks = Bag.Items
-            .Where(i => i.TemplateId == templateId)
-            .OrderByDescending(i => i.Slot)
-            .ToList();
+        CharacterInventoryContainer bag = Bag;
+        bool found = false;
+        long held = 0;
+        foreach (InventoryItem item in bag.Held)
+        {
+            if (item.TemplateId != templateId)
+                continue;
 
-        if (stacks.Count == 0)
+            found = true;
+            held += item.Count;
+        }
+
+        if (!found)
             return InventoryRemoveResult.NotFound;
 
-        if (stacks.Sum(i => (long)i.Count) < count)
+        if (held < count)
             return InventoryRemoveResult.NotEnough;
 
+        // From the highest slot down, by slot number over the Bag as it is: a step empties or shrinks
+        // only the slot it stands on, so no list of the stacks is taken first (#883).
         uint remaining = count;
-        foreach (InventoryItem stack in stacks)
+        for (int slot = bag.Capacity - 1; slot >= 0 && remaining > 0; slot--)
         {
-            if (remaining == 0)
-                break;
+            if (!bag.TryGet((ushort)slot, out InventoryItem stack) || stack.TemplateId != templateId)
+                continue;
 
             uint take = Math.Min(stack.Count, remaining);
             Take(InventoryType.Bag, stack, take);
@@ -90,7 +108,7 @@ public sealed class CharacterInventoryService(
     {
         foreach (InventoryType container in s_allContainers)
         {
-            foreach (InventoryItem item in owner.Container(container).Items)
+            foreach (InventoryItem item in owner.Container(container).Held)
             {
                 if (item.InstanceId != itemInstanceId)
                     continue;
@@ -152,15 +170,22 @@ public sealed class CharacterInventoryService(
     {
         foreach (InventoryType container in s_allContainers)
         {
-            if (owner.Container(container).Items.Any(held => held.InstanceId == item.InstanceId))
-                throw new InvalidOperationException($"Item {item.InstanceId} is already held; it cannot be added twice.");
+            foreach (InventoryItem held in owner.Container(container).Held)
+            {
+                if (held.InstanceId == item.InstanceId)
+                    throw new InvalidOperationException($"Item {item.InstanceId} is already held; it cannot be added twice.");
+            }
         }
 
+        CharacterInventoryContainer bag = Bag;
         ushort? lowestFree = null;
-        foreach (ushort free in Bag.FreeSlots())
+        for (ushort free = 0; free < bag.Capacity; free++)
         {
-            lowestFree = free;
-            break;
+            if (!bag.TryGet(free, out _))
+            {
+                lowestFree = free;
+                break;
+            }
         }
 
         if (lowestFree is not { } slot)
@@ -170,7 +195,7 @@ public sealed class CharacterInventoryService(
         // never exist. A template that is gone cannot say it is unique, and the item is still the
         // player's own.
         if (findTemplate(item.TemplateId) is { } template
-            && template.Flags.HasFlag(ItemTemplateFlags.Unique)
+            && (template.Flags & ItemTemplateFlags.Unique) != 0
             && OwnedCount(item.TemplateId) + item.Count > 1)
         {
             return InventoryAddResult.UniqueAlreadyOwned;
@@ -245,24 +270,42 @@ public sealed class CharacterInventoryService(
         if (count == 0)
             return InventoryAddResult.Ok;
 
-        // Unique caps ownership at one copy, anywhere the character keeps items.
-        if (template.Flags.HasFlag(ItemTemplateFlags.Unique) && OwnedCount(templateId) + count > 1)
+        // Unique caps ownership at one copy, anywhere the character keeps items. A mask test: HasFlag boxes both
+        // of its operands in a build that does not optimise, 48 B for every add (#883).
+        if ((template.Flags & ItemTemplateFlags.Unique) != 0 && OwnedCount(templateId) + count > 1)
             return InventoryAddResult.UniqueAlreadyOwned;
 
         // In long: 30 slots of a uint.MaxValue stack still fit, and nothing here can wrap.
         uint maxStack = MaxStack(template);
-        long room = PartialStacks(templateId, maxStack).Sum(i => (long)(maxStack - i.Count))
-                    + (long)Bag.FreeSlots().Count() * maxStack;
+        CharacterInventoryContainer bag = Bag;
+        long room = (long)(bag.Capacity - bag.Held.Count) * maxStack;
+        foreach (InventoryItem item in bag.Held)
+        {
+            if (IsPartialStack(item, templateId, maxStack))
+                room += maxStack - item.Count;
+        }
 
         return room >= count ? InventoryAddResult.Ok : InventoryAddResult.InventoryFull;
     }
 
-    private long OwnedCount(ItemTemplateId templateId) => s_allContainers.Sum(container =>
-        owner.Container(container).Items.Where(i => i.TemplateId == templateId).Sum(i => (long)i.Count));
+    private long OwnedCount(ItemTemplateId templateId)
+    {
+        long owned = 0;
+        foreach (InventoryType container in s_allContainers)
+        {
+            foreach (InventoryItem item in owner.Container(container).Held)
+            {
+                if (item.TemplateId == templateId)
+                    owned += item.Count;
+            }
+        }
 
-    /// <summary>Stacks below the maximum. One already above it (a lowered template) is left alone.</summary>
-    private IEnumerable<InventoryItem> PartialStacks(ItemTemplateId templateId, uint maxStack) =>
-        Bag.Items.Where(i => i.TemplateId == templateId && i.Count < maxStack);
+        return owned;
+    }
+
+    /// <summary>A stack of the item below the maximum. One already above it (a lowered template) is left alone.</summary>
+    private static bool IsPartialStack(InventoryItem item, ItemTemplateId templateId, uint maxStack) =>
+        item.TemplateId == templateId && item.Count < maxStack;
 
     /// <summary>A MaxStackSize of 0 is read as 1: every item takes at least a slot of its own.</summary>
     private static uint MaxStack(ItemTemplate template) => InventoryMove.MaxStack(template);

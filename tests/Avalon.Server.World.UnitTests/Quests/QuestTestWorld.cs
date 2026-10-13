@@ -65,6 +65,7 @@ internal sealed class QuestTestWorld
     public const int GiverRoot = 7401, EnderRoot = 7402, TalkRoot = 7403;
 
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
+    private readonly IServiceProvider _services;
     private uint _nextCreature = 950_000;
 
     private QuestTestWorld(StaticData data, GameConfiguration config, IServiceProvider services, SteadyLootRandom random, PartyService? parties,
@@ -73,6 +74,7 @@ internal sealed class QuestTestWorld
         Data = data;
         Config = config;
         Random = random;
+        _services = services;
         World = Substitute.For<IWorld>();
         World.Data.Returns(data);
         World.Configuration.Returns(config);
@@ -151,6 +153,17 @@ internal sealed class QuestTestWorld
         IWorld broken = Substitute.For<IWorld>();
         broken.Data.Returns(_ => throw new InvalidOperationException("quest data unavailable"));
         return new QuestService(broken, Substitute.For<IServiceProvider>(), Economy, Random, Clock, NullLogger<QuestService>.Instance);
+    }
+
+    /// <summary>
+    /// A quest service over this world's data, random and clock through a world that is no substitute, for the tests
+    /// that count what a path allocates: a substitute allocates on every call it records. It knows no instance.
+    /// </summary>
+    public QuestService QuietQuests()
+    {
+        var quiet = new QuietWorld(Data);
+        return new QuestService(quiet, _services, new CharacterEconomy(quiet, new ItemIdAllocator()), Random, Clock,
+            NullLogger<QuestService>.Instance);
     }
 
     /// <summary>A living NPC (or monster) of this template in the instance, at the position given.</summary>

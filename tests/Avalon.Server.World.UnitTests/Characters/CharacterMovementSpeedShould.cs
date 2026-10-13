@@ -189,7 +189,7 @@ public class CharacterMovementSpeedShould
 
         foreach (AuraTemplate aura in movement)
         {
-            var totals = AuraStatTotals.Of([(aura.Modifiers, Math.Max(1u, aura.MaxStacks))]);
+            var totals = AuraStatTotals.Of(new[] { aura }, static a => (a.Modifiers, Math.Max(1u, a.MaxStacks)));
             float pct = AuraStats.Apply(0f, totals, AuraStat.MovementSpeed);
             float drift = MathF.Abs(CharacterMovement.SpeedFor(pct, s_seeded) - CharacterMovement.SpeedFor(0f, s_seeded)) * RoundTrip;
             Assert.True(drift < CharacterMovement.ClientSnapThreshold,

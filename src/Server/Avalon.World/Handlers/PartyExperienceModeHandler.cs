@@ -11,6 +11,7 @@ namespace Avalon.World.Handlers;
 public class PartyExperienceModeHandler(PartyService parties, ILogger<PartyExperienceModeHandler> logger) : WorldPacketHandler<CPartyExperienceModePacket>
 {
     public override void Execute(IWorldConnection connection, CPartyExperienceModePacket packet) =>
-        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE, character =>
-            (parties.SetExperienceMode(character.Guid.Id, packet.Mode), null));
+        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_EXPERIENCE_MODE, (parties, packet),
+            static (character, request) =>
+                (request.parties.SetExperienceMode(character.Guid.Id, request.packet.Mode), null));
 }

@@ -1,7 +1,6 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
-using Avalon.Domain.World;
 
 namespace Avalon.World.Auras;
 
@@ -31,7 +30,7 @@ public sealed class UnitAuras(Action? changed = null)
     public AuraStatTotals StatTotals =>
         _totals ??= _auras.Count == 0
             ? AuraStatTotals.Empty
-            : AuraStatTotals.Of(_auras.Select(a => ((IReadOnlyList<AuraStatModifier>)a.Template.Modifiers, a.Stacks)));
+            : AuraStatTotals.Of(_auras, static a => (a.Template.Modifiers, a.Stacks));
 
     /// <summary>The held copy of <paramref name="id" />: the one from <paramref name="caster" /> when given, else the first.</summary>
     public ActiveAura? Find(AuraId id, ObjectGuid? caster)

@@ -15,8 +15,13 @@ public static class PartyReplies
     /// character is not answered. A request that throws is logged and answered <see cref="PartyResult.Error" />;
     /// a throw from sending the answer itself is left to the caller, so nothing is answered twice.
     /// </summary>
-    public static void Handle(IWorldConnection connection, ILogger logger, NetworkPacketType request,
-        Func<ICharacter, (PartyResult Result, string? Name)> handle)
+    /// <remarks>
+    /// What the request needs (the party service, the packet) is handed over as <paramref name="state" /> and back to
+    /// <paramref name="handle" />, which is written <c>static</c>: a lambda that captured them cost every party packet
+    /// a closure and a delegate (#883). A value tuple is the usual state, and is never boxed.
+    /// </remarks>
+    public static void Handle<TState>(IWorldConnection connection, ILogger logger, NetworkPacketType request, TState state,
+        Func<ICharacter, TState, (PartyResult Result, string? Name)> handle)
     {
         if (connection.Character is not { } character)
             return;
@@ -25,7 +30,7 @@ public static class PartyReplies
         string? name;
         try
         {
-            (result, name) = handle(character);
+            (result, name) = handle(character, state);
         }
         catch (Exception ex)
         {

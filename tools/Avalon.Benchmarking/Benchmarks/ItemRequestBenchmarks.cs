@@ -24,8 +24,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// </summary>
 /// <remarks>
 /// The economy here hands back one inventory service kept for the character, so a row is the handler, the move rules
-/// and the reply. Production's <c>CharacterEconomy.InventoryOf</c> builds a service and its template lookup per request
-/// on top of this.
+/// and the reply. Production's <c>CharacterEconomy.InventoryOf</c> does the same since #883 (the service is kept on
+/// the character); before, it built a service and its template lookup per request on top of this, 104 B.
 /// </remarks>
 [MemoryDiagnoser]
 public class ItemRequestBenchmarks

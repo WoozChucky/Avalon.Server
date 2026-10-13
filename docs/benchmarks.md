@@ -90,8 +90,9 @@ changed slot, 0 B and about 1.7 ns before and after; with three slots outside th
 0 B and about 4 ns after.
 
 **An item request.** The handlers run over an economy that hands back one inventory service kept for the character,
-so a row is the handler, the move rules and the reply; production's `CharacterEconomy.InventoryOf` builds a service
-and its template lookup for every request on top of this, which this change does not touch. `Accepted_move` moves a
+so a row is the handler, the move rules and the reply; production's `CharacterEconomy.InventoryOf` built a service
+and its template lookup for every request on top of this, which this change did not touch (104 B, gone since: see
+[the gameplay requests](#gameplay-requests-quests-aura-hooks-and-corpses--the-allocation-tests-benchmarksencounterlookupbenchmarkscs-883)). `Accepted_move` moves a
 stack between two Bag slots, there and back on alternate calls, and is answered Ok with no slots; `Refused_move`
 aims a stack at a full one (TargetFull, both slots reported); `Refused_destroy` names an empty slot (NotFound, that
 slot reported). Before is the same benchmark over `507b37d8`, in runs of its own.
@@ -116,6 +117,197 @@ thread took the free segment between two sends, so the next one allocated a new 
 **The allocation gate does not move.** `forest-combat` read 11,543 B per window before and after (Release, the gate
 alone, once before and twice after), and the three town scenarios 0: the fighters pick nothing up, so no flush with a
 change runs in the measured minute, and `perf/scenario-allocations.json` is not regenerated.
+
+### Gameplay requests, quests, aura hooks and corpses — the allocation tests, `Benchmarks/EncounterLookupBenchmarks.cs` (#883)
+
+The per-packet and per-kill allocation sites the performance reviews had confirmed in party, chat, inventory, quest
+and aura code, older than the changes that found them. No scenario sends a party packet, a chat message or an item
+request, holds a quest or carries a scripted aura, so the [allocation gate](#the-allocation-gate) sees almost none of
+this (the one exception is the corpse remover, below). Each site was therefore measured on its own, by an allocation
+test over the built classes, read before and after on the same test, and the per-packet and per-kill paths are pinned
+by those tests.
+
+Measured 2026-10-13 in a Debug build (Windows 11, i9-12900K, runtime 10.0.12): bytes per call, exact and the same in
+every run. The after column reads the same in Release, with dynamic PGO on and off, where every pin passes; the before
+column was read in Debug only, and one site in it is Debug's alone (the boxed operands of `HasFlag`, 48 B of every
+add).
+
+**What a client can send at will.** Through the handler to the answer sent, over a connection that only counts.
+
+| Path | Before | After | Pinned by |
+|---|---:|---:|---|
+| A party request (`CMSG_PARTY_INVITE`, `_INVITE_RESPONSE`, `_KICK`, `_PROMOTE`, `_EXPERIENCE_MODE`), refused | 96 B each | 0 B | `GameplayRequestAllocationShould` |
+| `CMSG_PARTY_LEAVE`, refused | 64 B | 0 B | the same test |
+| A chat message over the sender's limit | 128 B | 0 B | `GameplayRequestAllocationShould` |
+| A command nobody has (`/dance with me`) | 240 B | 0 B | the same test |
+| A command the caller may not run | 200 B | 0 B | the same test |
+| A command that runs, with two arguments | 448 B | 160 B | the same test, against what the command is handed |
+| An accepted `CMSG_ITEM_MOVE`, through production's `CharacterEconomy` | 104 B | 0 B | `InventoryAllocationShould` |
+| An add into a stack and the removal by template that undoes it | 1,776 B | 0 B | the same test |
+| The check that an item fits the Bag | 536 B | 0 B | the same test |
+| The check of a Unique item already held | 712 B | 0 B | the same test |
+
+- **Party.** Each of the six handlers passed `PartyReplies.Handle` a lambda that captured the party service and the
+  packet: a closure (32 B) and a delegate (64 B) for every party packet; the leave captured only the handler, so its
+  delegate alone. `Handle` takes what the request needs as a state argument, a value tuple, and hands it back to a
+  static lambda.
+- **Chat.** `ChatRateLimiter.TooFast` built its line for every refused message, and the sender over its limit is the
+  client that sends the most: the line for each whole second of the 60 s window is written once, when the class
+  loads, and never changed. `CommandDispatcher.Dispatch` trimmed every message into a new string and split it into
+  an array of strings before it looked the command up, and its failure report was a closure allocated on entry,
+  command or not: the command word is now a slice of the message, looked up through the dictionary's span lookup,
+  and the context a command is given names the dispatcher and the command where it took a callback. A command that
+  runs still gets its context (56 B) and its arguments (an array and a string each), which are its own to keep. The
+  message is read as it was (leading slashes dropped, cut at the space character only, empty pieces left out, the
+  first piece the command word in any case, nothing quoted): a scratch comparison of the old expression with the new
+  code over 3,396,745 messages, every string of up to seven characters from a slash, a space, a tab, a quote, a
+  no-break space and three letters, and a million random longer ones, found no difference in which ran or with what
+  arguments. One theory in `CommandDispatcherShould` now states the rule; it passes on the old code, where nothing
+  pinned leading spaces, repeated slashes or what counts as a separator.
+- **The economy.** `CharacterEconomy.InventoryOf` built an inventory service (40 B) and a delegate for its template
+  lookup (64 B) for every item request, loot pickup, vendor trade and quest reward. The delegate is made once with
+  the economy. The service is made once per character and kept on it (`CharacterEntity.EconomyInventory`, internal,
+  with the economy that made it): it holds the character, the lookup and the id allocator and no state of its own,
+  the lookup still reads the item templates as they are at each call, and it lives and dies with the character, so
+  there is nothing to clear and nothing shared between characters. The wallet and the vendor trade are still made
+  per call (the wallet carries the money cap as it is read then).
+- **The inventory service.** Its add, its removal by template and its counts ran queries. The add copied the partial
+  stacks, ordered by slot, into a list, and then the free slots into another, because the walk writes the Bag; both
+  are walks by slot number over the Bag as it is, since a step writes only the slot it stands on and the slots still
+  to come are as they were when the walk began. The removal counts what is held, then takes from the highest slot
+  down. Slot numbers are unique, so "ordered by slot" and "by slot number" are one order. The room and the owned
+  count walk the container's own collection (`CharacterInventoryContainer.Held`), whose enumerator is a struct. Eight
+  ways of getting a walk wrong (turned round, the room miscounted, a held copy missed, the first free slot not the
+  lowest) were tried against the existing inventory, vendor, loot and quest tests: each failed between 1 and 54.
+  The removal by instance id (an item used up, a quest's items taken at turn-in) walked the interface collection
+  and boxed an enumerator per container: 72 B with the item in the Bag, 144 B in the Bank or not held, 0 B now.
+- **Times.** No benchmark runs these; the review's probe (Release, best of 7, a loaded machine) read an add and a
+  removal into a stack at 1,200 to 1,750 ns before and 270 to 500 ns after, the fit check at 300 to 520 ns and 34 to
+  76 ns, and a command nobody has at 122 to 163 ns and about 57 ns (about 300 ns and 75 ns at 255 characters). The
+  same review ran the old inventory service against the new over 240,000 random operations and the old command
+  reading against the new over 1.5 million messages, and the old corpse remover against the new over 3,000 random
+  schedules, and found no difference in any.
+
+**Quests.** One character holding three quests, none scripted, over a quest service whose world is no substitute
+(`QuestTestWorld.QuietQuests`; a substitute allocates on every call it records).
+
+| Path | Before | After | Pinned by |
+|---|---:|---:|---|
+| A kill that moves no quest: the credit walk (`CreatureKilled`) | 696 B | 0 B | `QuestAllocationShould` |
+| The same kill's quest drop roll: one candidate, the roll made and failed (`RollQuestDrops`) | 448 B | 0 B | the same test |
+| A Bag change that changes no count (`RecountCollect`, `HeldInBag`) | 448 B | 0 B | the same test |
+| A pickup judged: a quest item still needed (`MayPickUp`) | 560 B | 0 B | the same test |
+| A kill that credits one objective | 952 B | 72 B | not pinned: the 72 B is the line it says |
+| A kill with a fourth, scripted quest held | 1,112 B | 152 B | not pinned: what the hook is handed |
+| A tick's two quest updates (`FlushClient`) | 1,224 B | 336 B | `QuestAllocationShould`, against what the updates carry |
+
+- **The walks.** The kill credit, a conversation and the Bag recount copied the character's quests with `ToList()`
+  before walking them, and the copy is there for a reason: the walk settles quests and runs their scripts' hooks,
+  which must not move the collection under it. It is still a copy, into a list the quest log keeps for the walk
+  (`QuestLog.BeginWalk`, given back with `EndWalk` in a `finally`), one list per walk in progress, as the aura
+  system keeps its lists of auras to end, and emptied when the walk ends, so the log keeps no copy between walks.
+  The lists are the character's log's, never the service's, which every instance shares. What can change the log
+  during a walk: today nothing a hook can reach adds or removes a quest (a quest script is handed loggers and the
+  clock, and its one write is to advance its own quest), and a hook cannot start another walk. The walk relies on
+  neither: it covers the quests held when it began, each once; one accepted meanwhile is not part of it; one dropped
+  meanwhile is still reached and found gone by the checks the walk already made (`AddProgress` and the hook both ask
+  the log for the quest again).
+- **The hooks.** `RunHook` made a closure on entry for every quest, scripted or not, and each caller a second closure
+  and a delegate for the hook's argument. With the boxed enumerator of the stage's objectives, that was 200 B for
+  each quest a member held, for each member, on every kill, on top of 72 B a member for the copy and the walk of the
+  members (read with none, one, two and three quests held: 72, 296, 496 and 696 B; now 0 B at each). `RunHook` now
+  looks for the script first and hands the hook's argument through as state to a static lambda. A script's hook
+  still gets a context of its own (it may keep it, and `Advance` judges a kept one by the quest as it is then).
+- **The quest drops.** `RollQuestDrops` returned a new list, boxed the enumerators of the eligible members and of the
+  drop rows, and made a closure for each candidate drop to find its objective. It fills the kill's own list
+  (`KillBuffers.QuestDrops`, emptied with the kill's other lists) and finds the objective by a walk. A creature with
+  no quest drop rows still returns before anything else.
+- **The Bag.** `HeldInBag` ran `Where` and `Sum` over the Bag once for each Collect objective, on every tick the Bag
+  changed; it walks the Bag's own collection. The stage rule (`All`) and the objective lookups (`FirstOrDefault`)
+  are walks too. `MayPickUp` took a closure on entry for every pickup, quest item or not.
+- **The updates.** `FlushClient` ordered the changed quests with `OrderBy`; the log hands them out by quest id in a
+  list of its own, sorted in place (ids are unique, so no tie can reorder them). An update's progress list was built
+  by a query over a query (`SelectMany`, `Select`, `ToList`); it is built at its size by a walk of the stages, in the
+  same order. What a tick's updates allocate now is the updates: a message and a progress list each, with an entry
+  for each objective.
+
+**Tests found by breaking the code**, each for a behaviour no existing test failed on:
+
+| Broken | Fails |
+|---|---|
+| A walk shares its list with a walk begun inside it | `QuestScriptShould.Credit_a_kill_to_the_quests_held_when_it_happened_whatever_a_hook_does_to_the_log`: the first quest's hook accepts a quest and has the log walked again, from inside the kill's walk |
+| The kill's quest drops left in the list for the next kill | `QuestItemDropShould.Drop_only_for_the_member_with_the_objective_and_reserve_it_for_good`, which now kills twice |
+| The updates out of quest id order, or an update's objectives out of stage order | `QuestFlusherShould.Send_a_ticks_updates_by_quest_id_each_listing_its_objectives_stage_by_stage` |
+| A corpse's wait not counted from its own death | `CreatureCorpseRemoverShould.Count_A_Corpses_Wait_From_Its_Death` |
+
+All four pass on the code as it was. A walk's list left unemptied, the client changes left in the log's sorted list,
+a stage judged by its first objective, an objective found that was not asked for and a pickup judged without the Bag
+were each already failed by between two and seven tests.
+
+**Aura hooks, stat totals, the stats refresh and corpses.**
+
+| Path | Before | After | Pinned by |
+|---|---:|---:|---|
+| A scripted aura's hook (apply, stack, tick or removal) | 168 B | 64 B | `AuraScriptHooksShould`, against what its context costs |
+| A unit's stat totals rebuilt: three auras of one modifier each | 384 B | 184 B | not pinned: the 184 B is the totals |
+| A character's stats refreshed, nothing worn | 208 B | 32 B | not pinned |
+| The same with three items worn (65 item templates, 15 class rows) | 1,576 B | 968 B | not pinned |
+| A corpse handed to the remover | 32 B | 0 B | `CreatureCorpseRemoverShould` |
+
+- **An aura's hook** allocated its context, a closure and a delegate. The hook, the context and the reason go to the
+  script host as one value. The context stays an object of its own for each hook: it is ended when the hook returns,
+  so that a script that kept one cannot act through it later, and handing the next hook the same object would give
+  such a script its acts back.
+- **The stat totals** are rebuilt when one of the unit's auras changed, not when they are read. The query over the
+  auras was an iterator, and an enumerator for each aura's modifiers. `AuraStatTotals.Of` now reads the auras from
+  the caller's list through a static lambda, and it is the one way to build totals: the simulator builds its units'
+  the same way, and the calculator's own tests cover the path the world server runs.
+- **The stats refresh** found the class row with `FirstOrDefault` over a lambda on the character and, over the
+  current reference data, each worn item's template with another that walked every item template. The row is found
+  by a walk by index and a template by the reference data's keyed lookup. What is left is the list of worn templates
+  and the calculator's own work on it (an iterator for each item's stats), which is shared with the simulator and
+  the API and was not changed.
+- **The corpse remover** made a timer object for each kill, as the key of its dictionary. It keeps one count of the
+  whole milliseconds its updates have added up and, for each corpse, the count at which its body goes, keyed by the
+  order the corpses were scheduled in. It is the same dictionary, added to and removed from exactly as before, so
+  corpses that go on the same tick go in the order they always went; a corpse goes on the first update at which the
+  milliseconds added since its death reach its template's time, as before.
+
+**The encounter lookup stays a walk.** `EncounterRegistry.FindEncounterContaining` walks an instance's active
+encounters and asks each one's two sets for the unit. `EncounterLookupBenchmarks` compares the walk, for a unit of the
+last encounter and for a unit of none, with one dictionary lookup by unit, which is the least an index could cost.
+Each encounter is a pack of four and a party of three.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EncounterLookup*" --job short
+```
+
+BenchmarkDotNet 0.15.8, `--job short`, the same machine, with other builds and test runs loading it: each cell gives
+the mean of each of three runs, and the runs disagree by up to a factor of two. Nothing is allocated in any row.
+
+| Encounters | A unit of the last encounter | A unit of none | Indexed |
+|---:|---:|---:|---:|
+| 1 | 10.2 / 9.5 / 7.4 ns | 10.2 / 11.2 / 9.3 ns | 4.7 / 6.8 / 5.6 ns |
+| 2 | 20.0 / 21.5 / 12.4 ns | 25.9 / 27.2 / 15.2 ns | 5.3 / 8.0 / 8.3 ns |
+| 4 | 43.8 / 30.4 / 51.3 ns | 51.8 / 38.9 / 52.5 ns | 6.1 / 6.8 / 7.6 ns |
+| 8 | 60.8 / 57.3 / 77.1 ns | 60.8 / 53.5 / 87.4 ns | 5.3 / 5.3 / 8.9 ns |
+| 32 | 265 / 221 / 442 ns | 319 / 229 / 275 ns | 4.7 / 8.0 / 8.1 ns |
+
+The walk costs about 10 ns for each encounter it passes. The registry is one per instance, and an instance's
+encounters are the fights going on in it at once: one for a party on a pack, a few when its members fight apart. The
+lookup runs once a tick for each creature that is fighting (its target) and once or twice for each hit. At four
+encounters an index would save 25 to 45 ns a lookup, well under a microsecond a tick for an instance in a fight,
+and it would have to follow every way an encounter gains or loses a member (a hostile or a player added, removed,
+dead, an encounter ended). The figure does not justify it; at 32 encounters in one instance it would, and the
+benchmark is kept to ask again.
+
+**The allocation gate.** `forest-combat` read 10,357 B per window, 28 B under its committed 10,385 B, in Debug and in
+Release; with the corpse remover alone put back as it was it read 10,385 B again, so the whole difference is the
+timer object of the measured minute's 60 kills (32 B each), less 4 B a window for the remover's dictionary, whose
+entries are 8 B wider. The baseline was regenerated at `e6b43c97` and is 10,357 B: the runner run that wrote it,
+three runs of the Release gate alone (one before the file was written, two after), two of the Debug gate alone, one
+of the Release gate with `DOTNET_TieredPGO=0`, and the whole World suite in Debug. The three town scenarios read 0 in
+every run. No Linux run was made: read CI's figure from its first run's "Scenario allocation gate" summary.
 
 ### Ability script construction — `Benchmarks/AbilityScriptBuildBenchmarks.cs` (#925)
 
@@ -2501,19 +2693,20 @@ with the committed figure, in every build (Debug and Release, see below) and for
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
-  since server packets are built in per-thread messages; the file was last regenerated at `8f21757d`, for `forest-combat`), so the 256 B
+  since server packets are built in per-thread messages; the file was last regenerated at `e6b43c97`, for `forest-combat`), so the 256 B
   floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
   per window).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the one figure above 0 (10,385 B per window since #890 and #883 took a kill's lists, closures
-  and delegates off the heap), and at that size the 256 B floor decides for it too (1% is 104 B): it fails above
-  10,641 B, a little over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. It reads the
-  same in the gate alone and in a whole World suite run. Its Debug run reads the committed figure too, 10,385 B, and
-  so does a Release run with dynamic PGO off ([the kill path](#results--the-kill-path-890-883-2026-10-13)): nothing
-  on the fight's path is kept off the heap only by optimised code any more. Before that a Debug build read 237 B per
+  `forest-combat` is the one figure above 0 (10,357 B per window since #890 and #883 took a kill's lists, closures,
+  delegates and its corpse's timer off the heap), and at that size the 256 B floor decides for it too (1% is 104 B):
+  it fails above 10,613 B, a little over 4 B per tick for the whole fight, so one 24 B object every five ticks fails
+  it. It reads the same in the gate alone and in a whole World suite run. Its Debug run reads the committed figure
+  too, 10,357 B, and so does a Release run with dynamic PGO off (since
+  [the kill path](#results--the-kill-path-890-883-2026-10-13)): nothing on the fight's path is kept off the heap only
+  by optimised code any more. Before that a Debug build read 237 B per
   window above the committed 11,543 B (objects on the kill path and in the creature scripts), 19 B less than the
   floor allows, and 305 B above, 49 B more than it allows, until #883 took the closure out of `CancelScriptsOf`.
   For that time the escape hatch below applied to it alone (owner, #890): `forest-combat` was decided in Release (CI)
@@ -2669,15 +2862,18 @@ no character reaches level 2. `ForestCombatScenarioShould` runs the scenario twi
 same kills and the same bytes per window; the second run's creatures carry higher ids (the process-wide object id
 counter), which changes neither.
 
-**Gate.** Committed at **10,385 B per window** (14.4 B per player per tick, 173 B per tick), a hard gate like the town
+**Gate.** Committed at **10,357 B per window** (14.4 B per player per tick, 173 B per tick), a hard gate like the town
 scenarios: see [The allocation gate](#the-allocation-gate) for the floor. Recorded on the developer machine, Release,
 dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)), #888
 took the send path off the tick thread's bill, #875 encoded each broadcast once
 ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)), #890 took the query out of the melee slots'
 release ([the melee slots' release](#results--the-melee-slots-release-890-2026-10-12)), #925 and #883 took most
 of a cast's script build, and its log lines, off the heap
-([the cast path](#results--the-cast-path-925-883-2026-10-13)), and #890 and #883 took a kill's lists, closures and
-delegates with them ([the kill path](#results--the-kill-path-890-883-2026-10-13)). The same figure every run: at
+([the cast path](#results--the-cast-path-925-883-2026-10-13)), #890 and #883 took a kill's lists, closures and
+delegates with them ([the kill path](#results--the-kill-path-890-883-2026-10-13)), and #883 took the timer object
+out of each corpse's wait
+([the corpse remover](#gameplay-requests-quests-aura-hooks-and-corpses--the-allocation-tests-benchmarksencounterlookupbenchmarkscs-883)).
+The same figure every run: at
 16,252, five two-run checks in Release on the developer machine, and the gate and the check in a Linux container
 (4 CPUs, 16 GB); at 16,244, three runner runs, the run that wrote it and the Release gate on the developer machine; at
 15,635, two runner runs, the second the one that wrote it, three runs of the Release gate alone and three of the whole
@@ -2685,8 +2881,10 @@ World suite in Release, the two-run check in each of those, all on the developer
 runs, the second the one that wrote it, three runs of the Release gate alone and one of the whole World suite in
 Release, on the developer machine; at 10,385, two runner runs, the second the one that wrote it, three runs of the
 Release gate alone, three of the Debug gate alone, two of the Release gate with dynamic PGO off, and one of the
-whole World suite in each of Release and Debug, on the developer machine. No Linux run was made at 15,635, at 11,543
-or at 10,385: CI decides on Linux, and its figure is to be read from the first CI run's "Scenario allocation gate"
+whole World suite in each of Release and Debug, on the developer machine; at 10,357, the runner run that wrote it,
+three runs of the Release gate alone, two of the Debug gate alone, one of the Release gate with dynamic PGO off, and
+the whole World suite in Debug, on the developer machine. No Linux run was made at 15,635, at 11,543, at 10,385 or
+at 10,357: CI decides on Linux, and its figure is to be read from the first CI run's "Scenario allocation gate"
 summary.
 
 | `forest-combat`, bytes per window | |
@@ -2697,9 +2895,10 @@ summary.
 | After shared broadcasts (#875, PGO on) | 16,244 |
 | After the melee slots' release (#890, PGO on) | 15,635 |
 | After the cast path (#925, #883, PGO on) | 11,543 |
-| After the kill path (#890, #883, PGO on), now | 10,385 |
-| Release with PGO off, now | 10,385 |
-| Debug, now | 10,385 |
+| After the kill path (#890, #883, PGO on) | 10,385 |
+| After the corpse remover (#883, PGO on), now | 10,357 |
+| Release with PGO off, now | 10,357 |
+| Debug, now | 10,357 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
@@ -2877,14 +3076,17 @@ aura had a script or not; the same 32 B was paid by every apply and every tick o
 
 | Per kill | Bytes | Why it is left |
 |---|---:|---|
-| The corpse's removal timer | 32 B | Kept until the corpse is removed. |
+| The corpse's removal timer | 32 B | Kept until the corpse is removed. Gone since: the remover keeps a count for each corpse, not an object ([the corpse remover](#gameplay-requests-quests-aura-hooks-and-corpses--the-allocation-tests-benchmarksencounterlookupbenchmarkscs-883)). |
 | The list `ILootRoller.Roll` hands back | 152 B for up to four drops | The roller is one object for every instance, so it cannot keep the list, and the tests of the kill substitute `Roll` and answer with a list: taking it out means a signature that fills the caller's list. |
 | Each drop left on the ground | 96 B | Kept: the `GroundLoot` and its guid, until it is picked up. |
 
 Not measured by the scenario, which builds no quest service: the kill's quest credit and quest drops
-(`QuestService.CreatureKilled`, `RollQuestDrops`) still copy each eligible member's quests and walk the eligible
-through their interface. An aura with a script still makes its context and a closure for each hook, and an aura with
-stat modifiers refreshes its unit's stats when it ends.
+(`QuestService.CreatureKilled`, `RollQuestDrops`) copied each eligible member's quests and walked the eligible
+through their interface, and an aura with a script made its context and a closure for each hook. Both are gone
+since, measured by their own tests
+([quests and aura hooks](#gameplay-requests-quests-aura-hooks-and-corpses--the-allocation-tests-benchmarksencounterlookupbenchmarkscs-883)):
+a kill that moves no quest allocates nothing for its quests, and a hook only its context. An aura with stat modifiers
+still refreshes its unit's stats when it ends.
 
 ### Results — the cast path (#925, #883, 2026-10-13)
 

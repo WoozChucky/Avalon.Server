@@ -49,15 +49,19 @@ public sealed class AuraScripts(IScriptManager scripts, IServiceProvider service
         return built;
     }
 
-    /// <summary>Runs one hook of the aura's script, if it has one; a throw is logged and swallowed.</summary>
-    public void Run(AuraTemplate template, string hook, Action<AuraScript> call)
+    /// <summary>
+    /// Runs one hook of the aura's script, if it has one; a throw is logged and swallowed. What the hook needs is handed
+    /// over as <paramref name="state" /> and back to <paramref name="call" />, which the caller writes <c>static</c>: a
+    /// lambda that captured it cost every hook a closure and a delegate (#883).
+    /// </summary>
+    public void Run<TState>(AuraTemplate template, string hook, TState state, Action<AuraScript, TState> call)
     {
         if (For(template) is not { } script)
             return;
 
         try
         {
-            call(script);
+            call(script, state);
         }
         catch (Exception e)
         {

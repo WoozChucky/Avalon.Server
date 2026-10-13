@@ -13,30 +13,47 @@ public sealed class CommandDispatcher : ICommandDispatcher
     // that mask includes Console. A mask test, never ">=": AccountAccessLevel is [Flags].
     private const AccountAccessLevel SeesCommandFailures = AccountAccessLevel.GameMaster | AccountAccessLevel.Admin;
 
-    private readonly Dictionary<string, ICommand> _commands;
+    // The commands by name and alias, whatever the case, looked up by a slice of the message: the command word is
+    // never made a string (#883).
+    private readonly Dictionary<string, ICommand>.AlternateLookup<ReadOnlySpan<char>> _commands;
     private readonly ILogger<CommandDispatcher> _logger;
 
     public CommandDispatcher(IEnumerable<ICommand> commands, ILogger<CommandDispatcher> logger)
     {
         _logger = logger;
-        _commands = new Dictionary<string, ICommand>(StringComparer.OrdinalIgnoreCase);
+        var byName = new Dictionary<string, ICommand>(StringComparer.OrdinalIgnoreCase);
 
         foreach (ICommand command in commands)
         {
-            _commands[command.Name] = command;
+            byName[command.Name] = command;
 
             foreach (string alias in command.Aliases)
             {
-                _commands[alias] = command;
+                byName[alias] = command;
             }
         }
+
+        _commands = byName.GetAlternateLookup<ReadOnlySpan<char>>();
     }
 
+    /// <summary>
+    /// Runs the command the message names, with the words after it as its arguments. The message is read as it always
+    /// was: every leading slash is dropped, then it is cut at spaces (the space character only) and the empty pieces
+    /// are left out; the first piece is the command word, whatever its case, and the rest are the arguments, as typed.
+    /// </summary>
+    /// <remarks>
+    /// A message that names no command, or one the caller may not run, allocates nothing: a client can send those as
+    /// fast as its connection is read. A command that runs is given a context and its arguments, and nothing else is
+    /// made. Before #883 every message was trimmed into a new string and split into an array of strings before the
+    /// command was looked up, and the failure report was a closure made on entry, whether a command ran or not.
+    /// </remarks>
     public bool Dispatch(IWorldConnection connection, CChatMessagePacket packet)
     {
-        string[] parts = packet.Message.TrimStart('/').Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        ReadOnlySpan<char> text = packet.Message.AsSpan().TrimStart('/').TrimStart(' ');
+        int end = text.IndexOf(' ');
+        ReadOnlySpan<char> word = end < 0 ? text : text[..end];
 
-        if (parts.Length == 0 || !_commands.TryGetValue(parts[0], out ICommand? command))
+        if (word.IsEmpty || !_commands.TryGetValue(word, out ICommand? command))
         {
             return false;
         }
@@ -48,11 +65,11 @@ public sealed class CommandDispatcher : ICommandDispatcher
             return false;
         }
 
-        var ctx = new CommandContext(connection, packet, failure => ReportFailure(connection, packet, command, failure));
+        var ctx = new CommandContext(connection, packet, this, command);
 
         try
         {
-            command.Execute(ctx, parts[1..]);
+            command.Execute(ctx, Arguments(text[word.Length..]));
         }
         catch (Exception ex)
         {
@@ -64,10 +81,37 @@ public sealed class CommandDispatcher : ICommandDispatcher
     }
 
     /// <summary>
+    /// The pieces between spaces, the empty ones left out: what splitting the whole message gave after its first
+    /// piece. Each argument is a string of its own, since a command may keep them.
+    /// </summary>
+    private static string[] Arguments(ReadOnlySpan<char> rest)
+    {
+        int count = 0;
+        foreach (Range piece in rest.Split(' '))
+        {
+            if (!rest[piece].IsEmpty)
+                count++;
+        }
+
+        if (count == 0)
+            return [];
+
+        string[] arguments = new string[count];
+        int next = 0;
+        foreach (Range piece in rest.Split(' '))
+        {
+            if (!rest[piece].IsEmpty)
+                arguments[next++] = rest[piece].ToString();
+        }
+
+        return arguments;
+    }
+
+    /// <summary>
     /// A command that threw, a task it handed to <see cref="CommandContext.Then{T}" /> that faulted or was
     /// cancelled, or a callback that threw (#443): logged at Error, and told to staff by type only.
     /// </summary>
-    private void ReportFailure(IWorldConnection connection, CChatMessagePacket packet, ICommand command, Exception ex)
+    internal void ReportFailure(IWorldConnection connection, CChatMessagePacket packet, ICommand command, Exception ex)
     {
         _logger.LogError(ex, "Command /{Command} failed for account {AccountId}", command.Name, connection.AccountId);
 

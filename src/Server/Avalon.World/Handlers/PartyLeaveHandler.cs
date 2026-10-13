@@ -11,6 +11,6 @@ namespace Avalon.World.Handlers;
 public class PartyLeaveHandler(PartyService parties, ILogger<PartyLeaveHandler> logger) : WorldPacketHandler<CPartyLeavePacket>
 {
     public override void Execute(IWorldConnection connection, CPartyLeavePacket packet) =>
-        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_LEAVE, character =>
-            (parties.Leave(character.Guid.Id), null));
+        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_LEAVE, parties,
+            static (character, service) => (service.Leave(character.Guid.Id), null));
 }

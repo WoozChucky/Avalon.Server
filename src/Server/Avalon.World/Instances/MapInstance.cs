@@ -894,11 +894,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// rolled for, for good. All of them are placed in one ring. A kill nobody is credited with
     /// (<paramref name="credited" /> false: an aura's tick whose caster is gone) drops every table drop free for all at
     /// once, whatever instance this is. It allocates the drops it leaves on the ground, and the list the roller hands
-    /// back; its own lists and loot messages are the kill's <paramref name="buffers" /> (#890).
+    /// back; its own lists, the quest drops among them (#883), and loot messages are the kill's
+    /// <paramref name="buffers" /> (#890).
     /// </summary>
     private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible, bool credited, KillBuffers buffers)
     {
-        IReadOnlyList<(RolledDrop Drop, uint Owner)> questDrops = RollQuestDrops(creature, eligible);
+        List<(RolledDrop Drop, uint Owner)> questDrops = buffers.QuestDrops;
+        RollQuestDrops(creature, eligible, questDrops);
         bool rollsTable = _lootRoller is not null && _lootAllocator is not null && creature.Metadata is CreatureTemplate;
         if (!rollsTable && questDrops.Count == 0)
         {
@@ -984,23 +986,26 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     : allocator!.Allocate(instanceOwner: null, instanceParty: null, []);
     }
 
-    /// <summary>The quest drops a kill rolls (#433). Contained: a throw costs this kill's quest drops, nothing else.</summary>
-    private IReadOnlyList<(RolledDrop Drop, uint Owner)> RollQuestDrops(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    /// <summary>
+    /// The quest drops a kill rolls (#433), into the kill's own list. Contained: a throw costs this kill's quest drops,
+    /// those rolled before it included, and nothing else.
+    /// </summary>
+    private void RollQuestDrops(ICreature creature, IReadOnlyList<ICharacter> eligible, List<(RolledDrop Drop, uint Owner)> rolled)
     {
         if (_questService is null || eligible.Count == 0)
         {
-            return [];
+            return;
         }
 
         try
         {
-            return _questService.RollQuestDrops(creature, eligible);
+            _questService.RollQuestDrops(creature, eligible, rolled);
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Rolling quest drops for the kill of {CreatureGuid} in instance {InstanceId} failed",
                 creature.Guid, InstanceId);
-            return [];
+            rolled.Clear();
         }
     }
 

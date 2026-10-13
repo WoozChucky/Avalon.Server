@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
@@ -203,7 +204,7 @@ public sealed class QuestService(
 
         if (character.Quests.Get(questId) is not { } active
             || !Catalog.TryGet(questId, out QuestView? quest)
-            || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is not
+            || Objective(CurrentStage(quest, active), objectiveId) is not
             { Type: Domain.World.QuestObjectiveType.Kill or Domain.World.QuestObjectiveType.Talk })
         {
             return false;
@@ -333,7 +334,7 @@ public sealed class QuestService(
         if (amount == 0
             || character.Quests.Get(questId) is not { State: CharacterQuestState.Active } active
             || !Catalog.TryGet(questId, out QuestView? quest)
-            || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is not { } objective
+            || Objective(CurrentStage(quest, active), objectiveId) is not { } objective
             || objective.Type == Domain.World.QuestObjectiveType.Collect)
         {
             return false;
@@ -349,31 +350,47 @@ public sealed class QuestService(
     /// its Active quests. Dead members count, as they do for loot and experience; the list already leaves out a
     /// killer or member in a leave countdown.
     /// </summary>
+    /// <remarks>
+    /// A kill that moves no quest allocates nothing (#883): the members and each stage's objectives are walked by
+    /// index (a <c>foreach</c> over either interface boxes an enumerator), and each member's quests through the copy
+    /// its log keeps for the walk.
+    /// </remarks>
     public void CreatureKilled(ICreature creature, IReadOnlyList<ICharacter> eligible)
     {
         ulong template = creature.Metadata.Id.Value;
         QuestCatalog catalog = Catalog;
-        foreach (ICharacter member in eligible)
+        for (int member = 0; member < eligible.Count; member++)
         {
-            if (member is not CharacterEntity character)
+            if (eligible[member] is not CharacterEntity character)
                 continue;
 
             // A copy: settling a quest never removes one, but a script hook must not see a moving collection.
-            foreach (ActiveQuest active in character.Quests.Active.ToList())
+            List<ActiveQuest> held = character.Quests.BeginWalk();
+            try
             {
-                if (active.State != CharacterQuestState.Active || !catalog.TryGet(active.QuestId, out QuestView? quest))
-                    continue;
-
-                if (CurrentStage(quest, active) is { } stage)
+                for (int i = 0; i < held.Count; i++)
                 {
-                    foreach (QuestObjectiveView objective in stage.Objectives)
-                    {
-                        if (objective.Type == Domain.World.QuestObjectiveType.Kill && objective.CreatureTemplateId?.Value == template)
-                            AddProgress(character, quest.Id, objective.Id, 1);
-                    }
-                }
+                    ActiveQuest active = held[i];
+                    if (active.State != CharacterQuestState.Active || !catalog.TryGet(active.QuestId, out QuestView? quest))
+                        continue;
 
-                OnKilled(character, quest, active, creature);
+                    if (CurrentStage(quest, active) is { } stage)
+                    {
+                        IReadOnlyList<QuestObjectiveView> objectives = stage.Objectives;
+                        for (int o = 0; o < objectives.Count; o++)
+                        {
+                            QuestObjectiveView objective = objectives[o];
+                            if (objective.Type == Domain.World.QuestObjectiveType.Kill && objective.CreatureTemplateId?.Value == template)
+                                AddProgress(character, quest.Id, objective.Id, 1);
+                        }
+                    }
+
+                    OnKilled(character, quest, active, creature);
+                }
+            }
+            finally
+            {
+                character.Quests.EndWalk(held);
             }
         }
     }
@@ -387,47 +404,63 @@ public sealed class QuestService(
     {
         ulong template = npc.Metadata.Id.Value;
         QuestCatalog catalog = Catalog;
-        foreach (ActiveQuest active in character.Quests.Active.ToList())
+        // The copy the log keeps for a walk, as in CreatureKilled.
+        List<ActiveQuest> held = character.Quests.BeginWalk();
+        try
         {
-            if (active.State != CharacterQuestState.Active || !catalog.TryGet(active.QuestId, out QuestView? quest))
-                continue;
-
-            if (CurrentStage(quest, active) is { } stage)
+            for (int i = 0; i < held.Count; i++)
             {
-                foreach (QuestObjectiveView objective in stage.Objectives)
-                {
-                    if (objective.Type == Domain.World.QuestObjectiveType.Talk && objective.CreatureTemplateId?.Value == template)
-                        AddProgress(character, quest.Id, objective.Id, objective.Count);
-                }
-            }
+                ActiveQuest active = held[i];
+                if (active.State != CharacterQuestState.Active || !catalog.TryGet(active.QuestId, out QuestView? quest))
+                    continue;
 
-            OnInteracted(character, quest, active, npc);
+                if (CurrentStage(quest, active) is { } stage)
+                {
+                    IReadOnlyList<QuestObjectiveView> objectives = stage.Objectives;
+                    for (int o = 0; o < objectives.Count; o++)
+                    {
+                        QuestObjectiveView objective = objectives[o];
+                        if (objective.Type == Domain.World.QuestObjectiveType.Talk && objective.CreatureTemplateId?.Value == template)
+                            AddProgress(character, quest.Id, objective.Id, objective.Count);
+                    }
+                }
+
+                OnInteracted(character, quest, active, npc);
+            }
+        }
+        finally
+        {
+            character.Quests.EndWalk(held);
         }
     }
 
     /// <summary>
     /// Quest item drops for a kill (#433): for each eligible character, each drop row of this creature whose
     /// objective is an unmet Collect objective in the current stage of one of its Active quests is rolled once
-    /// (ILootRandom, a percentage); each success is one item, reserved to that character for good.
+    /// (ILootRandom, a percentage); each success is one item, reserved to that character for good. The drops are
+    /// added to <paramref name="rolled" />, the kill's own list, which must be empty: the roll allocates nothing
+    /// (#883), where it made a list, boxed two enumerators and made a closure for each candidate drop.
     /// </summary>
-    public IReadOnlyList<(RolledDrop Drop, uint Owner)> RollQuestDrops(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    public void RollQuestDrops(ICreature creature, IReadOnlyList<ICharacter> eligible, List<(RolledDrop Drop, uint Owner)> rolled)
     {
+        Debug.Assert(rolled.Count == 0, "The list of quest drops still holds an earlier kill's");
+
         QuestCatalog catalog = Catalog;
         IReadOnlyList<QuestDropView> drops = catalog.DropsFrom(creature.Metadata.Id);
-        if (drops.Count == 0 || eligible.Count == 0)
-            return [];
+        if (drops.Count == 0)
+            return;
 
-        List<(RolledDrop, uint)> rolled = [];
-        foreach (ICharacter member in eligible)
+        for (int member = 0; member < eligible.Count; member++)
         {
-            if (member is not CharacterEntity character)
+            if (eligible[member] is not CharacterEntity character)
                 continue;
 
-            foreach (QuestDropView drop in drops)
+            for (int i = 0; i < drops.Count; i++)
             {
+                QuestDropView drop = drops[i];
                 if (character.Quests.Get(drop.QuestId) is not { } active
                     || !catalog.TryGet(drop.QuestId, out QuestView? quest)
-                    || CurrentStage(quest, active)?.Objectives.FirstOrDefault(o => o.Id == drop.ObjectiveId) is not { } objective
+                    || Objective(CurrentStage(quest, active), drop.ObjectiveId) is not { } objective
                     || !StillNeeds(character, active, objective))
                 {
                     continue;
@@ -437,8 +470,6 @@ public sealed class QuestService(
                     rolled.Add((RolledDrop.Item(drop.ItemTemplateId, 1), character.Guid.Id));
             }
         }
-
-        return rolled;
     }
 
     /// <summary>
@@ -449,10 +480,21 @@ public sealed class QuestService(
     public void RecountCollect(CharacterEntity character)
     {
         QuestCatalog catalog = Catalog;
-        foreach (ActiveQuest active in character.Quests.Active.ToList())
+        // The copy the log keeps for a walk: a recount can complete a stage, whose start runs the script's hook. A
+        // recount that changes no count allocates nothing (#883).
+        List<ActiveQuest> held = character.Quests.BeginWalk();
+        try
         {
-            if (catalog.TryGet(active.QuestId, out QuestView? quest))
-                Recount(character, quest, active);
+            for (int i = 0; i < held.Count; i++)
+            {
+                ActiveQuest active = held[i];
+                if (catalog.TryGet(active.QuestId, out QuestView? quest))
+                    Recount(character, quest, active);
+            }
+        }
+        finally
+        {
+            character.Quests.EndWalk(held);
         }
     }
 
@@ -556,20 +598,28 @@ public sealed class QuestService(
     /// </summary>
     public bool MayPickUp(CharacterEntity character, ItemTemplateId item)
     {
+        // A mask test: HasFlag boxes both of its operands in a build that does not optimise.
         if (world.Data.FindItemTemplate(item) is not { } template
-            || !template.Flags.HasFlag(Domain.World.ItemTemplateFlags.QuestItem))
+            || (template.Flags & Domain.World.ItemTemplateFlags.QuestItem) == 0)
         {
             return true;
         }
 
+        // Nothing here changes the log, so it is walked as it is, and each stage by index: a pickup allocates nothing
+        // to be judged (#883), where a lambda over the item, the character and the quest cost it a closure, taken on
+        // entry for every item, quest item or not.
         QuestCatalog catalog = Catalog;
         foreach (ActiveQuest active in character.Quests.Active)
         {
-            if (catalog.TryGet(active.QuestId, out QuestView? quest)
-                && CurrentStage(quest, active) is { } stage
-                && stage.Objectives.Any(o => o.ItemTemplateId?.Value == item.Value && StillNeeds(character, active, o)))
+            if (!catalog.TryGet(active.QuestId, out QuestView? quest) || CurrentStage(quest, active) is not { } stage)
+                continue;
+
+            IReadOnlyList<QuestObjectiveView> objectives = stage.Objectives;
+            for (int i = 0; i < objectives.Count; i++)
             {
-                return true;
+                QuestObjectiveView objective = objectives[i];
+                if (objective.ItemTemplateId?.Value == item.Value && StillNeeds(character, active, objective))
+                    return true;
             }
         }
 
@@ -588,8 +638,54 @@ public sealed class QuestService(
         && objective.ItemTemplateId is { } item
         && HeldInBag(character, item) < objective.Count;
 
-    public static long HeldInBag(CharacterEntity character, ItemTemplateId item) =>
-        character.Container(InventoryType.Bag).Items.Where(i => i.TemplateId.Value == item.Value).Sum(i => (long)i.Count);
+    /// <summary>
+    /// How many of the item the Bag holds, over every stack. A walk of the container's own collection: it runs once
+    /// per Collect objective on every tick the Bag changed, and a query here was two delegates, a closure and two
+    /// enumerators each time (#883).
+    /// </summary>
+    public static long HeldInBag(CharacterEntity character, ItemTemplateId item)
+    {
+        long held = 0;
+        foreach (InventoryItem stack in character.Container(InventoryType.Bag).Held)
+        {
+            if (stack.TemplateId.Value == item.Value)
+                held += stack.Count;
+        }
+
+        return held;
+    }
+
+    /// <summary>
+    /// The objective of that id in the stage, the first if several had it; null when it has none, or for no stage. A
+    /// walk: <c>FirstOrDefault</c> over a lambda on the id cost each lookup a closure and a delegate (#883).
+    /// </summary>
+    private static QuestObjectiveView? Objective(QuestStageView? stage, uint objectiveId)
+    {
+        if (stage is null)
+            return null;
+
+        IReadOnlyList<QuestObjectiveView> objectives = stage.Objectives;
+        for (int i = 0; i < objectives.Count; i++)
+        {
+            if (objectives[i].Id == objectiveId)
+                return objectives[i];
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether every objective of the stage has its count.</summary>
+    private static bool IsMet(QuestStageView stage, ActiveQuest active)
+    {
+        IReadOnlyList<QuestObjectiveView> objectives = stage.Objectives;
+        for (int i = 0; i < objectives.Count; i++)
+        {
+            if (active.ProgressOf(objectives[i].Id) < objectives[i].Count)
+                return false;
+        }
+
+        return true;
+    }
 
     private void Recount(CharacterEntity character, QuestView quest, ActiveQuest active)
     {
@@ -597,8 +693,10 @@ public sealed class QuestService(
             return;
 
         bool changed = false;
-        foreach (QuestObjectiveView objective in stage.Objectives)
+        IReadOnlyList<QuestObjectiveView> objectives = stage.Objectives;
+        for (int i = 0; i < objectives.Count; i++)
         {
+            QuestObjectiveView objective = objectives[i];
             if (objective.Type != Domain.World.QuestObjectiveType.Collect)
                 continue;
 
@@ -646,7 +744,7 @@ public sealed class QuestService(
             while (active.State == CharacterQuestState.Active
                    && character.Quests.Get(quest.Id) == active
                    && CurrentStage(quest, active) is { } stage
-                   && stage.Objectives.All(o => active.ProgressOf(o.Id) >= o.Count))
+                   && IsMet(stage, active))
             {
                 if (active.Stage + 1 < quest.Stages.Count)
                 {
@@ -715,13 +813,19 @@ public sealed class QuestService(
         if (ScriptOf(quest) is not { } script)
             return false;
 
-        bool allows = false;
-        return Contained(quest, character, nameof(QuestScript.CanAccept),
-            () => allows = script.CanAccept(new QuestCharacterView(character))) && allows;
+        try
+        {
+            return script.CanAccept(new QuestCharacterView(character));
+        }
+        catch (Exception e)
+        {
+            ScriptThrew(quest, character, nameof(QuestScript.CanAccept), e);
+            return false;
+        }
     }
 
     private void OnAccepted(CharacterEntity character, QuestView quest, ActiveQuest active) =>
-        RunHook(character, quest, active, nameof(QuestScript.OnAccepted), static (script, context) => script.OnAccepted(context));
+        RunHook(character, quest, active, nameof(QuestScript.OnAccepted), 0, static (script, context, _) => script.OnAccepted(context));
 
     /// <summary>
     /// A stage started (stage 0 at accept): its Collect objectives count what the Bag already holds, then the script
@@ -731,7 +835,8 @@ public sealed class QuestService(
     {
         int stage = active.Stage;
         Recount(character, quest, active);
-        RunHook(character, quest, active, nameof(QuestScript.OnStageStarted), (script, context) => script.OnStageStarted(context, stage));
+        RunHook(character, quest, active, nameof(QuestScript.OnStageStarted), stage,
+            static (script, context, stage) => script.OnStageStarted(context, stage));
     }
 
     /// <summary>The kill hook, only while the quest is still Active: a kill that made it ready reaches no hook.</summary>
@@ -739,8 +844,8 @@ public sealed class QuestService(
     {
         if (StillActive(character, quest, active))
         {
-            RunHook(character, quest, active, nameof(QuestScript.OnCreatureKilled),
-                (script, context) => script.OnCreatureKilled(context, QuestCreatureView.From(creature)));
+            RunHook(character, quest, active, nameof(QuestScript.OnCreatureKilled), creature,
+                static (script, context, creature) => script.OnCreatureKilled(context, QuestCreatureView.From(creature)));
         }
     }
 
@@ -749,8 +854,8 @@ public sealed class QuestService(
     {
         if (StillActive(character, quest, active))
         {
-            RunHook(character, quest, active, nameof(QuestScript.OnInteract),
-                (script, context) => script.OnInteract(context, QuestCreatureView.From(npc)));
+            RunHook(character, quest, active, nameof(QuestScript.OnInteract), npc,
+                static (script, context, npc) => script.OnInteract(context, QuestCreatureView.From(npc)));
         }
     }
 
@@ -784,13 +889,16 @@ public sealed class QuestService(
     {
         QuestCatalog catalog = Catalog;
         QuestInstanceView? view = null;
+        Action<QuestScript, IQuestContext>? enter = null;
         foreach (ActiveQuest active in character.Quests.Active.ToList())
         {
             if (!catalog.TryGet(active.QuestId, out QuestView? quest) || quest.ScriptType is null || !StillActive(character, quest, active))
                 continue;
 
-            RunHook(character, quest, active, nameof(QuestScript.OnEnterInstance),
-                (script, context) => script.OnEnterInstance(context, view ??= QuestInstanceView.From(instance)));
+            // One view for every hook of the arrival, built by the first that runs.
+            enter ??= (script, context) => script.OnEnterInstance(context, view ??= QuestInstanceView.From(instance));
+            RunHook(character, quest, active, nameof(QuestScript.OnEnterInstance), enter,
+                static (script, context, enter) => enter(script, context));
         }
 
         character.Quests.ScriptsInstance = character.InstanceId;
@@ -807,7 +915,7 @@ public sealed class QuestService(
         bool allowed = amount > 0
                        && StillActive(character, quest, active)
                        && Catalog.TryGet(quest.Id, out QuestView? live)
-                       && CurrentStage(live, active)?.Objectives.FirstOrDefault(o => o.Id == objectiveId) is
+                       && Objective(CurrentStage(live, active), objectiveId) is
                        { Type: Domain.World.QuestObjectiveType.Scripted };
         if (allowed)
             return AddProgress(character, quest.Id, objectiveId, amount);
@@ -865,34 +973,44 @@ public sealed class QuestService(
         return built;
     }
 
-    private void RunHook(CharacterEntity character, QuestView quest, ActiveQuest active, string hook, Action<QuestScript, IQuestContext> call)
-    {
-        if (ScriptOf(quest) is { } script)
-            Contained(quest, character, hook, () => call(script, new QuestContext(this, character, quest, active)));
-    }
-
     /// <summary>
-    /// Runs one hook of a quest's script, contained: a throw is logged at Error with the quest, the hook and the
-    /// character, at most once per quest per <see cref="ThrottledErrorLog.Interval" /> (counting the throws left out),
-    /// and false is returned; the caller goes on.
+    /// Runs one hook of the quest's script, if it has one, contained (<see cref="ScriptThrew" />): the caller goes on
+    /// whatever the hook does. What the hook needs beyond its context is handed over as <paramref name="state" /> and
+    /// back to <paramref name="call" />, which is written <c>static</c>.
     /// </summary>
-    private bool Contained(QuestView quest, CharacterEntity character, string hook, Action call)
+    /// <remarks>
+    /// A quest without a script costs nothing here, and one with a script only the context its hook is handed, which
+    /// is the script's to keep. Before #883 every call made a closure on entry, script or not, and the callers a
+    /// second one and a delegate for the hook's argument: most of the 200 B a kill cost, for each of its members, for
+    /// each quest the member held.
+    /// </remarks>
+    private void RunHook<TState>(CharacterEntity character, QuestView quest, ActiveQuest active, string hook, TState state,
+        Action<QuestScript, IQuestContext, TState> call)
     {
+        if (ScriptOf(quest) is not { } script)
+            return;
+
         try
         {
-            call();
-            return true;
+            call(script, new QuestContext(this, character, quest, active), state);
         }
         catch (Exception e)
         {
-            if (!Throttled(_scriptErrors, quest.Id, out int suppressed))
-            {
-                logger.LogError(e, "Quest {QuestId} script {Script} threw in {Hook} for character {CharacterId}; the quest went on. " +
-                                   "{Suppressed} earlier throws of this quest's script were not logged",
-                    quest.Id, quest.ScriptType?.Name, hook, character.Guid.Id, suppressed);
-            }
+            ScriptThrew(quest, character, hook, e);
+        }
+    }
 
-            return false;
+    /// <summary>
+    /// A hook of a quest's script threw: logged at Error with the quest, the hook and the character, at most once per
+    /// quest per <see cref="ThrottledErrorLog.Interval" /> (counting the throws left out). The caller goes on.
+    /// </summary>
+    private void ScriptThrew(QuestView quest, CharacterEntity character, string hook, Exception e)
+    {
+        if (!Throttled(_scriptErrors, quest.Id, out int suppressed))
+        {
+            logger.LogError(e, "Quest {QuestId} script {Script} threw in {Hook} for character {CharacterId}; the quest went on. " +
+                               "{Suppressed} earlier throws of this quest's script were not logged",
+                quest.Id, quest.ScriptType?.Name, hook, character.Guid.Id, suppressed);
         }
     }
 
@@ -933,8 +1051,11 @@ public sealed class QuestService(
         }
         else if (log.ClientChanges.Count > 0)
         {
-            foreach ((uint questId, QuestClientChange change) in log.ClientChanges.OrderBy(c => c.Key))
+            // By quest id, in a list the log keeps: nothing below changes the log before it is cleared.
+            List<(uint QuestId, QuestClientChange Change)> owed = log.ClientChangesById();
+            for (int i = 0; i < owed.Count; i++)
             {
+                (uint questId, QuestClientChange change) = owed[i];
                 OutboundPacket? update = null;
                 try
                 {
@@ -953,8 +1074,9 @@ public sealed class QuestService(
         if (log.PendingLines.Count > 0)
         {
             DateTime now = time.GetUtcNow().UtcDateTime;
-            foreach (string line in log.PendingLines)
-                connection.Send(SChatMessagePacket.System(line, now, PacketEncoder.Shared));
+            IReadOnlyList<string> lines = log.PendingLines;
+            for (int i = 0; i < lines.Count; i++)
+                connection.Send(SChatMessagePacket.System(lines[i], now, PacketEncoder.Shared));
         }
 
         log.ClearClientChanges();
@@ -1045,8 +1167,28 @@ public sealed class QuestService(
         _ => QuestStateKind.Unknown,
     };
 
-    private static List<QuestProgressDto> ProgressOf(QuestView quest, ActiveQuest active) =>
-        quest.Objectives.Select(o => new QuestProgressDto { ObjectiveId = o.Id, Progress = active.ProgressOf(o.Id) }).ToList();
+    /// <summary>
+    /// Every objective of the quest with its count, stage by stage: what an update or a log entry carries. The list at
+    /// its size and its entries are all it allocates (#883); as a query it also made a closure, two delegates and
+    /// two iterators, and grew the list as it went.
+    /// </summary>
+    private static List<QuestProgressDto> ProgressOf(QuestView quest, ActiveQuest active)
+    {
+        IReadOnlyList<QuestStageView> stages = quest.Stages;
+        int count = 0;
+        for (int s = 0; s < stages.Count; s++)
+            count += stages[s].Objectives.Count;
+
+        List<QuestProgressDto> progress = new(count);
+        for (int s = 0; s < stages.Count; s++)
+        {
+            IReadOnlyList<QuestObjectiveView> objectives = stages[s].Objectives;
+            for (int o = 0; o < objectives.Count; o++)
+                progress.Add(new QuestProgressDto { ObjectiveId = objectives[o].Id, Progress = active.ProgressOf(objectives[o].Id) });
+        }
+
+        return progress;
+    }
 
     /// <summary>
     /// SMSG_QUEST_MARKERS (#433): every quest NPC in the character's instance with its marker for this character,

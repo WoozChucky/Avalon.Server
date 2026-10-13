@@ -1,6 +1,8 @@
+using Avalon.Domain.World;
 using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
+using Avalon.World.Testing;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Entities;
@@ -47,6 +49,52 @@ public class CreatureCorpseRemoverShould
 
         Assert.Equal(0, fewest);
         _simulationContext.DidNotReceive().RemoveCreature(Arg.Any<ICreature>());
+    }
+
+    /// <summary>
+    /// A kill hands its corpse over without allocating (#883: each used to get a timer object of its own), once the
+    /// remover has held as many at a time. The creature is a real one: a substitute allocates when its template is read.
+    /// </summary>
+    [Fact]
+    public void Schedule_A_Corpse_Without_Allocating()
+    {
+        var corpse = new Creature { Metadata = new CreatureTemplate { BodyRemoveTimerSecs = 10 } };
+        var remover = new CreatureCorpseRemover(_simulationContext);
+        for (int i = 0; i < 100; i++)
+            remover.ScheduleRemoval(corpse);
+        remover.Update(s_defaultRemove);
+
+        long before = ThreadAllocations.BeforeQuietWindow();
+        for (int i = 0; i < 100; i++)
+            remover.ScheduleRemoval(corpse);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(0, allocated);
+        _simulationContext.Received(100).RemoveCreature(corpse);
+        remover.Update(s_defaultRemove);
+        _simulationContext.Received(200).RemoveCreature(corpse);
+    }
+
+    /// <summary>
+    /// A corpse waits its template's time from its own death, however long the remover had been running by then
+    /// (#883: the waits are read off one clock the remover keeps, where each corpse had a timer of its own).
+    /// </summary>
+    [Fact]
+    public void Count_A_Corpses_Wait_From_Its_Death()
+    {
+        ICreature early = MakeCreature();
+        ICreature late = MakeCreature();
+        var remover = new CreatureCorpseRemover(_simulationContext);
+        remover.ScheduleRemoval(early);
+        remover.Update(TimeSpan.FromSeconds(6));
+        remover.ScheduleRemoval(late);
+
+        remover.Update(TimeSpan.FromSeconds(6));
+        _simulationContext.Received(1).RemoveCreature(early);
+        _simulationContext.DidNotReceive().RemoveCreature(late);
+
+        remover.Update(TimeSpan.FromSeconds(4));
+        _simulationContext.Received(1).RemoveCreature(late);
     }
 
     [Fact]

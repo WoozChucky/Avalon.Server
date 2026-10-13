@@ -11,9 +11,10 @@ namespace Avalon.World.Handlers;
 public class PartyPromoteHandler(PartyService parties, ILogger<PartyPromoteHandler> logger) : WorldPacketHandler<CPartyPromotePacket>
 {
     public override void Execute(IWorldConnection connection, CPartyPromotePacket packet) =>
-        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_PROMOTE, character =>
-        {
-            string? name = parties.PartyOf(character.Guid.Id)?.Find(packet.CharacterId)?.Name;
-            return (parties.Promote(character.Guid.Id, packet.CharacterId), name);
-        });
+        PartyReplies.Handle(connection, logger, NetworkPacketType.CMSG_PARTY_PROMOTE, (parties, packet),
+            static (character, request) =>
+            {
+                string? name = request.parties.PartyOf(character.Guid.Id)?.Find(request.packet.CharacterId)?.Name;
+                return (request.parties.Promote(character.Guid.Id, request.packet.CharacterId), name);
+            });
 }

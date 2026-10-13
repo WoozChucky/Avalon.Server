@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Auras;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Scripts;
+using Avalon.World.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -59,6 +60,51 @@ public class AuraScriptHooksShould
         _h.Auras.RemoveAll(boar, AuraRemoveReason.Death);
 
         Assert.Equal(["Bleed:apply:1", "Bleed:stack:2", "Bleed:tick", "Bleed:remove:Death"], RecordingAuraScript.Heard);
+    }
+
+    /// <summary>
+    /// A hook costs the context it is handed and nothing else (#883): the context is the script's to read while the
+    /// hook runs and is ended when it returns, so each hook has one of its own. Here the hook is the removal's, of an
+    /// aura whose script does nothing with it, and ending an aura with no script allocates nothing at all.
+    /// </summary>
+    [Fact]
+    public void Run_a_hook_allocating_only_the_context_it_is_handed()
+    {
+        // The real script manager: the substitute the other tests use allocates on every lookup it records.
+        var manager = new ScriptManager(NullLoggerFactory.Instance);
+        manager.Load();
+        var h = new AuraHarness(scripts: new AuraScripts(manager, new ServiceCollection().BuildServiceProvider(),
+            TimeProvider.System, NullLogger<AuraScripts>.Instance));
+        h.Use(AuraTestData.Scripted(AuraTestData.Independent(), nameof(EndOnTickAuraScript)));
+        CharacterEntity caster = h.Player(911_180);
+        var mark = new AuraId(906);
+        var holders = new Creature[12];
+        for (uint i = 0; i < holders.Length; i++)
+        {
+            holders[i] = h.Creature(911_980 + i);
+            Assert.Equal(AuraApplyResult.Applied, h.Auras.Apply(caster, holders[i], mark, AuraSource.None));
+        }
+
+        ActiveAura held = holders[0].Auras.All[0];
+
+        // Three removals a window, each one hook; the first window warms the path up, and the fewest of the rest
+        // stands, which no background collection can raise.
+        long fewest = long.MaxValue;
+        for (int window = 0; window < 4; window++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 3; i++)
+                h.Auras.RemoveAll(holders[window * 3 + i], AuraRemoveReason.Death);
+
+            if (window > 0)
+                fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        long contexts = ThreadAllocations.FewestOfThreeWindows(3,
+            () => GC.KeepAlive(new AuraContext(h.Auras, caster, held, AuraHarness.T0)));
+
+        Assert.Equal(contexts, fewest);
+        Assert.All(holders, holder => Assert.Equal(0, holder.Auras.Count));
     }
 
     [Fact]

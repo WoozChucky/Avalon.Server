@@ -486,8 +486,10 @@ public sealed class AuraSystem
     }
 
     /// <summary>
-    /// The hook of an aura that has a script. Apart from <see cref="RunHook" />, because its closure over the context is
-    /// made on entry: there it was an object for every apply, tick and removal of every aura, scripted or not (#883).
+    /// The hook of an aura that has a script. It allocates the context and nothing else (#883): the hook, the context
+    /// and the reason go to the script host as one value, where a lambda over them was a closure and a delegate for
+    /// every hook. The context stays an object of its own for each hook, because it is ended when the hook returns: a
+    /// script that kept one could act through it again if the next hook were handed the same object.
     /// </summary>
     private void RunScriptHook(AuraScripts scripts, IUnit unit, ActiveAura aura, string hook,
         Action<AuraScript, IAuraContext, AuraRemoveReason> call, AuraRemoveReason reason)
@@ -495,7 +497,8 @@ public sealed class AuraSystem
         var context = new AuraContext(this, unit, aura, _time.GetUtcNow());
         try
         {
-            scripts.Run(aura.Template, hook, script => call(script, context, reason));
+            scripts.Run(aura.Template, hook, (Call: call, Context: context, Reason: reason),
+                static (script, hook) => hook.Call(script, hook.Context, hook.Reason));
         }
         finally
         {
