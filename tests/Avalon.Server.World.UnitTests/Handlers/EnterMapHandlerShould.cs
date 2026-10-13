@@ -20,6 +20,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Scripts;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -147,6 +148,7 @@ public class EnterMapHandlerShould
     public enum Ending
     {
         TheBuildFaults,
+        TheBuildFaultsAndItsLogLineThrows,
         TheBuildIsCancelled,
         TheRequestForTheInstanceThrows,
         TheInstanceIsReleasedTwice,
@@ -159,22 +161,26 @@ public class EnterMapHandlerShould
     /// </summary>
     [Theory]
     [InlineData(Ending.TheBuildFaults)]
+    [InlineData(Ending.TheBuildFaultsAndItsLogLineThrows)]
     [InlineData(Ending.TheBuildIsCancelled)]
     [InlineData(Ending.TheRequestForTheInstanceThrows)]
     [InlineData(Ending.TheInstanceIsReleasedTwice)]
     [InlineData(Ending.TheTransferThrows)]
     public void Take_a_later_portal_entry_after_one_that_ended_without_arriving(Ending ending)
     {
-        var entry = new Entry();
+        // The failed build's Error line is written by a logger that rethrows what its providers throw.
+        var entry = new Entry(log: ending == Ending.TheBuildFaultsAndItsLogLineThrows ? new ThrowingLog() : null);
         bool failing = true;
         switch (ending)
         {
-            case Ending.TheBuildFaults:
-                entry.Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(Task.FromException<IMapInstance>(new InvalidOperationException("bake failed")),
+            case Ending.TheBuildFaults or Ending.TheBuildFaultsAndItsLogLineThrows:
+                entry.Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(
+                    Task.FromException<IMapInstance>(new InvalidOperationException("bake failed")),
                     Task.FromResult(entry.Target));
                 break;
             case Ending.TheBuildIsCancelled:
-                entry.Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(Task.FromCanceled<IMapInstance>(new CancellationToken(canceled: true)),
+                entry.Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(
+                    Task.FromCanceled<IMapInstance>(new CancellationToken(canceled: true)),
                     Task.FromResult(entry.Target));
                 break;
             case Ending.TheRequestForTheInstanceThrows:
@@ -310,6 +316,21 @@ public class EnterMapHandlerShould
         public void Dispose() => _listener.Dispose();
     }
 
+    /// <summary>A log whose Error lines throw, as a provider that fails does through the logger that calls it.</summary>
+    private sealed class ThrowingLog : ILogger<EnterMapHandler>
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Error;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (IsEnabled(logLevel))
+                throw new InvalidOperationException("the log provider failed");
+        }
+    }
+
     /// <summary>
     /// A character standing on a portal to the town, behind a connection that records what it is sent and queues its
     /// continuations for <see cref="Flush" />, which runs them as the connection's drain does once the packet pass is
@@ -322,7 +343,7 @@ public class EnterMapHandlerShould
         private readonly EnterMapHandler _handler;
         private readonly MapInstance _source = Source();
 
-        public Entry()
+        public Entry(ILogger<EnterMapHandler>? log = null)
         {
             StandOnThePortal();
 
@@ -343,7 +364,7 @@ public class EnterMapHandlerShould
             Connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
                 .Do(call => _queued.Add((call.Arg<Task<IMapInstance>>(), call.Arg<Action<IMapInstance>>())));
 
-            _handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, Saver, World);
+            _handler = new EnterMapHandler(log ?? NullLogger<EnterMapHandler>.Instance, Saver, World);
         }
 
         /// <summary>A map the world has and the source instance has no portal to.</summary>

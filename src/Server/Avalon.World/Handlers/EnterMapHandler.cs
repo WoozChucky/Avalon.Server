@@ -258,7 +258,8 @@ public partial class EnterMapHandler(
     /// <remarks>
     /// A failed build is logged here, where it ends and its exception is at hand (on whichever thread ends it, with
     /// the character's name and the map read now, on the tick), as the drain logged it before; the arrival then only
-    /// ends the move.
+    /// ends the move. Nothing here may throw: a log provider that does (the logger rethrows what its providers throw)
+    /// would fault this task after all, and the arrival that clears RespawnInFlight would be dropped with it.
     /// </remarks>
     private Task<IMapInstance?> Settled(Task<IMapInstance> request, ICharacter character, MapId targetMapId)
     {
@@ -276,13 +277,21 @@ public partial class EnterMapHandler(
 #pragma warning restore MA0045
                 }
 
-                (ILogger log, string name, MapId map) = ((ILogger, string, MapId))state!;
-                log.LogError(built.Exception, "EnterMap: the instance of map {MapId} could not be built for {Name}", map,
-                    name);
+                try
+                {
+                    (ILogger log, string name, MapId map) = ((ILogger, string, MapId))state!;
+                    log.LogError(built.Exception, "EnterMap: the instance of map {MapId} could not be built for {Name}",
+                        map, name);
+                }
+                catch (Exception)
+                {
+                    // The line is lost; the arrival still runs and ends the move.
+                }
+
                 return null;
             },
-            ((ILogger)logger, character.Name, targetMapId), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+            ((ILogger)logger, character.Name, targetMapId), CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     /// <summary>
