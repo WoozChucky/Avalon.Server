@@ -704,9 +704,11 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
     less the count before the ramp;
   - map instances at the hold's end, every map together (`avalon_world_instances_active` carries no map type; the
     [fighters' section](#the-fighters-section) splits them); tick p99; average TPS; ack p50, p95 and p99; slow kicks
-    (`not exported` when the world build has no send threads); the deepest receive backlog of any connection (never
-    above `Network:MaxReceiveQueueDepth`, 2,048: a connection at it that sends another packet is closed and counted in
-    `network_in_backlog_kicks_total`, #927, which the ramp does not read); the send
+    (`not exported` when the world build has no send threads); the deepest receive backlog of any connection (a
+    connection's backlog never passes `Network:MaxReceiveQueueDepth`, 2,048, and can equal it; one at it that sends
+    another packet is closed and counted in `network_in_backlog_kicks_total`, #927, which the ramp does not read. The
+    gauge never reads below the real backlog, and can read above it by what the tick handled while it was being
+    read); the send
     threads' busy time and the p99 of the pending bytes (below); working set (MB and % of the limit); GC stall
     (`not exported` when the world build has no pause time or collections); GC pause; gen2 per minute (background
     collections included, not judged); save p95. The JSON has the stall under each step's `server.gcStall`: `readout`
