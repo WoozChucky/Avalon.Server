@@ -9,6 +9,7 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Testing;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Combat;
@@ -177,7 +178,7 @@ public class CombatServiceHealShould
             _combat.ApplyHeal(healer, target, 20, heal);
         }
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 100; i++)
         {
             target.CurrentHealth = 80;

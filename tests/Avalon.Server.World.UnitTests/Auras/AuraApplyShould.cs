@@ -6,6 +6,7 @@ using Avalon.Server.World.UnitTests.Combat;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
+using Avalon.World.Testing;
 
 namespace Avalon.Server.World.UnitTests.Auras;
 
@@ -320,7 +321,7 @@ public class AuraApplyShould
         _h.Auras.RemoveAll(dying[0], AuraRemoveReason.Death);
         _h.Auras.RemoveHarmful(resetting[0], AuraRemoveReason.Reset);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         AuraApplyResult refused = _h.Auras.Apply(healer, corpse, bleed, fromAnAbility);
         AuraCancelResult first = _h.Auras.Cancel(cancelling[1], renew);
         AuraCancelResult second = _h.Auras.Cancel(cancelling[2], renew, key);
