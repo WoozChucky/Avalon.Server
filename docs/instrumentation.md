@@ -78,6 +78,26 @@ The send threads' busy time, in cores: `sum(rate(network_send_pass_duration_micr
 
 Any count is worth a look: a client sending faster than the tick takes (151 packets a pass per connection), a tick stalled for as long as the cap is deep (about 34 s of input at the default), or a connection whose queue is wedged ([packet handlers](packet-handlers.md)). The counter does not see a flood the tick keeps up with, nor packets dropped as they arrive.
 
+### Failed handshakes
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `network.in.handshake_failures` | `network_in_handshake_failures_total` | Connections dropped before their TLS handshake completed (#897), tagged `reason`: `failed` (the handshake ended in an authentication failure) or `timeout` (the peer did not finish it within the world's five seconds; the auth server's handshake has no timeout, #938). On the world's meter (`world-server`) and on the auth server's (`auth-server`), each counting its own connections |
+
+No TLS is needed to cause one: `failed` is a peer that speaks something else to the port (an HTTP probe, a port scan),
+and `timeout` one that connects and says nothing. Each writes one Debug line (the connection and its address) and no
+exception; each was an Error, "Failed to establish connection", with a stack trace. `reason` takes those two values
+and no other.
+
+`failed` is every handshake that ended in an authentication failure, whichever end caused it: the server cannot tell a
+peer that does not speak TLS from a client it could not agree a protocol version or a certificate with. So it has a
+server-side cause too. A rate of `failed` that follows client launches rather than scans, with no logins or
+admissions behind it, is the server's TLS setup (its certificate, its protocol versions) and not its peers; the line
+that would say why is no longer written, so reproduce it with a client.
+
+Not counted: a peer that closes its socket during the handshake (that was, and is, one Debug line as the peer going
+away), and a handshake cut short by the server stopping (one Debug line; it was an Error).
+
 ### Refused frames
 
 | Metric | Prometheus | Measures |

@@ -1,6 +1,9 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
 using Avalon.Network.Packets;
@@ -14,8 +17,8 @@ using ProtoBuf;
 namespace Avalon.Server.Auth.UnitTests.Networking;
 
 /// <summary>
-/// End to end over loopback, through the real read loop both servers' connections run: what it does with a frame it
-/// will not read, with a frame the peer got wrong, with a packet the server does not serve, and with a frame that
+/// End to end over loopback, through the real setup and read loop both servers' connections run: what it does with a
+/// peer that never completes TLS, with a frame it will not read, with a frame the peer got wrong, with a packet the server does not serve, and with a frame that
 /// arrives while the connection is closing.
 /// </summary>
 public class ConnectionReadLoopShould
@@ -76,7 +79,9 @@ public class ConnectionReadLoopShould
         public readonly TaskCompletionSource SecondSeen = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly HeldOutbox Outbox = new();
         public readonly ConcurrentQueue<string> Violations = new();
+        public readonly ConcurrentQueue<string> HandshakeFailures = new();
         public readonly IPacketReader Reader;
+        private readonly Func<TcpClient, Task<PacketStream>>? _handshake;
 
         /// <summary>Where a <see cref="CRegisterPacket" /> is sent for dispatch, as the auth server sends every packet.</summary>
         public IServerBase? Dispatch;
@@ -84,10 +89,12 @@ public class ConnectionReadLoopShould
         private int _handled;
         private int _bytesDiscarded;
 
-        public ProbeConnection(TcpClient client, ILogger logger, IPacketReader reader)
+        public ProbeConnection(TcpClient client, ILogger logger, IPacketReader reader,
+            Func<TcpClient, Task<PacketStream>>? handshake = null)
             : base(logger, new FakeServer(), reader)
         {
             Reader = reader;
+            _handshake = handshake;
             Init(client);
         }
 
@@ -108,7 +115,7 @@ public class ConnectionReadLoopShould
         protected override void OnHandshakeFinished() { }
 
         protected override Task<PacketStream> GetStream(TcpClient client) =>
-            Task.FromResult(new PacketStream(new NetworkStream(client.Client)));
+            _handshake is not null ? _handshake(client) : Task.FromResult(new PacketStream(new NetworkStream(client.Client)));
 
         protected override IOutbox OnCreateOutbox() => Outbox;
 
@@ -121,6 +128,8 @@ public class ConnectionReadLoopShould
         protected override void OnFrameRefused() => Interlocked.Increment(ref _framesRefused);
 
         protected override void OnProtocolViolation(string reason) => Violations.Enqueue(reason);
+
+        protected override void OnHandshakeFailed(string reason) => HandshakeFailures.Enqueue(reason);
 
         protected override void OnFrameDiscarded(int size)
         {
@@ -144,16 +153,98 @@ public class ConnectionReadLoopShould
     }
 
     private static async Task<(ProbeConnection Connection, TcpClient Client)> ConnectAsync(ILogger logger,
-        IPacketReader? reader = null)
+        IPacketReader? reader = null, Func<TcpClient, Task<PacketStream>>? handshake = null,
+        CancellationToken stopping = default)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var client = new TcpClient();
         Task<TcpClient> accept = listener.AcceptTcpClientAsync();
         await client.ConnectAsync(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port);
-        var connection = new ProbeConnection(await accept, logger, reader ?? ProbeConnection.NewReader());
-        await connection.StartAsync(CancellationToken.None);
+        var connection = new ProbeConnection(await accept, logger, reader ?? ProbeConnection.NewReader(), handshake);
+        await connection.StartAsync(stopping);
         return (connection, client);
+    }
+
+    /// <summary>A real TLS handshake as a server, as both servers' connections begin, ended by <paramref name="token" />.</summary>
+    private static async Task<PacketStream> TlsHandshakeAsync(TcpClient client, X509Certificate2 certificate,
+        CancellationToken token)
+    {
+        var tls = new SslStream(new NetworkStream(client.Client));
+        try
+        {
+            await tls.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = certificate }, token);
+            return new PacketStream(tls);
+        }
+        catch
+        {
+            await tls.DisposeAsync();
+            throw;
+        }
+    }
+
+    private static X509Certificate2 NewCertificate()
+    {
+        using var key = RSA.Create(2048);
+        var request = new CertificateRequest("CN=avalon-test", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        using X509Certificate2 generated =
+            request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddHours(1));
+        return X509CertificateLoader.LoadPkcs12(generated.Export(X509ContentType.Pkcs12), null);
+    }
+
+    public enum Handshake
+    {
+        PeerDoesNotSpeakTls,
+        PeerSaysNothingUntilTheTimeout,
+        ServerStopsDuringIt,
+    }
+
+    /// <summary>
+    /// A peer needs no TLS to end a connection during the handshake (#897): one that speaks another protocol (an
+    /// HTTP probe, a port scan) or says nothing until the handshake's timeout was an Error with a stack trace per
+    /// connection. Each is dropped with nothing above Debug, no exception, and one count under its reason. A handshake
+    /// cut short by the server stopping is as quiet, and is not counted as a peer's.
+    /// </summary>
+    [Theory]
+    [InlineData(Handshake.PeerDoesNotSpeakTls, "failed")]
+    [InlineData(Handshake.PeerSaysNothingUntilTheTimeout, "timeout")]
+    [InlineData(Handshake.ServerStopsDuringIt, null)]
+    public async Task Drop_a_peer_that_never_completes_tls_quietly_and_count_it_once(Handshake handshake, string? reason)
+    {
+        var logger = new CapturingLogger();
+        using X509Certificate2 certificate = NewCertificate();
+        using var stopping = new CancellationTokenSource();
+        // Stands for the handshake's own timeout, as the world's transport has one.
+        using var handshakeTimeout = new CancellationTokenSource();
+
+        (ProbeConnection connection, TcpClient client) = await ConnectAsync(logger,
+            handshake: accepted => TlsHandshakeAsync(accepted, certificate, handshakeTimeout.Token),
+            stopping: stopping.Token);
+        using (client) using (connection)
+        {
+            switch (handshake)
+            {
+                case Handshake.PeerDoesNotSpeakTls:
+                    await client.GetStream().WriteAsync("GET / HTTP/1.1\r\nHost: avalon\r\n\r\n"u8.ToArray());
+                    break;
+                case Handshake.PeerSaysNothingUntilTheTimeout:
+                    await handshakeTimeout.CancelAsync();
+                    break;
+                default:
+                    // The server's stop first, so the handshake ends in a server that is stopping.
+                    await stopping.CancelAsync();
+                    await handshakeTimeout.CancelAsync();
+                    break;
+            }
+
+            await connection.Closed.Task.WaitAsync(s_wait);
+
+            string[] counted = reason is null ? [] : [reason];
+            Assert.Equal(counted, connection.HandshakeFailures);
+            Assert.DoesNotContain(logger.Entries, entry => entry.Level >= LogLevel.Warning);
+            Assert.Empty(logger.Exceptions);
+            Assert.Empty(connection.Violations);
+        }
     }
 
     /// <summary>

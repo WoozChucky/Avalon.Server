@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
 using Avalon.Hosting.Telemetry;
@@ -44,6 +45,20 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         [LoggerMessage(Level = LogLevel.Debug,
             Message = "Closing connection {ConnectionId} from {RemoteEndPoint}: a frame's length prefix is not a length")]
         public static partial void MalformedFrameLength(ILogger logger, Guid connectionId, string remoteEndPoint);
+
+        // A connection that never completed TLS (#897). No TLS is needed to cause one, so a port scan causes one per
+        // port it tries: a line at Debug, of fixed text, and a count.
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Dropped connection {ConnectionId} from {RemoteEndPoint}: the TLS handshake failed (a peer that does not speak TLS, or one the server could not agree a session with)")]
+        public static partial void HandshakeFailed(ILogger logger, Guid connectionId, string remoteEndPoint);
+
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Dropped connection {ConnectionId} from {RemoteEndPoint}: the TLS handshake did not finish in time")]
+        public static partial void HandshakeTimedOut(ILogger logger, Guid connectionId, string remoteEndPoint);
+
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "Connection {ConnectionId} from {RemoteEndPoint} was not established: the server is stopping")]
+        public static partial void StoppedBeforeEstablished(ILogger logger, Guid connectionId, string remoteEndPoint);
 
         // The four below are what a peer can make of a frame the stream did read (#897). Any peer that completes TLS
         // can, before admission or login, and can reconnect to do it again: each is one line per connection, at
@@ -90,6 +105,13 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         [LoggerMessage(Level = LogLevel.Trace,
             Message = "Could not find a handler for packet {PacketType} on connection {ConnectionId}")]
         public static partial void NoHandlerRepeated(ILogger logger, NetworkPacketType packetType, Guid connectionId);
+    }
+
+    /// <summary>The <c>reason</c> a server's <c>network.in.handshake_failures</c> counts a connection under: a fixed set.</summary>
+    protected static class HandshakeFailure
+    {
+        public const string Failed = "failed";
+        public const string TimedOut = "timeout";
     }
 
     /// <summary>The <c>reason</c> a server's <c>network.in.protocol_kicks</c> counts a close under: a fixed set.</summary>
@@ -297,6 +319,13 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     /// the connection is about to close: a server counts it in its telemetry here, once per connection.
     /// </summary>
     protected virtual void OnFrameRefused() { }
+
+    /// <summary>
+    /// The connection never completed its TLS handshake, because of what the peer did or did not send, and is about to
+    /// be dropped: a server counts it in its telemetry here, once per connection, under <paramref name="reason" />,
+    /// one of <see cref="HandshakeFailure" />'s constants. A handshake cut short by the server stopping is not one.
+    /// </summary>
+    protected virtual void OnHandshakeFailed(string reason) { }
 
     /// <summary>
     /// The read loop ended on a frame the peer got wrong (not a packet, sealed before the session had a key, sealed
@@ -533,6 +562,25 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         catch (IOException e)
         {
             _logger.LogDebug(e, "Connection ended before it was established. Probably by the other party");
+        }
+        // A peer that does not speak TLS, or says nothing until the handshake's timeout, is the same step earlier
+        // (#897): an HTTP probe or a port scan was an Error with a stack trace per connection here. One line at
+        // Debug without the exception, and a count. Above the read loop only the handshake throws either type: the
+        // PROXY header's read handles its own timeout, and the loop below has its own catches.
+        catch (AuthenticationException)
+        {
+            ReadLog.HandshakeFailed(_logger, Id, RemoteEndPoint);
+            OnHandshakeFailed(HandshakeFailure.Failed);
+        }
+        catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+        {
+            ReadLog.HandshakeTimedOut(_logger, Id, RemoteEndPoint);
+            OnHandshakeFailed(HandshakeFailure.TimedOut);
+        }
+        // Cut short by the server stopping: not the peer's doing, so not counted as its, and not an error.
+        catch (OperationCanceledException)
+        {
+            ReadLog.StoppedBeforeEstablished(_logger, Id, RemoteEndPoint);
         }
         catch (Exception e)
         {

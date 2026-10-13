@@ -270,6 +270,9 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
 - A malformed, expired, spent or foreign join ticket → `SGameAdmissionPacket` refusal and the connection closed; a
   world connection that is not admitted within 15 seconds is closed.
 - Multiple logins for same account → previously connected session force-disconnected via pub/sub event.
+- A peer that does not speak TLS, or that does not finish the handshake within a world's five seconds → the connection
+  is dropped with one Debug line and one count in `network.in.handshake_failures` (#897,
+  [instrumentation](instrumentation.md#failed-handshakes)). The auth server's handshake has no timeout (#938).
 - A frame that declares more than `Hosting:MaxInboundFrameSize` bytes, or a malformed length prefix, on either server →
   nothing is buffered for it and the connection is closed without a notice ([above](#the-inbound-frame-length-limit)).
 - A frame that is not a `NetworkPacket`, a payload flagged `Encrypted` that arrives before the session has its keys or

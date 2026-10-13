@@ -10,6 +10,11 @@ public static class DiagnosticsConfig
     private const string FrameKicksDescription =
         "Connections closed for a frame that declared more than Hosting:MaxInboundFrameSize or had a malformed length";
 
+    private const string HandshakeFailuresName = "network.in.handshake_failures";
+
+    private const string HandshakeFailuresDescription =
+        "Connections dropped before their TLS handshake completed: it failed, or did not finish in time";
+
     private const string ProtocolKicksName = "network.in.protocol_kicks";
 
     private const string ProtocolKicksDescription =
@@ -37,6 +42,9 @@ public static class DiagnosticsConfig
 
         public static readonly Counter<long> ProtocolKicks = Meter.CreateCounter<long>(ProtocolKicksName,
             "{connections}", ProtocolKicksDescription);
+
+        public static readonly Counter<long> HandshakeFailures = Meter.CreateCounter<long>(HandshakeFailuresName,
+            "{connections}", HandshakeFailuresDescription);
 
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
@@ -67,6 +75,9 @@ public static class DiagnosticsConfig
 
         public static readonly Counter<long> ProtocolKicks = Meter.CreateCounter<long>(ProtocolKicksName,
             "{connections}", ProtocolKicksDescription);
+
+        public static readonly Counter<long> HandshakeFailures = Meter.CreateCounter<long>(HandshakeFailuresName,
+            "{connections}", HandshakeFailuresDescription);
 
         public static readonly Counter<long> Logins =
             Meter.CreateCounter<long>("avalon.auth.logins", "{logins}", "Password logins, by result");
