@@ -90,8 +90,11 @@ one object at a time with `GC.GetAllocatedBytesForCurrentThread`):
 | The projectile's set of units hit | 64 B | | 64 B |
 | **A build** | **488 B, a projectile 584 B** | **224 B** | **320 B** |
 
-Firing it adds its guid (an `ObjectGuid`, 24 B) and, for a circle or a cone, the second boxed `SpellState` when it
-finishes (24 B). What is left, and why, is in [the cast path](#results--the-cast-path-925-883-2026-10-13).
+Firing it adds its guid (an `ObjectGuid`, 24 B); for a script still running once it has prepared, which is every
+projectile, the entry the cast system keeps it in (an `ActiveScript`, 48 B); and the second boxed `SpellState` when
+it finishes (24 B), a projectile's as well as a circle's or a cone's. These three sizes are computed from the fields,
+not measured, and the list covers the cast system and the script's own state, not what a script's effect allocates.
+What is left of a build, and why, is in [the cast path](#results--the-cast-path-925-883-2026-10-13).
 
 The factory is found in a table held weakly by script type on every cast; that lookup is in the `Cached_factory`
 figure. Making a factory is not: it compiles the constructor call, about 0.5 ms and 10 KB for a script type and about
