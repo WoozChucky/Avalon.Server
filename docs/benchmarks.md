@@ -94,12 +94,15 @@ slot reported). Before is the same benchmark over `507b37d8`, in runs of its own
 | `Refused_destroy` | 984 B | 64 B | 458.6 / 431.5 / 485.1 ns | 166.5 / 301.0 / 311.7 ns |
 
 An accepted request paid for the list (32 B), its array (40 B) and the closure of the reply's query (24 B, allocated
-on entry, though only a refusal runs the query); a refusal paid 920 B more for the query itself. What a refusal
-allocates now is its entries: 216 B for two slots holding items, 64 B for one empty slot.
+on entry, though only a refusal runs the query); a refusal paid those 96 B and 824 B for the query itself, 920 B on
+top of its entries. What a refusal allocates now is its entries: 216 B for two slots holding items, 64 B for one
+empty slot.
 
 `InventoryAllocationShould` pins both paths in the World suite: a money-only flush and an accepted reply at 0 B, and
 a flush of changed slots and a refusal at exactly what building their entries costs, measured in the test rather
-than written down.
+than written down. It runs in the collection that runs alone in the assembly, and reads the fewest of three windows:
+a send takes its payload segment from the process's one pool, and in a whole-suite run a test sending on another
+thread took the free segment between two sends, so the next one allocated a new segment and the pin read 200 B over.
 
 **The allocation gate does not move.** `forest-combat` read 11,543 B per window before and after (Release, the gate
 alone, once before and twice after), and the three town scenarios 0: the fighters pick nothing up, so no flush with a

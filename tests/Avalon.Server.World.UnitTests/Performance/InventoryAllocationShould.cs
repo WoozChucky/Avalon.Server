@@ -12,6 +12,14 @@ namespace Avalon.Server.World.UnitTests.Performance;
 /// nothing else (#883): no query, no closure, no list on the way. What the entries cost is measured here, by building
 /// the same ones, rather than written down, so the pin holds on any runtime.
 /// </summary>
+/// <remarks>
+/// Both paths send, and a send takes its payload segment from the process's one pool and this connection gives it
+/// straight back. A test sending on another thread can take that free segment in between, and then the next send
+/// here allocates a new one (200 B, which failed this pin in a whole-suite run). So these run in the collection that
+/// runs alone in this assembly, and each figure is the fewest of three windows, which nothing but the path itself
+/// can lower.
+/// </remarks>
+[Collection(nameof(ScenarioAllocations))]
 public class InventoryAllocationShould
 {
     private const int Rounds = 100;
@@ -48,7 +56,7 @@ public class InventoryAllocationShould
 
         Assert.Equal(0, moneyOnly);
         Assert.Equal(Allocated(() => Entries(3)), slots);
-        Assert.Equal(4 * Rounds, _connection.Sent);
+        Assert.Equal(8 * Rounds, _connection.Sent);
     }
 
     [Fact]
@@ -60,20 +68,26 @@ public class InventoryAllocationShould
 
         Assert.Equal(0, accepted);
         Assert.Equal(Allocated(() => Entries(3)), refused);
-        Assert.Equal(4 * Rounds, _connection.Sent);
+        Assert.Equal(8 * Rounds, _connection.Sent);
     }
 
-    /// <summary>What <see cref="Rounds" /> calls allocate on this thread, after as many to warm up.</summary>
+    /// <summary>
+    /// What <see cref="Rounds" /> calls allocate on this thread: the fewest of three windows, after one to warm up.
+    /// </summary>
     private static long Allocated(Action round)
     {
-        for (int i = 0; i < Rounds; i++)
-            round();
+        long fewest = long.MaxValue;
+        for (int window = 0; window < 4; window++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < Rounds; i++)
+                round();
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < Rounds; i++)
-            round();
+            if (window > 0)
+                fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
 
-        return GC.GetAllocatedBytesForCurrentThread() - before;
+        return fewest;
     }
 
     /// <summary>The entries a packet naming the first <paramref name="count" /> slots carries: the array, and each slot with its item.</summary>
