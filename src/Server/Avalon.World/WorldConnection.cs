@@ -525,7 +525,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>
     /// A packet the world runs in some state, so one a client sealing as told seals (#875): the version handshake and every
     /// filtered packet but the pong, which is plain by design. Admission is handled before this is asked. An opcode no world
-    /// filter takes (CMSG_PING, CMSG_AUDIO_RECORD, the auth server's) is dropped as before, whatever its flags, as the
+    /// filter takes (CMSG_PING, the auth server's) is dropped as before, whatever its flags, as the
     /// client contract (Avalon.Client#213) promises for the opcodes declared ClearText.
     /// </summary>
     private static bool MustArriveSealed(NetworkPacketType type) =>

@@ -24,9 +24,6 @@ public enum NetworkPacketType : short
     CMSG_WORLD_HANDSHAKE = 0x201D,
     CMSG_GAME_ADMISSION = 0x201E,
 
-    // Audio
-    CMSG_AUDIO_RECORD = 0x2050,
-
     // Character
     CMSG_CHARACTER_LIST = 0x2010,
     CMSG_CHARACTER_CREATE = 0x2011,
@@ -104,9 +101,6 @@ public enum NetworkPacketType : short
     SMSG_WORLD_LIST = 0x301A,
     SMSG_WORLD_HANDSHAKE = 0x301D,
     SMSG_GAME_ADMISSION = 0x301E,
-
-    // Audio
-    SMSG_AUDIO_RECORD = 0x3050,
 
     // Character
     SMSG_CHARACTER_CONNECTED = 0x3020,

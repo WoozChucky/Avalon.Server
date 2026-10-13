@@ -236,15 +236,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_AUDIO_RECORD",
-      "opcode": 8272,
-      "hex": "0x2050",
-      "message": "CAudioRecordPacket",
-      "direction": "ClientToServer",
-      "flags": 1,
-      "flagNames": "ClearText"
-    },
-    {
       "name": "CMSG_PLAYER_INPUT",
       "opcode": 8288,
       "hex": "0x2060",
@@ -738,15 +729,6 @@
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_AUDIO_RECORD",
-      "opcode": 12368,
-      "hex": "0x3050",
-      "message": "SAudioRecordPacket",
-      "direction": "ServerToClient",
-      "flags": 1,
-      "flagNames": "ClearText"
     },
     {
       "name": "SMSG_PLAYER_STATE_ACK",
