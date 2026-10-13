@@ -14,6 +14,10 @@ namespace Avalon.World.Inventory;
 /// </summary>
 public static class InventoryUpdateFlusher
 {
+    /// <summary>One delegate for every flush. No two entries of an update name the same slot, so none compare equal.</summary>
+    private static readonly Comparison<InventorySlotUpdateDto> s_byContainerThenSlot =
+        static (a, b) => Order(a) - Order(b);
+
     public static void Flush(IWorldConnection connection)
     {
         if (connection.Character is not CharacterEntity { Data: { } row } character)
@@ -37,23 +41,44 @@ public static class InventoryUpdateFlusher
     }
 
     /// <summary>
-    /// Each changed slot at its final value, in container and slot order. Its own method because the lambdas capture
-    /// the character, and a captured variable's closure is allocated where its scope begins: in <see cref="Flush" />
-    /// that was on every call, for every connection on every tick (#875), changes or not.
+    /// Each changed slot at its final value, in container and slot order, the order a client is sent them in. Only
+    /// the packet's own entries are allocated (#883): the slots are counted, read into an array of that size in
+    /// whatever order the set walks them, and the array is sorted in place.
     /// </summary>
     private static InventorySlotUpdateDto[] SlotsToSend(InventoryClientChanges changes, CharacterEntity character,
-        bool bankOpen) =>
-        changes.Slots
-            .Where(s => bankOpen || s.Container != InventoryType.Bank)
-            .OrderBy(s => s.Container)
-            .ThenBy(s => s.Slot)
-            .Select(s => new InventorySlotUpdateDto
+        bool bankOpen)
+    {
+        int count = 0;
+        foreach ((InventoryType container, ushort _) in changes)
+        {
+            if (bankOpen || container != InventoryType.Bank)
+                count++;
+        }
+
+        if (count == 0)
+            return [];
+
+        var slots = new InventorySlotUpdateDto[count];
+        int next = 0;
+        foreach ((InventoryType container, ushort slot) in changes)
+        {
+            if (!bankOpen && container == InventoryType.Bank)
+                continue;
+
+            slots[next++] = new InventorySlotUpdateDto
             {
-                Container = s.Container,
-                Slot = s.Slot,
-                Item = character.Container(s.Container).TryGet(s.Slot, out InventoryItem item)
-                    ? ItemSlotDtoMapper.ToDto(s.Container, item)
+                Container = container,
+                Slot = slot,
+                Item = character.Container(container).TryGet(slot, out InventoryItem item)
+                    ? ItemSlotDtoMapper.ToDto(container, item)
                     : null,
-            })
-            .ToArray();
+            };
+        }
+
+        Array.Sort(slots, s_byContainerThenSlot);
+        return slots;
+    }
+
+    /// <summary>Where an entry stands among a packet's: its container first, then its slot.</summary>
+    private static int Order(InventorySlotUpdateDto entry) => ((int)entry.Container << 16) | entry.Slot;
 }

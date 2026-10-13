@@ -31,11 +31,13 @@ public class ItemMoveHandler(ILogger<ItemMoveHandler> logger, IWorld world, ICha
         bool fromRead = SlotRef.TryParse(packet.FromContainer, packet.FromSlot, out SlotRef from);
         bool toRead = SlotRef.TryParse(packet.ToContainer, packet.ToSlot, out SlotRef to);
 
-        List<SlotRef> named = [];
+        // The slots a refusal reports, on the stack: a request allocates nothing to name them (#883).
+        Span<SlotRef> named = stackalloc SlotRef[2];
+        int readable = 0;
         if (fromRead)
-            named.Add(from);
+            named[readable++] = from;
         if (toRead)
-            named.Add(to);
+            named[readable++] = to;
 
         ItemRequestResult result;
         try
@@ -53,7 +55,7 @@ public class ItemMoveHandler(ILogger<ItemMoveHandler> logger, IWorld world, ICha
             result = ItemRequestResult.NotFound;
         }
 
-        ItemRequestReply.Send(connection, character, packet.RequestId, result, named);
+        ItemRequestReply.Send(connection, character, packet.RequestId, result, named[..readable]);
     }
 
     private ItemRequestResult Move(

@@ -28,6 +28,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketSt
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TimeSync*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AbilityScriptBuild*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveScriptLookup*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlush*" "*ItemRequest*" --job short
 
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
@@ -39,6 +40,82 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 ---
 
 ## Suites
+
+### Inventory update and item requests — `Benchmarks/InventoryFlushBenchmarks.cs`, `Benchmarks/ItemRequestBenchmarks.cs` (#883)
+
+The two inventory paths a client's own actions drive: the tick's `SMSG_INVENTORY_UPDATE` for a connection whose
+character's inventory changed (`InventoryUpdateFlusher.Flush`), and a `CMSG_ITEM_MOVE` or `CMSG_ITEM_DESTROY`
+through its handler to the one `SMSG_ITEM_RESULT` it is answered with. Until #883 the flusher filtered, ordered and
+read the changed slots with a query (`Where`, `OrderBy`, `ThenBy`, `Select`, `ToArray`), the handlers put the slots
+a request named in a new list, and the reply to a refusal ran a second query over that list (`Distinct`, two
+`Where`, `Select`, `ToArray`). Now each counts its slots, allocates the packet's array at that size and fills it:
+the flusher walks the set of changed slots with the set's own enumerator and sorts the array in place by container,
+then slot; a handler names its slots in a span on its own stack; the reply drops a slot named twice by looking back
+through that span. Nothing is kept between calls, so there is no buffer to share, to clear or to leak from one
+connection to the next.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlush*" "*ItemRequest*" --job short
+```
+
+Measured 2026-10-13, BenchmarkDotNet 0.15.8, `--job short`, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12,
+concurrent workstation GC, with other builds and test runs loading the machine. The allocations are exact and the
+same in every run. The means move with the load by more than the change is worth: each cell gives the mean of each of
+three runs, and no claim is made from them beyond "not slower".
+
+**The flush.** `Queried` is the flush as it was, kept in the benchmark; `Flusher` is `InventoryUpdateFlusher.Flush`.
+One invocation marks the Bag slots changed, highest first, and flushes them to a connection that counts the packet
+and gives its payload back to the pool; with no slot, only the money changed. Both rows come from the same run, one
+after the other, each in its own child process, so a ratio compares two processes under whatever the machine was
+doing at the time.
+
+| Changed slots | `Queried` (before), allocated | `Flusher` (after), allocated | `Queried`, mean of each run | `Flusher`, mean of each run | Ratio in each run |
+|---:|---:|---:|---:|---:|---:|
+| 0, money only | 448 B | 0 B | 334.3 / 199.0 / 199.1 ns | 208.9 / 183.1 / 137.6 ns | 0.64 / 0.94 / 0.69 |
+| 1 | 872 B | 120 B | 583.5 / 364.0 / 365.1 ns | 429.7 / 271.5 / 239.8 ns | 0.74 / 0.75 / 0.66 |
+| 8 | 1,600 B | 792 B | 2,217 / 1,744 / 1,370 ns | 1,809 / 1,187 / 1,272 ns | 0.82 / 0.69 / 0.94 |
+| 30 | 3,960 B | 2,904 B | 6,958 / 4,415 / 6,848 ns | 4,826 / 3,397 / 5,859 ns | 0.69 / 0.77 / 0.86 |
+
+What is left is the packet's own entries, to the byte: the array (24 B and 8 B a slot), an `InventorySlotUpdateDto`
+for each slot (32 B) and an `ItemSlotDto` for each slot holding an item (56 B). The query cost 448 B when it had
+nothing to walk, on every tick a character's money changed and no slot did, and 752 B, 808 B and 1,056 B on top of
+the entries at 1, 8 and 30 slots.
+
+**The quest flusher's bag check.** `QuestFlusher.TouchedTheBag` runs for every connection on every tick, to see
+whether a Bag slot changed. It walked the changed slots through the set's interface, which boxed the set's enumerator:
+40 B per connection on every tick with any slot change, a cost the finding did not list. It now uses the struct
+enumerator on `InventoryClientChanges`. No benchmark or scenario runs the quest flusher, so the figures are from a
+probe of the same loop over the built class (Release, best of 7 runs of 20 million calls, loaded machine): with no
+changed slot, 0 B and about 1.7 ns before and after; with three slots outside the Bag, 40 B and 30 to 58 ns before,
+0 B and about 4 ns after.
+
+**An item request.** The handlers run over an economy that hands back one inventory service kept for the character,
+so a row is the handler, the move rules and the reply; production's `CharacterEconomy.InventoryOf` builds a service
+and its template lookup for every request on top of this, which this change does not touch. `Accepted_move` moves a
+stack between two Bag slots, there and back on alternate calls, and is answered Ok with no slots; `Refused_move`
+aims a stack at a full one (TargetFull, both slots reported); `Refused_destroy` names an empty slot (NotFound, that
+slot reported). Before is the same benchmark over `507b37d8`, in runs of its own.
+
+| | Before, allocated | After, allocated | Before, mean of each run | After, mean of each run |
+|---|---:|---:|---:|---:|
+| `Accepted_move` | 96 B | 0 B | 325.5 / 289.8 / 323.4 ns | 281.4 / 245.3 / 316.5 ns |
+| `Refused_move` | 1,136 B | 216 B | 877.4 / 571.0 / 888.3 ns | 485.8 / 682.2 / 787.0 ns |
+| `Refused_destroy` | 984 B | 64 B | 458.6 / 431.5 / 485.1 ns | 166.5 / 301.0 / 311.7 ns |
+
+An accepted request paid for the list (32 B), its array (40 B) and the closure of the reply's query (24 B, allocated
+on entry, though only a refusal runs the query); a refusal paid those 96 B and 824 B for the query itself, 920 B on
+top of its entries. What a refusal allocates now is its entries: 216 B for two slots holding items, 64 B for one
+empty slot.
+
+`InventoryAllocationShould` pins both paths in the World suite: a money-only flush and an accepted reply at 0 B, and
+a flush of changed slots and a refusal at exactly what building their entries costs, measured in the test rather
+than written down. It runs in the collection that runs alone in the assembly, and reads the fewest of three windows:
+a send takes its payload segment from the process's one pool, and in a whole-suite run a test sending on another
+thread took the free segment between two sends, so the next one allocated a new segment and the pin read 200 B over.
+
+**The allocation gate does not move.** `forest-combat` read 11,543 B per window before and after (Release, the gate
+alone, once before and twice after), and the three town scenarios 0: the fighters pick nothing up, so no flush with a
+change runs in the measured minute, and `perf/scenario-allocations.json` is not regenerated.
 
 ### Ability script construction — `Benchmarks/AbilityScriptBuildBenchmarks.cs` (#925)
 

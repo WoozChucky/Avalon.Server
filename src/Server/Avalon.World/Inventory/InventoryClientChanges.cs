@@ -18,6 +18,13 @@ public sealed class InventoryClientChanges
 
     public IReadOnlyCollection<(InventoryType Container, ushort Slot)> Slots => _slots;
 
+    /// <summary>
+    /// Walks the touched slots, in no particular order: <c>foreach</c> over the changes themselves. The tick's
+    /// flushers walk them this way, because a <c>foreach</c> over <see cref="Slots" />, an interface, allocates the
+    /// set's enumerator (#883).
+    /// </summary>
+    public HashSet<(InventoryType Container, ushort Slot)>.Enumerator GetEnumerator() => _slots.GetEnumerator();
+
     public void RecordSlot(InventoryType container, ushort slot) => _slots.Add((container, slot));
 
     public void RecordMoney() => MoneyChanged = true;
