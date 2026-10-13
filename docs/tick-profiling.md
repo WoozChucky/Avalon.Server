@@ -8,6 +8,88 @@ dotnet-trace collect --process-id <world-pid> --providers Avalon-World-Tick:0:4 
 
 Use the world's diagnostic socket/PID from the diagnostic container in Kubernetes. Keep captures outside the repository. Capture only after the population has settled; record image, population, instance distribution, scenario, start/end times and concurrent collectors. Compare with an unprofiled run: enabled timestamp reads and event emission have a measurable cost. Do not use a traced run as a capacity verdict.
 
+## Capturing on a deployed world
+
+A world container has no diagnostic tools in it. A trace is taken from a debug container attached to the pod, which shares the world's process namespace. These are the steps used on the homelab's load-test world (`avalon-world-loadtest-0`, namespace `avalon`); the same works for any world pod. From Git Bash, set `MSYS_NO_PATHCONV=1` first, or the `/root/...` paths below are rewritten.
+
+Before starting: check that the worlds sharing the node are quiet (see [load testing](load-testing.md#cautions)), and capture under a held load, not while it ramps.
+
+1. **Attach a debug container.** It stays until the pod restarts, so give each one a new name.
+
+   ```sh
+   kubectl -n avalon debug avalon-world-loadtest-0 --image=mcr.microsoft.com/dotnet/sdk:10.0 \
+     --target=avalon-world --container=trace1 --profile=general -- sleep 3600
+   ```
+
+2. **Install the tool and find the process.** The world is process 1 of the shared namespace. Its diagnostic socket is in its own `/tmp`, which the debug container reaches through `/proc/1/root`: without `TMPDIR` set to that, `dotnet-trace` finds no process.
+
+   ```sh
+   kubectl -n avalon exec avalon-world-loadtest-0 -c trace1 -- sh -c \
+     'export PATH=$PATH:/root/.dotnet/tools TMPDIR=/proc/1/root/tmp; dotnet tool install -g dotnet-trace >/dev/null 2>&1; dotnet-trace ps'
+   ```
+
+3. **Collect**, with the same two exports, for a bounded time:
+
+   | For | Command |
+   |---|---|
+   | Tick phases (this page) | `dotnet-trace collect -p 1 --providers Avalon-World-Tick:0:4 --duration 00:00:00:30 -o /root/tick.nettrace` |
+   | Collections, pauses and what is allocated (sampled by type) | `dotnet-trace collect -p 1 --profile gc-verbose --duration 00:00:05:00 -o /root/gc.nettrace` |
+   | Collections and pauses only, cheaper | `dotnet-trace collect -p 1 --profile gc-collect --duration 00:00:05:00 -o /root/gc.nettrace` |
+
+   `gc-verbose` samples allocations and costs the world some throughput while it runs; say so beside any figure taken with it attached.
+
+4. **Copy the file out.**
+
+   ```sh
+   kubectl -n avalon exec avalon-world-loadtest-0 -c trace1 -- cat /root/gc.nettrace > gc.nettrace
+   ```
+
+Record with each capture the image, the population and mix, the report of the ramp or hold it was taken under, and its start and end times; write the result on the issue it serves, not only in a pull request.
+
+### Reading a GC trace
+
+A `.nettrace` opens in PerfView or Visual Studio. For a summary on any machine, this reader (a console project referencing `Microsoft.Diagnostics.Tracing.TraceEvent`) prints the collections by generation and reason, the pauses, the bytes promoted per collection and the sampled allocation by type, which is what the allocation findings in [GC pressure](gc-pressure.md) were read from:
+
+```csharp
+using Microsoft.Diagnostics.Tracing;
+
+using var source = new EventPipeEventSource(args[0]);
+var collections = new List<(double At, int Generation, string Reason, string Type)>();
+var pauses = new List<(double Ms, int Generation)>();
+var allocated = new Dictionary<string, long>();
+var promoted = new List<long>();
+double suspendedAt = -1;
+int generation = -1;
+
+source.Clr.GCSuspendEEStart += e => suspendedAt = e.TimeStampRelativeMSec;
+source.Clr.GCStart += e =>
+{
+    generation = e.Depth;
+    collections.Add((e.TimeStampRelativeMSec, e.Depth, e.Reason.ToString(), e.Type.ToString()));
+};
+source.Clr.GCRestartEEStop += e =>
+{
+    if (suspendedAt >= 0)
+        pauses.Add((e.TimeStampRelativeMSec - suspendedAt, generation));
+    suspendedAt = -1;
+};
+source.Clr.GCHeapStats += e => promoted.Add(e.TotalPromotedSize0);
+source.Clr.GCAllocationTick += e =>
+    allocated[e.TypeName ?? "?"] = allocated.GetValueOrDefault(e.TypeName ?? "?") + e.AllocationAmount64;
+source.Process();
+
+foreach (var group in collections.GroupBy(c => (c.Generation, c.Type, c.Reason)).OrderBy(g => g.Key.Generation))
+    Console.WriteLine($"gen{group.Key.Generation} {group.Key.Type} {group.Key.Reason} x{group.Count()}");
+foreach (var group in pauses.GroupBy(p => p.Generation).OrderBy(g => g.Key))
+    Console.WriteLine($"gen{group.Key} pauses: {group.Count()}, mean {group.Average(p => p.Ms):F2} ms, max {group.Max(p => p.Ms):F2} ms");
+if (promoted.Count > 0)
+    Console.WriteLine($"promoted from gen0 per collection: mean {promoted.Average() / 1048576.0:F1} MB, max {promoted.Max() / 1048576.0:F1} MB");
+foreach (var type in allocated.OrderByDescending(a => a.Value).Take(15))
+    Console.WriteLine($"{type.Value / 1048576.0,8:F1} MB  {type.Key}");
+```
+
+The allocation figures are sampled (one event per about 100 KB allocated), so they rank types well and are not exact byte counts.
+
 ## Correlation and durations
 
 Events are numeric, with no names or player identifiers:
