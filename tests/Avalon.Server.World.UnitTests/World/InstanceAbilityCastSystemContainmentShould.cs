@@ -310,12 +310,19 @@ public class InstanceAbilityCastSystemContainmentShould
     }
 
     /// <summary>
-    /// A script whose state cannot be read stops the sweep for finished scripts part-way, after the list has already
-    /// let go of the ones the sweep matched before it. The index must not go on answering with those (#883).
+    /// A script's State is its own code, read when it has prepared, before each Update and by both sweeps for
+    /// finished scripts. One that throws there is contained like a throwing Update: logged once, dropped, its caster
+    /// sent the interrupt, and every other script still there once, ticking and found by its guid. Uncontained, the
+    /// sweep threw out of every update of the instance, each time leaving the list with a script twice and an index
+    /// that named one the list had dropped (#883).
     /// </summary>
-    [Fact]
-    public void Forget_a_script_that_a_failed_sweep_had_already_dropped()
+    [Theory]
+    [InlineData("when it has prepared")]
+    [InlineData("in an update")]
+    [InlineData("in the sweep of an empty instance")]
+    public void Drop_a_script_whose_state_cannot_be_read_and_keep_the_others(string read)
     {
+        ICharacter failing = Caster(541_053);
         ICharacter caster = _arena.Player(541_050, 0f, 0f);
         Assert.True(_sut.RunInstant(caster, s_aim,
             AbilityTestData.Game(AbilityTestData.Projectile(541_051, reach: 0.05f, speed: 20f))));
@@ -324,17 +331,46 @@ public class InstanceAbilityCastSystemContainmentShould
             Assert.True(_sut.RunInstant(caster, s_aim, Projectile(541_060 + i)));
         }
 
-        Assert.True(_sut.RunInstant(caster, s_aim, Ability(541_052, nameof(StateThrowingAbilityScript))));
+        StateThrowingAbilityScript.ArmedWhenBuilt = read == "when it has prepared";
+        try
+        {
+            Assert.True(_sut.RunInstant(failing, s_aim, Ability(541_052, nameof(StateThrowingAbilityScript))));
+        }
+        finally
+        {
+            StateThrowingAbilityScript.ArmedWhenBuilt = false;
+        }
+
+        // The first update ends the short projectile, which stays for its final state, and fills the index.
         List<IWorldObject> objects = [];
         _sut.Update(s_tick, objects);
         IWorldObject ended = objects[0];
-        var unreadable = (StateThrowingAbilityScript)objects[^1];
         Assert.Same(ended, _sut.GetAbility(ended.Guid));
+        if (objects[^1] is StateThrowingAbilityScript unreadable)
+        {
+            unreadable.Armed = true;
+        }
 
-        unreadable.Armed = true;
-        Assert.Throws<InvalidOperationException>(_sut.DropFinished);
+        if (read == "in the sweep of an empty instance")
+        {
+            _sut.DropFinished();
+            Assert.Null(_sut.GetAbility(ended.Guid));
+        }
 
-        Assert.Null(_sut.GetAbility(ended.Guid));
+        for (int i = 0; i < 2; i++)
+        {
+            objects.Clear();
+            _sut.Update(s_tick, objects);
+        }
+
+        Assert.Single(_logs.Entries, e => e.Level == LogLevel.Error);
+        AssertLoggedError(541_052, failing);
+        Assert.Single(_arena.InterruptsOf(failing));
+        Assert.DoesNotContain(objects, o => o is StateThrowingAbilityScript);
+        Assert.Equal(objects.Count, objects.Distinct().Count());
+        Assert.Equal(InstanceAbilityCastSystem.WalkedUpTo + (read == "in the sweep of an empty instance" ? 0 : 1),
+            objects.Count);
+        Assert.All(objects, o => Assert.Same(o, _sut.GetAbility(o.Guid)));
     }
 
     private sealed class RecordingLoggerFactory : ILoggerFactory, ILogger

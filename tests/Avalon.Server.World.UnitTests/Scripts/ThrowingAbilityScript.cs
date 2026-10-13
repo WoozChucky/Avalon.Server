@@ -27,14 +27,17 @@ public sealed class ThrowingAbilityScript : AbilityScript
 
 /// <summary>
 /// A projectile-typed world object that stands still, and whose State throws once <see cref="Armed" /> is set: what
-/// the cast system reads when it looks for finished scripts to drop.
+/// the cast system reads after Prepare, before each Update and when it looks for finished scripts to drop. One built
+/// while <see cref="ArmedWhenBuilt" /> is set throws from the start.
 /// </summary>
 public sealed class StateThrowingAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
     : AbilityScript(ability, caster, aim)
 {
     public IAbilityArena Arena { get; } = arena;
 
-    public bool Armed { get; set; }
+    public static bool ArmedWhenBuilt { get; set; }
+
+    public bool Armed { get; set; } = ArmedWhenBuilt;
 
     public override object State
     {

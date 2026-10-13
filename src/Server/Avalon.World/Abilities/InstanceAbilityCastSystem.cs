@@ -174,8 +174,7 @@ public class InstanceAbilityCastSystem(
         // been taken for a broadcast, so every client sees it spawn, stop and despawn, even one that
         // ended on the tick it was first seen. Updates go out only on broadcast ticks, so that can be
         // a few ticks later.
-        _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished
-            && (a.Script.Guid?.Type != ObjectType.SpellProjectile || !a.Script.HasUnsentChanges));
+        SweepFinished(keepUnsent: true);
 
         AdvanceQueue(deltaTime);
         SendInterrupts();
@@ -280,19 +279,20 @@ public class InstanceAbilityCastSystem(
                 continue;
             }
 
-            // A finished script is never ticked again, so nothing it does is applied twice.
-            if (script.State is not SpellState.Finished)
+            try
             {
-                try
+                // A finished script is never ticked again, so nothing it does is applied twice. Its state is its
+                // own code too, and read inside the containment.
+                if (script.State is not SpellState.Finished)
                 {
                     script.Update(deltaTime);
                 }
-                catch (Exception e)
-                {
-                    _failed.Add(active);
-                    Failed(active.Caster, active.Ability, e, "Update", active.CastId);
-                    continue;
-                }
+            }
+            catch (Exception e)
+            {
+                _failed.Add(active);
+                Failed(active.Caster, active.Ability, e, "Update", active.CastId);
+                continue;
             }
 
             // A script must carry a guid from Prepare on. One without (its Prepare set none, or its Update took it
@@ -364,7 +364,40 @@ public class InstanceAbilityCastSystem(
         }
     }
 
-    public void DropFinished() => _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished);
+    public void DropFinished() => SweepFinished(keepUnsent: false);
+
+    /// <summary>
+    /// Drops every finished script, except, with <paramref name="keepUnsent" />, a projectile whose final state is
+    /// still owed to the clients. A script's state is its own code, so each is asked inside the containment: one
+    /// whose state cannot be read is contained as a throwing Update is, logged, dropped and its caster interrupted.
+    /// Every script is decided before any is removed, so nothing can throw while the list is being compacted, which
+    /// would leave it with a script twice.
+    /// </summary>
+    private void SweepFinished(bool keepUnsent)
+    {
+        bool leaving = false;
+        foreach (ActiveScript active in _activeAbilities)
+        {
+            try
+            {
+                AbilityScript script = active.Script;
+                active.Leaving = script.State is SpellState.Finished
+                    && (!keepUnsent || script.Guid?.Type != ObjectType.SpellProjectile || !script.HasUnsentChanges);
+            }
+            catch (Exception e)
+            {
+                active.Leaving = true;
+                Failed(active.Caster, active.Ability, e, "State", active.CastId);
+            }
+
+            leaving |= active.Leaving;
+        }
+
+        if (leaving)
+        {
+            _activeAbilities.RemoveAll(static a => a.Leaving);
+        }
+    }
 
     /// <summary>
     /// The active script of that guid: found by a walk of the active scripts while they are few, and from their index
@@ -451,11 +484,14 @@ public class InstanceAbilityCastSystem(
         arena.BroadcastFinishCast(caster, ability, castId);
 
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world
-        // object, and the cast is interrupted. What it spent stays spent.
+        // object, and the cast is interrupted. What it spent stays spent. So is a script whose state cannot be
+        // read once it has prepared.
+        bool running;
         try
         {
             arena.CastInFlight = castId;
             script.Prepare();
+            running = script.State is not SpellState.Finished;
         }
         catch (Exception e)
         {
@@ -469,7 +505,7 @@ public class InstanceAbilityCastSystem(
             arena.CastInFlight = 0;
         }
 
-        if (script.State is not SpellState.Finished)
+        if (running)
         {
             _activeAbilities.Add(new ActiveScript(caster, ability, script, castId));
         }
@@ -538,6 +574,9 @@ public class InstanceAbilityCastSystem(
         public IAbility Ability { get; } = ability;
         public AbilityScript Script { get; } = script;
         public uint CastId { get; } = castId;
+
+        /// <summary>Set by the sweep for finished scripts, for the removal that follows it in the same call.</summary>
+        public bool Leaving { get; set; }
     }
 
     /// <summary>
@@ -574,8 +613,9 @@ public class InstanceAbilityCastSystem(
             }
             catch
             {
-                // The list compacts as it goes and sets its size last: a predicate that throws part-way (it reads the
-                // script's own state) has already overwritten scripts it matched, and the index would still name them.
+                // The list compacts as it goes and sets its size last: a predicate that throws part-way has already
+                // overwritten scripts it matched, and the index would still name them. No predicate here reads a
+                // script's own code any more; this stays for one that would.
                 Changed();
                 throw;
             }
