@@ -147,13 +147,17 @@ public sealed class ConnectionSenderShould
 
     /// <summary>
     /// A stall makes a connection frame ahead, and the burst buffer that holds it grows with what is queued, up to what
-    /// <c>Network:MaxPendingBytes</c> allows; a second stall grows the other. Both are given back once the connection
-    /// has caught up (#883), where they were kept for the connection's life, and never while a write still reads one:
+    /// <c>Network:MaxPendingBytes</c> allows; the next grows the other. They were kept for the connection's life
+    /// (#883). A grown buffer is given back once the connection has gone <see cref="ConnectionSender.BurstTrimDelay" />
+    /// without writing a burst that fills a quarter of it, and not before: a peer decides when its connection stalls
+    /// and catches up, so a buffer given back as soon as it looked idle is one the peer has the server rent again in
+    /// a loop. So a second stall inside the delay finds both buffers still there, the delay's end keeps them because
+    /// they were filled within it, and only a quiet delay gives them back. And never while a write still reads one:
     /// a buffer given back in flight is rented again by the burst framed ahead of it, which would be written over the
-    /// bytes still going out. So every packet carries its number, and all must arrive, once and in order.
+    /// bytes still going out, so every packet carries its number and all must arrive, once and in order.
     /// </summary>
     [Fact]
-    public async Task Give_back_the_burst_buffers_a_stall_grew_once_the_connection_has_caught_up()
+    public async Task Give_back_a_grown_burst_buffer_only_after_a_delay_in_which_no_burst_filled_it()
     {
         const int Batch = 60; // 60 packets of 4 KiB: a burst of some 246 KiB, in a buffer grown to 256 KiB
         NetworkSendScheduler scheduler = Scheduler();
@@ -161,35 +165,74 @@ public sealed class ConnectionSenderShould
         ConnectionSender sender = Open(scheduler, stalled);
         int owner = sender.OwnerThread;
         int asNew = sender.BurstCapacity;
+        int sent = 0;
         Assert.True(asNew < ConnectionSender.BurstTrimThreshold);
 
-        sender.Enqueue(Marked(0, 100));
-        scheduler.RunPass(owner);     // its write stays pending: the peer stopped reading
-        for (int number = 1; number <= Batch; number++)
-            sender.Enqueue(Marked(number, 4_096));
-        scheduler.RunPass(owner);     // framed ahead: one buffer grows
-        Assert.True(sender.BurstCapacity > Batch * 4_096);
+        Stall();
+        int grown = sender.BurstCapacity;
+        Assert.True(grown > 2 * Batch * 4_096);
 
-        stalled.Complete();
-        PassUntil(scheduler, owner, () => stalled.Writes == 2);   // the grown buffer is now the burst in flight
-        for (int number = Batch + 1; number <= 2 * Batch; number++)
-            sender.Enqueue(Marked(number, 4_096));
-        scheduler.RunPass(owner);     // framed ahead of it: the other buffer grows as large, while the first is read
-        Assert.True(sender.BurstCapacity > 2 * Batch * 4_096);
+        Small(); // caught up: from here the two buffers are watched
+        Assert.Equal(grown, sender.BurstCapacity);
+        _time.Advance(TimeSpan.FromSeconds(10));
+        Stall(); // inside the delay: nothing was given back, so nothing is rented again
+        Assert.Equal(grown, sender.BurstCapacity);
+        _time.Advance(TimeSpan.FromSeconds(21));
+        Small(); // the delay is over, and both buffers were filled within it: they stay
+        Assert.Equal(grown, sender.BurstCapacity);
+        _time.Advance(TimeSpan.FromSeconds(29));
+        Small(); // small bursts since, but not yet for the delay
+        Assert.Equal(grown, sender.BurstCapacity);
+        _time.Advance(TimeSpan.FromSeconds(2));
+        Small(); // a whole delay of them: both go back
+        Assert.Equal(asNew, sender.BurstCapacity);
 
-        stalled.Complete();
-        PassUntil(scheduler, owner, () => stalled.Writes == 3);
-        stalled.Complete();
-        PassUntil(scheduler, owner, () => sender.PendingBytes == 0);
-        sender.Enqueue(Marked(2 * Batch + 1, 100)); // caught up: a small burst again
-        scheduler.RunPass(owner);
-        stalled.Complete();
-        PassUntil(scheduler, owner, () => sender.BurstCapacity == asNew);
-
-        Assert.Equal(Enumerable.Range(0, 2 * Batch + 2), (await Frames(stalled.ReadAtCompletion.ToArray()))
+        Assert.Equal(Enumerable.Range(0, sent), (await Frames(stalled.ReadAtCompletion.ToArray()))
             .Select(frame => BitConverter.ToInt32(frame.Payload, 0)));
         await CloseAsync(scheduler, sender);
         Assert.Equal(0, _pool.Outstanding);
+
+        // The peer stops reading: one buffer grows with what is framed ahead, then the other while the first is
+        // still being written. Then it reads everything.
+        void Stall()
+        {
+            Write(100);
+            FrameAhead();
+            EndWrite(startsAnother: true);
+            FrameAhead();
+            EndWrite(startsAnother: true);
+            EndWrite(startsAnother: false);
+        }
+
+        void Small()
+        {
+            Write(100);
+            EndWrite(startsAnother: false);
+        }
+
+        // With no write in flight: one packet, whose write starts and stays pending.
+        void Write(int length)
+        {
+            int writes = stalled.Writes;
+            sender.Enqueue(Marked(sent++, length));
+            PassUntil(scheduler, owner, () => stalled.Writes > writes);
+        }
+
+        // With a write pending: a batch framed into the other buffer.
+        void FrameAhead()
+        {
+            for (int packet = 0; packet < Batch; packet++)
+                sender.Enqueue(Marked(sent++, 4_096));
+            scheduler.RunPass(owner);
+        }
+
+        // The pending write ends where the stream completes it; the owner's next visit starts the burst framed ahead.
+        void EndWrite(bool startsAnother)
+        {
+            int writes = stalled.Writes;
+            stalled.Complete();
+            PassUntil(scheduler, owner, () => startsAnother ? stalled.Writes > writes : sender.PendingBytes == 0);
+        }
     }
 
     /// <summary>

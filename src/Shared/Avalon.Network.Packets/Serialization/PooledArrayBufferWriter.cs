@@ -9,8 +9,16 @@ public sealed class PooledArrayBufferWriter : IBufferWriter<byte>, IDisposable
 
     private byte[] _buffer = ArrayPool<byte>.Shared.Rent(InitialCapacity);
     private int _written;
+    private int _peak;
 
     public int Written => _written;
+
+    /// <summary>
+    /// The most the writer held at a <see cref="NotePeak" /> since the last <see cref="ClearPeak" />: how its owner
+    /// tells a buffer it still fills from one it has outgrown. <see cref="Reset" /> leaves it, so it does not depend
+    /// on when the writer was last emptied; <see cref="Trim" /> clears it.
+    /// </summary>
+    public int PeakWritten => _peak;
 
     /// <summary>The buffer's length. It doubles as it fills and is kept by <see cref="Reset" />.</summary>
     public int Capacity => _buffer.Length;
@@ -19,10 +27,27 @@ public sealed class PooledArrayBufferWriter : IBufferWriter<byte>, IDisposable
 
     public void Reset() => _written = 0;
 
+    /// <summary>Counts what the writer holds now towards <see cref="PeakWritten" />.</summary>
+    public void NotePeak()
+    {
+        if (_written > _peak)
+            _peak = _written;
+    }
+
+    public void ClearPeak() => _peak = 0;
+
     /// <summary>
     /// Empties the writer and gives its buffer back to the array pool for one of a new writer's size. Nothing may
     /// still read what was written.
     /// </summary>
+    /// <remarks>
+    /// The buffer goes back as it is, here, when the writer grows and when it is disposed: it is not cleared. It may
+    /// hold what a connection was sent, framed, and in plain text when the world does not seal
+    /// (<c>Network:PacketEncryption</c> off), and the pool hands the array to whoever rents next, in this process.
+    /// So the rule is the renter's: whatever rents from <see cref="ArrayPool{T}.Shared" /> writes before it reads or
+    /// sends, and never sends more than it wrote. Clearing here instead would be a write of up to 2 MiB on a send
+    /// thread at a moment a peer can choose, by stalling and catching up.
+    /// </remarks>
     public void Trim()
     {
         // Rented first: a rent that throws leaves the writer with the buffer it had.
@@ -30,6 +55,7 @@ public sealed class PooledArrayBufferWriter : IBufferWriter<byte>, IDisposable
         ArrayPool<byte>.Shared.Return(_buffer);
         _buffer = small;
         _written = 0;
+        _peak = 0;
     }
 
     public void Advance(int count)
