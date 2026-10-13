@@ -1,3 +1,4 @@
+using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Serialization;
@@ -51,6 +52,13 @@ public sealed class InviteCommand(PartyService parties) : ICommand
         if (args.Length != 1)
         {
             ctx.Reply("Usage: /invite <name>");
+            return;
+        }
+
+        // Not a character name (#936): nobody has it, so it is refused as an unknown name before anything is looked up.
+        if (!CharacterName.IsValid(args[0]))
+        {
+            PartyCommandReply.Send(ctx, PartyResult.NotFound, args[0]);
             return;
         }
 

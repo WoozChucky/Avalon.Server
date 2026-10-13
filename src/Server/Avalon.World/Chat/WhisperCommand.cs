@@ -50,7 +50,8 @@ public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rate
             return;
         }
 
-        if (online.ByName(name) is not { Character: { } recipient } target)
+        // A name that is not a character name (#936) is nobody's: it is answered as an unknown one, with no lookup.
+        if (!CharacterName.IsValid(name) || online.ByName(name) is not { Character: { } recipient } target)
         {
             ctx.Reply(NotOnline(name));
             return;

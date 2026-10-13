@@ -15,7 +15,7 @@ is answered with exactly one `SMSG_PARTY_RESULT` (section 2).
 
 | Opcode | Value | Packet | Fields |
 |---|---|---|---|
-| `CMSG_PARTY_INVITE` | `0x20B0` | `CPartyInvitePacket` | 1 `TargetName` (string, the character's name; case and surrounding spaces are ignored) |
+| `CMSG_PARTY_INVITE` | `0x20B0` | `CPartyInvitePacket` | 1 `TargetName` (string, the character's name as the world shows it: 3 to 12 letters A-Z, in any case, and nothing else; anything else is answered `NotFound`, #936) |
 | `CMSG_PARTY_INVITE_RESPONSE` | `0x20B1` | `CPartyInviteResponsePacket` | 1 `Accept` (bool) |
 | `CMSG_PARTY_LEAVE` | `0x20B2` | `CPartyLeavePacket` | none |
 | `CMSG_PARTY_KICK` | `0x20B3` | `CPartyKickPacket` | 1 `CharacterId` (uint32, a member's id from the roster) |
@@ -64,8 +64,11 @@ what a payload without the field decodes as.
 | 14 | `Invalid` | The request could not be read: an experience mode of `Unknown`. |
 | 15 | `Error` | The server failed while handling the request; nothing is known to have changed. |
 
-`Name` carries the character involved where the server knows it: the name as sent on an invite, the
-member's name on a kick or promote, the other side on an unasked result.
+`Name` carries the character involved where the server knows it: the name as sent on an invite, the member's
+name on a kick or promote, the other side on an unasked result. A `CMSG_PARTY_INVITE` whose `TargetName` is
+not a character name is answered `NotFound` with no `Name` (#936). The `/invite` command is different there:
+it puts what was typed in `Name` and in its "Could not find X." line, to the sender only, and the chat
+limit (section 5) bounds it.
 
 **Unasked results.** Some results arrive without a request:
 - `InviteDeclined` (with the target's name) to the inviter when the target declines.
@@ -122,6 +125,14 @@ power type, and whether it is dead.
 
 ## 5. Chat
 
+**What a client may send (#936).** `CChatMessagePacket.Message` (field 1) is at most **511 bytes of UTF-8**, counted
+over the whole field as sent: a command's word, its name and its text together. A chat box of 255 bytes stays inside
+it, the longest message being a whisper sent as `/w `, a name of at most 252 bytes, a space and 255 bytes of text. A
+longer message is refused whole, never cut: it is said to nobody, no command runs, it does not count against the
+rate limit, and the sender gets one `System` line, "Your message is too long and was not sent.". Send valid UTF-8:
+each malformed sequence is read as one or more replacement characters, three bytes each, so such a message can
+count for more than it took on the wire.
+
 `SChatMessagePacket` has a `Channel` (field 6, `ChatChannel`):
 
 | Value | Channel | What |
@@ -139,8 +150,8 @@ before it ignores the field, and a payload from before it reads as 0.
 
 `/w` refusals are system lines to the sender only, and nothing is sent to anyone else: "Usage: /w <player> <message>"
 (no name or no message), "You can't whisper yourself.", and "No player named X is online." (X as typed; an offline and
-an unknown name get the same line, so it never reveals who exists). Names are matched ignoring case and surrounding
-spaces; the message is kept as typed, trimmed at the ends.
+an unknown name get the same line, so it never reveals who exists, and so does anything that is not a character
+name). Names are matched ignoring case; the message is kept as typed, trimmed at the ends.
 
 ### Ignore list (#723)
 
@@ -161,7 +172,7 @@ list, and when a character on the list is deleted while you are online or select
 
 | Command | Does |
 |---|---|
-| `/ignore <name>` | Ignore a character of this world, online or offline (name matched ignoring case). Answered "You are now ignoring X.". Refused, with nothing changed: "Usage: /ignore <name>", "You can't ignore yourself.", "X is already on your ignore list.", "Your ignore list is full (50/50)." (the cap is the server's `MaxIgnoredCharacters`), "No character named X exists.". An offline name is looked up in the database, so its answer can arrive a tick or two later. Each `/ignore` that gets past those refusals spends one message of the chat rate limit, as a chat line does, and over the limit it is refused with the same "You're sending messages too fast." line. |
+| `/ignore <name>` | Ignore a character of this world, online or offline (name matched ignoring case). Answered "You are now ignoring X.". Refused, with nothing changed: "Usage: /ignore <name>", "You can't ignore yourself.", "X is already on your ignore list.", "Your ignore list is full (50/50)." (the cap is the server's `MaxIgnoredCharacters`), "No character named X exists." (also for anything that is not a character name, which is never looked up). An offline name is looked up in the database, so its answer can arrive a tick or two later. Each `/ignore` that gets past those refusals spends one message of the chat rate limit, as a chat line does, and over the limit it is refused with the same "You're sending messages too fast." line. |
 | `/unignore <name>` | Take a character off the list, by the name the list shows. "You are no longer ignoring X." or "X is not on your ignore list.". |
 | `/ignorelist` | One line: "Ignoring 2/50: Borin, Kaela." or "You are not ignoring anyone.". |
 
@@ -172,7 +183,7 @@ plus a system line when refused):
 
 | Command | Does |
 |---|---|
-| `/invite <name>` (`/inv`) | Invite a player. Also answered "You invited X to the party." |
+| `/invite <name>` (`/inv`) | Invite a player. Also answered "You invited X to the party." A name that is not a character name is `NotFound`, "Could not find X." |
 | `/leave` | Leave the party. |
 | `/kick <name>` | Remove a member (leader only). |
 | `/promote <name>` | Make a member the leader (leader only). |
