@@ -16,6 +16,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -85,7 +86,8 @@ public class MapArrivalShould
         _world.PartyInstances.Returns(partyInstances);
         _world.Configuration.Returns(_parties.Config);
         _world.Data.Returns(_reference.Data);
-        _world.MapTemplates.Returns(new List<MapTemplate> { _townTemplate, _forestTemplate });
+        // As the map manager holds them: with their lookup by id (#883).
+        _world.MapTemplates.Returns<IReadOnlyList<MapTemplate>>(MapTemplateRows.Keyed([_townTemplate, _forestTemplate]));
     }
 
     /// <summary>

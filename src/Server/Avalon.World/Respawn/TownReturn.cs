@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Instances;
+using Avalon.World.Maps;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -51,9 +52,9 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
     private void OnTownResolved(IWorldConnection connection, ICharacter ch, MapTemplateId townMapId, bool revive,
         bool dropEncounter, Action<Exception>? failed)
     {
-        ushort maxPlayers = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId)?.MaxPlayers ?? 30;
+        ushort maxPlayers = world.MapTemplates.FindById(townMapId)?.MaxPlayers ?? 30;
 
-        Then(connection, ch, world.InstanceRegistry.GetOrCreateTownInstanceAsync(townMapId, (ushort)maxPlayers), failed,
+        Then(connection, ch, world.InstanceRegistry.GetOrCreateTownInstanceAsync(townMapId, maxPlayers), failed,
             townInstance => OnInstanceReady(connection, ch, townMapId, townInstance, revive, dropEncounter));
     }
 
@@ -147,7 +148,8 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
             // Resolve spawn coords from the town's chunk layout. The template defaults serve only an instance
             // that is not a MapInstance.
             float spawnX, spawnY, spawnZ;
-            MapTemplate townTemplate = world.MapTemplates.First(t => t.Id == townMapId);
+            MapTemplate townTemplate = world.MapTemplates.FindById(townMapId)
+                                       ?? throw new InvalidOperationException($"The world has no template for town map {townMapId.Value}");
             if (townInstance is MapInstance mi)
             {
                 Vector3 s = mi.EntrySpawnWorldPos;

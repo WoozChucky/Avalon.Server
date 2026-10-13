@@ -7,6 +7,7 @@ using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Maps;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -55,12 +56,12 @@ public class EnterMapHandler(
         IMapInstance? currentInstance = world.InstanceRegistry.GetInstanceById(character.InstanceId);
 
         // 3. Load the target map template
-        MapTemplate? targetTemplate =
-            world.MapTemplates.FirstOrDefault(t => t.Id == (MapTemplateId)packet.TargetMapId);
+        ushort targetMap = packet.TargetMapId;
+        MapTemplate? targetTemplate = world.MapTemplates.FindById(targetMap);
 
         if (targetTemplate == null)
         {
-            logger.LogDebug("EnterMap: target map {MapId} not found", packet.TargetMapId);
+            logger.LogDebug("EnterMap: target map {MapId} not found", targetMap);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
                 PacketEncoder.Shared));
             return;
@@ -79,10 +80,10 @@ public class EnterMapHandler(
             return;
         }
 
-        PortalInstance? match = mi.Portals.FirstOrDefault(p => p.TargetMapId == packet.TargetMapId);
+        PortalInstance? match = PortalTo(mi, targetMap);
         if (match is null)
         {
-            logger.LogDebug("EnterMap: no portal to {TargetMapId}", packet.TargetMapId);
+            logger.LogDebug("EnterMap: no portal to {TargetMapId}", targetMap);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
                 PacketEncoder.Shared));
             return;
@@ -100,7 +101,7 @@ public class EnterMapHandler(
                 "EnterMap: {Name} too far from portal — charPos={CharPos} portalPos={PortalPos} distance={Distance:F2} radius={Radius:F2} charInstance={CharInstance} targetMap={TargetMap}",
                 character.Name, character.Position, portalPosition,
                 Vector3.Distance(character.Position, portalPosition), portalRadius,
-                character.InstanceId, packet.TargetMapId);
+                character.InstanceId, targetMap);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.NotNearPortal,
                 PacketEncoder.Shared));
             return;
@@ -122,7 +123,22 @@ public class EnterMapHandler(
         }
 
         // 8. Resolve target instance.
-        ResolveTarget(connection, character, targetTemplate, packet.TargetMapId, reResolved: false);
+        ResolveTarget(connection, character, targetTemplate, targetMap, reResolved: false);
+    }
+
+    /// <summary>The first portal of <paramref name="instance" /> that leads to <paramref name="targetMap" />, or null.</summary>
+    private static PortalInstance? PortalTo(MapInstance instance, ushort targetMap)
+    {
+        IReadOnlyList<PortalInstance> portals = instance.Portals;
+        for (int i = 0; i < portals.Count; i++)
+        {
+            if (portals[i].TargetMapId == targetMap)
+            {
+                return portals[i];
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

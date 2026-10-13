@@ -25,6 +25,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -109,7 +110,8 @@ public class ArrivalBenchmarks
         _forest = _scenario.NewForestInstance(ForestSeed);
         _forestPortal = PortalTo(_forest, townMap);
 
-        var world = new ArrivalWorld(reference.Data, [townTemplate, forestTemplate]);
+        // The templates as the map manager holds them: with their lookup by id.
+        var world = new ArrivalWorld(reference.Data, MapTemplateRows.Keyed([townTemplate, forestTemplate]));
         _town = Town(world, townTemplate, reference.TownLayout);
         _townPortal = PortalTo(_town, forestTemplate.Id.Value);
         _registry = world.Registry;

@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
+using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
@@ -39,7 +40,7 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
         if (connection.Character is not { } character || connection.RespawnInFlight)
             return false;
 
-        MapTemplate? template = world.MapTemplates.FirstOrDefault(t => t.Id == map);
+        MapTemplate? template = world.MapTemplates.FindById(map);
         if (template is null
             || (template.MinLevel is { } min && character.Level < min)
             || (template.MaxLevel is { } max && character.Level > max))

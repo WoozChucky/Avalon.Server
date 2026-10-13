@@ -27,6 +27,7 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Maintenance;
+using Avalon.World.Maps;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -461,7 +462,7 @@ public class CharacterSelectHandler(
         // The entity is handed to the connection as a pending spawn once inventory and spells are
         // loaded; CharacterReadinessBarrier assigns it.
 
-        MapTemplate? loadedTemplate = world.MapTemplates.FirstOrDefault(t => t.Id == (MapTemplateId)character.Map);
+        MapTemplate? loadedTemplate = world.MapTemplates.FindById(character.Map);
         if (loadedTemplate == null)
         {
             logger.LogError("MapTemplate {MapId} not found for character {CharacterId}", character.Map,
@@ -486,7 +487,7 @@ public class CharacterSelectHandler(
                 respawnTargetResolver.ResolveTownAsync(loadedTemplate.Id, CancellationToken.None),
                 townMapId =>
                 {
-                    MapTemplate? townTpl = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId);
+                    MapTemplate? townTpl = world.MapTemplates.FindById(townMapId);
                     if (townTpl == null)
                     {
                         logger.LogError("Resolved town map {TownMapId} not found in MapTemplates",
