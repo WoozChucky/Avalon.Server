@@ -527,8 +527,11 @@ these runs.
   path (its connections refuse a time-sync ping) and is unchanged.
 - **Where the credit count lies.** The read loop reads it for every pong, so a flood keeps its cache line at the read
   loop's core. It is the last field of the struct that holds the stamps, which the runtime lays out after the sender's
-  integers: in the Release build, counted from the object's start, the count is at 272, the group of integers the tick's
-  enqueue and the send thread's framing write ends at 207 (`_doomed`, its last), and the object's fields end at 296.
+  integers: in the Release build, counted from the object's start, the count is at 280, the group of integers the tick's
+  enqueue and the send thread's framing write ends at 215 (`_doomed`, its last), and the object's fields end at 304
+  (each 8 more than when this was first measured: #883 added an 8-byte field ahead of them, the time a watch over a
+  grown burst buffer began, and a flag in the padding after the bool flags; the send thread writes them only as a
+  watch begins or ends, and nothing here moved against anything else).
   However the object falls across 64-byte lines, the count shares none with `_pendingBytes`, `_dirty`,
   `_activeEnqueues`, the bursts' counts or the int flags, so a flood never makes the tick's enqueue or the send thread's
   framing of a packet take a line back. It shares its line with the stamps and the connection's id (seven placements of
@@ -566,19 +569,21 @@ only adds to a field, so it is the least a subscribed counter costs, not what th
 | `SenderEnqueue`, a quiet run, mean | 58.9 ns | 59.9 ns | 279.3 ns | 278.3 ns | 0 B |
 | `ConnectionSend`, a quiet run, mean | 65.9 ns | 68.5 ns | 285.3 ns | 305.8 ns | 0 B |
 | What `Send` adds | 7.0 ns | 8.7 ns | 6.0 ns | 27.5 ns | |
-| `SenderEnqueue`, after #883, fastest iteration | 60.4 ns | 58.0 ns | 279.8 ns | 276.4 ns | 0 B |
-| `ConnectionSend`, after #883, fastest iteration | 69.1 ns | 67.7 ns | 285.2 ns | 285.0 ns | 0 B |
-| What `Send` adds | 8.8 ns | 9.7 ns | 5.4 ns | 8.6 ns | |
+| `SenderEnqueue`, the burst buffers given back at once, three runs | 58.1 to 61.0 ns | 58.2 to 71.1 ns | 277.5 to 328.2 ns | 279.0 to 284.6 ns | 0 B |
+| `ConnectionSend`, the same | 67.2 to 84.3 ns | 71.0 to 74.9 ns | 284.9 to 349.6 ns | 287.6 to 301.3 ns | 0 B |
+| `SenderEnqueue`, given back after the delay, three runs | 58.3 to 59.6 ns | 58.8 to 65.0 ns | 277.4 to 285.2 ns | 278.5 to 321.1 ns | 0 B |
+| `ConnectionSend`, the same | 67.2 to 68.4 ns | 71.5 to 72.4 ns | 285.2 to 293.6 ns | 288.5 to 294.0 ns | 0 B |
 
-BenchmarkDotNet 0.15.8, the default job, in process, Windows 11, i9-12900K, .NET 10.0.12, 2026-10-13. The first three
-rows are `808eec90` with the benchmark added, in a run the machine was quiet for: standard deviations of 0.4 to 2.2 ns
-in six arms, and 6.8 and 9.7 ns in two of the sealed ones, the last of which is the 27.5 ns. The last three are with
-the changes of #883 to the packet path, which leave `Send` as it was and add two compares to the pass
-([burst buffers](#results--the-network-path-883-2026-10-13)), taken while other builds and benchmarks used the machine
-(standard deviations of up to 71 ns): they are each arm's fastest iteration, the figure a disturbance touches least. A
-run of `808eec90` taken in turn with it read, the same way, differences of -19 to +17 ns between the arms, and three
-runs a side with `--job short` ranged as widely. Under that load the later rows say that nothing large moved and no
-more; the quiet run is the record.
+BenchmarkDotNet 0.15.8, in process, Windows 11, i9-12900K, .NET 10.0.12, 2026-10-13. The first three rows are the
+default job on `808eec90` with the benchmark added, in a run the machine was quiet for: standard deviations of 0.4 to
+2.2 ns in six arms, and 6.8 and 9.7 ns in two of the sealed ones, the last of which is the 27.5 ns. The other four
+are `--job short`, three runs a side taking turns, as the range of the runs' means, on a machine that was quiet for
+most of them (the top of a range is a disturbed run): with #883's changes to the packet path, which leave `Send` as
+it was and add compares to the pass where the burst buffers are swapped
+([burst buffers](#results--the-network-path-883-2026-10-13)). First two compares, with a buffer given back as soon as
+it looked outgrown (`c897e211`); then three, with a buffer given back only after a delay. In their undisturbed runs
+the two read the same to within 1 ns in the plain arms and 2 ns in the sealed ones, and the same as the first rows:
+the pass's new check costs a connection whose buffers are small nothing that shows.
 
 - **A send costs the tick 6 to 9 ns more than the enqueue it wraps**, plain or sealed: about a tenth of a plain send
   with its share of the pass, and 24 to 36 µs a tick at 4,000 sends. A listener on the counters adds about 2 ns in the
@@ -1775,6 +1780,25 @@ two. That first decode used to be the first packet any client sent: a server's f
 it. It is startup time now, once, off the tick and before the port opens. What a server sends is built at startup as
 well since #883 ([the network path](#results--the-network-path-883-2026-10-13)).
 
+### Results — the opened payload is cleared (#883, 2026-10-13)
+
+`PacketReader.Read` opens a sealed payload into an array rented from the shared pool, and now clears what the open
+wrote before the array goes back: on the auth server that is a login or a registration, and the pool hands the array
+to whoever rents next. Nothing that rents reads before it writes, so it is a second line. Only the opened length is
+cleared (the frame's length when the open failed), at most `Hosting:MaxInboundFrameSize` and tens of bytes for most
+packets. `--job short`, four runs before (`c897e211`) and four after, taking turns, each run's mean, lowest first:
+
+| Method | Before | After | Allocated, both |
+|---|---:|---:|---:|
+| `Fixed_DecryptAndRead` | 139.8 / 142.3 / 145.7 / 158.2 ns | 136.7 / 137.1 / 146.9 / 156.8 ns | 80 B |
+| `Session_MethodGroupPerPacket` | 373.3 / 377.9 / 419.3 / 439.8 ns | 376.4 / 378.9 / 381.0 / 441.8 ns | 144 B |
+| `Session_CachedDelegate` | 359.6 / 361.9 / 368.0 / 552.9 ns | 363.8 / 375.1 / 400.7 / 411.7 ns | 80 B |
+
+The high figure or two in each cell is a run another build disturbed (its standard deviation 18 to 45 ns, against 1
+to 4 ns in the others). Between the fastest runs the sealed rows differ by 3 and 4 ns, about 1%, which is inside the
+spread of the undisturbed runs; the clear of a chat message's 30-odd bytes is too small to tell from it. Nothing more
+is allocated. `PacketReaderShould` holds the clear, for a payload that decodes and one that does not.
+
 ---
 
 ## Context Factory Delegate GC-010 — Benchmark Results
@@ -2503,33 +2527,67 @@ character's delete and on `/ignore`.
 asked to hold is what `Network:MaxPendingBytes` lets a connection queue, 512 KiB of payload, and a frame adds 10 to 16
 bytes to its payload, and a seal 28 more: for movement acknowledgements of 19 B that is up to 1 MiB of buffer with the
 world sending plain and 2 MiB with it sealing. One connection whose peer stops reading until it holds just under the
-cap, catches up, and does so again; the two buffers' sizes, in bytes:
+cap, catches up, and does so again ten seconds later, under a clock the probe moves; the two buffers' sizes, in bytes:
 
 | | Plain, before | Plain, after | Sealed, before | Sealed, after |
 |---|---:|---:|---:|---:|
 | A new connection | 1,024 | 1,024 | 1,024 | 1,024 |
 | First stall, the peer not reading | 1,049,088 | 1,049,088 | 2,097,664 | 2,097,664 |
-| Caught up, two ticks of play later | 1,049,088 | 1,024 | 2,097,664 | 1,024 |
-| Second stall, the peer not reading | 2,097,152 | 1,049,088 | 4,194,304 | 2,097,664 |
-| Caught up, and for the rest of its life | 2,097,152 | 1,024 | 4,194,304 | 1,024 |
+| Caught up, and ten seconds of play later | 1,049,088 | 1,049,088 | 2,097,664 | 2,097,664 |
+| Second stall, the peer not reading | 2,097,152 | 2,097,152 | 4,194,304 | 4,194,304 |
+| 32 s after the first stall | 2,097,152 | 1,049,088 | 4,194,304 | 2,097,664 |
+| 32 s after that, and for the rest of its life | 2,097,152 | 1,024 | 4,194,304 | 1,024 |
 
 - **The worst case was 2 MiB a connection plain and 4 MiB sealed**, for the connection's life, in arrays on the large
   object heap: a stall grows the buffer framed ahead into, and a later stall the other. After a network blip that
   stalls a thousand connections for a few seconds, short of the kicks, that is up to 2 to 4 GiB kept. With
   `MaxPendingBytes` raised it grows with it (the setting goes to 64 MiB).
-- **A buffer above 64 KiB is now given back** (`ConnectionSender.BurstTrimThreshold`) once nothing is framed ahead, no
-  write is in flight and its last burst filled at most a quarter of it: the buffer framed ahead into at the first
-  burst after the connection has caught up, the other at the second. A connection whose bursts go on filling more than
-  a quarter of a large buffer keeps it, so it does not give back and grow a buffer on every pass. During a stall a
-  connection still holds what it frames ahead: the cap is what bounds that.
-- **It costs two compares per burst**, on the send thread, for a connection whose buffers are small: nothing per
-  packet, and nothing on the tick. The rows below did not move.
-- **Given back means to the array pool**, which keeps an array for the next connection that stalls and trims what
-  nobody rents again on later full collections. So the memory is no longer held by a connection that has caught up;
-  the process's size falls only once the pool trims. Not measured: the process's size over time after a blip.
-- `ConnectionSenderShould` holds it: two stalls grow both buffers, the second while the first is still being written,
-  and both are given back; every packet carries its number and all arrive once and in order, read as each write ends,
-  which fails when a buffer is given back while a write still reads it.
+- **A buffer above 64 KiB is now given back once the connection has outgrown it for 30 s**
+  (`ConnectionSender.BurstTrimThreshold`, `BurstTrimDelay`). A watch begins at the first visit that finds a buffer
+  that large with nothing framed ahead and no write in flight; the first such visit 30 s or more later gives back
+  each large buffer that no burst written during the watch filled more than a quarter of, and begins another watch if
+  a large buffer is left. In the table the buffer the first stall grew goes at the end of the first watch, and the
+  one the second stall grew, which was filled inside that watch, at the end of the next. During a stall a connection
+  still holds what it frames ahead: the cap is what bounds that.
+- **Why a delay, and why 30 s.** A peer decides when its connection stalls and when it catches up. A first version of
+  this change gave a buffer back at the first visit that found it idle, and its review measured what a peer could
+  make of that: every stall rented the whole growth again, about 2 MiB plain, and past what the array pool keeps of a
+  size (below) each cycle allocated it anew, 141 to 268 MiB a cycle for 200 connections cycling together, with
+  gen2 collections, where the code before #883 allocated nothing after the first stall. With the delay a connection
+  gives back at most its two buffers once in 30 s, whatever its peer does, and one that stalls again inside the
+  delay finds its buffers there: each of the two is grown once, and stalls that close together rent nothing after
+  that. 30 s is
+  three times `Network:MaxWriteStall`'s default, the longest a stalled write is let live, and three ping periods, so
+  a connection that is sent nothing else is still visited inside it.
+- **What a buffer was used for is the largest burst written from it during the watch**, counted where each write
+  starts, not what it holds when it is looked at. The first version read the writer's length, which is zero whenever
+  a write went pending and ended with nothing queued, so a connection whose writes pend (which its peer decides) lost
+  a buffer its bursts filled: 60 packets of 4 KiB a burst, each write pending until it is read, one burst a second
+  for 70 s, rented 6 arrays and 516,096 B on every burst, and 5 arrays and 253,952 B with bursts of 18 packets. Now
+  both rent nothing from the third burst on, across both delays, and hold two buffers of 256 KiB and of 128 KiB.
+- **It costs three compares per burst**, on the send thread, for a connection whose buffers are small: two where the
+  buffers are swapped and one of the burst's length as its write starts. Nothing per packet, nothing on the tick,
+  and no clock: the clock is read only while a buffer is above the threshold. The rows below did not move.
+- **Given back means to the array pool, and the process does not shrink at once.** `ArrayPool<byte>.Shared` keeps
+  arrays of 1 and 2 MiB rather than dropping them, more of a size the more processors there are (the review measured
+  65 at 2 processors and 129 at 4), and lets go of them only on gen2 collections, and not all at once. The review's
+  figures: 1,000 arrays of 1 MiB returned at 24 processors were all still pooled after 60 s of forced gen2
+  collections, and 684 were left at 132 s; at 4 processors, of 1,000 arrays of 2 MiB, 135 were pooled and 865 freed
+  at the first gen2. So the change bounds what one connection pins, and a pooled array
+  serves the next connection that stalls; it does not promise that the process's size falls when a blip ends.
+- **A buffer goes back to the pool as it is**, here and when a writer grows or is disposed: it may hold what a
+  connection was sent, framed, and in plain text when the world does not seal. Clearing it would be a write of up to
+  2 MiB on a send thread at a moment a peer can choose, so the rule is the renter's and is written where the writer
+  returns its array (`PooledArrayBufferWriter.Trim`): whatever rents from the shared pool writes before it reads or
+  sends.
+- **Not reached, as before #883**: a peer that reads just slowly enough that its connection always has a burst
+  framed ahead keeps both buffers, since they are never both idle.
+- `ConnectionSenderShould` holds it in one case: two buffers grown by a stall, the second while the first is still
+  being written; a second stall inside the delay with nothing given back in between; both kept at the delay's end
+  because they were filled within it; both given back after a delay of small bursts. Every packet carries its number
+  and all arrive once and in order, read as each write ends, which fails when a buffer is given back while a write
+  still reads it. It fails with no delay, with the writer's length in place of the largest burst, and with no
+  give-back.
 
 **Serializers at startup (row 24, the send half).** protobuf-net builds a type's serializer on its first use and the
 runtime compiles it as it first runs, so the first packet of each type a server sent paid for it, on a world's tick.
@@ -2564,8 +2622,15 @@ member set, after the server's own startup calls, five runs before and six after
   builds it first. The order does not decide anything: a type built and used at the default depth, 512, refuses a
   message 40 deep, written or read, once the limit is set to 32, and takes one 20 deep.
 - **What a thread still makes for its first packet of a type** is its own scratch message, one object.
-- `PacketEncoderPrepareShould`: a prepared type's first packet allocates 0 B, against 362,584 B when nothing was
-  built for it and 102,832 B when only a new message was written.
+- `PacketEncoderPrepareShould`: a prepared type's first packet allocates 0 B, against 274,248 to 371,896 B when
+  nothing was built for it and 74,952 to 130,160 B when only a new message was written. It measures the first
+  packets of three types of one shape and takes the fewest bytes: a first send happens once, and one window alone
+  read 24,648 B in about one run in thirty of its project, something the runtime allocates once in a process on
+  whichever thread first needs it (not identified). 100 of 100 runs of the project pass since.
+- **What stops a start** is any packet the preparation cannot write in full, named: a contract protobuf-net cannot
+  build, a member of a shape it has no value for, a message it cannot create, a setter that refuses the value, and a
+  message that declares subtypes (`[ProtoInclude]`), which would be written as the base alone and have each subtype
+  built by a first send (0.75 ms and 232 B in the review's probe). No shipped contract has any of them.
 
 **What did not move.** The suites that time these paths, `--job short`, three runs before and three after, taking
 turns, as the range of the runs' means. The machine was loaded and more so during the runs of the unchanged side:
@@ -2591,7 +2656,8 @@ read the rows as showing that nothing rose, not that anything fell. The allocati
 | `TimeSyncBenchmarks`, `SurplusPong` | 20.9 to 23.7 ns | 17.6 to 22.3 ns | 0 B |
 
 The `outbox-flush` harness, 1,000 connections × 4 movement acknowledgements a tick, 900 ticks, 8 send threads, over
-real send threads, the same runs taking turns:
+real send threads, the same runs taking turns. Before is `808eec90` and after the first version of the change, which
+gave a buffer back at once:
 
 | | Before | After |
 |---|---:|---:|
@@ -2603,8 +2669,13 @@ real send threads, the same runs taking turns:
 | `slow-tls`, seal off: send threads, µs a connection (7 runs) | 27.5 to 29.3 | 25.9 to 29.6 |
 | `slow-tls`: runs in which the tick allocated nothing | 2 of 7 | 5 of 7 |
 
+The same harness on a quiet machine, the first version (`c897e211`) against the delay, three runs a side taking turns:
+`memory`, seal off, enqueue 751 to 783 µs a tick before and 745 to 748 after, send threads 0.42 to 0.44 µs a
+connection before and 0.40 to 0.41 after; seal on, enqueue 726 to 771 and 754 to 805, send threads 1.74 to 1.76 and
+1.74. The tick allocated 0 B in all twelve runs.
+
 In `slow-tls` one connection in twenty stops reading for three seconds, so fifty connections grow a buffer, catch up
-and, after the change, give it back. The tick allocated in some runs of both sides, `memory` ones among them, in a
+and, in the first version of the change, give it back at once (with the delay they keep it for 30 s more). The tick allocated in some runs of both sides, `memory` ones among them, in a
 few ticks of a run, and always by payload segments rented new, up to a whole tick's worth (544,000 B is 4,000 segments
 of 136 B). That is what a send pass that comes late on a loaded machine looks like: the tick rents segments the pool
 does not have yet, the growth at a new peak recorded under

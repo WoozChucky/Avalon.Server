@@ -341,7 +341,7 @@ in it, so a fix will turn that test red rather than pass unnoticed.
   `HandleOn` of as it starts, and encodes every server packet once (#883), so a contract protobuf-net cannot build
   stops that server from starting (#897). A server packet with a member of a shape no packet has yet (anything but a
   scalar, a string, bytes, an enum, a date, a `Guid`, a message, or a `List<>` or array of those) stops it as well,
-  until `SampleMessage` is taught the shape. The
+  until `SampleMessage` is taught the shape; so does a message that declares subtypes (`[ProtoInclude]`). The
   attribute's `Type`
   repeats the opcode; no server code reads it (the host graph tests do). After any contract change, re-export the wire
   schema (`tools/Avalon.Exporter -- proto`, `opcodes`, `corpus`).
