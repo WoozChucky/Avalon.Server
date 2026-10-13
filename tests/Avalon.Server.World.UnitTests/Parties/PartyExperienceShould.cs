@@ -27,8 +27,13 @@ public class PartyExperienceShould
     [InlineData(100u, (ushort)18, PartyExperienceMode.Even, (ushort)20, new ushort[] { 10, 20, 12 }, new uint[] { 55, 55 })] // 100 x 1.1 / 2
     [InlineData(100u, (ushort)18, PartyExperienceMode.LevelWeighted, (ushort)20, new ushort[] { 10, 20, 12 }, new uint[] { 50, 60 })] // 110 x L / 22
     public void Share_the_experience_among_the_members_who_count(uint experience, ushort creatureLevel,
-        PartyExperienceMode mode, ushort? maxLevel, ushort[] levels, uint[] expected) =>
-        Assert.Equal(expected, PartyExperience.Split(experience, creatureLevel, levels.Select(At).ToList(), mode,
-                bonusPerExtra: 0.10f, levelGap: 5, canGainExperience: maxLevel is { } max ? member => member.Level < max : null)
-            .Select(s => s.Experience));
+        PartyExperienceMode mode, ushort? maxLevel, ushort[] levels, uint[] expected)
+    {
+        var shares = new List<ExperienceShare>();
+
+        PartyExperience.Fill(shares, experience, creatureLevel, levels.Select(At).ToList(), mode,
+            bonusPerExtra: 0.10f, levelGap: 5, canGainExperience: maxLevel is { } max ? member => member.Level < max : null);
+
+        Assert.Equal(expected, shares.Select(s => s.Experience));
+    }
 }

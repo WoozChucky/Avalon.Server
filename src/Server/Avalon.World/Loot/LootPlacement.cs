@@ -21,37 +21,12 @@ public static class LootPlacement
     public const float RingRadius = 1f;
 
     /// <summary>
-    /// Drop <c>i</c> of <c>n</c> at angle 2*pi*i/n on the ring, pulled back to the last walkable point
-    /// between the corpse and there, then snapped to the navmesh with the corpse's height as the
-    /// search centre: the same snap authored creature spawns get.
-    /// </summary>
-    public static IReadOnlyList<GroundLoot> Place(
-        Vector3 corpse,
-        IReadOnlyList<RolledDrop> rolled,
-        LootAllocation allocation,
-        IMapNavigator navigator,
-        Func<uint> nextId) =>
-        Place(corpse, rolled, _ => allocation, navigator, nextId);
-
-    /// <summary>
-    /// The same placement, with each drop's owner and free-for-all time asked of <paramref name="allocationFor" />
-    /// by the drop's index, once per drop and in order: a party kill reserves each drop for its own member.
-    /// </summary>
-    public static IReadOnlyList<GroundLoot> Place(
-        Vector3 corpse,
-        IReadOnlyList<RolledDrop> rolled,
-        Func<int, LootAllocation> allocationFor,
-        IMapNavigator navigator,
-        Func<uint> nextId)
-    {
-        var placed = new List<GroundLoot>(rolled.Count);
-        Place(placed, corpse, rolled, new ByDelegate(allocationFor), navigator, nextId);
-        return placed;
-    }
-
-    /// <summary>
-    /// The same placement added to <paramref name="placed" />, a list the caller keeps, with the allocations asked of
-    /// a struct: what a kill uses, so that it allocates only the drops themselves (#890).
+    /// Adds the placed drops to <paramref name="placed" />, an empty list the caller keeps, so that a kill allocates
+    /// only the drops themselves (#890). Drop <c>i</c> of <c>n</c> goes at angle 2*pi*i/n on the ring, pulled back to
+    /// the last walkable point between the corpse and there, then snapped to the navmesh with the corpse's height as
+    /// the search centre: the same snap authored creature spawns get. Each drop's owner and free-for-all time are
+    /// asked of <paramref name="allocations" /> by the drop's index, once per drop and in order: a party kill reserves
+    /// each drop for its own member.
     /// </summary>
     public static void Place<TAllocations>(
         List<GroundLoot> placed,
@@ -89,10 +64,5 @@ public static class LootPlacement
                 FreeForAllAt = allocation.FreeForAllAt,
             });
         }
-    }
-
-    private readonly struct ByDelegate(Func<int, LootAllocation> allocationFor) : IDropAllocations
-    {
-        public LootAllocation For(int index) => allocationFor(index);
     }
 }

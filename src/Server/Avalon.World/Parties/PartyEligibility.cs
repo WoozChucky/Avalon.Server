@@ -14,20 +14,11 @@ namespace Avalon.World.Parties;
 /// </summary>
 public static class PartyEligibility
 {
-    /// <summary>The eligible members in a list of its own, in the party's join order: for a caller off the kill path.</summary>
-    public static IReadOnlyList<ICharacter> For(ICharacter? killer, Party? party,
-        IReadOnlyDictionary<ObjectGuid, ICharacter> present, Func<uint, bool> inCountdown, IEncounter? encounter,
-        Vector3 corpse, float range)
-    {
-        var eligible = new List<ICharacter>();
-        Fill(eligible, killer, party, present, inCountdown, encounter, corpse, range, new ObjectGuid());
-        return eligible;
-    }
-
     /// <summary>
-    /// The same answer added to <paramref name="eligible" />, a list the caller keeps: a kill allocates nothing here
-    /// (#890). <paramref name="memberKey" /> is a guid the caller keeps for this alone; it is set to each member in
-    /// turn to look it up in <paramref name="present" />, where a new guid per member was an object per member per kill.
+    /// Adds the eligible members to <paramref name="eligible" />, an empty list the caller keeps, in the party's join
+    /// order: a kill allocates nothing here (#890). <paramref name="memberKey" /> is a guid the caller keeps for this
+    /// alone; it is set to each member in turn to look it up in <paramref name="present" />, where a new guid per
+    /// member was an object per member per kill.
     /// </summary>
     public static void Fill(List<ICharacter> eligible, ICharacter? killer, Party? party,
         IReadOnlyDictionary<ObjectGuid, ICharacter> present, Func<uint, bool> inCountdown, IEncounter? encounter,

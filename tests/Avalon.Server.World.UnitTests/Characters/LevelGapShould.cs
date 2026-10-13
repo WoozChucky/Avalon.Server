@@ -101,7 +101,8 @@ public class LevelGapShould
         ICharacter belowGap = Character(3, 0);
         ICharacter other = Character(2, 0);
 
-        IReadOnlyList<ExperienceShare> shares = PartyExperience.Split(100, creatureLevel: 3, [belowGap, other],
+        var shares = new List<ExperienceShare>();
+        PartyExperience.Fill(shares, 100, creatureLevel: 3, [belowGap, other],
             PartyExperienceMode.Even, bonusPerExtra: 0.10f, levelGap: 5,
             canGainExperience: member => ExperienceAward.CanGainExperience(member, data));
 

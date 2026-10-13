@@ -16,19 +16,10 @@ public readonly record struct ExperienceShare(ICharacter Member, uint Experience
 /// </summary>
 public static class PartyExperience
 {
-    /// <summary>The shares in a list of its own, in the order of <paramref name="eligible" />: for a caller off the kill path.</summary>
-    public static IReadOnlyList<ExperienceShare> Split(uint experience, ushort creatureLevel,
-        IReadOnlyList<ICharacter> eligible, PartyExperienceMode mode, float bonusPerExtra, int levelGap,
-        Func<ICharacter, bool>? canGainExperience = null)
-    {
-        var shares = new List<ExperienceShare>();
-        Fill(shares, experience, creatureLevel, eligible, mode, bonusPerExtra, levelGap, canGainExperience);
-        return shares;
-    }
-
     /// <summary>
-    /// The same shares added to <paramref name="shares" />, an empty list the caller keeps: a kill allocates nothing
-    /// here (#890). The members that count go in first, with nothing, and each is then given its share in place.
+    /// Adds the shares to <paramref name="shares" />, an empty list the caller keeps, in the order of
+    /// <paramref name="eligible" />: a kill allocates nothing here (#890). The members that count go in first, with
+    /// nothing, and each is then given its share in place.
     /// </summary>
     public static void Fill(List<ExperienceShare> shares, uint experience, ushort creatureLevel,
         IReadOnlyList<ICharacter> eligible, PartyExperienceMode mode, float bonusPerExtra, int levelGap,

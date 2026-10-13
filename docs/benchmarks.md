@@ -2816,8 +2816,12 @@ steps of `DropLoot`, every one of which read the same in both builds, which left
   and instances may come to tick on separate threads (#639). They are emptied in a `finally` when the kill returns, so
   they keep no character or drop alive, and nothing a kill hands them to keeps them (the quest service and the loot
   allocator read the eligible members during the call). A kill reached from inside another's handling, which nothing
-  does today, takes lists of its own. `PartyEligibility.For` and `PartyExperience.Split` stay as they were, each over
-  the same code and answering in a list of its own.
+  does today, takes lists of its own. Each fill asserts (`Debug.Assert`) that the list it is handed is empty, and two
+  tests kill twice in one instance (`PartyKillShould.Share_each_kill_among_its_own_members_only`,
+  `MapInstanceLootShould.Tell_the_instance_of_each_kills_own_drops_only`): with any one of the five lists left
+  uncleared, at least one test of the kill fails on its outcome. `PartyEligibility.For`, `PartyExperience.Split` and
+  the overloads of `LootPlacement.Place` that answered in a list of their own are gone; their rule tests go through
+  the fills.
 - **Who is eligible, each share and each drop are unchanged.** The members are walked in join order, the shares
   computed with the same decimal arithmetic in the same order, and a drop's position, its allocation (one draw of
   the combat random per table drop in a party instance) and its id are taken in the order they were. The drops are
