@@ -276,35 +276,56 @@ public class SMapTransitionPacket : Packet
 
 ### `EnterMapHandler` Flow
 
+The numbers are those of the handler's own step comments (`src/Server/Avalon.World/Handlers/EnterMapHandler.cs`), so
+"step 10" means the same thing here and there. The handler has no step 5. Steps 1 to 8 run as the packet is handled, up
+to the request for the target instance; the arrival checks listed under step 8 and steps 8b to 13 run in the connection
+continuation, once that instance is ready. A refusal is an `SMapTransitionPacket` whose `Result` is the
+`MapTransitionResult` named and whose other fields are empty (`SMapTransitionPacket.CreateFailure`).
+
 ```
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 
-1.  Guard: connection.InGame — else ignore; a dead character — ignore
+1.  Guards: not connection.InGame → ignored, no reply; a dead character → ignored, no reply
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
        a respawn or a party return) → send MoveInProgress, return, before anything is looked up
-2.  Resolve current instance from InstanceRegistry (must be a MapInstance)
-3.  Load MapTemplate for packet.TargetMapId
-4.  Look up matching PortalInstance on mi.Portals where TargetMapId == packet.TargetMapId
+2.  Resolve the current instance: InstanceRegistry.GetInstanceById(character.InstanceId)
+3.  Load the MapTemplate for packet.TargetMapId from world.MapTemplates
+       → none: send MapNotFound, return
+4.  Find the portal. The current instance must be a live MapInstance
+       → not one: send MapNotFound, return
+    Look up the PortalInstance on mi.Portals where TargetMapId == packet.TargetMapId
        (portals are surfaced from ChunkLayout.Portals at instance build time —
         single source of truth, no DB fallback)
-5.  No portal → send MapNotFound, return
+       → no portal: send MapNotFound, return
 6.  Proximity check: Vector3.Distance(character.Position, portal.Position) <= portal.Radius
        → too far: send NotNearPortal, return
-7.  Level check → send LevelTooLow / LevelTooHigh if out of range
-8.  Resolve target instance:
-       Town   → GetOrCreateTownInstanceAsync(targetMapId, maxPlayers)
-       Normal → in a party: GetOrCreatePartyInstanceAsync(partyId, targetMapId), then re-check the
+7.  Level checks against the template's MinLevel and MaxLevel, each only when set
+       → send LevelTooLow / LevelTooHigh, return
+8.  Resolve the target instance (built off the tick when there is none to reuse):
+       Town   → GetOrCreateTownInstanceAsync(templateId, MaxPlayers ?? 30)
+       Normal → in a party: GetOrCreatePartyInstanceAsync(partyId, templateId), then re-check the
                 party (MapNotFound) and the seats (InstanceFull) once it is built;
-                otherwise GetOrCreateNormalInstanceAsync(characterId, targetMapId)
-       The arrival continuation first checks the instance is still registered; one released
-       meanwhile is resolved again once (see Expiry Cleanup)
+                otherwise GetOrCreateNormalInstanceAsync(characterId, templateId)
+       The arrival continuation first checks the character is still the connection's (a select
+       on another connection can take it meanwhile: nothing is done, no reply), then that the
+       instance is still registered; one released meanwhile is resolved again once (see Expiry
+       Cleanup), and a second release in a row → send MapNotFound, return
+8b. Exit path: drop the character from any encounter in progress on the source instance
+       (CombatService.DropPlayerFromEncounter); the transfer moves instance membership only
 9.  world.TransferPlayer(connection, targetInstance):
        a. currentInstance.RemoveCharacter(connection)
        b. character.InstanceId = targetInstance.InstanceId
-       c. targetInstance.AddCharacter(connection) — also resets connection.LastInputSeq = 0
-10. Send SMapTransitionPacket(Success, instanceId, spawnPosition, ...) followed by
-    SChunkLayoutPacket for the new instance
-11. Save the character (ICharacterSaver.Save: the row's map, instance and position)
+       c. targetInstance.AddCharacter(connection) — connection.LastInputSeq is not reset: it
+          stays monotonic for the connection's life
+    It also ends an open NPC conversation and a bank or shop opened in it, before (a)
+10. Resolve the spawn: the target MapInstance's EntrySpawnWorldPos (its layout's entry spawn);
+       the template's DefaultSpawnX/Y/Z only for a target that is not a MapInstance
+11. Send SMapTransitionPacket(Success, instanceId, mapId, spawn, map name and description)
+12. Send SChunkLayoutPacket for the new instance (seed, cell size, chunks, entry spawn, portals)
+       when the target is a MapInstance, in the same continuation as 9 and 11: the instance
+       sends its loot snapshot on its next tick, and the client has to know the map first
+13. Save the character (ICharacterSaver.Save: the row's map, instance and the spawn of step 10
+       as its position, with any dirty inventory and money)
 ```
 
 ---
@@ -340,7 +361,7 @@ The instance is **not** freed on logout — its `LastEmptyAt` timer governs clea
 | Field | Description |
 |---|---|
 | `MapType MapType` | `Town` or `Normal` |
-| `float DefaultSpawnX/Y/Z` | Where players appear when entering this map |
+| `float DefaultSpawnX/Y/Z` | The position saved on the row when a logout moves the character to this town (above). An arrival appears at the entry spawn of the instance's layout instead; these serve an arrival only when its target is not a `MapInstance` (step 10) |
 | `MapTemplateId? LogoutMapId` | Normal maps point to their home town; null for towns |
 
 Portals come from `ChunkLayout.Portals` populated at instance build time. See [Map Generation](map-generation.md) for the per-placement routing config.
