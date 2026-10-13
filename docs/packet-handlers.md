@@ -4,10 +4,10 @@ How a packet reaches its handler, the session filters that gate it, the rule for
 
 ## Packet Protocol
 
-All client↔server communication is custom TCP, inside TLS, with Protobuf-net. Every packet wraps a `NetworkPacket` (header + payload). The header carries `NetworkPacketType` (opcode), `NetworkPacketFlags` (encryption/compression bitmask), `NetworkProtocol` (channel grouping), and `Version`.
+All client↔server communication is custom TCP, inside TLS, with Protobuf-net. Every packet wraps a `NetworkPacket` (header + payload). The header carries `NetworkPacketType` (opcode), `NetworkPacketFlags` (of which only `Encrypted` is read: the payload is sealed), `NetworkProtocol` (always `Tcp`, read by nothing), and `Version` (always 0, read by nothing).
 
 **Adding a packet handler:**
-1. Define the packet contract in `Avalon.Network.Packets` with a `NetworkPacketType` enum value.
+1. Define the packet contract in `Avalon.Network.Packets`, deriving from `Packet`, with a new `NetworkPacketType` enum value in a `public static NetworkPacketType PacketType` field (what identifies the packet) and `[Packet(HandleOn = ComponentType.Auth)]` or `ComponentType.World` for the server that receives it (what gives that server a decoder for it).
 2. For Auth: implement `IAuthPacketHandler<TPacket>` in `Avalon.Server.Auth/Handlers/`.
 3. For World, the connection layer (admission and the version handshake, before any gameplay): implement the generic `IWorldPacketHandler<TPacket>` (`Avalon.World/WorldPacketHandler.cs`) in `Avalon.Server.World/Handlers/`, as `GameAdmissionHandler` and `WorldHandshakeHandler` do.
 4. For World, the game layer (everything a character does): implement `WorldPacketHandler<TPacket>` in `Avalon.World/Handlers/`, decorated with `[PacketHandler(NetworkPacketType.X)]`, and give the opcode a session filter entry (below).
