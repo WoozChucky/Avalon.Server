@@ -216,6 +216,43 @@ allocates it the first time it holds more than eight active scripts, sized for i
 only when its peak outgrows it (a peak that creeps from 9 to 72 grows it nine times, about 11 KB in all, once per
 instance). One party's fight seldom gets there: in `forest-combat` one forest does, once in the measured minute.
 
+### Reference row lookup — `Benchmarks/ReferenceRowLookupBenchmarks.cs` (#883)
+
+What a kill looks up in the reference data: the item template of each drop (`LootRoller.FindItem`), and a level's
+experience row (`ExperienceAward.Requirement`: twice for each member the experience is split among, twice more for
+each award). `Walk` is the lookup as it was, a walk of the rows comparing keys; `Keyed` is `KeyedRows.Find`
+(`Avalon.World/Reload`), the lookup the Items and Progression areas publish their rows with since #883
+([the kill path](#results--the-kill-path-890-883-2026-10-13)). One invocation looks every row up once, so the mean
+is for `Rows` lookups, one at each position of the list.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ReferenceRowLookup*"
+```
+
+Measured 2026-10-13, a short run (`-j short`: three iterations), Windows 11, i9-12900K, runtime 10.0.12, while
+other work loaded the machine, so the errors are wide (up to the mean itself in the walked rows); the ratios are not
+in doubt. The seed holds 31 item templates.
+
+| Method | Rows | Mean | Per lookup | Allocated |
+|---|---:|---:|---:|---:|
+| `Walk_item_templates` | 8 | 117.2 ns | 14.6 ns | 0 B |
+| `Keyed_item_templates` | 8 | 29.6 ns | 3.7 ns | 0 B |
+| `Walk_level_rows` | 8 | 51.6 ns | 6.4 ns | 0 B |
+| `Keyed_level_rows` | 8 | 18.2 ns | 2.3 ns | 0 B |
+| `Walk_item_templates` | 32 | 1,657 ns | 51.8 ns | 0 B |
+| `Keyed_item_templates` | 32 | 78.5 ns | 2.5 ns | 0 B |
+| `Walk_level_rows` | 32 | 724.3 ns | 22.6 ns | 0 B |
+| `Keyed_level_rows` | 32 | 82.3 ns | 2.6 ns | 0 B |
+| `Walk_item_templates` | 128 | 18,693 ns | 146.0 ns | 0 B |
+| `Keyed_item_templates` | 128 | 309.3 ns | 2.4 ns | 0 B |
+| `Walk_level_rows` | 128 | 8,671 ns | 67.7 ns | 0 B |
+| `Keyed_level_rows` | 128 | 249.7 ns | 2.0 ns | 0 B |
+
+A walked item template costs about 3 ns a row passed (each comparison of two ids goes through the value object's
+equality), so about 50 ns a drop over the seed's 31 templates and more with every template added; keyed, about
+2.5 ns whatever the count. The map template's lookup is not benchmarked: it is a field read where it was a walk of
+the world's map templates, two today.
+
 ### Time sync — `Benchmarks/TimeSyncBenchmarks.cs` (#892)
 
 The ping and pong exchange on an admitted `WorldConnection` with its real `ConnectionSender` and `PongHandler`
@@ -2416,9 +2453,12 @@ caller runs that code, so the figure reads the same twice in one process, and di
 whole suite run, where other tests call first. In a Debug build only library code is optimised, so there it takes code
 the whole process shares (a LINQ query's generic body, #890). In Release every World method is compiled that way too,
 and the same holds for any of them wherever an interface call has more than one concrete type behind it: four of the
-five rows of [what Release keeps off the heap](#results--the-melee-slots-release-890-2026-10-12) rest on the profile,
-273 B per window, more than the 256 B floor if all of them turned. To find one, diff the per-tick bytes of the gate
-alone and of the suite run.
+five rows of [what Release keeps off the heap](#results--the-melee-slots-release-890-2026-10-12) rested on the
+profile, 273 B per window between them, more than the 256 B floor had all of them turned. All five are gone, taken
+out at the source ([the kill path](#results--the-kill-path-890-883-2026-10-13)): Release reads the same figure with
+dynamic PGO on and with `DOTNET_TieredPGO=0`, and a Debug build reads it too. To find a new one, diff the per-tick
+bytes of the gate alone and of the suite run, and read the Release gate with `DOTNET_TieredPGO=0`: a figure above
+the committed one there is an allocation that only the profile keeps off the heap.
 
 ### Running it and reading the table
 
@@ -2454,23 +2494,24 @@ Release and reported in Debug (#890):
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
-  since server packets are built in per-thread messages; the file was last regenerated at `8ee75204`, for `forest-combat`), so the 256 B
+  since server packets are built in per-thread messages; the file was last regenerated at `30217003`, for `forest-combat`), so the 256 B
   floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
   per window).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the one figure above 0 (11,543 B per window since #925 took most of a cast's script build off
-  the heap), and at that size the 256 B floor decides for it too (1% is 115 B): it fails above 11,799 B, a little over
-  4 B per tick for the whole fight, so one 24 B object every five ticks fails it. It reads the same in the gate alone
-  and in a whole World suite run ([the cast path](#results--the-cast-path-925-883-2026-10-13)). Its Debug run reads
-  237 B per window above the committed figure (11,780 B, alone and in the suite: objects on the kill path and in the
-  creature scripts that only optimised code keeps off the heap), 19 B less than the floor allows: within the gate,
-  by less than one small object a minute. Until #883 took the closure out of `CancelScriptsOf` it read 305 B above,
-  49 B more than the floor allows, and crossed it with no change.
-  The escape hatch below applies to it alone (owner, #890): `forest-combat` is decided in Release (CI) and reported,
-  not gated, in Debug.
+  `forest-combat` is the one figure above 0 (10,396 B per window since #890 and #883 took a kill's lists, closures
+  and delegates off the heap), and at that size the 256 B floor decides for it too (1% is 104 B): it fails above
+  10,652 B, a little over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. It reads the
+  same in the gate alone and in a whole World suite run. Its Debug run reads the committed figure too, 10,396 B, and
+  so does a Release run with dynamic PGO off ([the kill path](#results--the-kill-path-890-883-2026-10-13)): nothing
+  on the fight's path is kept off the heap only by optimised code any more. Before that a Debug build read 237 B per
+  window above the committed 11,543 B (objects on the kill path and in the creature scripts), 19 B less than the
+  floor allows, and 305 B above, 49 B more than it allows, until #883 took the closure out of `CancelScriptsOf`.
+  The escape hatch below still applies to it alone (owner, #890): `forest-combat` is decided in Release (CI) and
+  reported, not gated, in Debug. Whether it is gated in Debug again is the owner's decision; the figures no longer
+  stand in its way.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
   CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
@@ -2617,21 +2658,25 @@ no character reaches level 2. `ForestCombatScenarioShould` runs the scenario twi
 same kills and the same bytes per window; the second run's creatures carry higher ids (the process-wide object id
 counter), which changes neither.
 
-**Gate.** Committed at **11,543 B per window** (16.0 B per player per tick, 192 B per tick), a hard gate like the town
+**Gate.** Committed at **10,396 B per window** (14.4 B per player per tick, 173 B per tick), a hard gate like the town
 scenarios: see [The allocation gate](#the-allocation-gate) for the floor. Recorded on the developer machine, Release,
 dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)), #888
 took the send path off the tick thread's bill, #875 encoded each broadcast once
 ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)), #890 took the query out of the melee slots'
-release ([the melee slots' release](#results--the-melee-slots-release-890-2026-10-12)), and #925 and #883 took most
+release ([the melee slots' release](#results--the-melee-slots-release-890-2026-10-12)), #925 and #883 took most
 of a cast's script build, and its log lines, off the heap
-([the cast path](#results--the-cast-path-925-883-2026-10-13)). The same figure every run: at
+([the cast path](#results--the-cast-path-925-883-2026-10-13)), and #890 and #883 took a kill's lists, closures and
+delegates with them ([the kill path](#results--the-kill-path-890-883-2026-10-13)). The same figure every run: at
 16,252, five two-run checks in Release on the developer machine, and the gate and the check in a Linux container
 (4 CPUs, 16 GB); at 16,244, three runner runs, the run that wrote it and the Release gate on the developer machine; at
 15,635, two runner runs, the second the one that wrote it, three runs of the Release gate alone and three of the whole
 World suite in Release, the two-run check in each of those, all on the developer machine; at 11,543, two runner
 runs, the second the one that wrote it, three runs of the Release gate alone and one of the whole World suite in
-Release, on the developer machine. No Linux run was made at 15,635 or at 11,543: CI decides on Linux, and its figure
-is to be read from the first CI run's "Scenario allocation gate" summary.
+Release, on the developer machine; at 10,396, two runner runs, the second the one that wrote it, four runs of the
+Release gate alone, four of the Debug gate alone, three of the Release gate with dynamic PGO off, and one of the
+whole World suite in each of Release and Debug, on the developer machine. No Linux run was made at 15,635, at 11,543
+or at 10,396: CI decides on Linux, and its figure is to be read from the first CI run's "Scenario allocation gate"
+summary.
 
 | `forest-combat`, bytes per window | |
 |---|---:|
@@ -2640,15 +2685,17 @@ is to be read from the first CI run's "Scenario allocation gate" summary.
 | After #888's outbound packets (PGO on) | 16,252 |
 | After shared broadcasts (#875, PGO on) | 16,244 |
 | After the melee slots' release (#890, PGO on) | 15,635 |
-| After the cast path (#925, #883, PGO on), now | 11,543 |
-| Debug, now | 11,780 |
+| After the cast path (#925, #883, PGO on) | 11,543 |
+| After the kill path (#890, #883, PGO on), now | 10,396 |
+| Release with PGO off, now | 10,396 |
+| Debug, now | 10,396 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
 
 Four forests of about 840 creatures and twelve fighters cost about as much per tick as `town-walk`'s 30 walkers: most
 creatures are far from any player, and an idle creature's AI looks for players once a second rather than every tick.
-The minute allocates 0.69 MB on the tick thread.
+The minute allocates 0.62 MB on the tick thread.
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a
@@ -2688,7 +2735,8 @@ The per-cast script construction was the next thing to take out, and #925 took o
 window of 7,322), and the cast's log lines with it: 4,092 B per window in all, 26% of the minute
 ([the cast path](#results--the-cast-path-925-883-2026-10-13)). The "about 700 B a cast" above was the whole build,
 488 B for a circle or a cone and 584 B for a projectile, and the lines logged around it; a build is 224 B and 320 B
-now, 229,440 B of the 692,580 B the minute allocates, 33%.
+now, 229,440 B of the 692,580 B the minute allocated then, 33%, and of the 623,760 B it allocates since
+[the kill path](#results--the-kill-path-890-883-2026-10-13), 37%.
 
 Before #880's fix, a sampled allocation profile of the
 measured ticks (the runtime's `GCAllocationTick` events, about 800 samples over four runs, PGO off; read by type, so a
@@ -2713,6 +2761,106 @@ scenario a `List<IAbility>`) and the closures on the combat path this scenario r
 and `147_0` cannot be matched by name from a profile; any left on paths the forest does not take stay open). It does
 not touch `MapId`, which no forest tick allocates, nor the network-layer items. The driver itself allocates nothing: it
 holds its packets and its ability, and reads the ability's cooldown itself rather than asking the character.
+
+### Results — the kill path (#890, #883, 2026-10-13)
+
+What a kill, a creature's attack, a heal's threat and an aura's removal allocated beside what they keep or send, taken
+out site by site: the four sites left of [what Release keeps off the heap, and Debug does
+not](#results--the-melee-slots-release-890-2026-10-12) (#890), and rows 6a, 6c and 7 of #883. `forest-combat`, bytes
+per window, the gate alone, i9-12900K, Windows 11 (10.0.26200), .NET 10.0.12; before is `507b37d8`, which read its
+committed 11,543 B. The measured minute kills 60 creatures (parties of three) and runs 174 creature attacks.
+
+| Change | Release | Debug | Release, PGO off | What went |
+|---|---:|---:|---:|---|
+| Before | 11,543 | 11,780 | 11,748 | |
+| `CreatureAbilities.Holds` walks its array (#890) | 11,543 | 11,687 | 11,655 | The boxed enumerator of the creature's `IAbility[]`, walked through `IReadOnlyList<IAbility>`: 32 B an attack. |
+| The eligible members in a list the instance keeps (#890) | 11,351 | 11,431 | 11,399 | A delegate made from `PartyService.InCountdown` at each kill (64 B, the part the profile decided), the list and its array, a new `ObjectGuid` for each party member, the boxed enumerator of the members: 256 B a kill. |
+| The experience shares in a list the instance keeps (#890) | 11,063 | 11,095 | 11,063 | Two lists and their arrays, a delegate over the reference data, the boxed enumerator of the eligible, and the boxed enumerator of the result (48 B, the part the profile decided: the result was an empty array, a one-element list or a `List` behind one interface): 336 B a kill. |
+| A kill's drops placed without a closure, its lists or its messages (#890) | 10,407 | 10,407 | 10,407 | The lambda's closure (56 B; 88 B in two objects in Debug, below) and its delegate, the merged list of rolled drops, the list of placed drops, the list of loot messages and each drop's message with two `Vector3Dto`: 480 B a kill of one drop, and 192 B for each drop more. |
+| Item templates, level rows and the map template found by key (#883, row 7) | 10,407 | 10,407 | 10,407 | Nothing allocated: three walks per kill ([below](#reference-row-lookup--benchmarksreferencerowlookupbenchmarkscs-883)). |
+| A heal's threat shared out in place (#883, row 6a) | 10,407 | 10,407 | 10,407 | No healer fights in the forest; measured by its own test, below. Read together with the row above. |
+| Auras ended without a copy, a closure or a delegate (#883, row 6c) | 10,396 | 10,396 | 10,396 | The forest's few poisons: a closure for every apply, tick and removal of an aura, and a closure, a delegate and an array for each removal. |
+
+1,147 B per window less in Release, 9.9%, and 1,384 B less in Debug. **The three builds read the same figure**, for
+the first time: nothing on the fight's path is kept off the heap by optimised code alone, and nothing by the
+profile. With `DOTNET_TieredPGO=0` Release read 205 B above the committed figure before (the 273 B recorded under
+[the melee slots' release](#results--the-melee-slots-release-890-2026-10-12), less the 68 B of `CancelScriptsOf`'s
+delegate, gone since) and reads the committed figure now. Every cell is one run of the gate; the last row was read
+again at the end, as below. `ForestCombatScenarioShould` reads 71 kills on both of its runs, as before.
+
+| `forest-combat`, bytes per window, after | The gate alone | The whole World suite |
+|---|---:|---:|
+| Release, committed | 10,396 (four runs) | 10,396 |
+| Debug | 10,396 (four runs) | 10,396 |
+| Release, `DOTNET_TieredPGO=0` | 10,396 (three runs) | not run |
+
+The runner read 10,396 twice, the second run the one that wrote the file at `30217003`, and `town-idle`, `town-walk`
+and `many-instances` read 0 in every run, in both builds. In each suite run the two-run check read 71 kills and
+10,396 B twice. These are Windows figures; CI decides on Linux, where no run was made for this change: read its
+figure from the first CI run's "Scenario allocation gate" summary. `forest-combat` is still decided in Release and
+reported in Debug ([The allocation gate](#the-allocation-gate)): that rule is the owner's (#890) and is not changed
+here, though a Debug run now reads Within with nothing to spare or to explain.
+
+**The object nobody had identified in `DropLoot`** (32 B a kill in Debug, 0 in Release, and the one row of five that
+did not move with the profile) was a second closure. The lambda that answered each drop's allocation captured locals
+of two scopes: the method's (the quest drops, the eligible members, `credited`, `this`) and the `try` block's (the
+allocator and the table's count). The C# compiler makes one closure object per scope when it does not optimise (48 B
+and 40 B) and merges them into one when it does (56 B). The difference was the compiler's, not the JIT's: the two
+builds' assemblies hold two and one closure classes for the method. It was found by counting allocations around the
+steps of `DropLoot`, every one of which read the same in both builds, which left the method's own prologue.
+
+**What made each one safe.**
+
+- **The kill's lists** (`KillBuffers`: the eligible members, the experience shares, the rolled and placed drops, the
+  loot messages) belong to the `MapInstance`, never to a static: an instance's kills run one at a time on its tick,
+  and instances may come to tick on separate threads (#639). They are emptied in a `finally` when the kill returns, so
+  they keep no character or drop alive, and nothing a kill hands them to keeps them (the quest service and the loot
+  allocator read the eligible members during the call). A kill reached from inside another's handling, which nothing
+  does today, takes lists of its own. `PartyEligibility.For` and `PartyExperience.Split` stay as they were, each over
+  the same code and answering in a list of its own.
+- **Who is eligible, each share and each drop are unchanged.** The members are walked in join order, the shares
+  computed with the same decimal arithmetic in the same order, and a drop's position, its allocation (one draw of
+  the combat random per table drop in a party instance) and its id are taken in the order they were. The drops are
+  still placed whole before any is stored, so a placement that throws leaves nothing on the ground.
+- **The party member's lookup key** is one `ObjectGuid` the instance keeps and sets to each member in turn; it is
+  only ever a lookup key, never stored.
+- **The loot messages** are refilled, every member of them, for each kill, and the packet is encoded before the kill
+  returns; a message holds numbers only. The snapshot a character entering an instance is sent still builds its own.
+- **The lookups by key** (`KeyedRows`) are the rows themselves: the Items and Progression patches publish their rows
+  and the rows' index as one object, so `/reload items` and `/reload progression` replace both together and no
+  lookup can outlive its rows. The first row of a key answers, as the walk did, and a collection that carries no
+  lookup (a test's list) is walked as before. Map templates are never reloaded; an instance keeps its own template
+  with the world's list it found it in, and looks again only if the world holds another list.
+- **Heal threat** is counted and shared out in two walks of the encounter's hostiles in place. Joining the encounter
+  and adding threat, which happen between the two, write the threat lists only, so both walks see the same hostiles.
+- **Aura removals** copy the auras they end into lists the aura system keeps, one per depth: ending an aura runs its
+  script's `OnRemove`, which may kill the unit and so end the rest from inside the walk. The auras end in the order
+  held, and one already gone by its turn is passed over, as before.
+
+**Rows 6a and 6c, which the forest does not reach** (it has no healer, and few auras), each have an allocation
+assertion, read before and after on the same test:
+
+| Test | Before | After |
+|---|---:|---:|
+| `CombatServiceHealShould.Share_out_heal_threat_without_allocating`: 100 heals on a character two creatures fight | 16,800 B | 0 B |
+| `AuraApplyShould.End_auras_on_cancel_death_and_reset_without_allocating`: two cancels, two removals on death and two on a reset, ten auras in all | 1,904 B | 0 B |
+
+A heal cost 168 B (the query's iterator, the boxed enumerator of the set, the list and its array). An aura's removal
+cost 88 B for the closure and delegate of its `OnRemove` hook, and 32 B more for the hook's own closure, whether the
+aura had a script or not; the same 32 B was paid by every apply and every tick of every aura.
+
+**What a kill still allocates**, the same in every build:
+
+| Per kill | Bytes | Why it is left |
+|---|---:|---|
+| The corpse's removal timer | 32 B | Kept until the corpse is removed. |
+| The list `ILootRoller.Roll` hands back | 152 B for up to four drops | The roller is one object for every instance, so it cannot keep the list, and the tests of the kill substitute `Roll` and answer with a list: taking it out means a signature that fills the caller's list. |
+| Each drop left on the ground | 96 B | Kept: the `GroundLoot` and its guid, until it is picked up. |
+
+Not measured by the scenario, which builds no quest service: the kill's quest credit and quest drops
+(`QuestService.CreatureKilled`, `RollQuestDrops`) still copy each eligible member's quests and walk the eligible
+through their interface. An aura with a script still makes its context and a closure for each hook, and an aura with
+stat modifiers refreshes its unit's stats when it ends.
 
 ### Results — the cast path (#925, #883, 2026-10-13)
 
@@ -2748,7 +2896,9 @@ The runner read 11,543 twice, the second run the one that wrote the file, and `t
 minute): the table under [the melee slots' release](#results--the-melee-slots-release-890-2026-10-12) less its first
 row, the `RemoveAll` delegate of `CancelScriptsOf` (4,096 B a minute), which is gone. That is 19 B under the 256 B
 floor, so a Debug run now reads Within. `forest-combat` is still decided in Release and reported in Debug
-([The allocation gate](#the-allocation-gate)): that rule is the owner's (#890) and is not changed here.
+([The allocation gate](#the-allocation-gate)): that rule is the owner's (#890) and is not changed here. The rest of
+that excess went with [the kill path](#results--the-kill-path-890-883-2026-10-13), after which Debug and Release read
+the same.
 
 **What made each one safe.**
 
@@ -2858,6 +3008,13 @@ over the floor. That is the table less `DropLoot`'s row, to the byte (16,384 B a
 to rest on the profile (by that sum; they were not counted one by one with the profile off): each is in a World method
 compiled once per process from what its first callers showed it. None of them turned in the runs above, alone or in
 the suite; were all four to turn, the Release gate would fail with no change in the code.
+
+**Since then** every row of this table is gone: `CancelScriptsOf`'s delegate with
+[the cast path](#results--the-cast-path-925-883-2026-10-13), the other four with
+[the kill path](#results--the-kill-path-890-883-2026-10-13), which also says what each was. One correction to the
+table: `DropLoot`'s 32 B was not kept off the heap by the JIT. It was a second closure object that the C# compiler
+makes when it does not optimise and merges into the first when it does, which is why it alone did not depend on the
+profile. A Debug build, a Release build and a Release build with `DOTNET_TieredPGO=0` now read the same figure.
 
 ### Results — shared broadcasts (#875, 2026-10-10)
 

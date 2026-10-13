@@ -17,7 +17,10 @@ internal sealed class KillBuffers
     // The loot messages this instance's kills have filled so far, refilled by the next: a message holds numbers only.
     private readonly List<LootDropDto> _messages = [];
 
-    /// <summary>Who shares the kill, in the party's join order.</summary>
+    /// <summary>
+    /// Who shares the kill, in the party's join order. The kill hands it to the quest service and the loot allocator,
+    /// which read it during the call: nothing may keep it, since the next kill fills it again.
+    /// </summary>
     public List<ICharacter> Eligible { get; } = [];
 
     /// <summary>The key each party member is looked up by among the instance's characters; never stored anywhere.</summary>

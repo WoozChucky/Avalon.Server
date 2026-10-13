@@ -27,13 +27,18 @@ public sealed class ScenarioAllocations;
 /// make the regression branch Release-only (<c>#if !DEBUG</c>) and report in Debug instead, as #856 did; see
 /// docs/benchmarks.md, "The allocation gate".
 /// <para>
-/// That is so for <c>forest-combat</c> (owner, #890): since #888 its figure is small (12 KB per window), the 256 B
-/// floor decides, and a Debug build reads 237 B per window above Release (objects on the kill path and in the
-/// creature scripts that only optimised code keeps off the heap), 19 B inside the floor; it read 305 B above, and
+/// That was so for <c>forest-combat</c> (owner, #890): since #888 its figure is small (10 KB per window), the 256 B
+/// floor decides, and a Debug build read 237 B per window above Release (objects on the kill path and in the
+/// creature scripts that only optimised code kept off the heap), 19 B inside the floor; it read 305 B above, and
 /// outside it, until #883 took a closure out of the corpse-removal path. It alone is decided in Release, which CI
 /// runs, and reported in Debug, where its regressed line still names the figure; any other scenario, a later
 /// fixed-length one included, is decided in every build. Until #890 a whole-suite run also read 80 B more or less than
 /// the test alone; both builds now read the same in either (docs/benchmarks.md, "the melee slots' release").
+/// </para>
+/// <para>
+/// Since those objects were taken out at their source (#890, #883; docs/benchmarks.md, "the kill path"), a Debug
+/// build reads the committed figure, as Release does with dynamic PGO on or off. The Debug branch below is left as
+/// it is: whether <c>forest-combat</c> is gated in Debug again is the owner's decision (#890).
 /// </para>
 /// </remarks>
 [Collection(nameof(ScenarioAllocations))]
