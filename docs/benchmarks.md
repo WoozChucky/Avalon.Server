@@ -24,6 +24,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallList
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickThreadGuard*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ConnectionTick*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ReceiveQueueBenchmarks*" --job short
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketStreamBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TimeSync*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AbilityScriptBuild*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveScriptLookup*"
@@ -433,21 +434,63 @@ iterations, the figure the disturbance touches least, differ by 1 ns at one pack
 - **What the benchmark cannot show.** It runs arrivals and the tick on one thread; in the world they are two, and a
   field one writes for every packet costs the other a cache line whenever they share it. So the read loop's side
   (its count, the tick's count as it last read it, and the cap) is a struct with 64 bytes of nothing before and after
-  it. In the Release build, counted from the object's start, those three fields are at 528 to 540, the field before
-  them (`_pendingReceivePacket`) ends at 464 and the one after (`CurrentTargetGuid`) starts at 608: however the object
-  falls across 64-byte lines, the line or two they occupy hold nothing else, so the read loop's store per packet takes
-  no line from the tick, and the tick's writes take none from the check. The tick's count (`_handledPackets`, at 408)
-  lies 4 bytes from `LastInputSeq` (412), which the tick already writes for every input, and in every placement an
-  8-byte-aligned object allows the two share a line: counting an input out dirties no line the input's handler does
-  not. For a packet that is not an input the tick's other write is `CurrentPacketArrivedTicks` (384), on the same line
-  as the count in five placements of eight. In most placements (five or six of eight) the count's line also holds the
-  flags the read loop reads for every packet (`_packetEncryption`, `_maintenanceBlocked`, `_tlsAuthenticated`,
-  `_protocolAccepted`, at 428 to 436). It did before this change, with `LastInputSeq` on it: the read loop was already
-  taking that line back after each input the tick handled.
+  it. Measured on the Release build of the branch's last commit, counted from the object's start: those three fields
+  are at 536, 540 and 544, the field before them (`_pendingReceivePacket`) ends at 472 and the one after
+  (`CurrentTargetGuid`) starts at 616. However the object falls across 64-byte lines, the line or two they occupy hold
+  nothing else, so the read loop's store per packet takes no line from the tick, and the tick's writes take none from
+  the check. The tick's count (`_handledPackets`) is at 412, between `_hasPendingReceivePacket` (408), which the tick
+  reads for every packet it takes, and `LastInputSeq` (416), which it writes for every input;
+  `CurrentPacketArrivedTicks`, which it writes for every packet it dispatches, is at 384. An object starts on a
+  multiple of 8, so there are eight placements against the 64-byte lines. In seven the count shares its line with
+  `LastInputSeq`; in the eighth (the object at 32 mod 64) the line ends between them and the count shares it with
+  `CurrentPacketArrivedTicks` instead. So in every placement the count lies on a line the tick already writes for the
+  same input, and counting an input out dirties no other. For a packet that is not an input the tick's write is
+  `CurrentPacketArrivedTicks` alone, on the count's line in five placements of eight: in the other three the count
+  dirties one line more for that packet. The flags the read loop reads for every packet (`_packetEncryption`,
+  `_maintenanceBlocked`, `_tlsAuthenticated`, `_protocolAccepted`, at 432 to 440) are on the count's line in at most five
+  placements, each of them one where `LastInputSeq` is on it too: the read loop was already taking that line back
+  after each input the tick handled, and the count adds no placement where it must. The closing check the read loop
+  makes for every frame reads `_closed` (172), which in every placement shares a line with a counter the read loop
+  itself writes for that frame (`PacketReceivedCount` at 176, or `BytesReceivedCount` at 120).
 - **The gauge is cheaper.** `world.receive_queue.depth` reads the two counts where it called `ConcurrentQueue.Count`
   on every connection (which can take the queue's cross-segment lock), on the exporter's thread.
 - **The connection is about 150 bytes larger** (the padded struct, the tick's count and a reference): about 150 KB at
   1,000 connections.
+
+### Read loop framing — `PacketStreamBenchmarks.cs` (#927)
+
+`PacketStream.EnumerateRawFramesAsync` alone, over 4,096 frames laid back to back in a `MemoryStream`, normalized per
+frame: the read into the buffer, the length prefix and the slice handed out. No socket, TLS, parsing or decoding. An
+80-byte frame has a one-byte length prefix and a 300-byte one two.
+
+Before/after on 2026-10-13: `0f1d2132` (main) against the branch that gives a frame a maximum length
+(`Hosting:MaxInboundFrameSize`). It reads the prefix as up to 35 bits where main read 32 and threw past them, and
+compares it with the maximum before anything is sized by it. The benchmark is the same on both sides but for the
+argument that carries the maximum (16,384). Six runs a side, interleaved; the median of the runs' means, with their
+range.
+
+| Frame | Before | After | Allocated, both |
+|---:|---:|---:|---:|
+| 80 bytes | 14.67 ns (14.27 to 17.52) | 14.34 ns (14.04 to 18.30) | 0 B |
+| 300 bytes | 17.73 ns (17.41 to 25.79) | 18.09 ns (17.96 to 19.66) | 0 B |
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC; one launch,
+six warmups and fifteen measured iterations per run, pinned to one performance core (affinity mask 4096). Other
+builds and benchmarks were using the machine: one or two runs a side were disturbed (the top of each range, with a
+spread of 2 to 4 ns inside the run against 0.02 to 0.7 ns otherwise).
+
+- **One-byte prefix: no difference.** The ranges cover each other and the medians differ by a third of a nanosecond,
+  in the change's favour.
+- **Two-byte prefix: about a third of a nanosecond more**, 2%. The undisturbed runs do not overlap (17.41 to 17.83
+  before, 17.96 to 18.11 after), so this one is likely real: the prefix is assembled in 64 bits and the frame gets
+  its compare. A connection that sends 60 frames a second pays 20 ns a second for it.
+- **Nothing is allocated per frame** on either side; the enumerator itself is one object per connection.
+- A review of the change measured the same with a harness of its own and saw no cost: 80-byte frames 23.8 to 24.6 ns
+  on main against 23.7 to 24.4 on the branch, 300-byte frames 35.3 to 36.6 against 35.2 to 36.5, 0 B.
+- The read loop around the framing gained one read of `_closed` per frame (it discards what arrives on a closing
+  connection, [graceful shutdown](networking-graceful-shutdown.md#what-a-closing-connection-reads)). No benchmark
+  runs that loop, which needs a socket and a stream to authenticate; the field's place is under the receive queue
+  section above.
 
 ### Navmesh bake — `navmesh-bake` (#880, #896)
 
