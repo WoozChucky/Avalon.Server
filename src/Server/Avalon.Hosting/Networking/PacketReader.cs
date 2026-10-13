@@ -131,6 +131,7 @@ public class PacketReader : IPacketReader
             return null;
 
         byte[]? rented = null;
+        int opened = 0;
 
         try
         {
@@ -139,6 +140,9 @@ public class PacketReader : IPacketReader
             if (decrypt != null)
             {
                 rented = ArrayPool<byte>.Shared.Rent(frame.Payload.Length);
+                // Until the open has said how much it wrote: no more than it was given, and an open that fails may
+                // have written part of it first.
+                opened = frame.Payload.Length;
                 int len;
                 try
                 {
@@ -157,6 +161,7 @@ public class PacketReader : IPacketReader
                     throw new PacketReadException(PacketReadFailure.SealNotAuthentic, frame.Header.Type, e);
                 }
 
+                opened = len;
                 payload = rented.AsMemory(0, len);
             }
             else
@@ -175,7 +180,15 @@ public class PacketReader : IPacketReader
         }
         finally
         {
-            if (rented != null) ArrayPool<byte>.Shared.Return(rented);
+            if (rented != null)
+            {
+                // The opened payload is cleared before its buffer goes back to the pool: on the auth server it is a
+                // login or a registration, and the pool hands the array to whoever rents next. Nothing that rents
+                // reads before it writes, so this is a second line and not a fix. Only what was written is cleared,
+                // not the whole array: a frame is at most Hosting:MaxInboundFrameSize, and most are tens of bytes.
+                rented.AsSpan(0, opened).Clear();
+                ArrayPool<byte>.Shared.Return(rented);
+            }
         }
     }
 

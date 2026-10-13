@@ -195,4 +195,39 @@ public class PacketReaderShould
 
         Assert.IsType<CCharacterListPacket>(result);
     }
+
+    /// <summary>
+    /// A sealed payload is opened into a buffer rented from the shared array pool, which hands the array to whoever
+    /// rents next: on the auth server what was opened is a login or a registration. So what was written is cleared
+    /// before the buffer goes back, whether the payload then decoded or not.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Clear_what_it_opened_before_the_buffer_goes_back_to_the_pool(bool decodes)
+    {
+        PacketReader reader = MakeWith(typeof(Avalon.Network.Packets.Social.CChatMessagePacket));
+        using var ms = new MemoryStream();
+        Serializer.Serialize(ms, new Avalon.Network.Packets.Social.CChatMessagePacket { Message = "not for the next renter" });
+        // Cut short, the message's text runs past the payload's end and does not decode.
+        byte[] plaintext = decodes ? ms.ToArray() : ms.ToArray()[..^3];
+        var frame = new InboundPacketFrame(
+            new NetworkPacketHeader { Type = Avalon.Network.Packets.Social.CChatMessagePacket.PacketType },
+            plaintext.AsMemory());
+        byte[]? buffer = null;
+        DecryptFunc open = (input, output) =>
+        {
+            buffer = output;
+            input.CopyTo(output);
+            return input.Length;
+        };
+
+        if (decodes)
+            Assert.IsType<Avalon.Network.Packets.Social.CChatMessagePacket>(reader.Read(frame, open));
+        else
+            Assert.Throws<PacketReadException>(() => reader.Read(frame, open));
+
+        Assert.NotNull(buffer);
+        Assert.Equal(new byte[plaintext.Length], buffer[..plaintext.Length]);
+    }
 }
