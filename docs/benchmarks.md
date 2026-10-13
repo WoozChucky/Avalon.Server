@@ -491,6 +491,10 @@ spread of 2 to 4 ns inside the run against 0.02 to 0.7 ns otherwise).
   connection, [graceful shutdown](networking-graceful-shutdown.md#what-a-closing-connection-reads)). No benchmark
   runs that loop, which needs a socket and a stream to authenticate; the field's place is under the receive queue
   section above.
+- With #897 the same loop gained one compare per frame, of the decoded packet against null (a frame whose opcode the
+  server has no packet type for is dropped there), and catch clauses that cost nothing until a frame is refused.
+  It is still not benchmarked as a loop; what it calls per frame is, under
+  [the read path's refusals](#results--the-read-paths-refusals-897-2026-10-13).
 
 ### Navmesh bake — `navmesh-bake` (#880, #896)
 
@@ -1311,6 +1315,92 @@ unchanged and are the control.
 - **Through the concrete `PacketReader` the JIT hides it.** A first run of the `Session_*` arms called `Read` on the
   concrete type, which .NET 10 inlines; the delegate stayed on the stack and both arms allocated 80 B. That is the
   dependency #854 removes: whether the per-packet delegate cost anything depended on the JIT, not on the code.
+
+### Results — the read path's refusals (#897, 2026-10-13)
+
+What #897 changed in `PacketReader.Read`: an opcode with no packet type returns null without a log call (the read loop
+logs it, once per connection), and the open and the decode each sit in a `try` whose catches wrap what the peer got
+wrong in a `PacketReadException`. A packet that is in order runs the same code inside two more protected regions.
+Outside `Read`, the reader now decodes once with every packet type as it is built, and sets protobuf-net's depth limit
+to 32.
+
+i9-12900K, Windows 11, .NET 10.0.12, Release. **Other builds and test runs were loading the machine for every figure
+here**, so each is a range, and the comparison to read is the interleaved one: the old body and the new one in one
+process, taking turns, under the same load.
+
+**The suite, `--job short`, three runs with the change to `Read` and three without, taking turns.** The ranges
+overlap in both directions and say only that nothing large moved; the allocations are exact.
+
+| Method | Before | After | Allocated, before and after |
+|---|---:|---:|---:|
+| `Legacy_DecryptAndRead` | 133 to 233 ns | 151 to 351 ns | 136 B |
+| `Fixed_DecryptAndRead` | 148 to 258 ns | 146 to 318 ns | 80 B |
+| `Session_MethodGroupPerPacket` | 422 to 636 ns | 427 to 654 ns | 144 B |
+| `Session_CachedDelegate` | 451 to 595 ns | 565 to 623 ns | 80 B |
+
+A last run on the reader as it ends up (every decoder built as it is constructed, the depth limit set): 264.0, 271.8,
+574.1 and 530.9 ns in the table's order, inside the ranges above, with the same allocations.
+
+**Interleaved, the old body of `Read` and the new one, copied into one harness** (41 rounds of 200,000 calls an arm,
+each round running old then new; two runs; the same `CChatMessagePacket` as the suite, plain and really sealed):
+
+| Packet | Body | Minimum | Median | Allocated |
+|---|---|---:|---:|---:|
+| plain | old | 120.4 to 126.8 ns | 145.8 to 157.8 ns | 80 B |
+| plain | new | 124.0 to 129.4 ns | 147.8 to 153.5 ns | 80 B |
+| sealed | old | 371.0 to 379.2 ns | 418.4 to 476.3 ns | 80 B |
+| sealed | new | 372.1 to 375.4 ns | 423.8 to 462.4 ns | 80 B |
+
+**A review of the change measured it with a harness of its own**: the old body, the new body and the real
+`PacketReader` in one process.
+
+| Packet | | Minimum | 10th percentile | Allocated |
+|---|---|---:|---:|---:|
+| plain | old body | 120.1 ns | 122.3 ns | 80 B |
+| plain | the real reader | 122.9 ns | 125.6 ns | 80 B |
+| sealed | old body | 365.1 ns | 367.0 ns | 80 B |
+| sealed | the real reader | 361.9 ns | 363.5 ns | 80 B |
+| unknown opcode | old body | 28 to 31 ns | | 56 B |
+| unknown opcode | the real reader | 4.4 to 5.5 ns | | 0 B |
+
+- **A plain packet: about 3 ns more**, 2 to 3% of a decode, in both harnesses. The decode now runs inside a
+  protected region.
+- **A sealed packet: no difference** either harness can see, against some 250 ns of opening it.
+- **Nothing more is allocated**: 80 B, the decoded packet, before and after.
+- **An opcode the server has no packet type for: from about 30 ns and 56 B to about 5 ns and nothing.** The reader no
+  longer formats a Warning for each; the read loop writes one per connection and Trace after that.
+- **A refused frame costs two exceptions where it cost one** (the decoder's or the session's, and the wrapper), once
+  per connection, since the connection closes. It no longer costs the Error line that carried the exception: about
+  59,000 characters of it for a payload nested past the decoder's depth.
+
+**The depth limit.** protobuf-net alone, refusing the payload `ConnectionReadLoopShould` uses (600 groups opened
+inside one another, in a field the packet does not have), per refused decode, at the model's default depth and at
+smaller ones. The review measured the default at 0.46 ms and 132 KB on a quieter machine; the ratio is what holds.
+
+| `TypeModel.MaxDepth` | Time | Allocated | The exception's text |
+|---:|---:|---:|---:|
+| 512 (protobuf-net's default) | 881 µs | 135.6 KB | 59,096 characters |
+| 64 | 76 µs | 17.9 KB | 8,471 |
+| 32 (`PacketReader.MaxDecodeDepth`) | 44 µs | 9.4 KB | 4,855 |
+| 16 | 28 µs | 5.2 KB | 3,047 |
+
+The deepest packet contract nests 5 and the deepest a server reads nests 2. 32 takes a twentieth of the time and a
+fourteenth of the memory of the default; 16 would take a third less again and leave three times the deepest contract
+where 32 leaves six.
+
+**Building the decoders at startup.** The reader decodes an empty payload with each packet type as it is built, which
+is when protobuf-net builds the type's decoder; before, that was the first packet of the type, on the read loop of the
+connection that sent it. In a new process, three runs:
+
+| Server | Packet types read | All of them | The first one |
+|---|---:|---:|---:|
+| world | 35 | 127 to 166 ms | 72 to 82 ms |
+| auth | 10 | 76 to 82 ms | 60 to 66 ms |
+
+The first decode in a process carries protobuf-net's own start (60 to 80 ms); each type after it is a millisecond or
+two. That first decode used to be the first packet any client sent: a server's first connection waited 60 to 80 ms on
+it. It is startup time now, once, off the tick and before the port opens. What a server sends is not built this way:
+each server packet's serializer is still built by its first send (#883).
 
 ---
 

@@ -116,16 +116,25 @@ its address and the declared length), and nothing above Debug.
 
 `reason` takes those four values and no other: nothing a peer sends becomes a tag. Each count is one connection closed
 and one Warning (the connection, its account once it has one, its address, how many packets it had delivered and, but
-for `malformed_frame`, the opcode), without the exception: these
-were an Error with a stack trace each, and any peer that completes TLS can cause one before it is admitted or logged
-in, on every reconnect. A world's close for a packet that arrives unsealed while it seals
+for `malformed_frame`, the opcode), without the exception. Each
+was an Error with a stack trace, but a payload cut short, which was reported at Debug as the peer having closed the
+connection. A world's close for a packet that arrives unsealed while it seals
 (`Network:PacketEncryption`) is not counted here; it writes its own Warning. Nor is an opcode the server has no packet
 type for, which leaves the connection open.
 
-`malformed_frame`, `sealed_before_key` and `undecodable_payload` are a peer that is not a client, or a client whose
-schema is not the server's. `seal_not_authentic` is that too, and it is also what a client and a server that derive
-different session keys look like, on every connection, at the first sealed packet: a rate that follows logins or world
-entries rather than scans means the two ends disagree ([session crypto](crypto-v1-derivation.md)).
+What each reason can mean, and who can cause it. None is only ever the peer's doing: the line and the count say
+what arrived, not whose fault it is, and the packets the connection had delivered (in the Warning) tell a peer that
+never was a client from a session that worked until then.
+
+| `reason` | Who can cause it | The peer's causes | The server's own |
+|---|---|---|---|
+| `malformed_frame` | Any peer that completes TLS, on either server, before admission or login | A peer that speaks something else inside TLS; a client that frames a packet another way | A frame the hand-written header parser (`InboundPacketFrame.ParseFrame`) refuses and should not |
+| `sealed_before_key` | Any peer that completes TLS, on either server | A peer that flags a frame `Encrypted` without a key exchange; a client that seals before it has the server's answer to its exchange | A server that had not keyed the session when a correct client's sealed packet arrived: the auth server leaves a connection open and unkeyed after a client-info packet whose public key it refuses, and a world keys the session on the tick, after the admission it waits for off the tick |
+| `seal_not_authentic` | On the auth server, any peer after a key exchange, which needs no login. On a world, only a connection admitted as an account: before admission its session has no key, and a sealed frame is `sealed_before_key` | A frame altered or made up; a sealed frame shorter than a nonce and a tag; a client that derives another key | A server that derives another key than its clients do: the two cannot be told apart from one connection, and it is every client, at its first sealed packet ([session crypto](crypto-v1-derivation.md)) |
+| `undecodable_payload` | Any peer that completes TLS, with a plain frame; with a sealed one, whoever can seal one that opens: on the auth server any peer after a key exchange, on a world an admitted account | A peer that is no client; a client built against another wire schema; a payload nested more than 32 deep | A contract changed so that current clients no longer match it; a packet class whose own code throws one of the five types the decode is classified by ([packet handlers](packet-handlers.md)). A contract that cannot be built at all stops the server from starting instead |
+
+A rate of `seal_not_authentic` or `undecodable_payload` that follows logins or world entries rather than scans, on
+connections with few packets delivered, is the two ends disagreeing, and the change to look at may be the server's.
 
 `network.in.packets` and `network.in.bytes`, on both meters, count what the read loop decoded. A frame whose opcode
 the server has no packet type for is counted in both, though nothing is decoded for it. A frame that arrives
