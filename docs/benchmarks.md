@@ -26,6 +26,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Connecti
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ReceiveQueueBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketStreamBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TimeSync*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ConnectionSend*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AbilityScriptBuild*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveScriptLookup*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlush*" "*ItemRequest*" --job short
@@ -541,6 +542,54 @@ these runs.
   loop takes credits and the tick takes stamps, so that line moves between those cores a few times per exchange; here
   one thread does all three, and no flood runs beside an enqueue on another core. Sockets, TLS and the frame's decode
   are not in it either.
+
+### Connection send — `Benchmarks/ConnectionSendBenchmarks.cs` (#883)
+
+What a send costs the tick on a world connection, which until #883 was recorded nowhere: `Connection.Send` on an
+admitted `WorldConnection` with its real `ConnectionSender` (`ReceiveQueueFixture` with a sender), against that
+sender's `Enqueue` alone. The difference between the two is what `Send` adds to the enqueue: the size the byte
+counters count (`SentSize`), the connection's own two interlocked counters, and the world's `OnQueued`, a virtual call
+that adds to the `network.out.bytes` and `network.out.packets` counters. `Send` counts a packet only once the sender
+has accepted it.
+
+Each arm sends as the tick does: four packets to the connection with the wake-up deferred, then the send thread's
+pass, run on the benchmark's thread (a scheduler whose threads never start) into a stream that discards what it is
+given. The pass frames the four packets, and seals them when the connection seals; it is the same work in both arms
+and cancels in the difference. The packet is one movement acknowledgement (19 B, flagged Encrypted), encoded once:
+each send takes a reference of its own, as a broadcast's recipients do, so no encode is timed. Each invocation runs
+256 sends. `Sealed` is `Network:PacketEncryption`. `Metered` subscribes a `MeterListener` to the two counters, as a
+world that exports its metrics has; with no listener a counter's `Add` is a check and nothing more. The listener here
+only adds to a field, so it is the least a subscribed counter costs, not what the exporter's aggregation costs.
+
+| | Plain | Plain, metered | Sealed | Sealed, metered | Allocated |
+|---|---:|---:|---:|---:|---:|
+| `SenderEnqueue`, a quiet run, mean | 58.9 ns | 59.9 ns | 279.3 ns | 278.3 ns | 0 B |
+| `ConnectionSend`, a quiet run, mean | 65.9 ns | 68.5 ns | 285.3 ns | 305.8 ns | 0 B |
+| What `Send` adds | 7.0 ns | 8.7 ns | 6.0 ns | 27.5 ns | |
+| `SenderEnqueue`, after #883, fastest iteration | 60.4 ns | 58.0 ns | 279.8 ns | 276.4 ns | 0 B |
+| `ConnectionSend`, after #883, fastest iteration | 69.1 ns | 67.7 ns | 285.2 ns | 285.0 ns | 0 B |
+| What `Send` adds | 8.8 ns | 9.7 ns | 5.4 ns | 8.6 ns | |
+
+BenchmarkDotNet 0.15.8, the default job, in process, Windows 11, i9-12900K, .NET 10.0.12, 2026-10-13. The first three
+rows are `808eec90` with the benchmark added, in a run the machine was quiet for: standard deviations of 0.4 to 2.2 ns
+in six arms, and 6.8 and 9.7 ns in two of the sealed ones, the last of which is the 27.5 ns. The last three are with
+the changes of #883 to the packet path, which leave `Send` as it was and add two compares to the pass
+([burst buffers](#results--the-network-path-883-2026-10-13)), taken while other builds and benchmarks used the machine
+(standard deviations of up to 71 ns): they are each arm's fastest iteration, the figure a disturbance touches least. A
+run of `808eec90` taken in turn with it read, the same way, differences of -19 to +17 ns between the arms, and three
+runs a side with `--job short` ranged as widely. Under that load the later rows say that nothing large moved and no
+more; the quiet run is the record.
+
+- **A send costs the tick 6 to 9 ns more than the enqueue it wraps**, plain or sealed: about a tenth of a plain send
+  with its share of the pass, and 24 to 36 µs a tick at 4,000 sends. A listener on the counters adds about 2 ns in the
+  plain arms. The review that asked for this record measured 3 to 9 ns with a probe of its own (#883).
+- **Nothing is allocated**, by the send, the counters or the pass, in any arm.
+- **Sealing is the send thread's**: the 220 ns between a plain row and its sealed one is the pass sealing the packet,
+  off the tick in a world. On the tick a sealed send differs from a plain one by one branch, in `SentSize`.
+- **Not in it**: the encode (the payload is shared), a second thread (the pass runs on the sending thread, so no
+  cache line moves between cores, as it does in a world; see [the sender's fields](#the-connection-senders-fields-875-2026-10-10)),
+  and the socket. The scenario gate still does not run `Connection.Send` (its connections call the sender's
+  `Enqueue`, #883 row 14).
 
 ### Idle creature dispatch — `Benchmarks/CreatureDispatchBenchmarks.cs` (#880, #896)
 
@@ -1723,8 +1772,8 @@ connection that sent it. In a new process, three runs:
 
 The first decode in a process carries protobuf-net's own start (60 to 80 ms); each type after it is a millisecond or
 two. That first decode used to be the first packet any client sent: a server's first connection waited 60 to 80 ms on
-it. It is startup time now, once, off the tick and before the port opens. What a server sends is not built this way:
-each server packet's serializer is still built by its first send (#883).
+it. It is startup time now, once, off the tick and before the port opens. What a server sends is built at startup as
+well since #883 ([the network path](#results--the-network-path-883-2026-10-13)).
 
 ---
 
@@ -2412,6 +2461,166 @@ is the change. Three runs per side, interleaved.
 
 The rest of the tick did not move: enqueue 1,254 to 1,312 µs mean for 4,000 packets, outbox stage 30.6 to 32.3 µs,
 send threads 26.3 to 27.0 µs per connection, on both sides.
+
+### Results — the network path (#883, 2026-10-13)
+
+Low findings of #883 on the packet path: rows 1, 3, 10 to 13 and the send half of row 24. i9-12900K, Windows 11
+(10.0.26200), .NET 10.0.12, Release; before is `808eec90`. **Other builds, test runs and benchmarks were using the
+machine for every timing here**, so each is a range over several runs; the bytes and the buffer sizes are exact. The
+bytes, the buffer sizes and the startup times are from a probe over the built assemblies, a new process for each run.
+
+**A stale packet's drop (row 1).** In-map packets still queued when their character has gone are dropped by the
+session pass, on the tick (`WorldConnection.ProcessQueue`); a client causes one with every packet it sends between its
+leave and the answer to it. A hundred packets queued, the character taken away, one session pass:
+
+| | Before | After |
+|---|---:|---:|
+| `CMSG_PLAYER_INPUT`, per packet dropped | 56 B | 0 B |
+| `CMSG_CAST_ABILITY`, per packet dropped | 56 B | 0 B |
+
+The 56 B were the log call's argument array and the boxed opcode, allocated before the level was looked at, so with
+Debug off as well as on. The line is now a generated log method, at Debug, and at Trace for input, as for a packet
+dropped at arrival for its state ([packet handlers](packet-handlers.md)). `ReceiveQueueAllocationShould` holds the
+0 B. A pass also takes exactly `WorldConnection.MaxPacketsPerUpdate` packets now, 150, where it took 151.
+
+**Two packets built with queries (row 3).** Each built its list with `Select` and `ToList`; each now fills a list
+sized for what it holds, in the same order. Bytes per call:
+
+| | Before | After |
+|---|---:|---:|
+| `SLootDespawnedPacket.Create`, one drop | 112 B | 64 B |
+| `SLootDespawnedPacket.Create`, eight drops | 168 B | 120 B |
+| `IgnoreList.ToPacket`, empty | 104 B | 32 B |
+| `IgnoreList.ToPacket`, 1 entry | 168 B | 96 B |
+| `IgnoreList.ToPacket`, 10 entries | 528 B | 456 B |
+| `IgnoreList.ToPacket`, 50 entries | 2,128 B | 2,056 B |
+
+What went is the query's iterator, 48 B and 72 B. What is left is the list the message carries and, for the ignore
+list, one object per entry. The first runs once per pickup, for all its recipients; the second at select, at a
+character's delete and on `/ignore`.
+
+**Burst buffers (row 10).** A connection's two burst buffers doubled as they filled and never shrank. What one can be
+asked to hold is what `Network:MaxPendingBytes` lets a connection queue, 512 KiB of payload, and a frame adds 10 to 16
+bytes to its payload, and a seal 28 more: for movement acknowledgements of 19 B that is up to 1 MiB of buffer with the
+world sending plain and 2 MiB with it sealing. One connection whose peer stops reading until it holds just under the
+cap, catches up, and does so again; the two buffers' sizes, in bytes:
+
+| | Plain, before | Plain, after | Sealed, before | Sealed, after |
+|---|---:|---:|---:|---:|
+| A new connection | 1,024 | 1,024 | 1,024 | 1,024 |
+| First stall, the peer not reading | 1,049,088 | 1,049,088 | 2,097,664 | 2,097,664 |
+| Caught up, two ticks of play later | 1,049,088 | 1,024 | 2,097,664 | 1,024 |
+| Second stall, the peer not reading | 2,097,152 | 1,049,088 | 4,194,304 | 2,097,664 |
+| Caught up, and for the rest of its life | 2,097,152 | 1,024 | 4,194,304 | 1,024 |
+
+- **The worst case was 2 MiB a connection plain and 4 MiB sealed**, for the connection's life, in arrays on the large
+  object heap: a stall grows the buffer framed ahead into, and a later stall the other. After a network blip that
+  stalls a thousand connections for a few seconds, short of the kicks, that is up to 2 to 4 GiB kept. With
+  `MaxPendingBytes` raised it grows with it (the setting goes to 64 MiB).
+- **A buffer above 64 KiB is now given back** (`ConnectionSender.BurstTrimThreshold`) once nothing is framed ahead, no
+  write is in flight and its last burst filled at most a quarter of it: the buffer framed ahead into at the first
+  burst after the connection has caught up, the other at the second. A connection whose bursts go on filling more than
+  a quarter of a large buffer keeps it, so it does not give back and grow a buffer on every pass. During a stall a
+  connection still holds what it frames ahead: the cap is what bounds that.
+- **It costs two compares per burst**, on the send thread, for a connection whose buffers are small: nothing per
+  packet, and nothing on the tick. The rows below did not move.
+- **Given back means to the array pool**, which keeps an array for the next connection that stalls and trims what
+  nobody rents again on later full collections. So the memory is no longer held by a connection that has caught up;
+  the process's size falls only once the pool trims. Not measured: the process's size over time after a blip.
+- `ConnectionSenderShould` holds it: two stalls grow both buffers, the second while the first is still being written,
+  and both are given back; every packet carries its number and all arrive once and in order, read as each write ends,
+  which fails when a buffer is given back while a write still reads it.
+
+**Serializers at startup (row 24, the send half).** protobuf-net builds a type's serializer on its first use and the
+runtime compiles it as it first runs, so the first packet of each type a server sent paid for it, on a world's tick.
+`PacketEncoder.PrepareServerPackets` now writes every server packet once at startup, as a message with something in
+every member ([packet handlers](packet-handlers.md)). The first send of each of the 67 server packets, with every
+member set, after the server's own startup calls, five runs before and six after:
+
+| | Before | After |
+|---|---:|---:|
+| The first sends of all 67 types, together | 156 to 242 ms | 0.47 to 0.62 ms |
+| The slowest of them | 14 to 32 ms (the quest log) | 79 to 113 µs |
+| A type's first send, median | 1.5 to 2.8 ms | 4 to 5 µs |
+| The second sends of all 67, together | 0.23 to 0.39 ms | 0.12 to 0.42 ms |
+
+| Startup, a new process, 16 runs before and 11 after | Before | After |
+|---|---:|---:|
+| `PrepareServerPackets`, 67 types | 21 to 26 ms | 209 to 290 ms, and 389 ms once |
+| The world's reader, 35 types (unchanged) | 108 to 199 ms | 113 to 152 ms |
+| The auth server's reader, 10 types (unchanged) | 69 to 96 ms | 74 to 117 ms |
+
+- **About 0.19 to 0.27 s more startup on each server**, once, off the tick and before the port opens, against some
+  0.2 s of the tick's time spread over the first packet of each type, 14 to 32 ms of it in one tick when the first
+  quest log went out.
+- **Why a message with something in every member.** A member left at its default is skipped, and what would write it
+  is built by the first packet that sets it. Three ways of preparing were measured before one was built, by what they
+  left to the first sends: writing a new message of each packet left 49 ms of 153 (the nested messages); writing a
+  new message of every nested type as well left 7 to 10 ms (the lists, and what each element needs); writing each
+  packet once with every member set left 0.34 to 0.38 ms, which is what was built.
+- **Both servers prepare all 67**, as both already compiled all 67 resets: nothing in a contract says which server
+  sends it. The auth server sends about ten of them and pays the same.
+- **The depth limit.** The reader sets protobuf-net's depth limit (`PacketReader.MaxDecodeDepth`) and each server
+  builds it first. The order does not decide anything: a type built and used at the default depth, 512, refuses a
+  message 40 deep, written or read, once the limit is set to 32, and takes one 20 deep.
+- **What a thread still makes for its first packet of a type** is its own scratch message, one object.
+- `PacketEncoderPrepareShould`: a prepared type's first packet allocates 0 B, against 362,584 B when nothing was
+  built for it and 102,832 B when only a new message was written.
+
+**What did not move.** The suites that time these paths, `--job short`, three runs before and three after, taking
+turns, as the range of the runs' means. The machine was loaded and more so during the runs of the unchanged side:
+read the rows as showing that nothing rose, not that anything fell. The allocations are exact.
+
+| Suite, method | Before | After | Allocated, both |
+|---|---:|---:|---:|
+| `ReceiveQueueBenchmarks`, 1 packet a burst | 190 to 301 ns | 154 to 159 ns | 0 B |
+| `ReceiveQueueBenchmarks`, 32 | 3,963 to 6,495 ns | 3,536 to 3,582 ns | 0 B |
+| `ReceiveQueueBenchmarks`, 150 | 22,606 to 29,287 ns | 19,707 to 20,771 ns | 0 B |
+| `PacketEncoderBenchmarks`, encode, 1 entity | 220 to 404 ns | 213 to 437 ns | 0 B |
+| `PacketEncoderBenchmarks`, encode, seal and frame, 1 entity | 488 to 772 ns | 469 to 794 ns | 0 B |
+| `PacketEncoderBenchmarks`, encode and frame plain, 1 entity | 372 to 439 ns | 233 to 324 ns | 0 B |
+| `PacketEncoderBenchmarks`, encode, 30 entities | 4,214 to 6,392 ns | 3,603 to 7,320 ns | 0 B |
+| `PacketEncoderBenchmarks`, encode, seal and frame, 30 entities | 5,586 to 6,696 ns | 4,034 to 8,144 ns | 0 B |
+| `PacketEncoderBenchmarks`, encode and frame plain, 30 entities | 4,206 to 6,252 ns | 3,591 to 6,784 ns | 0 B |
+| `PacketReaderDecryptGcBenchmarks`, `Legacy_DecryptAndRead` | 229 to 281 ns | 154 to 161 ns | 136 B |
+| `PacketReaderDecryptGcBenchmarks`, `Fixed_DecryptAndRead` | 263 to 292 ns | 146 to 171 ns | 80 B |
+| `PacketReaderDecryptGcBenchmarks`, `Session_MethodGroupPerPacket` | 496 to 582 ns | 381 to 476 ns | 144 B |
+| `PacketReaderDecryptGcBenchmarks`, `Session_CachedDelegate` | 478 to 632 ns | 376 to 529 ns | 80 B |
+| `TimeSyncBenchmarks`, `PingWritten` | 285 to 396 ns | 258 to 350 ns | 0 B |
+| `TimeSyncBenchmarks`, `PingWrittenAndPongHandled` | 522 to 563 ns | 413 to 542 ns | 0 B |
+| `TimeSyncBenchmarks`, `SurplusPong` | 20.9 to 23.7 ns | 17.6 to 22.3 ns | 0 B |
+
+The `outbox-flush` harness, 1,000 connections × 4 movement acknowledgements a tick, 900 ticks, 8 send threads, over
+real send threads, the same runs taking turns:
+
+| | Before | After |
+|---|---:|---:|
+| `memory`, seal off: enqueue mean, µs a tick (3 runs) | 1,060 to 1,246 | 880 to 1,273 |
+| `memory`, seal off: send threads, µs a connection | 0.74 to 1.03 | 0.54 to 0.89 |
+| `memory`, seal on: enqueue mean, µs a tick (3 runs) | 915 to 1,324 | 828 to 1,363 |
+| `memory`, seal on: send threads, µs a connection | 2.11 to 3.19 | 2.01 to 2.89 |
+| `slow-tls`, seal off: enqueue mean, µs a tick (7 runs) | 1,281 to 1,502 | 1,152 to 1,377 |
+| `slow-tls`, seal off: send threads, µs a connection (7 runs) | 27.5 to 29.3 | 25.9 to 29.6 |
+| `slow-tls`: runs in which the tick allocated nothing | 2 of 7 | 5 of 7 |
+
+In `slow-tls` one connection in twenty stops reading for three seconds, so fifty connections grow a buffer, catch up
+and, after the change, give it back. The tick allocated in some runs of both sides, `memory` ones among them, in a
+few ticks of a run, and always by payload segments rented new, up to a whole tick's worth (544,000 B is 4,000 segments
+of 136 B). That is what a send pass that comes late on a loaded machine looks like: the tick rents segments the pool
+does not have yet, the growth at a new peak recorded under
+[the send threads](#results--the-send-threads-875-2026-10-10). It is not the buffers: the tick neither frames nor
+rents a burst buffer, and the unchanged side read it more often. On a quiet machine these runs read 0 B ([a client that stops reading](#a-client-that-stops-reading-875-2026-10-10)).
+
+**The tests behind rows 11 and 12.** The frame-ahead tests asserted counts. Weakening the sender showed two things
+nothing held: two packets framed ahead of a pending write in the wrong order, and a connection closed twice when a
+seal fails and the pending write then fails too. `ConnectionSenderShould` now reads the wire in order across the burst
+in flight, the one framed ahead and the one after, with each write's bytes copied when the write ends, and holds one
+close. A burst framed over the one in flight, a fault that keeps the next burst and an unsealed packet left counted
+were caught already. The send scheduler's comment on its stall clock said "once per tick"; what guarantees a pass is
+the thread's timed wake, every 100 ms.
+
+**The gate.** `ScenarioAllocationsShould` reads the committed figures in Debug and in Release, and the baseline did
+not move: no scenario sends through `Connection.Send`, drops a stale packet or stalls a connection.
 
 ### Before: the outbox flushed on the tick
 

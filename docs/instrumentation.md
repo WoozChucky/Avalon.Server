@@ -76,7 +76,7 @@ The send threads' busy time, in cores: `sum(rate(network_send_pass_duration_micr
 |---|---|---|
 | `network.in.backlog_kicks` | `network_in_backlog_kicks_total` | Connections closed with `Network:MaxReceiveQueueDepth` packets received and waiting for the tick (#927): one more arrived, was not queued, and the connection was closed without a notice. No tags. Each also writes one Warning (`Avalon.World.WorldConnection`) naming the connection, its account and the opcode |
 
-Any count is worth a look: a client sending faster than the tick takes (151 packets a pass per connection), a tick stalled for as long as the cap is deep (about 34 s of input at the default), or a connection whose queue is wedged ([packet handlers](packet-handlers.md)). The counter does not see a flood the tick keeps up with, nor packets dropped as they arrive.
+Any count is worth a look: a client sending faster than the tick takes (150 packets a pass per connection, `WorldConnection.MaxPacketsPerUpdate`), a tick stalled for as long as the cap is deep (about 34 s of input at the default), or a connection whose queue is wedged ([packet handlers](packet-handlers.md)). The counter does not see a flood the tick keeps up with, nor packets dropped as they arrive.
 
 ### Failed handshakes
 
@@ -135,6 +135,18 @@ never was a client from a session that worked until then.
 
 A rate of `seal_not_authentic` or `undecodable_payload` that follows logins or world entries rather than scans, on
 connections with few packets delivered, is the two ends disagreeing, and the change to look at may be the server's.
+
+**The byte counters are approximate.** `network.in.bytes` and `network.out.bytes`, on both meters, and each
+connection's byte rates (`network.in.bytes.rate`, `network.out.bytes.rate`) count a packet as its payload plus a
+constant 10 bytes for the header (`NetworkPacketHeader.Size`), and a sealed packet's nonce and tag with its payload.
+The constant is not the header's length on the wire. A frame puts 10 to 16 bytes around its payload: the header
+itself (5 bytes plain, 7 sealed or flagged `ClearText`), the frame's length prefix (1 to 3), and the tag and length
+in front of the header and of the payload (4 to 6). So a plain packet whose frame is under 128 bytes is counted
+exactly, and a sealed or a longer one up to 6 bytes short; TLS's records are counted nowhere. Read them as the
+application's bytes, at most 6 bytes a packet under what is framed, not as bytes on the wire. What they count is
+deliberately left alone (#883): dashboards read them, and a change would move every series. For exact bytes use
+`network.send.bytes`, which counts what a world's send threads hand to their sockets (frames as written, before TLS);
+nothing counts received bytes exactly.
 
 `network.in.packets` and `network.in.bytes`, on both meters, count what the read loop decoded. A frame whose opcode
 the server has no packet type for is counted in both, though nothing is decoded for it. A frame that arrives
