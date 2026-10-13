@@ -146,6 +146,53 @@ public sealed class ConnectionSenderShould
     }
 
     /// <summary>
+    /// A stall makes a connection frame ahead, and the burst buffer that holds it grows with what is queued, up to what
+    /// <c>Network:MaxPendingBytes</c> allows; a second stall grows the other. Both are given back once the connection
+    /// has caught up (#883), where they were kept for the connection's life, and never while a write still reads one:
+    /// a buffer given back in flight is rented again by the burst framed ahead of it, which would be written over the
+    /// bytes still going out. So every packet carries its number, and all must arrive, once and in order.
+    /// </summary>
+    [Fact]
+    public async Task Give_back_the_burst_buffers_a_stall_grew_once_the_connection_has_caught_up()
+    {
+        const int Batch = 60; // 60 packets of 4 KiB: a burst of some 246 KiB, in a buffer grown to 256 KiB
+        NetworkSendScheduler scheduler = Scheduler();
+        var stalled = new PendingStream();
+        ConnectionSender sender = Open(scheduler, stalled);
+        int owner = sender.OwnerThread;
+        int asNew = sender.BurstCapacity;
+        Assert.True(asNew < ConnectionSender.BurstTrimThreshold);
+
+        sender.Enqueue(Marked(0, 100));
+        scheduler.RunPass(owner);     // its write stays pending: the peer stopped reading
+        for (int number = 1; number <= Batch; number++)
+            sender.Enqueue(Marked(number, 4_096));
+        scheduler.RunPass(owner);     // framed ahead: one buffer grows
+        Assert.True(sender.BurstCapacity > Batch * 4_096);
+
+        stalled.Complete();
+        PassUntil(scheduler, owner, () => stalled.Writes == 2);   // the grown buffer is now the burst in flight
+        for (int number = Batch + 1; number <= 2 * Batch; number++)
+            sender.Enqueue(Marked(number, 4_096));
+        scheduler.RunPass(owner);     // framed ahead of it: the other buffer grows as large, while the first is read
+        Assert.True(sender.BurstCapacity > 2 * Batch * 4_096);
+
+        stalled.Complete();
+        PassUntil(scheduler, owner, () => stalled.Writes == 3);
+        stalled.Complete();
+        PassUntil(scheduler, owner, () => sender.PendingBytes == 0);
+        sender.Enqueue(Marked(2 * Batch + 1, 100)); // caught up: a small burst again
+        scheduler.RunPass(owner);
+        stalled.Complete();
+        PassUntil(scheduler, owner, () => sender.BurstCapacity == asNew);
+
+        Assert.Equal(Enumerable.Range(0, 2 * Batch + 2), (await Frames(stalled.ReadAtCompletion.ToArray()))
+            .Select(frame => BitConverter.ToInt32(frame.Payload, 0)));
+        await CloseAsync(scheduler, sender);
+        Assert.Equal(0, _pool.Outstanding);
+    }
+
+    /// <summary>
     /// A packet the session cannot seal (one that never completed its exchange, or spent its counter): the burst it was
     /// in is discarded, nothing of it reaches the wire, and the connection closes, refusing what is sent after.
     /// </summary>
@@ -553,6 +600,16 @@ public sealed class ConnectionSenderShould
     private OutboundPacket Payload(int length) =>
         new(new NetworkPacketHeader { Type = NetworkPacketType.SMSG_WORLD_STATE_UPDATE, Protocol = NetworkProtocol.Tcp },
             _pool.Rent(new byte[length]));
+
+    /// <summary>A payload of <paramref name="length" /> bytes that starts with <paramref name="number" />.</summary>
+    private OutboundPacket Marked(int number, int length)
+    {
+        byte[] payload = new byte[length];
+        BitConverter.TryWriteBytes(payload, number);
+        return new OutboundPacket(
+            new NetworkPacketHeader { Type = NetworkPacketType.SMSG_WORLD_STATE_UPDATE, Protocol = NetworkProtocol.Tcp },
+            _pool.Rent(payload));
+    }
 
     /// <summary>The frames on a wire, read as the server reads its own (#875).</summary>
     private static Task<List<(NetworkPacketHeader Header, byte[] Payload)>> Frames(byte[] wire) =>

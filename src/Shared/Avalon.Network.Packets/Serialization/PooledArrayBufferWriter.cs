@@ -4,14 +4,33 @@ namespace Avalon.Network.Packets.Serialization;
 
 public sealed class PooledArrayBufferWriter : IBufferWriter<byte>, IDisposable
 {
-    private byte[] _buffer = ArrayPool<byte>.Shared.Rent(512);
+    /// <summary>The buffer a new writer rents, and the one <see cref="Trim" /> goes back to.</summary>
+    public const int InitialCapacity = 512;
+
+    private byte[] _buffer = ArrayPool<byte>.Shared.Rent(InitialCapacity);
     private int _written;
 
     public int Written => _written;
+
+    /// <summary>The buffer's length. It doubles as it fills and is kept by <see cref="Reset" />.</summary>
+    public int Capacity => _buffer.Length;
     public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0, _written);
     public ReadOnlyMemory<byte> WrittenMemory => _buffer.AsMemory(0, _written);
 
     public void Reset() => _written = 0;
+
+    /// <summary>
+    /// Empties the writer and gives its buffer back to the array pool for one of a new writer's size. Nothing may
+    /// still read what was written.
+    /// </summary>
+    public void Trim()
+    {
+        // Rented first: a rent that throws leaves the writer with the buffer it had.
+        byte[] small = ArrayPool<byte>.Shared.Rent(InitialCapacity);
+        ArrayPool<byte>.Shared.Return(_buffer);
+        _buffer = small;
+        _written = 0;
+    }
 
     public void Advance(int count)
     {

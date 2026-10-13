@@ -21,6 +21,17 @@ namespace Avalon.Hosting.Networking;
 /// tick's packets, and neither grows on the tick. The next write sends the next buffer. Only the owner seals and frames,
 /// and its writes are sequential, so the nonce order is still the wire order.
 /// <para>
+/// A burst buffer doubles as it fills and keeps its size when it is emptied, and what it can be asked to hold is what
+/// <c>Network:MaxPendingBytes</c> lets a connection queue: 512 KiB of payload, which framed is up to 1 MiB of buffer
+/// with the world sending plain and 2 MiB with it sealing (each frame adds 10 to 16 bytes, and a seal 28 more, to a
+/// payload of some twenty). A peer that stops reading for a few seconds grows one buffer to that, and a second stall
+/// the other: 2 to 4 MiB a connection, kept for its life (#883). So a buffer above <see cref="BurstTrimThreshold" />
+/// is given back for a small one once the connection has caught up: when nothing is framed ahead and no write is in
+/// flight, and the buffer's last burst filled at most a quarter of it (<see cref="TrimIfOutgrown" />). A buffer
+/// whose bursts go on filling more than a quarter of it stays; what a connection keeps between bursts is otherwise
+/// at most the threshold a buffer.
+/// </para>
+/// <para>
 /// Owner-thread only: <see cref="Service" />, <see cref="Fault" />, the next buffer and its counts, the swap of the two
 /// buffers (only while no write is in flight), <c>_finishedFlag</c>, <c>_doomHandled</c>, <c>_noticeWritten</c>,
 /// <c>_pingPending</c> and <c>_pingStampNext</c>. Every other field is read and written with <see cref="Interlocked" /> or
@@ -75,6 +86,14 @@ public sealed class ConnectionSender : IOutbox
     /// its place, answered or not. A pong for it is then ignored, and the next ping measures again.
     /// </summary>
     public const int PingStampCapacity = 4;
+
+    /// <summary>
+    /// A burst buffer larger than this is given back once its connection no longer fills a quarter of it (#883).
+    /// 64 KiB: the largest size a buffer grows to that is still under the 85,000 bytes from which an array is allocated
+    /// on the large object heap, so a buffer that is kept is never there, and some sixty times what a connection had
+    /// pending at the 99th percentile of the capacity ramps (about 1 KiB, docs/benchmarks.md).
+    /// </summary>
+    public const int BurstTrimThreshold = 64 * 1024;
 
     // The time-sync ping's place in the queue: no payload, since the owner encodes the ping as it writes it.
     private static readonly OutboundPacket s_pingMarker = new(
@@ -151,6 +170,12 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>True once the connection was found too slow; it is closing.</summary>
     public bool IsDoomed => Volatile.Read(ref _doomed) != 0;
+
+    /// <summary>
+    /// The bytes of burst buffer this connection holds: the one being written and the next. Exact on the owner thread;
+    /// from another it may read a buffer the owner is swapping or trimming, and is then a pass old.
+    /// </summary>
+    public int BurstCapacity => _burst.Capacity + _next.Capacity;
 
     internal bool IsWriteInFlight => Volatile.Read(ref _writeInFlight) != 0;
 
@@ -373,6 +398,9 @@ public sealed class ConnectionSender : IOutbox
         if (_next.Written == 0)
         {
             (_burst, _next) = (_next, _burst);
+            // No write reads either buffer here, and the one the last write used still says how long that burst was.
+            TrimIfOutgrown(_burst);
+            TrimIfOutgrown(_next);
             _next.Reset();
         }
 
@@ -489,6 +517,20 @@ public sealed class ConnectionSender : IOutbox
             Fault(e);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Owner thread, no write in flight: a burst buffer that grew past <see cref="BurstTrimThreshold" /> and whose last
+    /// burst filled at most a quarter of it goes back to the array pool for a small one (#883). Two compares for a
+    /// connection whose buffers are small, once per burst and never per packet. The quarter keeps a connection that
+    /// goes on sending large bursts from giving back, renting and growing a buffer every pass; the buffer a stall
+    /// grew to frame ahead into is empty once the connection has caught up, and goes at once.
+    /// </summary>
+    private static void TrimIfOutgrown(PooledArrayBufferWriter burst)
+    {
+        int capacity = burst.Capacity;
+        if (capacity > BurstTrimThreshold && burst.Written <= capacity / 4)
+            burst.Trim();
     }
 
     /// <summary>Owner thread: the next burst, never to be written, is dropped and its payload bytes stop counting.</summary>
