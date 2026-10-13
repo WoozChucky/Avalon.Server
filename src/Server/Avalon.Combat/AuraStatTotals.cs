@@ -26,27 +26,42 @@ public sealed class AuraStatTotals
 
     public float Percent(AuraStat stat) => Index(stat) is { } i ? _percent[i] : 0f;
 
-    public static AuraStatTotals Of(IEnumerable<(IReadOnlyList<AuraStatModifier> Modifiers, uint Stacks)> auras)
+    /// <summary>
+    /// The totals of the auras a unit holds, in the list's order, each read through <paramref name="read" /> as its
+    /// modifiers and the stacks held. The world server rebuilds a unit's totals whenever one of its auras changes, so
+    /// the totals themselves are all this allocates when <paramref name="read" /> captures nothing: as a sequence of
+    /// pairs built by a query, it cost an iterator, and an enumerator for each aura's modifiers, besides (#883).
+    /// </summary>
+    public static AuraStatTotals Of<TAura>(IReadOnlyList<TAura> auras,
+        Func<TAura, (IReadOnlyList<AuraStatModifier> Modifiers, uint Stacks)> read)
     {
         var totals = new AuraStatTotals();
-        foreach ((IReadOnlyList<AuraStatModifier> modifiers, uint stacks) in auras)
+        for (int i = 0; i < auras.Count; i++)
         {
-            foreach (AuraStatModifier m in modifiers)
-            {
-                // The catalog refuses a bad row; a bad value that slips through counts as nothing.
-                if (Index(m.Stat) is not { } i || !float.IsFinite(m.Value))
-                    continue;
-
-                float value = m.Value * Math.Max(1u, stacks);
-                if (m.Kind == AuraModifierKind.Percent) totals._percent[i] += value;
-                else if (m.Kind == AuraModifierKind.Flat) totals._flat[i] += value;
-                else continue;
-
-                totals.IsEmpty = false;
-            }
+            (IReadOnlyList<AuraStatModifier> modifiers, uint stacks) = read(auras[i]);
+            totals.Add(modifiers, stacks);
         }
 
         return totals;
+    }
+
+    private void Add(IReadOnlyList<AuraStatModifier> modifiers, uint stacks)
+    {
+        for (int n = 0; n < modifiers.Count; n++)
+        {
+            AuraStatModifier m = modifiers[n];
+
+            // The catalog refuses a bad row; a bad value that slips through counts as nothing.
+            if (Index(m.Stat) is not { } i || !float.IsFinite(m.Value))
+                continue;
+
+            float value = m.Value * Math.Max(1u, stacks);
+            if (m.Kind == AuraModifierKind.Percent) _percent[i] += value;
+            else if (m.Kind == AuraModifierKind.Flat) _flat[i] += value;
+            else continue;
+
+            IsEmpty = false;
+        }
     }
 
     private static int? Index(AuraStat stat) => (int)stat is >= 1 and < Slots ? (int)stat : null;

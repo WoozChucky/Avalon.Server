@@ -68,7 +68,7 @@ public abstract class SimUnit : IUnit
     public AuraStatTotals AuraTotals() =>
         Auras.Count == 0
             ? AuraStatTotals.Empty
-            : AuraStatTotals.Of(Auras.Select(a => ((IReadOnlyList<AuraStatModifier>)a.Template.Modifiers, a.Stacks)));
+            : AuraStatTotals.Of(Auras, static a => (a.Template.Modifiers, a.Stacks));
 
     public PendingCast? Casting { get; set; }
 
