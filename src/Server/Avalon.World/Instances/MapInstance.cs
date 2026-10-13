@@ -187,13 +187,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
 
         // The layout's packet entries (#883), here rather than at the first arrival: an instance is built off the
-        // tick, and the first character to arrive should cost the tick what every other one does. Read with
-        // GetService like the services below, so an instance built without a chunk library (tests) still builds and
-        // sends no layout; production registers it, and WorldHostGraphShould proves it. A chunk the library does not
-        // hold throws here and fails the build, as it already failed the navmesh bake before it.
-        LayoutEntries = serviceProvider.GetService<IChunkLibrary>() is { } chunkLibrary
-            ? new MapLayoutEntries(InstanceId, layout, chunkLibrary)
-            : null;
+        // tick, and the first character to arrive should cost the tick what every other one does. The chunk library
+        // that names the chunks is required, like the combat settings and the script manager below: without it the
+        // build fails here, loudly, rather than making an instance whose arrivals are told of a map and sent no
+        // layout to build it from. A chunk the library does not hold fails the build the same way, as it already
+        // failed the navmesh bake before it.
+        LayoutEntries = new MapLayoutEntries(InstanceId, layout, serviceProvider.GetRequiredService<IChunkLibrary>());
         Seed = seed;
         _navigator = navigator;
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
@@ -321,11 +320,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// <see cref="Layout" /> as the <c>SMSG_CHUNK_LAYOUT</c> of every character arriving here carries it (#883): built
-    /// with the instance, so off the tick like the rest of it, and never changed. Null only for an instance built
-    /// without a chunk library, which has no layout to send: a test's or a harness's, never the server's. World-side,
-    /// not on IMapInstance.
+    /// with the instance, so off the tick like the rest of it, and never changed. Every instance has them, as it has
+    /// a layout (#912): a client completes a transition on the layout it is sent behind it, so an instance that could
+    /// not send one must not exist. World-side, not on IMapInstance.
     /// </summary>
-    internal MapLayoutEntries? LayoutEntries { get; }
+    internal MapLayoutEntries LayoutEntries { get; }
 
     public Vector3 EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;

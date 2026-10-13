@@ -515,6 +515,7 @@ public class CharacterLeaveShould : IDisposable
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        serviceProvider.GetService(typeof(IChunkLibrary)).Returns(new AnyChunkLibrary());
         serviceProvider.GetService(typeof(ICharacterSaveScheduler)).Returns(scheduler);
 
         IWorld world = Substitute.For<IWorld>();

@@ -28,6 +28,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Pvp;
 using Avalon.World.Scripts;
+using Avalon.World.Testing.Fakes;
 using DotRecast.Detour;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -52,16 +53,17 @@ namespace Avalon.World.Testing.Scenarios;
 /// <see cref="Clock" />), <see cref="CombatConfig" /> (the defaults, as production), <see cref="IScriptManager" />
 /// (a real <see cref="ScriptManager" />, not loaded: a cast's script lookup finds nothing, and only a cast looks),
 /// <see cref="ICombatRandom" /> (a <see cref="CombatRandom" /> over a seeded <see cref="Random" />) and
-/// <see cref="PvpToggle" /> (the real one, on the clock). Left out, so the instance takes its own fallback: the aura
-/// scripts, the periodic save, the loot roller and allocator, quests, parties and the chunk library (such an instance
-/// has no chunk layout packet to send; nothing arrives in one).
+/// <see cref="PvpToggle" /> (the real one, on the clock) and <see cref="IChunkLibrary" /> (one that names any chunk:
+/// an instance cannot be built without a chunk library, and nothing arrives in a scenario to be sent the names). Left
+/// out, so the instance takes its own fallback: the aura scripts, the periodic save, the loot roller and allocator,
+/// quests and parties.
 /// </para>
 /// <para>
 /// A world made by <see cref="CreateWithReferenceData" /> holds the World server's reference data
 /// (<see cref="ScenarioReferenceData" />) and builds forests (<see cref="NewForestInstance" />) and characters of a
 /// class (<see cref="NewCharacter(CharacterClass)" />) from it. Its container adds what those resolve in production:
 /// the loaded script manager (so creatures fight with their AI and casts run their ability scripts), the world itself
-/// (<see cref="IWorld" />, which a creature's AI reads its abilities through), the chunk library, the aura scripts,
+/// (<see cref="IWorld" />, which a creature's AI reads its abilities through), the catalog's chunk library, the aura scripts,
 /// the loot roller and allocator, each roll seeded, and the <see cref="PartyService" /> (<see cref="FormParty" />),
 /// which <see cref="Tick" /> ticks and flushes as the World server does. Its loggers all write to one <see cref="ErrorLog" />: an error logged
 /// while a forest is built or ticked, which the instance contains and goes on without, ends the scenario instead.
@@ -129,6 +131,10 @@ public sealed class ScenarioWorld : IDisposable
         services.AddSingleton<TimeProvider>(Clock);
         services.AddSingleton(new CombatConfig());
         services.AddSingleton<IScriptManager>(reference?.Scripts ?? new ScriptManager(NullLoggerFactory.Instance));
+
+        // An instance names its layout's chunks from the chunk library as it is built (the entries of the chunk layout
+        // packet an arrival is sent, #883) and cannot be built without one. Build cost only: no scenario has an arrival.
+        services.AddSingleton(reference?.Chunks ?? new AnyChunkLibrary());
         services.AddSingleton<ICombatRandom>(new CombatRandom(new Random(seed)));
         services.AddSingleton(new PvpToggle(Options.Create(configuration), Clock));
         if (reference is not null)
@@ -171,10 +177,6 @@ public sealed class ScenarioWorld : IDisposable
         // world it reads its abilities from; ChunkLayoutInstanceFactory resolves the world too. The world is built after
         // the container, and resolved only once an instance is built.
         services.AddSingleton<IWorld>(_ => _world);
-
-        // The chunk library an instance names its layout's chunks from as it is built (the entries of the chunk layout
-        // packet an arrival is sent, #883). Build cost only: no scenario has an arrival.
-        services.AddSingleton(reference.Chunks);
         services.AddSingleton<ILoggerFactory>(_errorLog);
         services.AddSingleton(typeof(ILogger<>), typeof(Logger<>));
         services.AddSingleton(provider =>

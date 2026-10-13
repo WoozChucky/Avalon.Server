@@ -44,12 +44,12 @@ public static class MapArrival
     /// <paramref name="mapId" />: the seed, the cell size, the chunks, the entry spawn and the portals a client builds
     /// the map and bakes its navmesh from. The chunk and portal entries are the instance's own, built with it
     /// (<see cref="MapInstance.LayoutEntries" />), so an arrival builds nothing. Nothing is sent for an instance that
-    /// is not a <see cref="MapInstance" />, or for one built without a chunk library: every instance the server builds
-    /// is a <see cref="MapInstance" /> with its entries.
+    /// is not a <see cref="MapInstance" />: every instance the server builds is one, and every
+    /// <see cref="MapInstance" /> has its entries.
     /// </summary>
     public static void SendLayout(IWorldConnection connection, IMapInstance instance, ushort mapId)
     {
-        if (instance is MapInstance { LayoutEntries: { } entries })
-            connection.Send(entries.Encode(mapId, PacketEncoder.Shared));
+        if (instance is MapInstance built)
+            connection.Send(built.LayoutEntries.Encode(mapId, PacketEncoder.Shared));
     }
 }

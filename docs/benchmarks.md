@@ -133,8 +133,9 @@ above. The entries are not built by an arrival at all: the instance's constructo
 
 The second row's figures are a probe, not a benchmark: an instance without creatures constructed with and without a
 chunk library in its container (the least of 200 constructions each, Release), 15,224 B without and the entries more
-with, for the town and for forests on seven seeds. An instance pays them whether or not anyone ever arrives; one
-built without a chunk library, which only a test or a harness builds, has none and is sent no layout.
+with, for the town and for forests on seven seeds, taken while an instance could still be built without one. An
+instance pays them whether or not anyone ever arrives, and none is built without them: the constructor requires the
+chunk library.
 
 Each call of the two rows takes 6.3 to 7.3 us into a forest and 4.2 to 4.3 us into the town, against 1.8 to 2.3 us
 and 1.1 to 1.3 us for the rows that arrive in one kept instance: every call reads an instance, its portals and its

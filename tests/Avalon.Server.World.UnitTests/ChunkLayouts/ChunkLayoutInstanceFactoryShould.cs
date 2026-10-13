@@ -54,6 +54,7 @@ public class ChunkLayoutInstanceFactoryShould
         world.Configuration.Returns(new GameConfiguration());
         sp.GetService(typeof(IWorld)).Returns(world);
         sp.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        sp.GetService(typeof(IChunkLibrary)).Returns(new AnyChunkLibrary());
         return sp;
     }
 

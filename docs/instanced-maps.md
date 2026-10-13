@@ -380,11 +380,12 @@ layout packet's chunk and portal entries are built once, with the instance (`Map
 `MapLayoutEntries`, #883): the instance's constructor makes them, so they are built where the instance is, off the
 tick, and the first character to arrive costs the tick what every other one does. They come from the instance's
 `ChunkLayout`, which it keeps for its life, and from the chunk library's names, loaded once with the world; neither
-is something `/reload` or live template editing replaces. `MapInstance` reads the chunk library from its container
-with `GetService`, like its other services: production registers it (`WorldHostGraphShould`), and an instance built
-without one, which only a test or a harness builds, has no entries and is sent no layout. A chunk the library does
-not hold fails the instance's build, as it already failed the navmesh bake before it. The entries are written into
-each packet and never changed, and `MapArrivalShould` holds every arrival's packet to the layout byte for byte.
+is something `/reload` or live template editing replaces. Every `MapInstance` has them, as it has a layout (#912): a
+client completes a transition on the layout it is sent behind it, so a `Success` with no layout must not be
+possible. The constructor requires the chunk library from its container, as it requires the combat settings and the
+script manager (`WorldHostGraphShould` holds the registration): without one the build fails, and so it does for a
+chunk the library does not hold, as the navmesh bake before it already did. The entries are written into each
+packet and never changed, and `MapArrivalShould` holds every arrival's packet to the layout byte for byte.
 
 ---
 

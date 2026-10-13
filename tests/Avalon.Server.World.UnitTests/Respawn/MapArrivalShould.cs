@@ -310,8 +310,8 @@ public class MapArrivalShould
     }
 
     /// <summary>
-    /// A real instance of <paramref name="layout" />, with the portals the layout places, built over the chunk library
-    /// as the server builds one: an instance makes its layout's packet entries as it is constructed.
+    /// A real instance of <paramref name="layout" />, with the portals the layout places, built over the catalog's
+    /// chunk library as the server builds one: an instance makes its layout's packet entries as it is constructed.
     /// </summary>
     private MapInstance Instance(ChunkLayout layout, MapTemplateId template, MapType mapType, PartyId? party = null)
     {

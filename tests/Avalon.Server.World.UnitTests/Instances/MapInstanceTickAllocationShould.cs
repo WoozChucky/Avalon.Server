@@ -36,6 +36,7 @@ public class MapInstanceTickAllocationShould
     {
         var services = new ServiceCollection();
         services.AddSingleton(new CombatConfig());
+        services.AddSingleton<IChunkLibrary>(new AnyChunkLibrary());
         services.AddSingleton(Substitute.For<IScriptManager>());
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
