@@ -369,6 +369,11 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// hostiles still fighting in the target's encounter; the healer joins it. A creature walking home takes none
     /// (#610), or it would carry it past its reset; the creatures still fighting share the whole of it.
     /// </summary>
+    /// <remarks>
+    /// The hostiles are walked in place twice, to count those fighting and then to give each its share, where a list of
+    /// them was made for every heal (#883). Nothing in between changes the answer: joining the encounter and adding
+    /// threat write the threat lists, never the set of hostiles or whether one is walking home.
+    /// </remarks>
     private void AddHealThreat(IUnit healer, IUnit target, uint restored, float healThreatPerHp)
     {
         if (healThreatPerHp <= 0 || restored == 0)
@@ -377,15 +382,22 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         var enc = _registry.FindEncounterContaining(target) as Encounter;
         if (enc is null) return;
 
-        var fighting = enc.Hostiles.Where(h => !IsReturningHome(h)).ToList();
-        if (fighting.Count == 0) return;
+        int fighting = 0;
+        foreach (IUnit hostile in enc.WalkHostiles())
+        {
+            if (!IsReturningHome(hostile)) fighting++;
+        }
+
+        if (fighting == 0) return;
 
         CharacterClass healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Healer;
-        float perHostile = restored * healThreatPerHp * ClassThreatModifier.Get(healerClass) / fighting.Count;
+        float perHostile = restored * healThreatPerHp * ClassThreatModifier.Get(healerClass) / fighting;
 
         if (!enc.Players.Contains(healer)) enc.AddPlayer(healer);
-        foreach (IUnit? h in fighting)
-            enc.AddThreat(h, healer, perHostile);
+        foreach (IUnit hostile in enc.WalkHostiles())
+        {
+            if (!IsReturningHome(hostile)) enc.AddThreat(hostile, healer, perHostile);
+        }
     }
 
     /// <summary>
