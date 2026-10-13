@@ -10,6 +10,11 @@ public static class DiagnosticsConfig
     private const string FrameKicksDescription =
         "Connections closed for a frame that declared more than Hosting:MaxInboundFrameSize or had a malformed length";
 
+    private const string ProtocolKicksName = "network.in.protocol_kicks";
+
+    private const string ProtocolKicksDescription =
+        "Connections closed for a frame the peer got wrong: not a packet, sealed before or against the session key, or a payload that is not its packet";
+
     public static class World
     {
         private const string ServiceName = "world-server";
@@ -29,6 +34,9 @@ public static class DiagnosticsConfig
 
         public static readonly Counter<long> FrameKicks = Meter.CreateCounter<long>(FrameKicksName, "{connections}",
             FrameKicksDescription);
+
+        public static readonly Counter<long> ProtocolKicks = Meter.CreateCounter<long>(ProtocolKicksName,
+            "{connections}", ProtocolKicksDescription);
 
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
@@ -56,6 +64,9 @@ public static class DiagnosticsConfig
 
         public static readonly Counter<long> FrameKicks = Meter.CreateCounter<long>(FrameKicksName, "{connections}",
             FrameKicksDescription);
+
+        public static readonly Counter<long> ProtocolKicks = Meter.CreateCounter<long>(ProtocolKicksName,
+            "{connections}", ProtocolKicksDescription);
 
         public static readonly Counter<long> Logins =
             Meter.CreateCounter<long>("avalon.auth.logins", "{logins}", "Password logins, by result");

@@ -88,7 +88,26 @@ A client never sends such a frame, and any peer that completes TLS can, before i
 a peer that is not a client, or a client newer than the limit allows. Each also writes one Debug line (the connection,
 its address and the declared length), and nothing above Debug.
 
-`network.in.packets` and `network.in.bytes`, on both meters, count what the read loop decoded. A frame that arrives
+### Protocol violations
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `network.in.protocol_kicks` | `network_in_protocol_kicks_total` | Connections closed for a frame the peer got wrong (#897, [packet handlers](packet-handlers.md)), tagged `reason`: `malformed_frame` (not a `NetworkPacket`), `sealed_before_key` (flagged `Encrypted` before the session had keys), `seal_not_authentic` (flagged `Encrypted`, and does not authenticate or is shorter than a nonce and a tag) or `undecodable_payload` (not an encoding of its opcode's packet). On the world's meter (`world-server`) and on the auth server's (`auth-server`), each counting its own connections |
+
+`reason` takes those four values and no other: nothing a peer sends becomes a tag. Each count is one connection closed
+and one Warning (the connection, its address and, but for `malformed_frame`, the opcode), without the exception: these
+were an Error with a stack trace each, and any peer that completes TLS can cause one before it is admitted or logged
+in, on every reconnect. A world's close for a packet that arrives unsealed while it seals
+(`Network:PacketEncryption`) is not counted here; it writes its own Warning. Nor is an opcode the server has no packet
+type for, which leaves the connection open.
+
+`malformed_frame`, `sealed_before_key` and `undecodable_payload` are a peer that is not a client, or a client whose
+schema is not the server's. `seal_not_authentic` is that too, and it is also what a client and a server that derive
+different session keys look like, on every connection, at the first sealed packet: a rate that follows logins or world
+entries rather than scans means the two ends disagree ([session crypto](crypto-v1-derivation.md)).
+
+`network.in.packets` and `network.in.bytes`, on both meters, count what the read loop decoded. A frame whose opcode
+the server has no packet type for is counted in both, though nothing is decoded for it. A frame that arrives
 while its connection is closing is read and discarded undecoded
 ([graceful shutdown](networking-graceful-shutdown.md#what-a-closing-connection-reads)): it adds its length to
 `network.in.bytes` and nothing to `network.in.packets`.

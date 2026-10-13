@@ -17,7 +17,9 @@ The header is a struct (`NetworkPacketHeader`), read by hand from each frame by 
 neither a received frame nor a sent packet allocates a header (#875); the wire is unchanged.
 
 `Encrypted` is the only flag anything acts on. A receiver opens the payload with the session keys when the header
-carries the flag and takes the payload as plain when it does not (`Connection`'s read loop). A packet class declares
+carries the flag and takes the payload as plain when it does not (`Connection`'s read loop). A flagged payload that
+does not open, or that arrives before the session has keys, closes the connection
+([failure modes](#failure-modes--safeguards)). A packet class declares
 its flags in a static `Flags` field; the outbox seals a packet flagged `Encrypted` when its connection seals, and when
 it does not, the payload goes plain and the flag is cleared from the header as the frame is written
 ([Sending a packet](#sending-a-packet)). A world with `Network:PacketEncryption` on closes a connection that sends
@@ -270,6 +272,13 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
 - Multiple logins for same account → previously connected session force-disconnected via pub/sub event.
 - A frame that declares more than `Hosting:MaxInboundFrameSize` bytes, or a malformed length prefix, on either server →
   nothing is buffered for it and the connection is closed without a notice ([above](#the-inbound-frame-length-limit)).
+- A frame that is not a `NetworkPacket`, a payload flagged `Encrypted` that arrives before the session has its keys or
+  does not open under them, or a payload that is not an encoding of its opcode's packet, on either server → the
+  connection is closed without a notice, as a protocol violation: one Warning without the exception, and one count in
+  `network.in.protocol_kicks` (#897, [packet handlers](packet-handlers.md)).
+- An opcode the server has no packet type for → the frame is dropped and the connection stays open: an older client
+  may still send an opcode a newer server has retired. The first on a connection is logged at Warning, the rest at
+  Debug (#897).
 - A world connection with `Network:MaxReceiveQueueDepth` packets (2,048) received and waiting for the tick that sends
   another → the packet is not queued and the connection is closed without a notice (#927,
   [packet handlers](packet-handlers.md)). The outbound mirror is the slow-connection close past
@@ -319,7 +328,8 @@ in it, so a fix will turn that test red rather than pass unnoticed.
   (`PacketReader`, `PacketManager`, and `tools/Avalon.Exporter` for `schema/opcodes.json`), so a new packet class
   declares a new `NetworkPacketType` value there. A packet a server receives also derives from `Packet` and carries
   `[Packet(HandleOn = ComponentType.Auth)]` or `ComponentType.World`: `HandleOn` is what gives that server a decoder
-  for the opcode (`AddCoreServices`), and without it `PacketReader` logs "Unknown packet type". The attribute's `Type`
+  for the opcode (`AddCoreServices`), and without it the read loop drops the frame and logs "Unknown packet type" (at
+  Warning for the first on a connection, at Debug after that). The attribute's `Type`
   repeats the opcode; no server code reads it (the host graph tests do). After any contract change, re-export the wire
   schema (`tools/Avalon.Exporter -- proto`, `opcodes`, `corpus`).
 - **Version evolution:** there is no version per packet. `Header.Version` is always 0, and no handler is chosen by it.

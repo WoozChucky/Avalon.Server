@@ -1,14 +1,22 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Common.Cryptography;
+using Avalon.Configuration;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Handshake;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
+using ProtoBuf;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
 
 /// <summary>
 /// End to end over loopback, through the real read loop both servers' connections run: what it does with a frame it
-/// will not read, and with a frame that arrives while the connection is closing.
+/// will not read, with a frame the peer got wrong, with a packet the server does not serve, and with a frame that
+/// arrives while the connection is closing.
 /// </summary>
 public class ConnectionReadLoopShould
 {
@@ -45,6 +53,19 @@ public class ConnectionReadLoopShould
     }
 
     /// <summary>
+    /// A real server's dispatch with no handler for anything, as the auth server has none for a packet it decodes
+    /// and does not serve.
+    /// </summary>
+    private sealed class HandlerlessServer(ILogger logger) : ServerBase<ProbeConnection>(
+        Substitute.For<IPacketManager>(), logger, Substitute.For<IServiceProvider>(),
+        Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 }))
+    {
+        protected override object GetContextPacket(IConnection connection, object? packet, Type packetType) => null!;
+        protected override Task OnStoppingAsync(CancellationToken stoppingToken) => Task.CompletedTask;
+        protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
+    }
+
+    /// <summary>
     /// A connection whose <see cref="OnReceive" /> has no closing check of its own, as the auth server's has none: it
     /// stands for a handler being run.
     /// </summary>
@@ -54,26 +75,28 @@ public class ConnectionReadLoopShould
         public readonly TaskCompletionSource FirstHandled = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource SecondSeen = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly HeldOutbox Outbox = new();
+        public readonly ConcurrentQueue<string> Violations = new();
         public readonly IPacketReader Reader;
+
+        /// <summary>Where a <see cref="CRegisterPacket" /> is sent for dispatch, as the auth server sends every packet.</summary>
+        public IServerBase? Dispatch;
         private int _framesRefused;
         private int _handled;
         private int _bytesDiscarded;
 
-        public ProbeConnection(TcpClient client, ILogger logger) : this(client, logger, NewReader())
-        {
-        }
-
-        private ProbeConnection(TcpClient client, ILogger logger, IPacketReader reader)
+        public ProbeConnection(TcpClient client, ILogger logger, IPacketReader reader)
             : base(logger, new FakeServer(), reader)
         {
             Reader = reader;
             Init(client);
         }
 
-        private static IPacketReader NewReader()
+        /// <summary>A reader that decodes nothing and hands back a packet for every frame.</summary>
+        public static IPacketReader NewReader()
         {
             IPacketReader reader = Substitute.For<IPacketReader>();
             reader.BufferSize.Returns(256);
+            reader.Read(default, null).ReturnsForAnyArgs(new CRequestServerInfoPacket());
             return reader;
         }
 
@@ -97,6 +120,8 @@ public class ConnectionReadLoopShould
 
         protected override void OnFrameRefused() => Interlocked.Increment(ref _framesRefused);
 
+        protected override void OnProtocolViolation(string reason) => Violations.Enqueue(reason);
+
         protected override void OnFrameDiscarded(int size)
         {
             Interlocked.Add(ref _bytesDiscarded, size);
@@ -105,6 +130,9 @@ public class ConnectionReadLoopShould
 
         protected override ValueTask OnReceive(NetworkPacketHeader header, Packet? payload)
         {
+            if (Dispatch is not null && payload is CRegisterPacket)
+                return new ValueTask(Dispatch.CallListener(this, header, payload));
+
             if (Interlocked.Increment(ref _handled) == 1)
                 FirstHandled.TrySetResult();
             else
@@ -115,16 +143,47 @@ public class ConnectionReadLoopShould
         protected override long GetServerTime() => 0;
     }
 
-    private static async Task<(ProbeConnection Connection, TcpClient Client)> ConnectAsync(ILogger logger)
+    private static async Task<(ProbeConnection Connection, TcpClient Client)> ConnectAsync(ILogger logger,
+        IPacketReader? reader = null)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var client = new TcpClient();
         Task<TcpClient> accept = listener.AcceptTcpClientAsync();
         await client.ConnectAsync(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port);
-        var connection = new ProbeConnection(await accept, logger);
+        var connection = new ProbeConnection(await accept, logger, reader ?? ProbeConnection.NewReader());
         await connection.StartAsync(CancellationToken.None);
         return (connection, client);
+    }
+
+    /// <summary>
+    /// The servers' reader, with decoders for <see cref="CRequestServerInfoPacket" /> and
+    /// <see cref="CRegisterPacket" /> and for nothing else, writing to <paramref name="logger" /> as the connection
+    /// does.
+    /// </summary>
+    private static PacketReader RealReader(ILogger logger)
+    {
+        ILoggerFactory loggers = Substitute.For<ILoggerFactory>();
+        loggers.CreateLogger(Arg.Any<string>()).Returns(logger);
+        return new PacketReader(loggers, Options.Create(new HostingConfiguration()),
+            [typeof(CRequestServerInfoPacket), typeof(CRegisterPacket)]);
+    }
+
+    /// <summary>One frame as a client writes it: the length, then the header and the payload.</summary>
+    private static byte[] Frame(NetworkPacketType type, NetworkPacketFlags flags, byte[] payload)
+    {
+        using var wire = new MemoryStream();
+        Serializer.SerializeWithLengthPrefix(wire,
+            new NetworkPacket { Header = new NetworkPacketHeader { Type = type, Flags = flags }, Payload = payload },
+            PrefixStyle.Base128);
+        return wire.ToArray();
+    }
+
+    private static byte[] Encoded(Packet packet)
+    {
+        using var payload = new MemoryStream();
+        Serializer.Serialize(payload, packet);
+        return payload.ToArray();
     }
 
     /// <summary>
@@ -151,6 +210,125 @@ public class ConnectionReadLoopShould
             Assert.Equal(0, connection.Handled);
             Assert.Equal(1, logger.Count(LogLevel.Debug));
             Assert.DoesNotContain(logger.Entries, entry => entry.Level >= LogLevel.Warning);
+        }
+    }
+
+    public enum WrongFrame
+    {
+        NotAPacket,
+        SealedBeforeAnyKey,
+        SealedUnderAnotherKey,
+        SealedAndTooShort,
+        PayloadCutShort,
+        PayloadNestedPastTheDecodersDepth,
+    }
+
+    /// <summary>
+    /// A frame the peer got wrong is a protocol violation, not a server error (#897). Any peer that completes TLS can
+    /// send one before it is admitted or logged in, and reconnect to send another, so each closes the connection with
+    /// one Warning that carries no exception (nesting past the decoder's depth made one of tens of kilobytes), one
+    /// count under its reason, and nothing at Error. Every one of these was an Error with a stack trace, but the
+    /// payload cut short, which was reported at Debug as the peer having closed the connection.
+    /// </summary>
+    [Theory]
+    [InlineData(WrongFrame.NotAPacket, "malformed_frame")]
+    [InlineData(WrongFrame.SealedBeforeAnyKey, "sealed_before_key")]
+    [InlineData(WrongFrame.SealedUnderAnotherKey, "seal_not_authentic")]
+    [InlineData(WrongFrame.SealedAndTooShort, "seal_not_authentic")]
+    [InlineData(WrongFrame.PayloadCutShort, "undecodable_payload")]
+    [InlineData(WrongFrame.PayloadNestedPastTheDecodersDepth, "undecodable_payload")]
+    public async Task Close_a_peer_whose_frame_is_wrong_with_one_warning_and_no_exception(WrongFrame wrong, string reason)
+    {
+        var logger = new CapturingLogger();
+        (ProbeConnection connection, TcpClient client) = await ConnectAsync(logger, RealReader(logger));
+        using (client) using (connection)
+        {
+            connection.Outbox.Release.SetResult();
+            NetworkPacketType known = CRequestServerInfoPacket.PacketType;
+            if (wrong is WrongFrame.SealedUnderAnotherKey or WrongFrame.SealedAndTooShort)
+                connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
+
+            await client.GetStream().WriteAsync(wrong switch
+            {
+                // A header that declares five bytes with one left.
+                WrongFrame.NotAPacket => [0x03, 0x0A, 0x05, 0x01],
+                WrongFrame.SealedBeforeAnyKey => Frame(known, NetworkPacketFlags.Encrypted, new byte[40]),
+                WrongFrame.SealedUnderAnotherKey => Frame(known, NetworkPacketFlags.Encrypted, new byte[40]),
+                // Less than a nonce and a tag.
+                WrongFrame.SealedAndTooShort => Frame(known, NetworkPacketFlags.Encrypted, new byte[5]),
+                // A string of sixteen bytes, of which one is there.
+                WrongFrame.PayloadCutShort => Frame(known, NetworkPacketFlags.ClearText, [0x0A, 0x10, 0x41]),
+                // Six hundred groups opened inside one another, in a field the packet does not have.
+                _ => Frame(known, NetworkPacketFlags.ClearText, [.. Enumerable.Repeat((byte)0x7B, 600)]),
+            });
+
+            await connection.Closed.Task.WaitAsync(s_wait);
+
+            Assert.Equal([reason], connection.Violations);
+            Assert.Equal(0, connection.Handled);
+            (LogLevel level, _) = Assert.Single(logger.Entries, entry => entry.Level >= LogLevel.Warning);
+            Assert.Equal(LogLevel.Warning, level);
+            Assert.Empty(logger.Exceptions);
+        }
+    }
+
+    /// <summary>
+    /// A packet the server does not serve leaves the connection open: an older client may still send an opcode a
+    /// newer server retired. A peer can therefore send them at any rate, so only the first on a connection is a
+    /// Warning, whether the server has no packet type for the opcode or decodes it and has no handler for it; each
+    /// was a Warning per frame. The connection goes on handling what it does serve.
+    /// </summary>
+    [Fact]
+    public async Task Warn_once_for_packets_the_server_does_not_serve_and_keep_the_connection_open()
+    {
+        var logger = new CapturingLogger();
+        (ProbeConnection connection, TcpClient client) = await ConnectAsync(logger, RealReader(logger));
+        using var dispatch = new HandlerlessServer(logger);
+        using (client) using (connection)
+        {
+            connection.Dispatch = dispatch;
+            byte[] unknown = Frame(NetworkPacketType.CMSG_PING, NetworkPacketFlags.ClearText, []);
+            byte[] unhandled = Frame(CRegisterPacket.PacketType, NetworkPacketFlags.ClearText, Encoded(new CRegisterPacket()));
+            byte[] served = Frame(CRequestServerInfoPacket.PacketType, NetworkPacketFlags.ClearText,
+                Encoded(new CRequestServerInfoPacket { ClientVersion = "1" }));
+
+            await client.GetStream().WriteAsync((byte[])[.. unknown, .. unknown, .. unhandled, .. unhandled, .. unknown, .. served]);
+            await connection.FirstHandled.Task.WaitAsync(s_wait);
+
+            Assert.Equal(1, connection.Handled);
+            Assert.Equal(6, connection.PacketsReceived);
+            Assert.Equal(1, logger.Count(LogLevel.Warning));
+            Assert.DoesNotContain(logger.Entries, entry => entry.Level > LogLevel.Warning);
+            Assert.Empty(connection.Violations);
+            Assert.False(connection.IsClosing);
+        }
+
+        await dispatch.StopAsync(CancellationToken.None);
+    }
+
+    /// <summary>
+    /// What is not the peer's doing stays an Error with its exception. A session whose key exchange failed refuses
+    /// to open anything, as it refuses before any exchange, and with the same base type: only the second is
+    /// something a peer does by sending a sealed frame early.
+    /// </summary>
+    [Fact]
+    public async Task Keep_the_error_and_its_exception_for_a_failure_that_is_not_the_peers()
+    {
+        var logger = new CapturingLogger();
+        (ProbeConnection connection, TcpClient client) = await ConnectAsync(logger, RealReader(logger));
+        using (client) using (connection)
+        {
+            connection.Outbox.Release.SetResult();
+            Assert.ThrowsAny<Exception>(() => connection.CryptoSession.Initialize(new byte[91]));
+
+            await client.GetStream().WriteAsync(
+                Frame(CRequestServerInfoPacket.PacketType, NetworkPacketFlags.Encrypted, new byte[40]));
+            await connection.Closed.Task.WaitAsync(s_wait);
+
+            (LogLevel level, Exception exception) = Assert.Single(logger.Exceptions);
+            Assert.Equal(LogLevel.Error, level);
+            Assert.IsType<InvalidOperationException>(exception);
+            Assert.Empty(connection.Violations);
         }
     }
 
