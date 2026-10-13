@@ -29,7 +29,17 @@ namespace Avalon.World.Abilities;
 /// <see cref="AbilityAim" /> parameter, a copy, so each script keeps the aim it was built with. A constructor that
 /// took the aim as a reference (<c>object</c>, <c>ValueType</c>, an interface the aim implements) would be handed
 /// the box itself, and read every later cast's aim in it: a script type with such a parameter on a public
-/// constructor is refused.
+/// constructor is refused. The aim is written into the box through <c>Unsafe.Unbox</c>, which replaces the boxed
+/// value whole although <see cref="AbilityAim" /> is a readonly struct. That is safe here because nothing else holds
+/// the box: it never leaves this activator but as the factory's argument, the factory copies the aim out of it on
+/// the same thread right after the write, and no reader can meet a half-written value.
+/// <c>InstanceAbilityCastSystemShould.Fire_each_script_with_the_aim_of_its_own_cast</c> pins it.
+/// </para>
+/// <para>
+/// <b>A build inside a build.</b> A factory evaluates the constructor's parameters left to right, the ones it
+/// resolves from the container among them. A service resolved between two of the four could itself build a script
+/// through this activator, and would then overwrite the box and clear the array under the outer build. So a build
+/// started while another is running on the same activator takes an array and a box of its own.
 /// </para>
 /// <para>
 /// <b>Script types that go away.</b> The factories are held weakly by their type, so nothing here keeps a script
@@ -55,6 +65,7 @@ public sealed class AbilityScriptActivator
 
     private readonly object _aim = default(AbilityAim);
     private readonly object?[] _arguments;
+    private bool _building;
 
     public AbilityScriptActivator() => _arguments = [null, null, _aim, null];
 
@@ -76,13 +87,19 @@ public sealed class AbilityScriptActivator
     {
         ObjectFactory factory = FactoryOf(scriptType);
 
-        // A factory reads every argument, the aim out of its box included, before the constructor's body runs, so a
-        // constructor that casts through the same cast system finds the array and the box free.
+        // The kept array and box belong to the build that is running: its factory may not have read them all yet
+        // (it resolves services between them). A build started meanwhile brings its own.
+        if (_building)
+        {
+            return factory(services, [ability, caster, aim, arena]) as AbilityScript;
+        }
+
         object?[] arguments = _arguments;
         Unsafe.Unbox<AbilityAim>(_aim) = aim;
         arguments[0] = ability;
         arguments[1] = caster;
         arguments[3] = arena;
+        _building = true;
         try
         {
             return factory(services, arguments) as AbilityScript;
@@ -94,6 +111,7 @@ public sealed class AbilityScriptActivator
             arguments[0] = null;
             arguments[1] = null;
             arguments[3] = null;
+            _building = false;
         }
     }
 

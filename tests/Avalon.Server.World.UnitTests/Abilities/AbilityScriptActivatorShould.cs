@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using Avalon.Common.Mathematics;
 using Avalon.World.Abilities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Units;
@@ -54,6 +55,53 @@ public class AbilityScriptActivatorShould
         Assert.Contains(nameof(TakesTheAimBoxed), refused.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A factory resolves a constructor's services between the four arguments it is handed. A service that builds a
+    /// script of its own through the same activator while it is resolved must not write its aim and arena over the
+    /// ones the build around it has still to read (#925).
+    /// </summary>
+    [Fact]
+    public void Keep_a_builds_arguments_when_a_service_it_resolves_builds_another()
+    {
+        var activator = new AbilityScriptActivator();
+        var aim = new AbilityAim(new Vector3(0f, 0f, 1f), new Vector3(1f, 0f, 1f));
+        IAbilityArena arena = Substitute.For<IAbilityArena>();
+        var seen = new Seen();
+        IServiceProvider services = Substitute.For<IServiceProvider>();
+        services.GetService(typeof(Seen)).Returns(_ =>
+        {
+            activator.Build(services, typeof(Built), Substitute.For<IAbility>(), Substitute.For<IUnit>(),
+                new AbilityAim(new Vector3(1f, 0f, 0f), new Vector3(9f, 0f, 9f)), Substitute.For<IAbilityArena>());
+            return seen;
+        });
+
+        activator.Build(services, typeof(ResolvesBetweenArguments), Substitute.For<IAbility>(),
+            Substitute.For<IUnit>(), aim, arena);
+
+        Assert.Equal(aim, seen.Aim);
+        Assert.Same(arena, seen.Arena);
+    }
+
+    /// <summary>What <see cref="ResolvesBetweenArguments" /> was built with.</summary>
+    public sealed class Seen
+    {
+        public AbilityAim Aim { get; set; }
+
+        public IAbilityArena? Arena { get; set; }
+    }
+
+    /// <summary>Asks the container for a service after its caster and before its aim. Not an AbilityScript, for the reason <see cref="Built" /> gives.</summary>
+    public sealed class ResolvesBetweenArguments
+    {
+        public ResolvesBetweenArguments(IAbility ability, IUnit caster, Seen seen, AbilityAim aim, IAbilityArena arena)
+        {
+            ArgumentNullException.ThrowIfNull(ability);
+            ArgumentNullException.ThrowIfNull(caster);
+            seen.Aim = aim;
+            seen.Arena = arena;
+        }
+    }
+
     /// <summary>Not an AbilityScript, for the reason <see cref="Built" /> gives.</summary>
     public sealed class TakesTheAimBoxed(IAbility ability, IUnit caster, object aim, IAbilityArena arena)
     {
@@ -100,6 +148,11 @@ public class AbilityScriptActivatorShould
         private static int s_count;
 
         public Built() => Interlocked.Increment(ref s_count);
+
+        /// <summary>A script's constructor, for a build of the base itself.</summary>
+        public Built(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
+            : this() =>
+            _ = (ability, caster, aim, arena);
 
         public static int Count => Volatile.Read(ref s_count);
     }
