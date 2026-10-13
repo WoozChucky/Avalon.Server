@@ -981,7 +981,8 @@ public sealed class QuestService(
     /// <remarks>
     /// A quest without a script costs nothing here, and one with a script only the context its hook is handed, which
     /// is the script's to keep. Before #883 every call made a closure on entry, script or not, and the callers a
-    /// second one and a delegate for the hook's argument: 144 B for each quest a character held, on every kill.
+    /// second one and a delegate for the hook's argument: most of the 200 B a kill cost, for each of its members, for
+    /// each quest the member held.
     /// </remarks>
     private void RunHook<TState>(CharacterEntity character, QuestView quest, ActiveQuest active, string hook, TState state,
         Action<QuestScript, IQuestContext, TState> call)
