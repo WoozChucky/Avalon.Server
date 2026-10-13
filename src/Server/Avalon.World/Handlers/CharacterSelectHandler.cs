@@ -568,7 +568,7 @@ public class CharacterSelectHandler(
         {
             MapId = character.Map,
             InstanceId = instance.InstanceId,
-            Name = townTemplate.Description,
+            Name = townTemplate.Name,
             Description = townTemplate.Description
         };
 
