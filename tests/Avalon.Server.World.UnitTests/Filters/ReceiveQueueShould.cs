@@ -183,6 +183,31 @@ public class ReceiveQueueShould
         Assert.True(fixture.Connection.IsClosing);
     }
 
+    /// <summary>
+    /// One pass takes at most <c>WorldConnection.MaxPacketsPerUpdate</c> packets out of a connection's queue, whether
+    /// it dispatches them or drops them as left behind by a character that has gone, and leaves the rest for the
+    /// next. That bounds what a connection sending faster than the tick takes can cost a tick: its backlog grows
+    /// towards the depth cap instead.
+    /// </summary>
+    [Fact]
+    public void Take_no_more_than_the_pass_budget_from_a_connection_in_one_pass()
+    {
+        const int Budget = (int)Avalon.World.WorldConnection.MaxPacketsPerUpdate;
+        using var fixture = new ReceiveQueueFixture();
+        var input = new CPlayerInputPacket();
+        for (int packet = 0; packet < 2 * Budget + 10; packet++)
+            fixture.Connection.Deliver(NetworkPacketType.CMSG_PLAYER_INPUT, input);
+
+        fixture.Pump(); // the session pass takes no input; the map pass dispatches its budget
+        Assert.Equal(Budget, fixture.Dispatched);
+        Assert.Equal(Budget + 10, fixture.QueueDepth);
+
+        fixture.Connection.Character = null;
+        fixture.Connection.UpdateSession(); // and drops no more than its budget of what the character left behind
+        Assert.Equal(Budget, fixture.Dispatched);
+        Assert.Equal(10, fixture.QueueDepth);
+    }
+
     /// <summary>A depth cap whose kicks (<c>network.in.backlog_kicks</c>) are counted on a meter of the test's own.</summary>
     private sealed class KickProbe : IDisposable
     {
