@@ -5,13 +5,16 @@ using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -71,13 +74,17 @@ public class EnterMapHandlerShould
         handler.Execute(connection, new CEnterMapPacket { TargetMapId = TargetMap });
         Assert.NotNull(onInstance);
 
+        // The connection cleared the move as the character left it, and the one selected since has a move of its own
+        // under way: that flag is not this arrival's to clear.
         connection.Character.Returns((ICharacter?)null);
+        connection.RespawnInFlight = true;
 
         Exception? escaped = Record.Exception(() => onInstance!(target));
 
         Assert.Null(escaped);
         world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
         saver.DidNotReceiveWithAnyArgs().Save(default!, default!);
+        Assert.True(connection.RespawnInFlight);
     }
 
     /// <summary>
@@ -152,6 +159,7 @@ public class EnterMapHandlerShould
         TheBuildIsCancelled,
         TheRequestForTheInstanceThrows,
         TheInstanceIsReleasedTwice,
+        TheInstanceIsReleasedAndTheSecondRequestThrows,
         TheTransferThrows,
         TheCharacterDiesWhileItsInstanceIsBuilt,
     }
@@ -166,6 +174,7 @@ public class EnterMapHandlerShould
     [InlineData(Ending.TheBuildIsCancelled)]
     [InlineData(Ending.TheRequestForTheInstanceThrows)]
     [InlineData(Ending.TheInstanceIsReleasedTwice)]
+    [InlineData(Ending.TheInstanceIsReleasedAndTheSecondRequestThrows)]
     [InlineData(Ending.TheTransferThrows)]
     [InlineData(Ending.TheCharacterDiesWhileItsInstanceIsBuilt)]
     public void Take_a_later_portal_entry_after_one_that_ended_without_arriving(Ending ending)
@@ -191,6 +200,16 @@ public class EnterMapHandlerShould
                 break;
             case Ending.TheInstanceIsReleasedTwice:
                 entry.Registry.GetInstanceById(entry.Target.InstanceId).Returns(_ => failing ? null : entry.Target);
+                break;
+            case Ending.TheInstanceIsReleasedAndTheSecondRequestThrows:
+                // The arrival finds its instance released and asks for it again, and that second ask throws: the
+                // move was never handed on, so the arrival that threw is the one that ends it.
+                int asked = 0;
+                entry.Registry.GetInstanceById(entry.Target.InstanceId).Returns(_ => failing ? null : entry.Target);
+                entry.Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(
+                    _ => failing && ++asked == 2
+                        ? throw new InvalidOperationException("no registry")
+                        : Task.FromResult(entry.Target));
                 break;
             case Ending.TheTransferThrows:
                 entry.World.When(w => w.TransferPlayer(entry.Connection, entry.Target)).Do(_ =>
@@ -241,10 +260,13 @@ public class EnterMapHandlerShould
     [InlineData("level_too_low")]
     [InlineData("level_too_high")]
     [InlineData("instance_released")]
+    [InlineData("not_in_party")]
+    [InlineData("instance_full")]
     [InlineData(null)]
     public void Count_a_refused_portal_entry_once_under_its_reason(string? reason)
     {
-        var entry = new Entry();
+        PartyTestWorld? parties = reason is "not_in_party" or "instance_full" ? new PartyTestWorld() : null;
+        var entry = new Entry(parties: parties);
         ushort map = TargetMap;
         switch (reason)
         {
@@ -276,10 +298,16 @@ public class EnterMapHandlerShould
             case "instance_released":
                 entry.Registry.GetInstanceById(entry.Target.InstanceId).Returns((IMapInstance?)null);
                 break;
+            case "instance_full":
+                entry.Template.MaxPlayers = 1;
+                entry.Target.PlayerCount.Returns(1);
+                break;
         }
 
         using var counted = new RefusalProbe();
         entry.Request(map);
+        if (reason == "not_in_party")
+            parties!.Parties.Leave(entry.Character.Guid.Id); // the party is gone before its instance is ready
         entry.Flush();
         entry.Flush(); // an instance released before the arrival is resolved again, and refused the second time
 
@@ -341,7 +369,9 @@ public class EnterMapHandlerShould
     /// <summary>
     /// A character standing on a portal to the town, behind a connection that records what it is sent and queues its
     /// continuations for <see cref="Flush" />, which runs them as the connection's drain does once the packet pass is
-    /// over: the callback of a task that did not succeed is dropped, and a callback that throws is contained.
+    /// over: the callback of a task that did not succeed is dropped, and a callback that throws is contained. Given
+    /// a party world, the character leads a party of two and the portal leads to a Normal map, so to the party's
+    /// instance of it.
     /// </summary>
     private sealed class Entry
     {
@@ -350,7 +380,7 @@ public class EnterMapHandlerShould
         private readonly EnterMapHandler _handler;
         private readonly MapInstance _source = Source();
 
-        public Entry(ILogger<EnterMapHandler>? log = null)
+        public Entry(ILogger<EnterMapHandler>? log = null, PartyTestWorld? parties = null)
         {
             StandOnThePortal();
 
@@ -371,7 +401,24 @@ public class EnterMapHandlerShould
             Connection.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
                 .Do(call => _queued.Add((call.Arg<Task<IMapInstance>>(), call.Arg<Action<IMapInstance>>())));
 
-            _handler = new EnterMapHandler(log ?? NullLogger<EnterMapHandler>.Instance, Saver, World);
+            if (parties is not null)
+            {
+                Connection.AccountId.Returns(new AccountId(7));
+                parties.Parties.CharacterOnline(Connection);
+                PartyClient other = parties.Online(8);
+                Assert.Equal(PartyResult.Ok, parties.Parties.Invite(Character.Guid.Id, other.Character.Name));
+                Assert.Equal(PartyResult.Ok, parties.Parties.Respond(other.Id, accept: true));
+                _sent.Clear();
+
+                IPartyInstanceRegistry partyInstances = Substitute.For<IPartyInstanceRegistry>();
+                partyInstances.GetOrCreatePartyInstanceAsync(Arg.Any<PartyId>(), Arg.Any<MapTemplateId>())
+                    .Returns(Task.FromResult(Target));
+                World.PartyInstances.Returns(partyInstances);
+                World.Configuration.Returns(parties.Config);
+                Template.MapType = MapType.Normal;
+            }
+
+            _handler = new EnterMapHandler(log ?? NullLogger<EnterMapHandler>.Instance, Saver, World, parties?.Parties);
         }
 
         /// <summary>A map the world has and the source instance has no portal to.</summary>
