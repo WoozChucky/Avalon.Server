@@ -4,6 +4,15 @@ using Avalon.World.Public.Maps;
 
 namespace Avalon.World.Loot;
 
+/// <summary>
+/// Whom each drop of one kill is reserved for and until when, asked by the drop's index, once per drop and in order.
+/// A struct implements it, so a kill's placement is handed its allocations without a closure or a delegate (#890).
+/// </summary>
+public interface IDropAllocations
+{
+    LootAllocation For(int index);
+}
+
 /// <summary>Puts one kill's drops on the ground around the corpse.</summary>
 public static class LootPlacement
 {
@@ -35,7 +44,23 @@ public static class LootPlacement
         Func<uint> nextId)
     {
         var placed = new List<GroundLoot>(rolled.Count);
+        Place(placed, corpse, rolled, new ByDelegate(allocationFor), navigator, nextId);
+        return placed;
+    }
 
+    /// <summary>
+    /// The same placement added to <paramref name="placed" />, a list the caller keeps, with the allocations asked of
+    /// a struct: what a kill uses, so that it allocates only the drops themselves (#890).
+    /// </summary>
+    public static void Place<TAllocations>(
+        List<GroundLoot> placed,
+        Vector3 corpse,
+        IReadOnlyList<RolledDrop> rolled,
+        TAllocations allocations,
+        IMapNavigator navigator,
+        Func<uint> nextId)
+        where TAllocations : struct, IDropAllocations
+    {
         for (int i = 0; i < rolled.Count; i++)
         {
             float angle = 2f * MathF.PI * i / rolled.Count;
@@ -49,7 +74,7 @@ public static class LootPlacement
             float groundY = navigator.SampleGroundHeight(reachable.x, corpse.y, reachable.z);
 
             RolledDrop drop = rolled[i];
-            LootAllocation allocation = allocationFor(i);
+            LootAllocation allocation = allocations.For(i);
             placed.Add(new GroundLoot
             {
                 Guid = new ObjectGuid(ObjectType.Loot, nextId()),
@@ -61,7 +86,10 @@ public static class LootPlacement
                 FreeForAllAt = allocation.FreeForAllAt,
             });
         }
+    }
 
-        return placed;
+    private readonly struct ByDelegate(Func<int, LootAllocation> allocationFor) : IDropAllocations
+    {
+        public LootAllocation For(int index) => allocationFor(index);
     }
 }

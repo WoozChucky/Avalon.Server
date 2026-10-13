@@ -887,9 +887,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// among the characters that share the kill (2026-09-30); each quest drop (#433) belongs to the member it was
     /// rolled for, for good. All of them are placed in one ring. A kill nobody is credited with
     /// (<paramref name="credited" /> false: an aura's tick whose caster is gone) drops every table drop free for all at
-    /// once, whatever instance this is.
+    /// once, whatever instance this is. It allocates the drops it leaves on the ground, and the list the roller hands
+    /// back; its own lists and loot messages are the kill's <paramref name="buffers" /> (#890).
     /// </summary>
-    private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible, bool credited)
+    private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible, bool credited, KillBuffers buffers)
     {
         IReadOnlyList<(RolledDrop Drop, uint Owner)> questDrops = RollQuestDrops(creature, eligible);
         bool rollsTable = _lootRoller is not null && _lootAllocator is not null && creature.Metadata is CreatureTemplate;
@@ -910,20 +911,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 return;
             }
 
-            var rolled = new List<RolledDrop>(table.Count + questDrops.Count);
+            List<RolledDrop> rolled = buffers.Rolled;
             rolled.AddRange(table);
-            foreach ((RolledDrop drop, uint _) in questDrops)
-                rolled.Add(drop);
+            for (int i = 0; i < questDrops.Count; i++)
+            {
+                rolled.Add(questDrops[i].Drop);
+            }
 
-            ILootAllocator? allocator = _lootAllocator;
-            int tableCount = table.Count;
-            IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
-                creature.Position, rolled,
-                i => i >= tableCount
-                    ? new LootAllocation(questDrops[i - tableCount].Owner, DateTime.MaxValue)
-                    : credited
-                        ? allocator!.Allocate(OwnerCharacterId, OwnerPartyId, eligible)
-                        : allocator!.Allocate(instanceOwner: null, instanceParty: null, []),
+            // Placed whole before any drop is stored, so a placement that throws leaves nothing on the ground.
+            List<GroundLoot> drops = buffers.Placed;
+            LootPlacement.Place(drops, creature.Position, rolled,
+                new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited, table.Count, questDrops),
                 GetNavigatorForPosition(creature.Position), IObject.GenerateId);
 
             for (int i = 0; i < drops.Count; i++)
@@ -932,7 +930,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
-            List<LootDropDto> dtos = LootDtos(drops);
+            List<LootDropDto> dtos = buffers.DescribePlaced();
             // The same drops for every connection: encoded once, for the first, and shared by every one (#875).
             OutboundPacket spawned = default;
             foreach (IWorldConnection connection in _connections.Values)
@@ -952,6 +950,31 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _logger.LogError(e, "Could not drop loot for creature {CreatureGuid} (template {TemplateId}); the kill still counts",
                 creature.Guid, creature.Metadata.Id.Value);
         }
+    }
+
+    /// <summary>
+    /// Whom each of one kill's drops is for, by its place in the ring: a table drop is allocated on its own, among the
+    /// characters that share the kill, or free for all at once when nobody is credited with the kill; a quest drop,
+    /// which comes after the table's, belongs for good to the member it was rolled for. A struct handed to the
+    /// placement by value: a lambda here cost the kill its closure and a delegate, and a Debug build a second closure
+    /// (the compiler keeps one per scope there, and merges them when it optimises), which was the 32 B a kill no
+    /// Release run showed (#890).
+    /// </summary>
+    private readonly struct KillAllocations(
+        ILootAllocator? allocator,
+        uint? instanceOwner,
+        PartyId? instanceParty,
+        IReadOnlyList<ICharacter> eligible,
+        bool credited,
+        int tableCount,
+        IReadOnlyList<(RolledDrop Drop, uint Owner)> questDrops) : IDropAllocations
+    {
+        public LootAllocation For(int index) =>
+            index >= tableCount
+                ? new LootAllocation(questDrops[index - tableCount].Owner, DateTime.MaxValue)
+                : credited
+                    ? allocator!.Allocate(instanceOwner, instanceParty, eligible)
+                    : allocator!.Allocate(instanceOwner: null, instanceParty: null, []);
     }
 
     /// <summary>The quest drops a kill rolls (#433). Contained: a throw costs this kill's quest drops, nothing else.</summary>
@@ -1967,7 +1990,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
             // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
             // A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all.
-            DropLoot(creature, eligible, credited: killer is not null);
+            DropLoot(creature, eligible, credited: killer is not null, buffers);
             AwardExperience(creature, eligible, buffers.Shares);
         }
         finally
