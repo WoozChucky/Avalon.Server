@@ -31,7 +31,17 @@ namespace Avalon.Server.World.UnitTests.WorldConnection;
 /// </summary>
 public class WorldServerStartupShould
 {
-    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// How long a wait may last before a test here calls it a hang. Every wait is on its condition (the start's task,
+    /// the port, the stop), so this decides no test that passes, and none passes for being slow. It is long because
+    /// the start runs on the thread pool, which it reaches three times before the port can open (the host starting
+    /// <c>ExecuteAsync</c>, the script load, the continuation of the world load), and the pool is shared with every
+    /// test running in the process: with four processors, one of those waits for a pool thread alone took 4.4 s in
+    /// 450 starts, and at 5 s the wait for a failed load timed out in CI (#953). It stays under the restart drain's
+    /// own deadline, a minute, which the stop in
+    /// <see cref="Keep_ticking_through_a_restart_drain_until_no_non_Admin_player_is_left" /> has to beat.
+    /// </summary>
+    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(30);
 
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly TaskCompletionSource _load = new(TaskCreationOptions.RunContinuationsAsynchronously);
