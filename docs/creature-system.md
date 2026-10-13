@@ -396,7 +396,9 @@ characters' packets. An instance ticks only while a character is in it.
 
 The wait is counted on the remover's own clock, the sum of the deltas of the instance's ticks, kept
 exactly (in `TimeSpan` ticks of 100 ns). A corpse goes on the first tick at which the time added
-since its death reaches its template's: the 600th tick after the kill at 60 Hz for the default 10 s.
+since its death reaches its template's: for the default 10 s at 60 Hz, the 600th or the 601st tick
+after the kill (the server's frame is a hair under a sixtieth of a second, so 600 of them can fall
+40 µs short).
 The clock stands still while the instance is empty, since an empty instance is not ticked. A
 `BodyRemoveTimerSecs` of 0 takes the corpse out on the next tick.
 
