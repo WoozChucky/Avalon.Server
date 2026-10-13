@@ -28,26 +28,28 @@ public class CreatureCorpseRemover(ISimulationContext context) : ICorpseRemover
     // were scheduled in, a number: a timer object per corpse as the key was 32 B for every kill (#883). The concrete
     // type, so the tick walks it with its struct enumerator (#640); and still a dictionary added to and removed from
     // exactly as before, so corpses that go on the same tick go in the order they always went.
-    private readonly Dictionary<int, (ICreature Creature, long RemoveAtMs)> _waiting = new();
+    private readonly Dictionary<int, (ICreature Creature, long RemoveAtTicks)> _waiting = new();
 
     /// <summary>This tick's expired corpses, reused so a tick allocates nothing (#640).</summary>
     private readonly List<int> _expired = new();
 
-    // Whole milliseconds of every Update so far: what a timer per corpse counted for itself, counted once.
-    private long _elapsedMs;
+    // The time of every Update so far, in TimeSpan ticks (100 ns), which is all a TimeSpan holds: nothing of a tick is
+    // dropped, so a corpse waits what its template says. Counted in whole milliseconds, a 60 Hz tick of 16.67 ms
+    // counted as 16, and a 10 s wait took 625 ticks, 10.4 s.
+    private long _elapsedTicks;
     private int _scheduled;
 
     public void ScheduleRemoval(ICreature creature) =>
-        _waiting.Add(_scheduled++, (creature, _elapsedMs + (long)creature.Metadata.BodyRemoveTimer.TotalMilliseconds));
+        _waiting.Add(_scheduled++, (creature, Sum(_elapsedTicks, creature.Metadata.BodyRemoveTimer.Ticks)));
 
     public void Update(TimeSpan deltaTime)
     {
         _expired.Clear();
-        _elapsedMs += (long)deltaTime.TotalMilliseconds;
+        _elapsedTicks = Sum(_elapsedTicks, deltaTime.Ticks);
 
-        foreach ((int scheduled, (ICreature creature, long removeAtMs)) in _waiting)
+        foreach ((int scheduled, (ICreature creature, long removeAtTicks)) in _waiting)
         {
-            if (_elapsedMs < removeAtMs)
+            if (_elapsedTicks < removeAtTicks)
             {
                 continue;
             }
@@ -60,5 +62,13 @@ public class CreatureCorpseRemover(ISimulationContext context) : ICorpseRemover
         {
             _waiting.Remove(scheduled);
         }
+    }
+
+    // The sum, or the end of the range it would have passed. TimeSpan.MaxValue is long.MaxValue ticks, so one such
+    // delta or wait would wrap a plain sum: a clock gone negative would leave every corpse where it lies for good.
+    private static long Sum(long ticks, long more)
+    {
+        long sum = unchecked(ticks + more);
+        return ((ticks ^ sum) & (more ^ sum)) < 0 ? (more < 0 ? long.MinValue : long.MaxValue) : sum;
     }
 }

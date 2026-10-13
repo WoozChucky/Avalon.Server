@@ -268,10 +268,18 @@ were each already failed by between two and seven tests.
   and the calculator's own work on it (an iterator for each item's stats), which is shared with the simulator and
   the API and was not changed.
 - **The corpse remover** made a timer object for each kill, as the key of its dictionary. It keeps one count of the
-  whole milliseconds its updates have added up and, for each corpse, the count at which its body goes, keyed by the
-  order the corpses were scheduled in. It is the same dictionary, added to and removed from exactly as before, so
+  time its updates have added up (whole milliseconds when this was measured, exact since: the next point) and, for
+  each corpse, the count at which its body goes, keyed by the order the corpses were scheduled in. It is the same dictionary, added to and removed from exactly as before, so
   corpses that go on the same tick go in the order they always went; a corpse goes on the first update at which the
   milliseconds added since its death reach its template's time, as before.
+- **The corpse's wait, counted exactly** (a rule fix after the above, not an allocation). Whole milliseconds dropped
+  the rest of every tick, in the timer each corpse had and in the count that replaced it: a 60 Hz tick of 16.67 ms
+  counted as 16, and a 10 s corpse lay for 625 ticks, 10.4 s. The count is now in `TimeSpan` ticks of 100 ns, all
+  a `TimeSpan` holds, and the corpse goes on the 600th tick. A dictionary entry is the same size and both paths
+  still allocate nothing (the same two pins). Over whole-millisecond deltas and times the two counts agree: a
+  scratch comparison of the old class with the new over 5,000 random schedules, 733,586 removals, found the same
+  corpses going on the same updates in the same order. `forest-combat`, whose ticks are 16.67 ms, read what it
+  had, 71 kills and 10,357 B per window, in Debug and in Release, so the baseline did not move.
 
 **The encounter lookup stays a walk.** `EncounterRegistry.FindEncounterContaining` walks an instance's active
 encounters and asks each one's two sets for the unit. `EncounterLookupBenchmarks` compares the walk, for a unit of the

@@ -97,6 +97,33 @@ public class CreatureCorpseRemoverShould
         _simulationContext.Received(1).RemoveCreature(late);
     }
 
+    /// <summary>
+    /// A corpse waits what its template says at the rate the World server ticks: 10 s is the 600th tick at 60 Hz. The
+    /// deltas are a running clock's, each its reading less the one before, as the tick loop takes them, so 600 of them
+    /// are 10 s exactly. A 60 Hz tick is 16.67 ms; while the remover counted whole milliseconds each added 16, and
+    /// the corpse lay until the 625th tick, 10.4 s.
+    /// </summary>
+    [Fact]
+    public void Remove_A_Corpse_On_The_Tick_That_Reaches_Its_Time_At_60_Hz()
+    {
+        ICreature creature = MakeCreature();
+        var remover = new CreatureCorpseRemover(_simulationContext);
+        remover.ScheduleRemoval(creature);
+
+        TimeSpan clock = TimeSpan.Zero;
+        for (int tick = 1; tick <= 600; tick++)
+        {
+            if (tick == 600)
+                _simulationContext.DidNotReceive().RemoveCreature(creature);
+
+            var now = TimeSpan.FromTicks(TimeSpan.TicksPerSecond * tick / 60);
+            remover.Update(now - clock);
+            clock = now;
+        }
+
+        _simulationContext.Received(1).RemoveCreature(creature);
+    }
+
     [Fact]
     public void Remove_A_Corpse_Only_Once()
     {
