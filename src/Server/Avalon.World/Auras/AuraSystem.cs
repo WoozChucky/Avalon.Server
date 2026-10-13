@@ -45,6 +45,12 @@ public sealed class AuraSystem
     private readonly List<IUnit> _holders = [];
     private readonly List<ActiveAura> _working = [];
 
+    // The copies the removal paths walk (the owner's cancel, death, a creature's reset), kept and emptied after each
+    // use so that ending auras allocates no copy (#883). One list per depth: ending an aura runs its script's OnRemove,
+    // which may kill the unit and so end the rest of its auras from inside the walk that is ending them.
+    private readonly List<List<ActiveAura>> _ending = [];
+    private int _endingDepth;
+
     // A tick that throws, logged at most once per ThrottledErrorLog.Interval for each aura; a unit's pass that throws
     // outside its ticks (a stats refresh while its auras end), likewise for each unit.
     private readonly Dictionary<uint, ThrottledErrorLog> _tickFailures = [];
@@ -178,7 +184,7 @@ public sealed class AuraSystem
             if (stacked)
             {
                 RefreshStats(target, template);
-                RunHook(target, held, "OnStack", static (s, c) => s.OnStack(c));
+                RunHook(target, held, "OnStack", static (s, c, _) => s.OnStack(c));
             }
 
             result = stacked ? AuraApplyResult.Stacked : AuraApplyResult.Refreshed;
@@ -189,7 +195,7 @@ public sealed class AuraSystem
                 AuraSchedule.Start(now, template.DurationMs, template.TickIntervalMs), template.DurationMs, now.UtcDateTime);
             auras.Add(held, now);
             RefreshStats(target, template);
-            RunHook(target, held, "OnApply", static (s, c) => s.OnApply(c));
+            RunHook(target, held, "OnApply", static (s, c, _) => s.OnApply(c));
             result = AuraApplyResult.Applied;
         }
 
@@ -459,22 +465,34 @@ public sealed class AuraSystem
             aura.PeriodicCarry = carry;
         }
 
-        RunHook(unit, aura, "OnTick", static (s, c) => s.OnTick(c));
+        RunHook(unit, aura, "OnTick", static (s, c, _) => s.OnTick(c));
     }
 
     /// <summary>
     /// Runs one hook of the aura's script, contained by the script host; nothing without a script host or a script. A
     /// hook may end its aura (ScriptEnded) or deal damage that kills; the caller checks both once the hook returns.
+    /// <paramref name="reason" /> is for OnRemove, handed to <paramref name="call" /> so that it captures nothing.
     /// </summary>
-    private void RunHook(IUnit unit, ActiveAura aura, string hook, Action<AuraScript, IAuraContext> call)
+    private void RunHook(IUnit unit, ActiveAura aura, string hook, Action<AuraScript, IAuraContext, AuraRemoveReason> call,
+        AuraRemoveReason reason = default)
     {
         if (_scripts is null || string.IsNullOrWhiteSpace(aura.Template.ScriptName))
             return;
 
+        RunScriptHook(_scripts, unit, aura, hook, call, reason);
+    }
+
+    /// <summary>
+    /// The hook of an aura that has a script. Apart from <see cref="RunHook" />, because its closure over the context is
+    /// made on entry: there it was an object for every apply, tick and removal of every aura, scripted or not (#883).
+    /// </summary>
+    private void RunScriptHook(AuraScripts scripts, IUnit unit, ActiveAura aura, string hook,
+        Action<AuraScript, IAuraContext, AuraRemoveReason> call, AuraRemoveReason reason)
+    {
         var context = new AuraContext(this, unit, aura, _time.GetUtcNow());
         try
         {
-            _scripts.Run(aura.Template, hook, script => call(script, context));
+            scripts.Run(aura.Template, hook, script => call(script, context, reason));
         }
         finally
         {
@@ -540,7 +558,7 @@ public sealed class AuraSystem
         finally
         {
             // The aura is gone either way: its script hears of it even when the stats refresh threw.
-            RunHook(unit, aura, "OnRemove", (s, c) => s.OnRemove(c, reason));
+            RunHook(unit, aura, "OnRemove", static (s, c, reason) => s.OnRemove(c, reason), reason);
         }
     }
 
@@ -557,19 +575,33 @@ public sealed class AuraSystem
         if (AuraHolders.Of(unit) is not { } auras)
             return AuraCancelResult.NotFound;
 
-        ActiveAura[] copies = auras.All
-            .Where(a => a.Id.Value == aura.Value && (instanceKey is not { } key || a.Key == key))
-            .ToArray();
-        if (copies.Length == 0)
-            return AuraCancelResult.NotFound;
+        List<ActiveAura> copies = RentEnding();
+        try
+        {
+            IReadOnlyList<ActiveAura> all = auras.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                ActiveAura held = all[i];
+                if (held.Id.Value == aura.Value && (instanceKey is not { } key || held.Key == key))
+                    copies.Add(held);
+            }
 
-        if (copies.Any(a => a.Template.Kind != AuraKind.Helpful))
-            return AuraCancelResult.NotCancellable;
+            if (copies.Count == 0)
+                return AuraCancelResult.NotFound;
 
-        foreach (ActiveAura copy in copies)
-            Remove(unit, copy, AuraRemoveReason.Cancelled);
+            for (int i = 0; i < copies.Count; i++)
+            {
+                if (copies[i].Template.Kind != AuraKind.Helpful)
+                    return AuraCancelResult.NotCancellable;
+            }
 
-        return AuraCancelResult.Ok;
+            EndEach(unit, copies, AuraRemoveReason.Cancelled);
+            return AuraCancelResult.Ok;
+        }
+        finally
+        {
+            ReturnEnding(copies);
+        }
     }
 
     /// <summary>Ends every aura on <paramref name="unit" />: death does this.</summary>
@@ -578,8 +610,16 @@ public sealed class AuraSystem
         if (AuraHolders.Of(unit) is not { Count: > 0 } auras)
             return;
 
-        foreach (ActiveAura aura in auras.All.ToArray())
-            Remove(unit, aura, reason);
+        List<ActiveAura> held = RentEnding();
+        try
+        {
+            held.AddRange(auras.All);
+            EndEach(unit, held, reason);
+        }
+        finally
+        {
+            ReturnEnding(held);
+        }
     }
 
     /// <summary>Ends every harmful aura on <paramref name="unit" />, keeping its helpful ones.</summary>
@@ -588,8 +628,48 @@ public sealed class AuraSystem
         if (AuraHolders.Of(unit) is not { Count: > 0 } auras || !HoldsHarmful(auras))
             return;
 
-        foreach (ActiveAura aura in auras.All.Where(a => a.Template.Kind == AuraKind.Harmful).ToArray())
-            Remove(unit, aura, reason);
+        List<ActiveAura> harmful = RentEnding();
+        try
+        {
+            IReadOnlyList<ActiveAura> all = auras.All;
+            for (int i = 0; i < all.Count; i++)
+            {
+                if (all[i].Template.Kind == AuraKind.Harmful)
+                    harmful.Add(all[i]);
+            }
+
+            EndEach(unit, harmful, reason);
+        }
+        finally
+        {
+            ReturnEnding(harmful);
+        }
+    }
+
+    /// <summary>
+    /// Ends the auras copied into <paramref name="ending" />, in the order held. A copy, since each one ended leaves the
+    /// unit's own list; one that is gone by its turn (ended from inside an earlier one's hook) is passed over by Remove.
+    /// </summary>
+    private void EndEach(IUnit unit, List<ActiveAura> ending, AuraRemoveReason reason)
+    {
+        for (int i = 0; i < ending.Count; i++)
+            Remove(unit, ending[i], reason);
+    }
+
+    /// <summary>An empty list for one removal path's copy, at the depth it runs at; <see cref="ReturnEnding" /> gives it back.</summary>
+    private List<ActiveAura> RentEnding()
+    {
+        if (_endingDepth == _ending.Count)
+            _ending.Add([]);
+
+        return _ending[_endingDepth++];
+    }
+
+    /// <summary>Empties the list, so it keeps no aura (and through it no unit) alive, and frees its depth.</summary>
+    private void ReturnEnding(List<ActiveAura> list)
+    {
+        list.Clear();
+        _endingDepth--;
     }
 
     private static bool HoldsHarmful(UnitAuras auras)

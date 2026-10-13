@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Auras;
 using Avalon.Server.World.UnitTests.Combat;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
@@ -279,5 +280,51 @@ public class AuraApplyShould
         Assert.Equal(0, boar.Auras.Count);
         Assert.Equal(0, target.Auras.Count);
         Assert.All(target.Auras.Changes.Where(c => c.Kind == AuraChangeKind.Removed), c => Assert.Equal(0u, c.RemainingMs));
+    }
+
+    /// <summary>
+    /// The removal paths copy the auras they end into lists the system keeps (#883): the owner's cancel, the removal on
+    /// death and the removal on a creature's reset allocate nothing for auras with no script and no stat modifier.
+    /// </summary>
+    [Fact]
+    public void End_auras_on_cancel_death_and_reset_without_allocating()
+    {
+        CharacterEntity healer = _h.Player(909_120);
+        var cancelling = new CharacterEntity[3];
+        var dying = new Creature[3];
+        var resetting = new Creature[3];
+        for (uint i = 0; i < 3; i++)
+        {
+            cancelling[i] = _h.Player(909_130 + i);
+            _h.Auras.Apply(healer, cancelling[i], new AuraId(904), AuraSource.None);
+            dying[i] = _h.Creature(909_930 + i);
+            resetting[i] = _h.Creature(909_940 + i);
+            foreach (Creature creature in new[] { dying[i], resetting[i] })
+            {
+                _h.Auras.Apply(healer, creature, new AuraId(901), AuraSource.None);
+                _h.Auras.Apply(healer, creature, new AuraId(902), AuraSource.None);
+            }
+        }
+
+        // The first unit of each path is its warm-up: the system's lists take their size there.
+        var renew = new AuraId(904);
+        uint key = cancelling[2].Auras.All[0].Key;
+        _h.Auras.Cancel(cancelling[0], renew);
+        _h.Auras.RemoveAll(dying[0], AuraRemoveReason.Death);
+        _h.Auras.RemoveHarmful(resetting[0], AuraRemoveReason.Reset);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        AuraCancelResult first = _h.Auras.Cancel(cancelling[1], renew);
+        AuraCancelResult second = _h.Auras.Cancel(cancelling[2], renew, key);
+        _h.Auras.RemoveAll(dying[1], AuraRemoveReason.Death);
+        _h.Auras.RemoveAll(dying[2], AuraRemoveReason.Death);
+        _h.Auras.RemoveHarmful(resetting[1], AuraRemoveReason.Reset);
+        _h.Auras.RemoveHarmful(resetting[2], AuraRemoveReason.Reset);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(0, allocated);
+        Assert.Equal((AuraCancelResult.Ok, AuraCancelResult.Ok), (first, second));
+        Assert.All(cancelling, character => Assert.Equal(0, character.Auras.Count));
+        Assert.All(dying.Concat(resetting), creature => Assert.Equal(0, creature.Auras.Count));
     }
 }
