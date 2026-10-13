@@ -220,9 +220,6 @@ message CItemUsePacket {
    InventoryType Container = 2;
    uint32 Slot = 3;
 }
-message CLogoutPacket {
-   uint64 AccountId = 1;
-}
 message CLootPickupPacket {
    uint64 LootGuid = 1;
 }
@@ -457,14 +454,6 @@ enum ItemUseResult {
    ItemUseResult_Refused = 15;
    ItemUseResult_InternalError = 16;
 }
-enum LogoutResult {
-   LogoutResult_Success = 0;
-   LogoutResult_RecentlyInCombat = 1;
-   LogoutResult_NotInGame = 2;
-   LogoutResult_NotSameAccount = 3;
-   LogoutResult_InternalError = 4;
-   LogoutResult_ConnectedElsewhere = 5;
-}
 message LootDropDto {
    uint64 LootGuid = 1;
    Vector3Dto Position = 2;
@@ -536,7 +525,6 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_CLIENT_INFO = 4097;
    NetworkPacketType_CMSG_CLIENT_HANDSHAKE = 4098;
    NetworkPacketType_CMSG_AUTH = 8192;
-   NetworkPacketType_CMSG_LOGOUT = 8194;
    NetworkPacketType_CMSG_REGISTER = 8195;
    NetworkPacketType_CMSG_PING = 8197;
    NetworkPacketType_CMSG_PONG = 8198;
@@ -588,15 +576,12 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_CHAT_MESSAGE = 12297;
    NetworkPacketType_SMSG_MFA_SETUP = 12303;
    NetworkPacketType_SMSG_AUTH_RESULT = 12304;
-   NetworkPacketType_SMSG_LOGOUT = 12305;
    NetworkPacketType_SMSG_REGISTER_RESULT = 12306;
    NetworkPacketType_SMSG_MFA_CONFIRM = 12307;
    NetworkPacketType_SMSG_MFA_RESET = 12308;
    NetworkPacketType_SMSG_WORLD_LIST = 12314;
    NetworkPacketType_SMSG_WORLD_HANDSHAKE = 12317;
    NetworkPacketType_SMSG_GAME_ADMISSION = 12318;
-   NetworkPacketType_SMSG_CHARACTER_CONNECTED = 12320;
-   NetworkPacketType_SMSG_CHARACTER_DISCONNECTED = 12321;
    NetworkPacketType_SMSG_CHARACTER_LIST = 12323;
    NetworkPacketType_SMSG_CHARACTER_CREATED = 12324;
    NetworkPacketType_SMSG_CHARACTER_DELETED = 12325;
@@ -1016,9 +1001,6 @@ message SItemUseResultPacket {
    uint32 CooldownMs = 3;
    optional string Message = 4;
 }
-message SLogoutPacket {
-   LogoutResult Result = 1;
-}
 message SLootDespawnedPacket {
    repeated uint64 LootGuids = 1 [packed = false];
 }
@@ -1085,15 +1067,6 @@ message SPingPacket {
    int64 ClientTimestamp = 2;
    int64 Rtt = 3;
    int64 Offset = 4;
-}
-message SPlayerConnectedPacket {
-   uint64 AccountId = 1;
-   uint64 CharacterId = 2;
-   optional string Name = 3;
-}
-message SPlayerDisconnectedPacket {
-   uint64 AccountId = 1;
-   uint64 CharacterId = 2;
 }
 message SPlayerStateAckPacket {
    uint32 Seq = 1;

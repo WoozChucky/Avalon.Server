@@ -38,15 +38,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "CMSG_LOGOUT",
-      "opcode": 8194,
-      "hex": "0x2002",
-      "message": "CLogoutPacket",
-      "direction": "ClientToServer",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
       "name": "CMSG_REGISTER",
       "opcode": 8195,
       "hex": "0x2003",
@@ -506,15 +497,6 @@
       "flagNames": "Encrypted"
     },
     {
-      "name": "SMSG_LOGOUT",
-      "opcode": 12305,
-      "hex": "0x3011",
-      "message": "SLogoutPacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
       "name": "SMSG_REGISTER_RESULT",
       "opcode": 12306,
       "hex": "0x3012",
@@ -567,24 +549,6 @@
       "direction": "ServerToClient",
       "flags": 1,
       "flagNames": "ClearText"
-    },
-    {
-      "name": "SMSG_CHARACTER_CONNECTED",
-      "opcode": 12320,
-      "hex": "0x3020",
-      "message": "SPlayerConnectedPacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
-    },
-    {
-      "name": "SMSG_CHARACTER_DISCONNECTED",
-      "opcode": 12321,
-      "hex": "0x3021",
-      "message": "SPlayerDisconnectedPacket",
-      "direction": "ServerToClient",
-      "flags": 4,
-      "flagNames": "Encrypted"
     },
     {
       "name": "SMSG_CHARACTER_LIST",
