@@ -48,6 +48,30 @@ public class PacketReaderShould
         Assert.IsType<CCharacterListPacket>(result);
     }
 
+    /// <summary>A packet whose contract protobuf-net cannot build: it has no way to write or read a thread.</summary>
+    [ProtoContract]
+    public sealed class UnbuildablePacket : Packet
+    {
+        public static readonly NetworkPacketType PacketType = NetworkPacketType.CMSG_PING;
+
+        [ProtoMember(1)] public Thread? Member { get; set; }
+    }
+
+    /// <summary>
+    /// protobuf-net reports a contract it cannot build on every decode, with the exception type it also throws for
+    /// malformed bytes, which the read path takes for the peer's doing (#897). So the reader decodes once with every
+    /// type as it is built, and refuses to be built with one it could never read: a server builds its reader before
+    /// it opens its port, and does not start.
+    /// </summary>
+    [Fact]
+    public void Refuse_to_be_built_with_a_packet_whose_contract_cannot_be_decoded()
+    {
+        InvalidOperationException refused =
+            Assert.Throws<InvalidOperationException>(() => MakeWith(typeof(UnbuildablePacket)));
+
+        Assert.Contains(nameof(UnbuildablePacket), refused.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Should_ReturnNull_WhenPacketTypeIsUnknown()
     {

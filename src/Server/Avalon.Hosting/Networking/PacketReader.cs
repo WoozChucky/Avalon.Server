@@ -71,7 +71,32 @@ public class PacketReader : IPacketReader
             var networkPacketType = (NetworkPacketType)networkPacketTypeInfo.GetValue(null)!;
             var deserializer = (Func<ReadOnlyMemory<byte>, Packet?>)
                 buildMethod.MakeGenericMethod(packetType).Invoke(null, null)!;
+            Prepare(packetType, deserializer);
             _packetTypes.Add(networkPacketType, deserializer);
+        }
+    }
+
+    /// <summary>
+    /// Decodes an empty payload as <paramref name="packetType" />, once, as the reader is built (#897). protobuf-net
+    /// builds a type's decoder on its first use, and a contract it cannot build fails every decode with an
+    /// <see cref="InvalidOperationException" />, the type it also throws for malformed bytes: left to the first frame,
+    /// that server defect would close every client that sends the opcode and blame its payload
+    /// (<see cref="IsMalformedPayload" />). Here it stops the reader from being built, and so the server from
+    /// starting, which builds its reader before it opens its port. It also moves the build of each decoder (a
+    /// millisecond or two a type, and some seventy more for the first in a process) from the read loop that
+    /// received the first packet of the type to startup.
+    /// </summary>
+    private static void Prepare(Type packetType, Func<ReadOnlyMemory<byte>, Packet?> deserializer)
+    {
+        try
+        {
+            deserializer(ReadOnlyMemory<byte>.Empty);
+        }
+        catch (Exception e)
+        {
+            throw new InvalidOperationException(
+                $"Packet type {packetType.FullName} cannot be decoded: protobuf-net could not build its contract, or " +
+                "could not create it. A server does not start with a packet it could never read.", e);
         }
     }
 
@@ -138,9 +163,9 @@ public class PacketReader : IPacketReader
     /// payload cut short), <see cref="OverflowException" /> (a varint too wide for its member),
     /// <see cref="InvalidOperationException" /> (a length past the payload's end, and nesting past the model's depth,
     /// whose stack trace alone is tens of kilobytes) and <see cref="ArgumentOutOfRangeException" /> (a date out of
-    /// range). Anything else a decode throws (a packet class's own code failing, a missing type) is the server's and
-    /// propagates. protobuf-net also reports a contract it cannot build as an InvalidOperationException; that is no
-    /// runtime case, since the wire schema tests build every packet's contract.
+    /// range). Anything else a decode throws is the server's and propagates. protobuf-net also reports a contract it
+    /// cannot build as an InvalidOperationException, on every decode; that never reaches a frame, since the reader
+    /// decodes once with every type as it is built (<see cref="Prepare" />).
     /// </summary>
     private static bool IsMalformedPayload(Exception e) =>
         e is ProtoException or EndOfStreamException or OverflowException or InvalidOperationException

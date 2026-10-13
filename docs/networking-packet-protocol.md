@@ -329,7 +329,9 @@ in it, so a fix will turn that test red rather than pass unnoticed.
   declares a new `NetworkPacketType` value there. A packet a server receives also derives from `Packet` and carries
   `[Packet(HandleOn = ComponentType.Auth)]` or `ComponentType.World`: `HandleOn` is what gives that server a decoder
   for the opcode (`AddCoreServices`), and without it the read loop drops the frame and logs "Unknown packet type" (at
-  Warning for the first on a connection, at Debug after that). The attribute's `Type`
+  Warning for the first on a connection, at Debug after that). A server decodes once with every packet it is the
+  `HandleOn` of as it starts, so a contract protobuf-net cannot build stops that server from starting (#897). The
+  attribute's `Type`
   repeats the opcode; no server code reads it (the host graph tests do). After any contract change, re-export the wire
   schema (`tools/Avalon.Exporter -- proto`, `opcodes`, `corpus`).
 - **Version evolution:** there is no version per packet. `Header.Version` is always 0, and no handler is chosen by it.
