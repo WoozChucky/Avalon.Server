@@ -156,4 +156,34 @@ public class InventoryUpdateFlusherShould
         InventorySlotUpdateDto slot = Assert.Single(Read(Assert.Single(_sent)).Slots);
         Assert.Equal(InventoryType.Bag, slot.Container);
     }
+
+    /// <summary>
+    /// The order is the client's to rely on, whatever order the tick touched the slots in: Equipment, then the Bag,
+    /// then the Bank, each by slot.
+    /// </summary>
+    [Fact]
+    public void Send_the_slots_by_container_and_then_by_slot_whatever_order_they_changed_in()
+    {
+        CharacterEntity character = New();
+        IWorldConnection connection = ConnectionFor(character);
+        var banker = new ObjectGuid(ObjectType.Creature, 90);
+        connection.CurrentDialogue = (banker, new DialogueNodeId(1));
+        character.OpenBankNpc = banker;
+
+        (InventoryType Container, ushort Slot)[] touched =
+        [
+            (InventoryType.Bank, 2), (InventoryType.Bag, 11), (InventoryType.Equipment, 9), (InventoryType.Bag, 29),
+            (InventoryType.Bank, 0), (InventoryType.Bag, 3), (InventoryType.Equipment, 1),
+        ];
+        foreach ((InventoryType container, ushort slot) in touched)
+            character.ClientChanges.RecordSlot(container, slot);
+        InventoryUpdateFlusher.Flush(connection);
+
+        Assert.Equal(
+            [
+                (InventoryType.Equipment, 1), (InventoryType.Equipment, 9), (InventoryType.Bag, 3), (InventoryType.Bag, 11),
+                (InventoryType.Bag, 29), (InventoryType.Bank, 0), (InventoryType.Bank, 2),
+            ],
+            Read(Assert.Single(_sent)).Slots.Select(s => (s.Container, s.Slot)));
+    }
 }
