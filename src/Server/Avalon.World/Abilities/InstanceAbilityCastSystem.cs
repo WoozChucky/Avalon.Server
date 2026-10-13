@@ -12,7 +12,6 @@ using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Abilities;
@@ -79,12 +78,21 @@ public class InstanceAbilityCastSystem(
     IAbilityArena arena)
     : IAbilityCastSystem
 {
-    private readonly List<ActiveScript> _activeAbilities = [];
+    /// <summary>
+    /// Up to this many active scripts <see cref="GetAbility" /> walks their list; above it, it answers from an index by
+    /// guid (#883). A walk that short is as fast as the index, and an instance that never holds more (one party's
+    /// fight) never allocates one. Public for the tests, which put the lookup on its index by firing more.
+    /// </summary>
+    public const int WalkedUpTo = 8;
+
+    private readonly ActiveScripts _activeAbilities = new();
     private readonly List<ActiveScript> _failed = [];
     private readonly List<(IUnit Caster, IAbility Ability, uint CastId)> _interrupts = [];
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
+    private readonly List<AbilityInstance> _cancelled = [];
+    private readonly AbilityScriptActivator _scriptActivator = new();
     private uint _lastCastId;
 
     public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false)
@@ -129,8 +137,7 @@ public class InstanceAbilityCastSystem(
             AbilityCost.Pay(caster, ability.Metadata);
         }
 
-        _logger.LogDebug("QueueAbility queued ability={AbilityId} caster={CharId} castTime={CastTime}s queueSize={Size}",
-            ability.AbilityId, caster.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
+        CombatLog.CastQueued(_logger, ability.AbilityId, caster.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
 
         arena.BroadcastUnitStartCast(caster, ability, castId, FootprintOf(caster, aim, ability));
         return true;
@@ -167,8 +174,7 @@ public class InstanceAbilityCastSystem(
         // been taken for a broadcast, so every client sees it spawn, stop and despawn, even one that
         // ended on the tick it was first seen. Updates go out only on broadcast ticks, so that can be
         // a few ticks later.
-        _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished
-            && (a.Script.Guid.Type != ObjectType.SpellProjectile || !a.Script.HasUnsentChanges));
+        SweepFinished(keepUnsent: true);
 
         AdvanceQueue(deltaTime);
         SendInterrupts();
@@ -197,8 +203,7 @@ public class InstanceAbilityCastSystem(
             // never lands the hit.
             if (IsAbandonedByCreature(cast.Caster))
             {
-                _logger.LogDebug("Dropped the cast of a creature that died or turned for home ability={AbilityId} caster={CasterId}",
-                    ability.AbilityId, cast.Caster.Guid);
+                CombatLog.CastDroppedCreatureGone(_logger, ability.AbilityId, cast.Caster.Guid);
                 ResetCast(ability);
                 _interrupts.Add((cast.Caster, ability, cast.CastId));
                 _dequeued.Add(cast);
@@ -229,8 +234,7 @@ public class InstanceAbilityCastSystem(
             // is interrupted out loud (#530), as moving does, so every client's cast bar for it ends.
             if (IsDead(cast.Caster))
             {
-                _logger.LogDebug("Dropped the cast of a dead caster ability={AbilityId} caster={CharId}",
-                    ability.AbilityId, cast.Caster.Guid);
+                CombatLog.CastDroppedCasterDead(_logger, ability.AbilityId, cast.Caster.Guid);
                 _interrupts.Add((cast.Caster, ability, cast.CastId));
                 continue;
             }
@@ -256,7 +260,7 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>
     /// Ticks every unfinished script and hands each projectile to <paramref name="objects" />. Each Update
-    /// is contained (#530): a script that throws is dropped, and the others still tick.
+    /// is contained (#530): a script that throws, or runs without a guid, is dropped, and the others still tick.
     /// </summary>
     private void TickScripts(TimeSpan deltaTime, List<IWorldObject> objects)
     {
@@ -275,22 +279,34 @@ public class InstanceAbilityCastSystem(
                 continue;
             }
 
-            // A finished script is never ticked again, so nothing it does is applied twice.
-            if (script.State is not SpellState.Finished)
+            try
             {
-                try
+                // A finished script is never ticked again, so nothing it does is applied twice. Its state is its
+                // own code too, and read inside the containment.
+                if (script.State is not SpellState.Finished)
                 {
                     script.Update(deltaTime);
                 }
-                catch (Exception e)
-                {
-                    _failed.Add(active);
-                    Failed(active.Caster, active.Ability, e, "Update", active.CastId);
-                    continue;
-                }
+            }
+            catch (Exception e)
+            {
+                _failed.Add(active);
+                Failed(active.Caster, active.Ability, e, "Update", active.CastId);
+                continue;
             }
 
-            if (script.Guid.Type == ObjectType.SpellProjectile)
+            // A script must carry a guid from Prepare on. One without (its Prepare set none, or its Update took it
+            // away) is contained like one that threw: read unchecked here, it would throw out of every tick.
+            if (script.Guid is not { } guid)
+            {
+                _failed.Add(active);
+                Failed(active.Caster, active.Ability,
+                    new InvalidOperationException($"{script.GetType().Name} is running without a guid."), "Update",
+                    active.CastId);
+                continue;
+            }
+
+            if (guid.Type == ObjectType.SpellProjectile)
             {
                 objects.Add(script);
             }
@@ -306,56 +322,90 @@ public class InstanceAbilityCastSystem(
 
     public void CancelCasts(IUnit caster)
     {
-        // Collected first: nothing is removed from the queue while it is enumerated.
-        List<AbilityInstance> cancelled = [];
+        // Collected first: nothing is removed from the queue while it is enumerated. Into a list of this call's own,
+        // kept between calls: it runs for every character and creature that leaves, most of them casting nothing.
+        _cancelled.Clear();
         foreach (AbilityInstance cast in _abilityQueue)
         {
             if (ReferenceEquals(cast.Caster, caster))
             {
-                cancelled.Add(cast);
+                _cancelled.Add(cast);
             }
         }
 
-        foreach (AbilityInstance cast in cancelled)
+        foreach (AbilityInstance cast in _cancelled)
         {
             _abilityQueue.Remove(cast);
             ResetCast(cast.Ability);
         }
 
-        // Sent once every cast is already cleared, so a failing send cannot leave one stuck.
-        foreach (AbilityInstance cast in cancelled)
+        try
         {
-            CombatLog.CastCancelledCasterLeft(_logger, cast.Ability.AbilityId, caster.Guid);
-            arena.BroadcastInterruptedCast(caster, cast.Ability, cast.CastId);
+            // Sent once every cast is already cleared, so a failing send cannot leave one stuck.
+            foreach (AbilityInstance cast in _cancelled)
+            {
+                CombatLog.CastCancelledCasterLeft(_logger, cast.Ability.AbilityId, caster.Guid);
+                arena.BroadcastInterruptedCast(caster, cast.Ability, cast.CastId);
+            }
+        }
+        finally
+        {
+            // Emptied now: until the next leave it would hold the casts of a caster who is gone, and the caster.
+            _cancelled.Clear();
         }
     }
 
     public void CancelScriptsOf(IUnit caster)
     {
-        int dropped = _activeAbilities.RemoveAll(a => ReferenceEquals(a.Caster, caster));
+        int dropped = _activeAbilities.RemoveCastBy(caster);
         if (dropped > 0)
         {
             CombatLog.ScriptsDroppedCasterLeft(_logger, dropped, caster.Guid);
         }
     }
 
-    public void DropFinished() => _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished);
+    public void DropFinished() => SweepFinished(keepUnsent: false);
 
     /// <summary>
-    /// The active script of that guid. A plain loop: the state broadcast asks for every spell object each viewer is
-    /// sent, and a <c>Find</c> over a lambda on the guid allocated its closure and delegate on every call (#880).
+    /// Drops every finished script, except, with <paramref name="keepUnsent" />, a projectile whose final state is
+    /// still owed to the clients. A script's state is its own code, so each is asked inside the containment: one
+    /// whose state cannot be read is contained as a throwing Update is, logged, dropped and its caster interrupted.
+    /// Every script is decided before any is removed, so nothing can throw while the list is being compacted, which
+    /// would leave it with a script twice.
     /// </summary>
-    public IWorldObject? GetAbility(ObjectGuid guid)
+    private void SweepFinished(bool keepUnsent)
     {
-        for (int i = 0; i < _activeAbilities.Count; i++)
+        bool leaving = false;
+        foreach (ActiveScript active in _activeAbilities)
         {
-            AbilityScript script = _activeAbilities[i].Script;
-            if (script.Guid == guid)
-                return script;
+            try
+            {
+                AbilityScript script = active.Script;
+                active.Leaving = script.State is SpellState.Finished
+                    && (!keepUnsent || script.Guid?.Type != ObjectType.SpellProjectile || !script.HasUnsentChanges);
+            }
+            catch (Exception e)
+            {
+                active.Leaving = true;
+                Failed(active.Caster, active.Ability, e, "State", active.CastId);
+            }
+
+            leaving |= active.Leaving;
         }
 
-        return null;
+        if (leaving)
+        {
+            _activeAbilities.RemoveAll(static a => a.Leaving);
+        }
     }
+
+    /// <summary>
+    /// The active script of that guid: found by a walk of the active scripts while they are few, and from their index
+    /// by guid above <see cref="WalkedUpTo" /> (#883). The state broadcast asks for every spell object each viewer is
+    /// sent, so with the walk alone a crowded fight cost viewers times projectiles squared. Neither allocates: a
+    /// <c>Find</c> over a lambda on the guid allocated its closure and delegate on every call (#880).
+    /// </summary>
+    public IWorldObject? GetAbility(ObjectGuid guid) => _activeAbilities.Find(guid);
 
     private static void ResetCast(IAbility ability)
     {
@@ -374,8 +424,10 @@ public class InstanceAbilityCastSystem(
 
         try
         {
-            return ActivatorUtilities.CreateInstance(serviceProvider, scriptType, ability.Clone(), caster, aim, arena)
-                as AbilityScript;
+            // The script's own copy: its timers and casting flag are not its caster's. A World-side ability shares
+            // its metadata with the copy, which cannot change; any other ability is copied whole, as before.
+            IAbility own = ability is GameAbility held ? held.CloneForCast() : ability.Clone();
+            return _scriptActivator.Build(serviceProvider, scriptType, own, caster, aim, arena);
         }
         catch (Exception e)
         {
@@ -432,11 +484,14 @@ public class InstanceAbilityCastSystem(
         arena.BroadcastFinishCast(caster, ability, castId);
 
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world
-        // object, and the cast is interrupted. What it spent stays spent.
+        // object, and the cast is interrupted. What it spent stays spent. So is a script whose state cannot be
+        // read once it has prepared.
+        bool running;
         try
         {
             arena.CastInFlight = castId;
             script.Prepare();
+            running = script.State is not SpellState.Finished;
         }
         catch (Exception e)
         {
@@ -450,12 +505,12 @@ public class InstanceAbilityCastSystem(
             arena.CastInFlight = 0;
         }
 
-        if (script.State is not SpellState.Finished)
+        if (running)
         {
             _activeAbilities.Add(new ActiveScript(caster, ability, script, castId));
         }
 
-        _logger.LogDebug("Fired ability {AbilityId} by {CasterId}", ability.AbilityId, caster.Guid);
+        CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
     }
 
     /// <summary>
@@ -519,5 +574,126 @@ public class InstanceAbilityCastSystem(
         public IAbility Ability { get; } = ability;
         public AbilityScript Script { get; } = script;
         public uint CastId { get; } = castId;
+
+        /// <summary>Set by the sweep for finished scripts, for the removal that follows it in the same call.</summary>
+        public bool Leaving { get; set; }
+    }
+
+    /// <summary>
+    /// The running scripts in the order they fired, with an index by guid for <see cref="Find" /> (#883). The list is
+    /// reachable only through this class, and every change to it empties the index; the first lookup after a change
+    /// fills it again from the list, so the index never answers with a script the list has dropped.
+    /// </summary>
+    private sealed class ActiveScripts
+    {
+        private readonly List<ActiveScript> _scripts = [];
+        private readonly Dictionary<ulong, AbilityScript> _byGuid = [];
+        private bool _indexed;
+
+        public List<ActiveScript>.Enumerator GetEnumerator() => _scripts.GetEnumerator();
+
+        public void Add(ActiveScript script)
+        {
+            _scripts.Add(script);
+            Changed();
+        }
+
+        public void Remove(ActiveScript script)
+        {
+            if (_scripts.Remove(script))
+                Changed();
+        }
+
+        public int RemoveAll(Predicate<ActiveScript> match)
+        {
+            int removed;
+            try
+            {
+                removed = _scripts.RemoveAll(match);
+            }
+            catch
+            {
+                // The list compacts as it goes and sets its size last: a predicate that throws part-way has already
+                // overwritten scripts it matched, and the index would still name them. No predicate here reads a
+                // script's own code any more; this stays for one that would.
+                Changed();
+                throw;
+            }
+
+            if (removed > 0)
+                Changed();
+            return removed;
+        }
+
+        /// <summary>
+        /// Removes every script <paramref name="caster" /> cast and answers how many. A loop, not
+        /// <see cref="RemoveAll" />: its predicate would close over the caster, a closure and a delegate per call (#883).
+        /// </summary>
+        public int RemoveCastBy(IUnit caster)
+        {
+            int removed = 0;
+            for (int i = _scripts.Count - 1; i >= 0; i--)
+            {
+                if (ReferenceEquals(_scripts[i].Caster, caster))
+                {
+                    _scripts.RemoveAt(i);
+                    removed++;
+                }
+            }
+
+            if (removed > 0)
+                Changed();
+            return removed;
+        }
+
+        /// <summary>
+        /// The first script in the list with that guid, as a walk of the list answers. The index is trusted only for a
+        /// script that still carries the guid it was indexed under: a script may set its guid again while it runs, and
+        /// one the index cannot answer for is looked for in the list.
+        /// </summary>
+        public AbilityScript? Find(ObjectGuid guid)
+        {
+            if (_scripts.Count > WalkedUpTo)
+            {
+                if (!_indexed)
+                    Index();
+
+                if (_byGuid.TryGetValue(guid.RawValue, out AbilityScript? indexed) && indexed.Guid == guid)
+                    return indexed;
+            }
+
+            for (int i = 0; i < _scripts.Count; i++)
+            {
+                AbilityScript script = _scripts[i].Script;
+                if (script.Guid == guid)
+                    return script;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Emptied now rather than at the next lookup, which may never come: until then the index would keep the
+        /// scripts that left, and through them their casters, alive.
+        /// </summary>
+        private void Changed()
+        {
+            _byGuid.Clear();
+            _indexed = false;
+        }
+
+        private void Index()
+        {
+            // Sized once for the list: filled from empty it would grow, and allocate, three times on its way to nine.
+            _byGuid.EnsureCapacity(_scripts.Count);
+            foreach (ActiveScript active in _scripts)
+            {
+                // The first of a guid wins, as in a walk. A script that left Prepare without a guid is not indexed.
+                if (active.Script.Guid is { } guid)
+                    _byGuid.TryAdd(guid.RawValue, active.Script);
+            }
+
+            _indexed = true;
+        }
     }
 }

@@ -223,6 +223,69 @@ public class InstanceAbilityCastSystemShould
         Assert.Equal(2f, ability.CooldownTimer);
     }
 
+    /// <summary>
+    /// The script manager is asked for the type on every cast, and a type's factory is kept by the type, not by the
+    /// name (#925): once a name answers with another type (a reload), the next cast builds that one.
+    /// </summary>
+    [Fact]
+    public void Build_the_type_a_script_name_answers_with_now_not_the_one_it_built_before()
+    {
+        ICharacter caster = Caster();
+        Assert.True(_sut.RunInstant(caster, s_aim, Ability()));
+        _scripts.GetAbilityScript("Recording").Returns(typeof(UpdateThrowingAbilityScript));
+
+        Assert.True(_sut.RunInstant(caster, s_aim, Ability()));
+
+        List<IWorldObject> objects = [];
+        _sut.Update(s_tick, objects);
+        Assert.IsType<UpdateThrowingAbilityScript>(Assert.Single(objects));
+        Assert.Single(RecordingAbilityScript.Prepared);
+    }
+
+    /// <summary>
+    /// Every cast's aim is handed to its script's constructor out of one box the cast system keeps and overwrites
+    /// (#925). A script must keep the aim it was built with: the first cast here is still winding up, its script
+    /// already built, when the second cast's aim goes into the box.
+    /// </summary>
+    [Fact]
+    public void Fire_each_script_with_the_aim_of_its_own_cast()
+    {
+        var other = new AbilityAim(new Vector3(1f, 0f, 0f), new Vector3(-7f, 0f, 2f));
+        ICharacter first = Caster();
+        ICharacter second = Caster();
+        Assert.True(_sut.QueueAbility(first, s_aim, Ability(castTime: 0.01f)));
+        Assert.True(_sut.RunInstant(second, other, Ability()));
+
+        _sut.Update(s_tick, []);
+
+        Assert.Equal(2, RecordingAbilityScript.Prepared.Count);
+        Assert.Equal(other with { Origin = Vector3.zero }, RecordingAbilityScript.Prepared[0].Aim);
+        Assert.Equal(s_taken, RecordingAbilityScript.Prepared[1].Aim);
+        Assert.Same(first, RecordingAbilityScript.Prepared[1].Caster);
+    }
+
+    /// <summary>
+    /// A script is handed a copy of its caster's ability, which shares only the ability's metadata (#925): whatever
+    /// the script writes to its copy, the caster's cooldown, cast timer and casting flag stay the cast system's.
+    /// </summary>
+    [Fact]
+    public void Keep_the_casters_cooldown_and_cast_state_out_of_its_scripts_reach()
+    {
+        GameAbility ability = Ability(castTime: 1f);
+        Assert.True(_sut.RunInstant(Caster(), s_aim, ability));
+        IAbility held = RecordingAbilityScript.LastBuilt!.Held;
+
+        held.CooldownTimer = 0f;
+        held.CastTimeTimer = 0f;
+        held.Casting = true;
+
+        Assert.NotSame(ability, held);
+        Assert.Equal(ability.AbilityId, held.AbilityId);
+        Assert.Equal(2f, ability.CooldownTimer);
+        Assert.Equal(1f, ability.CastTimeTimer);
+        Assert.False(ability.Casting);
+    }
+
     // ── #521 item 2: one power rule on both paths ──
 
     [Theory]

@@ -8,6 +8,8 @@ namespace Avalon.World.Public.Scripts;
 
 public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim aim) : IWorldObject
 {
+    private List<AbilityScript>? _chainedScripts;
+
     protected IUnit Caster { get; } = caster;
 
     /// <summary>What the cast aimed at when it started (#164). There is no target: the shape decides who is affected.</summary>
@@ -21,7 +23,15 @@ public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim a
 
     protected IAbility Ability { get; } = ability;
 
-    protected List<AbilityScript> ChainedScripts { get; private set; } = new();
+    /// <summary>
+    /// The scripts chained to this one, in the order they were chained. The list is made the first time it is asked
+    /// for (#925): a script that chains nothing and never looks at it, as most do, builds none.
+    /// </summary>
+    protected List<AbilityScript> ChainedScripts
+    {
+        get => _chainedScripts ??= [];
+        private set => _chainedScripts = value;
+    }
 
     protected GameEntityFields _dirtyFields;
 
@@ -52,7 +62,12 @@ public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim a
 
     public virtual void Update(TimeSpan deltaTime)
     {
-        foreach (AbilityScript script in ChainedScripts)
+        if (_chainedScripts is null)
+        {
+            return;
+        }
+
+        foreach (AbilityScript script in _chainedScripts)
         {
             if (script.ShouldRun())
             {
@@ -66,9 +81,17 @@ public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim a
     public virtual AbilityScript Clone()
     {
         var clone = (AbilityScript)MemberwiseClone();
-        clone.ChainedScripts = new List<AbilityScript>(ChainedScripts.Count);
-        foreach (AbilityScript script in ChainedScripts)
-            clone.ChainedScripts.Add(script.Clone());
+
+        // A list of the clone's own, never the one the copy above shares with this script. With no list yet, the
+        // clone makes its own when it first asks.
+        if (_chainedScripts is { } chained)
+        {
+            var copies = new List<AbilityScript>(chained.Count);
+            foreach (AbilityScript script in chained)
+                copies.Add(script.Clone());
+            clone.ChainedScripts = copies;
+        }
+
         return clone;
     }
 }

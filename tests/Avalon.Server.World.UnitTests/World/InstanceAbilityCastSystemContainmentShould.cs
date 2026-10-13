@@ -40,6 +40,7 @@ public class InstanceAbilityCastSystemContainmentShould
                  {
                      typeof(RecordingAbilityScript), typeof(PrepareThrowingAbilityScript),
                      typeof(UpdateThrowingAbilityScript), typeof(ProjectileAbilityScript),
+                     typeof(StateThrowingAbilityScript), typeof(GuidlessAbilityScript),
                  })
         {
             _scripts.GetAbilityScript(script.Name).Returns(script);
@@ -160,6 +161,33 @@ public class InstanceAbilityCastSystemContainmentShould
         Assert.Single(_arena.InterruptsOf(failing));
     }
 
+    /// <summary>
+    /// A script that leaves Prepare running without a guid is contained like one that throws: logged, dropped and
+    /// its caster sent the interrupt, while the other scripts tick, on that update and the next. Read unchecked, its
+    /// missing guid threw out of every update of the instance.
+    /// </summary>
+    [Fact]
+    public void Drop_a_script_running_without_a_guid_and_keep_ticking_the_others()
+    {
+        ICharacter failing = Caster(541_070);
+        ICharacter flyer = _arena.Player(541_071, 0f, 0f);
+        Assert.True(_sut.RunInstant(failing, s_aim, Ability(541_072, nameof(GuidlessAbilityScript))));
+        Assert.True(_sut.RunInstant(flyer, s_aim, Projectile(541_073)));
+
+        List<IWorldObject> objects = [];
+        _sut.Update(s_tick, objects);
+
+        Assert.Single(objects);   // the projectile still ticked
+        AssertLoggedError(541_072, failing);
+        Assert.Single(_arena.InterruptsOf(failing));
+
+        objects.Clear();
+        _sut.Update(s_tick, objects);   // the script is gone: nothing throws, nothing is sent again
+
+        Assert.Single(objects);
+        Assert.Single(_arena.InterruptsOf(failing));
+    }
+
     // ── #530: an interrupt send that throws cannot leave a cast queued ──
 
     /// <summary>
@@ -224,6 +252,125 @@ public class InstanceAbilityCastSystemContainmentShould
         Assert.Same(staying, _arena.CombatService.ReceivedCalls()
             .Single(c => c.GetMethodInfo().Name == nameof(Avalon.World.Public.Combat.ICombatService.ApplyDamage))
             .GetArguments()[0]);
+    }
+
+    // ── #883: the index GetAbility answers from follows the active scripts ──
+
+    /// <summary>
+    /// With more active scripts than it walks, GetAbility answers from an index by guid, filled again after the
+    /// active scripts change (#883). Each way a script leaves is followed here by a lookup made after an earlier
+    /// lookup filled the index: a removal that did not reach the index would answer with a script that left.
+    /// </summary>
+    [Fact]
+    public void Find_exactly_the_scripts_still_running_however_they_came_and_went()
+    {
+        // In flight for the whole test, and enough of them that every lookup below is answered from the index.
+        ICharacter crowd = _arena.Player(541_029, 0f, 0f);
+        for (uint i = 0; i <= InstanceAbilityCastSystem.WalkedUpTo; i++)
+        {
+            Assert.True(_sut.RunInstant(crowd, s_aim, Projectile(541_040 + i)));
+        }
+
+        ICharacter leaving = _arena.Player(541_030, 0f, 0f);
+        ICharacter staying = _arena.Player(541_031, 0f, 0f);
+        Assert.True(_sut.RunInstant(leaving, s_aim, Projectile(541_032)));
+        List<IWorldObject> objects = [];
+        _sut.Update(s_tick, objects);
+        IWorldObject flying = objects[^1];
+        Assert.Same(flying, _sut.GetAbility(flying.Guid));
+
+        // Two join: one that throws on a later update, and one that ends at its reach on its first.
+        Assert.True(_sut.RunInstant(staying, s_aim, Ability(541_033, nameof(UpdateThrowingAbilityScript))));
+        Assert.True(_sut.RunInstant(staying, s_aim,
+            AbilityTestData.Game(AbilityTestData.Projectile(541_034, reach: 0.05f, speed: 20f))));
+        objects.Clear();
+        _sut.Update(s_tick, objects);
+        IWorldObject thrower = Assert.Single(objects, o => o is UpdateThrowingAbilityScript);
+        IWorldObject ended = objects[^1];
+        Assert.Same(thrower, _sut.GetAbility(thrower.Guid));
+        Assert.Same(ended, _sut.GetAbility(ended.Guid));
+
+        // One leaves with its caster.
+        _sut.CancelScriptsOf(leaving);
+        Assert.Null(_sut.GetAbility(flying.Guid));
+        Assert.Same(ended, _sut.GetAbility(ended.Guid));
+
+        // One is dropped finished, its final state unsent.
+        _sut.DropFinished();
+        Assert.Null(_sut.GetAbility(ended.Guid));
+        Assert.Same(thrower, _sut.GetAbility(thrower.Guid));
+
+        // One is dropped for throwing.
+        for (int i = 0; i < UpdateThrowingAbilityScript.ThrowOnUpdate; i++)
+        {
+            _sut.Update(s_tick, []);
+        }
+
+        Assert.Null(_sut.GetAbility(thrower.Guid));
+    }
+
+    /// <summary>
+    /// A script's State is its own code, read when it has prepared, before each Update and by both sweeps for
+    /// finished scripts. One that throws there is contained like a throwing Update: logged once, dropped, its caster
+    /// sent the interrupt, and every other script still there once, ticking and found by its guid. Uncontained, the
+    /// sweep threw out of every update of the instance, each time leaving the list with a script twice and an index
+    /// that named one the list had dropped (#883).
+    /// </summary>
+    [Theory]
+    [InlineData("when it has prepared")]
+    [InlineData("in an update")]
+    [InlineData("in the sweep of an empty instance")]
+    public void Drop_a_script_whose_state_cannot_be_read_and_keep_the_others(string read)
+    {
+        ICharacter failing = Caster(541_053);
+        ICharacter caster = _arena.Player(541_050, 0f, 0f);
+        Assert.True(_sut.RunInstant(caster, s_aim,
+            AbilityTestData.Game(AbilityTestData.Projectile(541_051, reach: 0.05f, speed: 20f))));
+        for (uint i = 0; i < InstanceAbilityCastSystem.WalkedUpTo; i++)
+        {
+            Assert.True(_sut.RunInstant(caster, s_aim, Projectile(541_060 + i)));
+        }
+
+        StateThrowingAbilityScript.ArmedWhenBuilt = read == "when it has prepared";
+        try
+        {
+            Assert.True(_sut.RunInstant(failing, s_aim, Ability(541_052, nameof(StateThrowingAbilityScript))));
+        }
+        finally
+        {
+            StateThrowingAbilityScript.ArmedWhenBuilt = false;
+        }
+
+        // The first update ends the short projectile, which stays for its final state, and fills the index.
+        List<IWorldObject> objects = [];
+        _sut.Update(s_tick, objects);
+        IWorldObject ended = objects[0];
+        Assert.Same(ended, _sut.GetAbility(ended.Guid));
+        if (objects[^1] is StateThrowingAbilityScript unreadable)
+        {
+            unreadable.Armed = true;
+        }
+
+        if (read == "in the sweep of an empty instance")
+        {
+            _sut.DropFinished();
+            Assert.Null(_sut.GetAbility(ended.Guid));
+        }
+
+        for (int i = 0; i < 2; i++)
+        {
+            objects.Clear();
+            _sut.Update(s_tick, objects);
+        }
+
+        Assert.Single(_logs.Entries, e => e.Level == LogLevel.Error);
+        AssertLoggedError(541_052, failing);
+        Assert.Single(_arena.InterruptsOf(failing));
+        Assert.DoesNotContain(objects, o => o is StateThrowingAbilityScript);
+        Assert.Equal(objects.Count, objects.Distinct().Count());
+        Assert.Equal(InstanceAbilityCastSystem.WalkedUpTo + (read == "in the sweep of an empty instance" ? 0 : 1),
+            objects.Count);
+        Assert.All(objects, o => Assert.Same(o, _sut.GetAbility(o.Guid)));
     }
 
     private sealed class RecordingLoggerFactory : ILoggerFactory, ILogger

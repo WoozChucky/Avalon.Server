@@ -4,7 +4,11 @@ using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public.Abilities;
 
-public class AbilityMetadata
+/// <summary>
+/// An ability's row as the world runs it. It cannot change once built, and is sealed so no subclass can add what
+/// can: one object is shared by a caster's ability and by the copy each of its casts hands its script (#925).
+/// </summary>
+public sealed class AbilityMetadata
 {
     public string Name { get; init; }
 

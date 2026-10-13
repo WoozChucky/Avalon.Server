@@ -18,8 +18,10 @@ namespace Avalon.Server.World.UnitTests.Hosting;
 
 /// <summary>
 /// Every script a seeded ability names is found by ScriptManager and builds from exactly the arguments
-/// InstanceAbilityCastSystem passes (ability, caster, aim, arena), through the production container (#164).
-/// A constructor that wanted anything else would throw on the first cast and be logged, not caught here.
+/// InstanceAbilityCastSystem passes (ability, caster, aim, arena), through the production container (#164) and
+/// through the cast system's own AbilityScriptActivator (#925), which binds a constructor by the declared types
+/// IAbility, IUnit, AbilityAim and IAbilityArena. A constructor that wanted anything else, or a narrower type for
+/// one of the four, would throw on the first cast and be logged, not caught here.
 /// Seed data names scripts by string, so nothing at compile time can catch it.
 /// </summary>
 public class AbilityScriptConstructibilityShould
@@ -52,11 +54,11 @@ public class AbilityScriptConstructibilityShould
             IAbility ability = Substitute.For<IAbility>();
             ability.Metadata.Returns(new AbilityMetadata { Name = scriptName, ScriptName = scriptName });
 
-            // Argument-for-argument identical to InstanceAbilityCastSystem.Build.
-            object built = ActivatorUtilities.CreateInstance(host.Services, type!, ability, Substitute.For<IUnit>(),
-                new AbilityAim(new Vector3(0f, 0f, 1f), null), Substitute.For<IAbilityArena>());
+            // The call InstanceAbilityCastSystem.Build makes, argument for argument.
+            AbilityScript? built = new AbilityScriptActivator().Build(host.Services, type!, ability,
+                Substitute.For<IUnit>(), new AbilityAim(new Vector3(0f, 0f, 1f), null), Substitute.For<IAbilityArena>());
 
-            Assert.IsAssignableFrom<AbilityScript>(built);
+            Assert.NotNull(built);
         }
         finally
         {

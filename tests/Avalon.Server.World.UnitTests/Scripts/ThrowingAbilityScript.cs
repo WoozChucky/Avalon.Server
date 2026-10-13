@@ -25,6 +25,55 @@ public sealed class ThrowingAbilityScript : AbilityScript
     protected override bool ShouldRun() => true;
 }
 
+/// <summary>
+/// A projectile-typed world object that stands still, and whose State throws once <see cref="Armed" /> is set: what
+/// the cast system reads after Prepare, before each Update and when it looks for finished scripts to drop. One built
+/// while <see cref="ArmedWhenBuilt" /> is set throws from the start.
+/// </summary>
+public sealed class StateThrowingAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
+    : AbilityScript(ability, caster, aim)
+{
+    public IAbilityArena Arena { get; } = arena;
+
+    public static bool ArmedWhenBuilt { get; set; }
+
+    public bool Armed { get; set; } = ArmedWhenBuilt;
+
+    public override object State
+    {
+        get => Armed ? throw new InvalidOperationException("This script's state cannot be read.") : SpellState.Executing;
+        set { }
+    }
+
+    public override Vector3 Position { get; set; }
+    public override Vector3 Velocity { get; set; }
+    public override Vector3 Orientation { get; set; }
+    public override ObjectGuid Guid { get; set; } = null!;
+
+    public override void Prepare() => Guid = new ObjectGuid(ObjectType.SpellProjectile, IObject.GenerateId());
+
+    protected override bool ShouldRun() => true;
+}
+
+/// <summary>An ability script that builds and keeps running, and whose Prepare sets no guid.</summary>
+public sealed class GuidlessAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
+    : AbilityScript(ability, caster, aim)
+{
+    public IAbilityArena Arena { get; } = arena;
+
+    public override object State { get; set; } = SpellState.Executing;
+    public override Vector3 Position { get; set; }
+    public override Vector3 Velocity { get; set; }
+    public override Vector3 Orientation { get; set; }
+    public override ObjectGuid Guid { get; set; } = null!;
+
+    public override void Prepare()
+    {
+    }
+
+    protected override bool ShouldRun() => true;
+}
+
 /// <summary>An ability script that builds, and whose Prepare throws (#530).</summary>
 public sealed class PrepareThrowingAbilityScript : AbilityScript
 {

@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Items;
 using Avalon.World.Public.Scripts;
@@ -71,6 +72,7 @@ public class ScriptManager : IScriptManager
         _logger.LogInformation("Loaded {Count} ability scripts", abilityScripts.Count);
 
         _abilityScripts = abilityScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
+        PrepareAbilityScripts(abilityScripts);
 
         List<Type> questScripts = FindScriptTypes<QuestScript>();
 
@@ -112,6 +114,26 @@ public class ScriptManager : IScriptManager
             }
 
             _aiScripts = scripts;
+        }
+    }
+
+    /// <summary>
+    /// Has each ability script's factory made now, off the tick, rather than by its first cast (#925). A type the
+    /// cast arguments cannot build is left for its cast to refuse and log: one built only by another script, with
+    /// arguments of its own, is no fault.
+    /// </summary>
+    private void PrepareAbilityScripts(List<Type> abilityScripts)
+    {
+        foreach (Type type in abilityScripts)
+        {
+            try
+            {
+                AbilityScriptActivator.Prepare(type);
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Ability script {ScriptType} cannot be built from a cast's arguments", type.FullName);
+            }
         }
     }
 
