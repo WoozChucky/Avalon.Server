@@ -78,6 +78,75 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         Assert.Empty(await read.CharacterInventory.AsNoTracking().ToListAsync());
     }
 
+    /// <summary>
+    /// An emptied slot is named by its owner, its container and its number, and one statement deletes every emptied
+    /// slot of a container (#883). Each row kept here shares a slot number with one that goes, in another container
+    /// or under another character. A slot emptied and filled again in the same save holds the new item.
+    /// </summary>
+    [Fact]
+    public async Task Delete_only_the_emptied_slots_and_keep_one_filled_again_in_the_same_save()
+    {
+        CharacterRow saved = await SeedCharacterAsync(1);
+        CharacterRow other = await SeedCharacterAsync(2);
+        await FillAsync(saved,
+            (InventoryType.Equipment, 0), (InventoryType.Equipment, 2),
+            (InventoryType.Bag, 0), (InventoryType.Bag, 1), (InventoryType.Bag, 2),
+            (InventoryType.Bank, 0), (InventoryType.Bank, 1), (InventoryType.Bank, 2));
+        await FillAsync(other, (InventoryType.Bag, 0), (InventoryType.Bag, 2), (InventoryType.Bank, 1));
+        ItemInstance refill = Item(saved.Id, count: 1);
+
+        await _saves.WriteAsync([Batch(saved,
+            upsertItems: [refill],
+            upsertSlots: [Slot(saved.Id, 2, refill.Id)],
+            deleteSlots: [(InventoryType.Bag, 0), (InventoryType.Bank, 1), (InventoryType.Bag, 2)])]);
+
+        await using CharacterDbContext read = _database.CreateDbContext();
+        List<CharacterInventory> left = await read.CharacterInventory.AsNoTracking().ToListAsync();
+        (uint Owner, InventoryType Container, ushort Slot)[] expected =
+        [
+            (1, InventoryType.Equipment, 0), (1, InventoryType.Equipment, 2),
+            (1, InventoryType.Bag, 1), (1, InventoryType.Bag, 2),
+            (1, InventoryType.Bank, 0), (1, InventoryType.Bank, 2),
+            (2, InventoryType.Bag, 0), (2, InventoryType.Bag, 2), (2, InventoryType.Bank, 1),
+        ];
+        Assert.Equal(expected, left.Select(r => (r.CharacterId.Value, r.Container, r.Slot)).Order());
+        Assert.Equal(refill.Id, left.Single(r => r.CharacterId == saved.Id && r.Container == InventoryType.Bag && r.Slot == 2).ItemId);
+    }
+
+    /// <summary>
+    /// One statement deletes the rows of every quest a save rewrites (#883), so the quests it does not name, and
+    /// another character's rows for the quests it does, stay as they are.
+    /// </summary>
+    [Fact]
+    public async Task Rewrite_only_the_quests_named_and_only_for_that_character()
+    {
+        CharacterRow saved = await SeedCharacterAsync(1);
+        CharacterRow other = await SeedCharacterAsync(2);
+        static CharacterQuest Quest(CharacterRow row, uint id, int stage) =>
+            new() { CharacterId = row.Id, QuestId = id, State = CharacterQuestState.Active, Stage = stage, AcceptedAt = DateTime.UtcNow };
+        static CharacterQuestObjective Objective(CharacterRow row, uint quest, uint id, uint progress) =>
+            new() { CharacterId = row.Id, QuestId = quest, ObjectiveId = id, Progress = progress };
+        static CharacterSaveBatch Write(CharacterRow row, uint[] rewrite, CharacterQuest[] active, CharacterQuestObjective[] objectives) =>
+            new(row, [], [], [], [], Quests: new CharacterQuestWrite(rewrite, active, objectives, [])) { Authority = s_authority };
+        await _saves.WriteAsync(
+        [
+            Write(saved, [], [Quest(saved, 5, 0), Quest(saved, 6, 0), Quest(saved, 7, 0)],
+                [Objective(saved, 5, 51, 2), Objective(saved, 6, 61, 4), Objective(saved, 7, 71, 9)]),
+            Write(other, [], [Quest(other, 5, 0), Quest(other, 6, 0)], [Objective(other, 5, 51, 3)]),
+        ]);
+
+        // Quest 5 moves on a stage, and quest 6 is abandoned.
+        await _saves.WriteAsync([Write(saved, [5, 6], [Quest(saved, 5, 1)], [Objective(saved, 5, 52, 1)])]);
+
+        await using CharacterDbContext read = _database.CreateDbContext();
+        (uint Owner, uint Quest, int Stage)[] quests = [(1, 5, 1), (1, 7, 0), (2, 5, 0), (2, 6, 0)];
+        (uint Owner, uint Quest, uint Objective, uint Progress)[] objectives = [(1, 5, 52, 1), (1, 7, 71, 9), (2, 5, 51, 3)];
+        Assert.Equal(quests, (await read.CharacterQuests.AsNoTracking().ToListAsync())
+            .Select(q => (q.CharacterId.Value, q.QuestId, q.Stage)).Order());
+        Assert.Equal(objectives, (await read.CharacterQuestObjectives.AsNoTracking().ToListAsync())
+            .Select(o => (o.CharacterId.Value, o.QuestId, o.ObjectiveId, o.Progress)).Order());
+    }
+
     [Fact]
     public async Task Commit_every_batch_or_none()
     {
@@ -192,8 +261,17 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         UpdatedAt = DateTime.UtcNow,
     };
 
-    private static CharacterInventory Slot(CharacterId owner, ushort slot, ItemInstanceId item) =>
-        new() { CharacterId = owner, Container = InventoryType.Bag, Slot = slot, ItemId = item };
+    private static CharacterInventory Slot(CharacterId owner, ushort slot, ItemInstanceId item,
+        InventoryType container = InventoryType.Bag) =>
+        new() { CharacterId = owner, Container = container, Slot = slot, ItemId = item };
+
+    /// <summary>Saves one new item into each of <paramref name="slots" />.</summary>
+    private async Task FillAsync(CharacterRow owner, params (InventoryType Container, ushort Slot)[] slots)
+    {
+        var items = slots.Select(_ => Item(owner.Id, count: 1)).ToList();
+        var rows = slots.Select((s, i) => Slot(owner.Id, s.Slot, items[i].Id, s.Container)).ToList();
+        await _saves.WriteAsync([Batch(owner, upsertItems: items, upsertSlots: rows)]);
+    }
 
     private static CharacterSaveBatch Batch(
         CharacterRow row,

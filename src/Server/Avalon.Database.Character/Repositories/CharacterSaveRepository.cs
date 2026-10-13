@@ -78,24 +78,19 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
             foreach (CharacterSaveBatch batch in batches)
             {
                 CharacterId owner = batch.Row.Id;
-                foreach ((InventoryType container, ushort slot) in batch.DeleteSlots)
-                {
-                    await context.CharacterInventory
-                        .Where(r => r.CharacterId == owner && r.Container == container && r.Slot == slot)
-                        .ExecuteDeleteAsync(token);
-                }
+                if (batch.DeleteSlots.Count > 0)
+                    await DeleteSlotsAsync(context, owner, batch.DeleteSlots, token);
 
-                if (batch.Quests is { } quests)
+                if (batch.Quests is { Rewrite.Count: > 0 } quests)
                 {
-                    foreach (uint questId in quests.Rewrite)
-                    {
-                        await context.CharacterQuestObjectives
-                            .Where(o => o.CharacterId == owner && o.QuestId == questId)
-                            .ExecuteDeleteAsync(token);
-                        await context.CharacterQuests
-                            .Where(q => q.CharacterId == owner && q.QuestId == questId)
-                            .ExecuteDeleteAsync(token);
-                    }
+                    // Two statements per batch, not two per rewritten quest (#883): the objectives, then the quests.
+                    var rewrite = quests.Rewrite.ToList();
+                    await context.CharacterQuestObjectives
+                        .Where(o => o.CharacterId == owner && rewrite.Contains(o.QuestId))
+                        .ExecuteDeleteAsync(token);
+                    await context.CharacterQuests
+                        .Where(q => q.CharacterId == owner && rewrite.Contains(q.QuestId))
+                        .ExecuteDeleteAsync(token);
                 }
 
                 if (batch.Ignores is { } ignores)
@@ -108,10 +103,12 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
             // After the slots, which reference items by foreign key.
             foreach (CharacterSaveBatch batch in batches)
             {
-                foreach (ItemInstanceId id in batch.DeleteItems)
-                {
-                    await context.ItemInstances.Where(i => i.Id == id).ExecuteDeleteAsync(token);
-                }
+                if (batch.DeleteItems.Count == 0)
+                    continue;
+
+                // One statement per batch, not one per item (#883).
+                var removed = batch.DeleteItems.ToList();
+                await context.ItemInstances.Where(i => removed.Contains(i.Id)).ExecuteDeleteAsync(token);
             }
 
             foreach (CharacterSaveBatch batch in batches)
@@ -203,6 +200,23 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
             await context.SaveChangesAsync(token);
             await CheckDeadlineAsync(context, guards, token);
         }, cancellationToken);
+
+    /// <summary>
+    /// One statement per container that has emptied slots, not one per slot (#883): a slot's key is the owner, the
+    /// container and the slot number, so the slots of one container go in one list.
+    /// </summary>
+    private static async Task DeleteSlotsAsync(CharacterDbContext context, CharacterId owner,
+        IReadOnlyList<(InventoryType Container, ushort Slot)> emptied, CancellationToken token)
+    {
+        foreach (IGrouping<InventoryType, ushort> group in emptied.GroupBy(e => e.Container, e => e.Slot))
+        {
+            InventoryType container = group.Key;
+            var slots = group.ToList();
+            await context.CharacterInventory
+                .Where(r => r.CharacterId == owner && r.Container == container && slots.Contains(r.Slot))
+                .ExecuteDeleteAsync(token);
+        }
+    }
 
     private static async Task DeleteIgnoresAsync(CharacterDbContext context, CharacterId owner, CharacterIgnoreWrite ignores,
         CancellationToken token)
