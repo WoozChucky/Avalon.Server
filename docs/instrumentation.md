@@ -95,7 +95,8 @@ its address and the declared length), and nothing above Debug.
 | `network.in.protocol_kicks` | `network_in_protocol_kicks_total` | Connections closed for a frame the peer got wrong (#897, [packet handlers](packet-handlers.md)), tagged `reason`: `malformed_frame` (not a `NetworkPacket`), `sealed_before_key` (flagged `Encrypted` before the session had keys), `seal_not_authentic` (flagged `Encrypted`, and does not authenticate or is shorter than a nonce and a tag) or `undecodable_payload` (not an encoding of its opcode's packet). On the world's meter (`world-server`) and on the auth server's (`auth-server`), each counting its own connections |
 
 `reason` takes those four values and no other: nothing a peer sends becomes a tag. Each count is one connection closed
-and one Warning (the connection, its address and, but for `malformed_frame`, the opcode), without the exception: these
+and one Warning (the connection, its account once it has one, its address, how many packets it had delivered and, but
+for `malformed_frame`, the opcode), without the exception: these
 were an Error with a stack trace each, and any peer that completes TLS can cause one before it is admitted or logged
 in, on every reconnect. A world's close for a packet that arrives unsealed while it seals
 (`Network:PacketEncryption`) is not counted here; it writes its own Warning. Nor is an opcode the server has no packet

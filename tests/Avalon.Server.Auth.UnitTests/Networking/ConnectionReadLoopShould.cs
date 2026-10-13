@@ -276,7 +276,8 @@ public class ConnectionReadLoopShould
     /// A packet the server does not serve leaves the connection open: an older client may still send an opcode a
     /// newer server retired. A peer can therefore send them at any rate, so only the first on a connection is a
     /// Warning, whether the server has no packet type for the opcode or decodes it and has no handler for it; each
-    /// was a Warning per frame. The connection goes on handling what it does serve.
+    /// was a Warning per frame. The rest are Trace, below the Debug the auth server ships with as its minimum level.
+    /// The connection goes on handling what it does serve.
     /// </summary>
     [Fact]
     public async Task Warn_once_for_packets_the_server_does_not_serve_and_keep_the_connection_open()
@@ -299,6 +300,8 @@ public class ConnectionReadLoopShould
             Assert.Equal(6, connection.PacketsReceived);
             Assert.Equal(1, logger.Count(LogLevel.Warning));
             Assert.DoesNotContain(logger.Entries, entry => entry.Level > LogLevel.Warning);
+            // The other four it does not serve.
+            Assert.Equal(4, logger.Count(LogLevel.Trace));
             Assert.Empty(connection.Violations);
             Assert.False(connection.IsClosing);
         }

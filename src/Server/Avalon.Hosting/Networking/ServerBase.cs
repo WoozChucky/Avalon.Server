@@ -331,7 +331,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         if (!PacketManager.TryGetPacketInfo(header.Type, out PacketInfo details) || details.HandlerFactory is not { } handlerFactory)
         {
             // The connection stays open, so a peer can send these at any rate, before login: the first on a
-            // connection is a Warning and the rest are Debug (#897). The connection holds the once, as this runs on
+            // connection is a Warning and the rest are Trace (#897). The connection holds the once, as this runs on
             // its read loop.
             if (connection is Connection known)
                 known.LogNoHandler(header.Type);

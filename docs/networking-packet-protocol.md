@@ -279,7 +279,7 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
   `network.in.protocol_kicks` (#897, [packet handlers](packet-handlers.md)).
 - An opcode the server has no packet type for → the frame is dropped and the connection stays open: an older client
   may still send an opcode a newer server has retired. The first on a connection is logged at Warning, the rest at
-  Debug (#897).
+  Trace (#897).
 - A world connection with `Network:MaxReceiveQueueDepth` packets (2,048) received and waiting for the tick that sends
   another → the packet is not queued and the connection is closed without a notice (#927,
   [packet handlers](packet-handlers.md)). The outbound mirror is the slow-connection close past
@@ -330,7 +330,7 @@ in it, so a fix will turn that test red rather than pass unnoticed.
   declares a new `NetworkPacketType` value there. A packet a server receives also derives from `Packet` and carries
   `[Packet(HandleOn = ComponentType.Auth)]` or `ComponentType.World`: `HandleOn` is what gives that server a decoder
   for the opcode (`AddCoreServices`), and without it the read loop drops the frame and logs "Unknown packet type" (at
-  Warning for the first on a connection, at Debug after that). A server decodes once with every packet it is the
+  Warning for the first on a connection, at Trace after that). A server decodes once with every packet it is the
   `HandleOn` of as it starts, so a contract protobuf-net cannot build stops that server from starting (#897). The
   attribute's `Type`
   repeats the opcode; no server code reads it (the host graph tests do). After any contract change, re-export the wire

@@ -47,42 +47,47 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
 
         // The four below are what a peer can make of a frame the stream did read (#897). Any peer that completes TLS
         // can, before admission or login, and can reconnect to do it again: each is one line per connection, at
-        // Warning, of fixed text, with no exception and nothing the peer wrote but its opcode.
+        // Warning, of fixed text, with no exception and nothing the peer wrote but its opcode. Each says how many
+        // packets the connection had delivered, which tells a first frame (a peer that is no client, or a client that
+        // derives another key) from a session that worked and then received a bad one, and the account, once there
+        // is one.
         [LoggerMessage(Level = LogLevel.Warning,
-            Message = "Closing connection {ConnectionId} from {RemoteEndPoint}: a frame is not a packet (its header, or a length in it, does not parse)")]
-        public static partial void MalformedFrame(ILogger logger, Guid connectionId, string remoteEndPoint);
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: a frame is not a packet (its header, or a length in it, does not parse)")]
+        public static partial void MalformedFrame(ILogger logger, Guid connectionId, long? accountId,
+            string remoteEndPoint, int packetsReceived);
 
         [LoggerMessage(Level = LogLevel.Warning,
-            Message = "Closing connection {ConnectionId} from {RemoteEndPoint}: {PacketType} arrived sealed before the connection had a session key")]
-        public static partial void SealedBeforeKey(ILogger logger, Guid connectionId, string remoteEndPoint,
-            NetworkPacketType packetType);
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: {PacketType} arrived sealed before the connection had a session key")]
+        public static partial void SealedBeforeKey(ILogger logger, Guid connectionId, long? accountId,
+            string remoteEndPoint, int packetsReceived, NetworkPacketType packetType);
 
         [LoggerMessage(Level = LogLevel.Warning,
-            Message = "Closing connection {ConnectionId} from {RemoteEndPoint}: {PacketType} arrived sealed and does not open under the connection's session key")]
-        public static partial void SealNotAuthentic(ILogger logger, Guid connectionId, string remoteEndPoint,
-            NetworkPacketType packetType);
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: {PacketType} arrived sealed and does not open under the connection's session key")]
+        public static partial void SealNotAuthentic(ILogger logger, Guid connectionId, long? accountId,
+            string remoteEndPoint, int packetsReceived, NetworkPacketType packetType);
 
         [LoggerMessage(Level = LogLevel.Warning,
-            Message = "Closing connection {ConnectionId} from {RemoteEndPoint}: the payload of {PacketType} does not decode as that packet")]
-        public static partial void UndecodablePayload(ILogger logger, Guid connectionId, string remoteEndPoint,
-            NetworkPacketType packetType);
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: the payload of {PacketType} does not decode as that packet")]
+        public static partial void UndecodablePayload(ILogger logger, Guid connectionId, long? accountId,
+            string remoteEndPoint, int packetsReceived, NetworkPacketType packetType);
 
         // A packet the server does not serve leaves the connection open, so a peer can send them at any rate: the
-        // first on a connection is a Warning, the rest Debug.
+        // first on a connection is a Warning, the rest Trace. Not Debug: the auth server ships with Debug as its
+        // minimum level, and would write one for every frame.
         [LoggerMessage(Level = LogLevel.Warning,
-            Message = "Unknown packet type {PacketType} on connection {ConnectionId}: dropped; further packets this server does not serve are logged at Debug on this connection")]
+            Message = "Unknown packet type {PacketType} on connection {ConnectionId}: dropped; further packets this server does not serve are logged at Trace on this connection")]
         public static partial void UnknownPacketType(ILogger logger, NetworkPacketType packetType, Guid connectionId);
 
-        [LoggerMessage(Level = LogLevel.Debug,
+        [LoggerMessage(Level = LogLevel.Trace,
             Message = "Unknown packet type {PacketType} on connection {ConnectionId}: dropped")]
         public static partial void UnknownPacketTypeRepeated(ILogger logger, NetworkPacketType packetType,
             Guid connectionId);
 
         [LoggerMessage(Level = LogLevel.Warning,
-            Message = "Could not find a handler for packet {PacketType} on connection {ConnectionId}; further packets this server does not serve are logged at Debug on this connection")]
+            Message = "Could not find a handler for packet {PacketType} on connection {ConnectionId}; further packets this server does not serve are logged at Trace on this connection")]
         public static partial void NoHandler(ILogger logger, NetworkPacketType packetType, Guid connectionId);
 
-        [LoggerMessage(Level = LogLevel.Debug,
+        [LoggerMessage(Level = LogLevel.Trace,
             Message = "Could not find a handler for packet {PacketType} on connection {ConnectionId}")]
         public static partial void NoHandlerRepeated(ILogger logger, NetworkPacketType packetType, Guid connectionId);
     }
@@ -302,10 +307,16 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     protected virtual void OnProtocolViolation(string reason) { }
 
     /// <summary>
+    /// The account this connection is logged in or admitted as, for the lines that close it; null until there is one,
+    /// and on a connection that has none.
+    /// </summary>
+    protected virtual long? AccountIdForLog => null;
+
+    /// <summary>
     /// A frame whose opcode this server has no packet type for: an opcode a newer server retired, one meant for the
     /// other server, or noise. Dropped, and the connection stays open (an older client may still send what was
     /// retired, #697). The first packet a connection sends that the server does not serve is a Warning and the rest
-    /// are Debug, so a peer cannot write a Warning per frame (#897).
+    /// are Trace, so a peer cannot write a line per frame (#897).
     /// </summary>
     private void DropUnknown(NetworkPacketType type)
     {
@@ -342,18 +353,20 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     /// </summary>
     private void RefusePayload(PacketReadException refusal)
     {
+        // The frame that was refused is not among them: a packet is counted once it has been read.
+        int packetsReceived = Volatile.Read(ref PacketReceivedCount);
         switch (refusal.Failure)
         {
             case PacketReadFailure.SealedBeforeKey:
-                ReadLog.SealedBeforeKey(_logger, Id, RemoteEndPoint, refusal.PacketType);
+                ReadLog.SealedBeforeKey(_logger, Id, AccountIdForLog, RemoteEndPoint, packetsReceived, refusal.PacketType);
                 OnProtocolViolation(ProtocolViolation.SealedBeforeKey);
                 break;
             case PacketReadFailure.SealNotAuthentic:
-                ReadLog.SealNotAuthentic(_logger, Id, RemoteEndPoint, refusal.PacketType);
+                ReadLog.SealNotAuthentic(_logger, Id, AccountIdForLog, RemoteEndPoint, packetsReceived, refusal.PacketType);
                 OnProtocolViolation(ProtocolViolation.SealNotAuthentic);
                 break;
             default:
-                ReadLog.UndecodablePayload(_logger, Id, RemoteEndPoint, refusal.PacketType);
+                ReadLog.UndecodablePayload(_logger, Id, AccountIdForLog, RemoteEndPoint, packetsReceived, refusal.PacketType);
                 OnProtocolViolation(ProtocolViolation.UndecodablePayload);
                 break;
         }
@@ -497,7 +510,8 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
             }
             catch (InvalidDataException)
             {
-                ReadLog.MalformedFrame(_logger, Id, RemoteEndPoint);
+                ReadLog.MalformedFrame(_logger, Id, AccountIdForLog, RemoteEndPoint,
+                    Volatile.Read(ref PacketReceivedCount));
                 OnProtocolViolation(ProtocolViolation.MalformedFrame);
             }
             catch (IOException e)
