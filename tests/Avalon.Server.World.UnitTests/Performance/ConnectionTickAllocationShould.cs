@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World.Testing;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
@@ -30,7 +31,7 @@ public class ConnectionTickAllocationShould
         for (int i = 0; i < 100; i++)
             CharacterReadinessBarrier.ReleaseExpired(connections, world, now, TimeSpan.FromSeconds(15), NullLogger.Instance);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 1_000; i++)
             CharacterReadinessBarrier.ReleaseExpired(connections, world, now, TimeSpan.FromSeconds(15), NullLogger.Instance);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -49,7 +50,7 @@ public class ConnectionTickAllocationShould
         for (int i = 0; i < 100; i++)
             connection.AdvanceGameplayLease();
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 1_000; i++)
             connection.AdvanceGameplayLease();
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
@@ -87,7 +88,7 @@ public class ConnectionTickAllocationShould
             filter.CanProcess(NetworkPacketType.CMSG_PLAYER_INPUT);
 
         int acceptedCount = 0;
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 1_000; i++)
         {
             if (filter.CanProcess(NetworkPacketType.CMSG_PLAYER_INPUT))

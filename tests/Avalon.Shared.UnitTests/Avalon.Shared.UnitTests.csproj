@@ -50,4 +50,9 @@
     <ProjectReference Include="..\Avalon.Wire.Reference\Avalon.Wire.Reference.csproj" Aliases="wire" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The start of a window that must allocate nothing, as the world tests take it from their library. -->
+    <Compile Include="..\Avalon.World.Testing\ThreadAllocations.cs" Link="Shared\ThreadAllocations.cs" />
+  </ItemGroup>
+
 </Project>

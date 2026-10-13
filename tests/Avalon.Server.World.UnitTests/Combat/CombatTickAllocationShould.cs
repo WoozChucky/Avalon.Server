@@ -6,6 +6,7 @@ using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Testing;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Combat;
@@ -50,7 +51,7 @@ public class CombatTickAllocationShould
         }
         Assert.Equal(1, connection.Sent);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 100; i++)
         {
             combat.Update(s_tick);

@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Domain.World;
+using Avalon.World.Testing;
 using Avalon.World.Vendors;
 using static Avalon.Server.World.UnitTests.Vendors.VendorTestData;
 
@@ -84,7 +85,7 @@ public class VendorStocksShould
         stocks.Update(Now, catalog, items);
         stocks.ClearChanged();
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int tick = 0; tick < 100; tick++)
         {
             stocks.Update(Now.AddSeconds(1), catalog, items);

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
+using Avalon.World.Testing;
 using Org.BouncyCastle.Crypto;
 using Xunit;
 
@@ -493,12 +494,19 @@ public class SessionKeyDerivationShould
         byte[] reference = NewArray(sealedPacket.Length);
         long packetBytes = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < Runs; i++)
-            sealedPacket = client.Encryptor(plaintext);
-        long sealing = GC.GetAllocatedBytesForCurrentThread() - before;
+        // Sealing allocates, so the thread holds an allocation buffer, and a background collection counts what is
+        // left of it as allocated (ThreadAllocations): the fewest bytes over three windows, as
+        // WaypointRepathAllocationShould takes them. An allocation per packet is in every window.
+        long sealing = long.MaxValue;
+        for (int window = 0; window < 3; window++)
+        {
+            before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < Runs; i++)
+                sealedPacket = client.Encryptor(plaintext);
+            sealing = Math.Min(sealing, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
 
-        before = GC.GetAllocatedBytesForCurrentThread();
+        before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < Runs; i++)
             server.Decrypt(sealedPacket, output);
         long opening = GC.GetAllocatedBytesForCurrentThread() - before;
