@@ -112,6 +112,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     // delegate made from the party service's method at each kill was an object per kill (#890).
     private readonly Func<uint, bool> _inCountdown;
 
+    // Whether a character can still gain experience over the reference data as it is now, asked of every member that
+    // shares a kill: made once, like the one above.
+    private readonly Func<ICharacter, bool> _canGainExperience;
+
     // One kill's lists, emptied when it is done (#890). A kill reached while another is being handled (nothing does
     // that today: a hook run by a kill would have to kill another creature here) takes lists of its own.
     private readonly KillBuffers _killBuffers = new();
@@ -251,6 +255,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Optional too: an instance built without it (tests) shares nothing, so every kill is its killer's alone.
         _parties = serviceProvider.GetService<PartyService>();
         _inCountdown = _parties is null ? static _ => false : _parties.InCountdown;
+        _canGainExperience = member => ExperienceAward.CanGainExperience(member, _world.Data);
 
         // Vendor quest gates (#432). Falls back, so an instance built without it (tests) still
         // ticks; production registers it.
@@ -1963,7 +1968,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
             // A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all.
             DropLoot(creature, eligible, credited: killer is not null);
-            AwardExperience(creature, eligible);
+            AwardExperience(creature, eligible, buffers.Shares);
         }
         finally
         {
@@ -2042,9 +2047,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>
     /// Splits the kill's experience among the eligible (2026-09-30), then awards each share through the band.
     /// The split leaves out anyone the level gap or more above the creature, or who can gain no experience (at the maximum
-    /// level or before a gap in the levels, #735), solo too.
+    /// level or before a gap in the levels, #735), solo too. <paramref name="shares" /> is the kill's own empty list.
     /// </summary>
-    private void AwardExperience(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    private void AwardExperience(ICreature creature, IReadOnlyList<ICharacter> eligible, List<ExperienceShare> shares)
     {
         if (eligible.Count == 0)
         {
@@ -2057,11 +2062,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // creature.Experience is the value derived at spawn — base stats by level, scaled by the template's
         // modifiers and its rarity, or the template's authored override if it had one. Not Metadata.Experience,
         // which is only that optional override.
-        foreach (ExperienceShare share in PartyExperience.Split(creature.Experience, creature.Level, eligible, mode,
-                     config.PartyExperienceBonusPerExtra, config.PartyExperienceLevelGap,
-                     member => ExperienceAward.CanGainExperience(member, _world.Data)))
+        PartyExperience.Fill(shares, creature.Experience, creature.Level, eligible, mode,
+            config.PartyExperienceBonusPerExtra, config.PartyExperienceLevelGap, _canGainExperience);
+
+        for (int i = 0; i < shares.Count; i++)
         {
-            AwardExperience(share.Member, share.Experience);
+            AwardExperience(shares[i].Member, shares[i].Experience);
         }
     }
 

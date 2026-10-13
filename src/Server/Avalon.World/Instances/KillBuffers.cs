@@ -1,4 +1,5 @@
 using Avalon.Common;
+using Avalon.World.Parties;
 using Avalon.World.Public.Characters;
 
 namespace Avalon.World.Instances;
@@ -17,5 +18,12 @@ internal sealed class KillBuffers
     /// <summary>The key each party member is looked up by among the instance's characters; never stored anywhere.</summary>
     public ObjectGuid MemberKey { get; } = new();
 
-    public void Clear() => Eligible.Clear();
+    /// <summary>Each counted member's share of the kill's experience, in the order of <see cref="Eligible" />.</summary>
+    public List<ExperienceShare> Shares { get; } = [];
+
+    public void Clear()
+    {
+        Eligible.Clear();
+        Shares.Clear();
+    }
 }
