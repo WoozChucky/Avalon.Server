@@ -31,5 +31,5 @@ public sealed class CharacterEconomy(IWorld world, IItemIdAllocator itemIds) : I
         new(character, InventoryOf(character), WalletOf(character), FindTemplate, world.Configuration.MaxMoney);
 
     private ItemTemplate? FindTemplate(ItemTemplateId id) =>
-        world.Data.ItemTemplates.FirstOrDefault(t => t.Id == id);
+        world.Data.FindItemTemplate(id);
 }

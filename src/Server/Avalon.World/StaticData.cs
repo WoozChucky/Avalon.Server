@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Avalon.Combat;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
@@ -287,6 +288,12 @@ public class StaticData(
     public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos => _progression!.CreateInfos;
     public IReadOnlyCollection<ClassLevelStat> ClassLevelStats => _progression!.ClassStats;
     public IReadOnlyCollection<ItemTemplate> ItemTemplates => _items!.Templates;
+
+    /// <summary>
+    /// The item template of that id in the current generation, or null. By key (#883): the way in for a reader that
+    /// wants one template, where <c>ItemTemplates.FirstOrDefault</c> walks them all with a closure.
+    /// </summary>
+    public ItemTemplate? FindItemTemplate(ItemTemplateId id) => _items!.Find(id);
     /// <summary>The accepted ability templates only; a refused row is not here.</summary>
     public IReadOnlyCollection<AbilityTemplate> AbilityTemplates => _abilities!.Catalog.Templates;
 
@@ -300,6 +307,9 @@ public class StaticData(
     /// </summary>
     public AbilityCatalog? LoadedAbilities => _abilities?.Catalog;
     public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences => _progression!.Levels;
+
+    /// <summary>The experience row of that level in the current generation, or null. By key (#883), as <see cref="FindItemTemplate" /> is.</summary>
+    public CharacterLevelExperience? FindLevel(ushort level) => _progression!.FindLevel(level);
     public IReadOnlyCollection<CreatureBaseStat> CreatureBaseStats => _creatures!.BaseStats;
     public IReadOnlyCollection<CreatureRarityModifier> CreatureRarityModifiers => _creatures!.Rarities;
     public IReadOnlyCollection<CreatureTemplate> CreatureTemplates => _creatures!.Templates;
