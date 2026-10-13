@@ -211,7 +211,7 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
 - A malformed, expired, spent or foreign join ticket → `SGameAdmissionPacket` refusal and the connection closed; a
   world connection that is not admitted within 15 seconds is closed.
 - Multiple logins for same account → previously connected session force-disconnected via pub/sub event.
-- A world connection with `Network:MaxReceiveQueueDepth` packets (1,024) received and waiting for the tick that sends
+- A world connection with `Network:MaxReceiveQueueDepth` packets (2,048) received and waiting for the tick that sends
   another → the packet is not queued and the connection is closed without a notice (#927,
   [packet handlers](packet-handlers.md)). The outbound mirror is the slow-connection close past
   `Network:MaxPendingBytes` (#875).

@@ -402,12 +402,13 @@ tick now dequeues once and holds a head refused by one filter for the other pass
 guards storage reuse at all three burst sizes. Queue behavior tests cover FIFO, held-head depth and arrival stamps,
 authorization revocation/maintenance, character-leave stale packets and the existing filter wedge behavior.
 
-**The depth cap (#927).** A connection may have `Network:MaxReceiveQueueDepth` packets (1,024) waiting; one that arrives
+**The depth cap (#927).** A connection may have `Network:MaxReceiveQueueDepth` packets (2,048) waiting; one that arrives
 with that many waiting closes it ([packet handlers](packet-handlers.md)). The depth is two counts, each with one writer:
 the read loop counts a packet before it queues it and the tick counts it out as it takes it, so the arrival path gains
 three reads of its own fields, a compare and a store, and the dispatch path a read and a store. The benchmark's bursts
-(at most 150) are emptied every cycle, so the check's other branch, the read of the tick's count, runs once in about
-1,024 packets, as it does for a connection the tick keeps up with.
+(at most 150) are emptied every cycle, so the check's other branch, the read of the tick's count, runs once in about a
+cap's worth of packets, as it does for a connection the tick keeps up with. The runs below were taken with the cap at
+1,024, the default before the owner set 2,048; at 2,048 that branch runs half as often and nothing else differs.
 
 Before/after on 2026-10-13, `814a9105` and the change, the same benchmark both sides. Twelve runs before and eleven
 after, interleaved (a twelfth run of the change did not build: a file held by another process); each figure is the
