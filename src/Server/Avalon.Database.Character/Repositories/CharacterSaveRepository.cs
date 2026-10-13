@@ -78,12 +78,8 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
             foreach (CharacterSaveBatch batch in batches)
             {
                 CharacterId owner = batch.Row.Id;
-                foreach ((InventoryType container, ushort slot) in batch.DeleteSlots)
-                {
-                    await context.CharacterInventory
-                        .Where(r => r.CharacterId == owner && r.Container == container && r.Slot == slot)
-                        .ExecuteDeleteAsync(token);
-                }
+                if (batch.DeleteSlots.Count > 0)
+                    await DeleteSlotsAsync(context, owner, batch.DeleteSlots, token);
 
                 if (batch.Quests is { } quests)
                 {
@@ -203,6 +199,23 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
             await context.SaveChangesAsync(token);
             await CheckDeadlineAsync(context, guards, token);
         }, cancellationToken);
+
+    /// <summary>
+    /// One statement per container that has emptied slots, not one per slot (#883): a slot's key is the owner, the
+    /// container and the slot number, so the slots of one container go in one list.
+    /// </summary>
+    private static async Task DeleteSlotsAsync(CharacterDbContext context, CharacterId owner,
+        IReadOnlyList<(InventoryType Container, ushort Slot)> emptied, CancellationToken token)
+    {
+        foreach (IGrouping<InventoryType, ushort> group in emptied.GroupBy(e => e.Container, e => e.Slot))
+        {
+            InventoryType container = group.Key;
+            var slots = group.ToList();
+            await context.CharacterInventory
+                .Where(r => r.CharacterId == owner && r.Container == container && slots.Contains(r.Slot))
+                .ExecuteDeleteAsync(token);
+        }
+    }
 
     private static async Task DeleteIgnoresAsync(CharacterDbContext context, CharacterId owner, CharacterIgnoreWrite ignores,
         CancellationToken token)
