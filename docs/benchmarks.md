@@ -2495,8 +2495,7 @@ and compares only against a baseline taken on the same machine.
 `perf/scenario-allocations.json` is the committed baseline: per scenario its `bytesPerWindow` (and, for reading,
 `bytesPerPlayerPerTick`), with the commit and date it was generated at. `perf/local/` holds per-machine runner
 baselines and is never committed. `ScenarioAllocationsShould` runs every scenario and compares its `bytesPerWindow`
-with the committed figure, in every build (Debug and Release, see below), except that `forest-combat` is decided in
-Release and reported in Debug (#890):
+with the committed figure, in every build (Debug and Release, see below) and for every scenario:
 
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
@@ -2517,9 +2516,9 @@ Release and reported in Debug (#890):
   on the fight's path is kept off the heap only by optimised code any more. Before that a Debug build read 237 B per
   window above the committed 11,543 B (objects on the kill path and in the creature scripts), 19 B less than the
   floor allows, and 305 B above, 49 B more than it allows, until #883 took the closure out of `CancelScriptsOf`.
-  The escape hatch below still applies to it alone (owner, #890): `forest-combat` is decided in Release (CI) and
-  reported, not gated, in Debug. Whether it is gated in Debug again is the owner's decision; the figures no longer
-  stand in its way.
+  For that time the escape hatch below applied to it alone (owner, #890): `forest-combat` was decided in Release (CI)
+  and reported, not gated, in Debug. It is gated in every build again (owner, 2026-10-13, #890), like every other
+  scenario.
 - **Why 1%.** Every run measured after #854 reads within ±0.05% of the committed figures (the table below), and
   CI's runner, before #854, read within about 0.1% of the developer machine once the per-send delegate it alone
   paid was taken out (+1,384 B in `town-walk`, +4,000 B in `many-instances`, see #851's results). 1% is ten times the
@@ -2544,8 +2543,7 @@ dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write
 patch can move the figures with no change in this repository. The CI run's summary table names the runtime and OS that measured it; when they differ from the run that
 committed the baseline and the code did not change, regenerate the baseline on the new runtime and commit it.
 
-**The gate decides in every build (except `forest-combat`, decided in Release and reported in Debug, #890), and every
-machine reads the same figures.** CI builds Release on a GitHub-hosted
+**The gate decides in every build, and every machine reads the same figures.** CI builds Release on a GitHub-hosted
 runner; a plain local `dotnet test` builds Debug. Since #854 the committed figures are a plain Release run on the
 developer machine, and Debug, Release, Windows and Linux read them within run-to-run noise. Measured at `2fe836e8`
 (#852, #859), bytes per window, committed `town-walk` 1,440,240 and `many-instances` 11,589,728:
@@ -2572,7 +2570,12 @@ differently depending on how far the JIT has got, which is what made the CI runn
 stack and unoptimised code does not), or should another machine or architecture read differently in Debug (arm64,
 for one, has not been measured), the gate goes back to deciding in Release only, as #856 had it: put the
 `Regressed` branch of `ScenarioAllocationsShould` under `#if !DEBUG` and write the comparison in Debug instead. A
-scenario that stopped doing its work still fails its `Verify` check in every build.
+scenario that stopped doing its work still fails its `Verify` check in every build. The hatch was used once, for
+`forest-combat` alone and for a day (#890, 2026-10-12 to 2026-10-13): a Debug build read up to 305 B per window above
+Release there, across the 256 B floor. It was closed by removing those allocations at their source rather than by
+keeping a second rule ([the kill path](#results--the-kill-path-890-883-2026-10-13)), which is the first thing to try
+should it be needed again: an allocation that only optimised code keeps off the heap is also one the JIT's profile
+can bring back in Release.
 
 Until #854 the figures depended on the machine, through one object: the delegate each send created by passing
 `CryptoSession.Encrypt` as a method group, about 64 B per walking player per tick. At most send sites the optimised JIT
@@ -2807,9 +2810,10 @@ The runner read 10,385 twice, the second run the one that wrote the file at `8f2
 and `many-instances` read 0 in every run, in both builds. In each suite run the two-run check read 71 kills and
 10,385 B twice. (At 10,396, before the last row, the same runs read the same: four of the gate alone in each build,
 three with PGO off, one suite run in each build and two of the runner.) These are Windows figures; CI decides on Linux, where no run was made for this change: read its
-figure from the first CI run's "Scenario allocation gate" summary. `forest-combat` is still decided in Release and
-reported in Debug ([The allocation gate](#the-allocation-gate)): that rule is the owner's (#890) and is not changed
-here, though a Debug run now reads Within with nothing to spare or to explain.
+figure from the first CI run's "Scenario allocation gate" summary. With the three builds reading the same, alone and
+in the suite, the owner had `forest-combat` gated in every build again (2026-10-13, #890): the branch of
+`ScenarioAllocationsShould` that reported its regression in Debug instead of failing is gone
+([The allocation gate](#the-allocation-gate)), and with it the last open part of #890.
 
 **The object nobody had identified in `DropLoot`** (32 B a kill in Debug, 0 in Release, and the one row of five that
 did not move with the profile) was a second closure. The lambda that answered each drop's allocation captured locals
@@ -2915,10 +2919,10 @@ The runner read 11,543 twice, the second run the one that wrote the file, and `t
 `many-instances` read 0 in every run. Debug's excess over the committed figure is 237 B per window (14,208 B a
 minute): the table under [the melee slots' release](#results--the-melee-slots-release-890-2026-10-12) less its first
 row, the `RemoveAll` delegate of `CancelScriptsOf` (4,096 B a minute), which is gone. That is 19 B under the 256 B
-floor, so a Debug run now reads Within. `forest-combat` is still decided in Release and reported in Debug
-([The allocation gate](#the-allocation-gate)): that rule is the owner's (#890) and is not changed here. The rest of
-that excess went with [the kill path](#results--the-kill-path-890-883-2026-10-13), after which Debug and Release read
-the same.
+floor, so a Debug run then read Within. `forest-combat` was still decided in Release and reported in Debug at that
+point: the rule was the owner's (#890) and was not changed with the cast path. The rest of that excess went with
+[the kill path](#results--the-kill-path-890-883-2026-10-13), after which Debug and Release read the same and the
+gate decides in Debug again.
 
 **What made each one safe.**
 
@@ -3009,8 +3013,8 @@ allocates nothing. The fight allocates 529 B per window less than the run that k
 the committed figure was lowered with it. Tick time
 was not measured: the change is to what a kill and a corpse removal allocate, about 2 calls a second in the fight.
 
-**What Release keeps off the heap, and Debug does not.** 305 B per window (18,304 B a minute), the same in every run,
-by the same counters:
+**What Release kept off the heap, and Debug did not** (history: none of it is left, see the end of this section).
+305 B per window (18,304 B a minute), the same in every run, by the same counters:
 
 | Bytes a minute | Where | Debug | Release |
 |---:|---|---:|---:|
@@ -3034,7 +3038,8 @@ the suite; were all four to turn, the Release gate would fail with no change in 
 [the kill path](#results--the-kill-path-890-883-2026-10-13), which also says what each was. One correction to the
 table: `DropLoot`'s 32 B was not kept off the heap by the JIT. It was a second closure object that the C# compiler
 makes when it does not optimise and merges into the first when it does, which is why it alone did not depend on the
-profile. A Debug build, a Release build and a Release build with `DOTNET_TieredPGO=0` now read the same figure.
+profile. A Debug build, a Release build and a Release build with `DOTNET_TieredPGO=0` now read the same figure, and
+`forest-combat` is gated in every build again (owner, 2026-10-13, #890).
 
 ### Results — shared broadcasts (#875, 2026-10-10)
 
