@@ -146,9 +146,6 @@ enum AuthResult {
    AuthResult_BANNED = 7;
    AuthResult_DEACTIVATED = 8;
 }
-message CAudioRecordPacket {
-   optional bytes SoundBuffer = 1;
-}
 message CAuraCancelPacket {
    uint32 AuraId = 1;
    optional uint32 InstanceKey = 2;
@@ -561,7 +558,6 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_RESPAWN_AT_TOWN = 8226;
    NetworkPacketType_CMSG_INTERACT = 8240;
    NetworkPacketType_CMSG_DIALOGUE_CHOOSE = 8241;
-   NetworkPacketType_CMSG_AUDIO_RECORD = 8272;
    NetworkPacketType_CMSG_PLAYER_INPUT = 8288;
    NetworkPacketType_CMSG_LOOT_PICKUP = 8304;
    NetworkPacketType_CMSG_ITEM_MOVE = 8320;
@@ -617,7 +613,6 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_WORLD_STATE_ADD = 12352;
    NetworkPacketType_SMSG_WORLD_STATE_UPDATE = 12353;
    NetworkPacketType_SMSG_WORLD_STATE_REMOVE = 12354;
-   NetworkPacketType_SMSG_AUDIO_RECORD = 12368;
    NetworkPacketType_SMSG_PLAYER_STATE_ACK = 12384;
    NetworkPacketType_SMSG_DIALOGUE_NODE = 12400;
    NetworkPacketType_SMSG_DIALOGUE_END = 12401;
@@ -849,9 +844,6 @@ message SAbilityNotReadyPacket {
    uint32 AbilityId = 1;
    uint32 CooldownMs = 2;
    CastRejectReason Reason = 3;
-}
-message SAudioRecordPacket {
-   optional bytes SoundBuffer = 1;
 }
 message SAuraCancelResultPacket {
    uint32 AuraId = 1;
