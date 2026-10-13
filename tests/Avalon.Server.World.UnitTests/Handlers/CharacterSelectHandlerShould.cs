@@ -132,7 +132,7 @@ public class CharacterSelectHandlerShould
             new()
             {
                 Id = new MapTemplateId(TownMapId), MapType = MapType.Town,
-                Name = "town", Description = "town", MaxPlayers = 30
+                Name = "Town", Description = "The town's description", MaxPlayers = 30
             }
         });
         world.Data.Returns(staticData);
@@ -582,7 +582,10 @@ public class CharacterSelectHandlerShould
 
         OutboundPacket packet = Assert.Single(f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_SELECTED);
         using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
-        Assert.Equal(4f, Serializer.Deserialize<SCharacterSelectedPacket>(stream).Character.MovementSpeed);
+        SCharacterSelectedPacket selected = Serializer.Deserialize<SCharacterSelectedPacket>(stream);
+        Assert.Equal(4f, selected.Character.MovementSpeed);
+        // #920: the map's name and its description each travel in their own field, as on every other arrival.
+        Assert.Equal(("Town", "The town's description"), (selected.Map.Name, selected.Map.Description));
         var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
         Assert.Equal(4.4f, entity.GetMovementSpeed(), precision: 5);
     }

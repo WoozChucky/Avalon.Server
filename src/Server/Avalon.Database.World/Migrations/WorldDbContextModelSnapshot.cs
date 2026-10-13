@@ -7239,7 +7239,7 @@ namespace Avalon.Database.World.Migrations
                             MaxLevel = 60,
                             MaxPlayers = 30,
                             MinLevel = 1,
-                            Name = "world.bin",
+                            Name = "Glimmerdell",
                             PvP = false
                         },
                         new
@@ -7256,7 +7256,7 @@ namespace Avalon.Database.World.Migrations
                             MaxLevel = 15,
                             MaxPlayers = 6,
                             MinLevel = 1,
-                            Name = "ForestDungeon",
+                            Name = "Forest Dungeon",
                             PvP = false
                         });
                 });

@@ -1878,13 +1878,13 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
-        // ForestDungeon (Id=2) is procedural: its config (Maps/ProceduralMaps/2.json), spawn table
+        // Forest Dungeon (Id=2) is procedural: its config (Maps/ProceduralMaps/2.json), spawn table
         // (Maps/spawn-tables.json), chunk pool and set pieces are seeded from Maps/ by ChunkCatalogSeeder on every World
         // start, not by migrations.
         builder.HasData(new MapTemplate
         {
             Id = 1,
-            Name = "world.bin",
+            Name = "Glimmerdell",
             Description = "Glimmerdell",
             MapType = MapType.Town,
             PvP = false,
@@ -1903,7 +1903,7 @@ public class WorldDbContext : DbContext
             new MapTemplate
             {
                 Id = 2,
-                Name = "ForestDungeon",
+                Name = "Forest Dungeon",
                 Description = "Forest Dungeon",
                 MapType = MapType.Normal,
                 PvP = false,
