@@ -26,9 +26,6 @@ public class ItemDestroyHandler(ILogger<ItemDestroyHandler> logger, IWorld world
         }
 
         bool read = SlotRef.TryParse(packet.Container, packet.Slot, out SlotRef slot);
-        List<SlotRef> named = [];
-        if (read)
-            named.Add(slot);
 
         ItemRequestResult result;
         try
@@ -42,7 +39,9 @@ public class ItemDestroyHandler(ILogger<ItemDestroyHandler> logger, IWorld world
             result = ItemRequestResult.NotFound;
         }
 
-        ItemRequestReply.Send(connection, character, packet.RequestId, result, named);
+        // The slot a refusal reports, read where it stands: a request allocates nothing to name it (#883).
+        ItemRequestReply.Send(connection, character, packet.RequestId, result,
+            read ? new ReadOnlySpan<SlotRef>(in slot) : default);
     }
 
     private ItemRequestResult Destroy(

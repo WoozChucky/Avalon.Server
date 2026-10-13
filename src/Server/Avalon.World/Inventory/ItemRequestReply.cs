@@ -15,34 +15,73 @@ public static class ItemRequestReply
     /// refusal carries the current absolute state of each slot the request named that exists, so a
     /// client that moved an icon early can put it back, except a Bank slot while the bank is closed.
     /// </summary>
+    /// <param name="named">
+    /// The slots the request named that could be read, in the request's order. A span, so a handler names them
+    /// from its own stack and a request costs no list (#883).
+    /// </param>
     public static void Send(
         IWorldConnection connection,
         CharacterEntity character,
         uint requestId,
         ItemRequestResult result,
-        IReadOnlyList<SlotRef> named)
+        ReadOnlySpan<SlotRef> named)
     {
-        InventorySlotUpdateDto[] slots = [];
-
-        if (result != ItemRequestResult.Ok)
-        {
-            bool bankOpen = BankAccess.IsOpen(connection, character);
-
-            slots = named
-                .Distinct()
-                .Where(slot => InventoryMove.IsUsable(character, slot))
-                .Where(slot => bankOpen || slot.Container != InventoryType.Bank)
-                .Select(slot => new InventorySlotUpdateDto
-                {
-                    Container = slot.Container,
-                    Slot = slot.Slot,
-                    Item = character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
-                        ? ItemSlotDtoMapper.ToDto(slot.Container, item)
-                        : null,
-                })
-                .ToArray();
-        }
+        InventorySlotUpdateDto[] slots = result == ItemRequestResult.Ok ? [] : CurrentState(connection, character, named);
 
         connection.Send(SItemResultPacket.Create(requestId, result, slots, PacketEncoder.Shared));
+    }
+
+    /// <summary>
+    /// The entries of a refusal, in the order the request named their slots. Only they are allocated: the slots
+    /// are counted first, then read into an array of that size.
+    /// </summary>
+    private static InventorySlotUpdateDto[] CurrentState(
+        IWorldConnection connection, CharacterEntity character, ReadOnlySpan<SlotRef> named)
+    {
+        bool bankOpen = BankAccess.IsOpen(connection, character);
+
+        int count = 0;
+        for (int i = 0; i < named.Length; i++)
+        {
+            if (IsSent(character, named, i, bankOpen))
+                count++;
+        }
+
+        if (count == 0)
+            return [];
+
+        var slots = new InventorySlotUpdateDto[count];
+        int next = 0;
+        for (int i = 0; i < named.Length; i++)
+        {
+            if (!IsSent(character, named, i, bankOpen))
+                continue;
+
+            SlotRef slot = named[i];
+            slots[next++] = new InventorySlotUpdateDto
+            {
+                Container = slot.Container,
+                Slot = slot.Slot,
+                Item = character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
+                    ? ItemSlotDtoMapper.ToDto(slot.Container, item)
+                    : null,
+            };
+        }
+
+        return slots;
+    }
+
+    /// <summary>
+    /// Whether the slot named at <paramref name="index" /> gets an entry: it was not already named before it (a
+    /// slot named twice is sent once, where it was first named), it exists, and it is not a Bank slot while the
+    /// bank is closed.
+    /// </summary>
+    private static bool IsSent(CharacterEntity character, ReadOnlySpan<SlotRef> named, int index, bool bankOpen)
+    {
+        SlotRef slot = named[index];
+
+        return !named[..index].Contains(slot)
+               && InventoryMove.IsUsable(character, slot)
+               && (bankOpen || slot.Container != InventoryType.Bank);
     }
 }

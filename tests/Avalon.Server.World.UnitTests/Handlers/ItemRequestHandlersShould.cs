@@ -135,6 +135,22 @@ public class ItemRequestHandlersShould : IAsyncLifetime
         Assert.Equal(5u, At(_w.Character, InventoryType.Bag, 0).Count);
     }
 
+    /// <summary>The slots of a refusal come in the order the request named them, and a slot named twice comes once.</summary>
+    [Fact]
+    public void Name_each_slot_of_a_refusal_once_in_the_order_the_request_named_them()
+    {
+        Move(58, InventoryType.Bag, 5, InventoryType.Bag, 2);
+        Move(59, InventoryType.Bag, 4, InventoryType.Bag, 4);
+
+        List<SItemResultPacket> results = Results();
+        Assert.Equal(ItemRequestResult.NotFound, results[0].Result);
+        Assert.Equal(
+            [(InventoryType.Bag, 5), (InventoryType.Bag, 2)],
+            results[0].Slots.Select(s => (s.Container, s.Slot)));
+        Assert.Equal(ItemRequestResult.InvalidSlot, results[1].Result);
+        Assert.Equal((ushort)4, Assert.Single(results[1].Slots).Slot);
+    }
+
     /// <summary>Review Focus 1: a double drag in one tick moves the item once.</summary>
     [Fact]
     public void Refuse_the_second_of_two_moves_from_one_slot_in_the_same_tick()

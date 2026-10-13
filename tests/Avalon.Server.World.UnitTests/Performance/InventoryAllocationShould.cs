@@ -8,15 +8,15 @@ using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 namespace Avalon.Server.World.UnitTests.Performance;
 
 /// <summary>
-/// The tick's inventory update allocates the entries its packet carries and nothing else (#883): no query and no
-/// closure on the way. What the entries cost is measured here, by building the same ones, rather than written down,
-/// so the pin holds on any runtime.
+/// The tick's inventory update and the answer to an item request allocate the entries their packet carries and
+/// nothing else (#883): no query, no closure, no list on the way. What the entries cost is measured here, by building
+/// the same ones, rather than written down, so the pin holds on any runtime.
 /// </summary>
 public class InventoryAllocationShould
 {
     private const int Rounds = 100;
 
-    // Out of order, with one slot empty and one touched twice.
+    // Out of order, with one slot empty and one named twice.
     private static readonly SlotRef[] s_slots =
     [
         new(InventoryType.Bag, 3), new(InventoryType.Bag, 9), new(InventoryType.Bag, 0), new(InventoryType.Bag, 3),
@@ -48,6 +48,18 @@ public class InventoryAllocationShould
 
         Assert.Equal(0, moneyOnly);
         Assert.Equal(Allocated(() => Entries(3)), slots);
+        Assert.Equal(4 * Rounds, _connection.Sent);
+    }
+
+    [Fact]
+    public void Answer_an_item_request_allocating_only_the_slots_a_refusal_names()
+    {
+        long accepted = Allocated(() => ItemRequestReply.Send(_connection, _character, 1, ItemRequestResult.Ok, s_slots));
+        long refused = Allocated(() =>
+            ItemRequestReply.Send(_connection, _character, 2, ItemRequestResult.TargetFull, s_slots));
+
+        Assert.Equal(0, accepted);
+        Assert.Equal(Allocated(() => Entries(3)), refused);
         Assert.Equal(4 * Rounds, _connection.Sent);
     }
 
