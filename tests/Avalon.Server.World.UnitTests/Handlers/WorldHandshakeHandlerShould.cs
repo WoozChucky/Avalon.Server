@@ -19,7 +19,7 @@ public sealed class WorldHandshakeHandlerShould
         using var connection = WorldAdmissionConnection.Create();
         connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
         connection.PublishAdmission(WorldAdmissionConnection.Lease());
-        await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.2.0" } });
+        await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.3.0" } });
         Assert.True(connection.IsGameplayAuthorized);
         Assert.Single(connection.Sent);
         Assert.True(connection.TakeInitialTimeSyncPingRequest());
@@ -27,6 +27,7 @@ public sealed class WorldHandshakeHandlerShould
     }
     [Theory]
     [InlineData("0.1.0")]
+    [InlineData("0.2.0")]
     [InlineData("invalid")]
     [InlineData("")]
     public async Task Reject_old_or_malformed_clients_even_when_their_account_was_admitted(string version)
@@ -41,14 +42,14 @@ public sealed class WorldHandshakeHandlerShould
     public async Task Reject_account_id_without_admitted_authority()
     {
         using var connection = WorldAdmissionConnection.Create(); connection.AccountId = 42;
-        await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.2.0" } });
+        await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.3.0" } });
         Assert.True(connection.IsClosing); Assert.False(connection.IsGameplayAuthorized);
     }
     [Fact]
     public async Task Preserve_a_worlds_higher_supported_version_boundary()
     {
         using var connection = WorldAdmissionConnection.Create(); connection.PublishAdmission(WorldAdmissionConnection.Lease());
-        await Handler("0.3.0").ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.2.0" } });
+        await Handler("0.4.0").ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.3.0" } });
         Assert.True(connection.IsClosing); Assert.False(connection.IsGameplayAuthorized);
     }
 }

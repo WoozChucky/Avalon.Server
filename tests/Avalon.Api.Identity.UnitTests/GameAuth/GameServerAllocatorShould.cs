@@ -26,7 +26,7 @@ public sealed class GameServerAllocatorShould
     private readonly ICharacterRepository _characters = Substitute.For<ICharacterRepository>();
     private readonly Account _account = new() { Id = new AccountId(7), Username = "PLAYER", Email = "p@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
     private readonly Avalon.Domain.Auth.World _world = new() { Id = new WorldId(1), Name = "World", Host = "world.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0", MaintenanceRevision = 1 };
-    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), SteamAppId = 480, ApplicationKey = "steam.main", AccountId = 7, ProtocolVersion = "0.2.0", Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
+    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), SteamAppId = 480, ApplicationKey = "steam.main", AccountId = 7, ProtocolVersion = GameWorkloadConfiguration.ClientProtocolVersion, Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
     private readonly GameServerAllocator _allocator;
 
     [Fact]
@@ -100,6 +100,7 @@ public sealed class GameServerAllocatorShould
         Assert.Null(await Find(_context with { ProtocolVersion = "legacy" }));
         Assert.Null(await Find(_context with { ProtocolVersion = "1" }));
         Assert.Null(await Find(_context with { ProtocolVersion = "0.1.0" }));
+        Assert.Null(await Find(_context with { ProtocolVersion = "0.2.0" }));
         Assert.Null(await Find(_context with { SessionEpoch = 1 }));
         // A consolidating account is frozen; a password lock is not asked (#882).
         _account.GameplayConsolidationId = Guid.NewGuid();

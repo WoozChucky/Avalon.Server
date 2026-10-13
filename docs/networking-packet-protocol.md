@@ -88,7 +88,7 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
     `AuthorizationRequired` or `ServiceUnavailable` (`UnsupportedClient` is declared beside them; this server refuses
     an old client at step 15 instead), `PacketEncryption` false, and the connection is closed.
 15. `CWorldHandshakePacket(Version)` / `SWorldHandshakePacket` — sealed only when the world seals; the client's version
-    must be at least 0.2.0 and the world's `MinVersion`, or the connection is closed.
+    must be at least 0.3.0 and the world's `MinVersion`, or the connection is closed.
 16. Subsequent packets (character list, selection, movement, chat) proceed under the admitted session. A connection
     keeps the mode it was created and admitted under for its life; a change of the setting needs a restart.
 

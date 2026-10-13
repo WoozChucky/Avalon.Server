@@ -32,7 +32,7 @@ Configure the workload client certificate, world TLS private key and API certifi
 
 ## User smoke checks (not yet performed)
 
-Use a controlled environment with the publisher key, workload certificates, matching 0.2.0 services/client and a real Steam license.
+Use a controlled environment with the publisher key, workload certificates, matching 0.3.0 services/client and a real Steam license.
 
 - Launch through Steam with an existing linked account; verify the expected Avalon root, world/character access and overlay.
 - Launch with an unknown licensed Steam account; verify exactly one automatically linked root and normal character creation.

@@ -48,7 +48,7 @@ public class GameAuthControllerShould
         IActionResult result = await controller.ProviderAttempt(new GameProviderAttemptRequest
         {
             ApplicationKey = application,
-            ProtocolVersion = "0.2.0",
+            ProtocolVersion = GameWorkloadConfiguration.ClientProtocolVersion,
             ClientRunId = Guid.NewGuid(),
             LinkChallenge = new string('A', 43)
         }, default);
@@ -80,7 +80,7 @@ public class GameAuthControllerShould
             Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(), config, TimeProvider.System);
         var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         controller.Request.Scheme = "https";
-        IActionResult result = await controller.ProviderAttempt(new GameProviderAttemptRequest { ApplicationKey = application, ProtocolVersion = "0.2.0", ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, default);
+        IActionResult result = await controller.ProviderAttempt(new GameProviderAttemptRequest { ApplicationKey = application, ProtocolVersion = GameWorkloadConfiguration.ClientProtocolVersion, ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, default);
         if (accepted)
         {
             Assert.IsType<OkObjectResult>(result);
