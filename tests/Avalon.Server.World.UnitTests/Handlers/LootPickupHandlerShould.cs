@@ -92,7 +92,7 @@ public class LootPickupHandlerShould
         Assert.Equal(LootPickupResult.Ok, result.Result);
         Assert.Equal(s_dropGuid.RawValue, result.LootGuid);
         ((IGroundLootHost)_instance).Received(1).BroadcastLootDespawned(
-            Arg.Is<IReadOnlyCollection<ObjectGuid>>(g => g.Single() == s_dropGuid));
+            Arg.Is<IReadOnlyList<ObjectGuid>>(g => g.Single() == s_dropGuid));
         SInventoryUpdatePacket update = FlushedUpdate();
         Assert.Equal(25UL, update.Money);
         Assert.Empty(update.Slots ?? []);   // protobuf-net sends an empty repeated field as null
@@ -128,7 +128,7 @@ public class LootPickupHandlerShould
         Assert.Equal(LootPickupResult.NotFound, Result().Result);
         Assert.Equal(0, _store.Count);
         ((IGroundLootHost)_instance).Received(1).BroadcastLootDespawned(
-            Arg.Is<IReadOnlyCollection<ObjectGuid>>(g => g.Single() == s_dropGuid));
+            Arg.Is<IReadOnlyList<ObjectGuid>>(g => g.Single() == s_dropGuid));
     }
 
     [Fact]

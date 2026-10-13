@@ -13,5 +13,5 @@ public interface IGroundLootHost
     GroundLootStore Drops { get; }
 
     /// <summary>Sends one SLootDespawnedPacket with these guids to everyone in the instance.</summary>
-    void BroadcastLootDespawned(IReadOnlyCollection<ObjectGuid> lootGuids);
+    void BroadcastLootDespawned(IReadOnlyList<ObjectGuid> lootGuids);
 }

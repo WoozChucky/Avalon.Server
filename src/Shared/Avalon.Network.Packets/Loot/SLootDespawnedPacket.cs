@@ -15,10 +15,13 @@ public class SLootDespawnedPacket : Packet
 
     [ProtoMember(1)] public List<ulong> LootGuids { get; set; } = [];
 
-    public static OutboundPacket Create(IEnumerable<ObjectGuid> lootGuids, PacketEncoder encoder)
+    public static OutboundPacket Create(IReadOnlyList<ObjectGuid> lootGuids, PacketEncoder encoder)
     {
-        // Enumerated before the scratch is taken: nothing a caller's sequence runs can reach the message (#875).
-        var ids = lootGuids.Select(g => g.RawValue).ToList();
+        // Read before the scratch is taken: nothing a caller's list runs can reach the message (#875). By index, in
+        // the caller's order: a query here cost an iterator per pickup (#883).
+        var ids = new List<ulong>(lootGuids.Count);
+        for (int i = 0; i < lootGuids.Count; i++)
+            ids.Add(lootGuids[i].RawValue);
         SLootDespawnedPacket message = PacketEncoder.Scratch<SLootDespawnedPacket>();
         message.LootGuids = ids;
         return encoder.Encode(message, PacketType, Flags, Protocol);
