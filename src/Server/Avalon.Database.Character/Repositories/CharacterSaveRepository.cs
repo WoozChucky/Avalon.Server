@@ -104,10 +104,12 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
             // After the slots, which reference items by foreign key.
             foreach (CharacterSaveBatch batch in batches)
             {
-                foreach (ItemInstanceId id in batch.DeleteItems)
-                {
-                    await context.ItemInstances.Where(i => i.Id == id).ExecuteDeleteAsync(token);
-                }
+                if (batch.DeleteItems.Count == 0)
+                    continue;
+
+                // One statement per batch, not one per item (#883).
+                var removed = batch.DeleteItems.ToList();
+                await context.ItemInstances.Where(i => removed.Contains(i.Id)).ExecuteDeleteAsync(token);
             }
 
             foreach (CharacterSaveBatch batch in batches)
