@@ -35,8 +35,12 @@ public sealed class ReceiveQueueFixture : IDisposable
     /// <param name="timeSyncWire">What the connection's sender writes to; null, the connection has no sender.</param>
     /// <param name="receiveQueueLimit">The receive queue's depth cap and its counter; null, the world's default.</param>
     /// <param name="loggerFactory">Where the connection logs; null, nowhere.</param>
+    /// <param name="packetEncryption">
+    /// <c>Network:PacketEncryption</c> for this connection's world: true, its sender seals every packet flagged
+    /// Encrypted, once the caller has initialised the connection's session.
+    /// </param>
     public ReceiveQueueFixture(Stream? timeSyncWire = null, ReceiveQueueLimit? receiveQueueLimit = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null, bool packetEncryption = false)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -49,7 +53,8 @@ public sealed class ReceiveQueueFixture : IDisposable
                 Clock, NetworkSendMetrics.Disabled);
         }
 
-        var server = new QueueServer(_recorder, Scheduler, receiveQueueLimit ?? ReceiveQueueLimit.Default);
+        var server = new QueueServer(_recorder, Scheduler, receiveQueueLimit ?? ReceiveQueueLimit.Default,
+            packetEncryption);
         Connection = new ReceiveConnection(server, _client, Clock, loggerFactory ?? NullLoggerFactory.Instance);
         if (timeSyncWire is not null)
             Connection.InitOutboxForTest(new PacketStream(timeSyncWire));
@@ -140,10 +145,12 @@ public sealed class ReceiveQueueFixture : IDisposable
     {
         private readonly NetworkSendScheduler? _scheduler;
 
-        public QueueServer(Recorder handler, NetworkSendScheduler? scheduler, ReceiveQueueLimit receiveQueueLimit)
+        public QueueServer(Recorder handler, NetworkSendScheduler? scheduler, ReceiveQueueLimit receiveQueueLimit,
+            bool packetEncryption)
         {
             _scheduler = scheduler;
             ReceiveQueueLimit = receiveQueueLimit;
+            PacketEncryption = packetEncryption;
             PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>
             {
                 [NetworkPacketType.CMSG_PLAYER_INPUT] = handler,
@@ -157,7 +164,7 @@ public sealed class ReceiveQueueFixture : IDisposable
 
         public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
         public PacketDispatchTelemetry PacketTelemetry => PacketDispatchTelemetry.Disabled;
-        public bool PacketEncryption => false;
+        public bool PacketEncryption { get; }
         public ReceiveQueueLimit ReceiveQueueLimit { get; }
         public ImmutableArray<IWorldConnection> Connections => throw new NotSupportedException();
         public IWorld World => throw new NotSupportedException();
