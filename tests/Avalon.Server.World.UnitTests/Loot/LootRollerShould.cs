@@ -1,5 +1,7 @@
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Loot;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 using static Avalon.Server.World.UnitTests.Loot.LootTestData;
 
@@ -173,6 +175,27 @@ public class LootRollerShould
         new LootRoller(random, NullLogger<LootRoller>.Instance).Roll(BoarTemplate(null, min, max), Catalog(), Items);
 
         Assert.Equal((low, highExclusive), random.LastIntegerRange);
+    }
+
+    /// <summary>
+    /// The world's item templates carry a lookup by id, which a roll uses in place of the walk (#883). It answers as the
+    /// walk does, a template that no longer exists included, and it is the lookup of the templates it came with: after
+    /// a reload, a drop finds the template that reload published.
+    /// </summary>
+    [Fact]
+    public void Find_A_Drops_Template_By_Id_Among_The_Templates_Of_The_Latest_Reload()
+    {
+        LootTableEntry ghost = Item(1, Sword);
+        ghost.ItemTemplateId = new ItemTemplateId(999);
+        LootCatalog catalog = Catalog(Table(1, ghost, Item(2, Potion, min: 45, max: 45)));
+
+        IReadOnlyCollection<ItemTemplate> loaded = new ItemsPatch(Items).Templates;
+        Assert.Equal([20u, 20u, 5u],
+            Scripted([0.0, 0.0], [45]).Roll(BoarTemplate(1), catalog, loaded).Select(d => d.Count));
+
+        var largerStack = new ItemTemplate { Id = Potion.Id, Name = Potion.Name, Class = Potion.Class, MaxStackSize = 50 };
+        IReadOnlyCollection<ItemTemplate> reloaded = new ItemsPatch([Sword, largerStack]).Templates;
+        Assert.Equal([45u], Scripted([0.0, 0.0], [45]).Roll(BoarTemplate(1), catalog, reloaded).Select(d => d.Count));
     }
 
     [Fact]

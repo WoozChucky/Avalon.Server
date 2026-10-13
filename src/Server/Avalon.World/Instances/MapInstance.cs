@@ -121,6 +121,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly KillBuffers _killBuffers = new();
     private bool _killInProgress;
 
+    // This map's template, for the level band of a kill's experience, with the world's list it was found in. Map
+    // templates are read once, at startup, and never reloaded; the world holds them as one list it would replace
+    // whole, so the template is looked for again only when the world answers with another list (#883).
+    private IReadOnlyList<MapTemplate>? _bandTemplatesFrom;
+    private MapTemplate? _bandTemplate;
+
     /// <summary>
     /// Vendor stock (#432): one state per vendor creature that has had a shop open here. It lives as
     /// long as the instance, so for the persistent town a restart is what resets it.
@@ -2105,17 +2111,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>This character's share of the kill's experience, scaled by this map's level band.</summary>
     private uint ScaledExperience(ICharacter character, uint experience)
     {
-        // A plain walk: a lambda over this instance allocated its delegate for every share of every kill (#880).
-        MapTemplate? mapTemplate = null;
-        IReadOnlyList<MapTemplate> templates = _world.MapTemplates;
-        for (int i = 0; i < templates.Count; i++)
-        {
-            if (templates[i].Id == TemplateId)
-            {
-                mapTemplate = templates[i];
-                break;
-            }
-        }
+        MapTemplate? mapTemplate = BandTemplate();
 
         double bandScale = BandScale(
             character.Level,
@@ -2124,6 +2120,34 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _world.Configuration.ExperienceBandDecay);
 
         return (uint)Math.Round(experience * bandScale, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// This map's template among the world's, or null when the world has none for it: found once and kept, where every
+    /// share of every kill walked the world's list (#883), and found again should the world hold another list.
+    /// </summary>
+    private MapTemplate? BandTemplate()
+    {
+        IReadOnlyList<MapTemplate> templates = _world.MapTemplates;
+        if (ReferenceEquals(templates, _bandTemplatesFrom))
+        {
+            return _bandTemplate;
+        }
+
+        // A plain walk: a lambda over this instance allocated its delegate (#880).
+        MapTemplate? found = null;
+        for (int i = 0; i < templates.Count; i++)
+        {
+            if (templates[i].Id == TemplateId)
+            {
+                found = templates[i];
+                break;
+            }
+        }
+
+        _bandTemplatesFrom = templates;
+        _bandTemplate = found;
+        return found;
     }
 
     /// <summary>

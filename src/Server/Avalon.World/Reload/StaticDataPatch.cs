@@ -58,6 +58,13 @@ public sealed record AbilitiesPatch(AbilityCatalog Catalog) : StaticDataPatch(Re
 public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates)
     : StaticDataPatch(ReloadArea.Items)
 {
+    /// <summary>
+    /// The templates, with their lookup by id (<see cref="KeyedRows{TKey,TRow}" />, #883): one object, replaced with
+    /// the patch, so a reload cannot leave a lookup behind.
+    /// </summary>
+    public IReadOnlyCollection<ItemTemplate> Templates { get; init; } =
+        KeyedRows<ulong, ItemTemplate>.Over(Templates, static template => template.Id?.Value);
+
     public override string Describe() => $"{Templates.Count} item templates";
 }
 
@@ -67,6 +74,10 @@ public sealed record ProgressionPatch(
     IReadOnlyCollection<CharacterCreateInfo> CreateInfos)
     : StaticDataPatch(ReloadArea.Progression)
 {
+    /// <summary>The experience rows, with their lookup by level (<see cref="KeyedRows{TKey,TRow}" />, #883), as the item templates have theirs.</summary>
+    public IReadOnlyCollection<CharacterLevelExperience> Levels { get; init; } =
+        KeyedRows<ushort, CharacterLevelExperience>.Over(Levels, static row => row.Level);
+
     public override string Describe()
         => $"{Levels.Count} levels, {ClassStats.Count} class stats, {CreateInfos.Count} create infos";
 }

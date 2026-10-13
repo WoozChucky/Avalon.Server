@@ -2,6 +2,7 @@ using Avalon.Domain.World;
 using Avalon.World.Entities;
 using Avalon.World.Parties;
 using Avalon.World.Public.Characters;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Characters;
@@ -78,10 +79,15 @@ public static class ExperienceAward
         Requirement(data, character.Level) is not null
         && Requirement(data, (ushort)(character.Level + 1)) is not null;
 
-    // A plain walk: a lambda on the level allocated its closure and delegate on every kill's award (#880).
+    // The first row of that level. The progression area's rows carry a lookup by level (KeyedRows, built with them
+    // and replaced with them on a reload, #883), where every award and every member of every kill walked them, twice;
+    // any other collection is walked, plainly: a lambda on the level allocated its closure and delegate (#880).
     private static CharacterLevelExperience? Requirement(StaticData data, ushort level)
     {
         IReadOnlyCollection<CharacterLevelExperience> rows = data.CharacterLevelExperiences;
+        if (rows is KeyedRows<ushort, CharacterLevelExperience> keyed)
+            return keyed.Find(level);
+
         if (rows is IReadOnlyList<CharacterLevelExperience> list)
         {
             for (int i = 0; i < list.Count; i++)
