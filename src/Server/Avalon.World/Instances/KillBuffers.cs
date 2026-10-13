@@ -30,6 +30,9 @@ internal sealed class KillBuffers
     /// <summary>Each counted member's share of the kill's experience, in the order of <see cref="Eligible" />.</summary>
     public List<ExperienceShare> Shares { get; } = [];
 
+    /// <summary>The quest drops the kill rolled, each with the character it was rolled for (#883).</summary>
+    public List<(RolledDrop Drop, uint Owner)> QuestDrops { get; } = [];
+
     /// <summary>What the kill rolled: the table's drops, then the quest drops.</summary>
     public List<RolledDrop> Rolled { get; } = [];
 
@@ -61,6 +64,7 @@ internal sealed class KillBuffers
     {
         Eligible.Clear();
         Shares.Clear();
+        QuestDrops.Clear();
         Rolled.Clear();
         Placed.Clear();
         Sent.Clear();

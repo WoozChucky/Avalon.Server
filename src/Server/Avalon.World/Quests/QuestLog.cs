@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.World.Persistence;
@@ -55,7 +56,20 @@ public sealed class QuestLog(SaveStateTracker save)
     private readonly Dictionary<uint, QuestClientChange> _client = [];
     private readonly List<string> _lines = [];
 
-    public IReadOnlyCollection<ActiveQuest> Active => _active.Values;
+    // The copies the walks over the held quests go through, one per walk in progress, kept and emptied after each
+    // so that a walk allocates no copy (#883). See BeginWalk.
+    private readonly List<List<ActiveQuest>> _walks = [];
+    private int _walking;
+
+    // The client changes in quest id order, filled again for each flush: quest ids and kinds, nothing that lives.
+    private readonly List<(uint QuestId, QuestClientChange Change)> _clientById = [];
+
+    /// <summary>
+    /// The quests held. The dictionary's own collection, so a <c>foreach</c> over it uses its struct enumerator and
+    /// allocates nothing (#883); it is the log itself, not a copy, so a walk that may settle a quest or run a script's
+    /// hook goes through <see cref="BeginWalk" /> instead.
+    /// </summary>
+    public Dictionary<uint, ActiveQuest>.ValueCollection Active => _active.Values;
 
     public IReadOnlyCollection<uint> Completed => _completed.Keys;
 
@@ -73,6 +87,37 @@ public sealed class QuestLog(SaveStateTracker save)
 
     public ActiveQuest? Get(uint questId) => _active.GetValueOrDefault(questId);
 
+    /// <summary>
+    /// The quests held now, copied into a list that stays as it is while the caller walks it. A walk that credits a
+    /// kill, a conversation or the Bag settles quests and runs their scripts' hooks, and whatever those do to the log,
+    /// the walk goes over the quests held when it began, each once: one accepted meanwhile is not part of it, and one
+    /// dropped meanwhile is still walked and found gone by the caller's own checks.
+    /// </summary>
+    /// <remarks>
+    /// The list is this log's, so a walk allocates no copy once it has grown (the copy used to be a <c>ToList()</c>
+    /// per walk, #883), and the caller gives it back with <see cref="EndWalk" /> in a <c>finally</c>. One list per
+    /// walk in progress: a walk begun from inside another (a hook that leads to one) gets its own, so neither moves
+    /// under the other. Per character and never shared, since a character's log is only ever walked by its own tick.
+    /// </remarks>
+    public List<ActiveQuest> BeginWalk()
+    {
+        if (_walking == _walks.Count)
+            _walks.Add([]);
+
+        List<ActiveQuest> held = _walks[_walking++];
+        Debug.Assert(held.Count == 0, "A list of quests to walk still holds an earlier walk's");
+        foreach (ActiveQuest quest in _active.Values)
+            held.Add(quest);
+        return held;
+    }
+
+    /// <summary>Empties the list <see cref="BeginWalk" /> handed out, so the log keeps no copy between walks, and frees its depth.</summary>
+    public void EndWalk(List<ActiveQuest> held)
+    {
+        held.Clear();
+        _walking--;
+    }
+
     public bool IsActive(uint questId) => _active.ContainsKey(questId);
 
     public bool IsCompleted(uint questId) => _completed.ContainsKey(questId);
@@ -81,6 +126,21 @@ public sealed class QuestLog(SaveStateTracker save)
 
     /// <summary>The quests whose client update is owed, and which update. QuestFlusher sends and clears them.</summary>
     public IReadOnlyDictionary<uint, QuestClientChange> ClientChanges => _client;
+
+    /// <summary>
+    /// <see cref="ClientChanges" /> by quest id, the order the updates are sent in. A list of this log's, filled again
+    /// by each call and sorted in place: a query that ordered the changes allocated for every flush that had any
+    /// (#883). No two entries share an id, so the order is the same whatever the sort does with ties.
+    /// </summary>
+    public List<(uint QuestId, QuestClientChange Change)> ClientChangesById()
+    {
+        _clientById.Clear();
+        foreach (KeyValuePair<uint, QuestClientChange> owed in _client)
+            _clientById.Add((owed.Key, owed.Value));
+
+        _clientById.Sort(static (a, b) => a.QuestId.CompareTo(b.QuestId));
+        return _clientById;
+    }
 
     /// <summary>System lines owed to the character (milestones), in order. QuestFlusher sends and clears them.</summary>
     public IReadOnlyList<string> PendingLines => _lines;

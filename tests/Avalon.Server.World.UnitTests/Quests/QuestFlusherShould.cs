@@ -41,6 +41,32 @@ public class QuestFlusherShould
         Assert.Empty(Updates(c));   // the log already carried what the start marked
     }
 
+    /// <summary>
+    /// A tick's updates go out by quest id, whatever order the quests changed in, and each lists its quest's
+    /// objectives stage by stage. Neither was pinned while a query did the ordering (#883).
+    /// </summary>
+    [Fact]
+    public async Task Send_a_ticks_updates_by_quest_id_each_listing_its_objectives_stage_by_stage()
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        QuestClient c = w.Join();
+        QuestLog log = c.Character.Quests;
+        ActiveQuest hunt = log.Start(Hunt, DateTime.UnixEpoch);
+        ActiveQuest tusks = log.Start(Tusks, DateTime.UnixEpoch);
+        ActiveQuest howl = log.Start(Howl, DateTime.UnixEpoch);
+        Tick(w, c);   // the log, which carries the three
+        c.Clear();
+
+        log.SetStage(howl, 0);
+        log.SetStage(tusks, 0);
+        log.SetStage(hunt, 0);
+        Tick(w, c);
+
+        List<SQuestUpdatePacket> updates = Updates(c);
+        Assert.Equal([Hunt, Tusks, Howl], updates.Select(u => u.QuestId));
+        Assert.Equal([HowlKill, HowlTalk, HowlScripted], updates[2].Progress.Select(p => p.ObjectiveId));
+    }
+
     /// <summary>Review Focus 2.</summary>
     [Fact]
     public async Task Leave_a_quest_the_catalog_no_longer_has_out_of_the_log()

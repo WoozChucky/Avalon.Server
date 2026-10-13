@@ -73,6 +73,12 @@ public class QuestItemDropShould
 
             GroundLoot tusk = Assert.Single(Tusks(instance));
             Assert.Equal((a.Id, 1u, DateTime.MaxValue), (tusk.OwnerCharacterId, tusk.Count, tusk.FreeForAllAt));
+
+            // The next kill rolls again and drops its own tusk only: the list the kill rolls into is the instance's,
+            // used again by every kill (#883).
+            instance.ReportKill(Boar(instance, w), a.Character);
+
+            Assert.Equal(2, Tusks(instance).Count);
         }
     }
 

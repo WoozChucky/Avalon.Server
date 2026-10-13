@@ -40,6 +40,9 @@ public sealed class QuestScriptRecorder : ILogger<SampleQuestScript>
 
     /// <summary>Runs inside OnAccepted, after it is recorded.</summary>
     public Action<IQuestContext>? OnAccept { get; set; }
+
+    /// <summary>Runs inside OnCreatureKilled, after it is recorded: a test changes the log from inside a kill's walk.</summary>
+    public Action<IQuestContext>? OnKill { get; set; }
 }
 
 /// <summary>
@@ -89,6 +92,7 @@ public sealed class SampleQuestScript(ILogger<SampleQuestScript>? logger = null)
     {
         _recorder.LastCreature = creature;
         Hook("OnCreatureKilled", context);
+        _recorder.OnKill?.Invoke(context);
         if (_recorder.AdvanceOnKill is { } advance)
             _recorder.AdvanceResults.Add(context.Advance(advance.Objective, advance.Amount));
     }
