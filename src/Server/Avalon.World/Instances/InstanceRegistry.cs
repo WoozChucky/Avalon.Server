@@ -399,7 +399,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         Task<MapInstance> build;
         try
         {
-            MapTemplate template = _mapManager.Templates.FirstOrDefault(t => t.Id == pending.TemplateId)
+            MapTemplate template = _mapManager.Templates.FindById(pending.TemplateId)
                                    ?? throw new InvalidOperationException($"MapTemplate {pending.TemplateId} not found.");
 
             // CancellationToken.None: several requesters share this build, so no one requester's token may cancel it

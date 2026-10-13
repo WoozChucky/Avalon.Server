@@ -454,12 +454,10 @@ public class World : IWorld
         // If logging out from a Normal map, redirect the character to the associated town
         else if (instance?.MapType == MapType.Normal)
         {
-            MapTemplate? normalTemplate =
-                _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
+            MapTemplate? normalTemplate = _mapManager.Templates.FindById(instance.TemplateId);
             if (normalTemplate?.LogoutMapId is { } logoutMapId)
             {
-                MapTemplate? town = _mapManager.Templates.FirstOrDefault(t =>
-                    t.Id == (MapTemplateId)logoutMapId);
+                MapTemplate? town = _mapManager.Templates.FindById(logoutMapId);
                 dbCharacter.Map = logoutMapId;
                 dbCharacter.X = town?.DefaultSpawnX ?? 0f;
                 dbCharacter.Y = town?.DefaultSpawnY ?? 0f;
@@ -669,7 +667,7 @@ public class World : IWorld
         }
         catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            MapTemplate? fallback = templates.FirstOrDefault(t => t.Id == s_fallbackTownId);
+            MapTemplate? fallback = templates.FindById(s_fallbackTownId);
             if (fallback is null)
             {
                 logger.LogError(e,
@@ -687,7 +685,7 @@ public class World : IWorld
             return;
         }
 
-        MapTemplate? town = templates.FirstOrDefault(t => t.Id == townId);
+        MapTemplate? town = templates.FindById(townId);
         row.Map = townId.Value;
         row.X = town?.DefaultSpawnX ?? 0f;
         row.Y = town?.DefaultSpawnY ?? 0f;

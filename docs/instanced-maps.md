@@ -356,11 +356,11 @@ every arrival's packet to the layout byte for byte.
 IMapInstance? instance = InstanceRegistry.GetInstanceById(connection.Character.InstanceIdGuid);
 if (instance?.MapType == MapType.Normal)
 {
-    MapTemplate? template = _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
+    MapTemplate? template = _mapManager.Templates.FindById(instance.TemplateId);
     if (template?.LogoutMapId is { } logoutMapId)
     {
-        MapTemplate? town = _mapManager.Templates.FirstOrDefault(t => t.Id == logoutMapId);
-        dbCharacter.Map = logoutMapId.Value;
+        MapTemplate? town = _mapManager.Templates.FindById(logoutMapId);
+        dbCharacter.Map = logoutMapId;
         dbCharacter.X   = town?.DefaultSpawnX ?? 0f;
         dbCharacter.Y   = town?.DefaultSpawnY ?? 0f;
         dbCharacter.Z   = town?.DefaultSpawnZ ?? 0f;
