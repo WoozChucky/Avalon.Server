@@ -88,6 +88,11 @@ A client never sends such a frame, and any peer that completes TLS can, before i
 a peer that is not a client, or a client newer than the limit allows. Each also writes one Debug line (the connection,
 its address and the declared length), and nothing above Debug.
 
+`network.in.packets` and `network.in.bytes`, on both meters, count what the read loop decoded. A frame that arrives
+while its connection is closing is read and discarded undecoded
+([graceful shutdown](networking-graceful-shutdown.md#what-a-closing-connection-reads)): it adds its length to
+`network.in.bytes` and nothing to `network.in.packets`.
+
 ### Packet handlers
 
 Every handler run records `avalon.packet.handler.duration` (ms, tagged `avalon.packet.type` and `avalon.outcome`) and, when it throws, `avalon.packet.handler.errors`. A packet of a high-rate type (`Hosting:Telemetry:NoSpanPacketTypes`, default `CMSG_PLAYER_INPUT` and `CMSG_PONG`) opens no span and no log scope (#875): at 60 inputs a second per player those cost the tick several objects per packet (248 B with a scope-reading provider). The default types' handlers write `{ConnectionId}` and `{PacketType}` into their own lines (`HighRatePacketLog`); a type added to the list loses its handlers' log scope with nothing in its place. Every other packet opens its span and a log scope with `PacketType`, `ConnectionId`, `AccountId` and `CharacterId`.

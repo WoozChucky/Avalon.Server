@@ -563,8 +563,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>
     /// The connection has its cap of packets waiting and sent another (#927): closed from the read loop, without a
     /// notice, as a connection that drops is. Once per connection: <see cref="Connection.Close" /> marks it closing
-    /// before it returns, and the read loop, the only caller, delivers nothing more to a closing connection
-    /// (<see cref="OnReceive" />'s first check), the rest of the read it was decoding included. What is queued is
+    /// before it returns, and the read loop, the only caller, delivers nothing more to a closing connection: it
+    /// discards what it reads from then on undecoded, and <see cref="OnReceive" />'s first check stands behind that.
+    /// What is queued is
     /// dropped by the tick's next pass, which finds the connection no longer authorized; the session ends and the
     /// character is saved on the tick, as on any disconnect (<see cref="OnClose" />).
     /// </summary>
@@ -654,6 +655,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         DiagnosticsConfig.World.BytesReceived.Add(size);
         DiagnosticsConfig.World.PacketsReceived.Add(1);
     }
+
+    protected override void OnFrameDiscarded(int size) => DiagnosticsConfig.World.BytesReceived.Add(size);
 
     protected override void OnFrameRefused() => DiagnosticsConfig.World.FrameKicks.Add(1);
 

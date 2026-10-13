@@ -227,6 +227,12 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     protected virtual void OnPacketAccounted(NetworkPacketType type, int size) { }
 
     /// <summary>
+    /// A frame read off the socket while the connection was closing and discarded undecoded, with the length it
+    /// declared: a server adds it to its bytes received here, and to nothing else.
+    /// </summary>
+    protected virtual void OnFrameDiscarded(int size) { }
+
+    /// <summary>
     /// The read loop ended on a frame longer than <c>Hosting:MaxInboundFrameSize</c>, or with a malformed length, and
     /// the connection is about to close: a server counts it in its telemetry here, once per connection.
     /// </summary>
@@ -304,6 +310,18 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
                 await foreach (ReadOnlyMemory<byte> raw in _stream!.EnumerateRawFramesAsync(_packetReader.BufferSize,
                                    _maxInboundFrameSize, stoppingToken))
                 {
+                    // Closing (#927): the socket stays up until the outbox has flushed, and the peer may go on sending
+                    // until then. Its frames are still read, so the close ends the stream with nothing unread behind
+                    // it and the peer is not reset before it has what was sent to it, but they are discarded: not
+                    // parsed, not decoded, not handed to OnReceive. Their bytes are bytes received; they are not
+                    // packets received. The frame limit above still ends the stream.
+                    if (IsClosing)
+                    {
+                        Interlocked.Add(ref BytesReceivedCount, raw.Length);
+                        OnFrameDiscarded(raw.Length);
+                        continue;
+                    }
+
                     var frame = InboundPacketFrame.ParseFrame(raw);
 
                     if (_logger.IsEnabled(LogLevel.Debug) &&

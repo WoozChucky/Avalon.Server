@@ -47,6 +47,27 @@ Client                    AuthServer / WorldServer (ServerBase<T>)
   |<---------------------------------|  connection.Close()
 ```
 
+### What a closing connection reads
+
+`Close` flushes the outbox before it closes the socket, so the socket outlives the call: by the outbox's own bound, at
+most about 0.6 s on a world (`ConnectionSender.CloseBudget` and `CancelGrace`). A client that has not yet read its
+notice is still sending for that long, input at 60 a second among it. The read loop (`Connection.ExecuteAsync`, shared
+by both servers) treats what arrives then as follows (#927):
+
+- **It is still read off the socket.** A socket closed with unread bytes behind it resets the connection instead of
+  ending it, and a reset can cost the peer what was sent to it last: the notice. So the loop does not stop reading.
+- **It is discarded undecoded.** The frame is not parsed, not opened or deserialized, and `OnReceive` is not called.
+  On a world that saves the decode and the packet object of every such frame, which `WorldConnection.OnReceive` dropped
+  anyway. On the auth server it changes what happens: `AuthConnection.OnReceive` has no closing check, so a handler
+  used to run for a packet that arrived on a connection already being closed, which could no longer be answered. No
+  auth flow relied on it: every close the auth server makes on purpose (a failed handshake, a client too old,
+  `PostLoginGuard`, a credentials change, a kick, shutdown) is the end of that connection's conversation, and a
+  refused login does not close.
+- **The frame limit still applies**: a frame over `Hosting:MaxInboundFrameSize` ends the stream as it does at any time.
+- **It counts as bytes, not as a packet.** A discarded frame adds the length it declared to `network.in.bytes` and
+  nothing to `network.in.packets`: its bytes were received, and no packet was. (A decoded packet's bytes are counted
+  as its payload plus a nominal 10-byte header, as before.)
+
 ---
 
 ## `SDisconnectPacket` Schema
