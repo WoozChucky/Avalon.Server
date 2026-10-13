@@ -559,6 +559,12 @@ public sealed class ConnectionSender : IOutbox
     /// </remarks>
     private void WatchGrownBursts()
     {
+        // A clock read of its own, though the same visit reads the clock again as it starts its write (StartWrite, for
+        // the stall clock). The two are not one instant: between them the visit seals and frames what is queued. One
+        // timestamp for both would start a write's stall clock before the write, by the framing of up to a cap's worth
+        // of packets, or move this check behind the framing, when the buffer just framed into can no longer be given
+        // back. So a watched connection reads the clock twice per burst, and only while a buffer is above the
+        // threshold.
         long now = _time.GetTimestamp();
         if (!_burstWatch)
         {
