@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
@@ -30,12 +31,51 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     private readonly ConcurrentQueue<WorldPacket> _receiveQueue;
 
     // Only the tick takes a packet. A head refused by one pass stays here for the other pass,
-    // without TryPeek preserving ConcurrentQueue segments and preventing their slot reuse.
+    // without TryPeek preserving ConcurrentQueue segments and preventing their slot reuse. Tick only, both.
     private WorldPacket _pendingReceivePacket;
     private int _hasPendingReceivePacket;
 
-    /// <summary>Packets received and not yet dispatched; read by the receive-queue gauge off the tick.</summary>
-    internal int ReceiveQueueDepth => _receiveQueue.Count + Volatile.Read(ref _hasPendingReceivePacket);
+    // The depth cap (#927). The depth is the difference of two counts, each written by one thread and so never
+    // interlocked: the packets the read loop queued, and the packets the tick took out, dispatched or dropped. A held
+    // head is still waiting: it is not counted out until it leaves. Both counts wrap; their difference does not.
+    private readonly ReceiveQueueLimit _receiveQueueLimit;
+    private ReceiveLoopCounts _receiveLoop;
+    private uint _handledPackets;
+
+    /// <summary>
+    /// The read loop's side of the depth, with 64 bytes of nothing on either side, so it shares a cache line with no
+    /// other field wherever the object falls: the read loop writes here for every packet it queues, while the tick
+    /// reads and writes the connection's other fields for every packet it takes.
+    /// </summary>
+    [StructLayout(LayoutKind.Explicit, Size = 140)]
+    private struct ReceiveLoopCounts
+    {
+        /// <summary>Packets queued. Written by the read loop; read by the gauge.</summary>
+        [FieldOffset(64)] public uint Queued;
+
+        /// <summary>
+        /// <see cref="_handledPackets" /> as the read loop last read it: never more than it is now, so the depth
+        /// worked out from it is never less than the real one. Read loop only.
+        /// </summary>
+        [FieldOffset(68)] public uint HandledSeen;
+
+        /// <summary><c>Network:MaxReceiveQueueDepth</c>, here so the check reads no line the tick writes.</summary>
+        [FieldOffset(72)] public uint MaxDepth;
+    }
+
+    /// <summary>
+    /// Packets received and not yet dispatched or dropped, a held head included: what the cap bounds, and what the
+    /// receive-queue gauge reads off the tick. The tick's count is read first, so a packet taken between the two
+    /// reads counts as still waiting and the difference is never negative.
+    /// </summary>
+    internal int ReceiveQueueDepth
+    {
+        get
+        {
+            uint handled = Volatile.Read(ref _handledPackets);
+            return (int)(Volatile.Read(ref _receiveLoop.Queued) - handled);
+        }
+    }
 
     private readonly IWorldServer _server;
 
@@ -59,6 +99,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     {
         _server = server;
         _packetEncryption = server.PacketEncryption;
+        // A substitute server in tests has none.
+        _receiveQueueLimit = server.ReceiveQueueLimit ?? ReceiveQueueLimit.Default;
+        _receiveLoop.MaxDepth = (uint)_receiveQueueLimit.MaxDepth;
         _time = time ?? TimeProvider.System;
         _receiveQueue = new ConcurrentQueue<WorldPacket>();
         _worldSessionFilter = new WorldSessionFilter(this);
@@ -301,8 +344,10 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     {
         if (!IsGameplayAuthorized)
         {
-            ClearPendingReceivePacket();
-            while (_receiveQueue.TryDequeue(out _)) { }
+            if (_hasPendingReceivePacket != 0)
+                ReleaseReceivePacket();
+            while (_receiveQueue.TryDequeue(out _))
+                ReleaseReceivePacket();
             return;
         }
 
@@ -325,18 +370,18 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
                 if (!dropStaleMapPackets || Character != null || !MapSessionFilter.IsMapPacket(packet.Type))
                 {
                     _pendingReceivePacket = packet;
-                    Volatile.Write(ref _hasPendingReceivePacket, 1);
+                    _hasPendingReceivePacket = 1;
                     break;
                 }
 
-                ClearPendingReceivePacket();
+                ReleaseReceivePacket();
                 _logger.LogDebug("Dropped {PacketType} queued for a character that has left the world", packet.Type);
                 if (++processedPackets > MaxPacketsPerUpdate)
                     break;
                 continue;
             }
 
-            ClearPendingReceivePacket();
+            ReleaseReceivePacket();
             CurrentPacketArrivedTicks = packet.ArrivedTicks;
             if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))
             {
@@ -365,13 +410,21 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         }
     }
 
-    private void ClearPendingReceivePacket()
+    /// <summary>
+    /// The packet the tick has in hand, from the queue or from the held slot, stops waiting: it is dispatched or
+    /// dropped, not held. Empties the slot if the packet came from there, and counts it out of the depth (#927). Every
+    /// packet that leaves the receive queue leaves through here, once; a held one is not counted out until it does.
+    /// </summary>
+    private void ReleaseReceivePacket()
     {
-        if (_hasPendingReceivePacket == 0)
-            return;
-        _pendingReceivePacket = default;
-        // The gauge reads the flag alone; the packet remains owned exclusively by the tick.
-        Volatile.Write(ref _hasPendingReceivePacket, 0);
+        if (_hasPendingReceivePacket != 0)
+        {
+            _pendingReceivePacket = default;
+            _hasPendingReceivePacket = 0;
+        }
+
+        // The tick is the only writer. The gauge reads it, and the read loop when its own figure reaches the cap.
+        Volatile.Write(ref _handledPackets, _handledPackets + 1);
     }
 
     public uint LastInputSeq { get; set; }
@@ -482,11 +535,46 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         }
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
+            // The depth cap (#927): a packet that arrives with Network:MaxReceiveQueueDepth already waiting is not
+            // queued and closes the connection, so the depth never passes the cap. The tick's count is read only when
+            // the read loop's own figure, worked out from that count as it last read it, reaches the cap: the figure
+            // is never below the real depth, so under the cap there is nothing to ask, and a connection the tick
+            // keeps up with reads the tick's field once in about a cap's worth of packets.
+            uint queued = _receiveLoop.Queued;
+            if (queued - _receiveLoop.HandledSeen >= _receiveLoop.MaxDepth)
+            {
+                _receiveLoop.HandledSeen = Volatile.Read(ref _handledPackets);
+                if (queued - _receiveLoop.HandledSeen >= _receiveLoop.MaxDepth)
+                {
+                    CloseOverReceiveQueueDepth(header.Type);
+                    return ValueTask.CompletedTask;
+                }
+            }
+
+            // Counted before the tick can take it, so the tick's count never passes this one.
+            Volatile.Write(ref _receiveLoop.Queued, queued + 1);
             _receiveQueue.Enqueue(new WorldPacket(header.Type, payload, _time.GetUtcNow().UtcTicks));
             return ValueTask.CompletedTask;
         }
         DropUnaccepted(header.Type);
         return ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// The connection has its cap of packets waiting and sent another (#927): closed from the read loop, without a
+    /// notice, as a connection that drops is. Once per connection: <see cref="Connection.Close" /> marks it closing
+    /// before it returns, and the read loop, the only caller, delivers nothing more to a closing connection
+    /// (<see cref="OnReceive" />'s first check), the rest of the read it was decoding included. What is queued is
+    /// dropped by the tick's next pass, which finds the connection no longer authorized; the session ends and the
+    /// character is saved on the tick, as on any disconnect (<see cref="OnClose" />).
+    /// </summary>
+    private void CloseOverReceiveQueueDepth(NetworkPacketType type)
+    {
+        ReceiveLog.ReceiveQueueOverDepth(_logger, Id, AccountId?.Value, type, _receiveLoop.MaxDepth);
+        _receiveQueueLimit.Kicked();
+#pragma warning disable MA0045 // the read loop must not wait on the close it starts
+        Close(false);
+#pragma warning restore MA0045
     }
 
     // Read and written only by this connection's receive loop, which delivers one packet at a time.
@@ -538,6 +626,11 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Closed connection {ConnectionId}: {PacketType} arrived unsealed while this world seals packets (Network:PacketEncryption)")]
         public static partial void PlainPacketRefused(ILogger logger, Guid connectionId, NetworkPacketType packetType);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closed connection {ConnectionId} of account {AccountId}: {PacketType} arrived with {MaxDepth} packets already waiting for the tick (Network:MaxReceiveQueueDepth)")]
+        public static partial void ReceiveQueueOverDepth(ILogger logger, Guid connectionId, long? accountId,
+            NetworkPacketType packetType, uint maxDepth);
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
         public static partial void DroppedForState(ILogger logger, NetworkPacketType packetType);

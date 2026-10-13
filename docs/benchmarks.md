@@ -402,6 +402,52 @@ tick now dequeues once and holds a head refused by one filter for the other pass
 guards storage reuse at all three burst sizes. Queue behavior tests cover FIFO, held-head depth and arrival stamps,
 authorization revocation/maintenance, character-leave stale packets and the existing filter wedge behavior.
 
+**The depth cap (#927).** A connection may have `Network:MaxReceiveQueueDepth` packets (1,024) waiting; one that arrives
+with that many waiting closes it ([packet handlers](packet-handlers.md)). The depth is two counts, each with one writer:
+the read loop counts a packet before it queues it and the tick counts it out as it takes it, so the arrival path gains
+three reads of its own fields, a compare and a store, and the dispatch path a read and a store. The benchmark's bursts
+(at most 150) are emptied every cycle, so the check's other branch, the read of the tick's count, runs once in about
+1,024 packets, as it does for a connection the tick keeps up with.
+
+Before/after on 2026-10-13, `814a9105` and the change, the same benchmark both sides. Twelve runs before and eleven
+after, interleaved (a twelfth run of the change did not build: a file held by another process); each figure is the
+median of the runs' means with their range, then the median of each run's fastest iteration.
+
+| Packets per burst | Before mean | After mean | Before fastest | After fastest | Allocated, both |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 158.4 ns (153.8 to 213.7) | 158.2 ns (155.4 to 213.5) | 155.0 ns | 156.0 ns | 0 B |
+| 32 | 3,551 ns (3,484 to 4,599) | 3,595 ns (3,494 to 4,602) | 3,525 ns | 3,517 ns | 0 B |
+| 150 | 16,374 ns (16,184 to 21,678) | 16,398 ns (16,268 to 20,158) | 16,243 ns | 16,226 ns | 0 B |
+
+BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime 10.0.12, concurrent workstation GC; one launch,
+six warmups and fifteen measured iterations per run, pinned to one performance core (affinity mask 1024 for the first
+six pairs, 4096 for the rest). Other builds and benchmarks were using the machine: the last three runs, of both sides,
+were about a third slower (the top of every range), and several earlier ones had a spread of 100 to 600 ns at 32
+packets against 3 to 60 ns in a quiet run. No row moved by more than the runs differ among themselves. The fastest
+iterations, the figure the disturbance touches least, differ by 1 ns at one packet and by less than 0.3% at 32 and
+150, there in the change's favour, which is the same noise.
+
+- **Nothing is allocated.** `ReceiveQueueAllocationShould` still reads exactly 0 B at all three burst sizes, and the
+  close itself (one generated Warning, one counter increment) happens once per connection.
+- **What the benchmark cannot show.** It runs arrivals and the tick on one thread; in the world they are two, and a
+  field one writes for every packet costs the other a cache line whenever they share it. So the read loop's side
+  (its count, the tick's count as it last read it, and the cap) is a struct with 64 bytes of nothing before and after
+  it. In the Release build, counted from the object's start, those three fields are at 528 to 540, the field before
+  them (`_pendingReceivePacket`) ends at 464 and the one after (`CurrentTargetGuid`) starts at 608: however the object
+  falls across 64-byte lines, the line or two they occupy hold nothing else, so the read loop's store per packet takes
+  no line from the tick, and the tick's writes take none from the check. The tick's count (`_handledPackets`, at 408)
+  lies 4 bytes from `LastInputSeq` (412), which the tick already writes for every input, and in every placement an
+  8-byte-aligned object allows the two share a line: counting an input out dirties no line the input's handler does
+  not. For a packet that is not an input the tick's other write is `CurrentPacketArrivedTicks` (384), on the same line
+  as the count in five placements of eight. In most placements (five or six of eight) the count's line also holds the
+  flags the read loop reads for every packet (`_packetEncryption`, `_maintenanceBlocked`, `_tlsAuthenticated`,
+  `_protocolAccepted`, at 428 to 436). It did before this change, with `LastInputSeq` on it: the read loop was already
+  taking that line back after each input the tick handled.
+- **The gauge is cheaper.** `world.receive_queue.depth` reads the two counts where it called `ConcurrentQueue.Count`
+  on every connection (which can take the queue's cross-segment lock), on the exporter's thread.
+- **The connection is about 150 bytes larger** (the padded struct, the tick's count and a reference): about 150 KB at
+  1,000 connections.
+
 ### Navmesh bake — `navmesh-bake` (#880, #896)
 
 Uses the committed four-chunk town: 1,990 vertices, 3,424 triangles, 49 tiles. Tile rows compare

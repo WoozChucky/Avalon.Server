@@ -81,7 +81,7 @@ public static class ServiceExtensions
             .ValidateOnStart();
 
         // The send threads and the session layer (#875): Network:SendThreads, MaxPendingBytes, MaxWriteStall,
-        // PacketEncryption.
+        // PacketEncryption. And the receive queue's depth cap (#927): MaxReceiveQueueDepth.
         services
             .AddOptions<NetworkConfiguration>()
             .BindConfiguration(NetworkConfiguration.Section)
@@ -92,6 +92,9 @@ public static class ServiceExtensions
             sp.GetRequiredService<ILoggerFactory>(),
             sp.GetRequiredService<TimeProvider>(),
             new NetworkSendMetrics(DiagnosticsConfig.World.Meter)));
+        services.AddSingleton(sp => new ReceiveQueueLimit(
+            sp.GetRequiredService<IOptions<NetworkConfiguration>>().Value.MaxReceiveQueueDepth,
+            DiagnosticsConfig.World.Meter));
 
         services
             .AddOptions<RegenConfiguration>()

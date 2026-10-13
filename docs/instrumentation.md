@@ -70,7 +70,13 @@ The send threads' busy time, in cores: `sum(rate(network_send_pass_duration_micr
 
 ### Receive backlog
 
-`world.receive_queue.depth` (`{packets}`, Prometheus `world_receive_queue_depth`) is an observable gauge of the packets received and not yet dispatched by the tick. It reports two series, tagged `stat`: `total`, the sum over every connection, and `max`, the deepest single connection. It is read on the metrics exporter's thread over the connection snapshot, never on the tick. A `total` that keeps climbing means the tick no longer keeps up with what clients send; a high `max` with a low `total` points at one client.
+`world.receive_queue.depth` (`{packets}`, Prometheus `world_receive_queue_depth`) is an observable gauge of the packets received and not yet dispatched by the tick. It reports two series, tagged `stat`: `total`, the sum over every connection, and `max`, the deepest single connection. It is read on the metrics exporter's thread over the connection snapshot, never on the tick. A `total` that keeps climbing means the tick no longer keeps up with what clients send; a high `max` with a low `total` points at one client. Since #927 it is the difference of two counts each connection keeps (packets queued by its read loop, packets taken out by the tick), the figure the cap below is checked against, and reading it no longer walks the queues. `max` cannot read above `Network:MaxReceiveQueueDepth`.
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `network.in.backlog_kicks` | `network_in_backlog_kicks_total` | Connections closed with `Network:MaxReceiveQueueDepth` packets received and waiting for the tick (#927): one more arrived, was not queued, and the connection was closed without a notice. No tags. Each also writes one Warning (`Avalon.World.WorldConnection`) naming the connection, its account and the opcode |
+
+Any count is worth a look: a client sending faster than the tick takes (151 packets a pass per connection), a tick stalled for as long as the cap is deep (about 17 s of input at the default), or a connection whose queue is wedged ([packet handlers](packet-handlers.md)). The counter does not see a flood the tick keeps up with, nor packets dropped as they arrive.
 
 ### Packet handlers
 

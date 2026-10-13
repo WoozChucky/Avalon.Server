@@ -75,6 +75,10 @@ Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 | 8     | `Deactivated`    | The account was deactivated (`world:accounts:status`, #882)    |
 | 9     | `SlowConnection` | The connection could not keep up: past `Network:MaxPendingBytes` queued (#875). Its only packet, before the close, when no write is still in flight; one found past the cap while a write is in flight, or a write stalled past `Network:MaxWriteStall`, closes without it |
 
+Not every close the world starts carries one. A connection closed for what it sent is closed without a notice, as a
+dropped connection is: a plain packet while the world seals (`Network:PacketEncryption`, #875), and a packet arriving
+with `Network:MaxReceiveQueueDepth` already waiting for the tick (#927, [packet handlers](packet-handlers.md)).
+
 ### Factory method
 
 ```csharp

@@ -85,6 +85,12 @@ public interface IWorldServer
     /// packet with the session layer inside TLS. A connection reads it when it is created and keeps it.
     /// </summary>
     bool PacketEncryption { get; }
+
+    /// <summary>
+    /// <c>Network:MaxReceiveQueueDepth</c> (#927), read once at startup: how many packets a connection may have waiting
+    /// for the tick, and the count of the connections closed at it. A connection reads it when it is created.
+    /// </summary>
+    ReceiveQueueLimit ReceiveQueueLimit { get; }
 }
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
@@ -187,6 +193,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     // The container's clock, so the maintenance cutoff and the entry checks read one time.
     private readonly TimeProvider _time;
     private readonly NetworkSendScheduler _sendScheduler;
+    private readonly ReceiveQueueLimit _receiveQueueLimit;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -269,6 +276,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // #875. From the container; the tests that build a WorldServer from a bare provider get one with the defaults.
         _sendScheduler = serviceProvider.GetService<NetworkSendScheduler>()
             ?? new NetworkSendScheduler(new NetworkConfiguration(), loggerFactory, _time, NetworkSendMetrics.Disabled);
+        // #927. From the container, as the scheduler is; a bare provider gets the default depth.
+        _receiveQueueLimit = serviceProvider.GetService<ReceiveQueueLimit>() ?? ReceiveQueueLimit.Default;
         _maintenanceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The maintenance countdown");
 
@@ -325,6 +334,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     public NetworkSendScheduler SendScheduler => _sendScheduler;
 
     public bool PacketEncryption => _sendScheduler.PacketEncryption;
+
+    public ReceiveQueueLimit ReceiveQueueLimit => _receiveQueueLimit;
 
     public IReadOnlyList<IWorldConnection> SessionsOf(AccountId accountId, IWorldConnection except)
     {

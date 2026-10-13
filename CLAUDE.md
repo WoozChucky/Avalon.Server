@@ -105,7 +105,7 @@ Three Postgres contexts: `AuthDbContext` (shared by everything, with Redis), and
 
 ### Networking
 - [Packet protocol](docs/networking-packet-protocol.md): custom TCP with protobuf-net; every packet is a `NetworkPacket` (header: `NetworkPacketType` opcode, flags, protocol, version) around a payload. Also [schema design](docs/networking-proto-schema-design.md), [session crypto](docs/crypto-v1-derivation.md), [graceful shutdown](docs/networking-graceful-shutdown.md).
-- [Packet handlers, session filters, reflection-bound registration](docs/packet-handlers.md): auth handlers implement `IAuthPacketHandler<T>` (DI); world handlers `IWorldPacketHandler<T>` or `WorldPacketHandler<T>` with `[PacketHandler(NetworkPacketType.X)]`, built by `ActivatorUtilities`.
+- [Packet handlers, session filters, reflection-bound registration](docs/packet-handlers.md): auth handlers implement `IAuthPacketHandler<T>` (DI); world handlers `IWorldPacketHandler<T>` or `WorldPacketHandler<T>` with `[PacketHandler(NetworkPacketType.X)]`, built by `ActivatorUtilities`. Also the receive queue's depth cap (`Network:MaxReceiveQueueDepth`, #927): a connection with that many packets waiting for the tick that sends another is closed.
 
 ### Auth and accounts
 - [Auth server login flow](docs/auth-server.md): handshake, password and MFA login, the world list (world entry is the REST game admission, see [API services](docs/api-services.md)), per-source and per-username login budgets (`SourceBudget`, `UsernameBudget`), `Online` owned by one connection, the online sweep, unique usernames and emails, single-use TOTP, `PostLoginGuard`, and the Redis keys. Exactly one auth server is supported.
