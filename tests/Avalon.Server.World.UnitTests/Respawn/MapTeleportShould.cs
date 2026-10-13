@@ -7,7 +7,6 @@ using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -67,7 +66,7 @@ public class MapTeleportShould
         _connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
             .Do(ci => _continuations.Add(ci.Arg<Action>()));
         _saver.Save(_connection, _character).Returns(Task.FromResult(true));
-        _teleport = new MapTeleport(NullLogger<MapTeleport>.Instance, _world, Substitute.For<IChunkLibrary>(), _saver);
+        _teleport = new MapTeleport(NullLogger<MapTeleport>.Instance, _world, _saver);
     }
 
     /// <summary>
@@ -279,7 +278,7 @@ public class MapTeleportShould
         instances.GetOrCreatePartyInstanceAsync(Arg.Any<PartyId>(), s_forest).Returns(Task.FromResult(_forest));
         _world.PartyInstances.Returns(instances);
 
-        var teleport = new MapTeleport(NullLogger<MapTeleport>.Instance, _world, Substitute.For<IChunkLibrary>(), _saver,
+        var teleport = new MapTeleport(NullLogger<MapTeleport>.Instance, _world, _saver,
             parties.Parties);
         return (parties, teleport, instances);
     }

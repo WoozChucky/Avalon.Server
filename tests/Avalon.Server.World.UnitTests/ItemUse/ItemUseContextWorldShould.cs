@@ -36,8 +36,8 @@ public class ItemUseContextWorldShould
         IItemUseHost host, Avalon.World.Quests.QuestService? quests = null) => new(
         connection, character, host, TestCharacters.Item(0, TestCharacters.Potion), TestCharacters.Potion,
         new ItemUseTools(world, new CharacterEconomy(world, new ItemIdAllocator()),
-            new TownReturn(NullLogger.Instance, world, Substitute.For<IRespawnTargetResolver>(), Substitute.For<IChunkLibrary>()),
-            new MapTeleport(NullLogger<MapTeleport>.Instance, world, Substitute.For<IChunkLibrary>(), Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
+            new TownReturn(NullLogger.Instance, world, Substitute.For<IRespawnTargetResolver>()),
+            new MapTeleport(NullLogger<MapTeleport>.Instance, world, Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
             Substitute.For<ICreaturePlacementService>(), new FakeTimeProvider(), NullLogger<ItemUseTools>.Instance,
             quests: quests));
 

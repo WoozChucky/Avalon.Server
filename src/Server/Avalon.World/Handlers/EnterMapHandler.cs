@@ -4,7 +4,6 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
@@ -28,7 +27,6 @@ namespace Avalon.World.Handlers;
 public partial class EnterMapHandler(
     ILogger<EnterMapHandler> logger,
     ICharacterSaver characterSaver,
-    IChunkLibrary chunkLibrary,
     IWorld world,
     PartyService? parties = null) : WorldPacketHandler<CEnterMapPacket>
 {
@@ -275,8 +273,8 @@ public partial class EnterMapHandler(
         Vector3 spawn = MapArrival.SpawnOf(targetInstance, targetTemplate);
 
         // 11. The success response, then 12. the instance's chunk layout, for a target that is a MapInstance: what
-        // every arrival sends (MapArrival), with the layout's entries built once for the instance (#883).
-        MapArrival.Send(connection, targetInstance, targetTemplate, spawn, chunkLibrary);
+        // every arrival sends (MapArrival), from the layout entries the instance was built with (#883).
+        MapArrival.Send(connection, targetInstance, targetTemplate, spawn);
 
         // 13. Persist the new map, instance and position, with any dirty inventory and money, through the one
         // save path (spec #459 section 1). The row's coordinates are the character's position.

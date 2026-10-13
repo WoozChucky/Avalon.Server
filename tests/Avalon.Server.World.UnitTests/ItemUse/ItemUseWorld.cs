@@ -105,8 +105,8 @@ internal sealed class ItemUseWorld : IDisposable
         var economy = new CharacterEconomy(World, new ItemIdAllocator());
         Inventory = economy.InventoryOf(character);
         var tools = new ItemUseTools(World, economy,
-            new TownReturn(NullLogger.Instance, World, Substitute.For<IRespawnTargetResolver>(), Substitute.For<IChunkLibrary>()),
-            new MapTeleport(NullLogger<MapTeleport>.Instance, World, Substitute.For<IChunkLibrary>(), Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
+            new TownReturn(NullLogger.Instance, World, Substitute.For<IRespawnTargetResolver>()),
+            new MapTeleport(NullLogger<MapTeleport>.Instance, World, Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
             Substitute.For<ICreaturePlacementService>(), Time, NullLogger<ItemUseTools>.Instance);
         Service = new ItemUseService(tools, scripts, Substitute.For<IServiceProvider>(), NullLogger<ItemUseService>.Instance);
     }

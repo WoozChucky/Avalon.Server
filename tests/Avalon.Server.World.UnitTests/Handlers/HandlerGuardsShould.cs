@@ -13,7 +13,6 @@ using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.World;
 using Avalon.World.Chat;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
@@ -156,7 +155,7 @@ public class HandlerGuardsShould
                 new CharacterSelectHandler(NullLogger<CharacterSelectHandler>.Instance, NullLoggerFactory.Instance,
                         characters, Substitute.For<ICharacterInventoryRepository>(),
                         Substitute.For<IItemInstanceRepository>(), Substitute.For<ICharacterAbilityRepository>(),
-                        Substitute.For<IChunkLibrary>(), world, Substitute.For<IRespawnTargetResolver>(),
+                        world, Substitute.For<IRespawnTargetResolver>(),
                         Options.Create(new RegenConfiguration()), Substitute.For<IAccountRepository>(),
                         Substitute.For<ICharacterSaver>(), Substitute.For<IWorldServer>())
                     .Execute(connection, new CCharacterSelectedPacket());

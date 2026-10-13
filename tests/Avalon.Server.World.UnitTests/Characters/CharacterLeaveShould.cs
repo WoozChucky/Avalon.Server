@@ -337,7 +337,6 @@ public class CharacterLeaveShould : IDisposable
             Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(),
             Substitute.For<ICharacterAbilityRepository>(),
-            Substitute.For<IChunkLibrary>(),
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),

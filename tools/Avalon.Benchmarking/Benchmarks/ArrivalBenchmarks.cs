@@ -58,7 +58,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <para>
 /// The instances are real: the town in the layout the World server builds from <c>Maps/TownLayouts/1.json</c> (four
 /// chunks and its portal to the forest) and a forest generated on <see cref="ForestSeed" /> by the World server's own
-/// generator. They exist before the first row runs, as they do for every arrival but an instance's first.
+/// generator. Every row here arrives in an instance others have arrived in before; <see cref="FirstArrivalBenchmarks" />
+/// arrives in one nobody has entered, which is every entry of a character's own forest outside its re-entry window.
 /// </para>
 /// <para>
 /// Everything around the handlers is hand-written and holds its answers, so a row is the handler and what it sends:
@@ -81,8 +82,10 @@ public class ArrivalBenchmarks
     private static readonly AccountId s_account = new(42L);
 
     private ScenarioWorld _scenario = null!;
-    private MapInstance _town = null!;
-    private MapInstance _forest = null!;
+    private ArrivalWorld _world = null!;
+    private ServiceProvider _instanceServices = null!;
+    private ArrivalInstance _town = null!;
+    private ArrivalInstance _forest = null!;
     private Vector3 _townPortal;
     private Vector3 _forestPortal;
     private CEnterMapPacket _toForest = null!;
@@ -107,13 +110,21 @@ public class ArrivalBenchmarks
         MapTemplate townTemplate = reference.TownTemplate;
         ushort townMap = townTemplate.Id.Value;
 
-        _forest = _scenario.NewForestInstance(ForestSeed);
-        _forestPortal = PortalTo(_forest, townMap);
+        _forest = new ArrivalInstance(_scenario.NewForestInstance(ForestSeed));
+        _forestPortal = PortalTo(_forest.Instance, townMap);
+
+        // What an instance built here resolves as it is constructed: the chunk library it names its layout's chunks
+        // from, as the server's container hands it one.
+        var services = new ServiceCollection();
+        services.AddSingleton(new CombatConfig());
+        services.AddSingleton<IScriptManager>(new ScriptManager(NullLoggerFactory.Instance));
+        services.AddSingleton(reference.Chunks);
+        _instanceServices = services.BuildServiceProvider();
 
         // The templates as the map manager holds them: with their lookup by id.
-        var world = new ArrivalWorld(reference.Data, MapTemplateRows.Keyed([townTemplate, forestTemplate]));
-        _town = Town(world, townTemplate, reference.TownLayout);
-        _townPortal = PortalTo(_town, forestTemplate.Id.Value);
+        ArrivalWorld world = _world = new ArrivalWorld(reference.Data, MapTemplateRows.Keyed([townTemplate, forestTemplate]));
+        _town = new ArrivalInstance(Build(townTemplate.Id, reference.TownLayout, MapType.Town));
+        _townPortal = PortalTo(_town.Instance, forestTemplate.Id.Value);
         _registry = world.Registry;
         _registry.Town = _town;
         _registry.Forest = _forest;
@@ -138,8 +149,8 @@ public class ArrivalBenchmarks
 
         var saver = new FinishedSaver();
         var resolver = new TownResolver(townTemplate.Id);
-        _enterMap = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, saver, reference.Chunks, world);
-        _townReturn = new TownReturn(NullLogger.Instance, world, resolver, reference.Chunks);
+        _enterMap = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, saver, world);
+        _townReturn = new TownReturn(NullLogger.Instance, world, resolver);
         _select = new CharacterSelectHandler(
             NullLogger<CharacterSelectHandler>.Instance,
             NullLoggerFactory.Instance,
@@ -147,7 +158,6 @@ public class ArrivalBenchmarks
             new NoSlots(),
             new NoItems(),
             new NoAbilities(),
-            reference.Chunks,
             world,
             resolver,
             Options.Create(new RegenConfiguration()),
@@ -165,9 +175,9 @@ public class ArrivalBenchmarks
             databaseWork: new InlineWork());
 
         // Each row once, checked: every one must arrive, and send what an arrival sends.
-        Expect(Portal_entry_into_the_forest, sent: 2, in_: _forest);
-        Expect(Portal_entry_into_the_town, sent: 2, in_: _town);
-        Expect(Return_to_town, sent: 2, in_: _town);
+        Expect(Portal_entry_into_the_forest, sent: 2, in_: _forest.Instance);
+        Expect(Portal_entry_into_the_town, sent: 2, in_: _town.Instance);
+        Expect(Return_to_town, sent: 2, in_: _town.Instance);
 
         // A refusal answers once and moves nobody; a dead character's request is dropped unanswered.
         Refuse(Refused_while_a_move_is_under_way, sent: 1);
@@ -179,12 +189,44 @@ public class ArrivalBenchmarks
         int before = _connection.Sent;
         Character_select();
         // The selected packet, the layout, the inventory snapshot, the abilities and the ignore list.
-        if (_connection.Sent - before != 5 || _connection.LastPending?.Instance != _town)
+        if (_connection.Sent - before != 5 || _connection.LastPending?.Instance != _town.Instance)
             throw new InvalidOperationException($"The select sent {_connection.Sent - before} packets, or left no pending spawn in the town.");
     }
 
     [GlobalCleanup]
-    public void Cleanup() => _scenario.Dispose();
+    public void Cleanup()
+    {
+        _scenario.Dispose();
+        _instanceServices.Dispose();
+    }
+
+    /// <summary>
+    /// A new instance of the forest's layout, as the registry hands one out, that nobody has arrived in: what a
+    /// character's own forest is on every entry outside its re-entry window. For <see cref="FirstArrivalBenchmarks" />.
+    /// </summary>
+    internal ArrivalInstance NewForest() =>
+        new(Build(_forest.Instance.TemplateId, _forest.Instance.Layout, MapType.Normal));
+
+    /// <summary>A new instance of the town's layout that nobody has arrived in. For <see cref="FirstArrivalBenchmarks" />.</summary>
+    internal ArrivalInstance NewTown() => new(Build(_town.Instance.TemplateId, _town.Instance.Layout, MapType.Town));
+
+    /// <summary><see cref="Portal_entry_into_the_forest" />, into <paramref name="forest" /> in place of the forest kept here.</summary>
+    internal int EnterForest(ArrivalInstance forest)
+    {
+        _registry.Forest = forest;
+        int sent = Portal_entry_into_the_forest();
+        _registry.Forest = _forest;
+        return sent;
+    }
+
+    /// <summary><see cref="Portal_entry_into_the_town" />, into <paramref name="town" /> in place of the town kept here.</summary>
+    internal int EnterTown(ArrivalInstance town)
+    {
+        _registry.Town = town;
+        int sent = Portal_entry_into_the_town();
+        _registry.Town = _town;
+        return sent;
+    }
 
     [Benchmark]
     public int Portal_entry_into_the_forest()
@@ -215,7 +257,7 @@ public class ArrivalBenchmarks
     public int Character_select()
     {
         _connection.Character = null;
-        _row.Map = _town.TemplateId.Value;
+        _row.Map = _town.Instance.TemplateId.Value;
         _select.Execute(_connection, _selected);
         _connection.EndSelect();
         _connection.Character = _character;
@@ -262,16 +304,16 @@ public class ArrivalBenchmarks
     [Benchmark]
     public int Refused_too_far_from_the_portal()
     {
-        Stand(_town, _town.EntrySpawnWorldPos);
+        Stand(_town, _town.Instance.EntrySpawnWorldPos);
         _enterMap.Execute(_connection, _toForest);
         return _connection.Sent;
     }
 
-    /// <summary>Puts the character where a row starts: in <paramref name="instance" />, at <paramref name="at" />.</summary>
-    private void Stand(MapInstance instance, Vector3 at)
+    /// <summary>Puts the character where a row starts: in <paramref name="where" />, at <paramref name="at" />.</summary>
+    private void Stand(ArrivalInstance where, Vector3 at)
     {
-        _row.Map = instance.TemplateId.Value;
-        _row.InstanceId = _registry.TextOf(instance);
+        _row.Map = where.Instance.TemplateId.Value;
+        _row.InstanceId = where.IdText;
         _character.Position = at;
     }
 
@@ -290,7 +332,7 @@ public class ArrivalBenchmarks
     {
         int before = _connection.Sent;
         row();
-        if (_connection.Sent - before != sent || _character.InstanceId != _town.InstanceId || _connection.RespawnInFlight
+        if (_connection.Sent - before != sent || _character.InstanceId != _town.Instance.InstanceId || _connection.RespawnInFlight
             || _character.IsDead)
         {
             throw new InvalidOperationException($"{row.Method.Name} sent {_connection.Sent - before} packets, or moved the character.");
@@ -308,17 +350,17 @@ public class ArrivalBenchmarks
         throw new InvalidOperationException($"Instance of map {instance.TemplateId.Value} has no portal to map {map}.");
     }
 
-    /// <summary>The town's instance: its layout as the World server builds it, and the portals the layout places.</summary>
-    private static MapInstance Town(IWorld world, MapTemplate template, ChunkLayout layout)
+    /// <summary>
+    /// An instance of <paramref name="layout" /> with the portals the layout places and no creatures: an arrival reads
+    /// its layout, its entry spawn and its portals. Its constructor builds the layout's packet entries, as the server's
+    /// instance factory has it do off the tick.
+    /// </summary>
+    private MapInstance Build(MapTemplateId template, ChunkLayout layout, MapType mapType)
     {
-        var services = new ServiceCollection();
-        services.AddSingleton(new CombatConfig());
-        services.AddSingleton<IScriptManager>(new ScriptManager(NullLoggerFactory.Instance));
-
-        var town = new MapInstance(NullLoggerFactory.Instance, services.BuildServiceProvider(), world, template.Id,
-            ownerCharacterId: null, layout, new MapNavigator(NullLoggerFactory.Instance), seed: 0, mapType: MapType.Town);
-        new PortalPlacementService().Place(town, layout, null);
-        return town;
+        var instance = new MapInstance(NullLoggerFactory.Instance, _instanceServices, _world, template,
+            ownerCharacterId: null, layout, new MapNavigator(NullLoggerFactory.Instance), layout.Seed, mapType);
+        new PortalPlacementService().Place(instance, layout, null);
+        return instance;
     }
 
     private sealed class ArrivalWorld(StaticData data, IReadOnlyList<MapTemplate> templates) : IWorld
@@ -346,45 +388,24 @@ public class ArrivalBenchmarks
         public void Update(TimeSpan deltaTime) => throw new NotSupportedException();
     }
 
-    /// <summary>The two instances, each already built: a request for one is a finished task, held.</summary>
+    /// <summary>The town and the forest a request is answered with, each already built: a request is a finished task, held.</summary>
     private sealed class ArrivalRegistry : IInstanceRegistry
     {
-        private MapInstance _town = null!;
-        private MapInstance _forest = null!;
-        private Task<IMapInstance> _townTask = null!;
-        private Task<IMapInstance> _forestTask = null!;
-        private string _townText = string.Empty;
-        private string _forestText = string.Empty;
+        public ArrivalInstance Town { get; set; } = null!;
 
-        public MapInstance Town
-        {
-            set
-            {
-                _town = value;
-                _townTask = Task.FromResult<IMapInstance>(value);
-                _townText = value.InstanceId.ToString();
-            }
-        }
+        public ArrivalInstance Forest { get; set; } = null!;
 
-        public MapInstance Forest
-        {
-            set
-            {
-                _forest = value;
-                _forestTask = Task.FromResult<IMapInstance>(value);
-                _forestText = value.InstanceId.ToString();
-            }
-        }
+        public Task<IMapInstance> GetOrCreateTownInstanceAsync(MapTemplateId templateId, ushort maxPlayers) => Town.Request;
 
-        public Task<IMapInstance> GetOrCreateTownInstanceAsync(MapTemplateId templateId, ushort maxPlayers) => _townTask;
-
-        public Task<IMapInstance> GetOrCreateNormalInstanceAsync(uint characterId, MapTemplateId templateId) => _forestTask;
+        public Task<IMapInstance> GetOrCreateNormalInstanceAsync(uint characterId, MapTemplateId templateId) => Forest.Request;
 
         /// <summary>The instance's id as a character's row holds it.</summary>
-        public string TextOf(IMapInstance instance) => ReferenceEquals(instance, _town) ? _townText : _forestText;
+        public string TextOf(IMapInstance instance) => ReferenceEquals(instance, Town.Instance) ? Town.IdText : Forest.IdText;
 
         public IMapInstance? GetInstanceById(Guid instanceId) =>
-            instanceId == _town.InstanceId ? _town : instanceId == _forest.InstanceId ? _forest : null;
+            instanceId == Town.Instance.InstanceId ? Town.Instance
+            : instanceId == Forest.Instance.InstanceId ? Forest.Instance
+            : null;
 
         public IReadOnlyCollection<IMapInstance> ActiveInstances => throw new NotSupportedException();
         public void RemoveInstance(Guid instanceId) => throw new NotSupportedException();
@@ -668,4 +689,76 @@ public class ArrivalBenchmarks
         public Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
     }
+}
+
+/// <summary>
+/// An instance as <see cref="ArrivalBenchmarks" /> hands it to a handler: itself, the finished task a request for it is
+/// answered with, and its id as a character's row holds it, each made once so that a row allocates none of them.
+/// </summary>
+internal sealed class ArrivalInstance(MapInstance instance)
+{
+    public MapInstance Instance { get; } = instance;
+
+    public Task<IMapInstance> Request { get; } = Task.FromResult<IMapInstance>(instance);
+
+    public string IdText { get; } = instance.InstanceId.ToString();
+}
+
+/// <summary>
+/// A portal entry into an instance nobody has arrived in before (#883): <see cref="ArrivalBenchmarks" />' two portal
+/// entries, each call into a new instance of the same layout. A character's own forest is a new instance on every
+/// entry outside its re-entry window, so for a forest this is the usual arrival, not the exception.
+/// </summary>
+/// <remarks>
+/// An instance is built with its layout's packet entries, off the tick, so a first arrival should cost what any other
+/// does; when the entries were built by the first arrival, this row was that arrival and paid for them on the tick.
+/// The instances of an iteration are built before it (<see cref="Instances" /> of them, the iteration's every call),
+/// so a row is the arrival alone. They hold no creatures: an arrival reads the layout, the entry spawn and the portals.
+/// </remarks>
+[MemoryDiagnoser]
+[InvocationCount(Instances, 16)]
+public class FirstArrivalBenchmarks
+{
+    private const int Instances = 1024;
+
+    private readonly ArrivalBenchmarks _arrivals = new();
+    private readonly ArrivalInstance[] _fresh = new ArrivalInstance[Instances];
+    private int _next;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        _arrivals.Setup();
+
+        int before = _arrivals.EnterForest(_arrivals.NewForest());
+        int forest = _arrivals.EnterForest(_arrivals.NewForest());
+        int town = _arrivals.EnterTown(_arrivals.NewTown());
+        if (forest - before != 2 || town - forest != 2)
+            throw new InvalidOperationException("An arrival in a new instance did not send its transition and its layout.");
+    }
+
+    [GlobalCleanup]
+    public void Cleanup() => _arrivals.Cleanup();
+
+    [IterationSetup(Target = nameof(First_portal_entry_into_a_forest))]
+    public void NewForests()
+    {
+        for (int i = 0; i < _fresh.Length; i++)
+            _fresh[i] = _arrivals.NewForest();
+        _next = 0;
+    }
+
+    [IterationSetup(Target = nameof(First_portal_entry_into_the_town))]
+    public void NewTowns()
+    {
+        for (int i = 0; i < _fresh.Length; i++)
+            _fresh[i] = _arrivals.NewTown();
+        _next = 0;
+    }
+
+    [Benchmark]
+    public int First_portal_entry_into_a_forest() => _arrivals.EnterForest(_fresh[_next++]);
+
+    [Benchmark]
+    public int First_portal_entry_into_the_town() => _arrivals.EnterTown(_fresh[_next++]);
 }

@@ -332,7 +332,7 @@ public class PartyMapEntryShould
         Captured capturedB = Capture(b);
 
         var handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, Substitute.For<ICharacterSaver>(),
-            Substitute.For<IChunkLibrary>(), world, parties.Parties);
+            world, parties.Parties);
         return (handler, world, parties, a, b, captured, capturedB);
     }
 

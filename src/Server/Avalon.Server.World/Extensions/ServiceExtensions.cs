@@ -171,8 +171,7 @@ public static class ServiceExtensions
         services.AddSingleton(sp => new TownReturn(
             sp.GetRequiredService<ILoggerFactory>().CreateLogger<TownReturn>(),
             sp.GetRequiredService<IWorld>(),
-            sp.GetRequiredService<IRespawnTargetResolver>(),
-            sp.GetRequiredService<IChunkLibrary>()));
+            sp.GetRequiredService<IRespawnTargetResolver>()));
 
         // Item use: the teleport, the toolbox the item use context reaches through, and the request flow.
         services.AddSingleton<MapTeleport>();

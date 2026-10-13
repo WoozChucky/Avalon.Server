@@ -2,7 +2,6 @@ using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Instances;
@@ -32,26 +31,25 @@ public static class MapArrival
     /// <paramref name="at" />, then, for a <see cref="MapInstance" />, its chunk layout (its chunks and portals).
     /// Call it in the same callback as the transfer.
     /// </summary>
-    public static void Send(IWorldConnection connection, IMapInstance instance, MapTemplate template, Vector3 at,
-        IChunkLibrary chunkLibrary)
+    public static void Send(IWorldConnection connection, IMapInstance instance, MapTemplate template, Vector3 at)
     {
         connection.Send(SMapTransitionPacket.Create(MapTransitionResult.Success, instance.InstanceId, template.Id.Value,
             at.x, at.y, at.z, template.Name, template.Description, PacketEncoder.Shared));
 
-        SendLayout(connection, instance, template.Id.Value, chunkLibrary);
+        SendLayout(connection, instance, template.Id.Value);
     }
 
     /// <summary>
     /// Sends <paramref name="connection" /> the chunk layout of <paramref name="instance" />, as the layout of map
     /// <paramref name="mapId" />: the seed, the cell size, the chunks, the entry spawn and the portals a client builds
-    /// the map and bakes its navmesh from. Nothing for an instance that is not a <see cref="MapInstance" />: every
-    /// instance the server builds is one, and has a layout. The chunk and portal entries are the instance's own, built
-    /// at its first arrival (<see cref="MapInstance.LayoutPacket" />).
+    /// the map and bakes its navmesh from. The chunk and portal entries are the instance's own, built with it
+    /// (<see cref="MapInstance.LayoutEntries" />), so an arrival builds nothing. Nothing is sent for an instance that
+    /// is not a <see cref="MapInstance" />, or for one built without a chunk library: every instance the server builds
+    /// is a <see cref="MapInstance" /> with its entries.
     /// </summary>
-    public static void SendLayout(IWorldConnection connection, IMapInstance instance, ushort mapId,
-        IChunkLibrary chunkLibrary)
+    public static void SendLayout(IWorldConnection connection, IMapInstance instance, ushort mapId)
     {
-        if (instance is MapInstance built)
-            connection.Send(built.LayoutPacket(mapId, chunkLibrary, PacketEncoder.Shared));
+        if (instance is MapInstance { LayoutEntries: { } entries })
+            connection.Send(entries.Encode(mapId, PacketEncoder.Shared));
     }
 }

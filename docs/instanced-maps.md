@@ -136,6 +136,7 @@ runs off the tick; the finished instance is published on the tick, and the task 
 | `_corpseRemover` | Removes corpses after their `BodyRemoveTimer`; creatures never respawn |
 | `MapNavigator _navigator` | Single combined navmesh for the whole instance, baked from the chunk layout |
 | `ChunkLayout Layout` | Authoritative layout (chunks, entry spawn, portals) sent to clients via `SChunkLayoutPacket` |
+| `MapLayoutEntries LayoutEntries` | `Layout` as that packet carries it: an entry per chunk, with its name, and per portal. Built in the constructor, never changed (see "What an arrival is sent") |
 
 ### Update Loop
 
@@ -340,11 +341,15 @@ only when Debug is written, as a packet refused for the connection's current sta
 Every arrival sends the same two packets from one place, `MapArrival` (`Avalon.World/Respawn`): a portal entry, a
 return to town (`TownReturn`) and an item's teleport (`MapTeleport`) call `MapArrival.Send`, the transition and then
 the chunk layout; a character select sends its own `SCharacterSelectedPacket` and then `MapArrival.SendLayout`. The
-layout packet's chunk and portal entries are built once per instance, at its first arrival, and kept
-(`MapInstance.LayoutPacket`, `MapLayoutEntries`, #883): they come from the instance's `ChunkLayout`, which it keeps
-for its life, and from the chunk library's names, loaded once with the world; neither is something `/reload` or live
-template editing replaces. The entries are written into each packet and never changed, and `MapArrivalShould` holds
-every arrival's packet to the layout byte for byte.
+layout packet's chunk and portal entries are built once, with the instance (`MapInstance.LayoutEntries`,
+`MapLayoutEntries`, #883): the instance's constructor makes them, so they are built where the instance is, off the
+tick, and the first character to arrive costs the tick what every other one does. They come from the instance's
+`ChunkLayout`, which it keeps for its life, and from the chunk library's names, loaded once with the world; neither
+is something `/reload` or live template editing replaces. `MapInstance` reads the chunk library from its container
+with `GetService`, like its other services: production registers it (`WorldHostGraphShould`), and an instance built
+without one, which only a test or a harness builds, has no entries and is sent no layout. A chunk the library does
+not hold fails the instance's build, as it already failed the navmesh bake before it. The entries are written into
+each packet and never changed, and `MapArrivalShould` holds every arrival's packet to the layout byte for byte.
 
 ---
 

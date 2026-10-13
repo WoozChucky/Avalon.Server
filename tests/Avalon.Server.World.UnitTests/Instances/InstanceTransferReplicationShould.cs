@@ -124,7 +124,7 @@ public class InstanceTransferReplicationShould
         Ticks(maps.Town, 2);
         traveller.Sent.Clear();
         var handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, Substitute.For<ICharacterSaver>(),
-            maps.Chunks, maps.World);
+            maps.World);
 
         handler.Execute(traveller.Connection, new CEnterMapPacket { TargetMapId = ForestMap });
         Ticks(maps.Forest, 1);
@@ -147,8 +147,7 @@ public class InstanceTransferReplicationShould
         IRespawnTargetResolver resolver = Substitute.For<IRespawnTargetResolver>();
         resolver.ResolveTownAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
             .Returns(new MapTemplateId(TownMap));
-        var handler = new RespawnAtTownHandler(NullLogger<RespawnAtTownHandler>.Instance, maps.World, resolver,
-            maps.Chunks);
+        var handler = new RespawnAtTownHandler(NullLogger<RespawnAtTownHandler>.Instance, maps.World, resolver);
 
         handler.Execute(traveller.Connection, new CRespawnAtTownPacket());
         Ticks(maps.Town, 1);

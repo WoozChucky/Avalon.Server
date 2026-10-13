@@ -49,8 +49,8 @@ public class ItemUseContextShould
     private ItemUseContext Context(ItemTemplate? template = null) => new(
         _connection, _character, _host, _stack, template ?? Potion,
         new ItemUseTools(_world, new CharacterEconomy(_world, new ItemIdAllocator()),
-            new TownReturn(NullLogger.Instance, _world, _resolver, Substitute.For<IChunkLibrary>()),
-            new MapTeleport(NullLogger<MapTeleport>.Instance, _world, Substitute.For<IChunkLibrary>(), Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
+            new TownReturn(NullLogger.Instance, _world, _resolver),
+            new MapTeleport(NullLogger<MapTeleport>.Instance, _world, Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
             _placement, new FakeTimeProvider(), NullLogger<ItemUseTools>.Instance));
 
     [Fact]

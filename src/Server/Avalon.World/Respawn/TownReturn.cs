@@ -1,7 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Maps;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -18,7 +17,7 @@ namespace Avalon.World.Respawn;
 /// that throws), which is logged at Error, or, when the caller passes <c>failed</c>, handed to it instead (the party
 /// leave countdown retries a failed return, #700).
 /// </summary>
-public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResolver resolver, IChunkLibrary chunkLibrary)
+public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResolver resolver)
 {
     /// <param name="failed">
     /// Called on the tick, once, with the failure, after RespawnInFlight is cleared; it then owns the logging. Never
@@ -158,7 +157,7 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
 
             // The transition the client already handles, then the town's chunk layout, which the client builds the
             // map's geometry and portals from and bakes the same navmesh from: as every arrival sends them.
-            MapArrival.Send(connection, townInstance, townTemplate, spawn, chunkLibrary);
+            MapArrival.Send(connection, townInstance, townTemplate, spawn);
 
             logger.LogInformation("Character {Name} returned to town {Map} instance {Instance}",
                 ch.Name, townMapId.Value, townInstance.InstanceId);

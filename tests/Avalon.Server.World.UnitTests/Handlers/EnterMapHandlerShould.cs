@@ -63,7 +63,7 @@ public class EnterMapHandlerShould
             .Do(call => onInstance = call.Arg<Action<IMapInstance>>());
 
         ICharacterSaver saver = Substitute.For<ICharacterSaver>();
-        var handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, saver, Substitute.For<IChunkLibrary>(), world);
+        var handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, saver, world);
 
         handler.Execute(connection, new CEnterMapPacket { TargetMapId = TargetMap });
         Assert.NotNull(onInstance);
@@ -105,7 +105,7 @@ public class EnterMapHandlerShould
         connection.RespawnInFlight.Returns(true);
 
         var handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, Substitute.For<ICharacterSaver>(),
-            Substitute.For<IChunkLibrary>(), world);
+            world);
         handler.Execute(connection, new CEnterMapPacket { TargetMapId = TargetMap });
 
         Assert.Equal(MapTransitionResult.MoveInProgress,

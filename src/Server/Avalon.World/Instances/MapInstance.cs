@@ -185,6 +185,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         AllowedCharacters = ownerCharacterId.HasValue ? new[] { ownerCharacterId.Value } : Array.Empty<uint>();
         Layout = layout;
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
+
+        // The layout's packet entries (#883), here rather than at the first arrival: an instance is built off the
+        // tick, and the first character to arrive should cost the tick what every other one does. Read with
+        // GetService like the services below, so an instance built without a chunk library (tests) still builds and
+        // sends no layout; production registers it, and WorldHostGraphShould proves it. A chunk the library does not
+        // hold throws here and fails the build, as it already failed the navmesh bake before it.
+        LayoutEntries = serviceProvider.GetService<IChunkLibrary>() is { } chunkLibrary
+            ? new MapLayoutEntries(InstanceId, layout, chunkLibrary)
+            : null;
         Seed = seed;
         _navigator = navigator;
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
@@ -310,20 +319,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     public ChunkLayout Layout { get; }
 
-    // The layout as its packet carries it, built at the first arrival and kept (#883). Tick thread.
-    private MapLayoutEntries? _layoutEntries;
-
     /// <summary>
-    /// The <c>SMSG_CHUNK_LAYOUT</c> a character arriving here is sent, for map <paramref name="mapId" />. Its chunk and
-    /// portal entries are built once, from <see cref="Layout" /> and the names <paramref name="chunkLibrary" /> gives
-    /// its chunks, and written into every later packet (<see cref="MapLayoutEntries" />). Tick thread, as every arrival
-    /// is. World-side, not on IMapInstance.
+    /// <see cref="Layout" /> as the <c>SMSG_CHUNK_LAYOUT</c> of every character arriving here carries it (#883): built
+    /// with the instance, so off the tick like the rest of it, and never changed. Null only for an instance built
+    /// without a chunk library, which has no layout to send: a test's or a harness's, never the server's. World-side,
+    /// not on IMapInstance.
     /// </summary>
-    internal OutboundPacket LayoutPacket(ushort mapId, IChunkLibrary chunkLibrary, PacketEncoder encoder)
-    {
-        _layoutEntries ??= new MapLayoutEntries(Layout, chunkLibrary);
-        return _layoutEntries.Encode(InstanceId, mapId, encoder);
-    }
+    internal MapLayoutEntries? LayoutEntries { get; }
 
     public Vector3 EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;

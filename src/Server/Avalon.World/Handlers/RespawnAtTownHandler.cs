@@ -1,6 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Respawn;
@@ -12,10 +11,9 @@ namespace Avalon.World.Handlers;
 public class RespawnAtTownHandler(
     ILogger<RespawnAtTownHandler> logger,
     IWorld world,
-    IRespawnTargetResolver resolver,
-    IChunkLibrary chunkLibrary) : WorldPacketHandler<CRespawnAtTownPacket>
+    IRespawnTargetResolver resolver) : WorldPacketHandler<CRespawnAtTownPacket>
 {
-    private readonly TownReturn _town = new(logger, world, resolver, chunkLibrary);
+    private readonly TownReturn _town = new(logger, world, resolver);
 
     public override void Execute(IWorldConnection connection, CRespawnAtTownPacket packet)
     {

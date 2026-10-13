@@ -48,7 +48,6 @@ public class CharacterSelectHandler(
     ICharacterInventoryRepository characterInventoryRepository,
     IItemInstanceRepository itemInstanceRepository,
     ICharacterAbilityRepository characterAbilityRepository,
-    IChunkLibrary chunkLibrary,
     IWorld world,
     IRespawnTargetResolver respawnTargetResolver,
     IOptions<RegenConfiguration> regenConfig,
@@ -575,7 +574,7 @@ public class CharacterSelectHandler(
 
         // The chunk layout, so the client can compose the stitched map and bake its local navmesh: as every arrival
         // sends it, behind this handler's own answer where the others send a transition.
-        MapArrival.SendLayout(connection, instance, character.Map, chunkLibrary);
+        MapArrival.SendLayout(connection, instance, character.Map);
 
         Step(connection, select, _databaseWork.Run(() => characterRepository.UpdateForGameplayAsync(entity.GameplayAuthority!, character, CancellationToken.None)), _ =>
         {

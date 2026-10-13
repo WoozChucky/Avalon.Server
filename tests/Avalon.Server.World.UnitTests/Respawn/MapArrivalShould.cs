@@ -92,8 +92,8 @@ public class MapArrivalShould
 
     /// <summary>
     /// Each arrival is sent its instance's layout exactly as the layout and the chunk library's names encode, behind
-    /// the packet that announces the map. Twice, by two characters: an instance keeps the packet's chunk and portal
-    /// entries from its first arrival (#883), and the second must be sent the same bytes from them.
+    /// the packet that announces the map. Twice, by two characters: an instance is built with the packet's chunk and
+    /// portal entries (#883), and every arrival must be sent the same bytes from them.
     /// </summary>
     [Theory]
     [InlineData(Arrival.PortalIntoTheTown)]
@@ -186,12 +186,12 @@ public class MapArrivalShould
             case Arrival.ReturnToTown:
                 IRespawnTargetResolver resolver = Substitute.For<IRespawnTargetResolver>();
                 resolver.ResolveTownAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>()).Returns(_townTemplate.Id);
-                new TownReturn(NullLogger.Instance, _world, resolver, _reference.Chunks)
+                new TownReturn(NullLogger.Instance, _world, resolver)
                     .Start(client.Connection, revive: false, dropEncounter: false);
                 break;
 
             case Arrival.Teleport:
-                Assert.True(new MapTeleport(NullLogger<MapTeleport>.Instance, _world, _reference.Chunks, saver, _parties.Parties)
+                Assert.True(new MapTeleport(NullLogger<MapTeleport>.Instance, _world, saver, _parties.Parties)
                     .Start(client.Connection, _forestTemplate.Id, position: null));
                 break;
 
@@ -207,7 +207,7 @@ public class MapArrivalShould
         client.Character.InstanceId = from.InstanceId;
         client.Character.Position = from.Portals.Single(p => p.TargetMapId == to.Id.Value).Position;
 
-        new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, saver, _reference.Chunks, _world, _parties.Parties)
+        new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, saver, _world, _parties.Parties)
             .Execute(client.Connection, new CEnterMapPacket { TargetMapId = to.Id.Value });
     }
 
@@ -241,7 +241,6 @@ public class MapArrivalShould
             Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(),
             Substitute.For<ICharacterAbilityRepository>(),
-            _reference.Chunks,
             _world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
@@ -275,12 +274,16 @@ public class MapArrivalShould
             _reference.Chunks.GetByPool(config.ChunkPoolId), seed, _reference.Chunks.GetGroupsByPool(config.ChunkPoolId));
     }
 
-    /// <summary>A real instance of <paramref name="layout" />, with the portals the layout places.</summary>
-    private static MapInstance Instance(ChunkLayout layout, MapTemplateId template, MapType mapType, PartyId? party = null)
+    /// <summary>
+    /// A real instance of <paramref name="layout" />, with the portals the layout places, built over the chunk library
+    /// as the server builds one: an instance makes its layout's packet entries as it is constructed.
+    /// </summary>
+    private MapInstance Instance(ChunkLayout layout, MapTemplateId template, MapType mapType, PartyId? party = null)
     {
         IServiceProvider services = Substitute.For<IServiceProvider>();
         services.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         services.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        services.GetService(typeof(IChunkLibrary)).Returns(_reference.Chunks);
 
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
