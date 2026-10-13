@@ -273,7 +273,8 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
 - A frame that declares more than `Hosting:MaxInboundFrameSize` bytes, or a malformed length prefix, on either server →
   nothing is buffered for it and the connection is closed without a notice ([above](#the-inbound-frame-length-limit)).
 - A frame that is not a `NetworkPacket`, a payload flagged `Encrypted` that arrives before the session has its keys or
-  does not open under them, or a payload that is not an encoding of its opcode's packet, on either server → the
+  does not open under them, or a payload that is not an encoding of its opcode's packet (one that nests more than 32
+  messages or groups deep included), on either server → the
   connection is closed without a notice, as a protocol violation: one Warning without the exception, and one count in
   `network.in.protocol_kicks` (#897, [packet handlers](packet-handlers.md)).
 - An opcode the server has no packet type for → the frame is dropped and the connection stays open: an older client

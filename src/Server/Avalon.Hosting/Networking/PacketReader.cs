@@ -8,6 +8,7 @@ using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProtoBuf;
+using ProtoBuf.Meta;
 
 namespace Avalon.Hosting.Networking;
 
@@ -34,6 +35,21 @@ public interface IPacketReader
 
 public class PacketReader : IPacketReader
 {
+    /// <summary>
+    /// How many messages or groups deep a payload may nest before the decode refuses it (#897). protobuf-net's own
+    /// limit is 512, and any peer reaches it, in any packet, with a few hundred bytes of groups opened inside one
+    /// another in a field the packet does not have: the decode then recursed through all 512 before it threw, about
+    /// half a millisecond and 130 KB on the read loop for each such frame. The deepest packet contract nests 5 (the
+    /// quest log, which a server sends) and the deepest a server reads nests 2, so 32 is more than six times what any
+    /// packet needs, and such a frame is refused in about a twentieth of the time.
+    /// <para>
+    /// The limit is the model's, and the process has one model: it bounds what the server writes as well. A packet
+    /// that came to nest deeper would be refused when sent; <c>PacketReaderShould</c> holds every contract to a
+    /// quarter of the limit.
+    /// </para>
+    /// </summary>
+    public const int MaxDecodeDepth = 32;
+
     private readonly int _bufferSize;
     private readonly ILogger<PacketReader> _logger;
 
@@ -45,6 +61,9 @@ public class PacketReader : IPacketReader
     {
         _logger = loggerFactory.CreateLogger<PacketReader>();
         _bufferSize = options.Value.PacketReaderBufferSize;
+
+        // Before any decoder is built or used. Every reader sets the same value, so in effect it is set once.
+        RuntimeTypeModel.Default.MaxDepth = MaxDecodeDepth;
 
         MethodInfo buildMethod = typeof(PacketReader)
             .GetMethod(nameof(BuildDeserializer), BindingFlags.NonPublic | BindingFlags.Static)
@@ -161,8 +180,8 @@ public class PacketReader : IPacketReader
     /// client packet with mutated, truncated, random and deeply nested payloads (#897): its own
     /// <see cref="ProtoException" /> (a wire type or a group that does not fit), <see cref="EndOfStreamException" /> (a
     /// payload cut short), <see cref="OverflowException" /> (a varint too wide for its member),
-    /// <see cref="InvalidOperationException" /> (a length past the payload's end, and nesting past the model's depth,
-    /// whose stack trace alone is tens of kilobytes) and <see cref="ArgumentOutOfRangeException" /> (a date out of
+    /// <see cref="InvalidOperationException" /> (a length past the payload's end, and nesting past
+    /// <see cref="MaxDecodeDepth" />) and <see cref="ArgumentOutOfRangeException" /> (a date out of
     /// range). Anything else a decode throws is the server's and propagates. protobuf-net also reports a contract it
     /// cannot build as an InvalidOperationException, on every decode; that never reaches a frame, since the reader
     /// decodes once with every type as it is built (<see cref="Prepare" />).
