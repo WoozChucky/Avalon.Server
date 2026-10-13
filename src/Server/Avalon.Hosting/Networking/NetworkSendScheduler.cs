@@ -145,8 +145,10 @@ public sealed class NetworkSendScheduler : IDisposable
         int serviced = 0;
         long maxPending = 0;
 
-        // The stall clock, on every wake (at least every WakeInterval, and once per tick): a connection whose pending
-        // write has ended leaves the list, and one whose write has been pending past the limit is closed as too slow.
+        // The stall clock, read on every pass. What guarantees a pass is the thread's timed wake, every WakeInterval:
+        // the tick wakes only the threads it sent something through (SignalAll), so a thread whose connections are
+        // all stalled or idle is not woken by it. A connection whose pending write has ended leaves the list, and one
+        // whose write has been pending past the limit is closed as too slow, at most a WakeInterval late.
         if (owner.Writing.Count > 0)
         {
             long now = _time.GetTimestamp();

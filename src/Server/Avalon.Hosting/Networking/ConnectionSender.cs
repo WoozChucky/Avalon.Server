@@ -246,6 +246,13 @@ public sealed class ConnectionSender : IOutbox
     /// </summary>
     public void EnqueuePing(long clientTicks, long roundTrip, long offset)
     {
+        // Three writes, not one publish, so the three can be torn: the owner may stamp a ping between them and send
+        // one value of this call with two of the call before it. That is harmless only because nothing on the server
+        // reads them back. They are told to the client, which is told the right ones with the next ping, and the round
+        // trip the server keeps is measured from its own stamps (TryTakePingStamp), never from these. If the server
+        // ever reads them, or a client must be able to rely on the three belonging together, they have to be
+        // published as one: under a version the owner re-reads until it is unchanged and even, or as one immutable
+        // object swapped in, which costs an allocation per ping. Neither is cheaper than this, so neither is done.
         Volatile.Write(ref _pingClientTicks, clientTicks);
         Volatile.Write(ref _pingRoundTrip, roundTrip);
         Volatile.Write(ref _pingOffset, offset);
