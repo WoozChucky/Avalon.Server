@@ -154,6 +154,45 @@ while its connection is closing is read and discarded undecoded
 ([graceful shutdown](networking-graceful-shutdown.md#what-a-closing-connection-reads)): it adds its length to
 `network.in.bytes` and nothing to `network.in.packets`.
 
+### Refused portal entries
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `world.portal_entry.refusals` | `world_portal_entry_refusals_total` | Portal entries (`CMSG_ENTER_MAP`) the world refused (#883, [instanced maps](instanced-maps.md#entermaphandler-flow)), tagged `reason`. On the world's meter (`world-server`) |
+
+`EnterMapHandler` counts one for every request it refuses, where it refuses it. `reason` takes these values and no
+other: nothing a client sends, and no character, account or map id, becomes a tag. Like every series on the world's
+meter it carries no world of its own: the world is the label the collector gives the pod's series.
+
+| `reason` | The client is sent | Refused because |
+|---|---|---|
+| `dead` | nothing | the character is dead |
+| `move_in_progress` | `MoveInProgress` | another move is under way: a return to town, a teleport, a respawn, or an earlier portal entry that has not ended |
+| `unknown_map` | `MapNotFound` | no map has the id asked for |
+| `no_instance` | `MapNotFound` | the character is in no live instance: the server's own fault, also logged at Error |
+| `no_portal` | `MapNotFound` | the map the character is on has no portal to the one asked for |
+| `not_near_portal` | `NotNearPortal` | the character is outside the portal's radius, by the server's position of it |
+| `level_too_low`, `level_too_high` | `LevelTooLow`, `LevelTooHigh` | the character's level is outside the map's band |
+| `instance_released` | `MapNotFound` | on arrival: the instance was released before the arrival, twice in a row |
+| `not_in_party` | `MapNotFound` | on arrival: the character is no longer in the party the instance is for |
+| `instance_full` | `InstanceFull` | on arrival: the party's instance is full |
+
+A client asks for a portal it stands on, of a map it can see, so in ordinary play the series is close to flat. Each of
+these refusals writes a Debug line at most, which a world does not write at the level it ships with, so the count is
+what shows them:
+
+- **A rate of `not_near_portal`** is clients and the server disagreeing about where characters stand (the server's
+  position of a character has stopped following the client's, as it once did after a map transition), or a client
+  asking for portals it is not at. The first follows players; the second follows a few connections.
+- **`move_in_progress`** is a second request while the first is under way: a client that asks twice, and nothing
+  more than that at a low rate.
+- **`unknown_map` and `no_portal`** are requests no client's interface makes.
+- **`no_instance` and `instance_released`** are the server's own: each also writes an Error or a Warning.
+
+Not counted: a portal entry whose instance could not be built (no reply; logged at Error), one whose character left
+the connection before it arrived, and the refusals of the other moves: an item's teleport (`MapTeleport`) answers
+through its own code, and a return to town refuses nothing by a reply.
+
 ### Packet handlers
 
 Every handler run records `avalon.packet.handler.duration` (ms, tagged `avalon.packet.type` and `avalon.outcome`) and, when it throws, `avalon.packet.handler.errors`. A packet of a high-rate type (`Hosting:Telemetry:NoSpanPacketTypes`, default `CMSG_PLAYER_INPUT` and `CMSG_PONG`) opens no span and no log scope (#875): at 60 inputs a second per player those cost the tick several objects per packet (248 B with a scope-reading provider). The default types' handlers write `{ConnectionId}` and `{PacketType}` into their own lines (`HighRatePacketLog`); a type added to the list loses its handlers' log scope with nothing in its place. Every other packet opens its span and a log scope with `PacketType`, `ConnectionId`, `AccountId` and `CharacterId`.

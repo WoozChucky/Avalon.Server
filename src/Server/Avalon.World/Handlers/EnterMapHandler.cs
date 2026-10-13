@@ -1,4 +1,5 @@
 using Avalon.Common.Mathematics;
+using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
@@ -49,6 +50,7 @@ public partial class EnterMapHandler(
         if (connection.Character is { IsDead: true } deadChar)
         {
             Log.FromDeadCharacter(logger, deadChar.Name);
+            Count(Refusal.Dead);
             return;
         }
 
@@ -59,8 +61,7 @@ public partial class EnterMapHandler(
         if (connection.RespawnInFlight)
         {
             Log.MoveInProgress(logger, character.Name);
-            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MoveInProgress,
-                PacketEncoder.Shared));
+            Refuse(connection, MapTransitionResult.MoveInProgress, Refusal.MoveInProgress);
             return;
         }
 
@@ -74,8 +75,7 @@ public partial class EnterMapHandler(
         if (targetTemplate == null)
         {
             Log.MapNotFound(logger, targetMap);
-            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                PacketEncoder.Shared));
+            Refuse(connection, MapTransitionResult.MapNotFound, Refusal.UnknownMap);
             return;
         }
 
@@ -86,8 +86,7 @@ public partial class EnterMapHandler(
         {
             logger.LogError("EnterMap: no live map instance for character {Name}; refusing teleport",
                 character.Name);
-            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                PacketEncoder.Shared));
+            Refuse(connection, MapTransitionResult.MapNotFound, Refusal.NoInstance);
             return;
         }
 
@@ -95,8 +94,7 @@ public partial class EnterMapHandler(
         if (match is null)
         {
             Log.NoPortal(logger, targetMap);
-            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-                PacketEncoder.Shared));
+            Refuse(connection, MapTransitionResult.MapNotFound, Refusal.NoPortal);
             return;
         }
 
@@ -105,23 +103,20 @@ public partial class EnterMapHandler(
         if (distance > match.Radius)
         {
             Log.TooFarFromPortal(logger, character.Name, targetMap, distance, match.Radius);
-            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.NotNearPortal,
-                PacketEncoder.Shared));
+            Refuse(connection, MapTransitionResult.NotNearPortal, Refusal.NotNearPortal);
             return;
         }
 
         // 6. Level checks
         if (targetTemplate.MinLevel.HasValue && character.Level < targetTemplate.MinLevel.Value)
         {
-            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.LevelTooLow,
-                PacketEncoder.Shared));
+            Refuse(connection, MapTransitionResult.LevelTooLow, Refusal.LevelTooLow);
             return;
         }
 
         if (targetTemplate.MaxLevel.HasValue && character.Level > targetTemplate.MaxLevel.Value)
         {
-            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.LevelTooHigh,
-                PacketEncoder.Shared));
+            Refuse(connection, MapTransitionResult.LevelTooHigh, Refusal.LevelTooHigh);
             return;
         }
 
@@ -139,6 +134,59 @@ public partial class EnterMapHandler(
             connection.RespawnInFlight = false;
             throw;
         }
+    }
+
+    /// <summary>Answers the request with <paramref name="result" /> and counts it under <paramref name="reason" />.</summary>
+    private static void Refuse(IWorldConnection connection, MapTransitionResult result, string reason)
+    {
+        Count(reason);
+        connection.Send(SMapTransitionPacket.CreateFailure(result, PacketEncoder.Shared));
+    }
+
+    /// <summary>
+    /// One more refused portal entry in <c>world.portal_entry.refusals</c>, under <paramref name="reason" />: one tag,
+    /// passed as a struct, so a refusal still allocates nothing.
+    /// </summary>
+    private static void Count(string reason) =>
+        DiagnosticsConfig.World.PortalEntryRefusals.Add(1, new KeyValuePair<string, object?>("reason", reason));
+
+    /// <summary>
+    /// The <c>reason</c> a refused portal entry is counted under: a fixed set, one per place the handler refuses,
+    /// since <c>MapNotFound</c> alone answers five of them. Since the refusals log at Debug, the count is what shows
+    /// them at the level a world ships with: a rate of <see cref="NotNearPortal" /> is clients and the server
+    /// disagreeing about where characters stand, or a client asking for portals it is not at.
+    /// </summary>
+    private static class Refusal
+    {
+        /// <summary>From a dead character: dropped, with no reply.</summary>
+        public const string Dead = "dead";
+
+        /// <summary>Another move, or an earlier portal entry, is under way (<c>MoveInProgress</c>).</summary>
+        public const string MoveInProgress = "move_in_progress";
+
+        /// <summary>No map has the id asked for (<c>MapNotFound</c>).</summary>
+        public const string UnknownMap = "unknown_map";
+
+        /// <summary>The character is in no live instance (<c>MapNotFound</c>): the server's own fault, logged at Error.</summary>
+        public const string NoInstance = "no_instance";
+
+        /// <summary>The map the character is on has no portal to the one asked for (<c>MapNotFound</c>).</summary>
+        public const string NoPortal = "no_portal";
+
+        /// <summary>The character is outside the portal's radius, by the server's position of it (<c>NotNearPortal</c>).</summary>
+        public const string NotNearPortal = "not_near_portal";
+
+        public const string LevelTooLow = "level_too_low";
+        public const string LevelTooHigh = "level_too_high";
+
+        /// <summary>On arrival: the instance was released before the arrival, twice in a row (<c>MapNotFound</c>).</summary>
+        public const string InstanceReleased = "instance_released";
+
+        /// <summary>On arrival: no longer in the party the instance is for (<c>MapNotFound</c>).</summary>
+        public const string NotInParty = "not_in_party";
+
+        /// <summary>On arrival: the party's instance is full (<c>InstanceFull</c>).</summary>
+        public const string InstanceFull = "instance_full";
     }
 
     /// <summary>The first portal of <paramref name="instance" /> that leads to <paramref name="targetMap" />, or null.</summary>
@@ -276,7 +324,8 @@ public partial class EnterMapHandler(
 
             if (partyId is not null && PartyRefusal(character, targetInstance, partyId, capacity) is { } refusal)
             {
-                connection.Send(SMapTransitionPacket.CreateFailure(refusal, PacketEncoder.Shared));
+                Refuse(connection, refusal,
+                    refusal == MapTransitionResult.InstanceFull ? Refusal.InstanceFull : Refusal.NotInParty);
                 return;
             }
 
@@ -318,8 +367,7 @@ public partial class EnterMapHandler(
 
         logger.LogWarning("EnterMap: instance {InstanceId} of map {MapId} was released again before {Name} arrived",
             targetInstance.InstanceId, targetMapId, character.Name);
-        connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
-            PacketEncoder.Shared));
+        Refuse(connection, MapTransitionResult.MapNotFound, Refusal.InstanceReleased);
         return true;
     }
 

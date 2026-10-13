@@ -284,7 +284,10 @@ that instance is ready. A refusal is an `SMapTransitionPacket` whose `Result` is
 whose other fields are empty (`SMapTransitionPacket.CreateFailure`). Each refusal a client can cause by what it sends
 (a dead character, a move under way, an unknown map, no portal, too far from the portal) writes one Debug line, built
 only when Debug is written, as a packet refused for the connection's current state does
-([packet handlers](packet-handlers.md)).
+([packet handlers](packet-handlers.md)). Every refusal, at whichever step, is counted in
+`world.portal_entry.refusals` under its `reason` ([instrumentation](instrumentation.md#refused-portal-entries)): a
+world does not write Debug as shipped, so the count is what shows, for one, clients and the server disagreeing about
+where characters stand (`not_near_portal`).
 
 ```
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]

@@ -46,6 +46,13 @@ public static class DiagnosticsConfig
         public static readonly Counter<long> HandshakeFailures = Meter.CreateCounter<long>(HandshakeFailuresName,
             "{connections}", HandshakeFailuresDescription);
 
+        /// <summary>
+        /// Portal entries (<c>CMSG_ENTER_MAP</c>) the world refused, tagged <c>reason</c> from a fixed set
+        /// (docs/instrumentation.md). Nothing a client sends, and no character, account or map, becomes a tag.
+        /// </summary>
+        public static readonly Counter<long> PortalEntryRefusals = Meter.CreateCounter<long>(
+            "world.portal_entry.refusals", "{requests}", "Portal entries the world refused, by reason");
+
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
         public static ActivitySource Source = new(ServiceName);

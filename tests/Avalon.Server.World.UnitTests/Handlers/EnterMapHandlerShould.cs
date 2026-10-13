@@ -1,5 +1,7 @@
+using System.Diagnostics.Metrics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
@@ -192,7 +194,7 @@ public class EnterMapHandlerShould
         }
 
         // The dispatch contains what the handler throws, and the continuation drain what an arrival throws.
-        Record.Exception(entry.Request);
+        Record.Exception(() => entry.Request());
         entry.Flush();
         if (ending == Ending.TheInstanceIsReleasedTwice)
         {
@@ -210,6 +212,102 @@ public class EnterMapHandlerShould
 
         Assert.Equal(MapTransitionResult.Success, entry.Results()[^1]);
         Assert.False(entry.Connection.RespawnInFlight);
+    }
+
+    /// <summary>
+    /// The refusals log at Debug, which a world does not write as shipped, so <c>world.portal_entry.refusals</c> is what
+    /// shows them: one count per refusal, under the reason of the place that refused, and none for an entry that arrives.
+    /// </summary>
+    [Theory]
+    [InlineData("dead")]
+    [InlineData("move_in_progress")]
+    [InlineData("unknown_map")]
+    [InlineData("no_instance")]
+    [InlineData("no_portal")]
+    [InlineData("not_near_portal")]
+    [InlineData("level_too_low")]
+    [InlineData("level_too_high")]
+    [InlineData("instance_released")]
+    [InlineData(null)]
+    public void Count_a_refused_portal_entry_once_under_its_reason(string? reason)
+    {
+        var entry = new Entry();
+        ushort map = TargetMap;
+        switch (reason)
+        {
+            case "dead":
+                entry.Character.IsDead = true;
+                break;
+            case "move_in_progress":
+                entry.Connection.RespawnInFlight = true;
+                break;
+            case "unknown_map":
+                map = 99;
+                break;
+            case "no_instance":
+                entry.Character.InstanceId = Guid.NewGuid();
+                break;
+            case "no_portal":
+                map = Entry.MapWithoutPortal;
+                break;
+            case "not_near_portal":
+                entry.Character.Position = new Vector3(40f, 0f, 0f);
+                break;
+            case "level_too_low":
+                entry.Template.MinLevel = (ushort)(entry.Character.Level + 1);
+                break;
+            case "level_too_high":
+                entry.Character.Level = 5;
+                entry.Template.MaxLevel = 4;
+                break;
+            case "instance_released":
+                entry.Registry.GetInstanceById(entry.Target.InstanceId).Returns((IMapInstance?)null);
+                break;
+        }
+
+        using var counted = new RefusalProbe();
+        entry.Request(map);
+        entry.Flush();
+        entry.Flush(); // an instance released before the arrival is resolved again, and refused the second time
+
+        Assert.Equal(reason is null ? [] : [reason], counted.Reasons);
+        Assert.Equal(reason is null, entry.Results().Contains(MapTransitionResult.Success));
+    }
+
+    /// <summary>
+    /// The reasons counted in <c>world.portal_entry.refusals</c> on this test's own flow: the counter is static and
+    /// shared, and other test classes refuse portal entries in parallel.
+    /// </summary>
+    private sealed class RefusalProbe : IDisposable
+    {
+        private static readonly AsyncLocal<RefusalProbe?> s_current = new();
+        private readonly MeterListener _listener = new();
+
+        public RefusalProbe()
+        {
+            s_current.Value = this;
+            _listener.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter == DiagnosticsConfig.World.Meter && instrument.Name == "world.portal_entry.refusals")
+                    listener.EnableMeasurementEvents(instrument);
+            };
+            _listener.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+            {
+                if (s_current.Value != this)
+                    return;
+
+                foreach (KeyValuePair<string, object?> tag in tags)
+                {
+                    if (tag.Key == "reason")
+                        Reasons.Add((string)tag.Value!);
+                }
+            });
+            _listener.Start();
+        }
+
+        public List<string> Reasons { get; } = [];
+
+        public void Dispose() => _listener.Dispose();
     }
 
     /// <summary>
@@ -236,7 +334,8 @@ public class EnterMapHandlerShould
             World.InstanceRegistry.Returns(Registry);
             World.MapTemplates.Returns(new List<MapTemplate>
             {
-                new() { Id = new MapTemplateId(TargetMap), MapType = MapType.Town, Name = "target", Description = "" }
+                Template,
+                new() { Id = new MapTemplateId(MapWithoutPortal), MapType = MapType.Town, Name = "elsewhere", Description = "" },
             });
 
             Connection.InGame.Returns(true);
@@ -247,14 +346,21 @@ public class EnterMapHandlerShould
             _handler = new EnterMapHandler(NullLogger<EnterMapHandler>.Instance, Saver, World);
         }
 
+        /// <summary>A map the world has and the source instance has no portal to.</summary>
+        public const ushort MapWithoutPortal = 3;
+
         public CharacterEntity Character { get; } = New(7);
+
+        /// <summary>The town the portal leads to.</summary>
+        public MapTemplate Template { get; } =
+            new() { Id = new MapTemplateId(TargetMap), MapType = MapType.Town, Name = "target", Description = "" };
         public IMapInstance Target { get; } = Substitute.For<IMapInstance>();
         public IInstanceRegistry Registry { get; } = Substitute.For<IInstanceRegistry>();
         public IWorld World { get; } = Substitute.For<IWorld>();
         public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection>();
         public ICharacterSaver Saver { get; } = Substitute.For<ICharacterSaver>();
 
-        public void Request() => _handler.Execute(Connection, new CEnterMapPacket { TargetMapId = TargetMap });
+        public void Request(ushort map = TargetMap) => _handler.Execute(Connection, new CEnterMapPacket { TargetMapId = map });
 
         /// <summary>Puts the character in the source instance, on its portal to the town.</summary>
         public void StandOnThePortal()
