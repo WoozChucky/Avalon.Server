@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Network.Packets.Party;
 using Avalon.World.Public.Characters;
 
@@ -33,6 +34,9 @@ public static class PartyExperience
         IReadOnlyList<ICharacter> eligible, PartyExperienceMode mode, float bonusPerExtra, int levelGap,
         Func<ICharacter, bool>? canGainExperience = null)
     {
+        // Every member already in the list would be counted, and given a share, again.
+        Debug.Assert(shares.Count == 0, "The share list still holds an earlier kill's shares");
+
         // By index: a foreach over the interface boxes the list's enumerator.
         for (int i = 0; i < eligible.Count; i++)
         {

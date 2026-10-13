@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using Avalon.Combat;
 using Avalon.Common;
@@ -662,7 +663,9 @@ public sealed class AuraSystem
         if (_endingDepth == _ending.Count)
             _ending.Add([]);
 
-        return _ending[_endingDepth++];
+        List<ActiveAura> list = _ending[_endingDepth++];
+        Debug.Assert(list.Count == 0, "A list of auras to end still holds an earlier removal's");
+        return list;
     }
 
     /// <summary>Empties the list, so it keeps no aura (and through it no unit) alive, and frees its depth.</summary>

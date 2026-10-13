@@ -918,6 +918,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             List<RolledDrop> rolled = buffers.Rolled;
+            Debug.Assert(rolled.Count == 0, "The list of rolled drops still holds an earlier kill's");
             rolled.AddRange(table);
             for (int i = 0; i < questDrops.Count; i++)
             {

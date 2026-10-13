@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Maps;
@@ -61,6 +62,8 @@ public static class LootPlacement
         Func<uint> nextId)
         where TAllocations : struct, IDropAllocations
     {
+        Debug.Assert(placed.Count == 0, "The list of placed drops still holds an earlier kill's");
+
         for (int i = 0; i < rolled.Count; i++)
         {
             float angle = 2f * MathF.PI * i / rolled.Count;

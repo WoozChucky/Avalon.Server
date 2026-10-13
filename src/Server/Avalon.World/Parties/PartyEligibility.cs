@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Characters;
@@ -32,6 +33,8 @@ public static class PartyEligibility
         IReadOnlyDictionary<ObjectGuid, ICharacter> present, Func<uint, bool> inCountdown, IEncounter? encounter,
         Vector3 corpse, float range, ObjectGuid memberKey)
     {
+        Debug.Assert(eligible.Count == 0, "The eligible list still holds an earlier kill's members");
+
         if (killer is null || inCountdown(killer.Guid.Id))
             return;
 

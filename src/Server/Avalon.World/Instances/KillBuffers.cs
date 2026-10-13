@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Network.Packets.Loot;
 using Avalon.World.Loot;
@@ -41,6 +42,8 @@ internal sealed class KillBuffers
     /// <summary>Fills <see cref="Sent" /> from <see cref="Placed" />, over messages kept from earlier kills.</summary>
     public List<LootDropDto> DescribePlaced()
     {
+        Debug.Assert(Sent.Count == 0, "The loot messages to send still hold an earlier kill's");
+
         for (int i = 0; i < Placed.Count; i++)
         {
             if (i == _messages.Count)
