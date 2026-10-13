@@ -118,8 +118,9 @@ public sealed class PacketEncoder(PayloadSegmentPool pool)
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// The type's scratch cannot be reset, protobuf-net cannot build its contract or that of a message inside it, or
-    /// a member is of a shape <see cref="SampleMessage" /> has no value for: a defect of the server, which then does
-    /// not start. Left to the first send, a contract that cannot be built fails every send of the type, on the tick.
+    /// <see cref="SampleMessage" /> cannot make a message of it with every member set (a shape it has no value for,
+    /// a message it cannot create, a setter that refuses): a defect of the server, which then does not start. Left to
+    /// the first send, a contract that cannot be built fails every send of the type, on the tick.
     /// </exception>
     public static void PrepareServerPacket(Type type)
     {
@@ -146,9 +147,12 @@ public sealed class PacketEncoder(PayloadSegmentPool pool)
         {
             sample = SampleMessage.Of(type);
         }
-        catch (NotSupportedException e)
+        catch (Exception e)
         {
-            throw new InvalidOperationException($"Packet type {type.FullName} cannot be prepared: {e.Message}", e);
+            // Whatever it is, under the packet's name: what a message inside it throws names that message at best.
+            Exception cause = e is TargetInvocationException { InnerException: { } inner } ? inner : e;
+            throw new InvalidOperationException(
+                $"Packet type {type.FullName} cannot be prepared: {cause.Message}", cause);
         }
 
         try

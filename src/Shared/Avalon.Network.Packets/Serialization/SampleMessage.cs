@@ -14,38 +14,65 @@ namespace Avalon.Network.Packets.Serialization;
 /// <remarks>
 /// Only <see cref="PacketEncoder.PrepareServerPacket" /> uses it, at startup. It fills the shapes the packet contracts
 /// have, and refuses any other by name, so a contract with a member it cannot fill fails
-/// <c>PacketEncoderScratchShould</c> rather than leaving part of a packet to be built by its first send.
+/// <c>PacketEncoderScratchShould</c> rather than leaving part of a packet to be built by its first send. A message
+/// that declares subtypes (<c>[ProtoInclude]</c>) is one of the shapes it refuses: it would be written as the base
+/// alone, and each subtype built by the first packet that carried one. Whatever it throws, the encoder names the
+/// packet.
 /// </remarks>
 internal static class SampleMessage
 {
-    private const BindingFlags InstanceMembers = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+    private const BindingFlags DeclaredMembers =
+        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
     public static object Of(Type contract) => Fill(contract, []);
 
     /// <param name="open">The messages this one is inside of, so that a contract reached through itself ends there.</param>
     private static object Fill(Type contract, List<Type> open)
     {
-        object message = Activator.CreateInstance(contract)
-            ?? throw new NotSupportedException($"{contract.FullName} has no parameterless constructor.");
-        open.Add(contract);
-
-        foreach (FieldInfo field in contract.GetFields(InstanceMembers))
+        if (contract.IsDefined(typeof(ProtoIncludeAttribute), inherit: false))
         {
-            if (field.GetCustomAttribute<ProtoMemberAttribute>() is not null)
-                throw Unfillable(contract, field.Name, "is a field, and only properties are filled");
+            throw new NotSupportedException(
+                $"{contract.FullName} declares subtypes ([ProtoInclude]), which are not written, so each would be left "
+                + "for its first send to build. Teach SampleMessage to write one of each (#883).");
         }
 
-        foreach (PropertyInfo property in contract.GetProperties(InstanceMembers))
+        // A constructor that is not public too: protobuf-net creates a message through one.
+        object message = Activator.CreateInstance(contract, nonPublic: true)
+            ?? throw new NotSupportedException($"{contract.FullName} could not be created.");
+        open.Add(contract);
+
+        // Level by level, as protobuf-net reads a contract: a member a base class declares is set through that
+        // class, where a setter that is private can be seen.
+        for (Type? level = contract; level is not null && level != typeof(object); level = level.BaseType)
         {
-            if (property.GetCustomAttribute<ProtoMemberAttribute>() is null)
-                continue;
+            foreach (FieldInfo field in level.GetFields(DeclaredMembers))
+            {
+                if (field.GetCustomAttribute<ProtoMemberAttribute>() is not null)
+                    throw Unfillable(contract, field.Name, "is a field, and only properties are filled");
+            }
 
-            if (property.GetSetMethod(nonPublic: true) is null)
-                throw Unfillable(contract, property.Name, "has no setter");
+            foreach (PropertyInfo property in level.GetProperties(DeclaredMembers))
+            {
+                if (property.GetCustomAttribute<ProtoMemberAttribute>() is null)
+                    continue;
 
-            // Null for a message already open above this one: left as a new message has it.
-            if (Value(contract, property.Name, property.PropertyType, open) is { } value)
-                property.SetValue(message, value);
+                if (property.GetSetMethod(nonPublic: true) is not { } setter)
+                    throw Unfillable(contract, property.Name, "has no setter");
+
+                // Null for a message already open above this one: left as a new message has it.
+                if (Value(contract, property.Name, property.PropertyType, open) is not { } value)
+                    continue;
+
+                try
+                {
+                    setter.Invoke(message, [value]);
+                }
+                catch (TargetInvocationException e) when (e.InnerException is { } refused)
+                {
+                    throw Unfillable(contract, property.Name,
+                        $"refused the value it was given ({refused.GetType().Name}: {refused.Message})");
+                }
+            }
         }
 
         open.RemoveAt(open.Count - 1);

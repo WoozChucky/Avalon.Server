@@ -30,9 +30,14 @@ public class PacketEncoderPrepareShould
 
     public sealed class Third;
 
+    /// <summary>A message protobuf-net creates through a constructor that is not public.</summary>
     [ProtoContract]
     public sealed class PreparedLeaf<TMark>
     {
+        private PreparedLeaf()
+        {
+        }
+
         [ProtoMember(1)] public ulong Guid { get; set; }
         [ProtoMember(2)] public float? Value { get; set; }
 
@@ -82,14 +87,68 @@ public class PacketEncoderPrepareShould
         [ProtoMember(2)] public Dictionary<int, string>? Lookup { get; set; }
     }
 
+    /// <summary>A message protobuf-net creates without calling a constructor, which the preparation cannot do.</summary>
+    [ProtoContract(SkipConstructor = true)]
+    public sealed class Uncreatable
+    {
+        public Uncreatable(int value) => Value = value;
+
+        [ProtoMember(1)] public int Value { get; set; }
+    }
+
+    /// <summary>A packet that holds a message with no constructor the preparation could call.</summary>
+    [ProtoContract]
+    public sealed class UncreatableInsidePacket : Packet
+    {
+        [ProtoMember(1)] public Uncreatable? Inside { get; set; }
+    }
+
+    /// <summary>A packet with a setter that refuses the value the preparation gives it.</summary>
+    [ProtoContract]
+    public sealed class RefusingSetterPacket : Packet
+    {
+        private int _level;
+
+        [ProtoMember(1)]
+        public int Level
+        {
+            get => _level;
+            set => _level = value == 0 ? value : throw new ArgumentOutOfRangeException(nameof(value));
+        }
+    }
+
+    [ProtoContract]
+    [ProtoInclude(10, typeof(Circle))]
+    public class Shape
+    {
+        [ProtoMember(1)] public int Sides { get; set; }
+    }
+
+    [ProtoContract]
+    public sealed class Circle : Shape
+    {
+        [ProtoMember(1)] public float Radius { get; set; }
+    }
+
+    /// <summary>A packet that holds a message with subtypes, which the preparation would write as the base alone.</summary>
+    [ProtoContract]
+    public sealed class SubtypedInsidePacket : Packet
+    {
+        [ProtoMember(1)] public Shape? Shape { get; set; }
+    }
+
     /// <summary>
     /// A packet that could never be sent stops the start, with its name: left to the first send, its contract fails
     /// every send of the type, on the tick. So does one the preparation cannot write in full, since what it left
-    /// out would be built by the first packet that carries it.
+    /// out would be built by the first packet that carries it. Whatever goes wrong inside a packet, a message that
+    /// cannot be created or a setter that throws among it, the packet is what is named.
     /// </summary>
     [Theory]
     [InlineData(typeof(UnbuildablePacket))]
     [InlineData(typeof(UnfillablePacket))]
+    [InlineData(typeof(UncreatableInsidePacket))]
+    [InlineData(typeof(RefusingSetterPacket))]
+    [InlineData(typeof(SubtypedInsidePacket))]
     public void Refuse_to_prepare_a_packet_it_cannot_build_everything_for_and_name_it(Type packetType)
     {
         InvalidOperationException refused =
