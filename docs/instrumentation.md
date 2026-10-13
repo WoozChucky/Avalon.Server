@@ -166,7 +166,7 @@ meter it carries no world of its own: the world is the label the collector gives
 
 | `reason` | The client is sent | Refused because |
 |---|---|---|
-| `dead` | nothing | the character is dead |
+| `dead` | nothing | the character is dead as the request arrives, or has died by the time its instance is ready |
 | `move_in_progress` | `MoveInProgress` | another move is under way: a return to town, a teleport, a respawn, or an earlier portal entry that has not ended |
 | `unknown_map` | `MapNotFound` | no map has the id asked for |
 | `no_instance` | `MapNotFound` | the character is in no live instance: the server's own fault, also logged at Error |

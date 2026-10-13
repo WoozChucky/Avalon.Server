@@ -318,7 +318,8 @@ where characters stand (`not_near_portal`).
                 party (MapNotFound) and the seats (InstanceFull) once it is built;
                 otherwise GetOrCreateNormalInstanceAsync(characterId, templateId)
        The arrival continuation first checks the character is still the connection's (a select
-       on another connection can take it meanwhile: nothing is done, no reply), then that the
+       on another connection can take it meanwhile: nothing is done, no reply), then that it is
+       still alive (one that died meanwhile is not moved: no reply), then that the
        instance is still registered; one released meanwhile is resolved again once (see Expiry
        Cleanup), and a second release in a row → send MapNotFound, return
 8.  Exit path: drop the character from any encounter in progress on the source instance
@@ -355,6 +356,7 @@ Every ending clears it, in `EnterMapHandler.Arrive`, on every path out and in a 
 | Ending | What the client is sent | The flag |
 |---|---|---|
 | The arrival (steps 8 to 13) | the transition and the layout | cleared |
+| The character died while the instance was being built | nothing, as a dead character's request in step 1: it is not moved, and respawns from where it died | cleared |
 | The instance was released before the arrival, the first time | nothing yet: the target is resolved again | kept: the second resolve is the move now, and ends as any other |
 | Released a second time | `MapNotFound` | cleared |
 | No longer in the party the instance is for, or the instance is full | `MapNotFound`, `InstanceFull` | cleared |

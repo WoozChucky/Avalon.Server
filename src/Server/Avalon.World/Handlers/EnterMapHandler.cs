@@ -28,7 +28,8 @@ namespace Avalon.World.Handlers;
 /// From the moment a request is accepted (step 7) until it ends, the character is moving to a map: the connection's
 /// <c>RespawnInFlight</c> is set, as it is during a return to town or a teleport, so a second portal entry, and any
 /// other move, is refused until this one ends. Every ending clears it (<see cref="Arrive" />): the arrival, a
-/// refusal on arrival, an instance that could not be built, and anything that throws on the way. The one ending
+/// refusal on arrival (a character that died meanwhile among them), an instance that could not be built, and
+/// anything that throws on the way. The one ending
 /// that leaves it alone is the character having left the connection meanwhile: the connection cleared it as the
 /// character left, and it may already be the next character's.
 /// </remarks>
@@ -158,7 +159,7 @@ public partial class EnterMapHandler(
     /// </summary>
     private static class Refusal
     {
-        /// <summary>From a dead character: dropped, with no reply.</summary>
+        /// <summary>From a dead character, or one that died before its instance was ready: dropped, with no reply.</summary>
         public const string Dead = "dead";
 
         /// <summary>Another move, or an earlier portal entry, is under way (<c>MoveInProgress</c>).</summary>
@@ -316,6 +317,16 @@ public partial class EnterMapHandler(
         bool resolvingAgain = false;
         try
         {
+            // A character that died while its instance was being built is not moved: no transfer, no save, as an
+            // item's teleport leaves one where it died (MapTeleport). The request ends as a dead character's does in
+            // step 1: dropped with no reply, and counted; the character respawns from where it is.
+            if (character.IsDead)
+            {
+                Log.DiedBeforeInstanceReady(logger, character.Name);
+                Count(Refusal.Dead);
+                return;
+            }
+
             if (targetInstance is null)
             {
                 // The build faulted or was cancelled, and was logged as it ended (Settled). The client is told
@@ -475,5 +486,9 @@ public partial class EnterMapHandler(
         [LoggerMessage(Level = LogLevel.Debug,
             Message = "EnterMap: character {Name} left the connection before its target instance was ready")]
         public static partial void LeftBeforeInstanceReady(ILogger logger, string name);
+
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "EnterMap: {Name} died before its target instance was ready; not moved")]
+        public static partial void DiedBeforeInstanceReady(ILogger logger, string name);
     }
 }

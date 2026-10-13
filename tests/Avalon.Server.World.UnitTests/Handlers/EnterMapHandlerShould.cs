@@ -153,6 +153,7 @@ public class EnterMapHandlerShould
         TheRequestForTheInstanceThrows,
         TheInstanceIsReleasedTwice,
         TheTransferThrows,
+        TheCharacterDiesWhileItsInstanceIsBuilt,
     }
 
     /// <summary>
@@ -166,6 +167,7 @@ public class EnterMapHandlerShould
     [InlineData(Ending.TheRequestForTheInstanceThrows)]
     [InlineData(Ending.TheInstanceIsReleasedTwice)]
     [InlineData(Ending.TheTransferThrows)]
+    [InlineData(Ending.TheCharacterDiesWhileItsInstanceIsBuilt)]
     public void Take_a_later_portal_entry_after_one_that_ended_without_arriving(Ending ending)
     {
         // The failed build's Error line is written by a logger that rethrows what its providers throw.
@@ -201,6 +203,8 @@ public class EnterMapHandlerShould
 
         // The dispatch contains what the handler throws, and the continuation drain what an arrival throws.
         Record.Exception(() => entry.Request());
+        if (ending == Ending.TheCharacterDiesWhileItsInstanceIsBuilt)
+            entry.Character.IsDead = true; // asked alive; dead by the time the instance is ready
         entry.Flush();
         if (ending == Ending.TheInstanceIsReleasedTwice)
         {
@@ -210,9 +214,12 @@ public class EnterMapHandlerShould
         }
 
         Assert.DoesNotContain(MapTransitionResult.Success, entry.Results());
+        if (ending == Ending.TheCharacterDiesWhileItsInstanceIsBuilt)
+            entry.World.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
         Assert.False(entry.Connection.RespawnInFlight);
 
         failing = false;
+        entry.Character.Revive();
         entry.Request();
         entry.Flush();
 
