@@ -121,8 +121,16 @@ public static class AuraRules
         if (findAura(auraId) is not { } aura)
             return $"names aura {auraId.Value}, which is missing or refused";
 
-        return Fits(aura.Kind, affects)
-            ? null
-            : $"its aura {auraId.Value} '{aura.Name}' is {aura.Kind}, which {(affects == AbilityAffects.Ally ? "an Ally" : "a Hostile")} ability cannot apply";
+        return FitProblem(affects, aura);
     }
+
+    /// <summary>
+    /// The second half of <see cref="LinkProblem" />, for a caller that already holds the loaded aura row: why an
+    /// ability that affects <paramref name="affects" /> cannot apply <paramref name="aura" />, or null when it
+    /// <see cref="Fits" />. It takes no delegate, so asking it for every application allocates nothing.
+    /// </summary>
+    public static string? FitProblem(AbilityAffects affects, AuraTemplate aura) =>
+        Fits(aura.Kind, affects)
+            ? null
+            : $"its aura {aura.Id.Value} '{aura.Name}' is {aura.Kind}, which {(affects == AbilityAffects.Ally ? "an Ally" : "a Hostile")} ability cannot apply";
 }

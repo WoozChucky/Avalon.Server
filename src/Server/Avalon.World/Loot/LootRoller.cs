@@ -1,13 +1,13 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Loot;
 
 /// <summary>
-/// Rolls what a dying creature drops. Tick thread. It allocates the result list, and every entry
-/// that hits allocates again, because its item template is looked up with a LINQ scan (a closure
-/// and an enumerator) over the templates.
+/// Rolls what a dying creature drops. Tick thread. It allocates the list it hands back, and nothing
+/// else: each entry that hits finds its item template by id.
 /// </summary>
 public interface ILootRoller
 {
@@ -141,9 +141,16 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
         }
     }
 
-    /// <summary>The first item template of that id: a plain walk, where a lambda on the id allocated its closure and delegate per drop (#880).</summary>
+    /// <summary>
+    /// The first item template of that id. The world's templates carry a lookup by id (<see cref="KeyedRows{TKey,TRow}" />,
+    /// built with them and replaced with them on a reload, #883), so a drop finds its template without walking them;
+    /// any other collection is walked, plainly: a lambda on the id allocated its closure and delegate per drop (#880).
+    /// </summary>
     private static ItemTemplate? FindItem(IReadOnlyCollection<ItemTemplate> items, ItemTemplateId itemId)
     {
+        if (items is KeyedRows<ulong, ItemTemplate> keyed)
+            return keyed.Find(itemId.Value);
+
         if (items is IReadOnlyList<ItemTemplate> list)
         {
             for (int i = 0; i < list.Count; i++)

@@ -321,7 +321,7 @@ public sealed class QuestService(
     }
 
     private ItemTemplate? FindTemplate(ItemTemplateId id) =>
-        world.Data.ItemTemplates.FirstOrDefault(t => t.Id.Value == id.Value);
+        world.Data.FindItemTemplate(id);
 
     /// <summary>
     /// Adds to one objective of an active quest's current stage, capped at its count. False, changing nothing, for
@@ -556,7 +556,7 @@ public sealed class QuestService(
     /// </summary>
     public bool MayPickUp(CharacterEntity character, ItemTemplateId item)
     {
-        if (world.Data.ItemTemplates.FirstOrDefault(t => t.Id == item) is not { } template
+        if (world.Data.FindItemTemplate(item) is not { } template
             || !template.Flags.HasFlag(Domain.World.ItemTemplateFlags.QuestItem))
         {
             return true;

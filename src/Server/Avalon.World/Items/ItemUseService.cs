@@ -321,9 +321,8 @@ public sealed class ItemUseService(
     private IItemUseHost? HostOf(CharacterEntity character) =>
         tools.World.InstanceRegistry.GetInstanceById(character.InstanceId) as IItemUseHost;
 
-    // StaticData keeps the item templates as a list and offers no keyed lookup, as the inventory service's search does.
     private ItemTemplate? FindTemplate(ItemTemplateId id) =>
-        tools.World.Data.ItemTemplates.FirstOrDefault(t => t.Id == id);
+        tools.World.Data.FindItemTemplate(id);
 
     /// <summary>Built once per type; a type that cannot be built answers InternalError for its items from then on.</summary>
     private ItemScript? ScriptFor(ItemTemplate template)

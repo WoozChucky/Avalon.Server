@@ -1,11 +1,15 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Combat;
+using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World.Abilities;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Testing;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Combat;
@@ -151,6 +155,52 @@ public class CombatServiceHealShould
         Assert.Equal(expected, encounter.GetThreatList(wolf)[healer], 3);
         Assert.Equal(expected, encounter.GetThreatList(boar)[healer], 3);
     }
+
+    /// <summary>
+    /// A heal's threat is counted and shared out by walking the encounter's hostiles in place (#883): once its healer
+    /// is in the encounter, a heal allocates nothing, with a creature walking home left out as before.
+    /// </summary>
+    [Fact]
+    public void Share_out_heal_threat_without_allocating()
+    {
+        CharacterEntity healer = TestCharacters.New(2);
+        CharacterEntity target = Wounded(1, max: 100, current: 40);
+        Creature wolf = Hostile(9_001);
+        Creature boar = Hostile(9_002);
+        _combat.EnterCombat(wolf, target);
+        _combat.EnterCombat(boar, target);
+        GameAbility heal = AbilityTestData.Game(AbilityTestData.HealCircle(232));
+
+        // The first heal brings the healer into the encounter, which grows each hostile's threat list.
+        for (int i = 0; i < 2; i++)
+        {
+            target.CurrentHealth = 80;
+            _combat.ApplyHeal(healer, target, 20, heal);
+        }
+
+        long before = ThreadAllocations.BeforeQuietWindow();
+        for (int i = 0; i < 100; i++)
+        {
+            target.CurrentHealth = 80;
+            _combat.ApplyHeal(healer, target, 20, heal);
+        }
+
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+
+        // 102 heals of 20, each shared by the two hostiles, on top of the seed the healer joined with.
+        var encounter = (Encounter)_combat.GetEncounterFor(target)!;
+        float expected = _config.InitialThreatSeed + 102 * 20 * 0.5f * ClassThreatModifier.Get(healer.Class) / 2;
+        Assert.Equal(expected, encounter.GetThreatList(wolf)[healer], 1);
+        Assert.Equal(expected, encounter.GetThreatList(boar)[healer], 1);
+    }
+
+    private static Creature Hostile(uint id) => new()
+    {
+        Guid = new ObjectGuid(ObjectType.Creature, id),
+        Metadata = Substitute.For<ICreatureMetadata>(),
+        Health = 100,
+        CurrentHealth = 100,
+    };
 
     /// <summary>Item use: a fixed amount, capped, reported, adding no threat and joining no encounter.</summary>
     [Fact]

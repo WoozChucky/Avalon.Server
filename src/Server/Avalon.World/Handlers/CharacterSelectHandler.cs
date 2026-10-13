@@ -438,8 +438,7 @@ public class CharacterSelectHandler(
         // to write it back. World.SpawnInInstance sets it.
         character.Latency = (int)connection.Latency;
 
-        ulong requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
-            ?.Experience ?? 0;
+        ulong requiredExperience = world.Data.FindLevel(character.Level)?.Experience ?? 0;
 
         CharacterEntity entity = new(loggerFactory, character, regenConfig.Value, time,
             world.Configuration.FuryDecayPerSecond, tickThread)

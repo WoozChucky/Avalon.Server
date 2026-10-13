@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Characters;
@@ -13,22 +14,36 @@ namespace Avalon.World.Parties;
 /// </summary>
 public static class PartyEligibility
 {
-    public static IReadOnlyList<ICharacter> For(ICharacter? killer, Party? party,
+    /// <summary>
+    /// Adds the eligible members to <paramref name="eligible" />, an empty list the caller keeps, in the party's join
+    /// order: a kill allocates nothing here (#890). <paramref name="memberKey" /> is a guid the caller keeps for this
+    /// alone; it is set to each member in turn to look it up in <paramref name="present" />, where a new guid per
+    /// member was an object per member per kill.
+    /// </summary>
+    public static void Fill(List<ICharacter> eligible, ICharacter? killer, Party? party,
         IReadOnlyDictionary<ObjectGuid, ICharacter> present, Func<uint, bool> inCountdown, IEncounter? encounter,
-        Vector3 corpse, float range)
+        Vector3 corpse, float range, ObjectGuid memberKey)
     {
+        Debug.Assert(eligible.Count == 0, "The eligible list still holds an earlier kill's members");
+
         if (killer is null || inCountdown(killer.Guid.Id))
-            return [];
+            return;
 
         if (party is null)
-            return [killer];
-
-        var eligible = new List<ICharacter>(party.Members.Count);
-        float rangeSquared = range * range;
-        foreach (PartyMember member in party.Members)
         {
-            uint id = member.Id.Value;
-            if (!present.TryGetValue(new ObjectGuid(ObjectType.Character, id), out ICharacter? character))
+            eligible.Add(killer);
+            return;
+        }
+
+        float rangeSquared = range * range;
+
+        // By index: a foreach over the members' interface boxes the list's enumerator.
+        IReadOnlyList<PartyMember> members = party.Members;
+        for (int i = 0; i < members.Count; i++)
+        {
+            uint id = members[i].Id.Value;
+            memberKey.Set(ObjectType.Character, id);
+            if (!present.TryGetValue(memberKey, out ICharacter? character))
                 continue;
 
             if (id == killer.Guid.Id)
@@ -46,7 +61,5 @@ public static class PartyEligibility
             if (near || encounter?.Players.Contains(character) == true)
                 eligible.Add(character);
         }
-
-        return eligible;
     }
 }

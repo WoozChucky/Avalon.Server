@@ -1,4 +1,5 @@
 using Avalon.Combat;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
 using Avalon.World.Dialogue;
@@ -58,6 +59,24 @@ public sealed record AbilitiesPatch(AbilityCatalog Catalog) : StaticDataPatch(Re
 public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates)
     : StaticDataPatch(ReloadArea.Items)
 {
+    private readonly KeyedRows<ulong, ItemTemplate> _templates = Keyed(Templates);
+
+    /// <summary>
+    /// The templates, with their lookup by id (<see cref="KeyedRows{TKey,TRow}" />, #883): one object, replaced with
+    /// the patch, so a reload cannot leave a lookup behind.
+    /// </summary>
+    public IReadOnlyCollection<ItemTemplate> Templates
+    {
+        get => _templates;
+        init => _templates = Keyed(value);
+    }
+
+    /// <summary>The template of that id, or null: by key, where a reader walked the templates.</summary>
+    public ItemTemplate? Find(ItemTemplateId id) => id is null ? null : _templates.Find(id.Value);
+
+    private static KeyedRows<ulong, ItemTemplate> Keyed(IReadOnlyCollection<ItemTemplate> templates) =>
+        KeyedRows<ulong, ItemTemplate>.Over(templates, static template => template.Id?.Value);
+
     public override string Describe() => $"{Templates.Count} item templates";
 }
 
@@ -67,6 +86,21 @@ public sealed record ProgressionPatch(
     IReadOnlyCollection<CharacterCreateInfo> CreateInfos)
     : StaticDataPatch(ReloadArea.Progression)
 {
+    private readonly KeyedRows<ushort, CharacterLevelExperience> _levels = Keyed(Levels);
+
+    /// <summary>The experience rows, with their lookup by level (<see cref="KeyedRows{TKey,TRow}" />, #883), as the item templates have theirs.</summary>
+    public IReadOnlyCollection<CharacterLevelExperience> Levels
+    {
+        get => _levels;
+        init => _levels = Keyed(value);
+    }
+
+    /// <summary>The experience row of that level, or null: by key, where a reader walked the rows.</summary>
+    public CharacterLevelExperience? FindLevel(ushort level) => _levels.Find(level);
+
+    private static KeyedRows<ushort, CharacterLevelExperience> Keyed(IReadOnlyCollection<CharacterLevelExperience> levels) =>
+        KeyedRows<ushort, CharacterLevelExperience>.Over(levels, static row => row.Level);
+
     public override string Describe()
         => $"{Levels.Count} levels, {ClassStats.Count} class stats, {CreateInfos.Count} create infos";
 }

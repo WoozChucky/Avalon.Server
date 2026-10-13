@@ -26,6 +26,22 @@ public class LootPlacementShould
         return () => next++;
     }
 
+    // One list for every placement a test makes, as an instance keeps one for its kills.
+    private readonly List<GroundLoot> _placed = [];
+
+    /// <summary>The drops placed around the corpse, every one with the same <paramref name="allocation" />.</summary>
+    private List<GroundLoot> Place(IReadOnlyList<RolledDrop> rolled, LootAllocation allocation, IMapNavigator navigator)
+    {
+        _placed.Clear();
+        LootPlacement.Place(_placed, s_corpse, rolled, new Same(allocation), navigator, Ids());
+        return _placed;
+    }
+
+    private readonly struct Same(LootAllocation allocation) : IDropAllocations
+    {
+        public LootAllocation For(int index) => allocation;
+    }
+
     private static IReadOnlyList<RolledDrop> FourDrops() =>
     [
         RolledDrop.Item(new ItemTemplateId(1), 3),
@@ -37,8 +53,7 @@ public class LootPlacementShould
     [Fact]
     public void Spread_Drops_On_A_Ring_Around_The_Corpse()
     {
-        IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
-            s_corpse, FourDrops(), new LootAllocation(7, s_freeAt), OpenGround(), Ids());
+        List<GroundLoot> drops = Place(FourDrops(), new LootAllocation(7, s_freeAt), OpenGround());
 
         Assert.Equal(4, drops.Count);
         Assert.Equal(4, drops.Select(d => (d.Position.x, d.Position.z)).Distinct().Count());
@@ -60,8 +75,7 @@ public class LootPlacementShould
     {
         IMapNavigator navigator = OpenGround(groundY: 7f);
 
-        IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
-            s_corpse, FourDrops(), new LootAllocation(7, s_freeAt), navigator, Ids());
+        List<GroundLoot> drops = Place(FourDrops(), new LootAllocation(7, s_freeAt), navigator);
 
         Assert.All(drops, d => Assert.Equal(7f, d.Position.y));
         navigator.Received(4).SampleGroundHeight(Arg.Any<float>(), Arg.Is(s_corpse.y), Arg.Any<float>());
@@ -75,8 +89,7 @@ public class LootPlacementShould
         navigator.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci => ci.ArgAt<Vector3>(0));
         navigator.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(3f);
 
-        IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
-            s_corpse, FourDrops(), new LootAllocation(7, s_freeAt), navigator, Ids());
+        List<GroundLoot> drops = Place(FourDrops(), new LootAllocation(7, s_freeAt), navigator);
 
         Assert.All(drops, d => Assert.Equal(s_corpse, d.Position));
         // The ground is sampled where the drop was pulled back to, not at the ring point in the wall.
@@ -86,10 +99,8 @@ public class LootPlacementShould
     [Fact]
     public void Map_A_Drop_To_The_Wire_Shape()
     {
-        GroundLoot sword = LootPlacement.Place(s_corpse, [RolledDrop.Item(new ItemTemplateId(4), 1)],
-            new LootAllocation(7, s_freeAt), OpenGround(), Ids())[0];
-        GroundLoot pile = LootPlacement.Place(s_corpse, [RolledDrop.GoldPile(25)],
-            new LootAllocation(null, s_freeAt), OpenGround(), Ids())[0];
+        GroundLoot sword = Place([RolledDrop.Item(new ItemTemplateId(4), 1)], new LootAllocation(7, s_freeAt), OpenGround())[0];
+        GroundLoot pile = Place([RolledDrop.GoldPile(25)], new LootAllocation(null, s_freeAt), OpenGround())[0];
 
         LootDropDto swordDto = LootDropMapper.ToDto(sword);
         LootDropDto pileDto = LootDropMapper.ToDto(pile);

@@ -101,5 +101,5 @@ public static class VendorListBuilder
     }
 
     private static ItemTemplate? FindTemplate(StaticData data, ItemTemplateId id) =>
-        data.ItemTemplates.FirstOrDefault(t => t.Id == id);
+        data.FindItemTemplate(id);
 }

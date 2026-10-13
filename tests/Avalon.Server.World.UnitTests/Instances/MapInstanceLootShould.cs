@@ -364,6 +364,28 @@ public class MapInstanceLootShould
     }
 
     /// <summary>
+    /// One instance's kills fill the same lists and loot messages (#890), so each must start from none of the one
+    /// before: the packet of a second kill names that kill's drops and none of the first's.
+    /// </summary>
+    [Fact]
+    public async Task Tell_the_instance_of_each_kills_own_drops_only()
+    {
+        using MapInstance instance = await Build();
+        MapInstanceClient watcher = Join(instance, 460_951);
+
+        Kill(instance, 460_952);
+        ulong[] first = [.. instance.Drops.All.Select(d => d.Guid.RawValue).Order()];
+        Kill(instance, 460_953);
+        ulong[] second = [.. instance.Drops.All.Select(d => d.Guid.RawValue).Except(first).Order()];
+
+        List<SLootSpawnedPacket> spawned = Spawned(watcher);
+        Assert.Equal(2, spawned.Count);
+        Assert.NotEmpty(second);
+        Assert.Equal(first, spawned[0].Drops.Select(d => d.LootGuid).Order());
+        Assert.Equal(second, spawned[1].Drops.Select(d => d.LootGuid).Order());
+    }
+
+    /// <summary>
     /// #735: a killer at the maximum level (here the only level with a row, 1) gains no experience from the kill, but
     /// the kill still takes effect and drops its sword and its copper pile.
     /// </summary>

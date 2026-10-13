@@ -34,6 +34,17 @@ public sealed class Encounter : IEncounter
     public IReadOnlyCollection<IUnit> Hostiles => _hostiles;
     public IReadOnlyCollection<IUnit> Players => _players;
 
+    /// <summary>
+    /// The hostiles, for a <c>foreach</c> over the set's own enumerator: one over <see cref="Hostiles" /> boxes it
+    /// (#883). Adding a player or threat during the walk is safe, since neither changes who the hostiles are.
+    /// </summary>
+    internal HostileWalk WalkHostiles() => new(_hostiles);
+
+    internal readonly struct HostileWalk(HashSet<IUnit> hostiles)
+    {
+        public HashSet<IUnit>.Enumerator GetEnumerator() => hostiles.GetEnumerator();
+    }
+
     public bool ShouldEnd { get; private set; }
 
     public void AddHostile(IUnit hostile)

@@ -41,9 +41,18 @@ public class PartyEligibilityShould
         return encounter;
     }
 
-    private static IReadOnlyList<ICharacter> For(ICharacter? killer, Party? party,
-        Dictionary<ObjectGuid, ICharacter> present, Func<uint, bool>? inCountdown = null, IEncounter? encounter = null) =>
-        PartyEligibility.For(killer, party, present, inCountdown ?? (_ => false), encounter, s_corpse, range: 60f);
+    // One list and one lookup key for every answer a test asks for, as an instance keeps them for its kills.
+    private readonly List<ICharacter> _eligible = [];
+    private readonly ObjectGuid _memberKey = new();
+
+    private IReadOnlyList<ICharacter> For(ICharacter? killer, Party? party,
+        Dictionary<ObjectGuid, ICharacter> present, Func<uint, bool>? inCountdown = null, IEncounter? encounter = null)
+    {
+        _eligible.Clear();
+        PartyEligibility.Fill(_eligible, killer, party, present, inCountdown ?? (_ => false), encounter, s_corpse,
+            range: 60f, _memberKey);
+        return _eligible;
+    }
 
     [Fact]
     public void Count_a_member_in_the_encounter_or_within_range_and_always_the_killer()

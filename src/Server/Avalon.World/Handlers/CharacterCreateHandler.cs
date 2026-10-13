@@ -62,7 +62,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         var items = new List<ItemInstance>(); var slots = new List<CharacterInventory>();
         foreach (ItemTemplateId templateId in createInfo.StartingItems)
         {
-            ItemTemplate? template = world.Data.ItemTemplates.FirstOrDefault(t => t.Id == templateId);
+            ItemTemplate? template = world.Data.FindItemTemplate(templateId);
             if (template is null)
             {
                 logger.LogWarning("Starting item {TemplateId} not found", templateId); continue;

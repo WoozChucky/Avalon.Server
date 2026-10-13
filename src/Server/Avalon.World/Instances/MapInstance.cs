@@ -108,6 +108,25 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>Who shares a kill, and how its experience is split (2026-09-30). Null in tests built without one: solo rules.</summary>
     private readonly PartyService? _parties;
 
+    // Whether a character is in a party leave countdown, asked once per member of every kill: made once, where a
+    // delegate made from the party service's method at each kill was an object per kill (#890).
+    private readonly Func<uint, bool> _inCountdown;
+
+    // Whether a character can still gain experience over the reference data as it is now, asked of every member that
+    // shares a kill: made once, like the one above.
+    private readonly Func<ICharacter, bool> _canGainExperience;
+
+    // One kill's lists, emptied when it is done (#890). A kill reached while another is being handled (nothing does
+    // that today: a hook run by a kill would have to kill another creature here) takes lists of its own.
+    private readonly KillBuffers _killBuffers = new();
+    private bool _killInProgress;
+
+    // This map's template, for the level band of a kill's experience, with the world's list it was found in. Map
+    // templates are read once, at startup, and never reloaded; the world holds them as one list it would replace
+    // whole, so the template is looked for again only when the world answers with another list (#883).
+    private IReadOnlyList<MapTemplate>? _bandTemplatesFrom;
+    private MapTemplate? _bandTemplate;
+
     /// <summary>
     /// Vendor stock (#432): one state per vendor creature that has had a shop open here. It lives as
     /// long as the instance, so for the persistent town a restart is what resets it.
@@ -241,6 +260,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Optional too: an instance built without it (tests) shares nothing, so every kill is its killer's alone.
         _parties = serviceProvider.GetService<PartyService>();
+        _inCountdown = _parties is null ? static _ => false : _parties.InCountdown;
+        _canGainExperience = member => ExperienceAward.CanGainExperience(member, _world.Data);
 
         // Vendor quest gates (#432). Falls back, so an instance built without it (tests) still
         // ticks; production registers it.
@@ -872,9 +893,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// among the characters that share the kill (2026-09-30); each quest drop (#433) belongs to the member it was
     /// rolled for, for good. All of them are placed in one ring. A kill nobody is credited with
     /// (<paramref name="credited" /> false: an aura's tick whose caster is gone) drops every table drop free for all at
-    /// once, whatever instance this is.
+    /// once, whatever instance this is. It allocates the drops it leaves on the ground, and the list the roller hands
+    /// back; its own lists and loot messages are the kill's <paramref name="buffers" /> (#890).
     /// </summary>
-    private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible, bool credited)
+    private void DropLoot(ICreature creature, IReadOnlyList<ICharacter> eligible, bool credited, KillBuffers buffers)
     {
         IReadOnlyList<(RolledDrop Drop, uint Owner)> questDrops = RollQuestDrops(creature, eligible);
         bool rollsTable = _lootRoller is not null && _lootAllocator is not null && creature.Metadata is CreatureTemplate;
@@ -895,20 +917,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 return;
             }
 
-            var rolled = new List<RolledDrop>(table.Count + questDrops.Count);
+            List<RolledDrop> rolled = buffers.Rolled;
+            Debug.Assert(rolled.Count == 0, "The list of rolled drops still holds an earlier kill's");
             rolled.AddRange(table);
-            foreach ((RolledDrop drop, uint _) in questDrops)
-                rolled.Add(drop);
+            for (int i = 0; i < questDrops.Count; i++)
+            {
+                rolled.Add(questDrops[i].Drop);
+            }
 
-            ILootAllocator? allocator = _lootAllocator;
-            int tableCount = table.Count;
-            IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
-                creature.Position, rolled,
-                i => i >= tableCount
-                    ? new LootAllocation(questDrops[i - tableCount].Owner, DateTime.MaxValue)
-                    : credited
-                        ? allocator!.Allocate(OwnerCharacterId, OwnerPartyId, eligible)
-                        : allocator!.Allocate(instanceOwner: null, instanceParty: null, []),
+            // Placed whole before any drop is stored, so a placement that throws leaves nothing on the ground.
+            List<GroundLoot> drops = buffers.Placed;
+            LootPlacement.Place(drops, creature.Position, rolled,
+                new KillAllocations(_lootAllocator, OwnerCharacterId, OwnerPartyId, eligible, credited, table.Count, questDrops),
                 GetNavigatorForPosition(creature.Position), IObject.GenerateId);
 
             for (int i = 0; i < drops.Count; i++)
@@ -917,7 +937,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             // Walked by index and through the dictionary's own enumerator: a kill allocates no boxed enumerator (#880).
-            List<LootDropDto> dtos = LootDtos(drops);
+            List<LootDropDto> dtos = buffers.DescribePlaced();
             // The same drops for every connection: encoded once, for the first, and shared by every one (#875).
             OutboundPacket spawned = default;
             foreach (IWorldConnection connection in _connections.Values)
@@ -937,6 +957,31 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _logger.LogError(e, "Could not drop loot for creature {CreatureGuid} (template {TemplateId}); the kill still counts",
                 creature.Guid, creature.Metadata.Id.Value);
         }
+    }
+
+    /// <summary>
+    /// Whom each of one kill's drops is for, by its place in the ring: a table drop is allocated on its own, among the
+    /// characters that share the kill, or free for all at once when nobody is credited with the kill; a quest drop,
+    /// which comes after the table's, belongs for good to the member it was rolled for. A struct handed to the
+    /// placement by value: a lambda here cost the kill its closure and a delegate, and a Debug build a second closure
+    /// (the compiler keeps one per scope there, and merges them when it optimises), which was the 32 B a kill no
+    /// Release run showed (#890).
+    /// </summary>
+    private readonly struct KillAllocations(
+        ILootAllocator? allocator,
+        uint? instanceOwner,
+        PartyId? instanceParty,
+        IReadOnlyList<ICharacter> eligible,
+        bool credited,
+        int tableCount,
+        IReadOnlyList<(RolledDrop Drop, uint Owner)> questDrops) : IDropAllocations
+    {
+        public LootAllocation For(int index) =>
+            index >= tableCount
+                ? new LootAllocation(questDrops[index - tableCount].Owner, DateTime.MaxValue)
+                : credited
+                    ? allocator!.Allocate(instanceOwner, instanceParty, eligible)
+                    : allocator!.Allocate(instanceOwner: null, instanceParty: null, []);
     }
 
     /// <summary>The quest drops a kill rolls (#433). Contained: a throw costs this kill's quest drops, nothing else.</summary>
@@ -1922,33 +1967,44 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
-        // Taken first, once, while the creature is still in its encounter (spec 2026-09-30 section 4). Contained: a
-        // throw here must not leave a creature at 0 health with its script and no corpse teardown. Nobody is eligible
-        // then: nobody gains experience from it, and a party instance's drops are free for all.
-        IReadOnlyList<ICharacter> eligible;
+        bool nested = _killInProgress;
+        KillBuffers buffers = nested ? new KillBuffers() : _killBuffers;
+        _killInProgress = true;
         try
         {
-            eligible = EligibleFor(creature, killer);
+            // Taken first, once, while the creature is still in its encounter (spec 2026-09-30 section 4). Contained:
+            // a throw here must not leave a creature at 0 health with its script and no corpse teardown. Nobody is
+            // eligible then: nobody gains experience from it, and a party instance's drops are free for all.
+            List<ICharacter> eligible = buffers.Eligible;
+            try
+            {
+                FillEligible(eligible, buffers.MemberKey, creature, killer);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Working out who shares the kill of {CreatureGuid} in instance {InstanceId} failed",
+                    creature.Guid, InstanceId);
+                eligible.Clear();
+            }
+
+            creature.Script = null;
+            TearDownCorpse(creature);
+            _corpseRemover.ScheduleRemoval(creature);
+
+            // #433: kill credit for everyone who shares the kill, before the drops, which read the same quests.
+            CreditQuests(creature, eligible);
+
+            // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
+            // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
+            // A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all.
+            DropLoot(creature, eligible, credited: killer is not null, buffers);
+            AwardExperience(creature, eligible, buffers.Shares);
         }
-        catch (Exception e)
+        finally
         {
-            _logger.LogError(e, "Working out who shares the kill of {CreatureGuid} in instance {InstanceId} failed",
-                creature.Guid, InstanceId);
-            eligible = [];
+            buffers.Clear();
+            _killInProgress = nested;
         }
-
-        creature.Script = null;
-        TearDownCorpse(creature);
-        _corpseRemover.ScheduleRemoval(creature);
-
-        // #433: kill credit for everyone who shares the kill, before the drops, which read the same quests.
-        CreditQuests(creature, eligible);
-
-        // Whatever killed it: loot does not depend on the killer being a character. A solo instance's drops
-        // still go to its owner and a town's are free for all; only a party instance draws among the eligible.
-        // A kill nobody is credited with (an aura's tick whose caster is gone) drops everything free for all.
-        DropLoot(creature, eligible, credited: killer is not null);
-        AwardExperience(creature, eligible);
     }
 
     /// <summary>
@@ -1972,17 +2028,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// The characters that share this kill: the killer alone outside a party, or every present, eligible member of
-    /// its party. Empty when there is no killer, or it is not a character or is in a leave countdown.
+    /// Adds the characters that share this kill to <paramref name="eligible" />: the killer alone outside a party, or
+    /// every present, eligible member of its party. None when there is no killer, or it is not a character or is in a
+    /// leave countdown.
     /// </summary>
-    private IReadOnlyList<ICharacter> EligibleFor(ICreature creature, IUnit? killer)
+    private void FillEligible(List<ICharacter> eligible, ObjectGuid memberKey, ICreature creature, IUnit? killer)
     {
         var character = killer as ICharacter;
         Party? party = character is null ? null : _parties?.PartyOf(character.Guid.Id);
-        Func<uint, bool> inCountdown = _parties is null ? static _ => false : _parties.InCountdown;
 
-        return PartyEligibility.For(character, party, _characters, inCountdown,
-            _combatService.GetEncounterFor(creature), creature.Position, _world.Configuration.PartyEligibilityRange);
+        PartyEligibility.Fill(eligible, character, party, _characters, _inCountdown,
+            _combatService.GetEncounterFor(creature), creature.Position, _world.Configuration.PartyEligibilityRange,
+            memberKey);
     }
 
     /// <summary>
@@ -2020,9 +2077,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>
     /// Splits the kill's experience among the eligible (2026-09-30), then awards each share through the band.
     /// The split leaves out anyone the level gap or more above the creature, or who can gain no experience (at the maximum
-    /// level or before a gap in the levels, #735), solo too.
+    /// level or before a gap in the levels, #735), solo too. <paramref name="shares" /> is the kill's own empty list.
     /// </summary>
-    private void AwardExperience(ICreature creature, IReadOnlyList<ICharacter> eligible)
+    private void AwardExperience(ICreature creature, IReadOnlyList<ICharacter> eligible, List<ExperienceShare> shares)
     {
         if (eligible.Count == 0)
         {
@@ -2035,11 +2092,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // creature.Experience is the value derived at spawn — base stats by level, scaled by the template's
         // modifiers and its rarity, or the template's authored override if it had one. Not Metadata.Experience,
         // which is only that optional override.
-        foreach (ExperienceShare share in PartyExperience.Split(creature.Experience, creature.Level, eligible, mode,
-                     config.PartyExperienceBonusPerExtra, config.PartyExperienceLevelGap,
-                     member => ExperienceAward.CanGainExperience(member, _world.Data)))
+        PartyExperience.Fill(shares, creature.Experience, creature.Level, eligible, mode,
+            config.PartyExperienceBonusPerExtra, config.PartyExperienceLevelGap, _canGainExperience);
+
+        for (int i = 0; i < shares.Count; i++)
         {
-            AwardExperience(share.Member, share.Experience);
+            AwardExperience(shares[i].Member, shares[i].Experience);
         }
     }
 
@@ -2054,17 +2112,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>This character's share of the kill's experience, scaled by this map's level band.</summary>
     private uint ScaledExperience(ICharacter character, uint experience)
     {
-        // A plain walk: a lambda over this instance allocated its delegate for every share of every kill (#880).
-        MapTemplate? mapTemplate = null;
-        IReadOnlyList<MapTemplate> templates = _world.MapTemplates;
-        for (int i = 0; i < templates.Count; i++)
-        {
-            if (templates[i].Id == TemplateId)
-            {
-                mapTemplate = templates[i];
-                break;
-            }
-        }
+        MapTemplate? mapTemplate = BandTemplate();
 
         double bandScale = BandScale(
             character.Level,
@@ -2073,6 +2121,34 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             _world.Configuration.ExperienceBandDecay);
 
         return (uint)Math.Round(experience * bandScale, MidpointRounding.AwayFromZero);
+    }
+
+    /// <summary>
+    /// This map's template among the world's, or null when the world has none for it: found once and kept, where every
+    /// share of every kill walked the world's list (#883), and found again should the world hold another list.
+    /// </summary>
+    private MapTemplate? BandTemplate()
+    {
+        IReadOnlyList<MapTemplate> templates = _world.MapTemplates;
+        if (ReferenceEquals(templates, _bandTemplatesFrom))
+        {
+            return _bandTemplate;
+        }
+
+        // A plain walk: a lambda over this instance allocated its delegate (#880).
+        MapTemplate? found = null;
+        for (int i = 0; i < templates.Count; i++)
+        {
+            if (templates[i].Id == TemplateId)
+            {
+                found = templates[i];
+                break;
+            }
+        }
+
+        _bandTemplatesFrom = templates;
+        _bandTemplate = found;
+        return found;
     }
 
     /// <summary>

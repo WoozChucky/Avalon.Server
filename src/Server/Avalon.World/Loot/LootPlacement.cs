@@ -1,8 +1,18 @@
+using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Maps;
 
 namespace Avalon.World.Loot;
+
+/// <summary>
+/// Whom each drop of one kill is reserved for and until when, asked by the drop's index, once per drop and in order.
+/// A struct implements it, so a kill's placement is handed its allocations without a closure or a delegate (#890).
+/// </summary>
+public interface IDropAllocations
+{
+    LootAllocation For(int index);
+}
 
 /// <summary>Puts one kill's drops on the ground around the corpse.</summary>
 public static class LootPlacement
@@ -11,30 +21,23 @@ public static class LootPlacement
     public const float RingRadius = 1f;
 
     /// <summary>
-    /// Drop <c>i</c> of <c>n</c> at angle 2*pi*i/n on the ring, pulled back to the last walkable point
-    /// between the corpse and there, then snapped to the navmesh with the corpse's height as the
-    /// search centre: the same snap authored creature spawns get.
+    /// Adds the placed drops to <paramref name="placed" />, an empty list the caller keeps, so that a kill allocates
+    /// only the drops themselves (#890). Drop <c>i</c> of <c>n</c> goes at angle 2*pi*i/n on the ring, pulled back to
+    /// the last walkable point between the corpse and there, then snapped to the navmesh with the corpse's height as
+    /// the search centre: the same snap authored creature spawns get. Each drop's owner and free-for-all time are
+    /// asked of <paramref name="allocations" /> by the drop's index, once per drop and in order: a party kill reserves
+    /// each drop for its own member.
     /// </summary>
-    public static IReadOnlyList<GroundLoot> Place(
+    public static void Place<TAllocations>(
+        List<GroundLoot> placed,
         Vector3 corpse,
         IReadOnlyList<RolledDrop> rolled,
-        LootAllocation allocation,
-        IMapNavigator navigator,
-        Func<uint> nextId) =>
-        Place(corpse, rolled, _ => allocation, navigator, nextId);
-
-    /// <summary>
-    /// The same placement, with each drop's owner and free-for-all time asked of <paramref name="allocationFor" />
-    /// by the drop's index, once per drop and in order: a party kill reserves each drop for its own member.
-    /// </summary>
-    public static IReadOnlyList<GroundLoot> Place(
-        Vector3 corpse,
-        IReadOnlyList<RolledDrop> rolled,
-        Func<int, LootAllocation> allocationFor,
+        TAllocations allocations,
         IMapNavigator navigator,
         Func<uint> nextId)
+        where TAllocations : struct, IDropAllocations
     {
-        var placed = new List<GroundLoot>(rolled.Count);
+        Debug.Assert(placed.Count == 0, "The list of placed drops still holds an earlier kill's");
 
         for (int i = 0; i < rolled.Count; i++)
         {
@@ -49,7 +52,7 @@ public static class LootPlacement
             float groundY = navigator.SampleGroundHeight(reachable.x, corpse.y, reachable.z);
 
             RolledDrop drop = rolled[i];
-            LootAllocation allocation = allocationFor(i);
+            LootAllocation allocation = allocations.For(i);
             placed.Add(new GroundLoot
             {
                 Guid = new ObjectGuid(ObjectType.Loot, nextId()),
@@ -61,7 +64,5 @@ public static class LootPlacement
                 FreeForAllAt = allocation.FreeForAllAt,
             });
         }
-
-        return placed;
     }
 }
