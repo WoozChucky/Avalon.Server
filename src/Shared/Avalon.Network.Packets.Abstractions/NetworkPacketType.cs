@@ -16,7 +16,6 @@ public enum NetworkPacketType : short
 
     // Authentication
     CMSG_AUTH = 0x2000,
-    CMSG_LOGOUT = 0x2002,
     CMSG_REGISTER = 0x2003,
 
     // Worlds
@@ -94,7 +93,6 @@ public enum NetworkPacketType : short
 
     // Authentication
     SMSG_AUTH_RESULT = 0x3010,
-    SMSG_LOGOUT = 0x3011,
     SMSG_REGISTER_RESULT = 0x3012,
 
     // Worlds
@@ -103,8 +101,6 @@ public enum NetworkPacketType : short
     SMSG_GAME_ADMISSION = 0x301E,
 
     // Character
-    SMSG_CHARACTER_CONNECTED = 0x3020,
-    SMSG_CHARACTER_DISCONNECTED = 0x3021,
     SMSG_CHARACTER_LIST = 0x3023,
     SMSG_CHARACTER_CREATED = 0x3024,
     SMSG_CHARACTER_DELETED = 0x3025,
