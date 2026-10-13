@@ -56,8 +56,9 @@ public class WaypointRepathAllocationShould
         Assert.False(locomotion.HasArrived(creature));
 
         // The fewest bytes over three windows of 100 re-paths. A re-path that allocates shows in every
-        // window; a one-off the runtime does on this thread (seen once in a full-solution run, never
-        // reproduced) lands in one window only and cannot fail the test by itself.
+        // window. A background collection that ends during one counts what was left of this thread's
+        // allocation buffer as allocated, up to about 8 KB (#953, ThreadAllocations): it lands in one
+        // window only and cannot fail the test by itself.
         long fewest = long.MaxValue;
         for (int window = 0; window < 3; window++)
         {

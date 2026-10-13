@@ -2373,6 +2373,50 @@ under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs tha
 before its one measured run. The gate adds about 23 s to the World
 suite (`forest-combat` about 8 s of it), and `ForestCombatScenarioShould`, the forest's two-run check, about 15 s more.
 
+### Allocation tests and background collections
+
+Beside the scenario gate, single paths are held at zero bytes by tests that read `GC.GetAllocatedBytesForCurrentThread`
+around a loop of calls (`ConnectionTickAllocationShould`, `ReceiveQueueAllocationShould`, `CombatTickAllocationShould`
+and others). That counter is not exact across a background collection (#953: `ConnectionTickAllocationShould` read
+7,816 B in CI over 1,000 calls that allocate nothing, and `ReceiveQueueAllocationShould` 7,920 B in a local
+whole-solution run).
+
+A thread allocates out of a buffer the collector hands it, about 8 KB at a time, and the counter is what the thread was
+handed minus what is left of its buffer. A background collection, in the pause that ends its marking, takes every
+thread's buffer away without subtracting what was left of it. A thread that allocated nothing then reads up to about
+8 KB more, once, and no collection is counted in between: the collection started earlier. A blocking collection takes
+the buffers away too, and does subtract.
+
+Measured on runtime 10.0.12: a thread that spins for 5 ms and allocates nothing, 2,000 times, beside a thread that
+starts background collections over a 410 MB heap. The figures are the windows that did not read 0 B:
+
+| | Windows 11, 24 processors | Linux container, 4 CPUs |
+|---|---|---|
+| Background collections (the default) | 60, 72 and 67, of 120 to 8,144 B | 50, of 152 to 8,024 B |
+| `DOTNET_gcConcurrent=0` | 0 | 0 |
+| Blocking collections only | 0 | 0 |
+| Background collections, a blocking generation 0 collection before each window | 0 and 0 | 0 (69 without it, in the same build) |
+
+In the World suite itself (Release, the whole project, eleven runs, 2,000 copies of the lease check of
+`ConnectionTickAllocationShould` in each): 15 of 22,000 windows read above 0 B, one 16 B and fourteen 7,800 to
+8,088 B, each in one step at one call. None compiled a method on its thread, fourteen counted no collection, and in
+all six whose collection events were recorded a background collection was running and its final pause fell inside
+the window. With the blocking collection first: 0 of 22,000.
+
+So a test of this kind reads the counter one of two ways:
+
+- **A window that must read zero** starts with `ThreadAllocations.BeforeQuietWindow()`
+  (`tests/Avalon.World.Testing`): a blocking generation 0 collection, then the counter. The thread then holds no
+  buffer, and gets none while it allocates nothing, so a background collection finds nothing of its to count. The
+  window stays exact: one object in 1,000 calls still fails it.
+- **A window that allocates a known amount** takes a buffer with its first object, so the test takes the fewest bytes
+  of three windows (`WaypointRepathAllocationShould`). An allocation per call is in every window; a background
+  collection is in one.
+
+The scenario gate needs neither. The steady scenarios keep the least of five windows. `forest-combat`, one run of 60
+windows with no least to lean on, runs alone (its xUnit collection is not parallel) and after two blocking collections;
+one background collection in its run would add at most about 136 B per window, under the 256 B floor.
+
 ### The forest-combat scenario
 
 `forest-combat` (B2 of the load-test combat work) puts the tick through a fight: four forest instances on the fixed

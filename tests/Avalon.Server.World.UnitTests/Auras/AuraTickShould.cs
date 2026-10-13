@@ -16,6 +16,7 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 using Avalon.World.Pvp;
 using Avalon.World.Scripts.Creatures;
+using Avalon.World.Testing;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -372,7 +373,7 @@ public class AuraTickShould
         _h.Creature(910_910);
         _h.Auras.Update();
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 100; i++)
             _h.Auras.Update();
 

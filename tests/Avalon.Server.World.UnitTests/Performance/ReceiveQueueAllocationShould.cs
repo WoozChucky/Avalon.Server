@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
+using Avalon.World.Testing;
 using Packet = Avalon.Network.Packets.Packet;
 
 namespace Avalon.Server.World.UnitTests.Performance;
@@ -17,7 +18,7 @@ public class ReceiveQueueAllocationShould
         var input = new CPlayerInputPacket();
         Pump(fixture, NetworkPacketType.CMSG_PLAYER_INPUT, input, packetsPerTick, 1_000);
         int dispatchedBefore = fixture.Dispatched;
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         Pump(fixture, NetworkPacketType.CMSG_PLAYER_INPUT, input, packetsPerTick, 1_000);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
@@ -42,7 +43,7 @@ public class ReceiveQueueAllocationShould
         Assert.Equal(1, fixture.Dispatched);
 
         Pump(fixture, NetworkPacketType.CMSG_PONG, pong, 32, 1_000);
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         Pump(fixture, NetworkPacketType.CMSG_PONG, pong, 32, 1_000);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 

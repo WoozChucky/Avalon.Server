@@ -5,6 +5,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.World.Testing;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -261,7 +262,7 @@ public class MapInstanceVendorShould
         instance.RunVendorPass();   // sends the changed list, and warms the path up
         Assert.Equal(1, shopping.Sent);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int pass = 0; pass < 100; pass++)
             instance.RunVendorPass();
 

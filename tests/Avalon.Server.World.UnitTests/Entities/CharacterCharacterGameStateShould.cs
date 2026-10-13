@@ -9,6 +9,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Testing;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Entities;
@@ -279,7 +280,7 @@ public class CharacterCharacterGameStateShould
         Watch(state, creatures, characters, worldObjects, dirty);
         Assert.Empty(state.RemovedObjects);   // the margin keeps all three
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int tick = 0; tick < 100; tick++)
             Watch(state, creatures, characters, worldObjects, dirty);
 

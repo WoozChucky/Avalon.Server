@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.World.Testing;
 using Xunit;
 
 namespace Avalon.Shared.UnitTests.Networking;
@@ -25,7 +26,7 @@ public class PayloadSegmentPoolShould
             packet.Release();
 
         var inFlight = new OutboundPacket[64];
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        long before = ThreadAllocations.BeforeQuietWindow();
         for (int round = 0; round < 1_000; round++)
         {
             for (int i = 0; i < inFlight.Length; i++)
