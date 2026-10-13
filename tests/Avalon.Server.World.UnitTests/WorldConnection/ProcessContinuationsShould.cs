@@ -113,6 +113,59 @@ public sealed class ProcessContinuationsShould : IDisposable
         Assert.True(laterInvoked);
     }
 
+    public enum Outcome
+    {
+        Succeeds,
+        Faults,
+        IsCancelled,
+    }
+
+    /// <summary>
+    /// A continuation queued to run whatever its task's outcome (<see cref="ISettledContinuations" />) waits for its
+    /// task like any other, then runs, handed the task, for a task that failed as for one that succeeded: the
+    /// ordinary continuation's callback is dropped then, and whatever it was to end never ends. It keeps its place
+    /// in the queue, ahead of what is queued after it, and a throw out of it is contained like any other's.
+    /// </summary>
+    [Theory]
+    [InlineData(Outcome.Succeeds, TaskStatus.RanToCompletion)]
+    [InlineData(Outcome.Faults, TaskStatus.Faulted)]
+    [InlineData(Outcome.IsCancelled, TaskStatus.Canceled)]
+    public void Run_a_settled_continuation_once_its_task_has_ended_whatever_the_outcome(Outcome outcome, TaskStatus status)
+    {
+        var ran = new List<string>();
+        var work = new TaskCompletionSource<int>();
+
+        _connection.EnqueueContinuation(Task.CompletedTask, () => ran.Add("before"));
+        ((ISettledContinuations)_connection).EnqueueSettled(work.Task, task =>
+        {
+            ran.Add($"settled: {task.Status}");
+            throw new InvalidOperationException("simulated");
+        });
+        _connection.EnqueueContinuation(Task.FromResult(1), _ => ran.Add("after"));
+
+        _connection.FlushContinuations(); // its task has not ended: the others run, it waits
+        Assert.Equal(["before", "after"], ran);
+
+        switch (outcome)
+        {
+            case Outcome.Succeeds:
+                work.SetResult(1);
+                break;
+            case Outcome.Faults:
+                work.SetException(new InvalidOperationException("simulated build fault"));
+                break;
+            case Outcome.IsCancelled:
+                work.SetCanceled();
+                break;
+        }
+
+        _connection.EnqueueContinuation(Task.CompletedTask, () => ran.Add("later"));
+        Exception? escaped = Record.Exception(() => _connection.FlushContinuations());
+
+        Assert.Null(escaped);
+        Assert.Equal(["before", "after", $"settled: {status}", "later"], ran);
+    }
+
     /// <summary>
     /// #704: a task that succeeds on another thread while the tick is flushing still gets its callback.
     /// The flush used to read "succeeded?" and then "finished?", so a task that finished between the two
