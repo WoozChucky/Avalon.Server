@@ -19,8 +19,13 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
 
+/// <summary>
+/// A portal entry (<c>CMSG_ENTER_MAP</c>). The numbered steps are the ones <c>docs/instanced-maps.md</c> lists under
+/// "EnterMapHandler Flow": 1 to 7 run as the packet is handled, up to the request for the target instance, and 8 to 13
+/// in the connection continuation, once that instance is ready.
+/// </summary>
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
-public class EnterMapHandler(
+public partial class EnterMapHandler(
     ILogger<EnterMapHandler> logger,
     ICharacterSaver characterSaver,
     IChunkLibrary chunkLibrary,
@@ -29,7 +34,7 @@ public class EnterMapHandler(
 {
     public override void Execute(IWorldConnection connection, CEnterMapPacket packet)
     {
-        // 1. Guard: character must be in-game
+        // 1. Guards: the character must be in the game and alive, and no other move to a map may be under way.
         if (!connection.InGame)
         {
             return;
@@ -37,7 +42,7 @@ public class EnterMapHandler(
 
         if (connection.Character is { IsDead: true } deadChar)
         {
-            logger.LogDebug("Dropped CMSG_ENTER_MAP from dead char {Name}", deadChar.Name);
+            Log.FromDeadCharacter(logger, deadChar.Name);
             return;
         }
 
@@ -47,7 +52,7 @@ public class EnterMapHandler(
         // decides where the character goes, so a portal entry now is refused before anything is looked up or built.
         if (connection.RespawnInFlight)
         {
-            logger.LogDebug("EnterMap: {Name} is already moving to a map; refused", character.Name);
+            Log.MoveInProgress(logger, character.Name);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MoveInProgress,
                 PacketEncoder.Shared));
             return;
@@ -56,22 +61,21 @@ public class EnterMapHandler(
         // 2. Resolve the current instance
         IMapInstance? currentInstance = world.InstanceRegistry.GetInstanceById(character.InstanceId);
 
-        // 3. Load the target map template
+        // 3. The target map's template, by id.
         ushort targetMap = packet.TargetMapId;
         MapTemplate? targetTemplate = world.MapTemplates.FindById(targetMap);
 
         if (targetTemplate == null)
         {
-            logger.LogDebug("EnterMap: target map {MapId} not found", targetMap);
+            Log.MapNotFound(logger, targetMap);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
                 PacketEncoder.Shared));
             return;
         }
 
-        // 4. Find a portal on the current map that leads to the target.
-        // Every instance is now chunk-layout-built and carries its portals on Layout.Portals
-        // (surfaced as PortalInstance via PortalPlacementService). The legacy DB MapPortal
-        // fallback was deleted with this task.
+        // 4. Find a portal on the current map that leads to the target. Every instance is built from a chunk layout,
+        // and its portals are the PortalInstances PortalPlacementService placed from Layout.Portals as it was built:
+        // there is no other source of portals.
         if (currentInstance is not MapInstance mi)
         {
             logger.LogError("EnterMap: no live map instance for character {Name}; refusing teleport",
@@ -84,31 +88,23 @@ public class EnterMapHandler(
         PortalInstance? match = PortalTo(mi, targetMap);
         if (match is null)
         {
-            logger.LogDebug("EnterMap: no portal to {TargetMapId}", targetMap);
+            Log.NoPortal(logger, targetMap);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
                 PacketEncoder.Shared));
             return;
         }
 
-        Vector3 portalPosition = match.Position;
-        float portalRadius = match.Radius;
-
-        // 6. Proximity check
-        if (Vector3.Distance(character.Position, portalPosition) > portalRadius)
+        // 5. Proximity check: the server's position of the character against the portal's radius.
+        float distance = Vector3.Distance(character.Position, match.Position);
+        if (distance > match.Radius)
         {
-            // TEMP DIAG: include character + portal world coords + current instance id so we can
-            // correlate stale-state cases (player position not advancing on server post-transition).
-            logger.LogWarning(
-                "EnterMap: {Name} too far from portal — charPos={CharPos} portalPos={PortalPos} distance={Distance:F2} radius={Radius:F2} charInstance={CharInstance} targetMap={TargetMap}",
-                character.Name, character.Position, portalPosition,
-                Vector3.Distance(character.Position, portalPosition), portalRadius,
-                character.InstanceId, targetMap);
+            Log.TooFarFromPortal(logger, character.Name, targetMap, distance, match.Radius);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.NotNearPortal,
                 PacketEncoder.Shared));
             return;
         }
 
-        // 7. Level checks
+        // 6. Level checks
         if (targetTemplate.MinLevel.HasValue && character.Level < targetTemplate.MinLevel.Value)
         {
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.LevelTooLow,
@@ -123,7 +119,7 @@ public class EnterMapHandler(
             return;
         }
 
-        // 8. Resolve target instance.
+        // 7. Resolve the target instance; the rest runs once it is ready.
         ResolveTarget(connection, character, targetTemplate, targetMap, reResolved: false);
     }
 
@@ -253,8 +249,7 @@ public class EnterMapHandler(
         // discarded entity back into an instance, beside the new session's copy.
         if (!ReferenceEquals(connection.Character, character))
         {
-            logger.LogDebug("EnterMap: character {Name} left the connection before its target instance was ready",
-                character.Name);
+            Log.LeftBeforeInstanceReady(logger, character.Name);
             return;
         }
 
@@ -263,29 +258,28 @@ public class EnterMapHandler(
             return;
         }
 
-        // 8b. Exit-path (Phase H): drop the character from any in-progress encounter on the
-        // SOURCE instance before transferring. Combat-state gating allows in-combat map
-        // transitions per spec section 7; the encounter would be left dangling otherwise
-        // because TransferPlayer only manages instance membership, not combat membership.
+        // 8. Exit path: drop the character from any encounter in progress on the source instance before the
+        // transfer. A map transition is allowed in combat, and the encounter would be left dangling otherwise: the
+        // transfer moves instance membership, not combat membership.
         IMapInstance? sourceInstance = world.InstanceRegistry.GetInstanceById(character.InstanceId);
         sourceInstance?.CombatService.DropPlayerFromEncounter(character);
 
-        // 9. Transfer the player (removes from current, updates position & InstanceIdGuid, adds to target)
-        // The map transition and chunk layout must go out in this same callback: MapInstance sends
-        // the loot snapshot on its next tick, and the client has to know the map before its drops.
+        // 9. Transfer the player. World.TransferPlayer owns instance membership only: it removes the character from
+        // its current instance, sets its InstanceId and adds it to the target. It does not move the character: the
+        // position is the row's, written in step 13. Steps 11 and 12 must go out in this same callback: the instance
+        // sends its loot snapshot on its next tick, and the client has to know the map before its drops.
         world.TransferPlayer(connection, targetInstance);
 
-        // 10. Resolve spawn coords: every MapInstance (town + normal) carries the canonical
-        // entry spawn of its Layout. The template defaults serve only a target that is not a
-        // MapInstance.
+        // 10. The spawn: the entry spawn of the target instance's layout, which every MapInstance (town and normal)
+        // has. The template defaults serve only a target that is not a MapInstance.
         Vector3 spawn = MapArrival.SpawnOf(targetInstance, targetTemplate);
 
-        // 11. Send success response, then 12. the chunk layout packet of a MapInstance: what every
-        // arrival sends (MapArrival), with the layout's entries built once for the instance (#883).
+        // 11. The success response, then 12. the instance's chunk layout, for a target that is a MapInstance: what
+        // every arrival sends (MapArrival), with the layout's entries built once for the instance (#883).
         MapArrival.Send(connection, targetInstance, targetTemplate, spawn, chunkLibrary);
 
-        // 13. Persist updated map and position, with any dirty inventory and money, through the one
-        // save path (spec #459 section 1).
+        // 13. Persist the new map, instance and position, with any dirty inventory and money, through the one
+        // save path (spec #459 section 1). The row's coordinates are the character's position.
         if (connection.Character is CharacterEntity { Data: { } dbCharacter } entity)
         {
             dbCharacter.Map = targetMapId;
@@ -303,5 +297,39 @@ public class EnterMapHandler(
             });
         }
     }
-}
 
+    /// <summary>
+    /// The lines a client's own packets can cause, as many times as it sends them (#883): each formats and allocates
+    /// nothing unless Debug is written, where the <c>LogDebug</c> they replace made an array of its arguments, and
+    /// boxed the numbers among them, on every call. A portal entry refused in the connection's current state is a
+    /// Debug line, as a packet a session filter refuses for it is (docs/packet-handlers.md). No line holds anything the
+    /// packet carries but its target map id, a number.
+    /// </summary>
+    private static partial class Log
+    {
+        [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped CMSG_ENTER_MAP from dead char {Name}")]
+        public static partial void FromDeadCharacter(ILogger logger, string name);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "EnterMap: {Name} is already moving to a map; refused")]
+        public static partial void MoveInProgress(ILogger logger, string name);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "EnterMap: target map {MapId} not found")]
+        public static partial void MapNotFound(ILogger logger, ushort mapId);
+
+        [LoggerMessage(Level = LogLevel.Debug, Message = "EnterMap: no portal to {TargetMapId}")]
+        public static partial void NoPortal(ILogger logger, ushort targetMapId);
+
+        // What is left of a diagnostic that logged this refusal at Warning, with both positions and the instance, to
+        // find why a character's position stopped advancing on the server after a transition (the input sequence was
+        // reset on every transfer; fixed with the diagnostic, in the same change). A client standing away from a
+        // portal causes one with every request, so it is a Debug line again, with what tells one refusal from another.
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "EnterMap: {Name} is too far from the portal to map {TargetMapId} (distance {Distance:F2}, radius {Radius:F2})")]
+        public static partial void TooFarFromPortal(ILogger logger, string name, ushort targetMapId, float distance,
+            float radius);
+
+        [LoggerMessage(Level = LogLevel.Debug,
+            Message = "EnterMap: character {Name} left the connection before its target instance was ready")]
+        public static partial void LeftBeforeInstanceReady(ILogger logger, string name);
+    }
+}

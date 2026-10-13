@@ -277,10 +277,13 @@ public class SMapTransitionPacket : Packet
 ### `EnterMapHandler` Flow
 
 The numbers are those of the handler's own step comments (`src/Server/Avalon.World/Handlers/EnterMapHandler.cs`), so
-"step 10" means the same thing here and there. The handler has no step 5. Steps 1 to 8 run as the packet is handled, up
-to the request for the target instance; the arrival checks listed under step 8 and steps 8b to 13 run in the connection
-continuation, once that instance is ready. A refusal is an `SMapTransitionPacket` whose `Result` is the
-`MapTransitionResult` named and whose other fields are empty (`SMapTransitionPacket.CreateFailure`).
+"step 10" means the same thing here and there. Steps 1 to 7 run as the packet is handled, up to the request for the
+target instance; the arrival checks listed under step 7 and steps 8 to 13 run in the connection continuation, once
+that instance is ready. A refusal is an `SMapTransitionPacket` whose `Result` is the `MapTransitionResult` named and
+whose other fields are empty (`SMapTransitionPacket.CreateFailure`). Each refusal a client can cause by what it sends
+(a dead character, a move under way, an unknown map, no portal, too far from the portal) writes one Debug line, built
+only when Debug is written, as a packet refused for the connection's current state does
+([packet handlers](packet-handlers.md)).
 
 ```
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
@@ -289,7 +292,8 @@ continuation, once that instance is ready. A refusal is an `SMapTransitionPacket
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
        a respawn or a party return) → send MoveInProgress, return, before anything is looked up
 2.  Resolve the current instance: InstanceRegistry.GetInstanceById(character.InstanceId)
-3.  Load the MapTemplate for packet.TargetMapId from world.MapTemplates
+3.  Find the MapTemplate of packet.TargetMapId among world.MapTemplates, by id
+       (MapTemplateRows.FindById: the map manager holds the templates with a lookup by id)
        → none: send MapNotFound, return
 4.  Find the portal. The current instance must be a live MapInstance
        → not one: send MapNotFound, return
@@ -297,11 +301,11 @@ continuation, once that instance is ready. A refusal is an `SMapTransitionPacket
        (portals are surfaced from ChunkLayout.Portals at instance build time —
         single source of truth, no DB fallback)
        → no portal: send MapNotFound, return
-6.  Proximity check: Vector3.Distance(character.Position, portal.Position) <= portal.Radius
+5.  Proximity check: Vector3.Distance(character.Position, portal.Position) <= portal.Radius
        → too far: send NotNearPortal, return
-7.  Level checks against the template's MinLevel and MaxLevel, each only when set
+6.  Level checks against the template's MinLevel and MaxLevel, each only when set
        → send LevelTooLow / LevelTooHigh, return
-8.  Resolve the target instance (built off the tick when there is none to reuse):
+7.  Resolve the target instance (built off the tick when there is none to reuse):
        Town   → GetOrCreateTownInstanceAsync(templateId, MaxPlayers ?? 30)
        Normal → in a party: GetOrCreatePartyInstanceAsync(partyId, templateId), then re-check the
                 party (MapNotFound) and the seats (InstanceFull) once it is built;
@@ -310,23 +314,37 @@ continuation, once that instance is ready. A refusal is an `SMapTransitionPacket
        on another connection can take it meanwhile: nothing is done, no reply), then that the
        instance is still registered; one released meanwhile is resolved again once (see Expiry
        Cleanup), and a second release in a row → send MapNotFound, return
-8b. Exit path: drop the character from any encounter in progress on the source instance
+8.  Exit path: drop the character from any encounter in progress on the source instance
        (CombatService.DropPlayerFromEncounter); the transfer moves instance membership only
 9.  world.TransferPlayer(connection, targetInstance):
        a. currentInstance.RemoveCharacter(connection)
        b. character.InstanceId = targetInstance.InstanceId
        c. targetInstance.AddCharacter(connection) — connection.LastInputSeq is not reset: it
           stays monotonic for the connection's life
-    It also ends an open NPC conversation and a bank or shop opened in it, before (a)
-10. Resolve the spawn: the target MapInstance's EntrySpawnWorldPos (its layout's entry spawn);
-       the template's DefaultSpawnX/Y/Z only for a target that is not a MapInstance
+    It also ends an open NPC conversation and a bank or shop opened in it, before (a).
+    It does not move the character: the position is the row's, written in step 13
+10. Resolve the spawn (MapArrival.SpawnOf): the target MapInstance's EntrySpawnWorldPos (its
+       layout's entry spawn); the template's DefaultSpawnX/Y/Z only for a target that is not a
+       MapInstance
 11. Send SMapTransitionPacket(Success, instanceId, mapId, spawn, map name and description)
 12. Send SChunkLayoutPacket for the new instance (seed, cell size, chunks, entry spawn, portals)
        when the target is a MapInstance, in the same continuation as 9 and 11: the instance
        sends its loot snapshot on its next tick, and the client has to know the map first
+    11 and 12 are MapArrival.Send, the one place every arrival's packets are sent from (below)
 13. Save the character (ICharacterSaver.Save: the row's map, instance and the spawn of step 10
        as its position, with any dirty inventory and money)
 ```
+
+### What an arrival is sent
+
+Every arrival sends the same two packets from one place, `MapArrival` (`Avalon.World/Respawn`): a portal entry, a
+return to town (`TownReturn`) and an item's teleport (`MapTeleport`) call `MapArrival.Send`, the transition and then
+the chunk layout; a character select sends its own `SCharacterSelectedPacket` and then `MapArrival.SendLayout`. The
+layout packet's chunk and portal entries are built once per instance, at its first arrival, and kept
+(`MapInstance.LayoutPacket`, `MapLayoutEntries`, #883): they come from the instance's `ChunkLayout`, which it keeps
+for its life, and from the chunk library's names, loaded once with the world; neither is something `/reload` or live
+template editing replaces. The entries are written into each packet and never changed, and `MapArrivalShould` holds
+every arrival's packet to the layout byte for byte.
 
 ---
 
