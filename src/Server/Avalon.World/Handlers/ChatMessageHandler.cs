@@ -10,7 +10,9 @@ namespace Avalon.World.Handlers;
 
 /// <summary>
 /// A slash command runs on the tick; anything else is said aloud, to everyone in the sender's instance,
-/// the sender included (spec 2026-09-30 section 5), except a listener that ignores the sender (#723).
+/// the sender included (spec 2026-09-30 section 5), except a listener that ignores the sender (#723). Before either,
+/// a message over <see cref="ChatMessageLimit.MaxBytes" /> is refused (#936). This is the only handler of the opcode
+/// and the only caller of the command dispatcher, so the rule holds for every command as for plain chat.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_CHAT_MESSAGE)]
 public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatcher,
@@ -19,7 +21,19 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
 {
     public override void Execute(IWorldConnection connection, CChatMessagePacket packet)
     {
-        string message = packet.Message;
+        // A packet with no message says nothing.
+        if (packet.Message is not { } message)
+        {
+            return;
+        }
+
+        // The length rule (#936) comes before everything, the commands included: an over-long message reaches no
+        // parser, no lookup and no listener, uses none of the rate limit, and only the sender is told.
+        if (ChatMessageLimit.Exceeds(message))
+        {
+            connection.Send(SChatMessagePacket.System(ChatMessageLimit.TooLong, packet.DateTime, PacketEncoder.Shared));
+            return;
+        }
 
         if (message.StartsWith('/'))
         {

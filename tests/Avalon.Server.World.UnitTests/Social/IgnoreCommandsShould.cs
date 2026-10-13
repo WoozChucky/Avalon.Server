@@ -131,13 +131,26 @@ public class IgnoreCommandsShould
     public void Refuse_to_ignore_yourself_found_by_id()
     {
         PartyClient aren = Online(1, "Aren");
-        _repository.FindCharacterByNameAsync("Arén", Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<CharacterNameMatch?>(new CharacterNameMatch(1u, "Aren")));
+        // The character was renamed since this session selected it: the database finds it under a name it does not hold here.
+        _repository.FindCharacterByNameAsync("Arenn", Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<CharacterNameMatch?>(new CharacterNameMatch(1u, "Arenn")));
 
-        Run(Ignore(), aren, "/ignore Arén");
+        Run(Ignore(), aren, "/ignore Arenn");
 
         Assert.Equal(["You can't ignore yourself."], aren.Lines());
         Assert.Empty(aren.Character.Ignores.Entries);
+    }
+
+    /// <summary>#936: a name that is not a character name is nobody's, so neither the online characters nor the database are asked.</summary>
+    [Fact]
+    public void Refuse_a_name_no_character_can_have_without_asking_the_database()
+    {
+        PartyClient aren = Online(1, "Aren");
+
+        Run(Ignore(), aren, "/ignore Arén");
+
+        Assert.Equal(["No character named Arén exists."], aren.Lines());
+        _repository.DidNotReceiveWithAnyArgs().FindCharacterByNameAsync(default!, default);
     }
 
     [Fact]

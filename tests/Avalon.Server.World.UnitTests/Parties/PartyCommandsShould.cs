@@ -32,6 +32,20 @@ public class PartyCommandsShould
         Assert.Contains("You invited Kaela to the party.", a.Lines());
     }
 
+    /// <summary>#936: as the packet, /invite refuses a name that is not a character name before anything is looked up.</summary>
+    [Fact]
+    public void Refuse_an_invite_that_names_no_character_before_looking_anyone_up()
+    {
+        PartyClient a = _w.Online(1, "Aren");
+        PartyClient b = _w.Online(2, "Tester2"); // a digit, so not a name, though a character here holds it
+
+        Run(new InviteCommand(_w.Parties), a, "/invite Tester2");
+
+        Assert.Equal(PartyResult.NotFound, Assert.Single(a.Results()).Result);
+        Assert.Equal(["Could not find Tester2."], a.Lines());
+        Assert.Empty(b.Invites());
+    }
+
     [Fact]
     public void Kick_and_promote_by_member_name()
     {

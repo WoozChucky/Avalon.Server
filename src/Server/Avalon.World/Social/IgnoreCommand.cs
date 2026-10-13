@@ -57,6 +57,14 @@ public sealed class IgnoreCommand(
 
         rateLimiter.Record(owner.Guid.Id);
 
+        // A name that is not a character name (#936) is nobody's: it is answered as one the lookup did not find,
+        // and neither the online characters nor the database are asked.
+        if (!CharacterName.IsValid(name))
+        {
+            ctx.Reply(IgnoreLines.NoSuchCharacter(name));
+            return;
+        }
+
         if (online.ByName(name)?.Character is { } target)
         {
             TryAdd(ctx, owner, target.Guid.Id, target.Name);
