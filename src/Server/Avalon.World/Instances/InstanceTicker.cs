@@ -76,8 +76,16 @@ public sealed class InstanceTicker
         }
     }
 
+    /// <summary>
+    /// The world's broadcast schedule (#975), moved on by every tick's delta here; the registry places each instance it
+    /// publishes on it.
+    /// </summary>
+    public BroadcastSchedule Broadcasts { get; } = new();
+
     private void TickCore(ReadOnlySpan<IMapInstance> instances, TimeSpan deltaTime)
     {
+        Broadcasts.Advance(deltaTime);
+
         foreach (IMapInstance instance in instances)
         {
             long start = Stopwatch.GetTimestamp();

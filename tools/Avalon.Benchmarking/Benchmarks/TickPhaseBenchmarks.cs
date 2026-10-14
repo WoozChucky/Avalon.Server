@@ -40,8 +40,9 @@ public class TickPhaseBenchmarks
             TickBatch();
     }
 
-    // ScenarioWorld.Dt rounds down: the 0.1f broadcast threshold is reached every seven ticks.
-    // Six complete cadence windows keep broadcast work identical in every measurement.
+    // Each instance broadcasts every six ticks (#975: the 100 ms interval with its remainder carried; ScenarioWorld.Dt is
+    // 4 TimeSpan ticks under 1/60 s, so a seventh is needed once in about 40,000 intervals), each in its own slot.
+    // Seven complete intervals keep broadcast work identical in every measurement.
     [Benchmark(OperationsPerInvoke = 42)]
     public void TickBatch()
     {

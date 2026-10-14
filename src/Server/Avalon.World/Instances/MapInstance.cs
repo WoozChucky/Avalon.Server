@@ -54,7 +54,6 @@ namespace Avalon.World.Instances;
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
     IItemUseHost, IItemCastAudience, IAuraHost, IDisposable
 {
-    private const float BroadcastInterval = 0.1f;
     private InstanceTickProfile _tickProfile;
 
     private readonly Dictionary<ObjectGuid, ICharacter> _characters = [];
@@ -86,7 +85,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly UnitHitQuery _hits;
     private readonly ThreatBroadcastService _threatBroadcast;
     private readonly IWorld _world;
-    private float _lastBroadcastTime;
+
+    // The state broadcast's clock (#975): how far this instance is into its broadcast interval, in TimeSpan ticks,
+    // always below BroadcastSchedule.Interval. It starts from the phase the registry gives the instance as it publishes
+    // it and runs on every tick, empty ones included, so the instance keeps its slot on the world's schedule.
+    private long _broadcastClock;
+
+    // Whether this tick broadcasts state, decided once at the top of the tick: the dirty snapshot, and with it the state
+    // updates, and the tick profile all read it.
+    private bool _broadcastTick;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
     private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
 
@@ -1126,6 +1133,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Every hit list the last tick handed out was read within it: the hit query may reuse them (#880).
         _hits.Recycle();
 
+        // Before the empty check: an empty instance's clock runs too, so it is still in its slot when someone comes.
+        _broadcastTick = AdvanceBroadcastClock(deltaTime);
+
         if (_characters.Count == 0)
         {
             StandStillWhileEmpty();
@@ -1137,8 +1147,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         if (_healthFactorOwed)
             ApplyHealthFactor();
-
-        _lastBroadcastTime += (float)deltaTime.TotalSeconds;
 
         // Step 0: drops already on the ground, for characters that entered since the last tick. First,
         // before any packet is processed, so a kill later in this tick reaches them once, through the
@@ -1183,18 +1191,40 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _tickProfile.DirtyTicks += _tickProfile.Elapsed(profileStart);
         if (_tickProfile.Enabled)
         {
-            _tickProfile.Broadcast = _lastBroadcastTime >= BroadcastInterval;
+            _tickProfile.Broadcast = _broadcastTick;
             _tickProfile.Projectiles = _objectAbilities.Count;
             _tickProfile.DirtyEntities = _frameDirtyFields.Count;
         }
 
         // Step 5b and 6: visibility, then the state broadcast, per character.
         BroadcastState(_objectAbilities);
+    }
 
-        if (_lastBroadcastTime >= BroadcastInterval)
+    /// <summary>
+    /// Gives the instance its place on the world's broadcast schedule (#975): the clock it starts from, from
+    /// <see cref="BroadcastSchedule.NextPhase" />. The registry calls it as it publishes the instance, on the tick, before
+    /// the instance's first tick; an instance never published keeps 0, broadcasting first one interval after its first tick.
+    /// </summary>
+    internal void JoinBroadcastSchedule(TimeSpan phase) => _broadcastClock = phase.Ticks;
+
+    /// <summary>
+    /// Runs the broadcast clock on by the tick's delta and says whether this tick broadcasts: the one on which the clock
+    /// reaches the interval (#975). The remainder is kept rather than dropped, so the broadcasts keep to the interval, ten
+    /// a second, and not to whichever tick comes after it; and an instance keeps its slot. A tick longer than the interval
+    /// broadcasts once, never a burst of catch-up broadcasts on the ticks after it, and leaves the clock where its slot
+    /// puts it.
+    /// </summary>
+    private bool AdvanceBroadcastClock(TimeSpan deltaTime)
+    {
+        long clock = _broadcastClock + deltaTime.Ticks;
+        if (clock < BroadcastSchedule.IntervalTicks)
         {
-            _lastBroadcastTime = 0;
+            _broadcastClock = clock;
+            return false;
         }
+
+        _broadcastClock = clock % BroadcastSchedule.IntervalTicks;
+        return true;
     }
 
     /// <summary>A tick with nobody here: nothing ticks, and what would wait for a player is settled now or on return.</summary>
@@ -1322,9 +1352,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // notably "creature stopped moving" frames after combat/return resolve, which made
         // creatures appear to drift forever on clients.
         _frameDirtyFields.Clear();
-        bool shouldBroadcastUpdates = _lastBroadcastTime >= BroadcastInterval;
 
-        if (shouldBroadcastUpdates)
+        if (_broadcastTick)
         {
             foreach (ICreature creature in _creatures.Values)
             {
