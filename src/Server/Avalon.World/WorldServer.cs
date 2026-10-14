@@ -659,6 +659,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         long previous = WorldTickTrace.TickId;
         WorldTickTrace.TickId = tickStart;
+        long sessionPackets = WorldTickTrace.SessionPackets;
         bool completed = false;
         try
         {
@@ -669,7 +670,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             WorldTickTrace.TickId = previous;
             WorldTickTrace.Log.WorldTick(tickStart, Stopwatch.GetTimestamp() - tickStart,
-                Stopwatch.Frequency, completed ? 1 : 0);
+                Stopwatch.Frequency, completed ? 1 : 0, WorldTickTrace.SessionPackets - sessionPackets);
         }
     }
 

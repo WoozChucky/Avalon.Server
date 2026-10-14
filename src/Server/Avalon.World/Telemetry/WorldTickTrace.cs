@@ -12,13 +12,40 @@ public sealed class WorldTickTrace : EventSource
     // One simulation owner per thread. A standalone InstanceTicker supplies its own correlation id.
 #pragma warning disable IDE1006 // Thread-local fields use the t_ prefix.
     [ThreadStatic] private static long t_tickId;
+
+    // Running totals of the packets each pass took off the receive queues on this thread, while a listener is attached;
+    // a record reads the difference across its own span. Per thread, so instances ticked on several threads (#639)
+    // each count their own.
+    [ThreadStatic] private static long t_sessionPackets;
+    [ThreadStatic] private static long t_mapPackets;
 #pragma warning restore IDE1006
 
     internal static long TickId { get => t_tickId; set => t_tickId = value; }
 
+    /// <summary>Packets the session pass has processed on this thread since the trace was first enabled on it.</summary>
+    internal static long SessionPackets => t_sessionPackets;
+
+    /// <summary>Packets the map pass has processed on this thread since the trace was first enabled on it.</summary>
+    internal static long MapPackets => t_mapPackets;
+
+    /// <summary>One connection's session pass took <paramref name="count" /> packets off its queue. Nothing while disabled.</summary>
+    internal static void CountSessionPackets(uint count)
+    {
+        if (count != 0 && Log.IsEnabled())
+            t_sessionPackets += count;
+    }
+
+    /// <summary>One connection's map pass took <paramref name="count" /> packets off its queue. Nothing while disabled.</summary>
+    internal static void CountMapPackets(uint count)
+    {
+        if (count != 0 && Log.IsEnabled())
+            t_mapPackets += count;
+    }
+
     private WorldTickTrace() { }
 
-    [Event(1, Level = EventLevel.Informational)]
+    // Version 1 appended mapPackets; fields are only ever appended, so a reader by position keeps working.
+    [Event(1, Level = EventLevel.Informational, Version = 1)]
     public void InstanceTick(
         long tickId,
         long instanceLow,
@@ -49,7 +76,8 @@ public sealed class WorldTickTrace : EventSource
         long updated,
         long removed,
         long statePackets,
-        long stateBytes)
+        long stateBytes,
+        long mapPackets)
     {
         if (IsEnabled())
         {
@@ -59,15 +87,17 @@ public sealed class WorldTickTrace : EventSource
                 broadcast, players, creatures, projectiles, inputTicks, combatTicks, creatureTicks, dirtyTicks,
                 visibilityTicks, trackingTicks, statePreparationTicks, stateEncodingTicks, auraTicks, enqueueTicks,
                 candidateChecks, visiblePairs, dirtyEntities, added, updated, removed, statePackets, stateBytes,
+                mapPackets,
             });
         }
     }
 
-    [Event(2, Level = EventLevel.Informational)]
-    public void WorldTick(long tickId, long durationTicks, long frequency, long completed)
+    // Version 1 appended sessionPackets.
+    [Event(2, Level = EventLevel.Informational, Version = 1)]
+    public void WorldTick(long tickId, long durationTicks, long frequency, long completed, long sessionPackets)
     {
         if (IsEnabled())
-            WriteValues(2, stackalloc long[] { tickId, durationTicks, frequency, completed });
+            WriteValues(2, stackalloc long[] { tickId, durationTicks, frequency, completed, sessionPackets });
     }
 
     [Event(3, Level = EventLevel.Informational)]
@@ -89,10 +119,11 @@ public sealed class WorldTickTrace : EventSource
             profile.InputTicks, profile.CombatTicks, profile.CreatureTicks, profile.DirtyTicks,
             profile.VisibilityTicks, profile.TrackingTicks, profile.StatePreparationTicks, profile.StateEncodingTicks,
             profile.AuraTicks, profile.EnqueueTicks, profile.CandidateChecks, profile.VisiblePairs,
-            profile.DirtyEntities, profile.Added, profile.Updated, profile.Removed, profile.StatePackets, profile.StateBytes);
+            profile.DirtyEntities, profile.Added, profile.Updated, profile.Removed, profile.StatePackets, profile.StateBytes,
+            profile.MapPackets);
     }
 
-    // Numeric payloads only, at most 30 longs. Avoid WriteEvent(params object[]) boxing/arrays on the tick.
+    // Numeric payloads only (InstanceTick's 31 longs the most). Avoid WriteEvent(params object[]) boxing/arrays on the tick.
     [NonEvent]
     private unsafe void WriteValues(int eventId, ReadOnlySpan<long> values)
     {

@@ -94,9 +94,13 @@ The allocation figures are sampled (one event per about 100 KB allocated), so th
 
 Events are numeric, with no names or player identifiers:
 
-- Event 2, `WorldTick`: tickId, durationTicks, frequency, completed. The tickId is the tick-start Stopwatch timestamp supplied to WorldServer.Update. Its duration covers time from that start through the end of Update.
-- Event 3, `InstanceBatch`: tickId, durationTicks, frequency, instances, completed. This wraps the sequential InstanceTicker pass.
-- Event 1, `InstanceTick`: tickId, instanceLow, instanceHigh, mapType, startTimestamp, durationTicks, frequency, completed, broadcast, players, creatures, projectiles, the phase fields and work counters below. The two instance fields are the Int64 halves of Guid.TryWriteBytes output.
+- Event 2, `WorldTick` (version 1): tickId, durationTicks, frequency, completed, sessionPackets. The tickId is the tick-start Stopwatch timestamp supplied to WorldServer.Update. Its duration covers time from that start through the end of Update. sessionPackets is the packets the session pass (the tick's first pass) took off every connection's receive queue.
+- Event 3, `InstanceBatch` (version 0): tickId, durationTicks, frequency, instances, completed. This wraps the sequential InstanceTicker pass.
+- Event 1, `InstanceTick` (version 1): tickId, instanceLow, instanceHigh, mapType, startTimestamp, durationTicks, frequency, completed, broadcast, players, creatures, projectiles, the phase fields and work counters below, then mapPackets (field 31). The two instance fields are the Int64 halves of Guid.TryWriteBytes output.
+
+Fields are only ever appended, and an event that gains one goes up a version, so a reader that reads by position keeps working on an older trace by stopping at the fields it has. Version 1 (#976) appended `mapPackets` to `InstanceTick` and `sessionPackets` to `WorldTick`; a version 0 trace (the 950-player profile, #974) has neither.
+
+A packet counts when a pass takes it off a connection's receive queue: dispatched to its handler (or logged as having none), or, in the session pass, dropped as stale because its character has left. A packet a pass holds back for the other pass, or for a later tick, is counted by the pass that finally takes it; a connection not yet authorised for gameplay discards its queue uncounted. Map packets are counted by the instance whose character update ran its connection's map pass, so the sum over a tick's instances plus sessionPackets is every packet the tick processed. The scenario harness (`tools/Avalon.Scenarios`, `TickPhaseBenchmarks`) hands its walkers' input straight to the handler, not through a queue, so its records read 0 for both.
 
 Join by process, thread and tickId; preserve 64-bit integers in the reader. A standalone InstanceTicker uses its own start as tickId. A direct MapInstance.Update without an outer ticker has tickId zero. Attaching or detaching mid-tick can leave partial groups: discard uncorrelated boundary groups and any tick containing an incomplete record. Verify the instance count against its batch. A batch may complete even when it contains an instance failure, because InstanceTicker contains those failures.
 
@@ -121,6 +125,7 @@ Convert duration ticks with `milliseconds = ticks * 1000 / frequency`. These are
 | dirtyEntities | Entities in the instance dirty snapshot |
 | added / updated / removed | Recipient tracking deltas; these are pairs, not unique entities |
 | statePackets / stateBytes | State packets handed to Send and their plain header-plus-payload bytes; excludes aura packets, sealing and TLS |
+| mapPackets | Received packets the map pass took off this instance's connections' queues (version 1; see above). `inputTicks` also covers each character's own update, PvP expiry and save scheduling, so `inputTicks` ÷ `mapPackets` bounds the cost per packet from above |
 
 Players and creatures are roster counts at update entry; projectiles are counted after combat. Broadcast marks whether this tick reaches the state-update cadence. Adds, removes and aura work can occur outside that cadence. Packet counters count the handoff even if the connection later refuses enqueue; they are not socket delivery counters. A failed phase can be absent from the accumulated phase totals, which is why completed=0 records must not be used as successful cheap ticks.
 
