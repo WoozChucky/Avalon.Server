@@ -61,6 +61,9 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
         return path;
     }
 
+    // The surface move writes the polygons it visits into the 16-entry buffer and the corridor merge reads only
+    // the ones written, so it is not zeroed on every route (#978).
+    [SkipLocalsInit]
     public void FindPath(Vector3 start, Vector3 end, List<Vector3> smoothPath)
     {
         smoothPath.Clear();
@@ -233,6 +236,9 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
     private static Vector3 ToVector3(RcVec3f v) => new(v.X, v.Y, v.Z);
 
+    // The raycast only writes the polygons it visits into its 2 KB path, which is never read here, so it is not
+    // zeroed on every line of sight (#978).
+    [SkipLocalsInit]
     public bool HasVisibility(Vector3 start, Vector3 end)
     {
         try
