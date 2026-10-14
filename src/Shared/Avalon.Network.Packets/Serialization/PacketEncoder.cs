@@ -35,9 +35,32 @@ public sealed class PacketEncoder(PayloadSegmentPool pool)
     {
         MemoryStream stream = t_stream ??= new MemoryStream(512);
         stream.SetLength(0);
+        Write(message, stream);
+        return FromPayload(new ReadOnlySpan<byte>(stream.GetBuffer(), 0, (int)stream.Length), type, flags, protocol);
+    }
+
+    /// <summary>
+    /// A packet whose message is already encoded: <paramref name="payload" />, copied into a segment of <see cref="Pool" />.
+    /// For a payload put together from parts encoded once and shared by several packets (#980); the bytes must be the
+    /// message's encoding, as <see cref="Encode{T}" /> would write it.
+    /// </summary>
+    public OutboundPacket FromPayload(ReadOnlySpan<byte> payload, NetworkPacketType type, NetworkPacketFlags flags,
+        NetworkProtocol protocol)
+    {
+        PayloadSegment segment = Pool.Rent(payload);
+        return new OutboundPacket(
+            new NetworkPacketHeader { Type = type, Flags = flags, Protocol = protocol, Version = 0 }, segment);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="message" /> at <paramref name="destination" />'s position, byte for byte as
+    /// <see cref="Encode{T}" /> writes it into a payload, and lets go of a scratch message's members as it does.
+    /// </summary>
+    public static void Write<T>(T message, Stream destination) where T : class
+    {
         try
         {
-            Serializer.Serialize(stream, message);
+            Serializer.Serialize(destination, message);
         }
         finally
         {
@@ -46,10 +69,6 @@ public sealed class PacketEncoder(PayloadSegmentPool pool)
             if (ReferenceEquals(message, ScratchSlot<T>.t_instance))
                 ScratchSlot<T>.s_clear!(message);
         }
-
-        PayloadSegment payload = Pool.Rent(new ReadOnlySpan<byte>(stream.GetBuffer(), 0, (int)stream.Length));
-        return new OutboundPacket(
-            new NetworkPacketHeader { Type = type, Flags = flags, Protocol = protocol, Version = 0 }, payload);
     }
 
     /// <summary>

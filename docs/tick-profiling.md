@@ -228,8 +228,8 @@ Convert duration ticks with `milliseconds = ticks * 1000 / frequency`. These are
 | dirtyTicks | Dirty-field snapshot pass |
 | visibilityTicks | Clearing recipient state lists and scanning characters, creatures and projectiles for visibility |
 | trackingTicks | Reconciling visible entities with recipient tracking state |
-| statePreparationTicks | Preparing recipient add/update lists and state objects |
-| stateEncodingTicks | Creating and encoding state add/update/remove packets |
+| statePreparationTicks | Preparing recipient add lists and state objects |
+| stateEncodingTicks | Creating and encoding state add/remove packets, and putting each recipient's update packet together (#980): an entity's update entry is described and encoded by the first recipient sent it in the broadcast and copied for the others, so the describing of updates is counted here, no longer under statePreparationTicks |
 | auraTicks | Aura replication, including its packet creation and enqueue |
 | enqueueTicks | Passing state add/update/remove packets to the connection |
 | candidateChecks | Entity candidates visited by visibility scans, summed across recipients |

@@ -105,6 +105,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>Each changed unit's aura update, encoded once per broadcast pass for every client that hears it (#980).</summary>
     private readonly SharedAuraUpdates _auraUpdates = new();
+
+    /// <summary>Each player's state update, put together from each entity's entry, encoded once per broadcast (#980).</summary>
+    private readonly StateUpdateAssembler _stateUpdates = new();
     private readonly List<PortalInstance> _portals = new();
 
     /// <summary>This tick's ability objects (projectiles), which the cast system fills and the broadcast reads.</summary>
@@ -1417,7 +1420,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 }
             }
 
-            // Step 6: Broadcast instance state to each character
+            // Step 6: Broadcast instance state to each character. Each entity's update is encoded once for all of them
+            // (#980); the last broadcast's encodings are forgotten first, also when it threw.
+            _stateUpdates.BeginBroadcast();
             foreach (ICharacter character in _characters.Values)
             {
                 if (character is CharacterEntity entity)
@@ -1466,7 +1471,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         PerPlayerBroadcastState state = _broadcastStates[character.Guid];
 
         state.AddedObjects.Clear();
-        state.UpdatedObjects.Clear();
         _statePool.Reset();
 
         // Indexed rather than walked with foreach, which boxes an interface's enumerator (#640).
@@ -1478,18 +1482,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (added is not null)
             {
                 state.AddedObjects.Add(added);
-            }
-        }
-
-        IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updatedObjects =
-            character.CharacterGameState.UpdatedObjects;
-        for (int i = 0; i < updatedObjects.Count; i++)
-        {
-            ObjectState? updated = DescribeUpdatedObject(updatedObjects[i], character.Guid);
-
-            if (updated is not null)
-            {
-                state.UpdatedObjects.Add(updated);
             }
         }
 
@@ -1509,10 +1501,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // _frameDirtyFields is populated only on broadcast ticks (see Step 5a in Update),
         // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
-        if (state.UpdatedObjects.Count > 0)
+        IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updatedObjects =
+            character.CharacterGameState.UpdatedObjects;
+        if (updatedObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
-            SendStatePacket(connection, SInstanceStateUpdatePacket.Create(state.UpdatedObjects, PacketEncoder.Shared), profileStart);
+            _stateUpdates.BeginPacket();
+            for (int i = 0; i < updatedObjects.Count; i++)
+                AppendUpdate(updatedObjects[i], character.Guid);
+
+            if (!_stateUpdates.IsEmpty)
+                SendStatePacket(connection, _stateUpdates.Finish(PacketEncoder.Shared), profileStart);
         }
 
         if (character.CharacterGameState.RemovedObjects.Count > 0)
@@ -1521,6 +1520,28 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             SendStatePacket(connection, SInstanceStateRemovePacket.Create(
                 character.CharacterGameState.RemovedObjects, PacketEncoder.Shared), profileStart);
         }
+    }
+
+    /// <summary>
+    /// Appends one entity's update to the recipient's packet (#980): the entry every recipient shares, encoded by the
+    /// first that is sent it this broadcast, or, for the recipient's own character, the one entry that depends on who
+    /// receives it (<see cref="MaskSelfSuppression" />), described and encoded for it alone. Byte for byte the packet
+    /// <see cref="SInstanceStateUpdatePacket.Create" /> wrote from the recipient's described list.
+    /// </summary>
+    private void AppendUpdate((ObjectGuid Guid, GameEntityFields Fields) updated, ObjectGuid recipientGuid)
+    {
+        if (updated.Guid == recipientGuid)
+        {
+            if (DescribeUpdatedObject(updated, recipientGuid) is { } own)
+                _stateUpdates.AppendOwn(own);
+            return;
+        }
+
+        if (_stateUpdates.TryAppendShared(updated.Guid, updated.Fields))
+            return;
+
+        // Described for a recipient other than the entity itself, which is how every recipient that shares it sees it.
+        _stateUpdates.AppendShared(updated.Guid, updated.Fields, DescribeUpdatedObject(updated, recipientGuid));
     }
 
     private void SendStatePacket(IWorldConnection connection, OutboundPacket packet, long encodingStart)
@@ -2236,6 +2257,5 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Capacities sized for a typical instance (32 entities visible per player).
         // List<T> grows automatically if exceeded — this avoids early reallocation.
         public List<ObjectState> AddedObjects { get; } = new(32);
-        public List<ObjectState> UpdatedObjects { get; } = new(32);
     }
 }
