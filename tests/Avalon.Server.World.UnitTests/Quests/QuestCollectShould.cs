@@ -68,7 +68,7 @@ public class QuestCollectShould
         w.Economy.InventoryOf(c.Character).TryAdd(s_tuskId, 2);
         Flush(w, c);
 
-        ushort slot = c.Character.Container(InventoryType.Bag).Items.Single().Slot;
+        byte slot = c.Character.Container(InventoryType.Bag).Items.Single().Slot;
         w.Economy.InventoryOf(c.Character).TryDestroy(new SlotRef(InventoryType.Bag, slot), 1, bankAccessible: false);
         Flush(w, c);
 
@@ -84,7 +84,7 @@ public class QuestCollectShould
         w.Economy.InventoryOf(c.Character).TryAdd(s_tuskId, 1);
         Flush(w, c);
 
-        ushort slot = c.Character.Container(InventoryType.Bag).Items.Single().Slot;
+        byte slot = c.Character.Container(InventoryType.Bag).Items.Single().Slot;
         Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
             w.Economy.InventoryOf(c.Character).TryMove(new SlotRef(InventoryType.Bag, slot), new SlotRef(InventoryType.Bank, 0), null, bankAccessible: true));
         Flush(w, c);
@@ -113,8 +113,8 @@ public class QuestCollectShould
         Assert.DoesNotContain(c.Character.Container(InventoryType.Bank).Items, i => i.TemplateId == s_tuskId);
         Assert.Equal(SaveState.Removed, c.Character.SaveState.ItemState(inBag.InstanceId));
         Assert.Equal(SaveState.Removed, c.Character.SaveState.ItemState(inBank.InstanceId));
-        Assert.Contains((InventoryType.Bag, (ushort)4), c.Character.ClientChanges.Slots);
-        Assert.Contains((InventoryType.Bank, (ushort)0), c.Character.ClientChanges.Slots);
+        Assert.Contains((InventoryType.Bag, (byte)4), c.Character.ClientChanges.Slots);
+        Assert.Contains((InventoryType.Bank, (byte)0), c.Character.ClientChanges.Slots);
     }
 
     /// <summary>Review fix: a tick whose only changes were money and the Bank leaves every Collect count alone.</summary>

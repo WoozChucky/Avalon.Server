@@ -46,8 +46,8 @@ public class SimulatorParityShould
     /// <summary>Close enough to the warrior (at the origin) that Hurled Axe's first step, 18 m/s for one tick, reaches it.</summary>
     private static readonly Vector3 s_pointBlank = new(0f, 0f, 0.5f);
 
-    private static ushort SlotOf(ItemTemplate item) =>
-        Enumerable.Range(0, EquipmentSlots.FirstReserved).Select(s => (ushort)s).First(s => EquipmentSlots.TypeOf(s) == item.Slot);
+    private static byte SlotOf(ItemTemplate item) =>
+        Enumerable.Range(0, EquipmentSlots.FirstReserved).Select(s => (byte)s).First(s => EquipmentSlots.TypeOf(s) == item.Slot);
 
     private static MapInstanceClient RealWarrior(MapInstance instance, uint id, params AbilityTemplate[] abilities) =>
         RealWarrior(instance, id, null, abilities);

@@ -32,16 +32,16 @@ public static class ItemEquip
         CharacterEntity character,
         IInventoryService inventory,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
-        ushort bagSlot,
+        byte bagSlot,
         ItemTemplate template,
         ILogger logger,
         Action? beforeApply = null)
     {
-        IReadOnlyList<ushort> slots = EquipmentSlots.SlotsFor(template.Slot);
+        IReadOnlyList<byte> slots = EquipmentSlots.SlotsFor(template.Slot);
         CharacterInventoryContainer equipment = character.Container(InventoryType.Equipment);
 
-        ushort target = slots[0];
-        foreach (ushort slot in slots)
+        byte target = slots[0];
+        foreach (byte slot in slots)
         {
             if (!equipment.TryGet(slot, out _))
             {
@@ -82,7 +82,7 @@ public static class ItemEquip
         CharacterEntity character,
         IInventoryService inventory,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
-        ushort equipmentSlot,
+        byte equipmentSlot,
         Action? beforeApply = null)
     {
         if (LowestFreeSlot(character.Container(InventoryType.Bag)) is not { } free)
@@ -122,7 +122,7 @@ public static class ItemEquip
     private static ItemUseResult EquipTwoHander(
         CharacterEntity character,
         IInventoryService inventory,
-        ushort bagSlot,
+        byte bagSlot,
         ItemTemplate template,
         SlotRef from,
         SlotRef to,
@@ -161,9 +161,9 @@ public static class ItemEquip
     }
 
     /// <summary>The lowest empty slot, or null when the container is full; a plain loop, so a use allocates no iterator.</summary>
-    private static ushort? LowestFreeSlot(CharacterInventoryContainer container)
+    private static byte? LowestFreeSlot(CharacterInventoryContainer container)
     {
-        for (ushort slot = 0; slot < container.Capacity; slot++)
+        for (byte slot = 0; slot < container.Capacity; slot++)
         {
             if (!container.TryGet(slot, out _))
                 return slot;

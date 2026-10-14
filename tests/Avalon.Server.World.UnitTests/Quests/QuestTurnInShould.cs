@@ -92,7 +92,7 @@ public class QuestTurnInShould
     public async Task Refuse_a_turn_in_whose_items_are_short_and_take_nothing()
     {
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
-        ushort slot = c.Character.Container(InventoryType.Bag).Items.Single().Slot;
+        byte slot = c.Character.Container(InventoryType.Bag).Items.Single().Slot;
         w.Economy.InventoryOf(c.Character).TryDestroy(new Avalon.World.Inventory.SlotRef(InventoryType.Bag, slot), 1, bankAccessible: false);
 
         Assert.Equal(QuestResult.NotReady, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));
@@ -108,7 +108,7 @@ public class QuestTurnInShould
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync();
         ItemTemplate charm = Items().Single(i => i.Id.Value == Charm);
         CharacterInventoryContainer bag = c.Character.Container(InventoryType.Bag);
-        bag.Load(bag.Items.Concat(Enumerable.Range(0, bag.Capacity).Select(s => (ushort)s)
+        bag.Load(bag.Items.Concat(Enumerable.Range(0, bag.Capacity).Select(s => (byte)s)
             .Where(s => bag.Items.All(i => i.Slot != s)).Select(s => TestCharacters.Item(s, charm))).ToList());
         Assert.Empty(bag.FreeSlots());
 
@@ -124,7 +124,7 @@ public class QuestTurnInShould
         (QuestTestWorld w, QuestClient c, Creature ender) = await ReadyTusksAsync(quests);
         ItemTemplate charm = Items().Single(i => i.Id.Value == Charm);
         CharacterInventoryContainer bag = c.Character.Container(InventoryType.Bag);
-        bag.Load(bag.Items.Concat(Enumerable.Range(0, bag.Capacity).Select(s => (ushort)s)
+        bag.Load(bag.Items.Concat(Enumerable.Range(0, bag.Capacity).Select(s => (byte)s)
             .Where(s => bag.Items.All(i => i.Slot != s)).Select(s => TestCharacters.Item(s, charm))).ToList());
 
         Assert.Equal(QuestResult.BagFull, w.Quests.TurnIn(c.Connection, c.Character, Tusks, ender.Guid.RawValue));

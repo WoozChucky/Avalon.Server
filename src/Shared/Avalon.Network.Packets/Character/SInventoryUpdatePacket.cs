@@ -40,7 +40,8 @@ public class InventorySlotUpdateDto
     /// <summary>The container of the slot, as on ItemSlotDto.</summary>
     [ProtoMember(1)] public InventoryType Container { get; set; }
 
-    [ProtoMember(2)] public ushort Slot { get; set; }
+    /// <summary>The slot in that container; a byte, as no container has 255 slots (#921).</summary>
+    [ProtoMember(2)] public byte Slot { get; set; }
 
     /// <summary>
     /// What the slot now holds, in the same shape as the snapshot's items (its Container and Slot

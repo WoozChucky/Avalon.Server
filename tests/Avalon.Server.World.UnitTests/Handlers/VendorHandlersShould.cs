@@ -69,7 +69,7 @@ public class VendorHandlersShould : IAsyncLifetime
 
         Assert.Equal(VendorResult.NotFound, _w.Buy(_w.Main, 1, 99));
         Assert.Equal(VendorResult.InvalidCount, _w.Buy(_w.Main, 2, TonicSequence, 0));
-        Assert.Equal(VendorResult.NotFound, _w.Sell(_w.Main, 3, 70000));
+        Assert.Equal(VendorResult.NotFound, _w.Sell(_w.Main, 3, 255));
         Assert.Equal(VendorResult.NotFound, _w.Buyback(_w.Main, 4, uint.MaxValue));
 
         Assert.Equal(4, _w.Main.Results().Count);

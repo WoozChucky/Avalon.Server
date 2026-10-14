@@ -38,7 +38,7 @@ public sealed class CharacterInventoryService(
         // same item still has room. Both walks go by slot number over the Bag as it is: a step writes
         // only the slot it stands on, so the slots still to come are as they were when the walk began,
         // which is what the lists copied before each walk used to hold (#883).
-        for (ushort slot = 0; slot < bag.Capacity; slot++)
+        for (byte slot = 0; slot < bag.Capacity; slot++)
         {
             if (!bag.TryGet(slot, out InventoryItem stack) || !IsPartialStack(stack, templateId, maxStack))
                 continue;
@@ -50,7 +50,7 @@ public sealed class CharacterInventoryService(
                 return InventoryAddResult.Ok;
         }
 
-        for (ushort slot = 0; slot < bag.Capacity; slot++)
+        for (byte slot = 0; slot < bag.Capacity; slot++)
         {
             if (bag.TryGet(slot, out _))
                 continue;
@@ -93,7 +93,7 @@ public sealed class CharacterInventoryService(
         uint remaining = count;
         for (int slot = bag.Capacity - 1; slot >= 0 && remaining > 0; slot--)
         {
-            if (!bag.TryGet((ushort)slot, out InventoryItem stack) || stack.TemplateId != templateId)
+            if (!bag.TryGet((byte)slot, out InventoryItem stack) || stack.TemplateId != templateId)
                 continue;
 
             uint take = Math.Min(stack.Count, remaining);
@@ -178,8 +178,8 @@ public sealed class CharacterInventoryService(
         }
 
         CharacterInventoryContainer bag = Bag;
-        ushort? lowestFree = null;
-        for (ushort free = 0; free < bag.Capacity; free++)
+        byte? lowestFree = null;
+        for (byte free = 0; free < bag.Capacity; free++)
         {
             if (!bag.TryGet(free, out _))
             {

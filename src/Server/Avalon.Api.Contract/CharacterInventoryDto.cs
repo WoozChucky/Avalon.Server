@@ -10,7 +10,7 @@ public sealed class CharacterInventoryItemDto
 {
     public Guid ItemId { get; set; }
     public InventoryType Container { get; set; }
-    public ushort Slot { get; set; }
+    public byte Slot { get; set; }
     public uint Count { get; set; }
     public uint Durability { get; set; }
     public CharacterInventoryItemTemplateDto? Template { get; set; }

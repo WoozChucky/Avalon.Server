@@ -44,7 +44,7 @@ internal static class TestCharacters
         return new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), time) { Data = row };
     }
 
-    public static InventoryItem Item(ushort slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0) =>
+    public static InventoryItem Item(byte slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0) =>
         new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, charges);
 
     /// <summary>An inventory over this catalogue, or over <paramref name="find" /> when given one.</summary>
@@ -52,7 +52,7 @@ internal static class TestCharacters
         CharacterEntity character, Func<ItemTemplateId, ItemTemplate?>? find = null) =>
         new(character, find ?? Find, new ItemIdAllocator());
 
-    public static InventoryItem At(CharacterEntity character, InventoryType container, ushort slot)
+    public static InventoryItem At(CharacterEntity character, InventoryType container, byte slot)
     {
         Assert.True(character.Container(container).TryGet(slot, out InventoryItem item), $"{container} slot {slot} is empty");
         return item;

@@ -71,8 +71,8 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
         }
 
         List<CharacterInventory> upsertSlots = [];
-        List<(InventoryType Container, ushort Slot)> deleteSlots = [];
-        foreach (((InventoryType Container, ushort Slot) key, SaveMark mark) in marks.Slots)
+        List<(InventoryType Container, byte Slot)> deleteSlots = [];
+        foreach (((InventoryType Container, byte Slot) key, SaveMark mark) in marks.Slots)
         {
             if (mark.State != SaveState.Removed &&
                 character.Container(key.Container).TryGet(key.Slot, out InventoryItem item))

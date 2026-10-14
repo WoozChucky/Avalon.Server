@@ -10,23 +10,23 @@ namespace Avalon.World.Inventory;
 /// </summary>
 public static class EquipmentSlots
 {
-    public const ushort Head = 0;
-    public const ushort Neck = 1;
-    public const ushort Shoulder = 2;
-    public const ushort Chest = 3;
-    public const ushort Hands = 4;
-    public const ushort Legs = 5;
-    public const ushort Feet = 6;
-    public const ushort Finger1 = 7;
-    public const ushort Finger2 = 8;
-    public const ushort MainHand = 9;
-    public const ushort OffHand = 10;
+    public const byte Head = 0;
+    public const byte Neck = 1;
+    public const byte Shoulder = 2;
+    public const byte Chest = 3;
+    public const byte Hands = 4;
+    public const byte Legs = 5;
+    public const byte Feet = 6;
+    public const byte Finger1 = 7;
+    public const byte Finger2 = 8;
+    public const byte MainHand = 9;
+    public const byte OffHand = 10;
 
     /// <summary>The first of the reserved slots, 11, 12 and 13.</summary>
-    public const ushort FirstReserved = 11;
+    public const byte FirstReserved = 11;
 
     /// <summary>What an item worn in <paramref name="slot" /> must be, or null for a reserved or unknown slot.</summary>
-    public static ItemSlotType? TypeOf(ushort slot) => slot switch
+    public static ItemSlotType? TypeOf(byte slot) => slot switch
     {
         Head => ItemSlotType.Head,
         Neck => ItemSlotType.Neck,
@@ -41,20 +41,20 @@ public static class EquipmentSlots
         _ => null,
     };
 
-    public static bool IsReserved(ushort slot) => slot >= FirstReserved;
+    public static bool IsReserved(byte slot) => slot >= FirstReserved;
 
     /// <summary>True when an item whose template Slot is <paramref name="itemSlot" /> may be worn in <paramref name="slot" />.</summary>
-    public static bool Accepts(ushort slot, ItemSlotType? itemSlot) =>
+    public static bool Accepts(byte slot, ItemSlotType? itemSlot) =>
         itemSlot is { } type && TypeOf(slot) == type;
 
-    private static readonly ushort[] s_noSlots = [];
-    private static readonly ushort[] s_fingers = [Finger1, Finger2];
+    private static readonly byte[] s_noSlots = [];
+    private static readonly byte[] s_fingers = [Finger1, Finger2];
 
     /// <summary>
     /// The slots an item whose template Slot is <paramref name="type" /> is worn in, in the order a use fills them
     /// (item use): both fingers for a ring, none for a gem or an item with no slot. The one mapping a use reads.
     /// </summary>
-    public static IReadOnlyList<ushort> SlotsFor(ItemSlotType? type) => type switch
+    public static IReadOnlyList<byte> SlotsFor(ItemSlotType? type) => type switch
     {
         ItemSlotType.Head => [Head],
         ItemSlotType.Neck => [Neck],

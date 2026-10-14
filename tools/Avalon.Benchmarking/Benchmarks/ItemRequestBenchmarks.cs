@@ -104,7 +104,7 @@ public class ItemRequestBenchmarks
         return _connection.Sent;
     }
 
-    private static CItemMovePacket Move(uint from, uint to) => new()
+    private static CItemMovePacket Move(byte from, byte to) => new()
     {
         RequestId = 7,
         FromContainer = InventoryType.Bag,
@@ -113,7 +113,7 @@ public class ItemRequestBenchmarks
         ToSlot = to,
     };
 
-    private static InventoryItem Stack(ushort slot, uint count) =>
+    private static InventoryItem Stack(byte slot, uint count) =>
         new(slot, new ItemInstanceId(Guid.CreateVersion7()), s_potion.Id, count, 0, ItemInstanceFlags.None);
 
     private sealed class OneCharacterEconomy(IInventoryService inventory) : ICharacterEconomy

@@ -26,5 +26,9 @@ public class CItemUsePacket : Packet
     /// <summary>The container of the slot: 1, the Bag, or 0, Equipment.</summary>
     [ProtoMember(2)] public InventoryType Container { get; set; }
 
-    [ProtoMember(3)] public uint Slot { get; set; }
+    /// <summary>
+    /// The slot in that container. A byte, as no container has 255 slots (#921): a number past 255 fails the
+    /// packet's decode; one the container does not have is refused as NotFound.
+    /// </summary>
+    [ProtoMember(3)] public byte Slot { get; set; }
 }

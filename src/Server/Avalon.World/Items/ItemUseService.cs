@@ -43,7 +43,7 @@ public sealed class ItemUseService(
     private readonly Dictionary<string, (DateTimeOffset LastLogged, int Suppressed)> _errorLogs = new(StringComparer.Ordinal);
 
     public void Use(IWorldConnection connection, CharacterEntity character, uint requestId, InventoryType container,
-        uint slot)
+        byte slot)
     {
         ItemUseAnswer? answer;
         try
@@ -63,7 +63,7 @@ public sealed class ItemUseService(
 
     /// <summary>The answer to send now, or null when a cast bar started and its end answers.</summary>
     private ItemUseAnswer? Begin(IWorldConnection connection, CharacterEntity character, uint requestId,
-        InventoryType container, uint slot)
+        InventoryType container, byte slot)
     {
         if (character.IsDead)
             return ItemUseAnswer.Of(ItemUseResult.Dead);
@@ -98,7 +98,7 @@ public sealed class ItemUseService(
     /// An equip that passed its checks ends the item cast running (answered Interrupted) just before it moves anything;
     /// a refused equip leaves the cast alone.
     /// </summary>
-    private ItemUseAnswer Equip(CharacterEntity character, ushort bagSlot, ItemTemplate template)
+    private ItemUseAnswer Equip(CharacterEntity character, byte bagSlot, ItemTemplate template)
     {
         ItemUseResult equipped = ItemEquip.Equip(character, tools.Economy.InventoryOf(character), FindTemplate, bagSlot,
             template, logger, () => HostOf(character)?.ItemUses.Interrupt(character.Guid));
@@ -111,7 +111,7 @@ public sealed class ItemUseService(
     /// Takes a worn item off to the lowest free Bag slot. As an equip does, one that passed its checks ends the item cast
     /// running (answered Interrupted) just before it moves anything, and a refused one (TargetFull) leaves the cast alone.
     /// </summary>
-    private ItemUseAnswer Unequip(CharacterEntity character, ushort equipmentSlot)
+    private ItemUseAnswer Unequip(CharacterEntity character, byte equipmentSlot)
     {
         ItemUseResult unequipped = ItemEquip.Unequip(character, tools.Economy.InventoryOf(character), FindTemplate,
             equipmentSlot, () => HostOf(character)?.ItemUses.Interrupt(character.Guid));

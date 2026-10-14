@@ -75,7 +75,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
                 Durability = ItemInstanceDefaults.InitialDurability(template),
                 UpdatedAt = DateTime.UtcNow
             };
-            items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (ushort)(slots.Count) });
+            items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (byte)(slots.Count) });
         }
         var batch = new CharacterCreationBatch(row, stats.ToRow(new(0)),
             createInfo.StartingSpells.Select(id => new CharacterAbility { AbilityId = id }).ToArray(), items, slots);

@@ -32,7 +32,7 @@ public class CharacterInventoryMoveShould
         Assert.Equal(SaveState.Removed, character.SaveState.SlotState(InventoryType.Bag, 0));
         Assert.Equal(SaveState.New, character.SaveState.SlotState(InventoryType.Bag, 3));
         Assert.Equal(
-            [(InventoryType.Bag, (ushort)0), (InventoryType.Bag, (ushort)3)],
+            [(InventoryType.Bag, (byte)0), (InventoryType.Bag, (byte)3)],
             character.ClientChanges.Slots.OrderBy(s => s.Slot).ToArray());
     }
 

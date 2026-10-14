@@ -57,7 +57,7 @@ public static class BankAccess
         CharacterInventoryContainer bank = character.Container(InventoryType.Bank);
         var slots = new InventorySlotUpdateDto[bank.Capacity];
 
-        for (ushort slot = 0; slot < bank.Capacity; slot++)
+        for (byte slot = 0; slot < bank.Capacity; slot++)
         {
             slots[slot] = new InventorySlotUpdateDto
             {

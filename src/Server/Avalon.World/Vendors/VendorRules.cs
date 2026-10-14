@@ -20,7 +20,7 @@ public readonly record struct BuyDecision(VendorResult Result, BuyPlan? Plan);
 
 /// <param name="Slot">The Bag slot the item is taken from.</param>
 /// <param name="Payment">SellPrice times <paramref name="Count" />, which is also the buyback price.</param>
-public sealed record SellPlan(ushort Slot, uint Count, ulong Payment);
+public sealed record SellPlan(byte Slot, uint Count, ulong Payment);
 
 public readonly record struct SellDecision(VendorResult Result, SellPlan? Plan);
 
@@ -119,7 +119,7 @@ public static class VendorRules
 
         // Room is judged against the Bag as it will be once the costs are out: a cost stack that
         // empties frees its slot, and one that survives is not room.
-        Dictionary<ushort, InventoryItem> bagAfter = BagAfter(character, costs);
+        Dictionary<byte, InventoryItem> bagAfter = BagAfter(character, costs);
         if (RoomFor(item, bagAfter, character.Container(InventoryType.Bag).Capacity) < buying)
             return new BuyDecision(VendorResult.InventoryFull, null);
 
@@ -136,7 +136,7 @@ public static class VendorRules
     public static SellDecision DecideSell(
         CharacterEntity character,
         bool shopOpen,
-        uint bagSlot,
+        byte bagSlot,
         uint? count,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
         ulong maxMoney)
@@ -148,7 +148,7 @@ public static class VendorRules
             return new SellDecision(VendorResult.ShopClosed, null);
 
         CharacterInventoryContainer bag = character.Container(InventoryType.Bag);
-        if (bagSlot >= bag.Capacity || !bag.TryGet((ushort)bagSlot, out InventoryItem item))
+        if (bagSlot >= bag.Capacity || !bag.TryGet((byte)bagSlot, out InventoryItem item))
             return new SellDecision(VendorResult.NotFound, null);
 
         if (findTemplate(item.TemplateId) is not { } template
@@ -172,7 +172,7 @@ public static class VendorRules
         if (balance >= maxMoney || payment > maxMoney - balance)
             return new SellDecision(VendorResult.MoneyCapReached, null);
 
-        return new SellDecision(VendorResult.Ok, new SellPlan((ushort)bagSlot, selling, payment));
+        return new SellDecision(VendorResult.Ok, new SellPlan((byte)bagSlot, selling, payment));
     }
 
     /// <summary>
@@ -228,7 +228,7 @@ public static class VendorRules
         + HeldIn(character, InventoryType.Bank, templateId);
 
     /// <summary>The Bag as TryRemove would leave it once every cost is out: each from the highest slot first.</summary>
-    private static Dictionary<ushort, InventoryItem> BagAfter(CharacterEntity character, IReadOnlyList<VendorCostLine> costs)
+    private static Dictionary<byte, InventoryItem> BagAfter(CharacterEntity character, IReadOnlyList<VendorCostLine> costs)
     {
         var bag = character.Container(InventoryType.Bag).Items.ToDictionary(i => i.Slot);
 
@@ -257,7 +257,7 @@ public static class VendorRules
     }
 
     /// <summary>What TryAdd could fit: room in partial stacks of the item, plus a full stack per free slot.</summary>
-    private static long RoomFor(ItemTemplate item, Dictionary<ushort, InventoryItem> bag, ushort capacity)
+    private static long RoomFor(ItemTemplate item, Dictionary<byte, InventoryItem> bag, byte capacity)
     {
         uint maxStack = InventoryMove.MaxStack(item);
         long partial = bag.Values
@@ -267,7 +267,7 @@ public static class VendorRules
         return partial + (long)(capacity - bag.Count) * maxStack;
     }
 
-    private static long OwnedAfter(CharacterEntity character, ItemTemplateId templateId, Dictionary<ushort, InventoryItem> bagAfter) =>
+    private static long OwnedAfter(CharacterEntity character, ItemTemplateId templateId, Dictionary<byte, InventoryItem> bagAfter) =>
         bagAfter.Values.Where(i => i.TemplateId == templateId).Sum(i => (long)i.Count)
         + HeldIn(character, InventoryType.Equipment, templateId)
         + HeldIn(character, InventoryType.Bank, templateId);

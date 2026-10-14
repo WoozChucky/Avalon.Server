@@ -31,7 +31,7 @@ public static class InventoryAssembler
         foreach (InventoryType container in s_containers)
             assembled[container] = [];
 
-        HashSet<(InventoryType, ushort)> taken = [];
+        HashSet<(InventoryType, byte)> taken = [];
 
         foreach (CharacterInventory row in rows)
         {

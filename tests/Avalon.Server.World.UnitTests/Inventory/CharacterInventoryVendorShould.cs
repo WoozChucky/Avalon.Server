@@ -86,7 +86,7 @@ public class CharacterInventoryVendorShould
     public void Refuse_an_instance_when_no_bag_slot_is_free_and_change_nothing()
     {
         CharacterEntity character = New();
-        character.Container(InventoryType.Bag).Load(Enumerable.Range(0, 30).Select(s => Item((ushort)s, Sword)).ToList());
+        character.Container(InventoryType.Bag).Load(Enumerable.Range(0, 30).Select(s => Item((byte)s, Sword)).ToList());
 
         Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).TryAddInstance(Item(0, Potion)));
 

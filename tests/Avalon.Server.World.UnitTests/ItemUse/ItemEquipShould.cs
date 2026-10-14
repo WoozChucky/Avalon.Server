@@ -18,7 +18,7 @@ public class ItemEquipShould
 {
     private readonly CharacterEntity _character = New(7);
 
-    private ItemUseResult Equip(ushort bagSlot, ItemTemplate template, Func<ItemTemplateId, ItemTemplate?>? find = null) =>
+    private ItemUseResult Equip(byte bagSlot, ItemTemplate template, Func<ItemTemplateId, ItemTemplate?>? find = null) =>
         ItemEquip.Equip(_character, InventoryFor(_character, find ?? EquipTemplates.Find), find ?? EquipTemplates.Find, bagSlot, template,
             NullLogger.Instance);
 
@@ -67,7 +67,7 @@ public class ItemEquipShould
     [Fact]
     public void Refuse_a_two_hander_with_TargetFull_and_move_nothing_when_the_bag_is_full()
     {
-        Bag([.. Enumerable.Range(1, 29).Select(s => Item((ushort)s, Potion)), Item(0, Greatsword)]);
+        Bag([.. Enumerable.Range(1, 29).Select(s => Item((byte)s, Potion)), Item(0, Greatsword)]);
         Worn(Item(EquipmentSlots.OffHand, Buckler));
 
         Assert.Equal(ItemUseResult.TargetFull, Equip(0, Greatsword));
@@ -139,7 +139,7 @@ public class ItemEquipShould
     [Fact]
     public void Refuse_an_unequip_with_TargetFull_and_move_nothing_when_the_bag_is_full()
     {
-        Bag([.. Enumerable.Range(0, 30).Select(s => Item((ushort)s, Potion))]);
+        Bag([.. Enumerable.Range(0, 30).Select(s => Item((byte)s, Potion))]);
         Worn(Item(EquipmentSlots.MainHand, Longsword));
         int interrupts = 0;
 
@@ -149,7 +149,7 @@ public class ItemEquipShould
         Assert.Equal(0, interrupts);
     }
 
-    private ItemUseResult Unequip(ushort equipmentSlot, Action beforeApply) =>
+    private ItemUseResult Unequip(byte equipmentSlot, Action beforeApply) =>
         ItemEquip.Unequip(_character, InventoryFor(_character, EquipTemplates.Find), EquipTemplates.Find, equipmentSlot,
             beforeApply);
 }

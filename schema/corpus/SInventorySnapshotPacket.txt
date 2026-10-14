@@ -29,7 +29,7 @@ variant populated
   field 1 Items : ItemSlotDto[] = 2 elements
     element 0
       field 1 Container : InventoryType = Bag (1)
-      field 2 Slot : ushort = 19
+      field 2 Slot : byte = 19
       field 3 ItemTemplateId : ulong = 4000000000
       field 4 ItemInstanceId : Guid = 0f8fad5b-d9cb-469f-a165-70867728950e
       field 5 Count : uint = 42
@@ -37,7 +37,7 @@ variant populated
       field 7 Flags : uint = 300
     element 1
       field 1 Container : InventoryType = Bank (2)
-      field 2 Slot : ushort = 42
+      field 2 Slot : byte = 42
       field 3 ItemTemplateId : ulong = 1000000
       field 4 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
       field 5 Count : uint = 19
@@ -56,7 +56,7 @@ variant maxima
   field 1 Items : ItemSlotDto[] = 3 elements
     element 0
       field 1 Container : InventoryType = Bank (2)
-      field 2 Slot : ushort = 65535
+      field 2 Slot : byte = 255
       field 3 ItemTemplateId : ulong = 18446744073709551615
       field 4 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
       field 5 Count : uint = 4294967295
@@ -64,7 +64,7 @@ variant maxima
       field 7 Flags : uint = 4294967295
     element 1
       field 1 Container : InventoryType = Bank (2)
-      field 2 Slot : ushort = 65535
+      field 2 Slot : byte = 255
       field 3 ItemTemplateId : ulong = 18446744073709551615
       field 4 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
       field 5 Count : uint = 4294967295
@@ -72,32 +72,32 @@ variant maxima
       field 7 Flags : uint = 4294967295
     element 2
       field 1 Container : InventoryType = Bank (2)
-      field 2 Slot : ushort = 65535
+      field 2 Slot : byte = 255
       field 3 ItemTemplateId : ulong = 18446744073709551615
       field 4 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
       field 5 Count : uint = 4294967295
       field 6 Durability : uint = 4294967295
       field 7 Flags : uint = 4294967295
   field 2 Money : ulong = 18446744073709551615
-  bytes 182
-    0a 37 08 02 10 ff ff 03 18 ff ff ff ff ff ff ff
-    ff ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff
-    ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff
-    ff ff 0f 38 ff ff ff ff 0f 0a 37 08 02 10 ff ff
-    03 18 ff ff ff ff ff ff ff ff ff 01 22 12 09 ff
-    ff ff ff ff ff ff ff 11 ff ff ff ff ff ff ff ff
-    28 ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff ff ff
-    ff 0f 0a 37 08 02 10 ff ff 03 18 ff ff ff ff ff
-    ff ff ff ff 01 22 12 09 ff ff ff ff ff ff ff ff
-    11 ff ff ff ff ff ff ff ff 28 ff ff ff ff 0f 30
-    ff ff ff ff 0f 38 ff ff ff ff 0f 10 ff ff ff ff
-    ff ff ff ff ff 01
+  bytes 179
+    0a 36 08 02 10 ff 01 18 ff ff ff ff ff ff ff ff
+    ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff ff
+    ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff ff
+    ff 0f 38 ff ff ff ff 0f 0a 36 08 02 10 ff 01 18
+    ff ff ff ff ff ff ff ff ff 01 22 12 09 ff ff ff
+    ff ff ff ff ff 11 ff ff ff ff ff ff ff ff 28 ff
+    ff ff ff 0f 30 ff ff ff ff 0f 38 ff ff ff ff 0f
+    0a 36 08 02 10 ff 01 18 ff ff ff ff ff ff ff ff
+    ff 01 22 12 09 ff ff ff ff ff ff ff ff 11 ff ff
+    ff ff ff ff ff ff 28 ff ff ff ff 0f 30 ff ff ff
+    ff 0f 38 ff ff ff ff 0f 10 ff ff ff ff ff ff ff
+    ff ff 01
 
 variant minima
   field 1 Items : ItemSlotDto[] = 1 element
     element 0
       field 1 Container : InventoryType = Equipment (0)
-      field 2 Slot : ushort = 0
+      field 2 Slot : byte = 0
       field 3 ItemTemplateId : ulong = 0
       field 4 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
       field 5 Count : uint = 0
@@ -111,7 +111,7 @@ variant varint-edges
   field 1 Items : ItemSlotDto[] = 2 elements
     element 0
       field 1 Container : InventoryType = <not a declared member> (3)
-      field 2 Slot : ushort = 128
+      field 2 Slot : byte = 128
       field 3 ItemTemplateId : ulong = 128
       field 4 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
       field 5 Count : uint = 268435455
@@ -119,17 +119,17 @@ variant varint-edges
       field 7 Flags : uint = 268435455
     element 1
       field 1 Container : InventoryType = <not a declared member> (3)
-      field 2 Slot : ushort = 16383
+      field 2 Slot : byte = 127
       field 3 ItemTemplateId : ulong = 16383
       field 4 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
       field 5 Count : uint = 128
       field 6 Durability : uint = 268435456
       field 7 Flags : uint = 128
   field 2 Money : ulong = 34359738367
-  bytes 92
+  bytes 91
     0a 2a 08 03 10 80 01 18 80 01 22 12 09 04 03 02
     01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 28 ff
-    ff ff 7f 30 ff ff 7f 38 ff ff ff 7f 0a 28 08 03
-    10 ff 7f 18 ff 7f 22 12 09 04 03 02 01 06 05 08
-    07 11 09 0a 0b 0c 0d 0e 0f 10 28 80 01 30 80 80
-    80 80 01 38 80 01 10 ff ff ff ff 7f
+    ff ff 7f 30 ff ff 7f 38 ff ff ff 7f 0a 27 08 03
+    10 7f 18 ff 7f 22 12 09 04 03 02 01 06 05 08 07
+    11 09 0a 0b 0c 0d 0e 0f 10 28 80 01 30 80 80 80
+    80 01 38 80 01 10 ff ff ff ff 7f

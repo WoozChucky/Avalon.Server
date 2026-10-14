@@ -12,7 +12,7 @@ public class CharacterInventory
 
     public InventoryType Container { get; set; }
 
-    public ushort Slot { get; set; }
+    public byte Slot { get; set; }
 
     public ItemInstanceId ItemId { get; set; }
 }
