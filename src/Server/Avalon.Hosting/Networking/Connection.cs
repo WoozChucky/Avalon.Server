@@ -125,12 +125,9 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     private readonly IPacketReader _packetReader;
     private readonly int _maxInboundFrameSize;
 
-    // The session's Decrypt as a delegate, created once. Passing the method group made a new delegate per packet, and
-    // the Release JIT did not keep it off the heap (PacketReaderDecryptGcBenchmarks, #854).
+    // KeyExchange's session's Decrypt as a delegate, created once. Passing the method group made a new delegate per
+    // packet, and the Release JIT did not keep it off the heap (PacketReaderDecryptGcBenchmarks, #854).
     private readonly DecryptFunc _decrypt;
-
-    // The session the default outbox seals with; null on a connection that runs no key exchange.
-    private readonly IAvalonCryptoSession? _session;
 
     // The open of a connection with no session (#878): it refuses as a session with no exchange yet refuses, so the
     // reader takes a frame flagged Encrypted as the peer's protocol violation, sealed_before_key, through the one path
@@ -179,8 +176,8 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         int maxInboundFrameSize = server.MaxInboundFrameSize;
         _maxInboundFrameSize = maxInboundFrameSize > 0 ? maxInboundFrameSize : HostingConfiguration.DefaultMaxInboundFrameSize;
 
-        _session = keyExchange?.Session;
-        _decrypt = _session is null ? s_noSessionKey : _session.Decrypt;
+        KeyExchange = keyExchange;
+        _decrypt = keyExchange is null ? s_noSessionKey : keyExchange.Session.Decrypt;
         Id = Guid.NewGuid();
         ConnectionRateRegistry.Shared.Track(this);
     }
@@ -201,6 +198,13 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     /// rather than per packet: the telemetry tags every packet with it.
     /// </summary>
     public string ClientAddress { get; private set; } = "Unknown";
+
+    /// <summary>
+    /// The connection's key pair and session, or null on a connection that runs no key exchange: the one place either is
+    /// held. The read loop opens with this session and the outbox seals with it, and each server reads its own view of
+    /// the exchange from here, so what a connection opens with, seals with and tells its peer cannot disagree.
+    /// </summary>
+    public ConnectionKeyExchange? KeyExchange { get; }
 
     double IConnectionRates.PacketSentRate => PacketSentRate;
     double IConnectionRates.PacketReceivedRate => PacketReceivedRate;
@@ -300,7 +304,7 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     }
 
     protected virtual IOutbox OnCreateOutbox() =>
-        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity, _session,
+        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity, KeyExchange?.Session,
 #pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
             onFault: () => Close(false));
 #pragma warning restore MA0045

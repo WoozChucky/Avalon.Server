@@ -50,26 +50,19 @@ public class AuthConnection : Connection, IAuthConnection
 
     private byte[] _handshakeData = [];
 
+    // Every auth connection runs the key exchange.
     public AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory)
-        : this(server, client, loggerFactory, packetReader, serviceScopeFactory, new ConnectionKeyExchange())
-    {
-    }
-
-    // Every auth connection runs the key exchange, so its own key pair is built with it, before the base takes it.
-    private AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory,
-        IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory, ConnectionKeyExchange keyExchange)
-        : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader, keyExchange)
+        : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader, new ConnectionKeyExchange())
     {
         _serviceScopeFactory = serviceScopeFactory;
-        CryptoSession = keyExchange.Session;
-        ServerCrypto = keyExchange.ServerCrypto;
         Server = (server as AuthServer)!;
         Init(client);
     }
 
-    public IAvalonCryptoSession CryptoSession { get; }
-    public ICryptoManager ServerCrypto { get; }
+    // Never null: the one constructor hands the base an exchange.
+    public IAvalonCryptoSession CryptoSession => KeyExchange!.Session;
+    public ICryptoManager ServerCrypto => KeyExchange!.ServerCrypto;
     public AccountId? AccountId { get; set; }
     public int CredentialsVersion { get; set; }
     public long LoggedInAt { get; set; }

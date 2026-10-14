@@ -23,12 +23,14 @@ using Packet = Avalon.Network.Packets.Packet;
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 
 /// <summary>
-/// A world with <c>Network:PacketEncryption</c> off runs no key exchange (#878), end to end over loopback through the
-/// connection's real read loop, reader and admission handler: it admits what a 0.3.0 client sends (a public key of its
-/// own, which it sends before it knows the mode), answers with no key, and closes a connection that then sends a packet
-/// flagged Encrypted, counted as <c>sealed_before_key</c>: the connection has no session, and will never have one.
+/// The key exchange at admission in both of a world's modes, end to end over loopback through the connection's real read
+/// loop, reader and admission handler, from what a 0.3.0 client sends (the ticket and a public key of its own, sent before
+/// it knows the mode). A world that seals keys the session off the tick, replies with its own key, and opens what the
+/// client then seals under it. One with <c>Network:PacketEncryption</c> off runs no exchange (#878): it replies with no key,
+/// and closes a connection that sends a packet flagged Encrypted, counted as <c>sealed_before_key</c>: the connection has
+/// no session, and will never have one.
 /// </summary>
-public sealed class PlainWorldConnectionShould
+public sealed class AdmissionKeyExchangeShould
 {
     private static readonly TimeSpan s_wait = TimeSpan.FromSeconds(10);
 
@@ -98,11 +100,24 @@ public sealed class PlainWorldConnectionShould
         return payload.ToArray();
     }
 
-    [Fact]
-    public async Task Admit_without_a_key_and_close_on_a_sealed_packet_as_sealed_before_key()
+    private sealed class Recorder(List<NetworkPacketType> log) : IWorldPacketHandler
+    {
+        public void Execute(IWorldConnection connection, Packet packet) => log.Add(CCharacterListPacket.PacketType);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Open_a_sealed_packet_only_on_a_world_that_seals(bool packetEncryption)
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
+        server.PacketEncryption.Returns(packetEncryption);
         ((IServerBase)server).ProxyProtocol.Returns(ProxyProtocolPolicy.Disabled);
+        List<NetworkPacketType> dispatched = [];
+        server.PacketHandlers.Returns(new Dictionary<NetworkPacketType, IWorldPacketHandler>
+        {
+            [CCharacterListPacket.PacketType] = new Recorder(dispatched),
+        });
         IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
         GameSessionLease lease = WorldAdmissionConnection.Lease();
         api.AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
@@ -127,14 +142,15 @@ public sealed class PlainWorldConnectionShould
         using var connection = new LoopbackConnection(server, accepted, reader);
         await connection.StartAsync(CancellationToken.None);
 
-        Assert.Null(connection.CryptoSession);
+        Assert.Equal(packetEncryption, connection.CryptoSession is not null);
 
         // What a 0.3.0 client sends: the ticket, and a fresh key of its own.
+        var clientKeys = new CryptoManager();
         await client.GetStream().WriteAsync(Frame(NetworkPacketType.CMSG_GAME_ADMISSION, NetworkPacketFlags.ClearText,
             Encoded(new CGameAdmissionPacket
             {
                 JoinTicket = GameAuthCryptography.NewToken(),
-                PublicKey = new CryptoManager().GetPublicKey(),
+                PublicKey = clientKeys.GetPublicKey(),
             })));
         DateTime deadline = DateTime.UtcNow.Add(s_wait);
         while (connection.AccountId is null && DateTime.UtcNow < deadline)
@@ -147,15 +163,45 @@ public sealed class PlainWorldConnectionShould
         Assert.True(connection.Sent.TryDequeue(out OutboundPacket sent));
         SGameAdmissionPacket reply = Serializer.Deserialize<SGameAdmissionPacket>(sent.PayloadMemory);
         Assert.Equal(GameAdmissionResult.Accepted, reply.Result);
-        Assert.False(reply.PacketEncryption);
-        Assert.Empty(reply.PublicKey);
-        Assert.Null(connection.CryptoSession);
+        Assert.Equal(packetEncryption, reply.PacketEncryption);
+        // The version handshake, which is not what this is about.
+        Assert.True(connection.AcceptProtocol());
 
-        // A client that sealed regardless: there is no key it could have sealed under.
-        await client.GetStream().WriteAsync(Frame(CCharacterListPacket.PacketType, NetworkPacketFlags.Encrypted,
-            new byte[40]));
-        await connection.Closed.Task.WaitAsync(s_wait);
+        byte[] sealedList;
+        if (packetEncryption)
+        {
+            // The client keys its session from the reply, as a 0.3.0 client does on a world that seals.
+            var session = new AvalonCryptoSession(CryptoRole.Client, clientKeys.GetKeyPair());
+            session.Initialize(reply.PublicKey);
+            sealedList = session.Encrypt(Encoded(new CCharacterListPacket()));
+        }
+        else
+        {
+            // A client that sealed regardless: there is no key it could have sealed under.
+            Assert.Empty(reply.PublicKey);
+            sealedList = new byte[40];
+        }
+        await client.GetStream().WriteAsync(Frame(CCharacterListPacket.PacketType, NetworkPacketFlags.Encrypted, sealedList));
 
-        Assert.Equal(["sealed_before_key"], connection.Violations);
+        if (packetEncryption)
+        {
+            // Opened, decoded and queued: the tick's session pass runs it.
+            deadline = DateTime.UtcNow.Add(s_wait);
+            while (dispatched.Count == 0 && !connection.IsClosing && DateTime.UtcNow < deadline)
+            {
+                connection.UpdateSession();
+                await Task.Yield();
+            }
+
+            Assert.Equal([CCharacterListPacket.PacketType], dispatched);
+            Assert.Empty(connection.Violations);
+            Assert.False(connection.IsClosing);
+        }
+        else
+        {
+            await connection.Closed.Task.WaitAsync(s_wait);
+            Assert.Equal(["sealed_before_key"], connection.Violations);
+            Assert.Empty(dispatched);
+        }
     }
 }

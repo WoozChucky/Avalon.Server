@@ -19,7 +19,7 @@ namespace Avalon.Server.World.UnitTests.WorldConnection;
 /// its admission reply: a plain one is a protocol violation and closes the connection. Admission and pong are plain by
 /// design, and an opcode the world never runs is dropped as before, whatever its flags. With the flag off a plain packet is
 /// accepted; a sealed one never reaches this check, since a world that does not seal has no session and its read loop
-/// closes the connection on it (#878, <c>PlainWorldConnectionShould</c>).
+/// closes the connection on it (#878, <c>AdmissionKeyExchangeShould</c>).
 /// </summary>
 public sealed class PacketEncryptionStrictnessShould
 {
