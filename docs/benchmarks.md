@@ -3527,8 +3527,9 @@ with the committed figure, in every build (Debug and Release, see below) and for
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** `town-idle`, `town-walk` and `many-instances` read 0 since `75a16697` (#875: none of them
-  allocates on the tick thread since server packets are built in per-thread messages; the file was last regenerated at
-  `2ca42aff`, for `town-social`'s first entry, #972), so the 256 B floor decides in every scenario:
+  allocates on the tick thread since server packets are built in per-thread messages; the file was regenerated at
+  `2ca42aff` for `town-social`'s first entry, #972, and `forest-combat`'s figure lowered since by #980), so the 256 B
+  floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails every steady scenario (the smallest, 24 B, is 1,440 B
   per window).
@@ -3538,7 +3539,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
   104 B above Release and inside the floor (see the results).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the one figure above 0 (14,176 B per window since #980 shared the aura updates and reused their
+  `forest-combat` is the largest figure (14,176 B per window since #980 shared the aura updates and reused their
   entries, [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
   10,357 B before), and at that size the 256 B floor decides for it too (1% is 142 B): it fails above 14,432 B, a little
@@ -4063,9 +4064,10 @@ reused: what was left allocated per tick is the run's few bytes of noise.
 
 **The allocation gate**: `forest-combat` reads 14,216 B per window in Release with the aura updates shared (14,292 B
 before) and 14,176 B with their entries reused too, the new committed figure; Debug reads 14,284 B and 14,244 B
-(14,360 B before). The fight has three watchers per update at most, so the saving is small. The town scenarios and
-`many-instances` read 0 B before and after: the shared encoding allocates nothing per tick or per packet beyond the
-pooled payload segment each packet had before. `TickPhaseBenchmarks`, `StateBroadcastEncodingBenchmarks` and the gate
+(14,360 B before). The fight has three watchers per update at most, so the saving is small. `town-idle`, `town-walk`
+and `many-instances` read 0 B before and after, and `town-social` its committed 3,904 B (4,008 B in Debug), read after
+rebasing onto it: the shared encoding allocates nothing per tick or per packet beyond the pooled payload segment each
+packet had before. `TickPhaseBenchmarks`, `StateBroadcastEncodingBenchmarks` and the gate
 are Windows figures (i9-12900K, Windows 11, .NET 10.0.13, BenchmarkDotNet 0.15.8).
 
 ### Results — a fuller fight (#972, 2026-10-14)
