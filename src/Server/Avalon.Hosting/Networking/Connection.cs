@@ -561,7 +561,7 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
             {
                 _logger.LogDebug(e, "Connection was closed. Probably by the other party");
             }
-            // Anything else is not the peer's doing and keeps its exception: a session whose exchange failed, a
+            // Anything else is not the peer's doing and keeps its exception: a session whose counter is spent, a
             // cipher or a packet class that threw, a fault in the loop itself.
             catch (Exception e)
             {

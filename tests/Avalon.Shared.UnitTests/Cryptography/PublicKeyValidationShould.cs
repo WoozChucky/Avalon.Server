@@ -122,7 +122,8 @@ public class PublicKeyValidationShould
             () => session.Initialize(PublicKeyOn(SecObjectIdentifiers.SecP384r1)));
 
         Assert.Throws<InvalidOperationException>(() => session.Encrypt("after a failed exchange"u8));
-        Assert.Throws<InvalidOperationException>(() => session.Decrypt(new byte[64], new byte[64]));
+        // An open refuses as one with no exchange yet (#878): what a peer reaches by sealing after a key refused.
+        Assert.Throws<CryptoSessionNotInitializedException>(() => session.Decrypt(new byte[64], new byte[64]));
         Assert.Throws<InvalidOperationException>(() => session.GetPublicKey());
         Assert.Throws<InvalidOperationException>(() => session.GetOtherEndPublicKey());
         Assert.Throws<InvalidOperationException>(

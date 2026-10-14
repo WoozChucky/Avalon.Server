@@ -5,9 +5,10 @@ namespace Avalon.Common.Cryptography;
 /// </summary>
 /// <remarks>
 /// Its own type because, of the reasons a session refuses, this is the one the other end can cause (#897): a peer
-/// that flags a packet Encrypted before it has exchanged keys makes the receiver's session refuse this way. A
-/// session whose exchange failed, or whose send counter is spent, refuses with a plain
-/// <see cref="InvalidOperationException" />: neither is reached by what a peer sends on a healthy connection.
+/// that flags a packet Encrypted before it has exchanged keys makes the receiver's session refuse this way, and so,
+/// when it opens, does a session whose exchange failed (#878): no exchange completed, and a peer that sent a key the
+/// exchange refused can reach it. A seal on a failed session, and any use of a session whose send counter is spent,
+/// refuse with a plain <see cref="InvalidOperationException" />: neither is reached by what a peer sends.
 /// </remarks>
 public sealed class CryptoSessionNotInitializedException : InvalidOperationException
 {

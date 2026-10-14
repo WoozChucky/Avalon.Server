@@ -177,7 +177,8 @@ claims the session first, so a second call is refused even after a failed first 
 both ciphers, and only then marks the session ready, with a volatile write that publishes the
 ciphers with it. An `Initialize` that throws (a peer key that does not parse, say) leaves the session failed
 for good, and every later `Encrypt` or `Decrypt` refuses with an `InvalidOperationException` rather
-than reaching a missing cipher. A session with no exchange yet (none started, or one under way) refuses
+than reaching a missing cipher; a `Decrypt` with the derived `CryptoSessionNotInitializedException`, since no exchange
+completed and the peer whose key was refused can reach it with a sealed frame before its connection closes (#878). A session with no exchange yet (none started, or one under way) refuses
 with the derived `CryptoSessionNotInitializedException` (#897): of the refusals it is the one the other
 end causes, by flagging a packet `Encrypted` before it has exchanged keys, and a server's read loop
 closes that connection with a Warning where a failed or spent session stays an Error
