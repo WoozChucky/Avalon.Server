@@ -1659,17 +1659,17 @@ sends, of one entity and of thirty (`Entities`, a crowded town).
 
 ### State broadcast encoding — `StateBroadcastEncodingBenchmarks.cs` (#980)
 
-One town broadcast's state packets, every player seeing every other (`Players` 10, 25 and 30: a town holds at most 30,
-`MaxPlayers`), encoding only: the entities are already described. The updates are a broadcast with every player moving
-(a motion-only update has no entry for its own client); the adds are the town's first tick, everyone listed to
-everyone in full and each player its own character without its motion. One operation is one broadcast to every player.
+One broadcast's state packets in an instance where every player sees every other player and the same fifteen
+creatures (`Players` 1, 2 and 3: a solo player or a party in a forest; 10, 25 and 30: a town, which holds at most 30,
+`MaxPlayers`), encoding only: the entities are already described. The updates are a broadcast with every player and
+creature moving (a motion-only update has no entry for its own client); the adds are everyone listed everything in
+full, each player its own character without its motion. One operation is one broadcast to every player.
 
 | Scenario | What it models |
 |---|---|
-| `PerRecipient` | Each recipient's update encoded whole from its list (`SInstanceStateUpdatePacket.Create`): the encoding before #980 |
-| `Shared` | Each recipient's update put together from entries encoded once per broadcast (`StatePacketAssembler.ForUpdates`): since #980 |
-| `AddsPerRecipient` | Each recipient's add encoded whole from its list (`SInstanceStateAddPacket.Create`): before #980 |
-| `AddsShared` | Each recipient's add put together from entries encoded once per broadcast (`StatePacketAssembler.ForAdds`): since #980 |
+| `UpdatesBefore`, `AddsBefore` | Each recipient's list encoded whole (`SInstanceStateUpdatePacket.Create`, `SInstanceStateAddPacket.Create`): the encoding before #980 |
+| `UpdatesShared`, `AddsShared` | Each recipient's packet put together from entries encoded once per broadcast (`StatePacketAssembler`), whatever the recipient count |
+| `UpdatesAfter`, `AddsAfter` | What the instance does since #980: shared from `StatePacketAssembler.MinRecipientsToShare` (2) recipients, whole below |
 
 Results in [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14).
 
@@ -3986,8 +3986,9 @@ only on the unit. Since #980 (see [world simulation](world-simulation.md) and [a
   for that client alone.
 
 The bytes on the wire are unchanged: `StateUpdateEncodingShould` compares every recipient's add and update of real
-broadcasts (characters, creatures, and projectiles cast through the real cast system) with the per-recipient encoding,
-and `WireSchemaShould` and the corpus are untouched. `SharedAuraUpdatesShould` checks, through a real broadcast and a
+broadcasts (characters, creatures, and projectiles cast through the real cast system; a solo player, encoded whole, and
+two to twelve recipients, from shared entries) with the per-recipient encoding, and one entity asked for with two field
+sets in one broadcast gets an entry for each; `WireSchemaShould` and the corpus are untouched. `SharedAuraUpdatesShould` checks, through a real broadcast and a
 counting pool, that every shared aura payload stays out while a recipient holds it and goes back once they all have,
 also when the broadcast throws partway.
 
@@ -4020,14 +4021,33 @@ listed is encoded once each, as before, unless someone else is listed the same e
 arrivals and on coming into view, not on every broadcast, so they move neither `TickPhaseBenchmarks` (no arrival in its
 measured ticks) nor the allocation gate.
 
-**`StateBroadcastEncodingBenchmarks`** (one broadcast, encoding only; the updates over two runs, after builds `85f98ed9`
-and `92127c3a`, the adds over one, after `92127c3a`):
+**`StateBroadcastEncodingBenchmarks`** (one broadcast, encoding only, players seeing one another and fifteen creatures;
+two runs, `--inProcess`, default job; nothing allocated in any row, 0 to 3 B):
 
-| Players | Updates `PerRecipient` | Updates `Shared` | Adds `AddsPerRecipient` | Adds `AddsShared` | Allocated |
-|---:|---:|---:|---:|---:|---:|
-| 10 | 13.8–16.0 µs | 3.3–3.7 µs | 19.8 µs | 6.2 µs | 0–1 B |
-| 25 | 89.8–101.6 µs | 11.6–12.2 µs | 123.9 µs | 19.8 µs | 0–1 B |
-| 30 | 124.2–215.1 µs | 15.3–22.9 µs | 180.7 µs | 24.4 µs | 0–1 B |
+| Players | Updates before | shared | after | Adds before | shared | after |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 2.31–2.38 µs | 3.79–3.81 µs | 2.32–2.46 µs | 3.19–3.21 µs | 4.82–4.95 µs | 3.15–3.16 µs |
+| 2 | 5.07–5.13 µs | 4.62–4.63 µs | 4.67–4.78 µs | 6.89–6.90 µs | 5.85–5.91 µs | 5.96–5.97 µs |
+| 3 | 8.18–8.26 µs | 5.12–7.66 µs | 5.11–9.30 µs | 10.8–20.3 µs | 6.71–6.84 µs | 6.75–6.80 µs |
+| 10 | 39.0–39.2 µs | 8.76–9.06 µs | 8.75–8.93 µs | 50.2–50.4 µs | 12.3–12.6 µs | 12.4–13.0 µs |
+| 25 | 157–160 µs | 19.6–19.8 µs | 19.4–21.2 µs | 213–221 µs | 27.9–29.7 µs | 27.8–36.6 µs |
+| 30 | 211–216 µs | 23.9–24.0 µs | 23.9–26.9 µs | 268–282 µs | 33.6–33.7 µs | 33.2–33.8 µs |
+
+The 9.30 µs, 20.3 µs and 36.6 µs cells are one noisy run each (the other read 5.11, 10.8 and 27.8 µs, and the
+machine was shared with other agents' builds and tests); every other pair agrees within a few per cent.
+
+**Why two recipients.** An entry encoded on its own is a serializer call of its own, then copied into the packet and
+the packet into its segment: about 1.6 times its share of a whole encode. It pays off only when another recipient
+copies it instead of encoding it again. With one recipient nothing is copied, and the shared entries were 59% to 65%
+slower for the updates and 50% to 55% for the adds than a whole encode; a solo player's instance, most of the forest
+instances at 950 players, would have paid that on every broadcast. So a broadcast with fewer characters than
+`StatePacketAssembler.MinRecipientsToShare` encodes each list whole, as before #980, and the row "after" matches
+"before" at one player. From two the shared entries won: 9% to 10% for the updates and 14% for the adds at two, 37% to
+38% at three, and up to 89% at thirty. A probe of the break-even alone (one to three recipients seeing the same 1, 5,
+15 or 40 creatures, updates only, two runs at two recipients) read the same: one recipient 20% to 71% slower shared,
+two 15% to 39% faster (a run at 2 × 5 creatures read slower, the rerun faster), three 39% to 69% faster. A party
+whose members see different creatures shares less than this model, so two is the lowest count worth sharing at, not
+a count at which sharing always wins; nothing between "before" and "after" regresses at any count measured.
 
 **`TickPhaseBenchmarks`** (the tick, per tick, 42 ticks per operation, every player moving; `--inProcess`, short job,
 ten warmups and eight iterations; before is `ba0d327b` built from a copy of the tree, after is `85f98ed9`; two rounds,
