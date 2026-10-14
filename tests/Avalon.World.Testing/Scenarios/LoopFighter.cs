@@ -4,12 +4,16 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.World;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
+using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
@@ -25,8 +29,8 @@ namespace Avalon.World.Testing.Scenarios;
 /// from a wall it walked into (bump and turn), and once the creature is within its basic ability's reach it stands,
 /// faces it and casts the ability through the real <see cref="CastAbilityHandler" /> each time the ability is ready.
 /// It runs from <see cref="ScenarioConnection.UpdateMap" />, inside the instance pass, where production processes a
-/// connection's queued packets. One input and one cast packet per fighter, mutated each tick, so the driver itself
-/// allocates nothing.
+/// connection's queued packets. One packet of each kind per fighter, mutated each time, so the driver itself allocates
+/// nothing, but for the quest accept's closure (<see cref="AcceptQuest" />), which stands for the accept handler's own.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -46,6 +50,18 @@ namespace Avalon.World.Testing.Scenarios;
 /// handler, walking or standing; otherwise it fights like the others. The heal goes through the instance's combat
 /// service like any hit: health, the heal broadcast, and threat for the healing on every creature fighting the healed
 /// (#961).
+/// </para>
+/// <para>
+/// <b>Quest.</b> Each fighter holds the scenarios' kill quest (<see cref="ScenarioReferenceData.KillQuest" />): accepted
+/// at its first step, and once ready to hand in, abandoned and accepted again (<see cref="KeepQuest" />). The instance
+/// gives it kill credit on every kill the party shares, and the quest flush sends its updates, lines and markers.
+/// </para>
+/// <para>
+/// <b>Loot.</b> Before it looks for a creature, a fighter walks to the nearest drop it may take within
+/// <see cref="LootSearchRadius" /> (reserved for it, or free for all by now) and asks for it through the real
+/// <see cref="LootPickupHandler" />; when its bag is down to <see cref="BagRoomSlots" /> free slots it destroys the lowest
+/// occupied one through the real <see cref="ItemDestroyHandler" />. Its bag starts near full
+/// (<see cref="ForestCombatScenario.BagFill" />), so both happen in every minute.
 /// </para>
 /// <para>
 /// <b>Death.</b> A dead player sends nothing, as the input handler drops a dead character's input. A client would ask to
@@ -91,6 +107,24 @@ public sealed class LoopFighter
     /// </summary>
     public const float HealBelow = 0.7f;
 
+    /// <summary>
+    /// How far a fighter looks for a drop it may take: a little past the longest basic reach (Quick Shot, 25 m), so a
+    /// ranged fighter finds what fell where its target died, and not across the forest.
+    /// </summary>
+    public const float LootSearchRadius = 26f;
+
+    /// <summary>How close on the ground plane it walks before it asks: inside the pickup's 5 m (3D) with room for a slope.</summary>
+    public const float PickupReach = 3.5f;
+
+    /// <summary>How long it walks at one drop before giving up on it (a drop past a wall): 10 s at 60 Hz.</summary>
+    public const int LootGiveUpTicks = 600;
+
+    /// <summary>The bag is near full at this many free slots or fewer, and one slot is destroyed.</summary>
+    public const int BagRoomSlots = 2;
+
+    // The drops given up on that a fighter remembers.
+    private const int GivenUpDrops = 16;
+
     private readonly PlayerInputHandler _input;
     private readonly CastAbilityHandler _cast;
     private readonly TimeProvider _clock;
@@ -114,6 +148,17 @@ public sealed class LoopFighter
     private readonly CQuestAbandonPacket _abandonPacket = new() { QuestId = ScenarioReferenceData.KillQuest };
     private uint _questCounted;
 
+    // Loot: the pickup and destroy handlers, their packets, the drop being walked to and for how long, and the drops given
+    // up on (a ring: a drop out of reach, or one refused), so a fighter never walks at the same one for ever.
+    private readonly LootPickupHandler _pickup;
+    private readonly ItemDestroyHandler _destroy;
+    private readonly CLootPickupPacket _pickupPacket = new();
+    private readonly CItemDestroyPacket _destroyPacket = new() { Container = InventoryType.Bag };
+    private readonly ulong[] _givenUp = new ulong[GivenUpDrops];
+    private int _givenUpNext;
+    private ulong _lootTarget;
+    private int _lootTicks;
+
     private FightForest? _forest;
     private ICharacter[] _party = [];
     private bool _moved;
@@ -131,6 +176,7 @@ public sealed class LoopFighter
         ArgumentNullException.ThrowIfNull(character);
         (_input, _cast, _clock, _gcdMs) = (handlers.Input, handlers.Cast, handlers.Clock, handlers.GcdMs);
         (_abandon, _quests) = (handlers.QuestAbandon, handlers.Quests);
+        (_pickup, _destroy) = (handlers.LootPickup, handlers.ItemDestroy);
         _rng = new Random(seed);
 
         uint abilityId = BasicAbility(character.Class);
@@ -152,6 +198,9 @@ public sealed class LoopFighter
     /// <summary>The casts the cast handler accepted, heals included.</summary>
     public int Casts { get; private set; }
 
+    /// <summary>The times the fighter died.</summary>
+    public int Deaths { get; private set; }
+
     /// <summary>The heals the cast handler accepted (a healer's only).</summary>
     public int Heals { get; private set; }
 
@@ -167,6 +216,15 @@ public sealed class LoopFighter
     /// <summary>The kill quest completed (ready to hand in), each then abandoned and accepted again.</summary>
     public int QuestsCompleted { get; private set; }
 
+    /// <summary>The drops the pickup handler gave the fighter: items and gold.</summary>
+    public int Pickups { get; private set; }
+
+    /// <summary>The bag slots the item destroy handler emptied, to keep room for the next pickup.</summary>
+    public int ItemsDestroyed { get; private set; }
+
+    /// <summary>The drops given up on: walked at too long, or refused.</summary>
+    public int GaveUp { get; private set; }
+
     /// <summary>
     /// The handlers every fighter of a world shares, over the world's real registry and services, as production has one
     /// of each. The world must have reference data (its quest service).
@@ -176,11 +234,14 @@ public sealed class LoopFighter
         ArgumentNullException.ThrowIfNull(world);
         QuestService quests = world.Quests
                               ?? throw new ArgumentException("A fighter's world needs reference data (its quest service)", nameof(world));
+        ICharacterEconomy economy = world.Economy!;
         var combat = new CombatConfig();
         return new FighterHandlers(
             new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world.Host),
             new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world.Host, combat, world.Clock),
             new QuestAbandonHandler(quests, NullLogger<QuestAbandonHandler>.Instance),
+            new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world.Host, economy, world.Clock, quests),
+            new ItemDestroyHandler(NullLogger<ItemDestroyHandler>.Instance, world.Host, economy),
             quests, world.Clock, combat.GcdMs);
     }
 
@@ -203,18 +264,25 @@ public sealed class LoopFighter
 
         if (character.IsDead)
         {
+            if (_deadFor == 0)
+                Deaths++;
+
             if (++_deadFor >= ReviveAfterTicks)
             {
                 forest.Instance.CombatService.RevivePlayer(character, forest.Entry);
                 _deadFor = 0;
                 _moved = false;
                 _detouring = false;
+                _lootTarget = 0;
             }
 
             return;
         }
 
         KeepQuest(connection);
+        KeepBagRoom(connection);
+        if (Loot(connection, character, forest))
+            return;
 
         ICreature? target = forest.NearestLive(character.Position);
         if (target is null)
@@ -323,6 +391,125 @@ public sealed class LoopFighter
     }
 
     /// <summary>
+    /// Keeps room in the bag: when it has <see cref="BagRoomSlots" /> free slots or fewer, the lowest occupied slot is
+    /// destroyed whole through the real <see cref="ItemDestroyHandler" />, as a player clears a full bag, so a pickup is
+    /// never refused for a full bag and the run never stalls at a drop.
+    /// </summary>
+    private void KeepBagRoom(ScenarioConnection connection)
+    {
+        var character = (CharacterEntity)connection.Character!;
+        CharacterInventoryContainer bag = character.Container(InventoryType.Bag);
+        if (bag.Capacity - bag.Held.Count > BagRoomSlots)
+            return;
+
+        for (byte slot = 0; slot < bag.Capacity; slot++)
+        {
+            if (!bag.TryGet(slot, out _))
+                continue;
+
+            _destroyPacket.RequestId++;
+            _destroyPacket.Slot = slot;
+            _destroyPacket.Count = null;
+            _destroy.Execute(connection, _destroyPacket);
+            if (bag.TryGet(slot, out _))
+                throw new InvalidOperationException($"{character.Name}'s bag slot {slot} was not destroyed");
+
+            ItemsDestroyed++;
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Picks up the nearest drop the fighter may take now (reserved for it, or free for all by now) within
+    /// <see cref="LootSearchRadius" />: it walks there, and within <see cref="PickupReach" /> stands and asks for it
+    /// through the real <see cref="LootPickupHandler" />. A drop it has walked at for <see cref="LootGiveUpTicks" />, or
+    /// one the handler refused, is given up. False, sending nothing, when there is no drop to take.
+    /// </summary>
+    private bool Loot(ScenarioConnection connection, ICharacter character, FightForest forest)
+    {
+        GroundLoot? drop = NearestTakeable(character, forest);
+        if (drop is null)
+        {
+            _lootTarget = 0;
+            return false;
+        }
+
+        ulong raw = drop.Guid.RawValue;
+        if (raw != _lootTarget)
+        {
+            _lootTarget = raw;
+            _lootTicks = 0;
+        }
+        else if (++_lootTicks > LootGiveUpTicks)
+        {
+            GiveUp(raw);
+            return false;
+        }
+
+        Vector3 position = character.Position;
+        float dx = drop.Position.x - position.x;
+        float dz = drop.Position.z - position.z;
+        float yaw = Yaw(dx, dz);
+        if (dx * dx + dz * dz > PickupReach * PickupReach)
+        {
+            Walk(connection, yaw);
+            TryHeal(connection, character);
+            return true;
+        }
+
+        _detouring = false;
+        Send(connection, 0f, 0f, yaw);
+        _moved = false;
+
+        _pickupPacket.LootGuid = raw;
+        _pickup.Execute(connection, _pickupPacket);
+        if (forest.Drops.TryGet(drop.Guid, out _))
+            GiveUp(raw);
+        else
+            Pickups++;
+
+        _lootTarget = 0;
+        TryHeal(connection, character);
+        return true;
+    }
+
+    /// <summary>The nearest drop within reach of the search the fighter may take now and has not given up; null when none.</summary>
+    private GroundLoot? NearestTakeable(ICharacter character, FightForest forest)
+    {
+        GroundLoot? nearest = null;
+        float best = LootSearchRadius * LootSearchRadius;
+        uint me = character.Guid.Id;
+        DateTime now = _clock.GetUtcNow().UtcDateTime;
+        Vector3 position = character.Position;
+        foreach (GroundLoot drop in forest.DropsOnGround)
+        {
+            if (drop.OwnerCharacterId != me && now < drop.FreeForAllAt)
+                continue;
+
+            float dx = drop.Position.x - position.x;
+            float dz = drop.Position.z - position.z;
+            float distance = dx * dx + dz * dz;
+            if (distance < best && !GivenUp(drop.Guid.RawValue))
+            {
+                best = distance;
+                nearest = drop;
+            }
+        }
+
+        return nearest;
+    }
+
+    private bool GivenUp(ulong drop) => Array.IndexOf(_givenUp, drop) >= 0;
+
+    private void GiveUp(ulong drop)
+    {
+        _givenUp[_givenUpNext] = drop;
+        _givenUpNext = (_givenUpNext + 1) % _givenUp.Length;
+        _lootTarget = 0;
+        GaveUp++;
+    }
+
+    /// <summary>
     /// A healer's heal: the party member alive with the smallest share of its health, when that share is under
     /// <see cref="HealBelow" /> and the member stands within the heal's reach, gets a Mending Circle at its feet through
     /// the real cast handler, once the heal is off cooldown, the global cooldown is over and the healer has the mana. The
@@ -425,6 +612,7 @@ public sealed class LoopFighter
 
 /// <summary>The packet handlers, services and clock every <see cref="LoopFighter" /> of a world shares.</summary>
 public sealed record FighterHandlers(PlayerInputHandler Input, CastAbilityHandler Cast, QuestAbandonHandler QuestAbandon,
+    LootPickupHandler LootPickup, ItemDestroyHandler ItemDestroy,
     QuestService Quests, TimeProvider Clock, double GcdMs);
 
 /// <summary>
@@ -446,9 +634,22 @@ public sealed class FightForest
             throw new ArgumentException("The forest has no creatures", nameof(instance));
 
         _killedAtStart = Dead();
+
+        Drops = instance.Drops;
+        DropsOnGround = Drops.All as Dictionary<ulong, GroundLoot>.ValueCollection
+                        ?? throw new InvalidOperationException("The ground loot store no longer keeps its drops in a dictionary");
     }
 
     public MapInstance Instance { get; }
+
+    /// <summary>The drops on the forest's ground.</summary>
+    public GroundLootStore Drops { get; }
+
+    /// <summary>
+    /// The same drops as the store's own dictionary's values: walked with their struct enumerator, so a search allocates
+    /// nothing, where a walk of <see cref="GroundLootStore.All" /> boxes its enumerator.
+    /// </summary>
+    public Dictionary<ulong, GroundLoot>.ValueCollection DropsOnGround { get; }
 
     /// <summary>Where players enter the forest, and where a dead fighter is revived.</summary>
     public Vector3 Entry { get; }
