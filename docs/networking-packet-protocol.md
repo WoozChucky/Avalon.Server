@@ -164,9 +164,10 @@ Strictness of the mode (#875). With `Network:PacketEncryption` on, a plain packe
 handshake, and every packet a session filter names but the pong) closes the connection as a protocol violation, at
 arrival, before any filter is asked (`WorldConnection.OnReceive`). Admission and pong are plain by design and accepted
 plain. An opcode no world filter takes is dropped as before, whatever its flags. With the flag off a plain packet is
-accepted, and one flagged `Encrypted`, whatever its opcode, closes the connection in the read loop as a protocol
-violation, counted under `sealed_before_key` (#878, [packet handlers](packet-handlers.md)): the connection has no
-session to open it with, before admission or after.
+accepted. A frame flagged `Encrypted` whose opcode the world reads closes the connection in the read loop as a
+protocol violation, counted under `sealed_before_key` (#878, [packet handlers](packet-handlers.md)): the connection has
+no session to open it with, before admission or after. An opcode the world has no packet type for is dropped, whatever
+its flags, before anything is opened.
 
 Compatibility of the mode (#875, #878). A client opens a server packet by its header. A server opens a client packet
 by its header while its connection has a session; a world that does not seal has none.
