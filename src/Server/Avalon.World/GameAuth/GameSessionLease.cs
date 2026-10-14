@@ -33,6 +33,9 @@ public sealed class GameSessionLease
     private DateTime _until;
     private long _started;
     private TimeSpan _duration;
+    // When the tick stops gameplay (DrainDueAt, #977): the save margin before the end, on each clock.
+    private DateTime _drainAtUtc;
+    private TimeSpan _drainAfter;
     private bool _revoked;
 
     private GameSessionLease(SessionLeaseResponse response, GameplayWriteAuthority authority, TimeProvider clock)
@@ -61,17 +64,22 @@ public sealed class GameSessionLease
     }
 
     public DateTime LeaseUntil { get { lock (_gate) return _until; } }
-    public TimeSpan Remaining => RemainingAt(TickTime.Read(_clock));
 
-    /// <summary><see cref="Remaining" /> at <paramref name="now" />, as <see cref="IsActiveAt" /> reads it (#977).</summary>
-    public TimeSpan RemainingAt(in TickTime now)
+    /// <summary>
+    /// Whether the tick must stop gameplay now (#977): the lease is revoked or has ended, or it is within
+    /// <see cref="GameAuthPolicy.SaveDrainMargin" /> of its end by either clock, its <see cref="LeaseUntil" /> on the wall
+    /// clock or the time granted counted from the grant on the monotonic one, so the final save runs under a lease still
+    /// valid. Two comparisons against the due times the grant set, where the check worked the time left out on both
+    /// clocks: due exactly when that time left was at most the margin. <paramref name="now" /> is the tick's time; one
+    /// read from another clock than this lease's is read again.
+    /// </summary>
+    public bool DrainDueAt(in TickTime now)
     {
         TickTime at = now.On(_clock);
         lock (_gate)
         {
-            if (!ActiveUnderLock(at)) return TimeSpan.Zero;
-            return TimeSpan.FromTicks(Math.Min((_until - at.UtcNow).Ticks,
-                (_duration - _clock.GetElapsedTime(_started, at.Timestamp)).Ticks));
+            // Past either due time is past the margin, so an expired lease is due too, revoked or not.
+            return _revoked || at.UtcNow >= _drainAtUtc || _clock.GetElapsedTime(_started, at.Timestamp) >= _drainAfter;
         }
     }
 
@@ -122,6 +130,8 @@ public sealed class GameSessionLease
         _until = until;
         _started = _clock.GetTimestamp();
         _duration = until - _clock.GetUtcNow().UtcDateTime;
+        _drainAtUtc = until - GameAuthPolicy.SaveDrainMargin;
+        _drainAfter = _duration - GameAuthPolicy.SaveDrainMargin;
     }
     private static bool Positive(string? text, out long value) =>
         long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value > 0 && value.ToString(CultureInfo.InvariantCulture) == text;

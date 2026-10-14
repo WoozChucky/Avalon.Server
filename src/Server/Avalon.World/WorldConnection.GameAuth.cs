@@ -87,7 +87,7 @@ public partial class WorldConnection
             }
         }
         // Leave time for the final save under the still-valid durable fence. No outage grants more time.
-        if (!lease.IsActiveAt(now) || lease.RemainingAt(now) <= GameAuthPolicy.SaveDrainMargin)
+        if (lease.DrainDueAt(now))
         {
             lease.Revoke();
             BlockForMaintenance();
