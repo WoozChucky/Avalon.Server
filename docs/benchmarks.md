@@ -852,7 +852,75 @@ scan rows are unchanged.
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
 ```
 
+### Nearest-polygon searches for movement — `NavigationMovementBenchmarks.cs` (#978)
+
+A player's grounded step, `MapNavigator.MoveOnGround`, against the same step taken with DotRecast's own full
+nearest-polygon searches (`DetourMovementReference` in `Avalon.World.Testing`, the navigator as it was before #978),
+on the committed town navmesh and on forest seed 7's. Each invocation visits 256 inputs, results per input; the bake,
+the input selection and the check that both give the same answer for every input are setup. Idle inputs do not move,
+walking inputs take an unobstructed 4/60 m step, blocked inputs press into a real wall from where a raycast stopped,
+mixed inputs are two idle to three walking, and beside inputs step from half a metre off the mesh's edge, where no
+polygon is under the player.
+
+Before #978 each input searched for the nearest polygon twice (the raycast's start, and the ground snap's end when the
+step moved), each search measuring every polygon in a 4 x 8 x 4 m box: 1.16 ms a tick at 950 players on world 4, plus
+51 samples zeroing the raycast's 2 KB path buffer (#974, section 7). Since #978 both searches look first in a narrow
+box (0.1 m across, the climb height plus 0.1 m up and down; `StandingPolygonSearch`) and take its first polygon that
+scores zero, which is the full search's answer; the full box decides only when nothing there scores zero. The raycast
+no longer zeroes its path buffer (`[SkipLocalsInit]`). Nothing is kept between inputs.
+
+How often the narrow box answers, from the setup's classification of these inputs (the same on both maps): the start
+of every idle, walking and mixed input and the end of every step that moved; 113 of 256 blocked starts in the town
+and 147 of 256 in the forest (a point on a wall's edge that the polygon test leaves out goes to the full box); no
+beside input. `town-walk`'s walkers loop over open ground, which is the walking case.
+
+Before (`2d948654`, three runs), the narrow search (`99c65a33`, five runs) and without the zeroing (`a2559fbc`, five
+runs), on 2026-10-14, alternated, as the minimum and median of the runs; the reference column is all thirteen runs.
+The machine was shared with other agents' builds and tests (about half its CPU busy), so times are noisy, the
+minimum the steadiest figure; allocations exact:
+
+| Map | Input | Reference | Before | Narrow search | + no zeroing | Allocated |
+|---|---|---:|---:|---:|---:|---:|
+| Town | Idle | 616–656 ns | 616–634 ns | 210–215 ns | 188–221 ns | 0 B |
+| Town | Walking | 1,242–1,286 ns | 1,224–1,236 ns | 357–364 ns | 342–429 ns | 0 B |
+| Town | Mixed | 1,009–1,114 ns | 1,002–1,015 ns | 297–309 ns | 278–344 ns | 0 B |
+| Town | Blocked | 868–962 ns | 885–934 ns | 696–738 ns | 730–889 ns | 0 B |
+| Town | Beside | 638–719 ns | 678–907 ns | 812–831 ns | 796–860 ns | 0 B |
+| Forest | Idle | 373–384 ns | 389–393 ns | 183–192 ns | 166–178 ns | 0 B |
+| Forest | Walking | 756–782 ns | 747–836 ns | 305–337 ns | 282–311 ns | 0 B |
+| Forest | Mixed | 576–589 ns | 578–583 ns | 251–263 ns | 232–241 ns | 0 B |
+| Forest | Blocked | 390–409 ns | 409–420 ns | 358–477 ns | 330–347 ns | 0 B |
+| Forest | Beside | 446–473 ns | 460–464 ns | 535–560 ns | 524–577 ns | 0 B |
+
+By the minima a walking input costs 0.28 to 0.29 (town) and 0.37 to 0.40 (forest) of what it did, an idle one 0.31
+to 0.34 and 0.45 to 0.49. An input beside the mesh costs a sixth to a quarter more (the narrow box finds nothing, then the full box decides), and a blocked one
+is level or cheaper; neither is the steady state of a player on the ground. The zeroing is the smaller step: without
+it the minima are 15 to 25 ns lower in eight of the ten rows, about a 2 KB clear, but no single run separates it from
+the noise. Nothing allocates, before or after.
+
+Same answers: `GroundedMovementShould.Move_and_find_ground_as_the_full_searches_do` compares the navigator's
+`MoveOnGround` and `FindGround` with the reference, to the bit, at every polygon's corners, edges and inside, at
+the polygon's height, exactly the climb above and below it, just past it and between floors, for idle, short, long
+and corner-ending steps, on the town (60 of its 313 polygons have a second floor over or under their centre), the
+forest (118 of 603) and a two-floor test mesh. It fails when the narrow box breaks a tie the other way, when the full
+box is not asked after a miss, when polygons at the point's edge are skipped, or when the search's height is used for
+a point not over its polygon. Lowering the narrow box's height does not fail it: DotRecast's bounding volumes round
+heights outward to the 0.3 m cell, and polygons that tie at a point share their height there, so the climb-high box
+is a bound, not a measured need.
+
+BenchmarkDotNet 0.15.8, in-process toolchain, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, five warmups
+and eight measured iterations (twenty, the move alone, in two of the five runs of each after column). The scenario gate reads the
+same before and after #978, in Debug and Release: `forest-combat` 10,361 B per window (the 4 B over the committed
+10,357 B that #898 noted, within the floor), the others 0 B; the baseline does not move.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*NavigationMovementBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
+```
+
 ### Grounded player movement — `NavigationMovementBenchmarks.cs` (#880, #896)
+
+The benchmark below was reworked by #978 (above): its two methods are now the DotRecast reference and
+`MoveOnGround`, on the town and a forest. This section keeps #914's figures as measured then.
 
 Compares the existing `RaycastWalkable` + `SampleGroundHeight` composition with `MoveOnGround` over the committed
 town navmesh. Each invocation visits 256 positions, with bake and input selection outside timing. Idle inputs have
