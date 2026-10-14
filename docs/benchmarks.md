@@ -3276,7 +3276,7 @@ The world server runs with dynamic PGO on (the runtime's default), and so do the
 tier devirtualises an interface call from the profile it gathered at run time and can then keep on the stack the boxed
 enumerator, closure, delegate or box the call would have allocated. How much it keeps depends on the profile and on
 when a method reached that tier, so an allocation of that kind is a figure that moves: between runs, between machines,
-and between Debug (never optimised) and Release. The town scenarios have none on their path. `forest-combat` had many
+and between Debug (never optimised) and Release. `town-idle` and `town-walk` have none on their path, and `town-social` 104 B per window, inside the floor ([a social town](#results--a-social-town-972-2026-10-14)). `forest-combat` had many
 when it was added, all in combat, AI and kill code, and the fight's rarer paths (a kill's drop, an aura's tick) reach
 the optimised tier late, so its first figure was not reproducible:
 
@@ -3412,12 +3412,16 @@ with the committed figure, in every build (Debug and Release, see below) and for
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
-- **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
-  since server packets are built in per-thread messages; the file was last regenerated at `75aeb59e`, for `forest-combat`'s
-  fuller fight, #972), so the 256 B floor decides in every scenario:
+- **Detection floor.** `town-idle`, `town-walk` and `many-instances` read 0 since `75a16697` (#875: none of them
+  allocates on the tick thread since server packets are built in per-thread messages; the file was last regenerated at
+  `2ca42aff`, for `town-social`'s first entry, #972), so the 256 B floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
-  allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
+  allocated every tick, anywhere on the measured path, fails every steady scenario (the smallest, 24 B, is 1,440 B
   per window).
+  `town-social` reads 3,904 B per window since #972, all of it its events' own, one of each kind a window
+  ([a social town](#results--a-social-town-972-2026-10-14)): the floor decides for it too (1% is 39 B), so it fails
+  above 4,160 B, and one more 40 B enumerator on each of its seven events (280 B) fails it. Its Debug run reads 4,008 B,
+  104 B above Release and inside the floor (see the results).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
   `forest-combat` is the one figure above 0 (14,292 B per window since #972 gave the fight a healer, a kill quest and
@@ -3502,8 +3506,8 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that; a fixed-length scenario
 (`forest-combat`) has no minimum to lean on, and relies instead on its settled rehearsal, which waits out a busy machine
-before its one measured run. The gate adds about 25 s to the World
-suite (`forest-combat` about 10 s of it since #972), and `ForestCombatScenarioShould`, the forest's two-run check, 12 to 17 s more.
+before its one measured run. The gate adds about 30 to 40 s to the World
+suite (`forest-combat` 7 to 11 s of it since #972, `town-social` about 6 s), and `ForestCombatScenarioShould`, the forest's two-run check, 12 to 17 s more.
 
 ### Allocation tests and background collections
 
@@ -3599,6 +3603,68 @@ to and walking, no failed check, and each of the seven events once in each measu
 scratch copy, it fails: a whisper sent to the sender's own name ("player 10 (Socialak) whispered, and the line did not
 reach its target with its echo back, at tick 30"), and a schedule with no party line ("0 party lines delivered during
 the 5 measured windows").
+
+### Results — a social town (#972, 2026-10-14)
+
+`town-social` is committed at **3,904 B per window** (2.17 B per player per tick), the runner's Release run at
+`2ca42aff` that wrote it (developer machine, i9-12900K, Windows 11, .NET 10.0.13, other agents building and testing
+beside it). Every other figure stayed where it was: `forest-combat` 14,292 B, the others 0. The figure is the seven
+events of one second and nothing else: over 30 consecutive windows after a 5 s warm-up (a probe on the scenario's
+world, the first window starting 22 ticks into the schedule's second), every window held one of each event and read
+3,904 B, and 1,590 of the 1,800 ticks read 0 B, the other 210 being exactly the seven event ticks of each window. So
+no tick allocates without an event, and the least window, the gated one, holds them all.
+
+Bytes per event, read on its tick (the same in every window; Release with dynamic PGO on, and Debug, which reads the
+same as Release with `DOTNET_TieredPGO=0` or `DOTNET_JitObjectStackAllocation=0`):
+
+| Event | Release | Debug | What allocates (Debug) |
+|---|---:|---:|---|
+| A leader leaves | 1,184 | 1,248 | Two rosters to the two left, after the handover and after the leave (424 B each: per recipient a new `List<PartyMemberDto>` and a DTO per member, and an enumerator); the lines "X left the party." (72 B) and "X is now the party leader." (88 B); `Party.Remove`'s closure and predicate (88 B); the leaver's empty roster's new empty list (32 B); three boxed enumerators over `Party.Members` (120 B) |
+| An invite | 104 | 104 | The `PartyInvite` (64 B) and the target's lookup key (40 B, `CharacterName.LookupKey`) |
+| The accept | 960 | 1,000 | The roster to three (760 B: three lists and nine DTOs, and enumerators); the `PartyMember` and its `CharacterId` (80 B); "X joined the party." (80 B); two boxed enumerators over `Party.Members` (80 B), one of which Release keeps on the stack |
+| A line said to the town | 40 | 40 | The boxed enumerator over `MapInstance.Connections` |
+| A whisper (`/w`, 7 words) | 872 | 872 | The dispatcher's arguments (312 B: an array and a string per word); the text after the command word made twice (192 B: a slice, then `Trim`'s copy) and split again (192 B: the name, then the rest made twice); three lookup keys (120 B: `CharacterName.Same` makes two, `OnlineCharacters.ByName` one); the `CommandContext` (56 B) |
+| A party line (`/p`, 9 words) | 688 | 688 | The dispatcher's arguments (384 B); the text after the command word made twice (208 B); the `CommandContext` (56 B); the boxed enumerator over `Party.Members` (40 B) |
+| `/ignorelist` | 56 | 56 | The `CommandContext` |
+| **A window** | **3,904** | **4,008** | |
+
+A whisper and a party line are the dearest chat by far, and both grow with the message: the dispatcher splits every
+command's text into an array of new strings before it runs the command, and neither `/p` nor `/w` reads them (each
+reads its text from the packet, `CommandText`), so a long `/p` of short words pays a string per word for nothing. The
+party events cost what their rosters cost: each roster is built anew for each recipient.
+
+**Debug and Release.** Debug reads 104 B per window above Release: 64 B on a leave and 40 B on the accept, which
+optimised code keeps on the stack with the dynamic profile (Release with `DOTNET_TieredPGO=0` reads Debug's 4,008 B).
+The accept's is a boxed enumerator over `Party.Members`, kept by the runtime's conditional escape analysis
+(`DOTNET_JitObjectStackAllocationConditionalEscape=0` puts it back alone); the leave's was not traced to its object. An
+allocation that only the profile keeps off the heap can read differently in the gate alone and in a whole suite run
+([Dynamic PGO](#dynamic-pgo)); here both readings are inside the 256 B floor.
+
+**Stability.** The runner, five runs in Release: 3,904 B every time. The gate alone, five runs in each build: 3,904 B
+in Release and 4,008 B in Debug every time (+2.66%, +104 B, within), and 4,008 B in Release with dynamic PGO off. A
+spread of 0 B within each build.
+
+**Findings, per event, none on a per-tick path** (production code is unchanged here; each looks avoidable):
+
+- `CommandDispatcher.Dispatch` builds the arguments (`Arguments`: an array and a string per word) for every command it
+  runs, and `/p` and `/w` never read them: 384 B per 9-word party line and 312 B per 7-word whisper here, more for a
+  longer message.
+- `CommandText.AfterCommandWord` slices the text and then trims the slice into a second copy, and `FirstWord` does the
+  same for the rest after the name: a party line's text is made twice (104 B here), a whisper's three times (96 + 96 B,
+  then 80 + 72 B for the rest).
+- `CharacterName.LookupKey` makes a new upper-case string per lookup: in `OnlineCharacters.TryIdByName` (an invite, a
+  whisper: 40 B each) and twice in `CharacterName.Same` (the whisper's self check: 80 B). A comparison over spans,
+  or an alternate lookup with an ignore-case comparer, would make none.
+- `PartyService.SendRoster` builds a new `List<PartyMemberDto>` and a new DTO per member for every recipient (n lists
+  and n² DTOs a roster: 760 B for three, 424 B for two), and a leader's leave sends the roster twice (after the
+  handover, then after the leave). `SPartyRosterPacket.Empty` makes a new empty list for every empty roster (32 B).
+- `Party.Remove` uses `RemoveAll` over a lambda capturing the id: a closure and a delegate, 88 B per leave or kick.
+- Boxed enumerators, 40 B each: `ChatMessageHandler` walks `MapInstance.Connections` (an `IEnumerable` over a
+  dictionary's values) per said line; `PartyChatCommand` and `PartyService` (`SendLine` to a party, `SendRoster` once
+  and once per recipient, `ResetStatuses`, `HandOverLeadership`) walk `Party.Members` as an `IReadOnlyList`.
+
+Not counted as findings: the state an event creates (the `PartyInvite`, the `PartyMember` and its `CharacterId`), the
+`CommandContext` a command runs with (#883), and the system lines, which name a member and so are a string each.
 
 ### The forest-combat scenario
 
