@@ -104,7 +104,7 @@ Sent immediately after the character entity is built and spawned. Contains:
 | `CharacterId`      | `character.Id`                          |
 | `Name`             | `character.Name`                        |
 | `Level`            | `character.Level`                       |
-| `Class`            | `(ushort)character.Class`               |
+| `Class`            | `character.Class` (`CharacterClass`)    |
 | `X, Y, Z`         | `character.X/Y/Z` for procedural maps; **for towns, overridden with `instance.Layout.EntrySpawnWorldPos`** because persisted DB coords would land returning players outside the new chunk-composed town |
 | `Orientation`      | `character.Rotation`                    |
 | `MovementSpeed`    | `entity.GetMovementSpeed()` (base + future equipment/buff modifiers) |
@@ -164,7 +164,7 @@ public class SInventorySnapshotPacket : Packet
 public class ItemSlotDto
 {
     [ProtoMember(1)] public InventoryType Container { get; set; } // 0 Equipment, 1 Bag, 2 Bank (an enum in the schema)
-    [ProtoMember(2)] public ushort Slot           { get; set; }
+    [ProtoMember(2)] public byte   Slot           { get; set; } // a byte: no container has 255 slots (#921)
     [ProtoMember(3)] public ulong  ItemTemplateId { get; set; } // ItemTemplateId.Value
     [ProtoMember(4)] public Guid   ItemInstanceId { get; set; } // ItemInstanceId.Value, .bcl.Guid
     [ProtoMember(5)] public uint   Count          { get; set; }
@@ -205,7 +205,7 @@ public class SInventoryUpdatePacket : Packet   // SMSG_INVENTORY_UPDATE, 0x3029
 public class InventorySlotUpdateDto
 {
     [ProtoMember(1)] public InventoryType Container { get; set; }
-    [ProtoMember(2)] public ushort Slot { get; set; }
+    [ProtoMember(2)] public byte Slot { get; set; }
     [ProtoMember(3)] public ItemSlotDto? Item { get; set; } // absent: the slot is now empty
 }
 ```
@@ -217,7 +217,8 @@ only while the bank is open.
 
 ## Character Creation
 
-`CMSG_CHARACTER_CREATE` (`CCharacterCreatePacket`: `Name`, `Class`, `Gender`) gets exactly one
+`CMSG_CHARACTER_CREATE` (`CCharacterCreatePacket`: `Name`, `Class` a `CharacterClass`, `Gender` a
+`CharacterGender`, both wire enums of `Avalon.Common` since #922) gets exactly one
 `SMSG_CHARACTER_CREATED` (`SCharacterCreatedPacket.Result`, field 1, an `SCharacterCreateResult`),
 unless the connection is closed instead.
 
@@ -234,11 +235,14 @@ unless the connection is closed instead.
 - **Answer order:** the checks run in this order, and the first that fails answers:
   1. not logged in to the world, a character selected, being selected or leaving, or the
      connection closing: the connection is closed, with no answer;
-  2. a gender the enum does not define: `InvalidClass` (4);
+  2. a class a character cannot have (`None`, or a number that is no member) or a gender the enum
+     does not define: `InvalidClass` (4). Both enums are bytes, so a class or gender past 255 does
+     not fit and fails the packet's decode, which closes the connection, with no answer;
   3. the name rule: `NameTooShort` (2), `NameTooLong` (3) or `NameInvalid` (8);
   4. no gameplay authority for the connection's account (no admitted session): the connection is
      closed, with no answer;
-  5. the class has no creation data or no level 1 stats: `InternalDatabaseError` (7);
+  5. the class has no creation data or no level 1 stats (a playable class the World data lacks):
+     `InternalDatabaseError` (7);
   6. then one transaction under the account's gameplay guard
      (`ICharacterRepository.CreateForGameplayAsync`): the account already holds the maximum number of
      characters, `MaxCharactersReached` (5);
