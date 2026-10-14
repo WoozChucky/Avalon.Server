@@ -1659,14 +1659,17 @@ sends, of one entity and of thirty (`Entities`, a crowded town).
 
 ### State broadcast encoding — `StateBroadcastEncodingBenchmarks.cs` (#980)
 
-One town broadcast's state updates, every player moving and seeing every other (`Players` 10, 25 and 30: a town holds
-at most 30, `MaxPlayers`), encoding only: the entities are already described, and a motion-only update has no entry
-for its own client. One operation is one broadcast to every player.
+One town broadcast's state packets, every player seeing every other (`Players` 10, 25 and 30: a town holds at most 30,
+`MaxPlayers`), encoding only: the entities are already described. The updates are a broadcast with every player moving
+(a motion-only update has no entry for its own client); the adds are the town's first tick, everyone listed to
+everyone in full and each player its own character without its motion. One operation is one broadcast to every player.
 
 | Scenario | What it models |
 |---|---|
 | `PerRecipient` | Each recipient's update encoded whole from its list (`SInstanceStateUpdatePacket.Create`): the encoding before #980 |
 | `Shared` | Each recipient's update put together from entries encoded once per broadcast (`StatePacketAssembler.ForUpdates`): since #980 |
+| `AddsPerRecipient` | Each recipient's add encoded whole from its list (`SInstanceStateAddPacket.Create`): before #980 |
+| `AddsShared` | Each recipient's add put together from entries encoded once per broadcast (`StatePacketAssembler.ForAdds`): since #980 |
 
 Results in [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14).
 
@@ -3976,12 +3979,16 @@ only on the unit. Since #980 (see [world simulation](world-simulation.md) and [a
 - each changed unit's aura update is encoded once per broadcast pass and the same packet goes to every watcher
   (`SharedAuraUpdates`, `OutboundPacket.Share`), and its entries, and the aura lists', are reused from one packet to
   the next (`AuraWire`);
-- each recipient's state update is copied together from entries encoded once per broadcast (`StatePacketAssembler`,
-  `SInstanceStateUpdatePacket.WriteEntry`, `PacketEncoder.FromPayload`); a character's update to its own client, whose
-  motion is left out, is encoded for that client alone.
+- each recipient's state add and update is copied together from entries encoded once per broadcast
+  (`StatePacketAssembler`, `SInstanceStateAddPacket.WriteEntry`, `SInstanceStateUpdatePacket.WriteEntry`,
+  `PacketEncoder.FromPayload`); a character's add or update to its own client, whose motion is left out, is encoded
+  for that client alone.
 
-The bytes on the wire are unchanged: `StateUpdateEncodingShould` compares every recipient's update of real broadcasts
-with the per-recipient encoding, and `WireSchemaShould` and the corpus are untouched.
+The bytes on the wire are unchanged: `StateUpdateEncodingShould` compares every recipient's add and update of real
+broadcasts (characters, creatures, and projectiles cast through the real cast system) with the per-recipient encoding,
+and `WireSchemaShould` and the corpus are untouched. `SharedAuraUpdatesShould` checks, through a real broadcast and a
+counting pool, that every shared aura payload stays out while a recipient holds it and goes back once they all have,
+also when the broadcast throws partway.
 
 **Encodes and bytes per broadcast** (`TickPhaseBenchmarks`' town: everyone moving, so every update is motion alone and
 no recipient has an entry of its own; counted on one instance's real broadcast, and identical on every broadcast after
@@ -3997,13 +4004,29 @@ The protobuf encoding falls from one per entry sent to one per entity that chang
 copying its entries into the packet being put together, then that into its pooled segment (the second copy, from the
 encoder's stream, was there before), and the segment, as before.
 
-**`StateBroadcastEncodingBenchmarks`** (one broadcast, encoding only; one run, after build `85f98ed9`):
+**Adds**, counted the same way on a town's first tick, where everyone is listed to everyone and each player its own
+character without its motion (a full add per entity):
 
-| Players | `PerRecipient` | `Shared` | Allocated |
-|---:|---:|---:|---:|
-| 10 | 16.0 µs | 3.7 µs | 0 B both |
-| 25 | 101.6 µs | 12.2 µs | 0 B both |
-| 30 | 215.1 µs (StdDev 41 µs) | 15.3 µs | 0 B both |
+| Players in the town | Packets | Entries in them | Encoded before: entries, bytes | Encoded after: entries, bytes | Copied after |
+|---:|---:|---:|---|---|---:|
+| 15 | 15 | 225 | 225, 15,150 B | 30, 1,812 B | 15,150 B |
+| 30 | 30 | 900 | 900, 61,350 B | 60, 3,642 B | 61,350 B |
+| 300 | 300 | 90,000 | 90,000, 6,270,275 B | 600, 37,009 B | 6,270,275 B |
+
+After, an entity listed this tick is encoded once for everyone who is listed it, plus each recipient's own character
+once. A single arrival in a town of 30 is one encode of the newcomer for the 29 others (29 before); what the newcomer is
+listed is encoded once each, as before, unless someone else is listed the same entities that tick. Adds come on
+arrivals and on coming into view, not on every broadcast, so they move neither `TickPhaseBenchmarks` (no arrival in its
+measured ticks) nor the allocation gate.
+
+**`StateBroadcastEncodingBenchmarks`** (one broadcast, encoding only; the updates over two runs, after builds `85f98ed9`
+and `92127c3a`, the adds over one, after `92127c3a`):
+
+| Players | Updates `PerRecipient` | Updates `Shared` | Adds `AddsPerRecipient` | Adds `AddsShared` | Allocated |
+|---:|---:|---:|---:|---:|---:|
+| 10 | 13.8–16.0 µs | 3.3–3.7 µs | 19.8 µs | 6.2 µs | 0–1 B |
+| 25 | 89.8–101.6 µs | 11.6–12.2 µs | 123.9 µs | 19.8 µs | 0–1 B |
+| 30 | 124.2–215.1 µs | 15.3–22.9 µs | 180.7 µs | 24.4 µs | 0–1 B |
 
 **`TickPhaseBenchmarks`** (the tick, per tick, 42 ticks per operation, every player moving; `--inProcess`, short job,
 ten warmups and eight iterations; before is `ba0d327b` built from a copy of the tree, after is `85f98ed9`; two rounds,
