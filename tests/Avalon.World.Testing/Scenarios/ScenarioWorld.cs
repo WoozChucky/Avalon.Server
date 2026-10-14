@@ -141,9 +141,11 @@ public sealed class ScenarioWorld : IDisposable
             AddReferenceServices(services, reference, configuration, seed);
         _services = services.BuildServiceProvider();
 
-        _registry = new InstanceRegistry(NullLoggerFactory.Instance, new ScenarioMapManager(_templates), _factory);
-        _world = new ScenarioWorldHost(configuration, reference?.Data, _templates, _registry);
+        // The registry places each instance it publishes on the ticker's broadcast schedule, as World's does (#975).
         _ticker = new InstanceTicker(_failures, _meter, Clock);
+        _registry = new InstanceRegistry(NullLoggerFactory.Instance, new ScenarioMapManager(_templates), _factory,
+            broadcasts: _ticker.Broadcasts);
+        _world = new ScenarioWorldHost(configuration, reference?.Data, _templates, _registry);
 
         _reference = reference;
         _formula = reference?.Data.Combat.Formula ?? s_formula;

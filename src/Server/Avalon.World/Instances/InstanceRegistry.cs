@@ -96,19 +96,27 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     private readonly IAvalonMapManager _mapManager;
     private readonly IChunkLayoutInstanceFactory _chunkLayoutFactory;
     private readonly TickThreadGuard? _tick;
+    private readonly BroadcastSchedule? _broadcasts;
 
+    /// <param name="broadcasts">
+    /// The world's broadcast schedule (#975, <see cref="InstanceTicker.Broadcasts" />): each instance published takes the
+    /// slot with the fewest live instances, and frees it when it is removed or expires. Without one, every instance starts
+    /// its broadcast clock at 0.
+    /// </param>
     public InstanceRegistry(
         ILoggerFactory loggerFactory,
         IAvalonMapManager mapManager,
         IChunkLayoutInstanceFactory chunkLayoutFactory,
         TickThreadGuard? tickThread = null,
-        TimeSpan? abandonedInstanceLifetime = null)
+        TimeSpan? abandonedInstanceLifetime = null,
+        BroadcastSchedule? broadcasts = null)
     {
         _logger = loggerFactory.CreateLogger<InstanceRegistry>();
         _abandonedLifetime = abandonedInstanceLifetime ?? DefaultAbandonedInstanceLifetime;
         _mapManager = mapManager;
         _chunkLayoutFactory = chunkLayoutFactory;
         _tick = tickThread;
+        _broadcasts = broadcasts;
     }
 
     public IReadOnlyCollection<IMapInstance> ActiveInstances => _instances.Values.ToList();
@@ -374,11 +382,20 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         return published;
     }
 
-    /// <summary>Registers an instance in the list and in the tick's copy of it, replacing one held under its id.</summary>
+    /// <summary>
+    /// Registers an instance in the list and in the tick's copy of it, replacing one held under its id, and gives it its
+    /// slot on the broadcast schedule (#975), on the tick before its first.
+    /// </summary>
     private void Track(MapInstance instance)
     {
         if (_instances.TryGetValue(instance.InstanceId, out MapInstance? held))
             Untrack(held);
+
+        if (_broadcasts is not null)
+        {
+            TimeSpan phase = _broadcasts.Join(out int slot);
+            instance.JoinBroadcastSchedule(slot, phase);
+        }
 
         _instances[instance.InstanceId] = instance;
         _tickOrder.Add(instance);
@@ -390,6 +407,13 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     {
         if (_tickOrder.Remove(instance))
             _tickSnapshotStale = true;
+
+        // Its broadcast slot is free for the next instance published (#975), whether or not it ever ticked.
+        if (instance.BroadcastSlot >= 0)
+        {
+            _broadcasts?.Leave(instance.BroadcastSlot);
+            instance.BroadcastSlot = -1;
+        }
     }
 
     /// <summary>

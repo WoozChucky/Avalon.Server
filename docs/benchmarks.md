@@ -3062,8 +3062,10 @@ instance pass, and leaves out:
   its input advanced by one per tick (300) with a change of position; in `town-walk` every wolf still in combat within
   4 m of the player it fights. A scenario that stopped walking or fighting would allocate less and pass the gate as an
   improvement, so a failed check throws instead, failing the gate and stopping the runner.
-- **Two levels.** `town-walk` and `many-instances` alternate between two window levels from one window to the next;
-  the minimum lands on the lower one, and that lower level is the committed figure.
+- **Two levels.** `town-walk` and `many-instances` alternated between two window levels from one window to the next;
+  the minimum landed on the lower one, and that lower level was the committed figure. Each instance broadcast every
+  seventh tick then, so a window held eight or nine broadcasts; since [the broadcast schedule](#results--the-broadcast-schedule-975-2026-10-14)
+  it broadcasts every sixth, ten in every window, and both figures are 0 anyway.
 - **Timing.** After the windows the runner times `--measure-ticks` ticks (default 3600, one minute at 60 Hz) and
   reports the tick-time distribution, the share of ticks over the 16.7 ms budget, and the collections and GC pause
   time of that phase. The gate skips this phase.
@@ -3203,7 +3205,9 @@ in-process listener boxes every payload). Lockstep reads as every instance on th
 scenario reads that way, `many-instances` as 60 ticks of 420 with all 250 instances broadcasting and none in between
 (the scenario's step reaches the 0.1 s interval every seventh tick, the 9.1 Hz cadence of
 [#974](https://github.com/WoozChucky/Avalon.Server/issues/974)). A broadcast spread over the ticks reads as most
-ticks with some, and a per-tick maximum near the instance count over the ticks per interval.
+ticks with some, and a per-tick maximum near the instance count over the ticks per interval. With
+[the broadcast schedule](#results--the-broadcast-schedule-975-2026-10-14), `many-instances` reads 41 or 42 instances
+on 419 ticks of 420 (the first tick has none) and every instance on none.
 
 What the census shows is the phase each instance starts with under a fixed step, every instance built on the same
 tick. It does not show the two ways instances fall into step in production: a long tick re-synchronising them, and
@@ -3504,6 +3508,71 @@ scenario a `List<IAbility>`) and the closures on the combat path this scenario r
 and `147_0` cannot be matched by name from a profile; any left on paths the forest does not take stay open). It does
 not touch `MapId`, which no forest tick allocates, nor the network-layer items. The driver itself allocates nothing: it
 holds its packets and its ability, and reads the ability's cooldown itself rather than asking the character.
+
+### Results — the broadcast schedule (#975, 2026-10-14)
+
+Every instance used to broadcast its state on the same tick, and each instance's timer reset to 0 on a broadcast,
+dropping its overshoot. The 950-player profile (#974, section 5) found all 121 instances broadcasting together on 273
+of 1,800 ticks and on no other, those ticks averaging 15.78 ms against 11.60 ms, and the interval six or seven ticks
+apart, 9.1 broadcasts a second. Each instance now has a slot on the world's broadcast schedule, six slots a tick apart
+given to each instance as it is published (the slot with the fewest live instances), and its clock keeps the remainder (see
+[world simulation](world-simulation.md)). The figures below were taken with slots handed out round-robin; with every
+instance published together, as here, the fewest-live rule hands out the same slots. Measured on `many-instances` (250 instances published together, two walkers
+in each), before at `1e7d9618` and after at `ab7913c7`, Release, developer machine (i9-12900K, Windows 11, .NET
+10.0.12), with other builds and tests running on it, so wall-clock figures are given as ranges over runs.
+
+**Where the broadcasts fall** (3,600 ticks after a 600-tick warm-up, read from the `Avalon-World-Tick` provider by an
+in-process listener; the same every run):
+
+| | Before | After |
+|---|---|---|
+| Instances broadcasting on a tick | all 250 on 514-515 ticks, none on the other 3,085-3,086 | 41 on 1,200 ticks, 42 on 2,400; never none |
+| Interval between one instance's broadcasts | 7 ticks (116.7 ms), every time | 6 ticks (100.0 ms), every time |
+| Broadcasts per instance per second of game time | 8.57 | 10.00 |
+| State packets per tick | 500 on a broadcast tick, 0 otherwise | 82 or 84 |
+
+The scenario's tick is 4 TimeSpan ticks under 1/60 s (`ScenarioWorld.Dt`, 166,666), so the old timer needed a seventh
+tick every time (production's measured deltas made it six or seven: 9.1 a second); with the remainder carried a
+seventh is needed once in about 40,000 intervals.
+
+**Tick time** (3,600 ticks timed without the listener, each tick's state packets counted; three runs of each,
+interleaved):
+
+| | Before | After |
+|---|---|---|
+| Ticks carrying the broadcasts, mean | 2.59 / 3.62 / 4.00 ms (514-515 ticks) | 1.72 / 3.73 / 2.73 ms (every tick) |
+| The other ticks, mean | 1.90 / 2.83 / 3.09 ms | the same: 1.73 / 3.76 / 2.72 ms |
+| A broadcast tick against the others, same run | +0.69 to +0.91 ms (+27% to +36%) | none |
+
+The runs' absolute figures move with the machine's load (the after runs' means range from 1.7 to 3.7 ms); the
+comparison inside each run does not: before, a seventh of the ticks paid 0.7 to 0.9 ms more for all 250 broadcasts;
+after, every tick pays a sixth of them and no tick stands out. The runner's own timed phase
+(`--scenario many-instances`, six runs before and three after) read p95 4.2 to 15.5 ms before and 3.0 to 7.0 ms after,
+p99 4.9 to 68 ms and 3.5 to 16 ms, on a machine whose load swung the means between 1.7 and 6.2 ms: consistent with the
+spread, and too noisy to quote as its size. The mean is the same work, plus a sixth more broadcasts (ten a second
+against 8.57 here).
+
+**`TickPhaseBenchmarks`** (the tick, crowded or spread over towns, 42 ticks per operation; `--inProcess`, one benchmark binary run
+once with the before build's `Avalon.World` and `Avalon.World.Testing` and once with the after build's; StdDev 10% to
+25% on this machine):
+
+| Players | Instances | Before | After | Allocated before | Allocated after |
+|---:|---:|---:|---:|---:|---:|
+| 300 | 1 | 5,285 µs | 5,120 µs | 103,438 B | 120,677 B |
+| 300 | 20 | 521 µs | 530 µs | 3 B | 2 B |
+| 600 | 1 | 24,919 µs | 25,321 µs | 2,214,458 B | 2,583,517 B |
+| 600 | 20 | 2,131 µs | 2,470 µs | 16 B | 21 B |
+
+An operation of 42 ticks held six broadcasts per instance before (every seventh tick) and seven after (every sixth),
+so it does a sixth more broadcast work; the allocation of the crowded single town grows by exactly that (103,438 B ×
+7/6 = 120,678 B; 2,214,458 B × 7/6 = 2,583,534 B): what one broadcast to 300 or 600 players in one instance allocates is
+unchanged. The times are within the noise: the four cases moved by -3% to +16% at the same 7/6 ratio of broadcasts,
+with a standard deviation of 10% to 25%, so they show no cost per broadcast either way.
+
+**The allocation gate does not move**: `town-idle`, `town-walk` and `many-instances` 0 B, `forest-combat` 10,357 B, in
+Debug and Release, and `ForestCombatScenarioShould`'s two runs agree. The fight's four forests, published together,
+now broadcast in four slots, and ten times a second rather than 8.57: what a broadcast and a fight allocate is the
+same.
 
 ### Results — the kill path (#890, #883, 2026-10-13)
 
