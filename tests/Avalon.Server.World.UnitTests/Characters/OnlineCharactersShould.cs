@@ -33,16 +33,21 @@ public class OnlineCharactersShould
 
     /// <summary>
     /// Names fold only ASCII letters, as the stored key does (#757): a dotless i upper-cases to I in .NET, and would
-    /// otherwise find "Bill" from a name the database would never match.
+    /// otherwise find "Bill" from a name the database would never match; an accented letter is its own in either case,
+    /// which a comparison ignoring case outside ASCII would fold (#973: the lookup compares in place, not by key).
     /// </summary>
     [Fact]
     public void Find_no_character_by_a_name_that_matches_only_outside_ascii()
     {
         (IWorldConnection connection, _) = Connected(7, "Bill");
         _online.Add(connection);
+        (IWorldConnection accented, _) = Connected(8, "Élan");
+        _online.Add(accented);
 
         Assert.Null(_online.ByName("Bıll"));
         Assert.Same(connection, _online.ByName("bILL"));
+        Assert.Null(_online.ByName("éLAN"));
+        Assert.Same(accented, _online.ByName("ÉLAN"));
     }
 
     [Fact]
