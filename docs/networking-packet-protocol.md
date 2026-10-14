@@ -145,8 +145,10 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
 12. `CGameAdmissionPacket(JoinTicket, PublicKey)` — clear text inside TLS: the ticket and a new ephemeral public key,
     which the client sends before it knows the world's mode.
 13. The world server redeems the ticket and activates the session through the API's internal admission routes, off the
-    tick. A world that seals then initializes the session crypto from the client's key. A world that does not runs no
-    key exchange (#878): its connection has no key pair and no session, and the client's key is not read.
+    tick. A world that seals then keys the session from the client's key, also off the tick, before the result reaches
+    the tick; a key of the right length that is not a P-256 point is refused there with `InvalidRequest`, the lease is
+    revoked and the connection closed (`bad_public_key`). A world that does not seal runs no key exchange (#878): its
+    connection has no key pair and no session, and the client's key is not read.
 14. `SGameAdmissionPacket(PublicKey, Result, PacketEncryption)` — `Accepted` with the world's mode (field 3,
     `Network:PacketEncryption`, #875): true, the reply carries the connection's public key and the client seals every
     gameplay packet it sends; false, TLS alone, the public key is empty and the client sends plain, keying nothing

@@ -119,6 +119,9 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         public const string SealedBeforeKey = "sealed_before_key";
         public const string SealNotAuthentic = "seal_not_authentic";
         public const string UndecodablePayload = "undecodable_payload";
+
+        /// <summary>A world's admission refused the client's public key: the right length, and not a P-256 point.</summary>
+        public const string BadPublicKey = "bad_public_key";
     }
 
     protected readonly ILogger _logger;

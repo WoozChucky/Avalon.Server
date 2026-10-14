@@ -19,6 +19,8 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
     private WorldAdmissionConnection(IWorldServer server, TcpClient client, TcpClient peer, TimeProvider? clock)
         : base(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>(), clock) { _peer = peer; }
     public List<OutboundPacket> Sent { get; } = [];
+    public List<string> Violations { get; } = [];
+    protected override void OnProtocolViolation(string reason) { Violations.Add(reason); base.OnProtocolViolation(reason); }
     public override void Send(OutboundPacket packet) => Sent.Add(packet);
     protected override Task OnClose(bool expected = true) => Task.CompletedTask;
     public void Deliver(NetworkPacketType type, Packet payload, NetworkPacketFlags flags = NetworkPacketFlags.None) =>

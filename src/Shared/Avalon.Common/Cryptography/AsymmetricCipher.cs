@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X509;
@@ -76,7 +75,7 @@ public class AsymmetricCipher
     public static ECPublicKeyParameters GetPublicKeyFromBytes(byte[] publicKeyBytes)
     {
         if (publicKeyBytes == null || publicKeyBytes.Length == 0)
-            throw new CryptographicException("Invalid public key: no bytes");
+            throw new InvalidPublicKeyException("Invalid public key: no bytes");
 
         AsymmetricKeyParameter publicKeyParameter;
 
@@ -86,27 +85,27 @@ public class AsymmetricCipher
             var publicKeyInfo = SubjectPublicKeyInfo.GetInstance(asn1Object);
             publicKeyParameter = PublicKeyFactory.CreateKey(publicKeyInfo);
         }
-        catch (Exception e) when (e is not CryptographicException)
+        catch (Exception e) when (e is not InvalidPublicKeyException)
         {
-            throw new CryptographicException("Invalid public key: malformed SubjectPublicKeyInfo", e);
+            throw new InvalidPublicKeyException("Invalid public key: malformed SubjectPublicKeyInfo", e);
         }
 
         if (publicKeyParameter is not ECPublicKeyParameters publicKey)
-            throw new CryptographicException("Invalid public key: not an EC key");
+            throw new InvalidPublicKeyException("Invalid public key: not an EC key");
 
         if (!IsExpectedCurve(publicKey.Parameters))
-            throw new CryptographicException("Invalid public key: not on P-256");
+            throw new InvalidPublicKeyException("Invalid public key: not on P-256");
 
         Org.BouncyCastle.Math.EC.ECPoint point = publicKey.Q;
 
         if (point == null || point.IsInfinity)
-            throw new CryptographicException("Invalid public key: point at infinity");
+            throw new InvalidPublicKeyException("Invalid public key: point at infinity");
 
         // On the curve, and in the prime-order subgroup. P-256 has cofactor 1, so every point on
         // the curve other than infinity is already in the subgroup; the check is kept because the
         // curve is asserted above rather than trusted, and a curve with a cofactor would need it.
         if (!point.IsValid())
-            throw new CryptographicException("Invalid public key: point is not on the curve");
+            throw new InvalidPublicKeyException("Invalid public key: point is not on the curve");
 
         return publicKey;
     }

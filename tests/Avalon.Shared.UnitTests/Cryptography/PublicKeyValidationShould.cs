@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Sec;
@@ -56,7 +55,7 @@ public class PublicKeyValidationShould
     {
         byte[] der = PublicKeyOn(new DerObjectIdentifier(SecNamedCurves.GetOid(curve).Id));
 
-        Assert.Throws<CryptographicException>(() => AsymmetricCipher.GetPublicKeyFromBytes(der));
+        Assert.Throws<InvalidPublicKeyException>(() => AsymmetricCipher.GetPublicKeyFromBytes(der));
     }
 
     [Fact]
@@ -69,7 +68,7 @@ public class PublicKeyValidationShould
             .CreateSubjectPublicKeyInfo(generator.GenerateKeyPair().Public)
             .GetDerEncoded();
 
-        Assert.Throws<CryptographicException>(() => AsymmetricCipher.GetPublicKeyFromBytes(der));
+        Assert.Throws<InvalidPublicKeyException>(() => AsymmetricCipher.GetPublicKeyFromBytes(der));
     }
 
     /// <summary>
@@ -85,7 +84,7 @@ public class PublicKeyValidationShould
         // point that does not satisfy the curve equation.
         der[^1] ^= 0x01;
 
-        Assert.Throws<CryptographicException>(() => AsymmetricCipher.GetPublicKeyFromBytes(der));
+        Assert.Throws<InvalidPublicKeyException>(() => AsymmetricCipher.GetPublicKeyFromBytes(der));
     }
 
     [Theory]
@@ -94,13 +93,13 @@ public class PublicKeyValidationShould
     [InlineData(new byte[] { 0x30, 0x59, 0xff, 0xff })]
     public void RefuseBytesThatAreNotASubjectPublicKeyInfo(byte[] der)
     {
-        Assert.Throws<CryptographicException>(() => AsymmetricCipher.GetPublicKeyFromBytes(der));
+        Assert.Throws<InvalidPublicKeyException>(() => AsymmetricCipher.GetPublicKeyFromBytes(der));
     }
 
     [Fact]
     public void RefuseNothingAtAll()
     {
-        Assert.Throws<CryptographicException>(() => AsymmetricCipher.GetPublicKeyFromBytes(null!));
+        Assert.Throws<InvalidPublicKeyException>(() => AsymmetricCipher.GetPublicKeyFromBytes(null!));
     }
 
     /// <summary>
@@ -119,7 +118,7 @@ public class PublicKeyValidationShould
     {
         var session = new AvalonCryptoSession(CryptoRole.Server);
 
-        Assert.Throws<CryptographicException>(
+        Assert.Throws<InvalidPublicKeyException>(
             () => session.Initialize(PublicKeyOn(SecObjectIdentifiers.SecP384r1)));
 
         Assert.Throws<InvalidOperationException>(() => session.Encrypt("after a failed exchange"u8));

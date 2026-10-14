@@ -644,8 +644,31 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         && (type == NetworkPacketType.CMSG_WORLD_HANDSHAKE || WorldSessionFilter.IsSessionPacket(type)
             || MapSessionFilter.IsMapPacket(type));
 
+    /// <summary>
+    /// Admission refused the client's public key on a world that seals: the right length, and not a P-256 point
+    /// (<see cref="InvalidPublicKeyException" />). What the peer sent, not a server fault: one Warning, of fixed text and
+    /// without the exception, and one count under <c>bad_public_key</c>, as the read loop's refusals are (#897). Once per
+    /// connection: admission runs once, and the caller closes the connection.
+    /// </summary>
+    public void ReportBadPublicKey(long accountId)
+    {
+        ReceiveLog.BadPublicKey(_logger, Id, accountId, RemoteEndPoint);
+        OnProtocolViolation(ProtocolViolation.BadPublicKey);
+    }
+
+    /// <summary>Keying the session from a valid client key failed: the server's fault, logged with its exception.</summary>
+    public void ReportKeyingFailed(Exception error) => ReceiveLog.KeyingFailed(_logger, error, Id);
+
     private static partial class ReceiveLog
     {
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint}: its admission's public key is not a P-256 point")]
+        public static partial void BadPublicKey(ILogger logger, Guid connectionId, long accountId, string remoteEndPoint);
+
+        [LoggerMessage(Level = LogLevel.Error,
+            Message = "Closing connection {ConnectionId}: its session could not be keyed from a valid client key")]
+        public static partial void KeyingFailed(ILogger logger, Exception error, Guid connectionId);
+
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Closed connection {ConnectionId}: {PacketType} arrived unsealed while this world seals packets (Network:PacketEncryption)")]
         public static partial void PlainPacketRefused(ILogger logger, Guid connectionId, NetworkPacketType packetType);

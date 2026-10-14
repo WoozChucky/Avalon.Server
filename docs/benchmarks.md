@@ -1357,8 +1357,11 @@ at admission, whatever the world's mode. Now only a world that seals, and the au
 
 So a plain world's connection no longer spends about 63 µs and 61 KB of allocation as it is created, nor about 139 µs
 and 177 KB more at admission: about 0.2 ms and 238 KB allocated per connection in all.
-The key pair is built in the connection's constructor, on the accept path; the session was keyed on the tick, in the
-admission's continuation, so the 139 µs came off a tick's budget once per world entry.
+The key pair is built in the connection's constructor, on the accept path. Until the #878 review the session was keyed
+on the tick, in the admission's continuation, so on a world that seals the 139 µs came off a tick's budget once per
+world entry, and reconnects after a restart that became ready in one tick added up (thirty, about 4 ms). It is now
+keyed off the tick, on the thread the ticket's redemption finished on, before the result is handed to the tick; the
+tick publishes the admission and encodes the reply, which carries the key the exchange already holds.
 
 What the connection holds for its life, from a probe outside BenchmarkDotNet (2,000 exchanges held in an array,
 `GC.GetTotalMemory(true)` before and after, three rounds, the same machine): **1,839 B** retained per connection once

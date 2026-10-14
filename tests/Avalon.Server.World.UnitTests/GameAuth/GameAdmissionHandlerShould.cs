@@ -67,30 +67,53 @@ public sealed class GameAdmissionHandlerShould
         await api.DidNotReceiveWithAnyArgs().AdmitAsync(default!, default, default, default);
         Assert.True(connection.IsClosing); Assert.Null(connection.AccountId);
     }
+    public enum ClientKey { Valid, Empty, OffTheCurve }
+
     /// <summary>
-    /// A connection without TLS, or a key that is not one on a world that seals, is refused before the ticket is spent. A
-    /// world that does not seal runs no key exchange (#878), so whatever key the client sends there is not read.
+    /// A connection without TLS, or a key of the wrong length on a world that seals, is refused before the ticket is
+    /// spent. A key of the right length that is not a P-256 point is found when the session is keyed, after the
+    /// redemption: the client is told <c>InvalidRequest</c>, the lease is revoked, and the close is counted as the peer's,
+    /// <c>bad_public_key</c>, not taken for a server fault. A world that does not seal runs no key exchange (#878), so
+    /// whatever key the client sends there is not read.
     /// </summary>
     [Theory]
-    [InlineData(false, false, false, true)]
-    [InlineData(true, true, true, true)]
-    [InlineData(true, true, false, false)]
-    public async Task Reject_plaintext_or_malformed_key_before_backend_redemption(bool tls, bool malformedKey,
-        bool packetEncryption, bool refused)
+    [InlineData(false, ClientKey.Valid, false, false, null)]
+    [InlineData(true, ClientKey.Empty, true, false, null)]
+    [InlineData(true, ClientKey.Empty, false, true, null)]
+    [InlineData(true, ClientKey.OffTheCurve, true, true, "bad_public_key")]
+    public async Task Refuse_a_connection_without_tls_or_a_client_key_that_is_not_one(bool tls, ClientKey key,
+        bool packetEncryption, bool redeemed, string? violation)
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         server.PacketEncryption.Returns(packetEncryption);
         using var connection = WorldAdmissionConnection.Create(server, tls: tls); IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
+        GameSessionLease lease = WorldAdmissionConnection.Lease();
+        api.AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new WorldAdmissionResult(lease, null));
+        byte[] publicKey = new CryptoManager().GetPublicKey();
+        if (key == ClientKey.OffTheCurve) publicKey[^1] ^= 0x01;   // the point's y moved: the right length, no longer on P-256
         await new GameAdmissionHandler(api).ExecuteAsync(new()
         {
             Connection = connection,
-            Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = malformedKey ? [] : new CryptoManager().GetPublicKey() }
+            Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = key == ClientKey.Empty ? [] : publicKey }
         });
-        // The ticket is redeemed off the calling thread.
+        // The ticket is redeemed, and the session keyed, off the calling thread; the outcome is applied on the tick.
         DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!refused && !api.ReceivedCalls().Any() && DateTime.UtcNow < deadline) await Task.Yield();
-        await api.Received(refused ? 0 : 1).AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        Assert.Equal(refused, connection.IsClosing); Assert.Null(connection.GameplayAuthority);
+        while (redeemed && connection.AccountId is null && !connection.IsClosing && DateTime.UtcNow < deadline)
+        {
+            connection.FlushContinuations();
+            await Task.Yield();
+        }
+        await api.Received(redeemed ? 1 : 0).AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        bool admitted = redeemed && violation is null;
+        Assert.Equal(!admitted, connection.IsClosing);
+        Assert.Equal(admitted, connection.GameplayAuthority is not null);
+        Assert.Equal(violation is null ? [] : [violation], connection.Violations);
+        if (violation is not null)
+        {
+            Assert.Equal(GameAdmissionResult.InvalidRequest,
+                Serializer.Deserialize<SGameAdmissionPacket>(Assert.Single(connection.Sent).PayloadMemory).Result);
+            Assert.False(lease.IsActive);
+        }
     }
     [Fact]
     public async Task Never_bind_or_load_a_character_when_backend_redemption_fails()

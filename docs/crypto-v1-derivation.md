@@ -90,7 +90,7 @@ So the server now agrees every connection on a key pair of its own (`ConnectionK
 per connection, not `ServerBase`), which closes it unilaterally: the salt and the secret differ per
 connection whatever the client does. Cost is one P-256 keygen per connection that runs the exchange —
 **0.23 ms** when first measured in Release, 64 µs and 61 KB allocated on the 2026-10-14 measurement,
-and the session keyed at admission about 140 µs more ([benchmarks](benchmarks.md#connection-key-exchange--connectionkeyexchangebenchmarkscs-878)),
+and the session keyed at admission, off the world's tick, about 140 µs more ([benchmarks](benchmarks.md#connection-key-exchange--connectionkeyexchangebenchmarkscs-878)),
 against well under a microsecond per sealed 256-byte packet and against a TLS handshake on the same
 path. It is per connection, not per packet, and a world that does not seal does not pay it (#878).
 
