@@ -12,6 +12,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     private DtNavMesh? _navMesh;
     private ReusingNavMeshQuery? _query;
     private IDtQueryFilter _queryFilter;
+    private StandingPolygonSearch _standingSearch;
 
     private const float StepSize = 0.5f;
     private const float Slop = 0.01f;
@@ -49,6 +50,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
         _navMesh = navMesh;
         _query = new ReusingNavMeshQuery(_navMesh);
         _queryFilter = new DtQueryDefaultFilter();
+        _standingSearch = StandingPolygonSearch.For(navMesh, PolyPickExt);
     }
 
     public List<Vector3> FindPath(Vector3 start, Vector3 end)
@@ -288,19 +290,24 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     /// The player's horizontal raycast and ground snap, reusing the start query only when the
     /// resulting ground query has exactly the same centre. No polygon hint survives this call.
     /// Moving endpoints still search independently: the raycast's last polygon need not be the
-    /// nearest ground polygon on overlapping floors.
+    /// nearest ground polygon on overlapping floors. Both searches find the polygon the player
+    /// stands on in a narrow box first (<see cref="StandingPolygonSearch" />, #978).
     /// </summary>
     public Vector3 MoveOnGround(Vector3 from, Vector3 to)
     {
-        Vector3 clamped = RaycastWalkable(from, to, out long startRef);
+        Vector3 clamped = RaycastWalkable(from, to, out long startRef, out RcVec3f startNearest, out bool startOver);
         if (startRef == 0) return new Vector3(clamped.x, from.y, clamped.z);
         float groundY;
         if (clamped.x == from.x && clamped.z == from.z)
         {
             // The legacy ground sample uses from.y, not the raycast's interpolated Y. Its centre,
             // extents and filter are identical to the start search, even when the raycast failed.
+            // Over the polygon, the search already holds the height GetPolyHeight would read.
             var center = new RcVec3f(from.x, from.y, from.z);
-            groundY = _query!.GetPolyHeight(startRef, center, out float h).Succeeded() ? h : from.y;
+            if (startOver)
+                groundY = startNearest.Y;
+            else
+                groundY = _query!.GetPolyHeight(startRef, center, out float h).Succeeded() ? h : from.y;
         }
         else
         {
@@ -311,11 +318,14 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     }
 
     public Vector3 RaycastWalkable(Vector3 from, Vector3 to)
-        => RaycastWalkable(from, to, out _);
+        => RaycastWalkable(from, to, out _, out _, out _);
 
-    private Vector3 RaycastWalkable(Vector3 from, Vector3 to, out long startRef)
+    private Vector3 RaycastWalkable(Vector3 from, Vector3 to, out long startRef, out RcVec3f startNearest,
+        out bool startOver)
     {
         startRef = 0;
+        startNearest = default;
+        startOver = false;
         if (_navMesh == null) return to;
 
         ReusingNavMeshQuery query = _query!;
@@ -324,7 +334,8 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
         // baked navmesh without any axis flip (see ChunkLayoutNavmeshBuilder.AppendTransformed).
         // Queries must use the same coords — do NOT negate X.
         var startVec = new RcVec3f(from.x, from.y, from.z);
-        DtStatus status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out startRef, out _, out _);
+        DtStatus status = _standingSearch.FindNearestPoly(query, startVec, _queryFilter, out startRef,
+            out startNearest, out startOver);
         if (status.Failed() || startRef == 0)
         {
             return from;
@@ -367,10 +378,18 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
         ReusingNavMeshQuery query = _query!;
         var center = new RcVec3f(near.x, near.y, near.z);
-        DtStatus status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out long nearestRef, out RcVec3f nearestPt, out _);
+        DtStatus status = _standingSearch.FindNearestPoly(query, center, _queryFilter, out long nearestRef,
+            out RcVec3f nearestPt, out bool overPoly);
         if (status.Failed() || nearestRef == 0)
         {
             return NavmeshGroundKind.None;
+        }
+
+        // Over the polygon, the search measured its height under the point with the same GetPolyHeight.
+        if (overPoly)
+        {
+            ground = new Vector3(near.x, nearestPt.Y, near.z);
+            return NavmeshGroundKind.Under;
         }
 
         if (query.GetPolyHeight(nearestRef, center, out float h).Succeeded())

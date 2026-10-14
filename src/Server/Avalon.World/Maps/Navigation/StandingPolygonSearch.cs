@@ -1,0 +1,207 @@
+using DotRecast.Core.Numerics;
+using DotRecast.Detour;
+
+namespace Avalon.World.Maps.Navigation;
+
+/// <summary>
+/// The polygon <see cref="DtNavMeshQuery.FindNearestPoly" /> picks, found with less work (#978). Every movement input
+/// asked for it twice, once where the player stands (the walkable raycast's start) and once where the step ends (the
+/// ground snap), and each search measured every polygon in a 4 x 8 x 4 m box around the point.
+/// </summary>
+/// <remarks>
+/// <para>
+/// DotRecast scores each polygon in the box: zero when the point is over it and within the tile's climb height of its
+/// surface (or exactly on its edge), otherwise a positive squared distance, and keeps the first polygon with the
+/// lowest score. A player on the ground scores zero on the polygon under them, and nothing scores below zero, so the
+/// answer is then the first polygon, in the search's order, that scores zero.
+/// </para>
+/// <para>
+/// So the search first looks in a narrow box: a <see cref="Margin" /> across and the climb height plus the margin up
+/// and down. Every polygon that can score zero reaches into it (the point is over the polygon or on its edge, and its
+/// surface there is within the climb), the narrow box is inside the full one, and DotRecast walks the tiles and each
+/// tile's bounding-volume tree in the same order for both, so the first zero in the narrow box is the first zero in the
+/// full one. Polygons whose corners keep a margin away from the point across cannot score zero and are not measured.
+/// When nothing in the narrow box scores zero (a player beside the mesh, a point exactly on a wall's edge that the
+/// polygon test leaves out, a step off a ledge), the full box is searched as before. On overlapping floors the floor
+/// within the climb scores zero and the other does not, so the narrow box finds the same floor; a point between floors
+/// with neither within the climb goes to the full search.
+/// </para>
+/// <para>
+/// Either pass stops measuring once a polygon has scored zero, which cannot change the answer. Nothing is kept between
+/// calls: the answer is the full search's for the point given, whatever the player did before.
+/// </para>
+/// </remarks>
+internal readonly struct StandingPolygonSearch
+{
+    /// <summary>How far past a polygon's corners, across, and past its climb height, up and down, the narrow box reaches.</summary>
+    internal const float Margin = 0.1f;
+
+    private readonly RcVec3f _pickExtents;
+    private readonly RcVec3f _narrowExtents;
+    private readonly float _climb;
+    private readonly bool _narrow;
+
+    private StandingPolygonSearch(RcVec3f pickExtents, RcVec3f narrowExtents, float climb, bool narrow)
+    {
+        _pickExtents = pickExtents;
+        _narrowExtents = narrowExtents;
+        _climb = climb;
+        _narrow = narrow;
+    }
+
+    /// <summary>
+    /// The search in <paramref name="pickExtents" /> (the full box's half extents) on <paramref name="navMesh" />, whose
+    /// narrow box covers the highest climb of its tiles; a tile that claims more (one added later) sends the search to
+    /// the full box.
+    /// </summary>
+    public static StandingPolygonSearch For(DtNavMesh navMesh, RcVec3f pickExtents)
+    {
+        float climb = 0;
+        for (int i = 0; i < navMesh.GetMaxTiles(); i++)
+        {
+            DtMeshHeader? header = navMesh.GetTile(i)?.data?.header;
+            if (header is not null)
+                climb = MathF.Max(climb, header.walkableClimb);
+        }
+
+        var narrow = new RcVec3f(Margin, climb + Margin, Margin);
+        bool inside = narrow.X <= pickExtents.X && narrow.Y <= pickExtents.Y && narrow.Z <= pickExtents.Z;
+        return new StandingPolygonSearch(pickExtents, narrow, climb, inside);
+    }
+
+    /// <summary>
+    /// What <see cref="DtNavMeshQuery.FindNearestPoly" /> answers for <paramref name="center" /> in the full box: the
+    /// same polygon, the same nearest point, whether the point is over it (the nearest point then holds the polygon's
+    /// height under it) and a status that fails exactly when its does.
+    /// </summary>
+    public DtStatus FindNearestPoly(DtNavMeshQuery query, RcVec3f center, IDtQueryFilter filter, out long nearestRef,
+        out RcVec3f nearestPt, out bool isOverPoly)
+    {
+        if (_narrow)
+        {
+            var standing = new NearestPolygonQuery(query, center, _climb);
+            query.QueryPolygons(center, _narrowExtents, filter, ref standing);
+            if (standing.StandsOn)
+            {
+                nearestRef = standing.NearestRef;
+                nearestPt = standing.NearestPoint;
+                isOverPoly = standing.OverPoly;
+                return DtStatus.DT_SUCCESS;
+            }
+        }
+
+        var nearest = new NearestPolygonQuery(query, center, float.NaN);
+        DtStatus status = query.QueryPolygons(center, _pickExtents, filter, ref nearest);
+        if (status.Failed())
+        {
+            nearestRef = 0;
+            nearestPt = center;
+            isOverPoly = false;
+            return status;
+        }
+
+        nearestRef = nearest.NearestRef;
+        nearestPt = nearest.NearestPoint;
+        isOverPoly = nearest.OverPoly;
+        return DtStatus.DT_SUCCESS;
+    }
+
+    /// <summary>
+    /// DotRecast's <see cref="DtFindNearestPolyQuery" />, scoring every polygon the same way, that stops measuring once a
+    /// polygon scores zero. Given a climb (the narrow pass), it also skips polygons that cannot score zero, and gives up
+    /// on a tile whose climb is higher than the narrow box covers.
+    /// </summary>
+    private struct NearestPolygonQuery : IDtPolyQuery
+    {
+        private readonly DtNavMeshQuery _query;
+        private readonly RcVec3f _center;
+        private readonly float _narrowClimb;
+        private float _nearestDistanceSqr;
+        private bool _gaveUp;
+
+        public NearestPolygonQuery(DtNavMeshQuery query, RcVec3f center, float narrowClimb)
+        {
+            _query = query;
+            _center = center;
+            _narrowClimb = narrowClimb;
+            _nearestDistanceSqr = float.MaxValue;
+            _gaveUp = false;
+            NearestRef = 0;
+            NearestPoint = center;
+            OverPoly = false;
+        }
+
+        public long NearestRef { get; private set; }
+
+        public RcVec3f NearestPoint { get; private set; }
+
+        public bool OverPoly { get; private set; }
+
+        /// <summary>Whether the narrow pass found the polygon the point stands on, which is then the full search's answer.</summary>
+        public readonly bool StandsOn => NearestRef != 0 && _nearestDistanceSqr == 0 && !_gaveUp;
+
+        public void Process(DtMeshTile tile, ReadOnlySpan<int> polys, ReadOnlySpan<long> polyRefs, int count)
+        {
+            bool narrow = !float.IsNaN(_narrowClimb);
+            if (narrow && tile.data.header.walkableClimb > _narrowClimb)
+                _gaveUp = true;
+
+            for (int i = 0; i < count; ++i)
+            {
+                // Nothing scores below zero, so the first zero is the answer.
+                if (_nearestDistanceSqr == 0 || _gaveUp)
+                    return;
+
+                if (narrow && FarAcross(tile, tile.data.polys[polys[i]], _center))
+                    continue;
+
+                long polyRef = polyRefs[i];
+                float d;
+
+                // DtFindNearestPolyQuery.Process, unchanged from here.
+                _query.ClosestPointOnPoly(polyRef, _center, out RcVec3f closestPtPoly, out bool posOverPoly);
+                var diff = RcVec3f.Subtract(_center, closestPtPoly);
+                if (posOverPoly)
+                {
+                    d = MathF.Abs(diff.Y) - tile.data.header.walkableClimb;
+                    d = d > 0 ? d * d : 0;
+                }
+                else
+                {
+                    d = diff.LengthSquared();
+                }
+
+                if (d < _nearestDistanceSqr)
+                {
+                    NearestPoint = closestPtPoly;
+                    _nearestDistanceSqr = d;
+                    NearestRef = polyRef;
+                    OverPoly = posOverPoly;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Whether the point lies more than <see cref="Margin" /> outside the polygon's corners across: then it is not
+        /// over the polygon, and its nearest point (on the polygon's edges) is at least that far away, so it scores
+        /// above zero.
+        /// </summary>
+        private static bool FarAcross(DtMeshTile tile, DtPoly poly, RcVec3f center)
+        {
+            float[] verts = tile.data.verts;
+            int v = poly.verts[0] * 3;
+            float minX = verts[v], maxX = minX, minZ = verts[v + 2], maxZ = minZ;
+            for (int j = 1; j < poly.vertCount; j++)
+            {
+                v = poly.verts[j] * 3;
+                minX = MathF.Min(minX, verts[v]);
+                maxX = MathF.Max(maxX, verts[v]);
+                minZ = MathF.Min(minZ, verts[v + 2]);
+                maxZ = MathF.Max(maxZ, verts[v + 2]);
+            }
+
+            return center.X < minX - Margin || center.X > maxX + Margin
+                || center.Z < minZ - Margin || center.Z > maxZ + Margin;
+        }
+    }
+}
