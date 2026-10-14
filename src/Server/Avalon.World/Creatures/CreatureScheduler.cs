@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Avalon.Common;
 using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
@@ -20,8 +21,9 @@ namespace Avalon.World.Creatures;
 /// by its due time, by every event the instance delivers to its script (a hit, an attack that dealt nothing, a
 /// character leaving), by a new script or patrol path, and by joining the instance. Every activation (joining, a new
 /// script, a wake, a due search or time) goes through <see cref="MakeActive" />, and every wait begins in
-/// <see cref="Park" />, so a rule that holds or wakes a creature (crowd control, #770) has one place for each; reading
-/// the roster again (<see cref="ReadRoster" />) changes no state, it only sets each place's bit from it.
+/// <see cref="Park" /> or <see cref="ParkForSearch" />, so a rule that holds or wakes a creature (crowd control, #770)
+/// has its places; reading the roster again (<see cref="ReadRoster" />) changes no state, it only sets each place's
+/// bit from it.
 /// </para>
 /// <para>
 /// <b>Order.</b> The creatures that run on a step run in the order of the instance's creature dictionary, the order
@@ -217,6 +219,7 @@ internal sealed class CreatureScheduler
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Run(ICreature? creature, TimeSpan deltaTime)
     {
         if (creature is not Creature scheduled)
@@ -232,40 +235,56 @@ internal sealed class CreatureScheduler
 
         script.Update(deltaTime);
 
-        // Unless the script left, lost or replaced its creature, or something it did woke or parked it, it says what it
-        // waits for now.
-        if (ReferenceEquals(scheduled.Scheduler, this) && ReferenceEquals(scheduled.Script, script)
-            && scheduled.Schedule.Wait == CreatureWait.Active)
+        if (scheduled.Schedule.Search is null)
         {
-            Park(scheduled, script);
-        }
-    }
+            // The answer first: the next tick, the common one, leaves the creature as it is whatever its Update did, so the
+            // checks below are not needed for it. It is read even when the Update left, lost or replaced its creature;
+            // then the checks below discard it.
+            TimeSpan answer = script.NextUpdateIn;
+            if (answer <= TimeSpan.Zero && answer != Timeout.InfiniteTimeSpan)
+                return;
 
-    /// <summary>A creature that has just run waits for whatever its script says, or stays active.</summary>
-    private void Park(Creature creature, AiScript script)
-    {
-        // A built-in with a search wait answers for itself: it waits for its search, or it is active (IAwaitsSearch), so
-        // its NextUpdateIn, which asks the same question, is not read. Only a script whose NextUpdateIn is that built-in's
-        // own has a search wait (Register).
-        if (creature.Schedule.Search is { } search)
-        {
-            if (search.AwaitsSearch(out float elapsed))
-                JoinCohort(creature, elapsed);
+            if (StillOwns(scheduled, script))
+                Park(scheduled, answer);
             return;
         }
 
-        // Infinite is negative: the next tick, the common answer, is the one that is neither.
-        TimeSpan wait = script.NextUpdateIn;
+        if (StillOwns(scheduled, script))
+            ParkForSearch(scheduled);
+    }
+
+    /// <summary>
+    /// Whether the script that just ran still decides for its creature: unless it left, lost or replaced its creature, or
+    /// something it did woke or parked it.
+    /// </summary>
+    private bool StillOwns(Creature creature, AiScript script) =>
+        ReferenceEquals(creature.Scheduler, this) && ReferenceEquals(creature.Script, script)
+        && creature.Schedule.Wait == CreatureWait.Active;
+
+    /// <summary>
+    /// A built-in with a search wait answers for itself: it waits for its search, or it is active (IAwaitsSearch), so
+    /// its NextUpdateIn, which asks the same question, is not read. Only a script whose NextUpdateIn is that built-in's
+    /// own has a search wait (Register).
+    /// </summary>
+    private void ParkForSearch(Creature creature)
+    {
+        if (creature.Schedule.Search!.AwaitsSearch(out float elapsed))
+            JoinCohort(creature, elapsed);
+    }
+
+    /// <summary>A creature that has just run waits for what its script answered: a time, or an event.</summary>
+    private void Park(Creature creature, TimeSpan wait)
+    {
         if (wait > TimeSpan.Zero && wait < TimeSpan.MaxValue - _clock)
         {
             JoinTimed(creature, _clock + wait);
+            return;
         }
-        else if (wait == Timeout.InfiniteTimeSpan || wait > TimeSpan.Zero)
-        {
-            // A wait past the end of the clock (TimeSpan.MaxValue, say) is a wait for an event too, not an overflow.
-            creature.Schedule.Wait = CreatureWait.Event;
-            ClearPlace(creature);
-        }
+
+        // Infinite, or a time too long for the clock (TimeSpan.MaxValue, say), which is a wait for an event too, not an
+        // overflow.
+        creature.Schedule.Wait = CreatureWait.Event;
+        ClearPlace(creature);
     }
 
     /// <summary>
