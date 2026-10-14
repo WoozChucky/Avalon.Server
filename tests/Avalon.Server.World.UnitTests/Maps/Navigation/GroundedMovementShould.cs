@@ -33,23 +33,24 @@ public class GroundedMovementShould
 
         // Recast voxelizes heights in 0.2 m increments; this also catches selecting the wrong storey.
         Assert.InRange(actual.y, ground - 0.01f, ground + 0.25f);
-        Assert.Equal(new DetourMovementReference(s_floors.Value).MoveOnGround(from, to), actual);
+        Assert.Equal(new DetourNavigationReference(s_floors.Value).MoveOnGround(from, to), actual);
     }
 
     /// <summary>
     /// The navigator's searches (#978) answer what DotRecast's full nearest-polygon searches answer, to the bit, on the
     /// town, a forest and two overlapping floors (the town and the forest have overlapping floors too: 60 of the
-    /// town's 313 polygons and 118 of the forest's 603 have a second floor over or under their centre): from every
-    /// polygon's corners, edges and inside, at the polygon's
-    /// height, at exactly the climb height above and below it, just past it, and between floors; idle, a step, a long
-    /// move into walls, and a step that ends on a corner. Corners and edges are where two polygons score the same and
-    /// the first in DotRecast's order wins; just past the climb, and beside the mesh, the full search decides.
+    /// town's 313 polygons and 118 of the forest's 603 have a second floor over or under their centre): the ground,
+    /// a player's step, the walkable raycast (a projectile's step), a route and a line of sight, from every polygon's
+    /// corners, edges and inside, at the polygon's height, at exactly the climb height above and below it, just past
+    /// it, and between floors; idle, a step, a long move into walls, a step that ends on a corner, and (route and
+    /// sight, from one point in sixteen) to the previous point. Corners and edges are where two polygons score the
+    /// same and the first in DotRecast's order wins; just past the climb, and beside the mesh, the full search decides.
     /// </summary>
     [Theory]
     [InlineData("town")]
     [InlineData("forest")]
     [InlineData("floors")]
-    public void Move_and_find_ground_as_the_full_searches_do(string map)
+    public void Answer_as_the_full_searches_do(string map)
     {
         DtNavMesh mesh = map switch
         {
@@ -59,9 +60,13 @@ public class GroundedMovementShould
         };
         var nav = new MapNavigator(NullLoggerFactory.Instance);
         nav.LoadFromNavMesh(mesh);
-        var reference = new DetourMovementReference(mesh);
+        var reference = new DetourNavigationReference(mesh);
         var random = new Random(978);
-        int standing = 0, beside = 0, moved = 0, clamped = 0;
+        int standing = 0, beside = 0, moved = 0, clamped = 0, routed = 0, seen = 0, hidden = 0;
+        var path = new List<Vector3>();
+        var expectedPath = new List<Vector3>();
+        Vector3 previous = default;
+        int queried = 0;
 
         foreach ((Vector3 point, Vector3 corner) in Points(mesh, random))
         {
@@ -86,16 +91,34 @@ public class GroundedMovementShould
             {
                 Vector3 expected = reference.MoveOnGround(point, to);
                 Assert.Equal(expected, nav.MoveOnGround(point, to));
+                Assert.Equal(reference.RaycastWalkable(point, to), nav.RaycastWalkable(point, to));
                 if (expected.x != point.x || expected.z != point.z)
                     moved++;
                 if (expected.x != to.x || expected.z != to.z)
                     clamped++;
             }
+
+            // Routes and sights from one point in sixteen: a route costs as much as all the rest together.
+            foreach (Vector3 to in queried++ % 16 == 0 ? [targets[2], targets[3], previous] : ReadOnlySpan<Vector3>.Empty)
+            {
+                reference.FindPath(point, to, expectedPath);
+                nav.FindPath(point, to, path);
+                Assert.Equal(expectedPath, path);
+                routed += path.Count > 0 ? 1 : 0;
+
+                bool visible = reference.HasVisibility(point, to);
+                Assert.Equal(visible, nav.HasVisibility(point, to));
+                seen += visible ? 1 : 0;
+                hidden += visible ? 0 : 1;
+            }
+
+            previous = point;
         }
 
-        // Both of the search's paths, and walls, were taken.
-        Assert.True(standing > 1000 && beside > 1000 && moved > 1000 && clamped > 1000,
-            $"standing {standing}, beside {beside}, moved {moved}, clamped {clamped}");
+        // Both of the search's paths, walls, routes and both answers of a line of sight were taken.
+        Assert.True(standing > 1000 && beside > 1000 && moved > 1000 && clamped > 1000 && routed > 300 && seen > 300
+            && hidden > 50,
+            $"standing {standing}, beside {beside}, moved {moved}, clamped {clamped}, routed {routed}, seen {seen}, hidden {hidden}");
     }
 
     [Fact]
@@ -107,7 +130,7 @@ public class GroundedMovementShould
 
         // Replacing the mesh or having none must not reuse a previous call's polygon or floor.
         nav.LoadFromNavMesh(s_floors.Value);
-        Assert.Equal(new DetourMovementReference(s_floors.Value).MoveOnGround(new Vector3(0, 3.5f, 0), new Vector3(0, 3.5f, 0)),
+        Assert.Equal(new DetourNavigationReference(s_floors.Value).MoveOnGround(new Vector3(0, 3.5f, 0), new Vector3(0, 3.5f, 0)),
             nav.MoveOnGround(new Vector3(0, 3.5f, 0), new Vector3(0, 3.5f, 0)));
         nav = new MapNavigator(NullLoggerFactory.Instance);
         Assert.Equal(new Vector3(3, 7, 5), nav.MoveOnGround(new Vector3(1, 7, 2), new Vector3(3, 9, 5)));

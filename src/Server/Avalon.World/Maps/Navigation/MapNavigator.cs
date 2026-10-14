@@ -85,7 +85,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
             // branch below can slide entries in-place via Span.CopyTo without copying twice.
             Span<long> path = _corridor;
 
-            DtStatus status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out long startRef, out _, out _);
+            DtStatus status = _standingSearch.FindNearestPoly(query, startPos, _queryFilter, out long startRef, out _, out _);
             CheckStatus(status);
             if (startRef == 0)
             {
@@ -93,7 +93,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 return;
             }
 
-            status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out long endRef, out _, out _);
+            status = _standingSearch.FindNearestPoly(query, endPos, _queryFilter, out long endRef, out _, out _);
             CheckStatus(status);
             if (endRef == 0)
             {
@@ -249,7 +249,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
             var endPos = new RcVec3f(end.x, end.y, end.z);
 
             // Find the nearest polygons to the start and end points
-            DtStatus status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out long startRef, out _, out _);
+            DtStatus status = _standingSearch.FindNearestPoly(query, startPos, _queryFilter, out long startRef, out _, out _);
             CheckStatus(status);
             if (startRef == 0)
             {
@@ -257,7 +257,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 return false;
             }
 
-            status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out long endRef, out _, out _);
+            status = _standingSearch.FindNearestPoly(query, endPos, _queryFilter, out long endRef, out _, out _);
             CheckStatus(status);
             if (endRef == 0)
             {

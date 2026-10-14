@@ -10,7 +10,7 @@ namespace Avalon.Benchmarking;
 
 /// <summary>
 /// A player's grounded step (<see cref="MapNavigator.MoveOnGround" />) against the same step taken with DotRecast's own
-/// full nearest-polygon searches (<see cref="DetourMovementReference" />, the navigator before #978), on the committed
+/// full nearest-polygon searches (<see cref="DetourNavigationReference" />, the navigator before #978), on the committed
 /// town navmesh and on a generated forest's. A batch visits different positions, so nothing carries from one input to
 /// the next. Bake, input selection and the equality check (every input, both ways) are setup, outside the measured
 /// operations.
@@ -22,7 +22,7 @@ public class NavigationMovementBenchmarks
     private const int ForestSeed = 7;
     private const float Step = 4f / 60f;
     private MapNavigator _navigator = null!;
-    private DetourMovementReference _reference = null!;
+    private DetourNavigationReference _reference = null!;
     private readonly (Vector3 From, Vector3 To)[] _inputs = new (Vector3, Vector3)[Inputs];
 
     [Params("Town", "Forest")]
@@ -42,7 +42,7 @@ public class NavigationMovementBenchmarks
         DtNavMesh mesh = Map == "Town" ? TownNavmesh.Shared : ForestLayouts.For(ForestSeed).NavMesh;
         _navigator = new MapNavigator(NullLoggerFactory.Instance);
         _navigator.LoadFromNavMesh(mesh);
-        _reference = new DetourMovementReference(mesh);
+        _reference = new DetourNavigationReference(mesh);
         (Vector3 min, Vector3 max) = Bounds(mesh);
 
         var random = new Random(896);

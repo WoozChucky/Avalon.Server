@@ -6,7 +6,8 @@ namespace Avalon.World.Maps.Navigation;
 /// <summary>
 /// The polygon <see cref="DtNavMeshQuery.FindNearestPoly" /> picks, found with less work (#978). Every movement input
 /// asked for it twice, once where the player stands (the walkable raycast's start) and once where the step ends (the
-/// ground snap), and each search measured every polygon in a 4 x 8 x 4 m box around the point.
+/// ground snap), and each search measured every polygon in a 4 x 8 x 4 m box around the point. A route and a line of
+/// sight search at both ends, a projectile's step at its start.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,7 +29,9 @@ namespace Avalon.World.Maps.Navigation;
 /// </para>
 /// <para>
 /// Either pass stops measuring once a polygon has scored zero, which cannot change the answer. Nothing is kept between
-/// calls: the answer is the full search's for the point given, whatever the player did before.
+/// calls: the answer is the full search's for the point given, whatever the player did before. Nothing here assumes
+/// the point is where someone stands (a route's end, a projectile flying flat over a slope): a point that scores zero
+/// nowhere goes to the full search, so standing decides only how often the narrow box answers, never the answer.
 /// </para>
 /// </remarks>
 internal readonly struct StandingPolygonSearch
