@@ -232,7 +232,6 @@ public class ThreatBroadcastServiceShould
         character.IsDead.Returns(false);
         conn.Character.Returns(character);
         conn.CurrentTargetGuid.Returns(currentTarget);
-        conn.CryptoSession.Returns(new FakeAvalonCryptoSession());
         return conn;
     }
 

@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using Avalon.Common;
 using Avalon.Common.Accounts;
+using Avalon.Common.Cryptography;
 using Avalon.Common.GameAuth;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
@@ -96,8 +97,16 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader, TimeProvider? time = null)
-        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
+        : this(server, client, loggerFactory, packetReader, time, new ConnectionKeyExchange())
     {
+    }
+
+    private WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
+        IPacketReader packetReader, TimeProvider? time, ConnectionKeyExchange keyExchange)
+        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader, keyExchange)
+    {
+        CryptoSession = keyExchange.Session;
+        ServerCrypto = keyExchange.ServerCrypto;
         _server = server;
         _packetEncryption = server.PacketEncryption;
         // A substitute server in tests has none.
@@ -493,6 +502,12 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     /// <summary>Whether this connection's gameplay packets are sealed both ways (Network:PacketEncryption, #875).</summary>
     public bool PacketEncryption => _packetEncryption;
+
+    /// <summary>The connection's session, keyed at admission from the client's public key.</summary>
+    public IAvalonCryptoSession CryptoSession { get; }
+
+    /// <summary>The connection's own key pair, whose public key the admission reply sends.</summary>
+    public ICryptoManager ServerCrypto { get; }
 
     public void InitOutboxForTest(PacketStream stream)
     {

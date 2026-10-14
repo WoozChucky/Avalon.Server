@@ -34,7 +34,7 @@ public class ConnectionKeyPairShould : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private IConnection NewConnection(IWorldServer server)
+    private Avalon.World.WorldConnection NewConnection(IWorldServer server)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -56,8 +56,8 @@ public class ConnectionKeyPairShould : IDisposable
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
 
-        IConnection first = NewConnection(server);
-        IConnection second = NewConnection(server);
+        Avalon.World.WorldConnection first = NewConnection(server);
+        Avalon.World.WorldConnection second = NewConnection(server);
 
         Assert.NotEqual(first.ServerCrypto.GetPublicKey(), second.ServerCrypto.GetPublicKey());
 
@@ -84,8 +84,8 @@ public class ConnectionKeyPairShould : IDisposable
         // One client key pair, presented twice.
         var peer = new Avalon.Common.Cryptography.CryptoManager();
 
-        IConnection first = NewConnection(server);
-        IConnection second = NewConnection(server);
+        Avalon.World.WorldConnection first = NewConnection(server);
+        Avalon.World.WorldConnection second = NewConnection(server);
 
         first.CryptoSession.Initialize(peer.GetPublicKey());
         second.CryptoSession.Initialize(peer.GetPublicKey());

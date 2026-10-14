@@ -63,7 +63,6 @@ public class EnterMapHandlerShould
         IWorldConnection connection = Substitute.For<IWorldConnection, ISettledContinuations>();
         connection.InGame.Returns(true);
         connection.Character.Returns(character);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         Action<Task<IMapInstance>>? onInstance = null;
         ((ISettledContinuations)connection)
             .When(c => c.EnqueueSettled(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<Task<IMapInstance>>>()))

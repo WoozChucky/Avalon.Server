@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
-using Avalon.Common.Cryptography;
 using Avalon.Configuration;
 using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets;
@@ -38,8 +37,6 @@ public class ServerBaseShould
         public Guid Id { get; }
         public new Task? ExecuteTask => ExecuteAsync(CancellationToken.None);
         public string RemoteEndPoint => "stub";
-        public IAvalonCryptoSession CryptoSession => null!;
-        public ICryptoManager ServerCrypto => null!;
         public void Close(bool expected = true) { }
         public Task CloseAsync(bool expected = true) => Task.CompletedTask;
         public void Send(OutboundPacket packet) { }
@@ -167,8 +164,6 @@ public class ServerBaseShould
         public Guid Id { get; }
         public new Task? ExecuteTask => Task.CompletedTask;
         public string RemoteEndPoint => "probe";
-        public IAvalonCryptoSession CryptoSession => null!;
-        public ICryptoManager ServerCrypto => null!;
         public void Close(bool expected = true) => _client.Dispose();
 
         public Task CloseAsync(bool expected = true)

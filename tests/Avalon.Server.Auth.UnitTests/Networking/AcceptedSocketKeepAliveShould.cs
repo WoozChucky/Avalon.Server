@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using Avalon.Common.Cryptography;
 using Avalon.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -41,8 +40,6 @@ public class AcceptedSocketKeepAliveShould
         public Guid Id { get; }
         public new Task? ExecuteTask => Task.CompletedTask;
         public string RemoteEndPoint => "capture";
-        public IAvalonCryptoSession CryptoSession => null!;
-        public ICryptoManager ServerCrypto => null!;
         public void Close(bool expected = true) { }
         public Task CloseAsync(bool expected = true) => Task.CompletedTask;
         public void Send(OutboundPacket packet) { }

@@ -44,7 +44,6 @@ public class MapInstanceSaveHookShould
         character.Spells.Load(Array.Empty<IAbility>());   // the tick updates abilities; an unloaded list throws
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         instance.AddCharacter(connection);
 
         var delta = TimeSpan.FromSeconds(1d / 60d);

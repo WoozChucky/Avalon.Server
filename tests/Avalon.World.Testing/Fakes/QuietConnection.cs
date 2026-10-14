@@ -1,6 +1,5 @@
 using Avalon.Common;
 using Avalon.Common.Accounts;
-using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World.Entities;
@@ -23,8 +22,6 @@ public sealed class QuietConnection(CharacterEntity character) : IWorldConnectio
 
     public (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
 
-    public IAvalonCryptoSession CryptoSession { get; } = new FakeAvalonCryptoSession();
-
     /// <summary>The payload bytes of everything sent, so a pin can allow for the packets themselves.</summary>
     public long SentPayloadBytes { get; private set; }
 
@@ -38,7 +35,6 @@ public sealed class QuietConnection(CharacterEntity character) : IWorldConnectio
     public Guid Id => throw new NotSupportedException();
     public Task? ExecuteTask => throw new NotSupportedException();
     public string RemoteEndPoint => throw new NotSupportedException();
-    public ICryptoManager ServerCrypto => throw new NotSupportedException();
     public AccountId? AccountId { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     public PendingSpawn? PendingSpawn => throw new NotSupportedException();
     public bool SelectInProgress => throw new NotSupportedException();

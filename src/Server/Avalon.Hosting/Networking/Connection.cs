@@ -16,8 +16,6 @@ public interface IConnection
     Guid Id { get; }
     Task? ExecuteTask { get; }
     string RemoteEndPoint { get; }
-    IAvalonCryptoSession CryptoSession { get; }
-    ICryptoManager ServerCrypto { get; }
 
     void Close(bool expected = true);
 
@@ -72,7 +70,7 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
             string remoteEndPoint, int packetsReceived);
 
         [LoggerMessage(Level = LogLevel.Warning,
-            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: {PacketType} arrived sealed before the connection had a session key")]
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: {PacketType} arrived sealed while the connection had no session key")]
         public static partial void SealedBeforeKey(ILogger logger, Guid connectionId, long? accountId,
             string remoteEndPoint, int packetsReceived, NetworkPacketType packetType);
 
@@ -127,9 +125,17 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     private readonly IPacketReader _packetReader;
     private readonly int _maxInboundFrameSize;
 
-    // CryptoSession.Decrypt as a delegate, created once. Passing the method group made a new delegate per packet, and
+    // The session's Decrypt as a delegate, created once. Passing the method group made a new delegate per packet, and
     // the Release JIT did not keep it off the heap (PacketReaderDecryptGcBenchmarks, #854).
     private readonly DecryptFunc _decrypt;
+
+    // The session the default outbox seals with; null on a connection that runs no key exchange.
+    private readonly IAvalonCryptoSession? _session;
+
+    // The open of a connection with no session (#878): it refuses as a session with no exchange yet refuses, so the
+    // reader takes a frame flagged Encrypted as the peer's protocol violation, sealed_before_key, through the one path
+    // that already closes a connection for it (#897). Static, so a refused frame allocates no delegate.
+    private static readonly DecryptFunc s_noSessionKey = static (_, _) => throw new CryptoSessionNotInitializedException();
 
     protected readonly IServerBase Server;
 
@@ -154,7 +160,17 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     protected int PacketSentCount;
     protected double PacketSentRate;
 
-    protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader)
+    /// <param name="logger">The connection's logger.</param>
+    /// <param name="server">The server that accepted it.</param>
+    /// <param name="packetReader">The server's reader.</param>
+    /// <param name="keyExchange">
+    /// The connection's own key pair and session, built for this connection and never shared (a
+    /// <see cref="ConnectionKeyExchange" /> says why), or null for a connection that runs no key exchange: the server
+    /// decides. With one, a payload flagged Encrypted is opened with its session; without, nothing is opened, and such a
+    /// frame closes the connection as one sealed while it has no session key.
+    /// </param>
+    protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader,
+        ConnectionKeyExchange? keyExchange)
     {
         _logger = logger;
         _packetReader = packetReader;
@@ -163,15 +179,8 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         int maxInboundFrameSize = server.MaxInboundFrameSize;
         _maxInboundFrameSize = maxInboundFrameSize > 0 ? maxInboundFrameSize : HostingConfiguration.DefaultMaxInboundFrameSize;
 
-        // Per connection, not per process. The session nonce is a counter from zero, so two
-        // connections that agreed the same key would seal their first packets under the same key
-        // and the same nonce -- which recovers the GCM authentication key for anyone listening.
-        // A shared server key pair made that reachable from the far end alone, by a client that
-        // reused its own key pair, and neither end could see it happen.
-        ServerCrypto = new CryptoManager();
-        var session = new AvalonCryptoSession(CryptoRole.Server, ServerCrypto.GetKeyPair());
-        CryptoSession = session;
-        _decrypt = session.Decrypt;
+        _session = keyExchange?.Session;
+        _decrypt = _session is null ? s_noSessionKey : _session.Decrypt;
         Id = Guid.NewGuid();
         ConnectionRateRegistry.Shared.Track(this);
     }
@@ -192,8 +201,6 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     /// rather than per packet: the telemetry tags every packet with it.
     /// </summary>
     public string ClientAddress { get; private set; } = "Unknown";
-    public IAvalonCryptoSession CryptoSession { get; }
-    public ICryptoManager ServerCrypto { get; }
 
     double IConnectionRates.PacketSentRate => PacketSentRate;
     double IConnectionRates.PacketReceivedRate => PacketReceivedRate;
@@ -293,7 +300,7 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     }
 
     protected virtual IOutbox OnCreateOutbox() =>
-        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity, CryptoSession,
+        new ChannelOutbox(Id, _logger, Server.SendBufferCapacity, _session,
 #pragma warning disable MA0045 // the fault callback is synchronous, and it fires from inside the outbox this close then disposes
             onFault: () => Close(false));
 #pragma warning restore MA0045
@@ -328,8 +335,8 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     protected virtual void OnHandshakeFailed(string reason) { }
 
     /// <summary>
-    /// The read loop ended on a frame the peer got wrong (not a packet, sealed before the session had a key, sealed
-    /// and not authentic, or a payload that is not its packet), and the connection is about to close: a server
+    /// The read loop ended on a frame the peer got wrong (not a packet, sealed while the connection had no session key,
+    /// sealed and not authentic, or a payload that is not its packet), and the connection is about to close: a server
     /// counts it in its telemetry here, once per connection, under <paramref name="reason" />, one of
     /// <see cref="ProtocolViolation" />'s constants.
     /// </summary>

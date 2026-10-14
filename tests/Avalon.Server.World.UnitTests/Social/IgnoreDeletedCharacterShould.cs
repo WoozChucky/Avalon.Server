@@ -44,7 +44,6 @@ public class IgnoreDeletedCharacterShould
         deleter.GameplayAuthority.Returns(new Avalon.Common.GameAuth.GameplayWriteAuthority(new AccountId(5), Guid.NewGuid(), 1));
         deleter.IsConnected.Returns(true);
         deleter.Character.Returns((ICharacter?)null);   // not in the world: a delete happens at character selection
-        deleter.CryptoSession.Returns(new FakeAvalonCryptoSession());
         Task<bool>? deleteTask = null;
         Action<bool>? afterDelete = null;
         deleter.When(c => c.EnqueueContinuation(Arg.Any<Task<bool>>(), Arg.Any<Action<bool>>()))
@@ -57,7 +56,6 @@ public class IgnoreDeletedCharacterShould
         IWorldConnection pending = Substitute.For<IWorldConnection>();
         pending.Character.Returns((ICharacter?)null);
         pending.PendingSpawn.Returns(new PendingSpawn(selecting, Substitute.For<IMapInstance>(), 0));
-        pending.CryptoSession.Returns(new FakeAvalonCryptoSession());
         pending.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => pendingSent.Add(ci.Arg<OutboundPacket>()));
 
         IWorldServer server = Substitute.For<IWorldServer>();

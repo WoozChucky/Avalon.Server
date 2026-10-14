@@ -140,7 +140,6 @@ public class CharacterSelectHandlerShould
         var sentPackets = new List<OutboundPacket>();
         IWorldConnection connection = PendingSpawnConnection.Create();
         connection.AccountId.Returns(s_theAccount);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>()))
             .Do(ci =>
             {

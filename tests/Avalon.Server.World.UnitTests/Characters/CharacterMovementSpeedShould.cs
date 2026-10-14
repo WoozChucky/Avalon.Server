@@ -214,7 +214,6 @@ public class CharacterMovementSpeedShould
         world.InstanceRegistry.GetInstanceById(character.InstanceId).Returns(instance);
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
         new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world)
             .Execute(connection, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });

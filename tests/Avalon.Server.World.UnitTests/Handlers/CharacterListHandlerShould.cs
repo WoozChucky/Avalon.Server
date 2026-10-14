@@ -47,7 +47,6 @@ public class CharacterListHandlerShould : IDisposable
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.AccountId.Returns(s_owner);
         connection.Character.Returns((Avalon.World.Public.Characters.ICharacter?)null!);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.EnqueueContinuation(
             Arg.Do<Task<List<CharacterRow>>>(t => query = t),
             Arg.Do<Action<List<CharacterRow>>>(c => callback = c));

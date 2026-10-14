@@ -63,7 +63,6 @@ public class CanInteractAgreementShould
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
         connection.Locale.Returns(AccountLocale.enUS);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
         new InteractHandler(NullLogger<InteractHandler>.Instance, world)
             .Execute(connection, new CInteractPacket { TargetGuid = creature.Guid.RawValue });

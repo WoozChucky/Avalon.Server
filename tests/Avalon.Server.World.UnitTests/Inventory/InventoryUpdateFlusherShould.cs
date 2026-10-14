@@ -24,7 +24,6 @@ public class InventoryUpdateFlusherShould
     {
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(call => _sent.Add(call.Arg<OutboundPacket>()));
         return connection;
     }

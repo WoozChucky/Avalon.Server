@@ -94,7 +94,6 @@ public class GodModeCommandShould
                 new Character { Id = 1u, Health = 100 }, new RegenConfiguration());
             _connection.Character.Returns(Character);
             _connection.AccessLevel.Returns(level);
-            _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
             _connection.When(c => c.Send(Arg.Any<OutboundPacket>()))
                 .Do(call => _sent.Add(call.Arg<OutboundPacket>()));
             _dispatcher = new CommandDispatcher(

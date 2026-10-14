@@ -75,7 +75,6 @@ internal static class MapInstanceClients
         // The server's own connection also queues continuations that run whatever their task's outcome.
         IWorldConnection connection = Substitute.For<IWorldConnection, ISettledContinuations>();
         connection.Character.Returns(character);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         instance.AddCharacter(connection);

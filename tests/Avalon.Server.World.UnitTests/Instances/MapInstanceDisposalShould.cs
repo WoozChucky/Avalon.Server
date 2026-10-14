@@ -129,7 +129,6 @@ public class MapInstanceDisposalShould
     {
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         instance.AddCharacter(connection);
         return connection;
     }

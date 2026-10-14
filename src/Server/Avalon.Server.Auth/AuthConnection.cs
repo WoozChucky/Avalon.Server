@@ -2,6 +2,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Common.Cryptography;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
@@ -33,6 +34,12 @@ public interface IAuthConnection : IConnection
 
     AuthServer Server { get; }
 
+    /// <summary>The connection's session: the auth server runs its key exchange on every connection.</summary>
+    IAvalonCryptoSession CryptoSession { get; }
+
+    /// <summary>The connection's own key pair, whose public key <c>SServerInfoPacket</c> sends.</summary>
+    ICryptoManager ServerCrypto { get; }
+
     byte[] GenerateHandshakeData();
     bool VerifyHandshakeData(byte[] handshakeData);
 }
@@ -45,13 +52,24 @@ public class AuthConnection : Connection, IAuthConnection
 
     public AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory)
-        : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader)
+        : this(server, client, loggerFactory, packetReader, serviceScopeFactory, new ConnectionKeyExchange())
+    {
+    }
+
+    // Every auth connection runs the key exchange, so its own key pair is built with it, before the base takes it.
+    private AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory,
+        IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory, ConnectionKeyExchange keyExchange)
+        : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader, keyExchange)
     {
         _serviceScopeFactory = serviceScopeFactory;
+        CryptoSession = keyExchange.Session;
+        ServerCrypto = keyExchange.ServerCrypto;
         Server = (server as AuthServer)!;
         Init(client);
     }
 
+    public IAvalonCryptoSession CryptoSession { get; }
+    public ICryptoManager ServerCrypto { get; }
     public AccountId? AccountId { get; set; }
     public int CredentialsVersion { get; set; }
     public long LoggedInAt { get; set; }

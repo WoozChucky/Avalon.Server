@@ -32,7 +32,6 @@ public class PvpCommandShould
         _handler = new PvpToggleHandler(toggle);
 
         _connection.Character.Returns(TestCharacters.New(1));
-        _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => _sent.Add(ci.Arg<OutboundPacket>()));
     }
 

@@ -92,7 +92,6 @@ public class RespawnAtTownHandlerShould
         var continuations = new List<Action>();
         conn.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
             .Do(call => continuations.Add(call.Arg<Action>()));
-        conn.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
         handler.Execute(conn, new CRespawnAtTownPacket());
         continuations[0]();   // the town is resolved: the instance is asked for

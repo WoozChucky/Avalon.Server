@@ -53,7 +53,6 @@ public class LootPickupHandlerShould
         economy.WalletOf(Arg.Any<CharacterEntity>()).Returns(ci => new CharacterWallet(ci.Arg<CharacterEntity>(), 1_000));
 
         _connection.Character.Returns(_character);
-        _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => _sent.Add(ci.Arg<OutboundPacket>()));
 
         _handler = new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world, economy, new FixedTimeProvider(s_now));

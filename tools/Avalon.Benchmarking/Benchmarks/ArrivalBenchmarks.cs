@@ -3,7 +3,6 @@ using System.Linq.Expressions;
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Accounts;
-using Avalon.Common.Cryptography;
 using Avalon.Common.GameAuth;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -35,7 +34,6 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
-using Avalon.World.Testing.Fakes;
 using Avalon.World.Testing.Scenarios;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.DependencyInjection;
@@ -466,7 +464,6 @@ public class ArrivalBenchmarks
         public AccountLocale Locale { get; set; } = AccountLocale.enUS;
         public (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
         public ulong? CurrentTargetGuid { get; set; }
-        public IAvalonCryptoSession CryptoSession { get; } = new FakeAvalonCryptoSession();
 
         public bool LeaveInProgress => false;
         public bool IsConnected => true;
@@ -562,7 +559,6 @@ public class ArrivalBenchmarks
         public Guid Id => throw new NotSupportedException();
         public Task? ExecuteTask => throw new NotSupportedException();
         public string RemoteEndPoint => throw new NotSupportedException();
-        public ICryptoManager ServerCrypto => throw new NotSupportedException();
         public long RoundTripTime => throw new NotSupportedException();
         public long CurrentPacketArrivedTicks => throw new NotSupportedException();
         public uint LastInputSeq { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }

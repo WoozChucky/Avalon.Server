@@ -1,5 +1,4 @@
 using Avalon.Common.Accounts;
-using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
@@ -28,12 +27,10 @@ public class ChatMessageHandlerShould
     private readonly IWorld _world = MapInstanceClients.NewWorld();
     private readonly ICommandDispatcher _commandDispatcher = Substitute.For<ICommandDispatcher>();
     private readonly IWorldConnection _senderConnection = Substitute.For<IWorldConnection>();
-    private readonly IAvalonCryptoSession _senderCrypto = new FakeAvalonCryptoSession();
     private readonly ChatMessageHandler _handler;
 
     public ChatMessageHandlerShould()
     {
-        _senderConnection.CryptoSession.Returns(_senderCrypto);
         _senderConnection.AccountId.Returns(new AccountId(1));
         _senderConnection.InGame.Returns(true);
 

@@ -319,7 +319,6 @@ public sealed class WorldMaintenanceCoordinatorShould
         connection.AccessLevel.Returns(access);
         connection.IsConnected.Returns(true);
         connection.InGame.Returns(true);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.CloseAsync().Returns(Task.CompletedTask);
         return connection;
     }

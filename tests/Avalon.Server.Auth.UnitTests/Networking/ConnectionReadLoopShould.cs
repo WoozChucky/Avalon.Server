@@ -91,8 +91,15 @@ public class ConnectionReadLoopShould
 
         public ProbeConnection(TcpClient client, ILogger logger, IPacketReader reader,
             Func<TcpClient, Task<PacketStream>>? handshake = null)
-            : base(logger, new FakeServer(), reader)
+            : this(client, logger, reader, handshake, new ConnectionKeyExchange())
         {
+        }
+
+        private ProbeConnection(TcpClient client, ILogger logger, IPacketReader reader,
+            Func<TcpClient, Task<PacketStream>>? handshake, ConnectionKeyExchange keyExchange)
+            : base(logger, new FakeServer(), reader, keyExchange)
+        {
+            CryptoSession = keyExchange.Session;
             Reader = reader;
             _handshake = handshake;
             Init(client);
@@ -106,6 +113,9 @@ public class ConnectionReadLoopShould
             reader.Read(default, null).ReturnsForAnyArgs(new CRequestServerInfoPacket());
             return reader;
         }
+
+        /// <summary>The session the connection opens with, as the auth server keys every connection's.</summary>
+        public IAvalonCryptoSession CryptoSession { get; }
 
         public int FramesRefused => Volatile.Read(ref _framesRefused);
         public int Handled => Volatile.Read(ref _handled);

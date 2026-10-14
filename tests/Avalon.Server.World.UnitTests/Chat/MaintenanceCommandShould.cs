@@ -101,7 +101,6 @@ public sealed class MaintenanceCommandShould
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.AccountId.Returns(new AccountId(7));
         connection.AccessLevel.Returns(AccountAccessLevel.Admin);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         var queued = new List<(Task Task, Action Callback)>();
         connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
             .Do(ci => queued.Add((ci.Arg<Task>(), ci.Arg<Action>())));

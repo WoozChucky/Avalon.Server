@@ -200,7 +200,6 @@ internal sealed class QuestTestWorld
         connection.Character.Returns(character);
         connection.AccountId.Returns(new AccountId(id));
         connection.Locale.Returns(AccountLocale.enUS);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
         return new QuestClient(connection, character, sent);
     }

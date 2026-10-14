@@ -32,7 +32,6 @@ public class TownReturnShould
         _character.Name.Returns("Tester");
 
         _connection.Character.Returns(_character);
-        _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         // Both continuations run inline, as the tick would run them once their tasks complete.
         _connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
             .Do(ci => ci.Arg<Action>()());

@@ -29,7 +29,7 @@ public class ConnectionProxyProtocolShould
         public readonly TaskCompletionSource Closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public ProbeConnection(TcpClient client, IServerBase server, ILogger logger)
-            : base(logger, server, Substitute.For<IPacketReader>())
+            : base(logger, server, Substitute.For<IPacketReader>(), keyExchange: null)
         {
             Init(client);
         }
