@@ -846,6 +846,30 @@ scheduler allocates nothing per tick (its roster, bit sets and cohorts grow only
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CreatureDispatchBenchmarks*" "*ForestTickBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
 ```
 
+#### Results — a script that needs every tick (#979, 2026-10-14) — `Benchmarks/EveryTickScriptBenchmarks.cs`
+
+Every AI script answers `AiScript.NextUpdateIn` (the owner's decision: no default, every script decides), and the
+scheduler reads the answer after each Update of a creature's own script. The cost falls on a script that answers zero:
+it used to be run without being asked. Eleven thousand creatures whose script only counts its Updates, per tick, through
+the instance's own step, scheduled or walked every tick as before #979 (`UpdateEveryCreatureEveryTick`), three runs each,
+the same machine and settings as above:
+
+| Build | Every creature walked | Scheduled | Scheduled, per creature over the walk |
+|---|---:|---:|---:|
+| Opt-in (`UpdatesWhenDue` false: run, never asked) | 90–92 µs | 138–143 µs | 4.3–4.7 ns |
+| `NextUpdateIn` read after every Update | 91–97 µs | 167–190 µs | 6.6–8.7 ns |
+
+Reading the answer costs about 3–4 ns per such creature per tick (the virtual call and the comparison), on top of the
+scheduler's own 4–5 ns (its bit set, the roster read and the checks after the Update). It allocates nothing. No built-in
+pays it where it matters: a waiting `AggroDefendScript` (every forest creature) is asked through its search wait, as
+before, and a creature that waits is not visited at all. A world full of custom scripts that need every tick would pay
+about 8 ns a creature a tick more than before #979: 0.14 ms a tick at the 17,265 creatures of the 950-player profile, if
+every one of them were such a script.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EveryTickScriptBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
+```
+
 ### Aura scans — `Benchmarks/AuraScanBenchmarks.cs` (#898)
 
 The aura work of one instance's tick, in a town instance of 50, 100 or 200 characters who all see one another, 10%

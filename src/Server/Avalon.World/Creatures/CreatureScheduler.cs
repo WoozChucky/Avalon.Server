@@ -254,17 +254,17 @@ internal sealed class CreatureScheduler
             return;
         }
 
+        // Infinite is negative: the next tick, the common answer, is the one that is neither.
         TimeSpan wait = script.NextUpdateIn;
-
-        // A wait past the end of the clock (TimeSpan.MaxValue, say) is a wait for an event, not an overflow.
-        if (wait == Timeout.InfiniteTimeSpan || wait >= TimeSpan.MaxValue - _clock)
-        {
-            creature.Schedule.Wait = CreatureWait.Event;
-            ClearPlace(creature);
-        }
-        else if (wait > TimeSpan.Zero)
+        if (wait > TimeSpan.Zero && wait < TimeSpan.MaxValue - _clock)
         {
             JoinTimed(creature, _clock + wait);
+        }
+        else if (wait == Timeout.InfiniteTimeSpan || wait > TimeSpan.Zero)
+        {
+            // A wait past the end of the clock (TimeSpan.MaxValue, say) is a wait for an event too, not an overflow.
+            creature.Schedule.Wait = CreatureWait.Event;
+            ClearPlace(creature);
         }
     }
 
