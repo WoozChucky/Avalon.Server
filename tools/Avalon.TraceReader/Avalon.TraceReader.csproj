@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <!-- The version the 950-player profile (#974) was read with. -->
-    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.8" />
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="4.0.0" />
   </ItemGroup>
 
 </Project>
