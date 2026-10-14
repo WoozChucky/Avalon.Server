@@ -865,17 +865,17 @@ is a creature's route (`FindPath` into a reused list) and line of sight (`HasVis
 away, and a projectile's step (`RaycastWalkable`, 20 m/s, flying flat at its caster's height over flights of up to
 20 m).
 
-Before #978 every one of these searched for the nearest polygon in a 4 x 8 x 4 m box, measuring every polygon in it:
-a movement input twice (the raycast's start, and the ground snap's end when the step moved), 1.16 ms a tick at 950
-players on world 4, plus 51 samples zeroing the raycast's 2 KB path buffer (#974, section 7); a route and a line of
-sight at both ends; a projectile's step at its start (the 92 samples #974 puts under `ProjectileAbilityScript` are its
-`RaycastWalkable`'s search: the script makes no other navmesh query). Since #978 each search looks first in a narrow
-box (0.1 m across, the climb height plus 0.1 m up and down; `StandingPolygonSearch`) and takes its first polygon that
-scores zero, which is the full search's answer; the full box decides only when nothing there scores zero. Nothing in
-that argument needs the point to be where someone stands, so it holds at a route's far end and under a projectile
-flying flat over a slope; standing decides only how often the narrow box answers. The raycast, the line of sight and
-the route's surface moves no longer zero their stack buffers (`[SkipLocalsInit]`; each is only written, then read no
-further than written). Nothing is kept between calls.
+Before #978 every one of these searched for the nearest polygon in a 4 x 8 x 4 m box, measuring every polygon in it: a
+movement input twice (the raycast's start, and the ground snap's end when the step moved), 1.16 ms a tick at 950 players
+on world 4, plus 51 samples zeroing the raycast's 2 KB path buffer (#974, section 7); a route and a line of sight at
+both ends; a projectile's step at its start (the 92 samples #974 puts under `ProjectileAbilityScript` are its
+`RaycastWalkable`'s search: the script makes no other navmesh query). Since #978 each search looks first in a narrow box
+(0.1 m to each side, 0.2 m across, and the climb height plus 0.1 m up and down; `StandingPolygonSearch`) and takes its
+first polygon that scores zero, which is the full search's answer; the full box decides only when nothing there scores
+zero. Nothing in that argument needs the point to be where someone stands, so it holds at a route's far end and under a
+projectile flying flat over a slope; standing decides only how often the narrow box answers. The raycast, the line of
+sight and the route's surface moves no longer zero their stack buffers (`[SkipLocalsInit]`; each is only written, then
+read no further than written). Nothing is kept between calls.
 
 How often the narrow box answers, from the setups' classification (the same on both maps): the start of every idle,
 walking and mixed input, the end of every step that moved, the start of every route, line of sight and projectile

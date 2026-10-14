@@ -23,7 +23,7 @@ namespace Avalon.World.Maps.Navigation;
 /// tiles and each tile's bounding-volume tree in the same order for both, so the first zero in the narrow box is the
 /// first zero in the full one. That needs the trees: a tile without one is searched by its polygons' corners, which
 /// leave out a detail surface raised above them, so a mesh with such a tile always takes the full box. Polygons whose
-/// corners keep more than the margin away from the point across cannot score zero and are not measured.
+/// corners all lie more than the margin to one side of the point cannot score zero and are not measured.
 /// When nothing in the narrow box scores zero (a player beside the mesh, a point exactly on a wall's edge that the
 /// polygon test leaves out, a step off a ledge), the full box is searched as before. On overlapping floors the floor
 /// within the climb scores zero and the other does not, so the narrow box finds the same floor; a point between floors
@@ -188,8 +188,8 @@ internal readonly struct StandingPolygonSearch
         }
 
         /// <summary>
-        /// Whether the point lies more than <see cref="Margin" /> outside the polygon's corners across: then it is not
-        /// over the polygon, and its nearest point (on the polygon's edges) is at least that far away, so it scores
+        /// Whether the point lies more than <see cref="Margin" /> to one side of all the polygon's corners: then it is
+        /// not over the polygon, and its nearest point (on the polygon's edges) is at least that far away, so it scores
         /// above zero.
         /// </summary>
         private static bool FarAcross(DtMeshTile tile, DtPoly poly, RcVec3f center)
