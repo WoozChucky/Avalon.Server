@@ -35,6 +35,14 @@ namespace Avalon.World.Testing.Scenarios;
 /// the tick's input, so inside the input's dispatch (<see cref="ScenarioConnection.UpdateMap" />), not one of its own.
 /// </para>
 /// <para>
+/// <b>Healing.</b> A healer first looks after its party (<see cref="Enter" />): when Mending Circle
+/// (<see cref="HealAbility" />) is ready, it has the mana and a living member within the heal's reach is under
+/// <see cref="HealBelow" /> of its health, it casts the circle at the most hurt one's feet through the same cast
+/// handler, walking or standing; otherwise it fights like the others. The heal goes through the instance's combat
+/// service like any hit: health, the heal broadcast, and threat for the healing on every creature fighting the healed
+/// (#961).
+/// </para>
+/// <para>
 /// <b>Death.</b> A dead player sends nothing, as the input handler drops a dead character's input. A client would ask to
 /// respawn in town (<c>CMSG_RESPAWN_AT_TOWN</c>) and walk back in, which a scenario cannot do, since it cannot move a
 /// character between instances. Instead, <see cref="ReviveAfterTicks" /> after it died the fighter is revived at the
@@ -66,6 +74,18 @@ public sealed class LoopFighter
     /// <summary>... or this share of a short reach.</summary>
     private const float ReachMarginShare = 0.2f;
 
+    /// <summary>A healer's heal: Mending Circle, an ally circle at the aim point (4 m, 15 m reach, 8 s, 25 mana).</summary>
+    public const uint HealAbility = 232u;
+
+    /// <summary>
+    /// A healer heals a party member under this share of its health. At level 1 one Mending Circle heals about 65
+    /// health: a quarter of a warrior's, two fifths of a hunter's or a healer's, a little over half a wizard's. A
+    /// member under 70% has lost at least 30%, so most of a heal lands rather than topping up health already full,
+    /// and a member is healed well before it is about to die; with the heal's 8 s cooldown and the threshold, the
+    /// healer still spends nearly all of its casts attacking.
+    /// </summary>
+    public const float HealBelow = 0.7f;
+
     private readonly PlayerInputHandler _input;
     private readonly CastAbilityHandler _cast;
     private readonly TimeProvider _clock;
@@ -78,7 +98,13 @@ public sealed class LoopFighter
     private readonly Vector3Dto _aimPoint = new();
     private readonly CCastAbilityPacket _castPacket;
 
+    // A healer's heal (Mending Circle 232), its aim and its packet; null for every other class.
+    private readonly IAbility? _heal;
+    private readonly Vector3Dto _healPoint = new();
+    private readonly CCastAbilityPacket? _healPacket;
+
     private FightForest? _forest;
+    private ICharacter[] _party = [];
     private bool _moved;
     private bool _detouring;
     private float _detourYaw;
@@ -102,10 +128,23 @@ public sealed class LoopFighter
         _cursorAim = meta.AimMode == AbilityAimMode.Cursor;
         _stopDistance = meta.Reach - MathF.Min(ReachMargin, ReachMarginShare * meta.Reach);
         _castPacket = new CCastAbilityPacket { AbilityId = abilityId, GroundPos = _cursorAim ? _aimPoint : null };
+
+        if (character.Class == CharacterClass.Healer)
+        {
+            _heal = character.Spells[new AbilityId(HealAbility)]
+                    ?? throw new InvalidOperationException($"{character.Name} has no heal {HealAbility}");
+            _healPacket = new CCastAbilityPacket { AbilityId = HealAbility, GroundPos = _healPoint };
+        }
     }
 
-    /// <summary>The casts the cast handler accepted.</summary>
+    /// <summary>The casts the cast handler accepted, heals included.</summary>
     public int Casts { get; private set; }
+
+    /// <summary>The heals the cast handler accepted (a healer's only).</summary>
+    public int Heals { get; private set; }
+
+    /// <summary>The accepted heals that raised the health of the party member they were aimed at, in the same call.</summary>
+    public int HealsLanded { get; private set; }
 
     /// <summary>The handlers every fighter of a world shares, over the world's real registry, as production has one of each.</summary>
     public static FighterHandlers Handlers(ScenarioWorld world)
@@ -150,7 +189,10 @@ public sealed class LoopFighter
 
         ICreature? target = forest.NearestLive(character.Position);
         if (target is null)
+        {
+            TryHeal(connection, character);
             return;
+        }
 
         Vector3 position = character.Position;
         Vector3 at = target.Position;
@@ -161,15 +203,19 @@ public sealed class LoopFighter
         if (dx * dx + dz * dz > _stopDistance * _stopDistance)
         {
             Walk(connection, goalYaw);
+            TryHeal(connection, character);
             return;
         }
 
-        // In reach: standing, facing it, casting when the ability is ready.
+        // In reach: standing, facing it, casting when the ability is ready; a healer heals first when someone needs it.
         _detouring = false;
         Send(connection, 0f, 0f, goalYaw);
         _moved = false;
 
-        if (Ready(character))
+        if (TryHeal(connection, character))
+            return;
+
+        if (Ready(_ability, character))
         {
             _aimPoint.X = at.x;
             _aimPoint.Y = at.y;
@@ -181,8 +227,66 @@ public sealed class LoopFighter
         }
     }
 
-    /// <summary>Gives the fighter its forest, once the forest is built: until then its step throws.</summary>
-    public void Enter(FightForest forest) => _forest = forest ?? throw new ArgumentNullException(nameof(forest));
+    /// <summary>
+    /// Gives the fighter its forest, once the forest is built, and its party (itself among them), whom a healer heals:
+    /// until then its step throws.
+    /// </summary>
+    public void Enter(FightForest forest, ICharacter[] party)
+    {
+        _forest = forest ?? throw new ArgumentNullException(nameof(forest));
+        _party = party ?? throw new ArgumentNullException(nameof(party));
+    }
+
+    /// <summary>
+    /// A healer's heal: the party member alive with the smallest share of its health, when that share is under
+    /// <see cref="HealBelow" /> and the member stands within the heal's reach, gets a Mending Circle at its feet through
+    /// the real cast handler, once the heal is off cooldown, the global cooldown is over and the healer has the mana. The
+    /// circle heals every ally inside it, the healer too, and gives each creature fighting them threat for the healing.
+    /// False, sending nothing, when there is no heal to cast.
+    /// </summary>
+    private bool TryHeal(ScenarioConnection connection, ICharacter character)
+    {
+        if (_heal is null || !Ready(_heal, character) || character.CurrentPower < _heal.Metadata.Cost)
+            return false;
+
+        ICharacter? hurt = null;
+        float lowest = HealBelow;
+        float reach = _heal.Metadata.Reach;
+        Vector3 position = character.Position;
+        foreach (ICharacter member in _party)
+        {
+            if (member.IsDead || member.Health == 0)
+                continue;
+
+            float share = member.CurrentHealth / (float)member.Health;
+            float dx = member.Position.x - position.x;
+            float dz = member.Position.z - position.z;
+            if (share < lowest && dx * dx + dz * dz <= reach * reach)
+            {
+                lowest = share;
+                hurt = member;
+            }
+        }
+
+        if (hurt is null)
+            return false;
+
+        Vector3 at = hurt.Position;
+        _healPoint.X = at.x;
+        _healPoint.Y = at.y;
+        _healPoint.Z = at.z;
+        DateTime before = character.LastCastStartTime;
+        uint health = hurt.CurrentHealth;
+        _cast.Execute(connection, _healPacket!);
+        if (character.LastCastStartTime == before)
+            return false;
+
+        Casts++;
+        Heals++;
+        if (hurt.CurrentHealth > health)
+            HealsLanded++;
+        return true;
+    }
 
     /// <summary>Steers at <paramref name="goalYaw" />, or along a heading turned away from the wall the last step met.</summary>
     private void Walk(ScenarioConnection connection, float goalYaw)
@@ -222,8 +326,8 @@ public sealed class LoopFighter
     /// held since the start: the character's ability lookups (<c>Spells[id]</c>, <c>Spells.IsCasting</c>) allocate, and
     /// a client checks nothing on the server before it casts. The basic abilities are instant, so never mid-cast.
     /// </summary>
-    private bool Ready(ICharacter character) =>
-        _ability.CooldownTimer <= 0
+    private bool Ready(IAbility ability, ICharacter character) =>
+        ability.CooldownTimer <= 0
         && (_clock.GetUtcNow().UtcDateTime - character.LastCastStartTime).TotalMilliseconds >= _gcdMs;
 
     /// <summary>The yaw, 0 to 360 degrees, that faces along (<paramref name="dx" />, <paramref name="dz" />).</summary>
