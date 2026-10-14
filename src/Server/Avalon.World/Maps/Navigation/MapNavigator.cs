@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Maps;
 using DotRecast.Core.Numerics;
@@ -320,6 +321,9 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     public Vector3 RaycastWalkable(Vector3 from, Vector3 to)
         => RaycastWalkable(from, to, out _, out _, out _);
 
+    // The raycast only writes the polygons it visits into its path, which is never read here, so the 2 KB
+    // buffer is not zeroed on every call (#978): every movement input and projectile step casts one.
+    [SkipLocalsInit]
     private Vector3 RaycastWalkable(Vector3 from, Vector3 to, out long startRef, out RcVec3f startNearest,
         out bool startOver)
     {
