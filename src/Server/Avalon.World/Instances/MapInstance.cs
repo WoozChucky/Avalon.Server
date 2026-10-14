@@ -1130,11 +1130,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     private void UpdateCore(TimeSpan deltaTime)
     {
+        // First, so nothing that throws can leave the clock behind and the instance off its slot for good; and before the
+        // empty check: an empty instance's clock runs too, so it is still in its slot when someone comes.
+        _broadcastTick = AdvanceBroadcastClock(deltaTime);
+
         // Every hit list the last tick handed out was read within it: the hit query may reuse them (#880).
         _hits.Recycle();
-
-        // Before the empty check: an empty instance's clock runs too, so it is still in its slot when someone comes.
-        _broadcastTick = AdvanceBroadcastClock(deltaTime);
 
         if (_characters.Count == 0)
         {
@@ -1201,11 +1202,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Gives the instance its place on the world's broadcast schedule (#975): the clock it starts from, from
-    /// <see cref="BroadcastSchedule.NextPhase" />. The registry calls it as it publishes the instance, on the tick, before
+    /// Gives the instance its place on the world's broadcast schedule (#975): its slot and the clock it starts from, from
+    /// <see cref="BroadcastSchedule.Join" />. The registry calls it as it publishes the instance, on the tick, before
     /// the instance's first tick; an instance never published keeps 0, broadcasting first one interval after its first tick.
     /// </summary>
-    internal void JoinBroadcastSchedule(TimeSpan phase) => _broadcastClock = phase.Ticks;
+    internal void JoinBroadcastSchedule(int slot, TimeSpan phase)
+    {
+        BroadcastSlot = slot;
+        _broadcastClock = phase.Ticks;
+    }
+
+    /// <summary>
+    /// The slot <see cref="JoinBroadcastSchedule" /> gave the instance, which the registry frees when it lets the instance
+    /// go; -1 while it holds none (never published, or already let go).
+    /// </summary>
+    internal int BroadcastSlot { get; set; } = -1;
 
     /// <summary>
     /// Runs the broadcast clock on by the tick's delta and says whether this tick broadcasts: the one on which the clock

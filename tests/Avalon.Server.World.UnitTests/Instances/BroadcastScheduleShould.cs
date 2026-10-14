@@ -29,8 +29,18 @@ public class BroadcastScheduleShould
 
     private const int Ticks = 1200;
     private const int StallTick = 800;
+
+    // The first instance empties for a while, and must come back in its slot.
     private const int LeaveTick = 300;
     private const int ReturnTick = 350;
+
+    // The third is removed, and the last instance, published after that, takes its slot.
+    private const int Released = 2;
+    private const int ReleaseTick = 500;
+
+    // When each instance is published: four together at the start, two on a tick that is not a whole number of
+    // intervals later (100 ticks: the world's clock is two thirds into an interval), and the last after the release.
+    private static readonly int[] s_publishTick = [0, 0, 0, 0, 100, 100, 601];
 
     private sealed class SilentReloader : IScriptHotReloader
     {
@@ -46,9 +56,7 @@ public class BroadcastScheduleShould
     [Fact]
     public async Task Broadcast_each_instance_in_its_own_slot_every_interval_and_once_after_a_stall()
     {
-        // As many instances as there are slots, built together and published on the same tick: each must take a tick of
-        // its own. One of them empties for a while and must come back in its slot.
-        var instances = new MapInstance[BroadcastSchedule.Slots];
+        var instances = new MapInstance[s_publishTick.Length];
         var clients = new MapInstanceClient[instances.Length];
         for (int i = 0; i < instances.Length; i++)
         {
@@ -66,8 +74,6 @@ public class BroadcastScheduleShould
             factory.BuildAsync(default!, default, default).ReturnsForAnyArgs(instances[0], instances[1..]);
             Avalon.World.World world = await ScriptHotReloadPollingShould.BuildWorldAsync(
                 new SilentReloader(), intervalSeconds: 600, mapManager, factory);
-            for (int i = 0; i < instances.Length; i++)
-                _ = world.InstanceRegistry.GetOrCreateNormalInstanceAsync(975_100 + (uint)i, s_mapId);
 
             var broadcastTicks = new List<int>[instances.Length];
             for (int i = 0; i < instances.Length; i++)
@@ -75,10 +81,19 @@ public class BroadcastScheduleShould
 
             for (int tick = 0; tick < Ticks; tick++)
             {
+                // Requested ahead of the update, which publishes them first thing, as it does a finished build.
+                for (int i = 0; i < instances.Length; i++)
+                {
+                    if (s_publishTick[i] == tick)
+                        _ = world.InstanceRegistry.GetOrCreateNormalInstanceAsync(975_100 + (uint)i, s_mapId);
+                }
+
                 if (tick == LeaveTick)
                     instances[0].RemoveCharacter(clients[0].Connection);
                 if (tick == ReturnTick)
                     instances[0].AddCharacter(clients[0].Connection);
+                if (tick == ReleaseTick)
+                    world.InstanceRegistry.RemoveInstance(instances[Released].InstanceId);
 
                 // A change every tick, so every broadcast carries an update to the character's own client.
                 foreach (MapInstanceClient client in clients)
@@ -96,20 +111,31 @@ public class BroadcastScheduleShould
                 }
             }
 
-            // The stall: every instance is owed a broadcast, and makes exactly one, on the stall's tick.
-            Assert.All(broadcastTicks, ticks => Assert.Contains(StallTick, ticks));
+            // The stall: every live instance is owed a broadcast, and makes exactly one, on the stall's tick.
+            for (int i = 0; i < instances.Length; i++)
+            {
+                if (i != Released)
+                    Assert.Contains(StallTick, broadcastTicks[i]);
+            }
 
-            // Every other tick: at most one instance broadcasts, the one whose slot it is; the empty one came back in its
-            // own, and none caught up on the stall with broadcasts on the ticks after it.
-            var byTick = broadcastTicks.SelectMany((ticks, instance) => ticks.Select(tick => (tick, instance)))
+            // Every other tick: at most one instance broadcasts, the one whose slot it is. Those published later took
+            // ticks of their own wherever the world's clock stood; the empty one came back in its own; and none caught up
+            // on the stall with broadcasts on the ticks after it.
+            var shared = broadcastTicks.SelectMany((ticks, instance) => ticks.Select(tick => (tick, instance)))
                 .Where(b => b.tick != StallTick)
                 .GroupBy(b => b.tick)
                 .Where(g => g.Count() > 1)
                 .Select(g => $"tick {g.Key}: instances {string.Join(", ", g.Select(b => b.instance))}")
                 .ToList();
-            Assert.Empty(byTick);
+            Assert.Empty(shared);
 
-            // Each instance's broadcasts are six ticks apart, 100 ms, outside the stall and its empty stretch.
+            // The last instance took the released one's slot, the least held: before the stall it broadcast on that
+            // slot's ticks.
+            int releasedSlotTick = broadcastTicks[Released][0] % 6;
+            Assert.All(broadcastTicks[^1].Where(t => t < StallTick), t => Assert.Equal(releasedSlotTick, t % 6));
+
+            // Each instance's broadcasts are six ticks apart, 100 ms, outside the stall and the empty stretch, and ten a
+            // second over the time it was live.
             for (int i = 0; i < broadcastTicks.Length; i++)
             {
                 List<int> ticks = broadcastTicks[i];
@@ -124,9 +150,9 @@ public class BroadcastScheduleShould
                     }
                 }
 
-                // Ten a second: one per six ticks over the run, less the stretch the first instance was empty.
-                int expected = (Ticks - (i == 0 ? ReturnTick - LeaveTick : 0)) / 6;
-                Assert.InRange(ticks.Count, expected - 2, expected + 2);
+                int live = (i == Released ? ReleaseTick : Ticks) - s_publishTick[i]
+                           - (i == 0 ? ReturnTick - LeaveTick : 0);
+                Assert.InRange(ticks.Count, live / 6 - 2, live / 6 + 2);
             }
         }
         finally

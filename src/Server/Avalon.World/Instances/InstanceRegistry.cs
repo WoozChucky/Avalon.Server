@@ -100,7 +100,8 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 
     /// <param name="broadcasts">
     /// The world's broadcast schedule (#975, <see cref="InstanceTicker.Broadcasts" />): each instance published takes the
-    /// next slot on it. Without one, every instance starts its broadcast clock at 0.
+    /// slot with the fewest live instances, and frees it when it is removed or expires. Without one, every instance starts
+    /// its broadcast clock at 0.
     /// </param>
     public InstanceRegistry(
         ILoggerFactory loggerFactory,
@@ -391,7 +392,10 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             Untrack(held);
 
         if (_broadcasts is not null)
-            instance.JoinBroadcastSchedule(_broadcasts.NextPhase());
+        {
+            TimeSpan phase = _broadcasts.Join(out int slot);
+            instance.JoinBroadcastSchedule(slot, phase);
+        }
 
         _instances[instance.InstanceId] = instance;
         _tickOrder.Add(instance);
@@ -403,6 +407,13 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     {
         if (_tickOrder.Remove(instance))
             _tickSnapshotStale = true;
+
+        // Its broadcast slot is free for the next instance published (#975), whether or not it ever ticked.
+        if (instance.BroadcastSlot >= 0)
+        {
+            _broadcasts?.Leave(instance.BroadcastSlot);
+            instance.BroadcastSlot = -1;
+        }
     }
 
     /// <summary>
