@@ -150,6 +150,161 @@ public sealed class CreatureSchedulingShould
     }
 
     /// <summary>
+    /// The scheduler against a plain model of the contract (#979), over many creatures answering at random: the next tick
+    /// (zero, or a negative time), a time (short or long, some due on the same tick), an event alone (Infinite, or a time
+    /// too long for the clock); woken before the step, or mid-step by a script running between them (those after it in
+    /// the instance's order run that tick, those before it the next); removed while waiting for a time, and added again;
+    /// under ticks of varying length. After every tick, each creature has run exactly when the model says it must: so the
+    /// timed waits' heap hands back every due creature on its tick and none early, whatever was added and removed.
+    /// </summary>
+    [Fact]
+    public void Run_each_creature_exactly_when_its_answer_and_its_wakes_say()
+    {
+        const int Count = 300, Ticks = 1500;
+        var random = new Random(979);
+        using var world = new ScenarioWorld();
+        MapInstance town = world.AddInstance();
+        world.Join(town, world.NewCharacter(1), TownNavmesh.LoopCentre);
+        var template = new CreatureTemplate { Id = new CreatureTemplateId(1) };
+        var model = new Expected[Count];
+        var creatures = new Creature[Count];
+        bool[] ran = new bool[Count];
+        int meddler = Count / 2;
+
+        TimeSpan RandomAnswer() => random.Next(100) switch
+        {
+            < 25 => TimeSpan.Zero,
+            < 30 => TimeSpan.FromTicks(-random.Next(1, 200_000)),
+            < 38 => Timeout.InfiniteTimeSpan,
+            < 40 => TimeSpan.MaxValue,
+            < 45 => TimeSpan.FromTicks(ScenarioWorld.Dt.Ticks * random.Next(1, 4)),
+            _ => TimeSpan.FromTicks(random.Next(1, 120 * 166_667)),
+        };
+
+        void Meddle()
+        {
+            List<ICreature> order = [.. town.Creatures.Values];
+            int me = order.IndexOf(creatures[meddler]);
+            for (int j = random.Next(4); j > 0; j--)
+            {
+                int other = random.Next(Count);
+                if (other == meddler || !model[other].In)
+                    continue;
+
+                creatures[other].PatrolPath = []; // A wake, as a mod can give from its script.
+                if (order.IndexOf(creatures[other]) > me)
+                    model[other].WokenThisTick = true;
+                else
+                    model[other].WokenNextTick = true;
+            }
+        }
+
+        for (int i = 0; i < Count; i++)
+        {
+            int id = i;
+            creatures[i] = Place(town, (uint)(100 + i), template, TownNavmesh.EntrySpawn, c => new AnsweringScript(c, town, () =>
+            {
+                ran[id] = true;
+                model[id].Ran = town.CreatureClock;
+                model[id].Answer = id == meddler ? TimeSpan.Zero : RandomAnswer();
+                if (id == meddler)
+                    Meddle();
+            }, () => model[id].Answer));
+            model[i] = new Expected { In = true, MustRun = true };
+        }
+
+        for (int tick = 0; tick < Ticks; tick++)
+        {
+            // Before the tick: wakes, removals (some waiting for a time) and creatures added again.
+            for (int j = 0; j < 6; j++)
+            {
+                int other = random.Next(Count);
+                if (other == meddler)
+                    continue;
+
+                int action = random.Next(10);
+                if (action < 6 && model[other].In)
+                {
+                    creatures[other].PatrolPath = [];
+                    model[other].WokenThisTick = true;
+                }
+                else if (action < 8 && model[other].In)
+                {
+                    town.RemoveCreature(creatures[other]);
+                    model[other].In = false;
+                }
+                else if (!model[other].In)
+                {
+                    town.AddCreature(creatures[other]);
+                    model[other] = model[other] with { In = true, MustRun = true };
+                }
+            }
+
+            Array.Clear(ran);
+            world.Tick(TimeSpan.FromTicks(ScenarioWorld.Dt.Ticks + random.Next(-20_000, 20_000)));
+            TimeSpan now = town.CreatureClock;
+            for (int i = 0; i < Count; i++)
+            {
+                ref Expected expected = ref model[i];
+                bool due = expected.In && (expected.MustRun || expected.WokenThisTick || i == meddler
+                                           || DueByAnswer(expected.Last, expected.LastRan, now));
+                Assert.True(ran[i] == due,
+                    $"Tick {tick}, creature {i}: ran {ran[i]}, should have {due} (last answer {expected.Last} at {expected.LastRan}, now {now}, woken {expected.WokenThisTick}, joined {expected.MustRun})");
+
+                expected.MustRun = expected.In && expected.WokenNextTick;
+                expected.WokenNextTick = false;
+                expected.WokenThisTick = false;
+                if (ran[i])
+                {
+                    expected.Last = expected.Answer;
+                    expected.LastRan = expected.Ran;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// The contract on <see cref="AiScript.NextUpdateIn" />: zero or less (but Infinite) is the next tick; Infinite, or a
+    /// time too long for the clock, an event alone; any other time, the first tick at which that much has passed.
+    /// </summary>
+    private static bool DueByAnswer(TimeSpan answer, TimeSpan answeredAt, TimeSpan now)
+    {
+        if (answer == Timeout.InfiniteTimeSpan)
+            return false;
+        if (answer <= TimeSpan.Zero)
+            return true;
+        if (answer >= TimeSpan.MaxValue - answeredAt)
+            return false;
+        return now >= answeredAt + answer;
+    }
+
+    /// <summary>What the model knows of one creature: whether it is in the instance, why it must run, and its last answer.</summary>
+    private record struct Expected
+    {
+        public bool In;
+        public bool MustRun;
+        public bool WokenThisTick;
+        public bool WokenNextTick;
+        public TimeSpan Ran;
+        public TimeSpan Answer;
+        public TimeSpan LastRan;
+        public TimeSpan Last;
+    }
+
+    /// <summary>A script whose Update and answer are the test's.</summary>
+    private sealed class AnsweringScript(ICreature creature, ISimulationContext context, Action update, Func<TimeSpan> answer)
+        : AiScript(creature, context)
+    {
+        public override object State { get; set; } = 0;
+
+        public override TimeSpan NextUpdateIn => answer();
+
+        public override void Update(TimeSpan deltaTime) => update();
+
+        protected override bool ShouldRun() => false;
+    }
+
+    /// <summary>
     /// A subclass of a built-in that does not answer <see cref="AiScript.NextUpdateIn" /> itself is called on every tick
     /// (#979): the built-ins wait only as their own type, so no subclass inherits a wait its own Update may not keep.
     /// Each stands idle, where the built-in itself would wait.
