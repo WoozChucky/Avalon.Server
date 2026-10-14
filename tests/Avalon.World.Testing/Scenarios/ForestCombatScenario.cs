@@ -158,14 +158,17 @@ public sealed class ForestCombatScenario : IScenario
     public FightOutcome Outcome(ScenarioWorld world)
     {
         Fight fight = FightOf(world);
-        int heals = 0, landed = 0;
+        int heals = 0, landed = 0, accepted = 0, credits = 0, completed = 0;
         foreach (LoopFighter fighter in fight.Fighters)
         {
             heals += fighter.Heals;
             landed += fighter.HealsLanded;
+            accepted += fighter.QuestsAccepted;
+            credits += fighter.QuestCredits;
+            completed += fighter.QuestsCompleted;
         }
 
-        return new FightOutcome(Kills(world), heals, landed);
+        return new FightOutcome(Kills(world), heals, landed, accepted, credits, completed);
     }
 
     private Fight FightOf(ScenarioWorld world) =>
@@ -201,4 +204,8 @@ public sealed class ForestCombatScenario : IScenario
 /// <param name="Kills">Creatures killed.</param>
 /// <param name="Heals">Heals the cast handler accepted.</param>
 /// <param name="HealsLanded">Of those, the heals that raised the health of the member they were aimed at.</param>
-public sealed record FightOutcome(int Kills, int Heals, int HealsLanded);
+/// <param name="QuestsAccepted">Kill quests accepted, the first time and again after each completion.</param>
+/// <param name="QuestCredits">Kills the fighters' kill quests counted.</param>
+/// <param name="QuestsCompleted">Kill quests completed, each then abandoned and accepted again.</param>
+public sealed record FightOutcome(int Kills, int Heals, int HealsLanded, int QuestsAccepted, int QuestCredits,
+    int QuestsCompleted);

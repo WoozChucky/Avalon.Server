@@ -28,6 +28,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Pvp;
+using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Testing.Fakes;
 using DotRecast.Detour;
@@ -66,9 +67,11 @@ namespace Avalon.World.Testing.Scenarios;
 /// the loaded script manager (so creatures fight with their AI and casts run their ability scripts), the world itself
 /// (<see cref="IWorld" />, which a creature's AI reads its abilities through), the catalog's chunk library, the aura scripts,
 /// the loot roller and allocator, each roll seeded, and the <see cref="PartyService" /> (<see cref="FormParty" />),
-/// which <see cref="Tick" /> ticks and flushes as the World server does. Its loggers all write to one <see cref="ErrorLog" />: an error logged
-/// while a forest is built or ticked, which the instance contains and goes on without, ends the scenario instead.
-/// Still left out: the periodic save and quests.
+/// which <see cref="Tick" /> ticks and flushes as the World server does, the character economy (<see cref="Economy" />,
+/// over item ids handed out in order) and the <see cref="QuestService" /> (<see cref="Quests" />), which an instance
+/// tells of every kill and <see cref="Tick" /> flushes as the World server does. Its loggers all write to one
+/// <see cref="ErrorLog" />: an error logged while a forest is built or ticked, which the instance contains and goes on
+/// without, ends the scenario instead. Still left out: the periodic save.
 /// </para>
 /// </remarks>
 public sealed class ScenarioWorld : IDisposable
@@ -89,6 +92,9 @@ public sealed class ScenarioWorld : IDisposable
     // Added to the world's seed for the loot rolls, so they are not the combat rolls' own sequence over again.
     private const int LootSeedOffset = 7919;
 
+    // Added to the world's seed for the quest service's drop rolls, for the same reason.
+    private const int QuestSeedOffset = 104729;
+
     private readonly ScenarioWorldHost _world;
     private readonly ScenarioReferenceData? _reference;
     private readonly CombatFormula _formula;
@@ -96,6 +102,7 @@ public sealed class ScenarioWorld : IDisposable
     private readonly PortalPlacementService _portals = new();
     private readonly ServiceProvider _services;
     private readonly PartyService? _parties;
+    private readonly QuestService? _quests;
     private readonly List<MapTemplate> _templates = [];
     private readonly ScenarioInstanceFactory _factory = new();
     private readonly InstanceRegistry _registry;
@@ -155,6 +162,8 @@ public sealed class ScenarioWorld : IDisposable
             // As World attaches it once its registry exists: a party's forest is found through the registry.
             _parties = _services.GetRequiredService<PartyService>();
             _parties.AttachInstances(_registry);
+            _quests = _services.GetRequiredService<QuestService>();
+            Economy = _services.GetRequiredService<ICharacterEconomy>();
 
             _placement = new CreaturePlacementService(new CreatureSpawner(_errorLog, _world), reference.Chunks,
                 reference.SpawnTables, reference.AuthoredSpawns, reference.Scripts, _services, _errorLog);
@@ -194,6 +203,27 @@ public sealed class ScenarioWorld : IDisposable
 
         // Parties (FormParty): an instance reads who shares a kill, its loot and its experience from it.
         services.AddSingleton(new PartyService(Options.Create(configuration), Clock, new Logger<PartyService>(_errorLog)));
+
+        // Items and quests, as production registers them: the economy over item ids handed out in order (so a run's
+        // ids are the same every time), and the quest service, which an instance tells of every kill and Tick flushes.
+        services.AddSingleton<IItemIdAllocator>(new SequentialItemIds());
+        services.AddSingleton<ICharacterEconomy>(provider =>
+            new CharacterEconomy(_world, provider.GetRequiredService<IItemIdAllocator>()));
+        services.AddSingleton(provider => new QuestService(_world, provider,
+            provider.GetRequiredService<ICharacterEconomy>(),
+            new LootRandom(new Random(unchecked(seed + QuestSeedOffset))), Clock, new Logger<QuestService>(_errorLog),
+            provider.GetRequiredService<PartyService>()));
+    }
+
+    /// <summary>
+    /// Item instance ids in the order they are asked for: deterministic, where production's are time-ordered. Built
+    /// from parts, as production's are made, so an id allocates its <see cref="ItemInstanceId" /> and nothing else.
+    /// </summary>
+    private sealed class SequentialItemIds : IItemIdAllocator
+    {
+        private int _next;
+
+        public ItemInstanceId Next() => new(new Guid(++_next, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1));
     }
 
     /// <summary>The world's clock: every instance, character and timer here reads it, and <see cref="Tick" /> advances it.</summary>
@@ -207,6 +237,15 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>The world the instances belong to, as a packet handler is given it: its registry is the real one here.</summary>
     public IWorld Host => _world;
+
+    /// <summary>
+    /// The quest service every instance of a world with reference data tells of its kills, and <see cref="Tick" />
+    /// flushes, as production's; null in a world without reference data. Tick thread only.
+    /// </summary>
+    public QuestService? Quests => _quests;
+
+    /// <summary>The characters' inventories and wallets, as the item and loot handlers are given them; null without reference data.</summary>
+    public ICharacterEconomy? Economy { get; }
 
     /// <summary>Every player's connection, in the order they joined.</summary>
     public IReadOnlyList<ScenarioConnection> Connections => _connections;
@@ -253,10 +292,21 @@ public sealed class ScenarioWorld : IDisposable
             if (_errorLog.First is { } error)
                 throw new InvalidOperationException("A forest instance logged an error during a tick", error);
 
-            // The flushers that need no service, in WorldServer's order after the world update (#875). Nothing a town
-            // scenario does changes an inventory, the stats or the abilities, so there they send nothing, and must
-            // allocate nothing. In a world with reference data a fight can (a level-up, an aura, an ability's per-hit
-            // amount), and they send it as WorldServer would.
+            // The quest flush (a world with reference data has the quest service), before the inventory flush clears the
+            // slot changes its recount reads, then the flushers that need no service, in WorldServer's order after the
+            // world update (#875). Nothing a town scenario does changes an inventory, the stats or the abilities, so
+            // there they send nothing, and must allocate nothing. In a world with reference data a fight can (a
+            // level-up, an aura, an ability's per-hit amount, a quest's progress, a pickup), and they send it as
+            // WorldServer would. Production contains a quest flush's throw per connection and logs it; here it reaches
+            // the error log, or the caller, and ends the scenario.
+            if (_quests is not null)
+            {
+                for (int i = 0; i < _connections.Count; i++)
+                    QuestFlusher.Flush(_connections[i], _quests);
+                if (_errorLog.First is { } questError)
+                    throw new InvalidOperationException("A quest flush logged an error during a tick", questError);
+            }
+
             for (int i = 0; i < _connections.Count; i++)
                 InventoryUpdateFlusher.Flush(_connections[i]);
             for (int i = 0; i < _connections.Count; i++)
@@ -465,6 +515,9 @@ public sealed class ScenarioWorld : IDisposable
     {
         var connection = new ScenarioConnection(character, Scheduler, onUpdateMap);
         _parties?.CharacterOnline(connection);
+
+        // CharacterSelectHandler's quest recount: the log settled against the catalog, nothing owed but the log itself.
+        _quests?.RecountAtSelect(character);
         return connection;
     }
 

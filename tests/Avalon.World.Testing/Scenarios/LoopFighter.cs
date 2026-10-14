@@ -1,15 +1,20 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.World;
+using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.World.Testing.Scenarios;
@@ -103,6 +108,12 @@ public sealed class LoopFighter
     private readonly Vector3Dto _healPoint = new();
     private readonly CCastAbilityPacket? _healPacket;
 
+    // The kill quest: its abandon, the service its accept starts it through, and the kills it had counted at the last step.
+    private readonly QuestAbandonHandler _abandon;
+    private readonly QuestService _quests;
+    private readonly CQuestAbandonPacket _abandonPacket = new() { QuestId = ScenarioReferenceData.KillQuest };
+    private uint _questCounted;
+
     private FightForest? _forest;
     private ICharacter[] _party = [];
     private bool _moved;
@@ -119,6 +130,7 @@ public sealed class LoopFighter
         ArgumentNullException.ThrowIfNull(handlers);
         ArgumentNullException.ThrowIfNull(character);
         (_input, _cast, _clock, _gcdMs) = (handlers.Input, handlers.Cast, handlers.Clock, handlers.GcdMs);
+        (_abandon, _quests) = (handlers.QuestAbandon, handlers.Quests);
         _rng = new Random(seed);
 
         uint abilityId = BasicAbility(character.Class);
@@ -146,15 +158,30 @@ public sealed class LoopFighter
     /// <summary>The accepted heals that raised the health of the party member they were aimed at, in the same call.</summary>
     public int HealsLanded { get; private set; }
 
-    /// <summary>The handlers every fighter of a world shares, over the world's real registry, as production has one of each.</summary>
+    /// <summary>The kill quest accepted, the first time and after every completion.</summary>
+    public int QuestsAccepted { get; private set; }
+
+    /// <summary>The kill quest's kill credit: each kill it counted, on either objective.</summary>
+    public int QuestCredits { get; private set; }
+
+    /// <summary>The kill quest completed (ready to hand in), each then abandoned and accepted again.</summary>
+    public int QuestsCompleted { get; private set; }
+
+    /// <summary>
+    /// The handlers every fighter of a world shares, over the world's real registry and services, as production has one
+    /// of each. The world must have reference data (its quest service).
+    /// </summary>
     public static FighterHandlers Handlers(ScenarioWorld world)
     {
         ArgumentNullException.ThrowIfNull(world);
+        QuestService quests = world.Quests
+                              ?? throw new ArgumentException("A fighter's world needs reference data (its quest service)", nameof(world));
         var combat = new CombatConfig();
         return new FighterHandlers(
             new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world.Host),
             new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world.Host, combat, world.Clock),
-            world.Clock, combat.GcdMs);
+            new QuestAbandonHandler(quests, NullLogger<QuestAbandonHandler>.Instance),
+            quests, world.Clock, combat.GcdMs);
     }
 
     /// <summary>The class's basic ability: no cost, a 0.8 s cooldown.</summary>
@@ -186,6 +213,8 @@ public sealed class LoopFighter
 
             return;
         }
+
+        KeepQuest(connection);
 
         ICreature? target = forest.NearestLive(character.Position);
         if (target is null)
@@ -235,6 +264,62 @@ public sealed class LoopFighter
     {
         _forest = forest ?? throw new ArgumentNullException(nameof(forest));
         _party = party ?? throw new ArgumentNullException(nameof(party));
+    }
+
+    /// <summary>
+    /// The kill quest (<see cref="ScenarioReferenceData.KillQuest" />): accepted when the fighter does not hold it, and
+    /// once it is ready to hand in, abandoned through the real <see cref="QuestAbandonHandler" /> and accepted again, as
+    /// a player farming it would without walking back to town. Its kill credit comes from the instance, on every kill
+    /// the party shares; what it has counted is read here.
+    /// </summary>
+    /// <remarks>
+    /// The accept goes through <see cref="QuestService.StartFromItem" />, not <see cref="QuestAcceptHandler" />: the
+    /// handler's <see cref="QuestService.Accept" /> requires an open conversation with the quest's giver within the
+    /// dialogue leash, and no forest holds a quest giver. <c>StartFromItem</c> runs the same start as an accept
+    /// (availability, then stage 0, every count 0, the line, the hooks and the settle) without the conversation and
+    /// without re-sending the giver's dialogue; it is answered, as the handler answers, by <see cref="QuestReplies" />
+    /// (one SMSG_QUEST_RESULT), with a closure per request as the handler's.
+    /// </remarks>
+    private void KeepQuest(ScenarioConnection connection)
+    {
+        if (connection.Character is not CharacterEntity character)
+            return;
+
+        ActiveQuest? held = character.Quests.Get(ScenarioReferenceData.KillQuest);
+        if (held is not null)
+        {
+            uint counted = held.ProgressOf(ScenarioReferenceData.KillQuestBoars)
+                           + held.ProgressOf(ScenarioReferenceData.KillQuestWolves);
+            if (counted > _questCounted)
+                QuestCredits += (int)(counted - _questCounted);
+            _questCounted = counted;
+
+            if (held.State != CharacterQuestState.ReadyToTurnIn)
+                return;
+
+            QuestsCompleted++;
+            _abandon.Execute(connection, _abandonPacket);
+            _questCounted = 0;
+            if (character.Quests.IsActive(ScenarioReferenceData.KillQuest))
+                throw new InvalidOperationException($"{character.Name} could not abandon the kill quest");
+        }
+
+        AcceptQuest(connection);
+        if (!character.Quests.IsActive(ScenarioReferenceData.KillQuest))
+            throw new InvalidOperationException($"{character.Name} could not accept the kill quest");
+        QuestsAccepted++;
+    }
+
+    /// <summary>
+    /// The accept, as <see cref="QuestAcceptHandler" /> shapes it: one closure over the request per accept. A method of
+    /// its own, so the closure is made only when a quest is accepted: in <see cref="KeepQuest" /> the compiler would make
+    /// it on every call, at the top of the method, before the early returns.
+    /// </summary>
+    private void AcceptQuest(ScenarioConnection connection)
+    {
+        QuestService quests = _quests;
+        QuestReplies.Handle(connection, NullLogger.Instance, NetworkPacketType.CMSG_QUEST_ACCEPT,
+            ScenarioReferenceData.KillQuest, c => quests.StartFromItem(c, ScenarioReferenceData.KillQuest));
     }
 
     /// <summary>
@@ -338,8 +423,9 @@ public sealed class LoopFighter
     }
 }
 
-/// <summary>The packet handlers and the clock every <see cref="LoopFighter" /> of a world shares.</summary>
-public sealed record FighterHandlers(PlayerInputHandler Input, CastAbilityHandler Cast, TimeProvider Clock, double GcdMs);
+/// <summary>The packet handlers, services and clock every <see cref="LoopFighter" /> of a world shares.</summary>
+public sealed record FighterHandlers(PlayerInputHandler Input, CastAbilityHandler Cast, QuestAbandonHandler QuestAbandon,
+    QuestService Quests, TimeProvider Clock, double GcdMs);
 
 /// <summary>
 /// A forest as its fighters see it: the instance, its entry, and its creatures as the forest was built with them, which
