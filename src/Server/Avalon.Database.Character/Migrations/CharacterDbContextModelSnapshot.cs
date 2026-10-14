@@ -17,7 +17,7 @@ namespace Avalon.Database.Character.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -64,8 +64,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<int>("ChosenTitle")
                         .HasColumnType("integer");
 
-                    b.Property<int>("Class")
-                        .HasColumnType("integer");
+                    b.Property<byte>("Class")
+                        .HasColumnType("smallint");
 
                     b.Property<DateTime>("CreationDate")
                         .HasColumnType("timestamp with time zone");
@@ -307,8 +307,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<byte>("Container")
                         .HasColumnType("smallint");
 
-                    b.Property<int>("Slot")
-                        .HasColumnType("integer");
+                    b.Property<byte>("Slot")
+                        .HasColumnType("smallint");
 
                     b.Property<Guid>("ItemId")
                         .HasColumnType("uuid");

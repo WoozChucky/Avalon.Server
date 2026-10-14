@@ -21,7 +21,7 @@ public class VendorTradeShould
     private static VendorTrade Trade(CharacterEntity character, ulong maxMoney = 1_000_000) =>
         new(character, TestCharacters.InventoryFor(character, Find), new CharacterWallet(character, maxMoney), Find, maxMoney);
 
-    private static InventoryItem At(CharacterEntity character, ushort slot) =>
+    private static InventoryItem At(CharacterEntity character, byte slot) =>
         TestCharacters.At(character, InventoryType.Bag, slot);
 
     [Fact]
@@ -48,8 +48,8 @@ public class VendorTradeShould
         Assert.Equal(SaveState.New, character.SaveState.ItemState(bought.InstanceId));
         Assert.Equal(SaveState.New, character.SaveState.SlotState(InventoryType.Bag, 1));
         Assert.True(character.ClientChanges.MoneyChanged);
-        Assert.Contains((InventoryType.Bag, (ushort)0), character.ClientChanges.Slots);
-        Assert.Contains((InventoryType.Bag, (ushort)1), character.ClientChanges.Slots);
+        Assert.Contains((InventoryType.Bag, (byte)0), character.ClientChanges.Slots);
+        Assert.Contains((InventoryType.Bag, (byte)1), character.ClientChanges.Slots);
         // A stock change reaches open shops through the stock state, not the buyer's flag.
         Assert.False(character.VendorListOwed);
     }
@@ -106,7 +106,7 @@ public class VendorTradeShould
         Assert.Equal(SaveState.Changed, character.SaveState.ItemState(tonics.InstanceId));
         InventoryItem copy = Assert.Single(character.Buyback.Entries).Item;
         Assert.NotEqual(tonics.InstanceId, copy.InstanceId);
-        Assert.Equal((2u, (ushort)2, Tonic.Id), (copy.Count, copy.Slot, copy.TemplateId));
+        Assert.Equal((2u, (byte)2, Tonic.Id), (copy.Count, copy.Slot, copy.TemplateId));
         Assert.Equal(8UL, character.Buyback.Entries[0].Price);
     }
 
@@ -220,7 +220,7 @@ public class VendorTradeShould
         bool charmPlaced = bank.Count > 0;
         List<InventoryItem> bag = [];
 
-        for (ushort slot = 0; slot < 30; slot++)
+        for (byte slot = 0; slot < 30; slot++)
         {
             if (random.NextDouble() >= fill)
                 continue;

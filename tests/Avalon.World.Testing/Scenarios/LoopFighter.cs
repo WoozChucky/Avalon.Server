@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abilities;
@@ -9,7 +10,6 @@ using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.World.Testing.Scenarios;

@@ -9,7 +9,7 @@ namespace Avalon.World.Public.Characters;
 /// Avalon.World.Public does not reference the domain.
 /// </summary>
 public readonly record struct InventoryItem(
-    ushort Slot,
+    byte Slot,
     ItemInstanceId InstanceId,
     ItemTemplateId TemplateId,
     uint Count,

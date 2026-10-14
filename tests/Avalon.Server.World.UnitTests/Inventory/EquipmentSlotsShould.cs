@@ -19,7 +19,7 @@ public class EquipmentSlotsShould
     [InlineData(8, ItemSlotType.Finger)]
     [InlineData(9, ItemSlotType.MainHand)]
     [InlineData(10, ItemSlotType.OffHand)]
-    public void Map_Each_Slot_To_The_Item_Slot_Type_It_Holds(ushort slot, ItemSlotType type)
+    public void Map_Each_Slot_To_The_Item_Slot_Type_It_Holds(byte slot, ItemSlotType type)
     {
         Assert.Equal(type, EquipmentSlots.TypeOf(slot));
         Assert.True(EquipmentSlots.Accepts(slot, type));
@@ -30,11 +30,10 @@ public class EquipmentSlotsShould
     [InlineData(0u, 5u, true)]
     [InlineData(2u, 29u, true)]
     [InlineData(3u, 0u, false)]
-    [InlineData(1u, 70000u, false)]
-    public void Read_A_Slot_Off_The_Wire_Only_When_It_Can_Name_One(uint container, uint slot, bool readable)
+    public void Read_A_Slot_Off_The_Wire_Only_When_It_Can_Name_One(uint container, byte slot, bool readable)
     {
         Assert.Equal(readable, SlotRef.TryParse((InventoryType)container, slot, out SlotRef parsed));
         if (readable)
-            Assert.Equal(new SlotRef((InventoryType)container, (ushort)slot), parsed);
+            Assert.Equal(new SlotRef((InventoryType)container, (byte)slot), parsed);
     }
 }

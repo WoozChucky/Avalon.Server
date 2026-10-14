@@ -606,12 +606,12 @@ public class CharacterSelectChainShould : IDisposable
         };
     }
 
-    private void GiveTheCharacter(params (InventoryType Container, ushort Slot, ulong Template)[] items)
+    private void GiveTheCharacter(params (InventoryType Container, byte Slot, ulong Template)[] items)
     {
         var rows = new List<CharacterInventory>();
         var instances = new List<ItemInstance>();
 
-        foreach ((InventoryType container, ushort slot, ulong template) in items)
+        foreach ((InventoryType container, byte slot, ulong template) in items)
         {
             var id = new ItemInstanceId(Guid.NewGuid());
             rows.Add(new CharacterInventory

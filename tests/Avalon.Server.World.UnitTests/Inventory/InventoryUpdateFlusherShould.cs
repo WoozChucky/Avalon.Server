@@ -48,7 +48,7 @@ public class InventoryUpdateFlusherShould
         SInventoryUpdatePacket update = Read(Assert.Single(_sent));
         InventorySlotUpdateDto slot = Assert.Single(update.Slots);
         Assert.Equal(InventoryType.Bag, slot.Container);
-        Assert.Equal((ushort)0, slot.Slot);
+        Assert.Equal((byte)0, slot.Slot);
         Assert.Equal(5u, slot.Item!.Count);
         Assert.Equal(Potion.Id.Value, slot.Item.ItemTemplateId);
         Assert.Null(update.Money);
@@ -132,7 +132,7 @@ public class InventoryUpdateFlusherShould
         SInventoryUpdatePacket update = Read(Assert.Single(_sent));
         Assert.Equal(2, update.Slots.Length);
         InventorySlotUpdateDto bank = update.Slots.Single(s => s.Container == InventoryType.Bank);
-        Assert.Equal((ushort)4, bank.Slot);
+        Assert.Equal((byte)4, bank.Slot);
         Assert.Null(bank.Item);
     }
 
@@ -169,12 +169,12 @@ public class InventoryUpdateFlusherShould
         connection.CurrentDialogue = (banker, new DialogueNodeId(1));
         character.OpenBankNpc = banker;
 
-        (InventoryType Container, ushort Slot)[] touched =
+        (InventoryType Container, byte Slot)[] touched =
         [
             (InventoryType.Bank, 2), (InventoryType.Bag, 11), (InventoryType.Equipment, 9), (InventoryType.Bag, 29),
             (InventoryType.Bank, 0), (InventoryType.Bag, 3), (InventoryType.Equipment, 1),
         ];
-        foreach ((InventoryType container, ushort slot) in touched)
+        foreach ((InventoryType container, byte slot) in touched)
             character.ClientChanges.RecordSlot(container, slot);
         InventoryUpdateFlusher.Flush(connection);
 

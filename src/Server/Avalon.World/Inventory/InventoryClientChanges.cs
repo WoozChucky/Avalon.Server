@@ -10,22 +10,22 @@ namespace Avalon.World.Inventory;
 /// </summary>
 public sealed class InventoryClientChanges
 {
-    private readonly HashSet<(InventoryType Container, ushort Slot)> _slots = [];
+    private readonly HashSet<(InventoryType Container, byte Slot)> _slots = [];
 
     public bool MoneyChanged { get; private set; }
 
     public bool HasChanges => _slots.Count > 0 || MoneyChanged;
 
-    public IReadOnlyCollection<(InventoryType Container, ushort Slot)> Slots => _slots;
+    public IReadOnlyCollection<(InventoryType Container, byte Slot)> Slots => _slots;
 
     /// <summary>
     /// Walks the touched slots, in no particular order: <c>foreach</c> over the changes themselves. The tick's
     /// flushers walk them this way, because a <c>foreach</c> over <see cref="Slots" />, an interface, allocates the
     /// set's enumerator (#883).
     /// </summary>
-    public HashSet<(InventoryType Container, ushort Slot)>.Enumerator GetEnumerator() => _slots.GetEnumerator();
+    public HashSet<(InventoryType Container, byte Slot)>.Enumerator GetEnumerator() => _slots.GetEnumerator();
 
-    public void RecordSlot(InventoryType container, ushort slot) => _slots.Add((container, slot));
+    public void RecordSlot(InventoryType container, byte slot) => _slots.Add((container, slot));
 
     public void RecordMoney() => MoneyChanged = true;
 

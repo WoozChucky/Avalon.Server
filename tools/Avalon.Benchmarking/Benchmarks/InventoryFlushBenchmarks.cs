@@ -7,7 +7,6 @@ using Avalon.Network.Packets.Serialization;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Testing.Fakes;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -45,7 +44,7 @@ public class InventoryFlushBenchmarks
         _character = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration()) { Data = row };
 
         var held = new InventoryItem[Slots];
-        for (ushort slot = 0; slot < Slots; slot++)
+        for (byte slot = 0; slot < Slots; slot++)
         {
             held[slot] = new InventoryItem(slot, new ItemInstanceId(Guid.CreateVersion7()), new ItemTemplateId(1), 5, 0,
                 ItemInstanceFlags.None);
@@ -89,7 +88,7 @@ public class InventoryFlushBenchmarks
 
         // Highest slot first, so the ordering has something to do.
         for (int slot = Slots - 1; slot >= 0; slot--)
-            changes.RecordSlot(InventoryType.Bag, (ushort)slot);
+            changes.RecordSlot(InventoryType.Bag, (byte)slot);
     }
 
     private static InventorySlotUpdateDto[] Query(InventoryClientChanges changes, CharacterEntity character,

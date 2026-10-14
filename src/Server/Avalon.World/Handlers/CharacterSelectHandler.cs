@@ -552,7 +552,7 @@ public class CharacterSelectHandler(
             CharacterId = character.Id,
             Name = character.Name,
             Level = character.Level,
-            Class = (ushort)character.Class,
+            Class = character.Class,
             X = spawnX,
             Y = spawnY,
             Z = spawnZ,

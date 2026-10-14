@@ -1,8 +1,8 @@
+using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
-using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Server.World.UnitTests.Seeding;
@@ -143,7 +143,7 @@ public class DialogueSeedShould
         var named = context.CharacterClassNames.AsNoTracking().ToList()
             .Select(n => n.Class).ToHashSet();
 
-        var missing = Enum.GetValues<CharacterClass>()
+        var missing = CharacterClasses.Playable
             .Where(c => !named.Contains(c)).ToList();
 
         Assert.True(missing.Count == 0,

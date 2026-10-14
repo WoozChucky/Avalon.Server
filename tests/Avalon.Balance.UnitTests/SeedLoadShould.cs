@@ -1,9 +1,9 @@
 using Avalon.Balance.Core;
 using Avalon.Balance.Data;
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 using Xunit;
 
 namespace Avalon.Balance.UnitTests;

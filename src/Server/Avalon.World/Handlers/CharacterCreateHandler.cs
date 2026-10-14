@@ -11,7 +11,6 @@ using Avalon.Network.Packets.Serialization;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -25,7 +24,8 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         if (connection.AccountId is null || connection.Character is not null || connection.PendingSpawn is not null ||
             connection.SelectInProgress || connection.LeaveInProgress || connection.IsClosing)
         { connection.Close(); return; }
-        if (packet.Gender is < byte.MinValue or > byte.MaxValue || !Enum.IsDefined((CharacterGender)(byte)packet.Gender))
+        // A protobuf enum member carries any number that fits it, so the class (None included) and gender are checked here.
+        if (!CharacterClasses.IsPlayable(packet.Class) || !Enum.IsDefined(packet.Gender))
         { Answer(connection, SCharacterCreateResult.InvalidClass); return; }
         CharacterNameProblem nameProblem = CharacterName.Check(packet.Name);
         if (nameProblem != CharacterNameProblem.None)
@@ -39,8 +39,8 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         }
         if (connection.GameplayAuthority is not { } authority || authority.AccountId != connection.AccountId)
         { connection.Close(); return; }
-        CharacterCreateInfo? createInfo = world.Data.CharacterCreateInfos.FirstOrDefault(c => c.Class == (CharacterClass)packet.Class);
-        ClassLevelStat? level = world.Data.ClassLevelStats.FirstOrDefault(c => c.Class == (CharacterClass)packet.Class && c.Level == 1);
+        CharacterCreateInfo? createInfo = world.Data.CharacterCreateInfos.FirstOrDefault(c => c.Class == packet.Class);
+        ClassLevelStat? level = world.Data.ClassLevelStats.FirstOrDefault(c => c.Class == packet.Class && c.Level == 1);
         if (createInfo is null || level is null) { Answer(connection, SCharacterCreateResult.InternalDatabaseError); return; }
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], world.Data.Combat.Factors[createInfo.Class]);
         var row = new Character
@@ -49,7 +49,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             Name = CharacterName.Display(packet.Name),
             Level = level.Level,
             Class = createInfo.Class,
-            Gender = (CharacterGender)(byte)packet.Gender,
+            Gender = packet.Gender,
             X = createInfo.X,
             Y = createInfo.Y,
             Z = createInfo.Z,
@@ -75,7 +75,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
                 Durability = ItemInstanceDefaults.InitialDurability(template),
                 UpdatedAt = DateTime.UtcNow
             };
-            items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (ushort)(slots.Count) });
+            items.Add(item); slots.Add(new() { ItemId = item.Id, Container = InventoryType.Bag, Slot = (byte)(slots.Count) });
         }
         var batch = new CharacterCreationBatch(row, stats.ToRow(new(0)),
             createInfo.StartingSpells.Select(id => new CharacterAbility { AbilityId = id }).ToArray(), items, slots);

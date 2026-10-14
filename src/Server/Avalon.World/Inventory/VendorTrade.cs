@@ -46,7 +46,7 @@ public sealed class VendorTrade(
     /// Takes the item out, pays for it, and puts what left (the instance, or for a partial sale a
     /// copy with a new id) at the front of the buyback list.
     /// </summary>
-    public VendorResult TrySell(bool shopOpen, uint bagSlot, uint? count)
+    public VendorResult TrySell(bool shopOpen, byte bagSlot, uint? count)
     {
         SellDecision decision = VendorRules.DecideSell(owner, shopOpen, bagSlot, count, findTemplate, maxMoney);
         if (decision.Plan is not { } plan)

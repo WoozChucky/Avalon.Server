@@ -161,7 +161,7 @@ public class RepositoryWritePathShould
             {
                 CharacterId = owner.Id,
                 Container = InventoryType.Bag,
-                Slot = (ushort)index,
+                Slot = (byte)index,
                 ItemId = item.Id,
             })
             .ToList());

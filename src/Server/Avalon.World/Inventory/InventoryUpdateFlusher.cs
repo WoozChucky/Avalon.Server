@@ -49,7 +49,7 @@ public static class InventoryUpdateFlusher
         bool bankOpen)
     {
         int count = 0;
-        foreach ((InventoryType container, ushort _) in changes)
+        foreach ((InventoryType container, byte _) in changes)
         {
             if (bankOpen || container != InventoryType.Bank)
                 count++;
@@ -60,7 +60,7 @@ public static class InventoryUpdateFlusher
 
         var slots = new InventorySlotUpdateDto[count];
         int next = 0;
-        foreach ((InventoryType container, ushort slot) in changes)
+        foreach ((InventoryType container, byte slot) in changes)
         {
             if (!bankOpen && container == InventoryType.Bank)
                 continue;

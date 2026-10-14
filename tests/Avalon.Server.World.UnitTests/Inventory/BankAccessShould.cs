@@ -108,7 +108,7 @@ public class BankAccessShould
 
         Assert.Equal(30, snapshot.Length);
         Assert.All(snapshot, s => Assert.Equal(InventoryType.Bank, s.Container));
-        Assert.Equal(Enumerable.Range(0, 30).Select(i => (ushort)i), snapshot.Select(s => s.Slot));
+        Assert.Equal(Enumerable.Range(0, 30).Select(i => (byte)i), snapshot.Select(s => s.Slot));
         Assert.Equal(7u, snapshot[2].Item!.Count);
         Assert.Equal(29, snapshot.Count(s => s.Item is null));
     }

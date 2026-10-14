@@ -66,7 +66,7 @@ public static class QuestTurnInRules
     /// Whether every reward fits, taken together and in order, as IInventoryService.TryAdd would place them: into
     /// partial stacks of the template first, then one free slot per new stack.
     /// </summary>
-    public static bool Fits(IReadOnlyDictionary<ushort, InventoryItem> bag, ushort capacity,
+    public static bool Fits(IReadOnlyDictionary<byte, InventoryItem> bag, byte capacity,
         IReadOnlyList<(ItemTemplate Template, uint Count)> rewards)
     {
         long free = capacity - bag.Count;

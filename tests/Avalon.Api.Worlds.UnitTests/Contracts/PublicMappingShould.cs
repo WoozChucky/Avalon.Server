@@ -1,10 +1,10 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Enums;
 using Xunit;
 using DomainFlags = Avalon.Domain.World.ItemTemplateFlags;
 

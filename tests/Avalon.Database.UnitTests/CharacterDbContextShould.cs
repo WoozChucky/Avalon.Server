@@ -5,7 +5,6 @@ using Avalon.Database.Character.Migrations;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
@@ -99,7 +98,7 @@ public class CharacterDbContextShould
 
         CharacterInventory slot = await read.CharacterInventory.AsNoTracking().SingleAsync();
         Assert.Equal(itemId, slot.ItemId);
-        Assert.Equal((ushort)3, slot.Slot);
+        Assert.Equal((byte)3, slot.Slot);
     }
 
     [Fact]
@@ -154,7 +153,7 @@ public class CharacterDbContextShould
             await write.SaveChangesAsync();
             (owner, other) = (deleted.Id, kept.Id);
 
-            foreach ((CharacterId holder, ushort slot) in new[] { (owner, (ushort)0), (owner, (ushort)1), (other, (ushort)0) })
+            foreach ((CharacterId holder, byte slot) in new[] { (owner, (byte)0), (owner, (byte)1), (other, (byte)0) })
             {
                 var itemId = new ItemInstanceId(Guid.CreateVersion7());
                 write.ItemInstances.Add(new ItemInstance

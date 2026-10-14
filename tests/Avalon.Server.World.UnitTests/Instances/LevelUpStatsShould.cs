@@ -13,7 +13,6 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Instances;

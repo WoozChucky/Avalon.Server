@@ -46,12 +46,12 @@ public class ItemUseServiceShould : IAsyncLifetime
 
     [Theory]
     [InlineData(InventoryType.Bag, 3u)]     // empty
-    [InlineData(InventoryType.Bag, 400u)]   // out of range
+    [InlineData(InventoryType.Bag, 255u)]   // out of range
     [InlineData(InventoryType.Bank, 0u)]    // the Bank: only Bag and Equipment items are used
     [InlineData(InventoryType.Equipment, 0u)]   // an empty equipment slot
     [InlineData(InventoryType.Equipment, 11u)]  // a reserved equipment slot
     [InlineData((InventoryType)9, 0u)]                          // no such container
-    public void Answer_NotFound_for_a_slot_that_holds_nothing_usable(InventoryType container, uint slot)
+    public void Answer_NotFound_for_a_slot_that_holds_nothing_usable(InventoryType container, byte slot)
     {
         _w.Bag(Item(0, Tonic, count: 5));
 

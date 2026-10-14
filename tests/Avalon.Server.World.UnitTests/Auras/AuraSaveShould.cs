@@ -10,7 +10,6 @@ using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Persistence;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;

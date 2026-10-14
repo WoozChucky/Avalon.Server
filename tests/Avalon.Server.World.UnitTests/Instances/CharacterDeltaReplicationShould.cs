@@ -160,8 +160,8 @@ public class CharacterDeltaReplicationShould
             Assert.Equal(250ul, revived.RequiredExperience);
             Assert.True(revived.PvpEnabled);
             Assert.Equal(character.Name, revived.Name);
-            Assert.Equal((uint)character.Class, revived.Class);
-            Assert.Equal((uint)character.Gender, revived.Gender);
+            Assert.Equal(character.Class, revived.Class);
+            Assert.Equal(character.Gender, revived.Gender);
             ClearPackets(recipient);
         }
         character.Data.PvpEnabled = false;

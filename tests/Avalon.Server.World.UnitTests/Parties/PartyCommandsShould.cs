@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Chat;
 using Avalon.World.Chat;
 using Avalon.World.Parties;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Server.World.UnitTests.Parties;
 
@@ -176,9 +176,9 @@ public class PartyCommandsShould
 
         Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, "/p heal up");
 
-        Assert.Equal((ushort)CharacterClass.Healer,
+        Assert.Equal(CharacterClass.Healer,
             Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
-        Assert.Equal((ushort)CharacterClass.Healer,
+        Assert.Equal(CharacterClass.Healer,
             Assert.Single(a.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
     }
 }

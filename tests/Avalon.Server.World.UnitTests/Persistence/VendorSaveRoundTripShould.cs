@@ -166,7 +166,7 @@ public sealed class VendorSaveRoundTripShould : IDisposable
         Assert.Contains(snapshot.Batch.UpsertItems, i => i.Id == blade.InstanceId);
         Assert.DoesNotContain(blade.InstanceId, snapshot.Batch.DeleteItems);
         Assert.Contains(snapshot.Batch.UpsertSlots, s => s.Slot == 0 && s.ItemId == blade.InstanceId);
-        Assert.DoesNotContain((InventoryType.Bag, (ushort)0), snapshot.Batch.DeleteSlots);
+        Assert.DoesNotContain((InventoryType.Bag, (byte)0), snapshot.Batch.DeleteSlots);
         await _saves.WriteAsync([snapshot.Batch]);
         character.SaveState.Acknowledge(snapshot.Marks);
 

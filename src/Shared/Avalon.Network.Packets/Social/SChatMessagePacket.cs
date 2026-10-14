@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
@@ -27,16 +28,16 @@ public class SChatMessagePacket : Packet
     [ProtoMember(7)] public string? TargetName { get; set; }
 
     /// <summary>
-    /// The sending character's class (#763), as <c>CharacterClass</c>, so the client can colour the name in
-    /// <see cref="CharacterName" />: set on said, party and whispered lines, the whisper's echo included, since that
-    /// name is the sender's there too. 0 on a line no character sent (a System line, a script's whisper), and a
-    /// payload from before it existed reads as 0.
+    /// The sending character's class (#763), so the client can colour the name in <see cref="CharacterName" />: set on
+    /// said, party and whispered lines, the whisper's echo included, since that name is the sender's there too.
+    /// <see cref="Avalon.Common.CharacterClass.None" /> (0) on a line no character sent (a System line, a script's
+    /// whisper), and a payload from before it existed reads as None.
     /// </summary>
-    [ProtoMember(8)] public ushort CharacterClass { get; set; }
+    [ProtoMember(8)] public CharacterClass CharacterClass { get; set; }
 
     public static OutboundPacket Create(ulong accountId, ulong characterId, string characterName, string message,
         DateTime dateTime, PacketEncoder encoder, ChatChannel channel = ChatChannel.Say, string? targetName = null,
-        ushort characterClass = 0)
+        CharacterClass characterClass = CharacterClass.None)
     {
         SChatMessagePacket packet = PacketEncoder.Scratch<SChatMessagePacket>();
         packet.AccountId = accountId;

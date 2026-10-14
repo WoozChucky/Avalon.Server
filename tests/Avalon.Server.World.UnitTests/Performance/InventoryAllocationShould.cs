@@ -112,7 +112,7 @@ public class InventoryAllocationShould
         Assert.Equal(2 * 4 * Rounds, _connection.Sent);
     }
 
-    private static CItemMovePacket Move(uint from, uint to) => new()
+    private static CItemMovePacket Move(byte from, byte to) => new()
     {
         RequestId = 7,
         FromContainer = InventoryType.Bag,

@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;

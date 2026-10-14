@@ -7,5 +7,5 @@ public interface ICharacterInventory
 
     IReadOnlyCollection<InventoryItem> Items { get; }
 
-    bool TryGet(ushort slot, out InventoryItem item);
+    bool TryGet(byte slot, out InventoryItem item);
 }

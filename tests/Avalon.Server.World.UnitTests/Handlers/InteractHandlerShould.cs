@@ -12,7 +12,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
 using Microsoft.Extensions.Logging.Abstractions;

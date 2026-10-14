@@ -213,7 +213,7 @@ internal sealed class VendorWorld
         return shopper.Results()[^1].Result;
     }
 
-    public VendorResult Sell(Shopper shopper, uint request, uint bagSlot, uint? count = null)
+    public VendorResult Sell(Shopper shopper, uint request, byte bagSlot, uint? count = null)
     {
         new VendorSellHandler(NullLogger<VendorSellHandler>.Instance, World, Economy).Execute(
             shopper.Connection, new CVendorSellPacket { RequestId = request, BagSlot = bagSlot, Count = count });

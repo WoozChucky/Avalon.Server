@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
@@ -5,7 +6,6 @@ using Avalon.Network.Packets.Auras;
 using Avalon.Server.World.UnitTests.Combat;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
-using Avalon.World.Public.Enums;
 using Avalon.World.Testing;
 
 namespace Avalon.Server.World.UnitTests.Auras;

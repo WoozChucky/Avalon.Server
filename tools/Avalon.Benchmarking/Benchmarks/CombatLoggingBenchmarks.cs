@@ -1,10 +1,10 @@
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Combat;
-using Avalon.World.Public.Enums;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

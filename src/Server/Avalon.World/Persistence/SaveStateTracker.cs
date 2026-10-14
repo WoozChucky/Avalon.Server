@@ -24,7 +24,7 @@ public readonly record struct SaveMark(SaveState State, long Version);
 /// </summary>
 public sealed record SaveMarks(
     IReadOnlyDictionary<ItemInstanceId, SaveMark> Items,
-    IReadOnlyDictionary<(InventoryType Container, ushort Slot), SaveMark> Slots,
+    IReadOnlyDictionary<(InventoryType Container, byte Slot), SaveMark> Slots,
     long? MoneyVersion,
     long? StatsVersion = null,
     long? PvpVersion = null,
@@ -39,7 +39,7 @@ public sealed record SaveMarks(
 public sealed class SaveStateTracker
 {
     private readonly Dictionary<ItemInstanceId, SaveMark> _items = [];
-    private readonly Dictionary<(InventoryType Container, ushort Slot), SaveMark> _slots = [];
+    private readonly Dictionary<(InventoryType Container, byte Slot), SaveMark> _slots = [];
     private readonly Dictionary<uint, SaveMark> _quests = [];
     private readonly Dictionary<uint, SaveMark> _ignores = [];
     private long _version;
@@ -65,7 +65,7 @@ public sealed class SaveStateTracker
     public SaveState ItemState(ItemInstanceId id) =>
         _items.TryGetValue(id, out SaveMark mark) ? mark.State : SaveState.Unchanged;
 
-    public SaveState SlotState(InventoryType container, ushort slot) =>
+    public SaveState SlotState(InventoryType container, byte slot) =>
         _slots.TryGetValue((container, slot), out SaveMark mark) ? mark.State : SaveState.Unchanged;
 
     public void ItemCreated(ItemInstanceId id) => _items[id] = new SaveMark(SaveState.New, ++_version);
@@ -83,7 +83,7 @@ public sealed class SaveStateTracker
     /// </summary>
     public void ItemRemoved(ItemInstanceId id) => _items[id] = new SaveMark(SaveState.Removed, ++_version);
 
-    public void SlotChanged(InventoryType container, ushort slot, bool occupiedBefore, bool occupiedAfter)
+    public void SlotChanged(InventoryType container, byte slot, bool occupiedBefore, bool occupiedAfter)
     {
         SaveState? next = SlotState(container, slot) switch
         {
@@ -138,7 +138,7 @@ public sealed class SaveStateTracker
     /// <summary>A copy of every non-Unchanged entry. Later changes do not reach it.</summary>
     public SaveMarks TakeMarks() => new(
         new Dictionary<ItemInstanceId, SaveMark>(_items),
-        new Dictionary<(InventoryType Container, ushort Slot), SaveMark>(_slots),
+        new Dictionary<(InventoryType Container, byte Slot), SaveMark>(_slots),
         MoneyDirty ? _moneyVersion : null,
         StatsDirty ? _statsVersion : null,
         PvpDirty ? _pvpVersion : null,
@@ -158,7 +158,7 @@ public sealed class SaveStateTracker
                 _items.Remove(id);
         }
 
-        foreach (((InventoryType Container, ushort Slot) key, SaveMark mark) in marks.Slots)
+        foreach (((InventoryType Container, byte Slot) key, SaveMark mark) in marks.Slots)
         {
             if (_slots.TryGetValue(key, out SaveMark current) && current.Version == mark.Version)
                 _slots.Remove(key);

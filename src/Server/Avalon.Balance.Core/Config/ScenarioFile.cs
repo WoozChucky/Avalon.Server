@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Avalon.Common;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.Balance.Core;

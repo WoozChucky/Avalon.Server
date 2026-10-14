@@ -314,7 +314,7 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         CharacterInventory slot = Assert.Single(await StoredSlotsAsync(7));
-        Assert.Equal((ushort)6, slot.Slot);
+        Assert.Equal((byte)6, slot.Slot);
         Assert.Equal(potion.InstanceId, slot.ItemId);
         Assert.Equal(5u, (await StoredItemAsync(potion.InstanceId))!.Count);
     }
@@ -376,7 +376,7 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.True(await Saver().Save(_connection, character).WaitAsync(s_limit));
 
         CharacterInventory slot = Assert.Single(await StoredSlotsAsync(7));
-        Assert.Equal((InventoryType.Bag, (ushort)0, sword.InstanceId), (slot.Container, slot.Slot, slot.ItemId));
+        Assert.Equal((InventoryType.Bag, (byte)0, sword.InstanceId), (slot.Container, slot.Slot, slot.ItemId));
         Assert.Null(await StoredItemAsync(potion.InstanceId));
         Assert.NotNull(await StoredItemAsync(sword.InstanceId));
     }

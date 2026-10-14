@@ -69,7 +69,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         ItemInstance potion = Item(row.Id, count: 5);
         await _saves.WriteAsync([Batch(row, upsertItems: [potion], upsertSlots: [Slot(row.Id, 0, potion.Id)])]);
 
-        CharacterSaveBatch removal = Batch(row, deleteItems: [potion.Id], deleteSlots: [(InventoryType.Bag, (ushort)0)]);
+        CharacterSaveBatch removal = Batch(row, deleteItems: [potion.Id], deleteSlots: [(InventoryType.Bag, (byte)0)]);
         await _saves.WriteAsync([removal]);
         await _saves.WriteAsync([removal]);
 
@@ -102,7 +102,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
 
         await using CharacterDbContext read = _database.CreateDbContext();
         List<CharacterInventory> left = await read.CharacterInventory.AsNoTracking().ToListAsync();
-        (uint Owner, InventoryType Container, ushort Slot)[] expected =
+        (uint Owner, InventoryType Container, byte Slot)[] expected =
         [
             (1, InventoryType.Equipment, 0), (1, InventoryType.Equipment, 2),
             (1, InventoryType.Bag, 1), (1, InventoryType.Bag, 2),
@@ -179,7 +179,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         await _saves.WriteAsync(
         [
             Batch(taker, upsertItems: [moved], upsertSlots: [Slot(taker.Id, 4, gem.Id)]),
-            Batch(giver, deleteItems: [gem.Id], deleteSlots: [(InventoryType.Bag, (ushort)0)]),
+            Batch(giver, deleteItems: [gem.Id], deleteSlots: [(InventoryType.Bag, (byte)0)]),
         ]);
 
         await using CharacterDbContext read = _database.CreateDbContext();
@@ -187,7 +187,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         Assert.Equal(taker.Id, stored.CharacterId);
         CharacterInventory slot = await read.CharacterInventory.AsNoTracking().SingleAsync();
         Assert.Equal(taker.Id, slot.CharacterId);
-        Assert.Equal((ushort)4, slot.Slot);
+        Assert.Equal((byte)4, slot.Slot);
     }
 
     [Fact]
@@ -261,12 +261,12 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         UpdatedAt = DateTime.UtcNow,
     };
 
-    private static CharacterInventory Slot(CharacterId owner, ushort slot, ItemInstanceId item,
+    private static CharacterInventory Slot(CharacterId owner, byte slot, ItemInstanceId item,
         InventoryType container = InventoryType.Bag) =>
         new() { CharacterId = owner, Container = container, Slot = slot, ItemId = item };
 
     /// <summary>Saves one new item into each of <paramref name="slots" />.</summary>
-    private async Task FillAsync(CharacterRow owner, params (InventoryType Container, ushort Slot)[] slots)
+    private async Task FillAsync(CharacterRow owner, params (InventoryType Container, byte Slot)[] slots)
     {
         var items = slots.Select(_ => Item(owner.Id, count: 1)).ToList();
         var rows = slots.Select((s, i) => Slot(owner.Id, s.Slot, items[i].Id, s.Container)).ToList();
@@ -278,7 +278,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         IReadOnlyList<ItemInstance>? upsertItems = null,
         IReadOnlyList<ItemInstanceId>? deleteItems = null,
         IReadOnlyList<CharacterInventory>? upsertSlots = null,
-        IReadOnlyList<(InventoryType Container, ushort Slot)>? deleteSlots = null,
+        IReadOnlyList<(InventoryType Container, byte Slot)>? deleteSlots = null,
         CharacterStats? stats = null) =>
         new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? [], stats) { Authority = s_authority };
 }

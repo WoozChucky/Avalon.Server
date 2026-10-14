@@ -12,7 +12,7 @@ public class QuestTurnInRulesShould
     private static readonly ItemTemplate s_tonicItem = Items().Single(i => i.Id.Value == Tonic);   // stacks to 10
     private static readonly ItemTemplate s_charmItem = Items().Single(i => i.Id.Value == Charm);   // stacks to 1
 
-    private static Dictionary<ushort, InventoryItem> Bag(params InventoryItem[] items) => items.ToDictionary(i => i.Slot);
+    private static Dictionary<byte, InventoryItem> Bag(params InventoryItem[] items) => items.ToDictionary(i => i.Slot);
 
     [Fact]
     public void Fit_into_a_partial_stack_without_a_free_slot() =>

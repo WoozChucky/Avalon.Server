@@ -20,19 +20,19 @@ public class VendorRulesShould
 {
     public sealed record Held(SlotRef At, ItemTemplate Template, uint Count = 1, uint Durability = 0);
 
-    private static SlotRef Bag(ushort slot) => new(InventoryType.Bag, slot);
+    private static SlotRef Bag(byte slot) => new(InventoryType.Bag, slot);
 
-    private static SlotRef Vault(ushort slot) => new(InventoryType.Bank, slot);
+    private static SlotRef Vault(byte slot) => new(InventoryType.Bank, slot);
 
-    private static SlotRef Eq(ushort slot) => new(InventoryType.Equipment, slot);
+    private static SlotRef Eq(byte slot) => new(InventoryType.Equipment, slot);
 
     private static Held At(SlotRef slot, ItemTemplate template, uint count = 1, uint durability = 0) =>
         new(slot, template, count, durability);
 
     /// <summary>Keepsakes in Bag slots 0-28: one slot, 29, is free.</summary>
-    private static Held[] AllButLastSlot => Enumerable.Range(0, 29).Select(s => At(Bag((ushort)s), Keepsake)).ToArray();
+    private static Held[] AllButLastSlot => Enumerable.Range(0, 29).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
-    private static Held[] FullBag => Enumerable.Range(0, 30).Select(s => At(Bag((ushort)s), Keepsake)).ToArray();
+    private static Held[] FullBag => Enumerable.Range(0, 30).Select(s => At(Bag((byte)s), Keepsake)).ToArray();
 
     private static CharacterEntity Arrange(IReadOnlyCollection<Held> held, ulong money, bool dead)
     {
@@ -261,7 +261,7 @@ public class VendorRulesShould
     public sealed record SellCase(
         string Name,
         Held[] Holding,
-        uint BagSlot,
+        byte BagSlot,
         uint? Count,
         VendorResult Expected,
         ulong Payment = 0,
@@ -279,13 +279,13 @@ public class VendorRulesShould
         new("Sell a potion at durability 0", [At(Bag(0), Tonic, 1, durability: 0)], 0, null, VendorResult.Ok, Payment: 4),
 
         // 1. Alive. 2. Shop open.
-        new("Answer Dead before anything else", [], 70000, 0, VendorResult.Dead, Shop: false, Dead: true),
+        new("Answer Dead before anything else", [], 255, 0, VendorResult.Dead, Shop: false, Dead: true),
         new("Answer ShopClosed with no shop open", [At(Bag(0), Tonic, 5)], 3, 0, VendorResult.ShopClosed, Shop: false),
 
         // 3. A usable Bag slot. 4. An item there, of a sellable template.
         new("Refuse an empty bag slot", [At(Bag(0), Tonic, 5)], 3, null, VendorResult.NotFound),
         new("Refuse a slot past the bag", [], 30, null, VendorResult.NotFound),
-        new("Refuse a slot no container has", [], 70000, null, VendorResult.NotFound),
+        new("Refuse a slot no container has", [], 255, null, VendorResult.NotFound),
         new("Sell nothing from equipment", [At(Eq(EquipmentSlots.MainHand), Blade, durability: 42)], EquipmentSlots.MainHand, null, VendorResult.NotFound),
         new("Refuse a NoSell item", [At(Bag(0), Keepsake)], 0, null, VendorResult.NotSellable),
         new("Refuse an item that sells for nothing", [At(Bag(0), Trinket)], 0, null, VendorResult.NotSellable),
@@ -320,7 +320,7 @@ public class VendorRulesShould
         Assert.Equal(row.Expected, decision.Result);
         if (row.Expected == VendorResult.Ok)
         {
-            Assert.Equal(new SellPlan((ushort)row.BagSlot, row.Count ?? row.Holding[0].Count, row.Payment), decision.Plan);
+            Assert.Equal(new SellPlan((byte)row.BagSlot, row.Count ?? row.Holding[0].Count, row.Payment), decision.Plan);
         }
         else
         {

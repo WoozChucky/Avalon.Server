@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Domain.Characters;
 

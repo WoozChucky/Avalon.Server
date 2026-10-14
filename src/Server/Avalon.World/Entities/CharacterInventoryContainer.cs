@@ -9,9 +9,9 @@ public class CharacterInventoryContainer(ILoggerFactory loggerFactory, Inventory
     private readonly ILogger<CharacterInventoryContainer> _logger =
         loggerFactory.CreateLogger<CharacterInventoryContainer>();
 
-    private readonly Dictionary<ushort, InventoryItem> _items = [];
+    private readonly Dictionary<byte, InventoryItem> _items = [];
 
-    private ushort MaxSlots => type switch
+    private byte MaxSlots => type switch
     {
         InventoryType.Equipment => 14,
         InventoryType.Bag => 30,
@@ -26,15 +26,15 @@ public class CharacterInventoryContainer(ILoggerFactory loggerFactory, Inventory
     /// struct enumerator and allocates nothing, where one over the interface boxes its enumerator (#883). In no
     /// order a caller may rely on; a walk that needs slot order asks <see cref="TryGet" /> slot by slot.
     /// </summary>
-    public Dictionary<ushort, InventoryItem>.ValueCollection Held => _items.Values;
+    public Dictionary<byte, InventoryItem>.ValueCollection Held => _items.Values;
 
     /// <summary>How many slots this container has.</summary>
-    public ushort Capacity => MaxSlots;
+    public byte Capacity => MaxSlots;
 
     /// <summary>The empty slots, lowest first.</summary>
-    public IEnumerable<ushort> FreeSlots()
+    public IEnumerable<byte> FreeSlots()
     {
-        for (ushort slot = 0; slot < MaxSlots; slot++)
+        for (byte slot = 0; slot < MaxSlots; slot++)
         {
             if (!_items.ContainsKey(slot))
                 yield return slot;
@@ -55,7 +55,7 @@ public class CharacterInventoryContainer(ILoggerFactory loggerFactory, Inventory
     }
 
     /// <summary>Empties a slot. Same caller rule as <see cref="Put" />.</summary>
-    public bool Remove(ushort slot) => _items.Remove(slot);
+    public bool Remove(byte slot) => _items.Remove(slot);
 
     public void Load(IReadOnlyCollection<InventoryItem> items)
     {
@@ -77,5 +77,5 @@ public class CharacterInventoryContainer(ILoggerFactory loggerFactory, Inventory
         _logger.LogInformation("Loaded {Count} items into {Type} inventory", _items.Count, type);
     }
 
-    public bool TryGet(ushort slot, out InventoryItem item) => _items.TryGetValue(slot, out item);
+    public bool TryGet(byte slot, out InventoryItem item) => _items.TryGetValue(slot, out item);
 }

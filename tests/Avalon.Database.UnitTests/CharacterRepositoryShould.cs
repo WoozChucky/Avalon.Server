@@ -1,7 +1,7 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
-using Avalon.World.Public.Enums;
 using Xunit;
 using CharacterRow = Avalon.Domain.Characters.Character;
 

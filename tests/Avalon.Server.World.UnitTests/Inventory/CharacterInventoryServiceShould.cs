@@ -39,14 +39,14 @@ public class CharacterInventoryServiceShould
         Assert.Equal(20u, At(character, InventoryType.Bag, 1).Count);
         Assert.Equal(20u, At(character, InventoryType.Bag, 2).Count);
         Assert.Equal(5u, At(character, InventoryType.Bag, 3).Count);
-        Assert.Equal(3, new[] { 1, 2, 3 }.Select(s => At(character, InventoryType.Bag, (ushort)s).InstanceId).Distinct().Count());
+        Assert.Equal(3, new[] { 1, 2, 3 }.Select(s => At(character, InventoryType.Bag, (byte)s).InstanceId).Distinct().Count());
     }
 
     [Fact]
     public void Refuse_an_add_that_does_not_fit_whole_and_change_nothing()
     {
         CharacterEntity character = New();
-        var bag = Enumerable.Range(0, 29).Select(s => Item((ushort)s, Sword)).ToList();
+        var bag = Enumerable.Range(0, 29).Select(s => Item((byte)s, Sword)).ToList();
         bag.Add(Item(29, Potion, count: 19));
         character.Container(InventoryType.Bag).Load(bag);
 
@@ -117,7 +117,7 @@ public class CharacterInventoryServiceShould
     {
         CharacterEntity character = New();
         List<InventoryItem> bag = [Item(0, Hoard, count: 1), Item(1, Hoard, count: 1)];
-        bag.AddRange(Enumerable.Range(2, 28).Select(s => Item((ushort)s, Sword)));
+        bag.AddRange(Enumerable.Range(2, 28).Select(s => Item((byte)s, Sword)));
         character.Container(InventoryType.Bag).Load(bag);
 
         Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAdd(Hoard.Id, uint.MaxValue));
@@ -133,7 +133,7 @@ public class CharacterInventoryServiceShould
     {
         CharacterEntity character = New();
         List<InventoryItem> bag = [Item(0, Hoard, count: 1)];
-        bag.AddRange(Enumerable.Range(1, 29).Select(s => Item((ushort)s, Sword)));
+        bag.AddRange(Enumerable.Range(1, 29).Select(s => Item((byte)s, Sword)));
         character.Container(InventoryType.Bag).Load(bag);
 
         Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).CanAdd(Hoard.Id, uint.MaxValue));

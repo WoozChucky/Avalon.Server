@@ -14,7 +14,6 @@ using Avalon.World.Loot;
 using Avalon.World.Parties;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;

@@ -1,9 +1,9 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World.Chat;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Chat;
@@ -169,7 +169,7 @@ public class WhisperCommandShould
 
         Run(a, "/w Kaela hi");
 
-        Assert.Equal((ushort)CharacterClass.Wizard, Assert.Single(Whispers(b)).CharacterClass);
-        Assert.Equal((ushort)CharacterClass.Wizard, Assert.Single(Whispers(a)).CharacterClass);
+        Assert.Equal(CharacterClass.Wizard, Assert.Single(Whispers(b)).CharacterClass);
+        Assert.Equal(CharacterClass.Wizard, Assert.Single(Whispers(a)).CharacterClass);
     }
 }

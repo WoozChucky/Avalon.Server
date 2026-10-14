@@ -1,4 +1,4 @@
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 using Xunit;
 
 namespace Avalon.Balance.UnitTests;

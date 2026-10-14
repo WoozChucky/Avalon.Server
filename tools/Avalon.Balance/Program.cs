@@ -4,7 +4,7 @@ using Avalon.Balance;
 using Avalon.Balance.Core;
 using Avalon.Balance.Data;
 using Avalon.Balance.Reporting;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 
 // dotnet run --project tools/Avalon.Balance
 // dotnet run --project tools/Avalon.Balance -- --class Warrior --scenario normal-3 --runs 5000

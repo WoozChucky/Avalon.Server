@@ -198,12 +198,12 @@ public class CharacterSelectHandlerShould
     /// every value here landing on the same 1/100/None would make such a bug invisible.
     /// </summary>
     private static (List<CharacterInventory> Rows, List<ItemInstance> Instances) BuildInventory(
-        params (InventoryType Container, ushort Slot, ulong Template, uint Count, uint Durability, ItemInstanceFlags Flags)[] items)
+        params (InventoryType Container, byte Slot, ulong Template, uint Count, uint Durability, ItemInstanceFlags Flags)[] items)
     {
         var rows = new List<CharacterInventory>();
         var instances = new List<ItemInstance>();
 
-        foreach ((InventoryType container, ushort slot, ulong template, uint count, uint durability, ItemInstanceFlags flags) in items)
+        foreach ((InventoryType container, byte slot, ulong template, uint count, uint durability, ItemInstanceFlags flags) in items)
         {
             var id = new ItemInstanceId(Guid.NewGuid());
             rows.Add(new CharacterInventory
@@ -482,7 +482,7 @@ public class CharacterSelectHandlerShould
         ItemSlotDto slot = Assert.Single(
             snapshot.Items, item => item.ItemInstanceId == instances[0].Id.Value);
         Assert.Equal(InventoryType.Equipment, slot.Container);
-        Assert.Equal((ushort)0, slot.Slot);
+        Assert.Equal((byte)0, slot.Slot);
         Assert.Equal(10ul, slot.ItemTemplateId);
         Assert.Equal(3u, slot.Count);
         Assert.Equal(77u, slot.Durability);

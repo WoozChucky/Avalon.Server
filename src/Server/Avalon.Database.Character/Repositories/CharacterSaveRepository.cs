@@ -31,7 +31,7 @@ public sealed record CharacterSaveBatch(
     IReadOnlyList<ItemInstance> UpsertItems,
     IReadOnlyList<ItemInstanceId> DeleteItems,
     IReadOnlyList<CharacterInventory> UpsertSlots,
-    IReadOnlyList<(InventoryType Container, ushort Slot)> DeleteSlots,
+    IReadOnlyList<(InventoryType Container, byte Slot)> DeleteSlots,
     CharacterStats? Stats = null,
     CharacterQuestWrite? Quests = null,
     CharacterIgnoreWrite? Ignores = null,
@@ -206,9 +206,9 @@ public partial class CharacterSaveRepository(IDbTransactionRunner<CharacterDbCon
     /// container and the slot number, so the slots of one container go in one list.
     /// </summary>
     private static async Task DeleteSlotsAsync(CharacterDbContext context, CharacterId owner,
-        IReadOnlyList<(InventoryType Container, ushort Slot)> emptied, CancellationToken token)
+        IReadOnlyList<(InventoryType Container, byte Slot)> emptied, CancellationToken token)
     {
-        foreach (IGrouping<InventoryType, ushort> group in emptied.GroupBy(e => e.Container, e => e.Slot))
+        foreach (IGrouping<InventoryType, byte> group in emptied.GroupBy(e => e.Container, e => e.Slot))
         {
             InventoryType container = group.Key;
             var slots = group.ToList();

@@ -1,8 +1,8 @@
 using System.Runtime.CompilerServices;
+using Avalon.Common;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Parties;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Testing.Scenarios;
 

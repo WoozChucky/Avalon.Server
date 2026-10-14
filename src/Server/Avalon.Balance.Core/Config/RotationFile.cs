@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 
 namespace Avalon.Balance.Core;
 

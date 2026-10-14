@@ -1,11 +1,11 @@
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
-using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Server.World.UnitTests.Characters;

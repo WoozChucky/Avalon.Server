@@ -37,7 +37,7 @@ variant populated
     element 0
       field 1 CharacterId : uint = 300
       field 2 Name : string = "alpha" (5 chars, 5 bytes utf-8)
-      field 3 Class : ushort = 65535
+      field 3 Class : CharacterClass = Warrior (1)
       field 4 Level : ushort = 300
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
@@ -45,17 +45,17 @@ variant populated
     element 1
       field 1 CharacterId : uint = 42
       field 2 Name : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
-      field 3 Class : ushort = 300
+      field 3 Class : CharacterClass = Healer (4)
       field 4 Level : ushort = 7
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
       field 7 SameInstance : bool = true
-  bytes 77
-    08 ac 02 10 01 18 80 d0 ac f3 0e 22 17 08 ac 02
-    12 05 61 6c 70 68 61 18 ff ff 03 20 ac 02 28 01
-    30 01 38 01 22 27 08 2a 12 18 e6 97 a5 e6 9c ac
-    e8 aa 9e e3 81 ae e3 83 86 e3 82 ad e3 82 b9 e3
-    83 88 18 ac 02 20 07 28 01 30 01 38 01
+  bytes 74
+    08 ac 02 10 01 18 80 d0 ac f3 0e 22 15 08 ac 02
+    12 05 61 6c 70 68 61 18 01 20 ac 02 28 01 30 01
+    38 01 22 26 08 2a 12 18 e6 97 a5 e6 9c ac e8 aa
+    9e e3 81 ae e3 83 86 e3 82 ad e3 82 b9 e3 83 88
+    18 04 20 07 28 01 30 01 38 01
 
 variant maxima
   field 1 PartyId : uint = 4294967295
@@ -65,7 +65,7 @@ variant maxima
     element 0
       field 1 CharacterId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-      field 3 Class : ushort = 65535
+      field 3 Class : CharacterClass = Healer (4)
       field 4 Level : ushort = 65535
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
@@ -73,7 +73,7 @@ variant maxima
     element 1
       field 1 CharacterId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-      field 3 Class : ushort = 65535
+      field 3 Class : CharacterClass = Healer (4)
       field 4 Level : ushort = 65535
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
@@ -81,13 +81,13 @@ variant maxima
     element 2
       field 1 CharacterId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-      field 3 Class : ushort = 65535
+      field 3 Class : CharacterClass = Healer (4)
       field 4 Level : ushort = 65535
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
       field 7 SameInstance : bool = true
-  bytes 488
-    08 ff ff ff ff 0f 10 02 18 ff ff ff ff 0f 22 9b
+  bytes 482
+    08 ff ff ff ff 0f 10 02 18 ff ff ff ff 0f 22 99
     01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
@@ -96,18 +96,8 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 18 ff
-    ff 03 20 ff ff 03 28 01 30 01 38 01 22 9b 01 08
-    ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 18 ff ff 03
-    20 ff ff 03 28 01 30 01 38 01 22 9b 01 08 ff ff
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 18 04
+    20 ff ff 03 28 01 30 01 38 01 22 99 01 08 ff ff
     ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -116,8 +106,18 @@ variant maxima
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 ce a9 78 18 ff ff 03 20 ff
-    ff 03 28 01 30 01 38 01
+    78 ce a9 78 ce a9 78 ce a9 78 18 04 20 ff ff 03
+    28 01 30 01 38 01 22 99 01 08 ff ff ff ff 0f 12
+    84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 18 04 20 ff ff 03 28 01 30 01
+    38 01
 
 variant minima
   field 1 PartyId : uint = 0
@@ -127,7 +127,7 @@ variant minima
     element 0
       field 1 CharacterId : uint = 0
       field 2 Name : string = "\u0001" (1 chars, 1 bytes utf-8)
-      field 3 Class : ushort = 0
+      field 3 Class : CharacterClass = None (0)
       field 4 Level : ushort = 0
       field 5 IsLeader : bool = false
       field 6 Online : bool = false
@@ -143,7 +143,7 @@ variant varint-edges
     element 0
       field 1 CharacterId : uint = 268435455
       field 2 Name : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
-      field 3 Class : ushort = 127
+      field 3 Class : CharacterClass = <not a declared member> (5)
       field 4 Level : ushort = 16383
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
@@ -151,12 +151,12 @@ variant varint-edges
     element 1
       field 1 CharacterId : uint = 128
       field 2 Name : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
-      field 3 Class : ushort = 16384
+      field 3 Class : CharacterClass = <not a declared member> (5)
       field 4 Level : ushort = 128
       field 5 IsLeader : bool = true
       field 6 Online : bool = true
       field 7 SameInstance : bool = true
-  bytes 311
+  bytes 309
     08 ff 7f 10 03 18 80 80 80 01 22 93 01 08 ff ff
     ff 7f 12 80 01 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -166,8 +166,8 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
-    79 79 79 79 79 18 7f 20 ff 7f 28 01 30 01 38 01
-    22 94 01 08 80 01 12 81 01 c3 a9 c3 a9 c3 a9 c3
+    79 79 79 79 79 18 05 20 ff 7f 28 01 30 01 38 01
+    22 92 01 08 80 01 12 81 01 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
@@ -175,5 +175,5 @@ variant varint-edges
     a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 18 80 80 01 20 80
-    01 28 01 30 01 38 01
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 18 05 20 80 01 28
+    01 30 01 38 01

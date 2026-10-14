@@ -51,7 +51,7 @@ public class LootPickupShould
         LootPickup.TryPickUp(picker ?? _picker, store ?? _store, s_dropGuid, Range, s_now, Economy(), NullLogger.Instance);
 
     private void FillBag() => _picker.Container(InventoryType.Bag)
-        .Load(Enumerable.Range(0, 30).Select(s => Item((ushort)s, Sword)).ToList());
+        .Load(Enumerable.Range(0, 30).Select(s => Item((byte)s, Sword)).ToList());
 
     [Fact]
     public void Put_An_Item_In_The_Bag_Remove_The_Drop_And_Mark_The_Save()

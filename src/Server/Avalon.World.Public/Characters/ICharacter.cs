@@ -1,6 +1,5 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Characters;

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Avalon.Balance.Core;
 using Avalon.Balance.Data;
+using Avalon.Common;
 using Avalon.World.Public.Enums;
 using Xunit;
 

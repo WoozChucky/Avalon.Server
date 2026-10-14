@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 

@@ -44,7 +44,8 @@ public class ItemSlotDto
     /// <summary>The container the item is in.</summary>
     [ProtoMember(1)] public InventoryType Container { get; set; }
 
-    [ProtoMember(2)] public ushort Slot { get; set; }
+    /// <summary>The slot in that container; a byte, as no container has 255 slots (#921).</summary>
+    [ProtoMember(2)] public byte Slot { get; set; }
 
     /// <summary>What the item is. ItemTemplateId is a ValueObject&lt;ulong&gt;, not a uint.</summary>
     [ProtoMember(3)] public ulong ItemTemplateId { get; set; }

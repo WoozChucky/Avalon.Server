@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Avalon.Balance.Contract;
 using Avalon.Balance.Core;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 
 namespace Avalon.Balance.Service.Mapping;
 
@@ -73,7 +73,7 @@ public static class WireMapping
             classes = [];
             foreach (string name in names)
             {
-                if (Enum.TryParse(name, ignoreCase: false, out CharacterClass parsed) && Enum.IsDefined(parsed)
+                if (Enum.TryParse(name, ignoreCase: false, out CharacterClass parsed) && CharacterClasses.IsPlayable(parsed)
                     && !int.TryParse(name, System.Globalization.CultureInfo.InvariantCulture, out _))
                 {
                     classes.Add(parsed);

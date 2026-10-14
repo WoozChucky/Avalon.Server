@@ -194,7 +194,7 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
                 if (line.Payload is null)
                 {
                     line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
-                        PacketEncoder.Shared, ChatChannel.Party, characterClass: (ushort)sender.Class);
+                        PacketEncoder.Shared, ChatChannel.Party, characterClass: sender.Class);
                 }
 
                 target.Send(line.Share());

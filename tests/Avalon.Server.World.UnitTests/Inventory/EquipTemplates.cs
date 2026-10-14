@@ -3,7 +3,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
 
@@ -194,9 +193,9 @@ internal static class EquipTemplates
     public static CharacterInventoryService InventoryFor(CharacterEntity character) =>
         TestCharacters.InventoryFor(character, Find);
 
-    public static SlotRef Bag(ushort slot) => new(InventoryType.Bag, slot);
+    public static SlotRef Bag(byte slot) => new(InventoryType.Bag, slot);
 
-    public static SlotRef Eq(ushort slot) => new(InventoryType.Equipment, slot);
+    public static SlotRef Eq(byte slot) => new(InventoryType.Equipment, slot);
 
-    public static SlotRef Vault(ushort slot) => new(InventoryType.Bank, slot);
+    public static SlotRef Vault(byte slot) => new(InventoryType.Bank, slot);
 }

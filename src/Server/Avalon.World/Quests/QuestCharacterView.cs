@@ -1,5 +1,5 @@
+using Avalon.Common;
 using Avalon.World.Entities;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 
 namespace Avalon.World.Quests;

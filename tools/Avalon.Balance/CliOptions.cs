@@ -1,5 +1,5 @@
 using System.Globalization;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 
 namespace Avalon.Balance;
 
@@ -31,9 +31,9 @@ public sealed record CliOptions(CharacterClass? Class, string? Scenario, int? Ru
     }
 
     private static CharacterClass ParseClass(string text) =>
-        Enum.TryParse(text, ignoreCase: true, out CharacterClass c) && Enum.IsDefined(c) && !int.TryParse(text, out _)
+        Enum.TryParse(text, ignoreCase: true, out CharacterClass c) && CharacterClasses.IsPlayable(c) && !int.TryParse(text, out _)
             ? c
-            : throw new ArgumentException($"Unknown class '{text}' (known: {string.Join(", ", Enum.GetNames<CharacterClass>())})");
+            : throw new ArgumentException($"Unknown class '{text}' (known: {string.Join(", ", CharacterClasses.Playable)})");
 
     private static int ParseInt(string option, string text, int min) =>
         int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) && n >= min

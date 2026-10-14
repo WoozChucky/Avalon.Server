@@ -8,7 +8,6 @@ using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using NSubstitute;
 

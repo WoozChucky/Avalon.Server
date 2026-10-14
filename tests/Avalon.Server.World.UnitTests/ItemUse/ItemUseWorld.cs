@@ -12,7 +12,6 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
-using Avalon.World.Public.Enums;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -114,7 +113,7 @@ internal sealed class ItemUseWorld : IDisposable
     public void Bag(params Avalon.World.Public.Characters.InventoryItem[] items) =>
         Character.Container(InventoryType.Bag).Load(items);
 
-    public void Use(uint request, ushort slot, InventoryType container = InventoryType.Bag) =>
+    public void Use(uint request, byte slot, InventoryType container = InventoryType.Bag) =>
         Service.Use(Client.Connection, Character, request, container, slot);
 
     public void Tick(double seconds) => Instance.Update(TimeSpan.FromSeconds(seconds));

@@ -31,12 +31,20 @@ public class CItemMovePacket : Packet
     /// <summary>The container of the slot the item leaves.</summary>
     [ProtoMember(2)] public InventoryType FromContainer { get; set; }
 
-    [ProtoMember(3)] public uint FromSlot { get; set; }
+    /// <summary>
+    /// The slot in that container. A byte, as no container has 255 slots (#921): a number past 255 fails the
+    /// packet's decode; one the container does not have is refused as InvalidSlot.
+    /// </summary>
+    [ProtoMember(3)] public byte FromSlot { get; set; }
 
     /// <summary>The container of the slot the item goes to.</summary>
     [ProtoMember(4)] public InventoryType ToContainer { get; set; }
 
-    [ProtoMember(5)] public uint ToSlot { get; set; }
+    /// <summary>
+    /// The slot in that container. A byte, as no container has 255 slots (#921): a number past 255 fails the
+    /// packet's decode; one the container does not have is refused as InvalidSlot.
+    /// </summary>
+    [ProtoMember(5)] public byte ToSlot { get; set; }
 
     /// <summary>How many to take. Absent means the whole stack; 0 is refused as InvalidCount.</summary>
     [ProtoMember(6)] public uint? Count { get; set; }

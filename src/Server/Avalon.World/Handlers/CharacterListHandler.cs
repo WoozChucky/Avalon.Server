@@ -64,7 +64,7 @@ public class CharacterListHandler(
                 CharacterId = character.Id!.Value,
                 Name = character.Name,
                 Level = character.Level,
-                Class = (ushort)character.Class,
+                Class = character.Class,
                 X = character.X,
                 Y = character.Y,
                 Z = character.Z

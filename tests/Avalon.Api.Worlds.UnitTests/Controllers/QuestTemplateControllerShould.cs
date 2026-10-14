@@ -1,11 +1,11 @@
 using System.Text.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Worlds.Controllers;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;

@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Database.World.Repositories;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
-using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;
@@ -55,7 +55,7 @@ public class CombatReloadShould
         StaticData data = await Load(new Rows());
 
         Assert.Equal(50f, data.Combat.Formula.ArmorBase);
-        Assert.Equal(Enum.GetValues<CharacterClass>().Order(), data.Combat.Factors.Keys.Order());
+        Assert.Equal(CharacterClasses.Playable.Order(), data.Combat.Factors.Keys.Order());
     }
 
     [Fact]

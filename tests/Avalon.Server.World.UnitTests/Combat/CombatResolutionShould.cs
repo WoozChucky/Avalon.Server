@@ -16,7 +16,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Abilities;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;

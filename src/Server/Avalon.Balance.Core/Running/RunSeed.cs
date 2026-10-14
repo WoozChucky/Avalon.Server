@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 
 namespace Avalon.Balance.Core;
 

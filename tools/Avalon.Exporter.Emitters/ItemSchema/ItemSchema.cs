@@ -1,8 +1,8 @@
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Avalon.Common;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Exporter;
 
@@ -121,9 +121,13 @@ public static class ItemSchema
             typeof(CharacterClass),
         ];
 
+        // CharacterClass.None is no class an item can allow (it is what a chat line carries when no character sent
+        // it), so it stays out of the table: a reader that treats an item as restricted when the table holds a
+        // class its AllowedClasses lacks would otherwise restrict every item (owner decision, #922).
         return vocabularies.ToDictionary(
             type => type.Name,
             type => Enum.GetNames(type)
+                .Where(name => type != typeof(CharacterClass) || name != nameof(CharacterClass.None))
                 .Select(name => new EnumValue(
                     name,
                     Convert.ToInt64(Enum.Parse(type, name), System.Globalization.CultureInfo.InvariantCulture)))

@@ -20,8 +20,11 @@ public class CVendorSellPacket : Packet
     /// <summary>Chosen by the client and echoed in the result.</summary>
     [ProtoMember(1)] public uint RequestId { get; set; }
 
-    /// <summary>The Bag slot, 0-29.</summary>
-    [ProtoMember(2)] public uint BagSlot { get; set; }
+    /// <summary>
+    /// The Bag slot, 0-29. A byte (#921): a number past 255 fails the packet's decode; an empty slot or one the Bag
+    /// does not have is refused.
+    /// </summary>
+    [ProtoMember(2)] public byte BagSlot { get; set; }
 
     /// <summary>How many to sell. Absent means the whole stack; 0 is refused as InvalidCount.</summary>
     [ProtoMember(3)] public uint? Count { get; set; }

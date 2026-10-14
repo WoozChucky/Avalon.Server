@@ -1,4 +1,5 @@
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
@@ -15,7 +16,6 @@ using Avalon.World.Handlers;
 using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -45,7 +45,7 @@ public class CharacterCreationShould : IDisposable
         handler.Execute(connection, new CCharacterCreatePacket
         {
             Name = "Testarossa",
-            Class = (int)createInfo.Class,
+            Class = createInfo.Class,
         });
 
         await PumpAsync(connection);
@@ -86,7 +86,7 @@ public class CharacterCreationShould : IDisposable
         StaticData data = await LoadStaticDataAsync();
         IWorldConnection connection = NewConnection();
 
-        NewHandler(data).Execute(connection, new CCharacterCreatePacket { Name = name, Class = (int)@class });
+        NewHandler(data).Execute(connection, new CCharacterCreatePacket { Name = name, Class = @class });
         await PumpAsync(connection);
 
         await using CharacterDbContext characterDb = _characters.CreateDbContext();
@@ -128,7 +128,7 @@ public class CharacterCreationShould : IDisposable
         handler.Execute(connection, new CCharacterCreatePacket
         {
             Name = "Navcheck",
-            Class = (int)createInfo.Class,
+            Class = createInfo.Class,
         });
 
         await PumpAsync(connection);
@@ -160,8 +160,8 @@ public class CharacterCreationShould : IDisposable
         NewHandler(data).Execute(connection, new CCharacterCreatePacket
         {
             Name = "Guerreira",
-            Class = (int)createInfo.Class,
-            Gender = (int)CharacterGender.Female,
+            Class = createInfo.Class,
+            Gender = CharacterGender.Female,
         });
 
         await PumpAsync(connection);
@@ -206,24 +206,26 @@ public class CharacterCreationShould : IDisposable
     }
 
     /// <summary>
-    /// The value comes from the client, so anything the enum does not define is refused rather
-    /// than stored. 256 is there because the enum is a byte: a cast alone would wrap it to Male.
+    /// Both values come from the client, and a protobuf enum member carries any number that fits it, so a class a
+    /// character cannot have (None, or no member at all) and a gender the enum does not define are refused rather
+    /// than stored. A number past 255 does not fit either enum and fails the packet's decode before it gets here.
     /// </summary>
     [Theory]
-    [InlineData(2)]
-    [InlineData(-1)]
-    [InlineData(256)]
-    public async Task Reject_a_gender_the_enum_does_not_define(int gender)
+    [InlineData(0, 0)]
+    [InlineData(5, 0)]
+    [InlineData(255, 0)]
+    [InlineData(1, 2)]
+    [InlineData(1, 255)]
+    public async Task Reject_a_class_or_gender_a_character_cannot_have(int @class, int gender)
     {
         StaticData data = await LoadStaticDataAsync();
-        CharacterCreateInfo createInfo = data.CharacterCreateInfos.First();
 
         IWorldConnection connection = NewConnection();
         NewHandler(data).Execute(connection, new CCharacterCreatePacket
         {
             Name = "Nobody",
-            Class = (int)createInfo.Class,
-            Gender = gender,
+            Class = (CharacterClass)@class,
+            Gender = (CharacterGender)gender,
         });
 
         await PumpAsync(connection);
@@ -254,7 +256,7 @@ public class CharacterCreationShould : IDisposable
         handler.Execute(connection, new CCharacterCreatePacket
         {
             Name = name,
-            Class = (int)data.CharacterCreateInfos.First().Class,
+            Class = data.CharacterCreateInfos.First().Class,
         });
 
         Assert.Equal(expected, SentResult(connection));
@@ -275,7 +277,7 @@ public class CharacterCreationShould : IDisposable
         NewHandler(data).Execute(connection, new CCharacterCreatePacket
         {
             Name = sent,
-            Class = (int)data.CharacterCreateInfos.First().Class,
+            Class = data.CharacterCreateInfos.First().Class,
         });
         await PumpAsync(connection);
 
@@ -299,7 +301,7 @@ public class CharacterCreationShould : IDisposable
         NewHandler(data).Execute(connection, new CCharacterCreatePacket
         {
             Name = "bob",
-            Class = (int)data.CharacterCreateInfos.First().Class,
+            Class = data.CharacterCreateInfos.First().Class,
         });
 
         await PumpAsync(connection);
@@ -329,7 +331,7 @@ public class CharacterCreationShould : IDisposable
         handler.Execute(connection, new CCharacterCreatePacket
         {
             Name = "Bob",
-            Class = (int)data.CharacterCreateInfos.First().Class,
+            Class = data.CharacterCreateInfos.First().Class,
         });
 
         await PumpAsync(connection);

@@ -142,11 +142,11 @@ count for more than it took on the wire.
 | 2 | `System` | The server speaking: sender name "System", account and character 0. Command answers and refusals, "Unknown command.", party joins and leaves, leader changes, mode switches, the leave countdown and health scaling. |
 | 3 | `Whisper` | `/w <player> <message>` (`/whisper`, #717): to one online player, wherever they are on the world server. The recipient's line has the sender in `CharacterName` and no `TargetName`: show "Aren whispers: hi". The sender gets an echo with its own name in `CharacterName` and the recipient in `TargetName` (field 7, set on the echo only, spelled as the recipient's name is): show "To Kaela: hi". So a whisper line with `TargetName` set is always one you sent. A client from before `Whisper` existed reads 3 as an unknown channel; before `TargetName` existed it reads the echo as a line from yourself. |
 
-Every line also carries `CharacterClass` (field 8, `ushort`, the class value the party roster uses, #763): the sending
+Every line also carries `CharacterClass` (field 8, the `CharacterClass` enum the party roster uses, #763, #922): the sending
 character's class on `Say`, `Party` and `Whisper` lines, the whisper's echo included (it is the class of the name in
-`CharacterName`, which is the sender on both copies; the recipient named in `TargetName` has no class sent). It is 0 on
-`System` lines and on a script's whisper (an item's voice), which no character sent; treat 0 as unknown. A client from
-before it ignores the field, and a payload from before it reads as 0.
+`CharacterName`, which is the sender on both copies; the recipient named in `TargetName` has no class sent). It is `None` (0)
+on `System` lines and on a script's whisper (an item's voice), which no character sent; treat `None` as unknown. A client
+from before it ignores the field, and a payload from before it reads as `None`.
 
 `/w` refusals are system lines to the sender only, and nothing is sent to anyone else: "Usage: /w <player> <message>"
 (no name or no message), "You can't whisper yourself.", and "No player named X is online." (X as typed; an offline and

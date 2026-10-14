@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Enums;
@@ -36,7 +37,7 @@ public class StaticDataRulesShould
         MoveSpeedFloor = -50f,
     };
 
-    private static ClassStatFactors[] Factors() => Enum.GetValues<CharacterClass>()
+    private static ClassStatFactors[] Factors() => CharacterClasses.Playable
         .Select(c => new ClassStatFactors
         {
             Class = c,
@@ -78,7 +79,7 @@ public class StaticDataRulesShould
     {
         (CombatFormula? formula, IReadOnlyDictionary<CharacterClass, ClassStatFactors>? byClass) = CombatDataRules.Build([Formula()], Factors());
         Assert.Equal(CombatFormula.SingletonId, formula.Id);
-        Assert.Equal(Enum.GetValues<CharacterClass>().Length, byClass.Count);
+        Assert.Equal(CharacterClasses.Playable.Count, byClass.Count);
     }
 
     [Fact]

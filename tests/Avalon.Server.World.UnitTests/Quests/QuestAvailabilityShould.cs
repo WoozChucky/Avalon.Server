@@ -1,7 +1,7 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Quest;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
-using Avalon.World.Public.Enums;
 using Avalon.World.Quests;
 using Microsoft.Extensions.Logging.Abstractions;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;

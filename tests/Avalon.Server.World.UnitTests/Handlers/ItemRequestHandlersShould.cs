@@ -31,7 +31,7 @@ public class ItemRequestHandlersShould : IAsyncLifetime
     private ItemDestroyHandler DestroyHandler() =>
         new(NullLogger<ItemDestroyHandler>.Instance, _w.World, new CharacterEconomy(_w.World, new ItemIdAllocator()));
 
-    private void Move(uint request, InventoryType from, uint fromSlot, InventoryType to, uint toSlot, uint? count = null) =>
+    private void Move(uint request, InventoryType from, byte fromSlot, InventoryType to, byte toSlot, uint? count = null) =>
         MoveHandler().Execute(_w.Connection, new CItemMovePacket
         {
             RequestId = request,
@@ -42,7 +42,7 @@ public class ItemRequestHandlersShould : IAsyncLifetime
             Count = count,
         });
 
-    private void Destroy(uint request, InventoryType container, uint slot, uint? count = null) =>
+    private void Destroy(uint request, InventoryType container, byte slot, uint? count = null) =>
         DestroyHandler().Execute(_w.Connection, new CItemDestroyPacket
         {
             RequestId = request,
@@ -121,16 +121,16 @@ public class ItemRequestHandlersShould : IAsyncLifetime
             FromContainer = InventoryType.Bag,
             FromSlot = 0,
             ToContainer = InventoryType.Bag,
-            ToSlot = 70000,
+            ToSlot = 255,
         });
         Move(48, InventoryType.Bag, 0, InventoryType.Bag, 3, count: 0);
 
         List<SItemResultPacket> results = Results();
         Assert.Equal(3, results.Count);
         Assert.Equal(ItemRequestResult.InvalidSlot, results[0].Result);
-        Assert.Equal((ushort)3, Assert.Single(results[0].Slots).Slot);      // only the readable slot
+        Assert.Equal((byte)3, Assert.Single(results[0].Slots).Slot);      // only the readable slot
         Assert.Equal(ItemRequestResult.InvalidSlot, results[1].Result);
-        Assert.Equal((ushort)0, Assert.Single(results[1].Slots).Slot);
+        Assert.Equal((byte)0, Assert.Single(results[1].Slots).Slot);
         Assert.Equal(ItemRequestResult.InvalidCount, results[2].Result);
         Assert.Equal(5u, At(_w.Character, InventoryType.Bag, 0).Count);
     }
@@ -148,7 +148,7 @@ public class ItemRequestHandlersShould : IAsyncLifetime
             [(InventoryType.Bag, 5), (InventoryType.Bag, 2)],
             results[0].Slots.Select(s => (s.Container, s.Slot)));
         Assert.Equal(ItemRequestResult.InvalidSlot, results[1].Result);
-        Assert.Equal((ushort)4, Assert.Single(results[1].Slots).Slot);
+        Assert.Equal((byte)4, Assert.Single(results[1].Slots).Slot);
     }
 
     /// <summary>Review Focus 1: a double drag in one tick moves the item once.</summary>

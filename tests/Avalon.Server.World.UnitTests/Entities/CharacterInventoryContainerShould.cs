@@ -12,7 +12,7 @@ namespace Avalon.Server.World.UnitTests.Entities;
 /// </summary>
 public class CharacterInventoryContainerShould
 {
-    private static InventoryItem Item(ushort slot, ulong template = 1, uint count = 1) =>
+    private static InventoryItem Item(byte slot, ulong template = 1, uint count = 1) =>
         new(slot, new ItemInstanceId(Guid.NewGuid()), new ItemTemplateId(template),
             count, Durability: 100, ItemInstanceFlags.None);
 
@@ -53,7 +53,7 @@ public class CharacterInventoryContainerShould
         CharacterInventoryContainer container = Bag();
         container.Load([Item(0), Item(2)]);
 
-        Assert.Equal<ushort>([1, 3, 4], container.FreeSlots().Take(3));
+        Assert.Equal<byte>([1, 3, 4], container.FreeSlots().Take(3));
         Assert.Equal(30, container.Capacity);
     }
 

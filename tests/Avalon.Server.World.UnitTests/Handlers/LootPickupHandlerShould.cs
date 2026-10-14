@@ -188,7 +188,7 @@ public class LootPickupHandlerShould
 
         InventorySlotUpdateDto slot = Assert.Single(update.Slots);
         Assert.Equal(InventoryType.Bag, slot.Container);
-        Assert.Equal((ushort)0, slot.Slot);
+        Assert.Equal((byte)0, slot.Slot);
         Assert.Equal(Potion.Id.Value, slot.Item!.ItemTemplateId);
         Assert.Equal(3u, slot.Item.Count);
         Assert.Null(update.Money);

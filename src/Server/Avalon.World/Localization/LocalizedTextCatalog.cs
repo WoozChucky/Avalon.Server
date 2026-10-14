@@ -1,8 +1,8 @@
+using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Localization;
 using Microsoft.Extensions.Logging;
 

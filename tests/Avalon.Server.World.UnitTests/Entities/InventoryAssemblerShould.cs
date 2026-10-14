@@ -18,7 +18,7 @@ public class InventoryAssemblerShould
 {
     private static readonly CharacterId s_owner = new(1);
 
-    private static CharacterInventory Row(InventoryType container, ushort slot, Guid itemId) =>
+    private static CharacterInventory Row(InventoryType container, byte slot, Guid itemId) =>
         new() { CharacterId = s_owner, Container = container, Slot = slot, ItemId = new ItemInstanceId(itemId) };
 
     private static ItemInstance Instance(Guid id, ulong template = 5, uint count = 1, uint durability = 50) =>
@@ -51,7 +51,7 @@ public class InventoryAssemblerShould
             [instance]);
 
         InventoryItem item = Assert.Single(result[InventoryType.Bag]);
-        Assert.Equal((ushort)3, item.Slot);
+        Assert.Equal((byte)3, item.Slot);
         Assert.Equal(new ItemTemplateId(4242), item.TemplateId);
         Assert.Equal(new ItemInstanceId(id), item.InstanceId);
         Assert.Equal(7u, item.Count);

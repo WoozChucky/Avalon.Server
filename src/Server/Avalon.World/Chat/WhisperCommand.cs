@@ -63,12 +63,12 @@ public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rate
         if (!Ignoring.Hides(target, sender.Guid.Id))
         {
             target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
-                PacketEncoder.Shared, ChatChannel.Whisper, characterClass: (ushort)sender.Class));
+                PacketEncoder.Shared, ChatChannel.Whisper, characterClass: sender.Class));
         }
 
         ctx.Connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
             PacketEncoder.Shared, ChatChannel.Whisper, targetName: recipient.Name,
-            characterClass: (ushort)sender.Class));
+            characterClass: sender.Class));
         rateLimiter.Record(sender.Guid.Id);
     }
 }
