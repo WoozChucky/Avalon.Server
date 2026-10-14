@@ -1,20 +1,24 @@
 using System.Runtime.CompilerServices;
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
 using Avalon.World.Parties;
+using Avalon.World.Public.Characters;
 
 namespace Avalon.World.Testing.Scenarios;
 
 /// <summary>
 /// Parties fighting through forests: four forest instances on the fixed seeds 1 to 4, each built as its party's forest
 /// is in production (<see cref="ScenarioWorld.NewForestInstance" />: the World server's generator, placement, spawn
-/// table and real AI over the World server's reference data), with a party of three level 1 characters in each, a
-/// warrior, a wizard and a hunter, joined at the entry. Every player is a <see cref="LoopFighter" />: it walks to the
-/// nearest live creature through the real input handler and casts its class's basic ability at it through the real
-/// cast handler. What is measured is a fight: the forests' creature AI (about 200 creatures each, all ticking), casts,
-/// projectiles, hits, threat and encounters, deaths and revives, kills with their real loot and experience shared by
-/// the party, and the state broadcast of all of it.
+/// table and real AI over the World server's reference data), with a party of three level 1 characters in each, joined
+/// at the entry; their classes cycle over the four (warrior, wizard, hunter, healer) across the whole roster, so three
+/// parties in four carry a healer. Every player is a <see cref="LoopFighter" />: it walks to the nearest live creature
+/// through the real input handler and casts its class's basic ability at it through the real cast handler, and a healer
+/// heals its party first when one of them is hurt. What is measured is a fight: the forests' creature AI (about 200
+/// creatures each, all ticking), casts, projectiles, hits, heals, threat and encounters, deaths and revives, kills with
+/// their real loot and experience shared by the party, and the state broadcast of all of it.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,11 +44,20 @@ public sealed class ForestCombatScenario : IScenario
 
     private const int PartySize = 3;
 
+    /// <summary>The bag slots each fighter starts with filled (<see cref="FillBag" />), of 30.</summary>
+    public const int BagFill = 28;
+
+    // Forest armour that does not stack: one bag slot each.
+    private const ulong FillerItem = 12;
+
     /// <summary>Seeds the world's combat and loot rolls.</summary>
     private const int WorldSeed = 1;
 
     private static readonly int[] s_forestSeeds = [1, 2, 3, 4];
-    private static readonly CharacterClass[] s_classes = [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter];
+    // Cycled over the whole roster, not per party slot: parties of three over four classes, so three parties in four
+    // carry a healer (the second, third and fourth here).
+    private static readonly CharacterClass[] s_classes =
+        [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Healer];
 
     // Each world's fight, for Verify and Kills: the scenario is shared, and builds a world for every run.
     private readonly ConditionalWeakTable<ScenarioWorld, Fight> _fights = new();
@@ -68,9 +81,12 @@ public sealed class ForestCombatScenario : IScenario
             {
                 var members = new ScenarioConnection[PartySize];
                 var party = new LoopFighter[PartySize];
+                var characters = new ICharacter[PartySize];
                 for (int m = 0; m < PartySize; m++)
                 {
-                    CharacterEntity character = world.NewCharacter(s_classes[m % s_classes.Length]);
+                    CharacterEntity character = world.NewCharacter(s_classes[fighters.Count % s_classes.Length]);
+                    FillBag(world, character);
+                    characters[m] = character;
                     var fighter = new LoopFighter(handlers, character, seed: fighters.Count + 1);
                     members[m] = world.Connect(character, fighter.Step);
                     party[m] = fighter;
@@ -83,7 +99,7 @@ public sealed class ForestCombatScenario : IScenario
                 forests.Add(forest);
                 for (int m = 0; m < PartySize; m++)
                 {
-                    party[m].Enter(forest);
+                    party[m].Enter(forest, characters);
                     world.Join(instance, members[m], forest.Entry);
                 }
             }
@@ -102,8 +118,9 @@ public sealed class ForestCombatScenario : IScenario
 
     /// <summary>
     /// Every player still present and sent to, every fighter casting and every forest losing creatures over the
-    /// measured ticks: a fighter that stopped fighting (stuck on a wall, or its casts refused) would leave the forest
-    /// cheaper, and the scenario would pass the allocation gate as an improvement.
+    /// measured ticks, and the fight as a whole landing heals, giving and completing kill quests, picking up drops and
+    /// destroying items: a fighter that stopped fighting (stuck on a wall, or its casts refused), or a fight that
+    /// stopped any of the rest, would measure cheaper, and the scenario would pass the allocation gate as an improvement.
     /// </summary>
     public void Verify(ScenarioWorld world)
     {
@@ -136,23 +153,53 @@ public sealed class ForestCombatScenario : IScenario
                     "that kills nothing measures cheaper than the fight and would pass the allocation gate as an improvement.");
             }
         }
+
+        // What the fight does besides fighting, over the measured ticks: each path the gate holds since #972.
+        FightOutcome measured = fight.Outcome().Since(fight.MarkedOutcome!);
+        RequireSome(measured.HealsLanded, "landed no heal");
+        RequireSome(measured.QuestCredits, "gave the kill quest no kill credit");
+        RequireSome(measured.QuestsCompleted, "completed no kill quest (each completion is abandoned and accepted again)");
+        RequireSome(measured.Pickups, "picked up no drop");
+        RequireSome(measured.ItemsDestroyed, "destroyed no item to keep room in the bags");
     }
 
-    /// <summary>The creatures killed in the world's forests since they were built.</summary>
-    public int Kills(ScenarioWorld world)
+    private void RequireSome(int count, string what)
     {
-        int kills = 0;
-        foreach (FightForest forest in FightOf(world).Forests)
-            kills += forest.Kills;
-        return kills;
+        if (count <= 0)
+        {
+            throw new InvalidOperationException(
+                $"{Name}: the fight {what} during the measured ticks. A fight that stopped doing it measures cheaper " +
+                "than it is and would pass the allocation gate as an improvement.");
+        }
     }
+
+    /// <summary>
+    /// A character that has played a while: <see cref="BagFill" /> slots of its 30-slot bag hold a piece of forest
+    /// armour each (item 12, which does not stack), put there through its inventory service before it enters the
+    /// forest. A level 1 bag fills far slower than a minute's fight, so without it the fighters would never need room,
+    /// and the item destroy path would not be measured; with it each fighter keeps its bag at 27 or 28 slots
+    /// (<see cref="LoopFighter.BagRoomSlots" />), destroying a slot for each pickup that takes one. Setup, never ticked.
+    /// </summary>
+    private static void FillBag(ScenarioWorld world, CharacterEntity character)
+    {
+        IInventoryService inventory = world.Economy!.InventoryOf(character);
+        for (int i = 0; i < BagFill; i++)
+        {
+            InventoryAddResult added = inventory.TryAdd(new ItemTemplateId(FillerItem), 1);
+            if (added != InventoryAddResult.Ok)
+                throw new InvalidOperationException($"Filling {character.Name}'s bag failed: {added}");
+        }
+    }
+
+    /// <summary>What the world's fight has done since it was built, summed over its fighters and forests.</summary>
+    public FightOutcome Outcome(ScenarioWorld world) => FightOf(world).Outcome();
 
     private Fight FightOf(ScenarioWorld world) =>
         _fights.TryGetValue(world, out Fight? fight)
             ? fight
             : throw new ArgumentException($"The world was not built by {Name}", nameof(world));
 
-    /// <summary>One world's fighters and forests, and their casts and kills when its progress was marked.</summary>
+    /// <summary>One world's fighters and forests, and their casts, kills and outcome when its progress was marked.</summary>
     private sealed class Fight(IReadOnlyList<LoopFighter> fighters, IReadOnlyList<FightForest> forests)
     {
         public IReadOnlyList<LoopFighter> Fighters { get; } = fighters;
@@ -163,7 +210,9 @@ public sealed class ForestCombatScenario : IScenario
 
         public int[] MarkedKills { get; } = new int[forests.Count];
 
-        public bool Marked { get; private set; }
+        public FightOutcome? MarkedOutcome { get; private set; }
+
+        public bool Marked => MarkedOutcome is not null;
 
         public void Mark()
         {
@@ -171,7 +220,56 @@ public sealed class ForestCombatScenario : IScenario
                 MarkedCasts[i] = Fighters[i].Casts;
             for (int f = 0; f < Forests.Count; f++)
                 MarkedKills[f] = Forests[f].Kills;
-            Marked = true;
+            MarkedOutcome = Outcome();
         }
+
+        public FightOutcome Outcome()
+        {
+            int kills = 0;
+            foreach (FightForest forest in Forests)
+                kills += forest.Kills;
+
+            int deaths = 0, heals = 0, landed = 0, accepted = 0, credits = 0, completed = 0, pickups = 0, destroyed = 0,
+                givenUp = 0;
+            foreach (LoopFighter fighter in Fighters)
+            {
+                deaths += fighter.Deaths;
+                heals += fighter.Heals;
+                landed += fighter.HealsLanded;
+                accepted += fighter.QuestsAccepted;
+                credits += fighter.QuestCredits;
+                completed += fighter.QuestsCompleted;
+                pickups += fighter.Pickups;
+                destroyed += fighter.ItemsDestroyed;
+                givenUp += fighter.GaveUp;
+            }
+
+            return new FightOutcome(kills, deaths, heals, landed, accepted, credits, completed, pickups, destroyed, givenUp);
+        }
+    }
+}
+
+/// <summary>What a <c>forest-combat</c> fight did since its world was built (<see cref="ForestCombatScenario.Outcome" />).</summary>
+/// <param name="Kills">Creatures killed.</param>
+/// <param name="Deaths">Fighters' deaths.</param>
+/// <param name="Heals">Heals the cast handler accepted.</param>
+/// <param name="HealsLanded">Of those, the heals that raised the health of the member they were aimed at.</param>
+/// <param name="QuestsAccepted">Kill quests accepted, the first time and again after each completion.</param>
+/// <param name="QuestCredits">Kills the fighters' kill quests counted.</param>
+/// <param name="QuestsCompleted">Kill quests completed, each then abandoned and accepted again.</param>
+/// <param name="Pickups">Drops picked up.</param>
+/// <param name="ItemsDestroyed">Bag slots destroyed to keep room for the next pickup.</param>
+/// <param name="DropsGivenUp">Drops a fighter stopped walking at (out of reach) or was refused.</param>
+public sealed record FightOutcome(int Kills, int Deaths, int Heals, int HealsLanded, int QuestsAccepted,
+    int QuestCredits, int QuestsCompleted, int Pickups, int ItemsDestroyed, int DropsGivenUp)
+{
+    /// <summary>What happened between <paramref name="earlier" /> and this outcome.</summary>
+    public FightOutcome Since(FightOutcome earlier)
+    {
+        ArgumentNullException.ThrowIfNull(earlier);
+        return new FightOutcome(Kills - earlier.Kills, Deaths - earlier.Deaths, Heals - earlier.Heals,
+            HealsLanded - earlier.HealsLanded, QuestsAccepted - earlier.QuestsAccepted,
+            QuestCredits - earlier.QuestCredits, QuestsCompleted - earlier.QuestsCompleted, Pickups - earlier.Pickups,
+            ItemsDestroyed - earlier.ItemsDestroyed, DropsGivenUp - earlier.DropsGivenUp);
     }
 }

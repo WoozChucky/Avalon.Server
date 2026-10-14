@@ -33,6 +33,11 @@ public class ScenarioConnectionShould
         Assert.True(plainConnection.BytesWritten > 0);
         Assert.True(sealedConnection.BytesWritten >= plainConnection.BytesWritten + NonceSize + TagSize,
             $"sealed {sealedConnection.BytesWritten} bytes, plain {plainConnection.BytesWritten}");
+
+        // The closes start, the pass finishes both senders, and each close ends without waiting out its budget.
+        sealedConnection.Dispose();
+        plainConnection.Dispose();
+        scheduler.RunAllPasses();
     }
 
     [Fact]

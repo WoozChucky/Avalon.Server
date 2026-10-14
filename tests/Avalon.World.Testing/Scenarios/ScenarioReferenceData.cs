@@ -31,6 +31,15 @@ public sealed class ScenarioReferenceData
     /// <summary>The town's map template: where every character enters the world.</summary>
     public static readonly MapTemplateId TownMap = new(1);
 
+    /// <summary>
+    /// The scenarios' kill quest, in this reference data only (never in the World database's seed): see
+    /// <see cref="NewKillQuest" />. Its id is far from the seeded quests' (1 to 8).
+    /// </summary>
+    public const uint KillQuest = 9001;
+
+    /// <summary>The kill quest's objectives: two Thornback Boars, one Grey Fen Wolf.</summary>
+    public const uint KillQuestBoars = 900101, KillQuestWolves = 900102;
+
     // A named in-memory database: each context opens its own connection to it, so repositories may be read from more
     // than one thread, and the keep-alive connection held below keeps it for the life of the process.
     private const string ConnectionString = "Data Source=avalon-scenario-reference;Mode=Memory;Cache=Shared";
@@ -118,6 +127,8 @@ public sealed class ScenarioReferenceData
         {
             db.Database.EnsureCreated();
             ChunkCatalogSeeder.SeedAsync(db, TownNavmesh.ContentRoot).GetAwaiter().GetResult();
+            db.QuestTemplates.Add(NewKillQuest());
+            db.SaveChanges();
         }
 
         var services = new ServiceCollection();
@@ -182,6 +193,40 @@ public sealed class ScenarioReferenceData
         return new ScenarioReferenceData(keepAlive, repositories, data, scripts, chunks, forestTemplate, forestConfig,
             Stopwatch.GetElapsedTime(start));
     }
+
+    /// <summary>
+    /// The scenarios' own quest (<see cref="KillQuest" />), written to the in-memory database only, never to the World
+    /// database's seed: a level 1 quest of one stage, kill two Thornback Boars (creature template 4) and a Grey Fen Wolf
+    /// (5), the forests' two commonest kills. Given and taken by Uriel (1), whose dialogue root the quest catalog requires
+    /// of a giver and an ender, and worded with "Thinning the Herd"'s texts (quest 1); no reward, since no scenario turns
+    /// it in.
+    /// </summary>
+    private static QuestTemplate NewKillQuest() => new()
+    {
+        Id = new QuestTemplateId(KillQuest),
+        TitleTextId = new LocalizedTextId(25),
+        DescriptionTextId = new LocalizedTextId(26),
+        CompletionTextId = new LocalizedTextId(27),
+        GiverCreatureId = new CreatureTemplateId(1),
+        EnderCreatureId = new CreatureTemplateId(1),
+        LevelRequirement = 1,
+        Stages = [new QuestStage { QuestId = new QuestTemplateId(KillQuest), Sequence = 0 }],
+        Objectives =
+        [
+            new QuestObjective
+            {
+                Id = KillQuestBoars, QuestId = new QuestTemplateId(KillQuest), StageSequence = 0,
+                Type = QuestObjectiveType.Kill, CreatureTemplateId = new CreatureTemplateId(4), Count = 2,
+                DescriptionTextId = new LocalizedTextId(28),
+            },
+            new QuestObjective
+            {
+                Id = KillQuestWolves, QuestId = new QuestTemplateId(KillQuest), StageSequence = 0,
+                Type = QuestObjectiveType.Kill, CreatureTemplateId = new CreatureTemplateId(5), Count = 1,
+                DescriptionTextId = new LocalizedTextId(36),
+            },
+        ],
+    };
 
     /// <summary>
     /// Why the bands leave a depth from 1 on to no band, or null: none at all, a first band from another depth than 1, a

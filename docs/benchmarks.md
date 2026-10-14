@@ -843,6 +843,11 @@ fifteen). The scenario gate reads `forest-combat` at 10,361 B per window after #
 committed 10,357 B, within the 256 B floor: the roster's lists growing to their size once during the run (with the
 lists made at 64 entries up front it reads 10,357 B). Nothing is allocated per tick.
 
+From #972 on, `Tick` rows include more than the aura work above: the scenario harness sends every packet through the
+real `Connection.Send` and the world connection's `OnQueued`, and its tick runs `QuestFlusher.Flush` for every
+connection (the fast path: nothing owed). `Tick` timings before and after #972 are not like for like; the pass and
+scan rows are unchanged.
+
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
 ```
@@ -3172,10 +3177,10 @@ The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `too
 | `town-idle` | 1 town | 30 | Players standing on a grid of points checked against the town's navmesh. Nothing moves, so this is the floor: what a tick costs when there is nothing to do. |
 | `town-walk` | 1 town | 30 | Players walking an 8 m circle centred at (45, 10), the south-east chunk's open square. Each player's input goes through the real `PlayerInputHandler` (one input packet per player, reused every tick), and each player is sent the real `SPlayerStateAckPacket` through the real cipher every tick. Ten engaged "Bench Wolf" creatures (seed 425) share the instance. |
 | `many-instances` | 250 normal maps | 500 | Two walking players in each of 250 normal-map instances, every instance created through the real `InstanceRegistry.GetOrCreateNormalInstanceAsync`. It measures many small instances rather than one crowd. |
-| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 1 to 4, each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 200, 269, 173 and 200 creatures, every one ticking), with a party of three level 1 characters in each (warrior, wizard, hunter) joined at the entry. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach casts its class's basic ability through the real `CastAbilityHandler` each time it is ready. Kills roll real loot and experience, shared by the party through the real `PartyService`. See [The forest-combat scenario](#the-forest-combat-scenario). |
+| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 1 to 4, each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 200, 269, 173 and 200 creatures, every one ticking), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
 
-No scenario was reduced in size: `many-instances` takes about 7 s for its warm-up and windows, `forest-combat` about
-8 s for its rehearsal and run in the gate.
+No scenario was reduced in size: `many-instances` takes 5 to 7 s for its warm-up and windows, `forest-combat` about
+10 s for its rehearsal and run in the gate (since #972; 8 s before).
 
 The walking circle is not centred on the entry spawn (15, 15), where the crowd-budget tests stand their players: an
 8 m circle there crosses a building and a wall, and a walker pressed into one stops for good. A half-metre scan of the
@@ -3183,8 +3188,11 @@ town found two adjacent centres whose circle stays a metre clear of every wall, 
 
 ### The send path is real
 
-Every scenario player has a real `AvalonCryptoSession` (the platform `AesGcm` since #850) and a real
-`ConnectionSender` (#875), which writes to a stream that only counts bytes; the scenario tick runs the send passes on
+Every scenario player sends through a real `WorldConnection` (#972): its `Connection.Send` (the packet's counted size,
+the two interlocked counters) and the world connection's `OnQueued` (the `network.out.bytes` and `network.out.packets`
+counters), onto its real `ConnectionSender` (#875) and its own real `AvalonCryptoSession` (the platform `AesGcm` since
+#850), with no socket: its outbox writes to a stream that only counts bytes. Until #972 a scenario connection called
+the sender's `Enqueue` directly; the send call added 0 B to every scenario. The scenario tick runs the send passes on
 its own thread after the wake-up, so they count as tick work here. So the per-packet encryption cost, and its
 allocations, are in the numbers; the [session cipher results](#session-cipher--benchmark-results) above show what it
 costs per call. Three things differ from production, all on the cost side only:
@@ -3194,19 +3202,22 @@ costs per call. Three things differ from production, all on the cost side only:
   tick over TLS on Linux loopback ([results](#results--the-send-threads-875-2026-10-10)), against 0.3 µs here. The counting stream completes every write at once, as a
   socket with room in its send buffer does; the sender then reads the write's outcome inline (#875), so a pass over
   either allocates nothing on the tick thread.
-- Scenario connections share key material. The point is the cost of sealing, not the secrecy of the result.
-- The `DiagnosticsConfig` counters (bytes, packets sent and dropped) are skipped, so their cost is **excluded** from the
-  numbers. They allocate nothing while no listener is attached, but production attaches an OpenTelemetry listener.
+- Scenario connections share the client's key; each makes its own server key pair, as a connection of a world that
+  seals does. The point is the cost of sealing, not the secrecy of the result.
+- The `DiagnosticsConfig` counters (bytes and packets sent) are called, but no listener is attached, so a measurement's
+  cost is **excluded** from the numbers: with none a counter's `Add` is a check. Production attaches an OpenTelemetry
+  listener (`ConnectionSendBenchmarks` measures the least a subscribed counter costs).
 
-Not modelled at all: the session pass (the first of the tick's two passes), the readiness barrier, the quest flusher,
-presence, pings, continuations, persistence and saves. Of the flushers `WorldServer` runs after the world update, the
-scenario tick runs the three that need no service, in its order and before the outbox flush (#875): inventory,
-character sheet and ability amounts. Nothing a town scenario does changes an inventory, the stats or the abilities, so
-there they send nothing; they must allocate nothing either, and with a closure the inventory flusher allocated on every
-call (32 B per player per tick, 57,600 B per window in `town-idle`), which the gate would fail. In `forest-combat` a
-fight changes them, and they send what they would in production. The quest flusher needs the quest service, which no
-scenario builds. Combat, parties (their tick, and the members' status after the flushers) and the World server's
-reference data are modelled by `forest-combat` alone. Of `World.Update` itself, the scenario tick runs the registry's
+Not modelled at all: the session pass (the first of the tick's two passes), the readiness barrier, presence, pings,
+continuations, persistence and saves. Of the flushers `WorldServer` runs after the world update, the scenario tick runs
+the quest flusher (in a world with reference data, which has the quest service) and the three that need no service, in
+its order and before the outbox flush (#875): quests, inventory, character sheet and ability amounts. Nothing a town
+scenario does changes an inventory, the stats or the abilities, so there they send nothing; they must allocate nothing
+either, and with a closure the inventory flusher allocated on every call (32 B per player per tick, 57,600 B per window
+in `town-idle`), which the gate would fail. In `forest-combat` a fight changes them, and they send what they would in
+production, the quest flusher's log, updates, lines, markers and Bag recount among them (#972). Combat, parties (their
+tick, and the members' status after the flushers), quests, the character economy and the World server's reference data
+are modelled by `forest-combat` alone. Of `World.Update` itself, the scenario tick runs the registry's
 publication of finished builds (`InstanceRegistry.PublishFinished`), the parties tick (in `forest-combat`) and the
 instance pass, and leaves out:
 
@@ -3398,20 +3409,20 @@ with the committed figure, in every build (Debug and Release, see below) and for
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
-  since server packets are built in per-thread messages; the file was last regenerated at `e6b43c97`, for `forest-combat`), so the 256 B
-  floor decides in every scenario:
+  since server packets are built in per-thread messages; the file was last regenerated at `75aeb59e`, for `forest-combat`'s
+  fuller fight, #972), so the 256 B floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
   per window).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the one figure above 0 (10,357 B per window since #890 and #883 took a kill's lists, closures,
-  delegates and its corpse's timer off the heap), and at that size the 256 B floor decides for it too (1% is 104 B):
-  it fails above 10,613 B, a little over 4 B per tick for the whole fight, so one 24 B object every five ticks fails
-  it. It reads the same in the gate alone and in a whole World suite run. Its Debug run reads the committed figure
-  too, 10,357 B, and so does a Release run with dynamic PGO off (since
-  [the kill path](#results--the-kill-path-890-883-2026-10-13)): nothing on the fight's path is kept off the heap only
-  by optimised code any more. Before that a Debug build read 237 B per
+  `forest-combat` is the one figure above 0 (14,292 B per window since #972 gave the fight a healer, a kill quest and
+  loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14); 10,357 B before), and at that size the 256 B floor
+  decides for it too (1% is 143 B): it fails above 14,548 B, a little over 4 B per tick for the whole fight, so one 24 B
+  object every five ticks fails it. Its Debug run reads 14,360 B, 68 B above Release and inside the floor: each item
+  destroy in the measured minute (85) pays 48 B in unoptimised code for the two boxes `Enum.HasFlag` makes in
+  `InventoryMove.DecideDestroy`, which optimised code keeps off the heap. From #890 to #972 Debug read the committed
+  figure exactly (since [the kill path](#results--the-kill-path-890-883-2026-10-13)). Before that a Debug build read 237 B per
   window above the committed 11,543 B (objects on the kill path and in the creature scripts), 19 B less than the
   floor allows, and 305 B above, 49 B more than it allows, until #883 took the closure out of `CancelScriptsOf`.
   For that time the escape hatch below applied to it alone (owner, #890): `forest-combat` was decided in Release (CI)
@@ -3487,8 +3498,8 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that; a fixed-length scenario
 (`forest-combat`) has no minimum to lean on, and relies instead on its settled rehearsal, which waits out a busy machine
-before its one measured run. The gate adds about 23 s to the World
-suite (`forest-combat` about 8 s of it), and `ForestCombatScenarioShould`, the forest's two-run check, about 15 s more.
+before its one measured run. The gate adds about 25 s to the World
+suite (`forest-combat` about 10 s of it since #972), and `ForestCombatScenarioShould`, the forest's two-run check, 12 to 17 s more.
 
 ### Allocation tests and background collections
 
@@ -3541,9 +3552,14 @@ seeds 1 to 4, built through the World server's own `ChunkLayoutInstanceFactory` 
 (`ScenarioReferenceData`: the `HasData` seed in an in-memory SQLite `WorldDbContext`, read by the production
 repositories; the script manager loaded, so creatures fight with their real AI and casts run their real ability
 scripts), each as its party's forest (`GetOrCreatePartyInstanceAsync`). In each, a party of three level 1 characters
-built as character creation and select build them (warrior, wizard, hunter: the class's level 1 stats and starting
-abilities), formed through the real `PartyService` and joined at the forest's entry (15, 1, 15). The harness cannot
-transfer a player between instances, so players start in the forest.
+built as character creation and select build them (the class's level 1 stats and starting abilities), formed through
+the real `PartyService` and joined at the forest's entry (15, 1, 15). The harness cannot transfer a player between
+instances, so players start in the forest. Since #972 the classes cycle over all four across the roster rather than per
+party slot (warrior, wizard, hunter; healer, warrior, wizard; hunter, healer, warrior; wizard, hunter, healer), as the
+load test's parties of three do, so three parties in four carry a healer. Each character starts with 28 of its 30 bag
+slots holding a piece of forest armour (item 12, which does not stack), added through its inventory service: a level 1
+bag fills far slower than a minute's fight, and this stands for a character that has played a while, so the item
+destroy path runs in every minute.
 
 Each player is a `LoopFighter` (`tests/Avalon.World.Testing/Scenarios/LoopFighter.cs`), the load-test fighter's
 decisions over the instance's own state rather than the world-state packets: every tick it finds the nearest live
@@ -3551,8 +3567,31 @@ creature among the forest's creatures, steers at it with one `CPlayerInputPacket
 (bump and turn: a step that asked to move and moved under 0.1 m/s met a wall, and the fighter turns 90 to 270 degrees
 away, from a seeded random, for a second), and within reach stands, faces it and casts its class's basic ability
 through `CastAbilityHandler` when the ability and the global cooldown are ready (Cleave 200 along the facing; Arcane
-Bolt 210 and Quick Shot 220 at the creature's position). It stops `min(1 m, 0.2 × reach)` inside the ability's reach,
-the load-test fighter's rule: a warrior stops at 2 m, outside the 1.5 m a creature keeps from what it fights.
+Bolt 210, Quick Shot 220 and Smite 230 at the creature's position). It stops `min(1 m, 0.2 × reach)` inside the
+ability's reach, the load-test fighter's rule: a warrior stops at 2 m, outside the 1.5 m a creature keeps from what it
+fights. Since #972 it also does, every step, in this order:
+
+- **Quest.** It holds the scenarios' kill quest (9001: one stage, kill two Thornback Boars and a Grey Fen Wolf, the
+  forests' commonest kills; written by `ScenarioReferenceData` to its in-memory database only, never to the World
+  seed). It accepts it at its first step, and once the quest is ready to hand in it abandons it through the real
+  `QuestAbandonHandler` and accepts it again (no turn-in). The accept goes through `QuestService.StartFromItem`,
+  answered by `QuestReplies` as the accept handler answers: `QuestAcceptHandler`'s `QuestService.Accept` requires an
+  open conversation with the quest's giver within the dialogue leash, and no forest holds a quest giver.
+  `StartFromItem` runs the same start (availability, stage 0, the line, the hooks, the settle) without the
+  conversation check and without re-sending the giver's dialogue. The kill credit is the instance's own
+  (`QuestService.CreatureKilled` on every kill the party shares); the scenario tick runs `QuestFlusher` as
+  `WorldServer` does.
+- **Bag.** With two free bag slots or fewer, it destroys the lowest occupied slot through the real
+  `ItemDestroyHandler`, so a pickup is never refused for a full bag.
+- **Loot.** It walks to the nearest drop it may take now (reserved for it, or free for all by now) within 26 m, a
+  little past the longest basic reach, and within 3.5 m stands and asks for it through the real `LootPickupHandler`.
+  A drop it walks at for 10 s, or one refused, is given up (none is, in the committed run).
+- **Heal.** A healer casts Mending Circle (232: an ally circle at the aim point, 15 m reach, 8 s cooldown, 25 mana,
+  about 65 health at level 1) at the feet of the most hurt living member under 70% of its health within reach, when
+  the heal and the global cooldown are ready and it has the mana, walking or standing, through the same
+  `CastAbilityHandler`; otherwise it fights. A member under 70% has lost at least 30%, and the heal restores a
+  quarter of a warrior's health to a little over half a wizard's, so most of it lands. The heal goes through the
+  combat service as a hit does, with heal threat on every creature fighting the healed (#961).
 
 **Death.** Level 1 characters die to packs. A dead fighter sends nothing (the input handler drops a dead character's
 input); a client would respawn in town and walk back in, which the harness cannot do. After 10 s (600 ticks) it is
@@ -3560,15 +3599,24 @@ revived at the forest's entry through the instance's own `ICombatService.ReviveP
 quarter of its health, the revive broadcast). So each forest keeps three fighters for the whole run.
 
 **What one run does.** Every run, on every machine, fights the same fight (the layouts, placement, combat and loot
-rolls and the fighters' turns are seeded, and every timer reads the world's clock). Over the 4,200 ticks: 71
-creatures killed (60 of them in the measured minute: 16, 12, 10 and 22 by forest), 9 deaths, and 23 to 73 casts per
-fighter in the measured minute (warriors fewest: they walk the furthest and die the most). Experience is shared, but
-no character reaches level 2. `ForestCombatScenarioShould` runs the scenario twice in one process and requires the
-same kills and the same bytes per window; the second run's creatures carry higher ids (the process-wide object id
-counter), which changes neither.
+rolls and the fighters' turns are seeded, item instance ids are handed out in order, and every timer reads the
+world's clock). Over the 4,200 ticks since #972: 105 creatures killed (93 in the measured minute), 2 deaths, 18 heals
+cast and landed (16 in the minute), 36 quest accepts, 93 kill credits (78) and 24 completions (all 24 in the minute),
+198 drops picked up (180) and 106 bag slots destroyed (85, the first 21 in the first steps, from the filled bags), and
+no drop given up. Before #972 the run killed 71 (60 in the minute) with 9 deaths: the healers keep their parties alive,
+and fighters walking to their drops meet more creatures. Experience is shared, but no character reaches level 2. The
+scenario's check (`Verify`) requires, over the measured ticks, besides every fighter casting and every forest losing
+creatures, heals landed, kill credit, a completion, pickups and items destroyed. `ForestCombatScenarioShould` runs the
+scenario twice in one process and requires the same outcome (every count above) and the same bytes per window, and
+kills and deaths in it; the second run's creatures carry higher ids (the process-wide object id counter), which
+changes neither.
 
-**Gate.** Committed at **10,357 B per window** (14.4 B per player per tick, 173 B per tick), a hard gate like the town
-scenarios: see [The allocation gate](#the-allocation-gate) for the floor. Recorded on the developer machine, Release,
+**Gate.** Committed at **14,292 B per window** (19.9 B per player per tick, 238 B per tick) since #972, the sum of
+10,361 B (the fight before #972: the file held 10,357 B, and the 4 B are #898's roster lists growing to their size
+once during the run, see [aura scans](#aura-scans--benchmarksaurascanbenchmarkscs-898)) and the increments of [a fuller fight](#results--a-fuller-fight-972-2026-10-14): the real send
+call 0 B, the healer +1,118 B, the kill quest +1,457 B and loot +1,356 B. A hard gate like the town scenarios: see
+[The allocation gate](#the-allocation-gate) for the floor. Before #972 it was committed at **10,357 B per window**
+(14.4 B per player per tick, 173 B per tick), recorded on the developer machine, Release,
 dynamic PGO on, after #880's allocations were taken out of the combat and AI paths ([Dynamic PGO](#dynamic-pgo)), #888
 took the send path off the tick thread's bill, #875 encoded each broadcast once
 ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)), #890 took the query out of the melee slots'
@@ -3601,16 +3649,18 @@ summary.
 | After the melee slots' release (#890, PGO on) | 15,635 |
 | After the cast path (#925, #883, PGO on) | 11,543 |
 | After the kill path (#890, #883, PGO on) | 10,385 |
-| After the corpse remover (#883, PGO on), now | 10,357 |
-| Release with PGO off, now | 10,357 |
-| Debug, now | 10,357 |
+| After the corpse remover (#883, PGO on) | 10,357 |
+| Release with PGO off, then | 10,357 |
+| Debug, then | 10,357 |
+| A fuller fight: healer, kill quest, loot (#972, PGO on), now | 14,292 |
+| Debug, now | 14,360 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
 
 Four forests of about 840 creatures and twelve fighters cost about as much per tick as `town-walk`'s 30 walkers: most
 creatures are far from any player, and an idle creature's AI looks for players once a second rather than every tick.
-The minute allocates 0.62 MB on the tick thread.
+The minute allocated 0.62 MB on the tick thread before #972, and 0.86 MB since.
 
 **What dominates its allocations.** The send path costs the tick thread nothing since #888, once its payload pool
 holds its free segments in a stack under a lock per size class. It held them in a `ConcurrentQueue` per size: after a
@@ -3677,6 +3727,59 @@ and `147_0` cannot be matched by name from a profile; any left on paths the fore
 not touch `MapId`, which no forest tick allocates, nor the network-layer items. The driver itself allocates nothing: it
 holds its packets and its ability, and reads the ability's cooldown itself rather than asking the character.
 
+### Results — a fuller fight (#972, 2026-10-14)
+
+The gate held only what the scenarios ran, and several paths that allocate per packet or per event were outside every
+one of them (#972). This widens what it sees, in four steps, each measured on its own before the next: the real send
+call in every scenario, then a healer, a kill quest and loot in `forest-combat` ([what the fighters
+do](#the-forest-combat-scenario)). Bytes per window of `forest-combat`, the runner (`--scenario forest-combat
+--measure-ticks 0`, 5 s rehearsal), developer machine (i9-12900K, Windows 11, .NET 10.0.12), with other builds and
+tests running beside it; every run of a step read the same figure, to the byte:
+
+| Step | Commit | Release | Debug | Increment (Release) | Runs |
+|---|---|---:|---:|---:|---|
+| Before (main `2d948654`; the file held 10,357, 4 B under #898's roster lists) | | 10,361 | 10,361 | | 3 + 3 |
+| The real send path: `Connection.Send` and `OnQueued` | `6291eaa2` | 10,361 | 10,361 | 0 | 3 + 3 |
+| A healer in three parties in four | `45704b77` | 11,479 | 11,479 | +1,118 | 3 + 3 |
+| The kill quest | `aaca7ed8` | 12,936 | 12,936 | +1,457 | 3 + 3 |
+| Loot and item destroys | `75aeb59e` | 14,292 | 14,360 | +1,356 | 3 + 3, then 5 + 5 |
+
+**The committed figure, 14,292 B, is the sum**: 10,361 + 0 + 1,118 + 1,457 + 1,356. Release with dynamic PGO off
+(`DOTNET_TieredPGO=0`) reads 14,292 too. The gate reads 14,292 in Release and 14,360 in Debug (+0.48%, inside the
+256 B floor), and the town scenarios and `many-instances` read 0 B in both: the send call allocates nothing on any
+scenario's path. Stability: five more runs in each build read 14,292 (Release) and 14,360 (Debug) every time, a
+spread of 0 B, against the 256 B the gate tolerates.
+
+What each step costs, and why:
+
+- **The send path, 0 B.** Each scenario connection now sends through a real `WorldConnection` with no socket (its
+  outbox on the counting stream): `Connection.Send` reads the packet's size, adds to two counters with `Interlocked`
+  and calls `OnQueued`, whose two `Counter<long>.Add` calls, with no listener, are a check each. None of it
+  allocates, as `ConnectionSendBenchmarks` showed (#970).
+- **The healer, +1,118 B.** Changing the roster alone (the healer casting Smite, no heals) is +435 B; the heals take it
+  to +1,118 B. A heal cast itself allocates about 460 B (its circle script and the heal's hit and threat), about what
+  an attack cast does, and there are 8 in the measured minute; most of the rest is the fight the heals change (the
+  party lives, casts and kills more: 83 kills over the run against 71). Nothing is allocated per tick.
+- **The kill quest, +1,457 B.** About 690 B per quest flush that has something to send (an update, a line, the markers
+  recomputed: 83 in the minute), about 960 B per abandon and accept (21 in the minute), and the kill path's quest walk.
+  The fight is unchanged (the same 83 kills). Nothing is allocated per tick: a flush with nothing owed returns at its
+  first check (#977).
+- **Loot, +1,356 B.** 180 pickups and 85 destroys in the minute, each through its handler with its reply, the
+  despawn broadcast for a pickup, the inventory flush of the changed slots and the quest flush's Bag recount, and a
+  bigger fight (93 kills in the minute against 71 before): fighters walking to their drops meet more creatures.
+
+**Findings, none on a per-tick path** (production code is unchanged here):
+
+- `InventoryMove.DecideDestroy` tests the template's flags with `Enum.HasFlag(ItemTemplateFlags.NoDestroy)`, which
+  boxes the receiver and the argument in unoptimised code: 48 B per item destroy in Debug, 0 in Release. It is why
+  Debug reads 68 B per window above Release (85 destroys × 48 B = 4,080 B per minute), found by diffing the per-tick
+  bytes of a Release and a Debug run: 84 ticks differ, each by 48 B (one by 96). A bit test, as `CastAbilityHandler`
+  uses since #880, would make Debug read the committed figure again.
+- `QuestService.FlushMarkers` walks every creature of the character's instance through
+  `IReadOnlyDictionary.Values` (a boxed enumerator, 40 B) and builds a new list (32 B) each time the character's
+  quest log, level or instance changed: 72 B and a walk of 200 creatures per kill credit per party member in a
+  forest, which holds no quest NPC, so the list it builds is always empty.
+
 ### Results — the broadcast schedule (#975, 2026-10-14)
 
 Every instance used to broadcast its state on the same tick, and each instance's timer reset to 0 on a broadcast,
@@ -3736,6 +3839,10 @@ so it does a sixth more broadcast work; the allocation of the crowded single tow
 7/6 = 120,678 B; 2,214,458 B × 7/6 = 2,583,534 B): what one broadcast to 300 or 600 players in one instance allocates is
 unchanged. The times are within the noise: the four cases moved by -3% to +16% at the same 7/6 ratio of broadcasts,
 with a standard deviation of 10% to 25%, so they show no cost per broadcast either way.
+
+From #972 on, `TickPhaseBenchmarks` (and `CharacterDeltaBenchmarks`, built on the same harness) send every packet
+through the real `Connection.Send` and the world connection's `OnQueued` rather than the sender's `Enqueue` alone:
+rows from #972 on include the send call, so their timings and those above are not compared like for like.
 
 **The allocation gate does not move**: `town-idle`, `town-walk` and `many-instances` 0 B, `forest-combat` 10,357 B, in
 Debug and Release, and `ForestCombatScenarioShould`'s two runs agree. The fight's four forests, published together,
