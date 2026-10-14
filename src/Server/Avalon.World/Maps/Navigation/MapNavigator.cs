@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Maps;
 using DotRecast.Core.Numerics;
@@ -12,6 +13,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     private DtNavMesh? _navMesh;
     private ReusingNavMeshQuery? _query;
     private IDtQueryFilter _queryFilter;
+    private StandingPolygonSearch _standingSearch;
 
     private const float StepSize = 0.5f;
     private const float Slop = 0.01f;
@@ -49,6 +51,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
         _navMesh = navMesh;
         _query = new ReusingNavMeshQuery(_navMesh);
         _queryFilter = new DtQueryDefaultFilter();
+        _standingSearch = StandingPolygonSearch.For(navMesh, PolyPickExt);
     }
 
     public List<Vector3> FindPath(Vector3 start, Vector3 end)
@@ -58,6 +61,9 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
         return path;
     }
 
+    // The surface move writes the polygons it visits into the 16-entry buffer and the corridor merge reads only
+    // the ones written, so it is not zeroed on every route (#978).
+    [SkipLocalsInit]
     public void FindPath(Vector3 start, Vector3 end, List<Vector3> smoothPath)
     {
         smoothPath.Clear();
@@ -82,7 +88,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
             // branch below can slide entries in-place via Span.CopyTo without copying twice.
             Span<long> path = _corridor;
 
-            DtStatus status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out long startRef, out _, out _);
+            DtStatus status = _standingSearch.FindNearestPoly(query, startPos, _queryFilter, out long startRef, out _, out _);
             CheckStatus(status);
             if (startRef == 0)
             {
@@ -90,7 +96,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 return;
             }
 
-            status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out long endRef, out _, out _);
+            status = _standingSearch.FindNearestPoly(query, endPos, _queryFilter, out long endRef, out _, out _);
             CheckStatus(status);
             if (endRef == 0)
             {
@@ -230,6 +236,9 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
     private static Vector3 ToVector3(RcVec3f v) => new(v.X, v.Y, v.Z);
 
+    // The raycast only writes the polygons it visits into its 2 KB path, which is never read here, so it is not
+    // zeroed on every line of sight (#978).
+    [SkipLocalsInit]
     public bool HasVisibility(Vector3 start, Vector3 end)
     {
         try
@@ -246,7 +255,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
             var endPos = new RcVec3f(end.x, end.y, end.z);
 
             // Find the nearest polygons to the start and end points
-            DtStatus status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out long startRef, out _, out _);
+            DtStatus status = _standingSearch.FindNearestPoly(query, startPos, _queryFilter, out long startRef, out _, out _);
             CheckStatus(status);
             if (startRef == 0)
             {
@@ -254,7 +263,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
                 return false;
             }
 
-            status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out long endRef, out _, out _);
+            status = _standingSearch.FindNearestPoly(query, endPos, _queryFilter, out long endRef, out _, out _);
             CheckStatus(status);
             if (endRef == 0)
             {
@@ -288,19 +297,24 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     /// The player's horizontal raycast and ground snap, reusing the start query only when the
     /// resulting ground query has exactly the same centre. No polygon hint survives this call.
     /// Moving endpoints still search independently: the raycast's last polygon need not be the
-    /// nearest ground polygon on overlapping floors.
+    /// nearest ground polygon on overlapping floors. Both searches find the polygon the player
+    /// stands on in a narrow box first (<see cref="StandingPolygonSearch" />, #978).
     /// </summary>
     public Vector3 MoveOnGround(Vector3 from, Vector3 to)
     {
-        Vector3 clamped = RaycastWalkable(from, to, out long startRef);
+        Vector3 clamped = RaycastWalkable(from, to, out long startRef, out RcVec3f startNearest, out bool startOver);
         if (startRef == 0) return new Vector3(clamped.x, from.y, clamped.z);
         float groundY;
         if (clamped.x == from.x && clamped.z == from.z)
         {
             // The legacy ground sample uses from.y, not the raycast's interpolated Y. Its centre,
             // extents and filter are identical to the start search, even when the raycast failed.
+            // Over the polygon, the search already holds the height GetPolyHeight would read.
             var center = new RcVec3f(from.x, from.y, from.z);
-            groundY = _query!.GetPolyHeight(startRef, center, out float h).Succeeded() ? h : from.y;
+            if (startOver)
+                groundY = startNearest.Y;
+            else
+                groundY = _query!.GetPolyHeight(startRef, center, out float h).Succeeded() ? h : from.y;
         }
         else
         {
@@ -311,11 +325,17 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
     }
 
     public Vector3 RaycastWalkable(Vector3 from, Vector3 to)
-        => RaycastWalkable(from, to, out _);
+        => RaycastWalkable(from, to, out _, out _, out _);
 
-    private Vector3 RaycastWalkable(Vector3 from, Vector3 to, out long startRef)
+    // The raycast only writes the polygons it visits into its path, which is never read here, so the 2 KB
+    // buffer is not zeroed on every call (#978): every movement input and projectile step casts one.
+    [SkipLocalsInit]
+    private Vector3 RaycastWalkable(Vector3 from, Vector3 to, out long startRef, out RcVec3f startNearest,
+        out bool startOver)
     {
         startRef = 0;
+        startNearest = default;
+        startOver = false;
         if (_navMesh == null) return to;
 
         ReusingNavMeshQuery query = _query!;
@@ -324,7 +344,8 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
         // baked navmesh without any axis flip (see ChunkLayoutNavmeshBuilder.AppendTransformed).
         // Queries must use the same coords — do NOT negate X.
         var startVec = new RcVec3f(from.x, from.y, from.z);
-        DtStatus status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out startRef, out _, out _);
+        DtStatus status = _standingSearch.FindNearestPoly(query, startVec, _queryFilter, out startRef,
+            out startNearest, out startOver);
         if (status.Failed() || startRef == 0)
         {
             return from;
@@ -367,10 +388,18 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
         ReusingNavMeshQuery query = _query!;
         var center = new RcVec3f(near.x, near.y, near.z);
-        DtStatus status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out long nearestRef, out RcVec3f nearestPt, out _);
+        DtStatus status = _standingSearch.FindNearestPoly(query, center, _queryFilter, out long nearestRef,
+            out RcVec3f nearestPt, out bool overPoly);
         if (status.Failed() || nearestRef == 0)
         {
             return NavmeshGroundKind.None;
+        }
+
+        // Over the polygon, the search measured its height under the point with the same GetPolyHeight.
+        if (overPoly)
+        {
+            ground = new Vector3(near.x, nearestPt.Y, near.z);
+            return NavmeshGroundKind.Under;
         }
 
         if (query.GetPolyHeight(nearestRef, center, out float h).Succeeded())
