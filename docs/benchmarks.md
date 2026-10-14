@@ -4057,8 +4057,8 @@ is listed or removed up to one period (100 ms) later. An arriving client still s
 character that left is still removed on the next tick; both are rare next to the ticks they save.
 
 What one scan costs is unchanged: **`InterestVisibilityBenchmarks`** (one `CharacterCharacterGameState.Update` over 200
-creatures; `--inProcess`, short job, ten warmups, eight iterations; two runs each, before at `89491613`, after at
-`19f30af6`):
+creatures; `--inProcess`, short job, ten warmups, eight iterations; two runs each, before on the commit that adds `forest-3` to
+`TickPhaseBenchmarks`, after on the cadence change):
 
 | Layout | Before | After | Allocated |
 |---|---:|---:|---:|
@@ -4070,7 +4070,7 @@ The 3.41 µs is one noisy run (its error was ±0.99 µs). What changes is how ma
 
 **`TickPhaseBenchmarks`** (the tick, 42 ticks per operation; `--inProcess`, short job, ten warmups, eight iterations;
 three runs each, interleaved after, before, after, before, after, the before build run from a copy of its binaries;
-`forest-3` is new in `89491613`, forests of three players standing at the entry with seed 1's creatures and AI; the
+`forest-3` is new with this change, forests of three players standing at the entry with seed 1's creatures and AI; the
 machine otherwise idle, but the second round's errors were 30% to 50% of its means):
 
 | Players | Layout | Before | After | Allocated before | Allocated after |
