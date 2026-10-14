@@ -104,11 +104,14 @@ It exits 0 when every status is one its line expects, 1 when one is not (000: no
 `forest-combat`, from `tests/Avalon.World.Testing`) in process, with the server's GC settings, and prints one row per
 scenario: the
 tick-thread bytes of one 60-tick window (the least of five; for `forest-combat`, a fight of fixed length, the mean
-over its measured minute), bytes per player per tick, tick times (mean, p95, p99, max), the share of ticks over the
+over its measured minute), bytes per player per tick, tick times (mean, p50, p95, p99, max), the share of ticks over the
 60 Hz budget, and the timed phase's collections and GC pauses. Run it in Release;
 `--write-baseline perf/local/<host>.json` keeps a run (`perf/local/` is ignored by git), `--baseline <file>` prints
 current, baseline and change per figure against such a run and never fails, and `--write-allocations <file>` writes
-the committed allocation baseline from this run. Timings are machine-specific and only compare on one machine.
+the committed allocation baseline from this run. `--broadcast-ticks <n>` adds, after the timed runs, a census of how
+many instances broadcast state on each of `n` untimed ticks, read from the world's own tick trace: it shows broadcast
+lockstep ([benchmarks](benchmarks.md#comparing-broadcast-schedules-976)). Timings are machine-specific and only compare
+on one machine.
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-baseline perf/local/$(hostname).json

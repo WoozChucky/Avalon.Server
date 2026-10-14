@@ -3173,13 +3173,43 @@ dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario town-walk -
 ```
 
 Options: `--scenario <name>|all` (default `all`), `--warmup-seconds` (default 10), `--measure-ticks` (default 3600;
-0 skips timing), `--json <file>`, `--baseline <file>`, `--write-baseline <file>`, `--write-allocations <file>`. The
+0 skips timing), `--json <file>`, `--baseline <file>`, `--write-baseline <file>`, `--write-allocations <file>`,
+`--broadcast-ticks <n>` (default 0; see below). The
 runner uses Server GC with concurrent collection, the world server's own settings, and warns when built in Debug.
 
 The table has one row per scenario: `bytes/window` (the gated figure), `B/player/tick` (that figure over 60 ticks and
-the player count), tick ms mean, p95, p99 and max, `% > 16.7 ms`, gen0, gen1 and gen2 collections, and GC pause in ms
+the player count), tick ms mean, p50, p95, p99 and max, `% > 16.7 ms`, gen0, gen1 and gen2 collections, and GC pause in ms
 and as a share of the timed phase. Only `bytes/window` is gated. Everything else depends on the machine and its load,
 and compares only against a baseline taken on the same machine.
+
+#### Comparing broadcast schedules (#976)
+
+`TickPhaseBenchmarks` reports means, which spreading the state broadcasts over the ticks does not move; the tail
+does. `many-instances` is the scenario for it: 250 instances built together before the first tick, every one ticked
+with the same fixed step, no random roll anywhere (its world's seed is the default 0 and nothing in it rolls), so two
+builds of it run the same work tick for tick. Compare two variants by the timed run's p50, p95 and p99, each against
+the other's file, on one machine:
+
+```bash
+# variant A (say main), then variant B (the change) on the same machine, the machine otherwise idle
+dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario many-instances --write-baseline perf/local/broadcast-a.json --broadcast-ticks 420
+dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario many-instances --baseline perf/local/broadcast-a.json --broadcast-ticks 420
+```
+
+`--broadcast-ticks <n>` adds, after the timed runs, a census per scenario: a fresh world ticked `n` times with the
+tick trace (`Avalon-World-Tick`, [tick phase traces](tick-profiling.md)) attached in process, counting on each tick
+the instances whose record says it broadcast. It is never timed (the trace costs the tick its timestamps, and the
+in-process listener boxes every payload). Lockstep reads as every instance on the same ticks; at `1e7d9618` every
+scenario reads that way, `many-instances` as 60 ticks of 420 with all 250 instances broadcasting and none in between
+(the scenario's step reaches the 0.1 s interval every seventh tick, the 9.1 Hz cadence of
+[#974](https://github.com/WoozChucky/Avalon.Server/issues/974)). A broadcast spread over the ticks reads as most
+ticks with some, and a per-tick maximum near the instance count over the ticks per interval.
+
+The timed run's tail is what to compare, and it is noisy on a shared machine: three runs of `many-instances` at
+`5b3d3adf` on the developer machine, with other builds and tests running beside it, read p50 2.75 to 3.30 ms, p95
+4.07 to 5.61 ms and p99 4.74 to 22.38 ms. Take each variant's figure from several runs on an idle machine. With
+lockstep, one tick in seven carries every instance's broadcast, so p95 and p99 fall on broadcast ticks and p50 on the
+others.
 
 ### The allocation gate
 
