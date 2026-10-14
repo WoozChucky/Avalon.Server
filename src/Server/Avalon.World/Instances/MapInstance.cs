@@ -261,7 +261,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
         _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
         _auraWire = new AuraWire();
-        _auraUpdates = new SharedAuraUpdates(_auraWire);
+        _auraUpdates = new SharedAuraUpdates(_auraWire, PacketEncoder.Shared);
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
         _hits = new UnitHitQuery(_characters, _creatures);

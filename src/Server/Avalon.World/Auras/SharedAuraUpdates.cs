@@ -22,7 +22,8 @@ namespace Avalon.World.Auras;
 /// </para>
 /// </remarks>
 /// <param name="wire">The instance's reused aura entries, which each update is written from.</param>
-public sealed class SharedAuraUpdates(AuraWire wire)
+/// <param name="encoder">What each update is encoded with: <see cref="PacketEncoder.Shared" /> in a world.</param>
+public sealed class SharedAuraUpdates(AuraWire wire, PacketEncoder encoder)
 {
     private readonly Dictionary<ulong, OutboundPacket> _encoded = [];
 
@@ -36,7 +37,7 @@ public sealed class SharedAuraUpdates(AuraWire wire)
         if (!_encoded.TryGetValue(guid, out OutboundPacket packet))
         {
             // Encoded before it is kept, so a throw leaves nothing half made in the table.
-            packet = SAuraUpdatePacket.Create(guid, wire.Updates(auras.Changes), PacketEncoder.Shared);
+            packet = SAuraUpdatePacket.Create(guid, wire.Updates(auras.Changes), encoder);
             _encoded.Add(guid, packet);
         }
 
