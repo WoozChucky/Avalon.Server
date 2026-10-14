@@ -36,6 +36,12 @@ public class CreatureRangeDetectorScript : AiScript
     }
 
     public override object State { get; set; } = RangeDetectionState.Searching;
+
+    /// <summary>
+    /// The next tick. Read only for a creature's own script, which this never is: its owner runs it, and keeps its timer
+    /// waiting for it (#979).
+    /// </summary>
+    public override TimeSpan NextUpdateIn => TimeSpan.Zero;
     protected override bool ShouldRun()
     {
         return State is RangeDetectionState.Searching;

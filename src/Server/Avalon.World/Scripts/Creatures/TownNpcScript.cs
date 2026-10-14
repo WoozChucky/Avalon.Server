@@ -41,11 +41,9 @@ public class TownNpcScript(ICreature creature, ISimulationContext context) : AiS
     protected override bool ShouldRun() => false;
 
     /// <summary>
-    /// When it is a creature's own script, named as it is (#979): its Update does nothing, so it is never due. A subclass
-    /// keeps every tick unless it opts in itself.
+    /// Never due, named as it is (#979): its Update does nothing, so only an event wakes it, and it does nothing then
+    /// either. A subclass gets every tick unless it answers itself.
     /// </summary>
-    public override bool UpdatesWhenDue => GetType() == typeof(TownNpcScript);
-
-    /// <summary>Never due: only an event wakes it, and it does nothing then either.</summary>
-    public override TimeSpan NextUpdateIn => Timeout.InfiniteTimeSpan;
+    public override TimeSpan NextUpdateIn =>
+        GetType() == typeof(TownNpcScript) ? Timeout.InfiniteTimeSpan : TimeSpan.Zero;
 }

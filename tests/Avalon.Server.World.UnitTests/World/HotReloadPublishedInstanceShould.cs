@@ -33,6 +33,8 @@ public class HotReloadPublishedInstanceShould
     {
         public override object State { get; set; } = 0;
 
+        public override TimeSpan NextUpdateIn => TimeSpan.Zero;
+
         protected override bool ShouldRun() => false;
     }
 
@@ -40,6 +42,8 @@ public class HotReloadPublishedInstanceShould
     private sealed class ReloadedScript(ICreature creature, ISimulationContext context) : AiScript(creature, context)
     {
         public override object State { get; set; } = 0;
+
+        public override TimeSpan NextUpdateIn => TimeSpan.Zero;
 
         protected override bool ShouldRun() => false;
     }

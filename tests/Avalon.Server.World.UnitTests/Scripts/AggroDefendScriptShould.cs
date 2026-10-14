@@ -205,6 +205,8 @@ public class AggroDefendScriptShould
     private sealed class ExtraScript(ICreature creature, ISimulationContext context) : AiScript(creature, context)
     {
         public override object State { get; set; } = string.Empty;
+
+        public override TimeSpan NextUpdateIn => TimeSpan.Zero;
         public int Updates { get; private set; }
         protected override bool ShouldRun() => true;
         public override void Update(TimeSpan deltaTime) => Updates++;

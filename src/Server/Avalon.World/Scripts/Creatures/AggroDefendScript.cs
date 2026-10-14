@@ -15,8 +15,8 @@ namespace Avalon.World.Scripts.Creatures;
 /// </summary>
 /// <remarks>
 /// Updated only when due (#979), but for a subclass built through the protected constructor, which keeps every tick
-/// (#916): while it fights,
-/// returns home or re-arms its detector it runs every tick; while it only waits for its next search, the instance keeps
+/// (#916) unless it answers <see cref="NextUpdateIn" /> itself: while it fights, returns home or re-arms its detector it
+/// runs every tick; while it only waits for its next search, the instance keeps
 /// its detector's timer (<see cref="IAwaitsSearch" />) and runs it on the tick that search is due, or after a hit, a
 /// dodge or a character leaving.
 /// </remarks>
@@ -43,7 +43,7 @@ public class AggroDefendScript : AiScript, IReturningHome, IAwaitsSearch
     {
     }
 
-    // Only sealed built-in scripts with the original pair and no custom idle combat predicate may opt in.
+    // Only sealed built-in scripts with the original pair and no custom idle combat predicate may wait for their search.
     // External extensions use the protected constructor and keep every virtual chain callback.
     private protected AggroDefendScript(ICreature creature, ISimulationContext context, CreatureCombatScript combat,
         bool idleTimerOnly)
@@ -66,15 +66,18 @@ public class AggroDefendScript : AiScript, IReturningHome, IAwaitsSearch
     protected override bool ShouldRun() => true;
 
     /// <summary>
-    /// The plain script and the sealed built-in ones, the same ones whose idle visits only advance the detector's timer
-    /// (#916): a subclass outside this assembly keeps its chain's every-tick callbacks.
+    /// Until the next search while it only waits for it; otherwise the next tick. Only the plain script and the sealed
+    /// built-in ones wait, the same ones whose idle visits only advance the detector's timer (#916): a subclass built
+    /// through the protected constructor answers the next tick always, keeping its chain's every-tick callbacks, unless
+    /// it answers itself.
     /// </summary>
-    public override bool UpdatesWhenDue => _idleTimerOnly;
-
-    /// <summary>Until the next search while it only waits for it; otherwise the next tick.</summary>
     public override TimeSpan NextUpdateIn => ((IAwaitsSearch)this).AwaitsSearch(out float elapsed)
         ? TimeSpan.FromSeconds(CreatureRangeDetectorScript.SearchInterval - elapsed)
         : TimeSpan.Zero;
+
+    // Only a script whose NextUpdateIn is this one: the plain script and the sealed built-ins, which cannot answer it
+    // otherwise. A subclass through the protected constructor never waits for its search.
+    bool IAwaitsSearch.HasSearchWait => _idleTimerOnly;
 
     // Exactly the state in which Update's idle shortcut below only advances the detector's timer until it is due.
     bool IAwaitsSearch.AwaitsSearch(out float elapsed)

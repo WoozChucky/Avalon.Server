@@ -13,9 +13,8 @@ namespace Avalon.World.Creatures;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A creature whose script does not opt in (<see cref="AiScript.UpdatesWhenDue" /> false) runs on every step, as every
-/// creature did before. One whose script opts in is in one of the states of <see cref="CreatureWait" />: active (runs
-/// every step), waiting for its range detector's search, waiting for a time on the instance's creature clock, or
+/// Every creature with a script is in one of the states of <see cref="CreatureWait" />: active (runs every step, as every
+/// creature did before; a script that answers <see cref="AiScript.NextUpdateIn" /> zero stays so), waiting for its range detector's search, waiting for a time on the instance's creature clock, or
 /// waiting for an event. After each Update its script says which (<see cref="AiScript.NextUpdateIn" />, or, for a
 /// built-in that only waits for its search, <see cref="IAwaitsSearch" />); the creature is woken (<see cref="Wake" />)
 /// by its due time, by every event the instance delivers to its script (a hit, an attack that dealt nothing, a
@@ -206,7 +205,7 @@ internal sealed class CreatureScheduler
         }
     }
 
-    /// <summary>How many creatures run on every step now: the active ones and those not opted in. For tests and benchmarks.</summary>
+    /// <summary>How many creatures run on every step now: the active ones. For tests and benchmarks.</summary>
     public int EveryStep
     {
         get
@@ -242,11 +241,12 @@ internal sealed class CreatureScheduler
         }
     }
 
-    /// <summary>An opted-in creature that has just run waits for whatever its script says, or stays active.</summary>
+    /// <summary>A creature that has just run waits for whatever its script says, or stays active.</summary>
     private void Park(Creature creature, AiScript script)
     {
         // A built-in with a search wait answers for itself: it waits for its search, or it is active (IAwaitsSearch), so
-        // its NextUpdateIn, which asks the same question, is not read.
+        // its NextUpdateIn, which asks the same question, is not read. Only a script whose NextUpdateIn is that built-in's
+        // own has a search wait (Register).
         if (creature.Schedule.Search is { } search)
         {
             if (search.AwaitsSearch(out float elapsed))
@@ -270,13 +270,12 @@ internal sealed class CreatureScheduler
 
     /// <summary>
     /// The one way a creature comes to run (#979): joining, a new script, a wake, a due time. It runs from the next step,
-    /// and on this one too when <paramref name="runNow" />. <paramref name="state" /> is <see cref="CreatureWait.Active" />,
-    /// or <see cref="CreatureWait.EveryTick" /> for a script that did not opt in. A rule that holds a creature (crowd
-    /// control, #770) belongs here.
+    /// and on this one too when <paramref name="runNow" />. A rule that holds a creature (crowd control, #770) belongs
+    /// here.
     /// </summary>
-    private void MakeActive(Creature creature, bool runNow, CreatureWait state = CreatureWait.Active)
+    private void MakeActive(Creature creature, bool runNow)
     {
-        creature.Schedule.Wait = state;
+        creature.Schedule.Wait = CreatureWait.Active;
         int index = creature.Schedule.Index;
         if (index < 0)
             return; // Not in the roster yet: reading it marks the creature to run.
@@ -297,13 +296,7 @@ internal sealed class CreatureScheduler
             return;
         }
 
-        if (!script.UpdatesWhenDue)
-        {
-            MakeActive(creature, runNow, CreatureWait.EveryTick);
-            return;
-        }
-
-        creature.Schedule.Search = script as IAwaitsSearch;
+        creature.Schedule.Search = script is IAwaitsSearch { HasSearchWait: true } search ? search : null;
         MakeActive(creature, runNow);
     }
 
@@ -570,7 +563,7 @@ internal sealed class CreatureScheduler
             else
             {
                 scheduled.Schedule.Index = index;
-                if (scheduled.Schedule.Wait is CreatureWait.Active or CreatureWait.EveryTick)
+                if (scheduled.Schedule.Wait is CreatureWait.Active)
                     Set(_every, index);
             }
 
@@ -626,10 +619,7 @@ internal enum CreatureWait : byte
     /// <summary>Not scheduled: no script, or not in an instance that schedules.</summary>
     None,
 
-    /// <summary>Its script does not opt in: it runs on every step.</summary>
-    EveryTick,
-
-    /// <summary>Opted in and active: it runs on every step until its script says it waits.</summary>
+    /// <summary>Active: it runs on every step until its script says it waits.</summary>
     Active,
 
     /// <summary>Waiting for its range detector's search, in a cohort.</summary>

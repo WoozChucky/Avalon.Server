@@ -35,6 +35,8 @@ public class HitResultSendShould
 
         public override object State { get; set; } = 0;
 
+        public override TimeSpan NextUpdateIn => TimeSpan.Zero;
+
         protected override bool ShouldRun() => false;
 
         public override void OnHit(IUnit attacker, uint damage)
@@ -271,6 +273,8 @@ public class HitResultSendShould
     private sealed class ThrowingScript(Creature creature, ISimulationContext context) : AiScript(creature, context)
     {
         public override object State { get; set; } = 0;
+
+        public override TimeSpan NextUpdateIn => TimeSpan.Zero;
 
         protected override bool ShouldRun() => false;
 

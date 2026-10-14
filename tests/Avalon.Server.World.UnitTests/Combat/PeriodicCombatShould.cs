@@ -270,6 +270,8 @@ internal sealed class RecordingAiScript(ICreature creature) : Avalon.World.Publi
 
     public override object State { get; set; } = 0;
 
+    public override TimeSpan NextUpdateIn => TimeSpan.Zero;
+
     protected override bool ShouldRun() => false;
 
     public override void OnAttacked(IUnit attacker) => Attackers.Add(attacker);

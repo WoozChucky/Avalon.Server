@@ -26,8 +26,8 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// move, fight, target, detect, patrol and die exactly alike. The forests are built as production builds them (real
 /// layouts, spawn tables, AI and kits) with parties fighting through them, a character that leaves mid-fight and one
 /// that arrives later; the town holds town NPCs, a patrol that pauses and fights, aggro creatures attacked, dodging (an
-/// attack that dealt nothing), killing a character, killed, hot reloaded, one placed by a command, and a script that does
-/// not opt in, which must still be called on every tick.
+/// attack that dealt nothing), killing a character, killed, hot reloaded, one placed by a command, and a script that
+/// answers that it needs every tick, which must get every tick.
 /// </summary>
 public sealed class CreatureSchedulingShould
 {
@@ -73,7 +73,7 @@ public sealed class CreatureSchedulingShould
         if (place == "forest")
             Assert.True(reference.Swapped && scheduled.Swapped, "No forest creature was fighting with a cooldown running to reload");
 
-        // A script that does not opt in is called on every tick, scheduled or not.
+        // A script that answers that it needs every tick is called on every tick, scheduled or not.
         if (place == "town")
         {
             Assert.Equal(ticks, reference.Counting!.Updates);
@@ -147,6 +147,96 @@ public sealed class CreatureSchedulingShould
         for (int i = 0; i < 20; i++)
             world.Tick();
         Assert.Equal(2, script.Updates.Count);
+    }
+
+    /// <summary>
+    /// A subclass of a built-in that does not answer <see cref="AiScript.NextUpdateIn" /> itself is called on every tick
+    /// (#979): the built-ins wait only as their own type, so no subclass inherits a wait its own Update may not keep.
+    /// Each stands idle, where the built-in itself would wait.
+    /// </summary>
+    [Theory]
+    [InlineData(nameof(AggroDefendScript))]
+    [InlineData(nameof(CreatureCombatScript))]
+    [InlineData(nameof(CreaturePatrolScript))]
+    [InlineData(nameof(TownNpcScript))]
+    public void Call_a_subclass_of_a_built_in_on_every_tick_unless_it_answers_itself(string builtIn)
+    {
+        using var world = new ScenarioWorld();
+        MapInstance town = world.AddInstance();
+        world.Join(town, world.NewCharacter(1), TownNavmesh.LoopCentre);
+        var template = new CreatureTemplate { Id = new CreatureTemplateId(1), DetectionRange = 5f };
+        ICountsUpdates counted = null!;
+        Place(town, 1, template, TownNavmesh.EntrySpawn, c =>
+        {
+            AiScript script = builtIn switch
+            {
+                nameof(AggroDefendScript) => new AggroSubclass(c, town),
+                nameof(CreatureCombatScript) => new CombatSubclass(c, town),
+                nameof(CreaturePatrolScript) => new PatrolSubclass(c, town),
+                _ => new TownNpcSubclass(c, town),
+            };
+            counted = (ICountsUpdates)script;
+            return script;
+        });
+
+        for (int i = 0; i < 120; i++)
+            world.Tick();
+
+        Assert.Equal(120, counted.Updates);
+    }
+
+    private interface ICountsUpdates
+    {
+        int Updates { get; }
+    }
+
+    private sealed class AggroSubclass(Creature creature, ISimulationContext context)
+        : AggroDefendScript(creature, context, new CreatureCombatScript(NullLoggerFactory.Instance, creature, context)),
+            ICountsUpdates
+    {
+        public int Updates { get; private set; }
+
+        public override void Update(TimeSpan deltaTime)
+        {
+            Updates++;
+            base.Update(deltaTime);
+        }
+    }
+
+    private sealed class CombatSubclass(Creature creature, ISimulationContext context)
+        : CreatureCombatScript(NullLoggerFactory.Instance, creature, context), ICountsUpdates
+    {
+        public int Updates { get; private set; }
+
+        public override void Update(TimeSpan deltaTime)
+        {
+            Updates++;
+            base.Update(deltaTime);
+        }
+    }
+
+    private sealed class PatrolSubclass(Creature creature, ISimulationContext context)
+        : CreaturePatrolScript(NullLoggerFactory.Instance, creature, context), ICountsUpdates
+    {
+        public int Updates { get; private set; }
+
+        public override void Update(TimeSpan deltaTime)
+        {
+            Updates++;
+            base.Update(deltaTime);
+        }
+    }
+
+    private sealed class TownNpcSubclass(Creature creature, ISimulationContext context)
+        : TownNpcScript(creature, context), ICountsUpdates
+    {
+        public int Updates { get; private set; }
+
+        public override void Update(TimeSpan deltaTime)
+        {
+            Updates++;
+            base.Update(deltaTime);
+        }
     }
 
     // ---- The forest ---------------------------------------------------------------------------------------------
@@ -486,7 +576,7 @@ public sealed class CreatureSchedulingShould
     }
 
     /// <summary>
-    /// A custom script that opts in and stays active, doing what <paramref name="act" /> does with the count of its own
+    /// A custom script that stays active, doing what <paramref name="act" /> does with the count of its own
     /// Updates: the same count on both sides, since it runs on every tick on both.
     /// </summary>
     private sealed class MeddlingScript(ICreature creature, ISimulationContext context, Action<int> act)
@@ -496,14 +586,14 @@ public sealed class CreatureSchedulingShould
 
         public override object State { get; set; } = 0;
 
-        public override bool UpdatesWhenDue => true;
+        public override TimeSpan NextUpdateIn => TimeSpan.Zero;
 
         public override void Update(TimeSpan deltaTime) => act(++_updates);
 
         protected override bool ShouldRun() => false;
     }
 
-    /// <summary>A custom script that opts in, waits as it is told, and records when it is called and what it heard.</summary>
+    /// <summary>A custom script that waits as it is told, and records when it is called and what it heard.</summary>
     private sealed class WaitingScript(ICreature creature, ISimulationContext context, TimeSpan wait) : AiScript(creature, context)
     {
         public List<TimeSpan> Updates { get; } = [];
@@ -511,8 +601,6 @@ public sealed class CreatureSchedulingShould
         public int Heard { get; private set; }
 
         public override object State { get; set; } = 0;
-
-        public override bool UpdatesWhenDue => true;
 
         public override TimeSpan NextUpdateIn => wait;
 
@@ -527,7 +615,7 @@ public sealed class CreatureSchedulingShould
         protected override bool ShouldRun() => false;
     }
 
-    /// <summary>A custom script written against the per-tick contract: it does not opt in, and counts its Updates.</summary>
+    /// <summary>A custom script that needs every tick, as every script had before #979, and counts its Updates.</summary>
     private sealed class CountingScript : AiScript
     {
         public CountingScript(Creature creature, ISimulationContext context) : base(creature, context)
@@ -538,6 +626,8 @@ public sealed class CreatureSchedulingShould
         public int Updates { get; private set; }
 
         public override object State { get; set; } = 0;
+
+        public override TimeSpan NextUpdateIn => TimeSpan.Zero;
 
         public override void Update(TimeSpan deltaTime) => Updates++;
 

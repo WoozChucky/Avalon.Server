@@ -12,35 +12,13 @@ namespace Avalon.World.Public.Scripts;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>When <see cref="Update" /> is called (#979).</b> By default on every tick of the creature's instance while
-/// anyone is in it. A script whose work comes only from its events and from times it can name declares so with
-/// <see cref="UpdatesWhenDue" />; the instance then calls it only while it is active, at its due time, and after an
-/// event, and spends nothing on it in between. The declaration grants nothing: such a script hears every event it would
-/// hear otherwise, and is called at least whenever its own answer says it has work.
-/// </para>
-/// <para>
-/// For a script that declared it, after each <see cref="Update" /> the instance reads <see cref="NextUpdateIn" />:
-/// </para>
-/// <list type="bullet">
-/// <item><see cref="TimeSpan.Zero" /> (or less): active, called on the next tick, as every script is by default.</item>
-/// <item>A positive time: waiting, called on the first tick at which that much creature time
-/// (<see cref="ISimulationContext.CreatureClock" />) has passed since this Update.</item>
-/// <item><see cref="Timeout.InfiniteTimeSpan" />: waiting for an event alone.</item>
-/// </list>
-/// <para>
-/// A waiting script is woken, and called on the instance's next creature step (the same tick's, when the event comes
-/// before its turn in that step), by any of: a hit (<see cref="OnHit" />), an attack that dealt nothing, such as a
-/// dodge or a harmful aura (<see cref="OnAttacked" />), a character leaving the instance (<see cref="OnCharacterLeft" />),
-/// its due time, a new script or patrol path given to its creature, and its creature joining an instance. A character
-/// coming within range is noticed by the script's own search, run when it is due (the built-in scripts search once a
-/// second); <see cref="OnEnteredRange" /> is a script's own notification, called from within an Update. Writing a
-/// script's <see cref="State" /> from outside wakes nothing.
-/// </para>
-/// <para>
-/// <see cref="Update" />'s <c>deltaTime</c> is always the tick's own: a waiting script is not called on the ticks it
-/// waits through and is not handed them later. A script that times something across them reads
-/// <see cref="ISimulationContext.CreatureClock" />, which counts every tick its instance updated its creatures.
-/// <see cref="UpdatesWhenDue" /> is read once, when the creature joins its instance or is given this script.
+/// <b>When <see cref="Update" /> is called (#979).</b> Every script says, through <see cref="NextUpdateIn" />, which the
+/// instance reads after each of its Updates, when it next needs one; there is no default. A script that needs every tick
+/// answers <see cref="TimeSpan.Zero" />, and is called on every tick of its creature's instance while anyone is in it.
+/// One whose work comes only from its events and from times it can name answers how long it can wait, and the instance
+/// spends nothing on it in between. The answer grants nothing: a waiting script hears every event it would hear
+/// otherwise, and is called at least whenever its own answer says it has work. See <see cref="NextUpdateIn" /> for the
+/// answers and the wake rules.
 /// </para>
 /// </remarks>
 public abstract class AiScript(ICreature creature, ISimulationContext context)
@@ -53,20 +31,38 @@ public abstract class AiScript(ICreature creature, ISimulationContext context)
     public abstract object State { get; set; }
 
     /// <summary>
-    /// Whether this script needs <see cref="Update" /> only while it is active, at its due time and after an event
-    /// (#979), rather than on every tick. False by default: a script written against the per-tick contract keeps it. A
-    /// script that answers true answers <see cref="NextUpdateIn" /> honestly after every Update; see the class remarks
-    /// for the wake rules. A subclass inherits the answer, so a script that opts in and can be subclassed answers for
-    /// its own type only, unless a subclass's Update is bound by the same rules.
+    /// How much creature time may pass before this script needs its next <see cref="Update" /> (#979), read by the
+    /// instance after each Update of a creature's own script (a chained script's answer is its owner's to use):
+    /// <list type="bullet">
+    /// <item><see cref="TimeSpan.Zero" /> (or less): the next tick. A script that needs every tick, as every script had
+    /// before #979, answers this always.</item>
+    /// <item>A positive time: it waits, and is called on the first tick at which that much creature time
+    /// (<see cref="ISimulationContext.CreatureClock" />) has passed since this Update. A time too long for the clock
+    /// counts as an endless wait.</item>
+    /// <item><see cref="Timeout.InfiniteTimeSpan" />: it waits for an event alone.</item>
+    /// </list>
+    /// <para>
+    /// <b>Wake rules.</b> A waiting script is woken, and called on the instance's next creature step (the same tick's,
+    /// when the wake comes before its turn in that step), by any of: a hit (<see cref="OnHit" />), an attack that dealt
+    /// nothing, such as a dodge or a harmful aura (<see cref="OnAttacked" />), a character leaving the instance
+    /// (<see cref="OnCharacterLeft" />), its due time, a new script or patrol path given to its creature, and its
+    /// creature joining an instance; it is woken before it hears the event. A character coming within range is noticed
+    /// by the script's own search, run when it is due (the built-in scripts search once a second);
+    /// <see cref="OnEnteredRange" /> is a script's own notification, called from within an Update. Writing a script's
+    /// <see cref="State" /> from outside wakes nothing.
+    /// </para>
+    /// <para>
+    /// <see cref="Update" />'s <c>deltaTime</c> is always the tick's own: a waiting script is not called on the ticks it
+    /// waits through and is not handed them later. A script that times something across them reads
+    /// <see cref="ISimulationContext.CreatureClock" />, which counts every tick its instance updated its creatures.
+    /// </para>
+    /// <para>
+    /// A subclass inherits the answer. A script that can wait and can be subclassed answers for its own type only, so a
+    /// subclass whose Update is not bound by the same rules gets every tick unless it answers itself, as the built-in
+    /// scripts do.
+    /// </para>
     /// </summary>
-    public virtual bool UpdatesWhenDue => false;
-
-    /// <summary>
-    /// For a script that <see cref="UpdatesWhenDue" />, read after each <see cref="Update" />: how much creature time may
-    /// pass before it needs its next Update. <see cref="TimeSpan.Zero" /> (the default): the next tick.
-    /// <see cref="Timeout.InfiniteTimeSpan" />: only after an event. Never read for a script updated every tick.
-    /// </summary>
-    public virtual TimeSpan NextUpdateIn => TimeSpan.Zero;
+    public abstract TimeSpan NextUpdateIn { get; }
 
     protected AiScript Chain(AiScript script)
     {

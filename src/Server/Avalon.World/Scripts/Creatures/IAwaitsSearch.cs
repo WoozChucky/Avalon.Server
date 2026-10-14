@@ -8,6 +8,12 @@ namespace Avalon.World.Scripts.Creatures;
 internal interface IAwaitsSearch
 {
     /// <summary>
+    /// Whether this script waits for its search at all: only one whose <c>NextUpdateIn</c> is the built-in's own, which
+    /// this wait stands in for. A subclass that answers <c>NextUpdateIn</c> itself is read through it instead.
+    /// </summary>
+    bool HasSearchWait { get; }
+
+    /// <summary>
     /// True when every Update until the next search would only add the tick to the detector's timer; then
     /// <paramref name="elapsed" /> is that timer, in seconds. False means the script is active, needing the next tick:
     /// the scheduler reads nothing else (not <c>NextUpdateIn</c>) from a script that implements this.

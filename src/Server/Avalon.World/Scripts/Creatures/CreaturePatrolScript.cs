@@ -72,19 +72,17 @@ public class CreaturePatrolScript : AiScript, IReturningHome
     protected override bool ShouldRun() => State is PatrolState.Patrolling;
 
     /// <summary>
-    /// When it is a creature's own script, named as it is (#979): a subclass may do something of its own while it stands,
-    /// so it keeps every tick unless it opts in itself.
-    /// </summary>
-    public override bool UpdatesWhenDue => GetType() == typeof(CreaturePatrolScript);
-
-    /// <summary>
     /// The next tick while it walks, fights or resumes its path; the end of the pause while it stands at a point; only an
-    /// event (a hit, or a new path) while it has no path, and for a corpse.
+    /// event (a hit, or a new path) while it has no path, and for a corpse. Only as a creature's own script, named as it is
+    /// (#979): a subclass may do something of its own while it stands, so it gets every tick unless it answers itself.
     /// </summary>
     public override TimeSpan NextUpdateIn
     {
         get
         {
+            if (GetType() != typeof(CreaturePatrolScript))
+                return TimeSpan.Zero;
+
             if (Creature.CurrentHealth == 0)
                 return Timeout.InfiniteTimeSpan;
 
