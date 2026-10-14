@@ -130,7 +130,10 @@ public sealed class AuraRoster
                 continue;
             }
 
-            holders[kept++] = unit;
+            // Written back only once one has been dropped: a store into the list is a checked, barriered write.
+            if (kept != i)
+                holders[kept] = unit;
+            kept++;
             into.Add(unit);
         }
 
