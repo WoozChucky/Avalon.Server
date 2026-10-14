@@ -399,7 +399,7 @@ public class FighterShould
                 Generation);
 
         public void Invite(string inviter) =>
-            Link!.OnPacket(ServerFrames.Received(SPartyInvitePacket.Create(inviter, 1, 1, 60_000, PacketEncoder.Shared), _server),
+            Link!.OnPacket(ServerFrames.Received(SPartyInvitePacket.Create(inviter, CharacterClass.Warrior, 1, 60_000, PacketEncoder.Shared), _server),
                 _codec, Generation);
 
         public void Roster(List<FakeMember> party) =>

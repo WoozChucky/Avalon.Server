@@ -177,7 +177,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         }
 
         _invites[targetId] = invite;
-        targetConnection.Send(SPartyInvitePacket.Create(inviter.Name, (ushort)inviter.Class, inviter.Level,
+        targetConnection.Send(SPartyInvitePacket.Create(inviter.Name, inviter.Class, inviter.Level,
             (uint)timeout.TotalMilliseconds, PacketEncoder.Shared));
         return PartyResult.Ok;
     }
@@ -768,7 +768,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
                 {
                     CharacterId = member.Id.Value,
                     Name = member.Name,
-                    Class = (ushort)member.Class,
+                    Class = member.Class,
                     Level = _lastLevel.GetValueOrDefault(member.Id.Value),
                     IsLeader = party.IsLeader(member.Id.Value),
                     Online = character is not null,

@@ -49,7 +49,7 @@ public class ConfigFilesShould
         BalanceData data = TestData.Seeded;
         ScenarioFile scenarios = CheckedInScenarios();
 
-        foreach (CharacterClass c in Enum.GetValues<CharacterClass>())
+        foreach (CharacterClass c in CharacterClasses.Playable)
         {
             ItemTemplate[] items = scenarios.GearFor(profile, c).Select(data.Item).ToArray();
             Assert.All(items, i => Assert.Contains(c, i.AllowedClasses));
@@ -68,7 +68,7 @@ public class ConfigFilesShould
             .Select(v => v.ItemTemplateId.Value)
             .ToHashSet();
 
-        foreach (CharacterClass c in Enum.GetValues<CharacterClass>())
+        foreach (CharacterClass c in CharacterClasses.Playable)
             Assert.All(CheckedInScenarios().GearFor("starter", c), id => Assert.Contains(id, sold));
     }
 
@@ -76,7 +76,7 @@ public class ConfigFilesShould
     public void Take_the_forest_profile_from_uncommon_drops()
     {
         BalanceData data = TestData.Seeded;
-        foreach (CharacterClass c in Enum.GetValues<CharacterClass>())
+        foreach (CharacterClass c in CharacterClasses.Playable)
             Assert.All(CheckedInScenarios().GearFor("forest", c), id => Assert.Equal(ItemRarity.Uncommon, data.Item(id).Rarity));
     }
 

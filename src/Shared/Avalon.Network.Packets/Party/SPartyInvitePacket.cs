@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
@@ -13,11 +14,11 @@ public class SPartyInvitePacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public string InviterName { get; set; } = string.Empty;
-    [ProtoMember(2)] public ushort InviterClass { get; set; }
+    [ProtoMember(2)] public CharacterClass InviterClass { get; set; }
     [ProtoMember(3)] public ushort InviterLevel { get; set; }
     [ProtoMember(4)] public uint ExpiresInMs { get; set; }
 
-    public static OutboundPacket Create(string inviterName, ushort inviterClass, ushort inviterLevel, uint expiresInMs,
+    public static OutboundPacket Create(string inviterName, CharacterClass inviterClass, ushort inviterLevel, uint expiresInMs,
         PacketEncoder encoder)
     {
         SPartyInvitePacket message = PacketEncoder.Scratch<SPartyInvitePacket>();

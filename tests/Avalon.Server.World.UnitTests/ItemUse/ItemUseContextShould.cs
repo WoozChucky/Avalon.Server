@@ -206,7 +206,7 @@ public class ItemUseContextShould
         List<SChatMessagePacket> lines = TestTown.Read<SChatMessagePacket>(_sent, NetworkPacketType.SMSG_CHAT_MESSAGE);
         Assert.Equal([(ChatChannel.System, "System", "Hello."), (ChatChannel.Whisper, "A voice", "Psst.")],
             lines.Select(l => (l.Channel, l.CharacterName, l.Message)));
-        Assert.All(lines, l => Assert.Equal((ushort)0, l.CharacterClass));
+        Assert.All(lines, l => Assert.Equal(CharacterClass.None, l.CharacterClass));
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using Avalon.Common;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.State;
@@ -120,15 +121,16 @@ public class ObjectState
     [ProtoMember(22)] public CreatureRarity? Rarity { get; set; }
 
     /// <summary>
-    ///     A character's class (1 Warrior, 2 Wizard, 3 Hunter, 4 Healer — <c>CharacterClass</c>), so a client
-    ///     can draw the right model for every character it sees, not only its own.
+    ///     A character's class, so a client can draw the right model for every character it sees, not only its
+    ///     own.
     /// </summary>
     /// <remarks>
     ///     Carried on every character state, whatever else changed, like <see cref="Name" />, so a client that
     ///     first sees a character on an update still learns it. Fixed for the character's life. Creatures,
-    ///     portals and spells never carry it, so absent means "not a character".
+    ///     portals and spells never carry it, so absent means "not a character". Nullable, so "not sent" stays
+    ///     distinct from any value.
     /// </remarks>
-    [ProtoMember(23)] public uint? Class { get; set; }
+    [ProtoMember(23)] public CharacterClass? Class { get; set; }
 
     /// <summary>
     ///     A character's gender (0 Male, 1 Female — <c>CharacterGender</c>), alongside <see cref="Class" />.

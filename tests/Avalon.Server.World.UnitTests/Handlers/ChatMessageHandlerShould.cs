@@ -72,9 +72,9 @@ public class ChatMessageHandlerShould
         _handler.Execute(sender.Connection, MakePacket("Hello"));
 
         SChatMessagePacket heard = Assert.Single(neighbour.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
-        Assert.Equal(("Hello", ChatChannel.Say, (ushort)CharacterClass.Hunter), (heard.Message, heard.Channel, heard.CharacterClass));
+        Assert.Equal(("Hello", ChatChannel.Say, CharacterClass.Hunter), (heard.Message, heard.Channel, heard.CharacterClass));
         SChatMessagePacket echo = Assert.Single(sender.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
-        Assert.Equal((ushort)CharacterClass.Hunter, echo.CharacterClass);
+        Assert.Equal(CharacterClass.Hunter, echo.CharacterClass);
         Assert.Empty(stranger.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
     }
 
@@ -90,7 +90,7 @@ public class ChatMessageHandlerShould
 
         using var stream = new MemoryStream(Assert.Single(sent).PayloadMemory.ToArray());
         SChatMessagePacket reply = Serializer.Deserialize<SChatMessagePacket>(stream);
-        Assert.Equal((ChatChannel.System, "Unknown command.", (ushort)0), (reply.Channel, reply.Message, reply.CharacterClass));
+        Assert.Equal((ChatChannel.System, "Unknown command.", CharacterClass.None), (reply.Channel, reply.Message, reply.CharacterClass));
     }
 
     /// <summary>#763: a said line from a sender whose instance cannot be found still carries its class.</summary>
@@ -106,7 +106,7 @@ public class ChatMessageHandlerShould
         _handler.Execute(_senderConnection, MakePacket("Hello"));
 
         using var stream = new MemoryStream(Assert.Single(sent).PayloadMemory.ToArray());
-        Assert.Equal((ushort)CharacterClass.Wizard, Serializer.Deserialize<SChatMessagePacket>(stream).CharacterClass);
+        Assert.Equal(CharacterClass.Wizard, Serializer.Deserialize<SChatMessagePacket>(stream).CharacterClass);
     }
 
     /// <summary>

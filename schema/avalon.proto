@@ -161,7 +161,7 @@ message CCastAbilityPacket {
 }
 message CCharacterCreatePacket {
    optional string Name = 1;
-   int32 Class = 2;
+   CharacterClass Class = 2;
    int32 Gender = 3;
 }
 message CCharacterDeletePacket {
@@ -332,11 +332,18 @@ enum CastRejectReason {
    CastRejectReason_AlreadyCasting = 13;
    CastRejectReason_WrongPowerType = 14;
 }
+enum CharacterClass {
+   CharacterClass_None = 0;
+   CharacterClass_Warrior = 1;
+   CharacterClass_Wizard = 2;
+   CharacterClass_Hunter = 3;
+   CharacterClass_Healer = 4;
+}
 message CharacterInfo {
    uint32 CharacterId = 1;
    optional string Name = 2;
    int32 Level = 3;
-   uint32 Class = 4;
+   CharacterClass Class = 4;
    float X = 5;
    float Y = 6;
    float Z = 7;
@@ -665,7 +672,7 @@ message ObjectState {
    optional bool CanInteract = 20;
    optional bool PvpEnabled = 21;
    optional CreatureRarity Rarity = 22;
-   optional uint32 Class = 23;
+   optional CharacterClass Class = 23;
    optional uint32 Gender = 24;
 }
 enum PartyExperienceMode {
@@ -676,7 +683,7 @@ enum PartyExperienceMode {
 message PartyMemberDto {
    uint32 CharacterId = 1;
    optional string Name = 2;
-   uint32 Class = 3;
+   CharacterClass Class = 3;
    uint32 Level = 4;
    bool IsLeader = 5;
    bool Online = 6;
@@ -928,7 +935,7 @@ message SChatMessagePacket {
    .bcl.DateTime DateTime = 5;
    ChatChannel Channel = 6;
    optional string TargetName = 7;
-   uint32 CharacterClass = 8;
+   CharacterClass CharacterClass = 8;
 }
 message SChunkLayoutPacket {
    int32 Seed = 1;
@@ -1039,7 +1046,7 @@ message SMapTransitionPacket {
 }
 message SPartyInvitePacket {
    optional string InviterName = 1;
-   uint32 InviterClass = 2;
+   CharacterClass InviterClass = 2;
    uint32 InviterLevel = 3;
    uint32 ExpiresInMs = 4;
 }

@@ -16,7 +16,7 @@ namespace Avalon.Database.World.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -32,9 +32,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<byte>("AimMode")
                         .HasColumnType("smallint");
 
-                    b.PrimitiveCollection<int[]>("AllowedClasses")
+                    b.PrimitiveCollection<byte[]>("AllowedClasses")
                         .IsRequired()
-                        .HasColumnType("integer[]");
+                        .HasColumnType("smallint[]");
 
                     b.Property<byte>("Anchor")
                         .HasColumnType("smallint");
@@ -141,7 +141,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 200L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new[] { 1 },
+                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 100f,
@@ -173,7 +173,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 201L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new[] { 1 },
+                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -205,7 +205,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 202L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 1 },
+                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -237,7 +237,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 210L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 2 },
+                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -269,7 +269,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 211L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 2 },
+                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)1,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -301,7 +301,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 212L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 2 },
+                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 60f,
@@ -333,7 +333,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 220L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 3 },
+                            AllowedClasses = new byte[] { 3 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -365,7 +365,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 221L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 3 },
+                            AllowedClasses = new byte[] { 3 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -397,7 +397,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 222L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 3 },
+                            AllowedClasses = new byte[] { 3 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 45f,
@@ -429,7 +429,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 230L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 4 },
+                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -461,7 +461,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 231L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new[] { 4 },
+                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -493,7 +493,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 232L,
                             Affects = (byte)1,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 4 },
+                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)1,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -525,7 +525,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 203L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new[] { 1 },
+                            AllowedClasses = new byte[] { 1 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -558,7 +558,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 213L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 2 },
+                            AllowedClasses = new byte[] { 2 },
                             Anchor = (byte)1,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -591,7 +591,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 223L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 3 },
+                            AllowedClasses = new byte[] { 3 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -624,7 +624,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 233L,
                             Affects = (byte)1,
                             AimMode = (byte)1,
-                            AllowedClasses = new[] { 4 },
+                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)1,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -657,7 +657,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 234L,
                             Affects = (byte)1,
                             AimMode = (byte)0,
-                            AllowedClasses = new[] { 4 },
+                            AllowedClasses = new byte[] { 4 },
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -690,7 +690,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 300L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -722,7 +722,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 301L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -754,7 +754,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 302L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -786,7 +786,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 303L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -818,7 +818,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 304L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -850,7 +850,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 305L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -882,7 +882,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 306L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -914,7 +914,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 307L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -946,7 +946,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 308L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -978,7 +978,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 309L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 100f,
@@ -1010,7 +1010,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 310L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1042,7 +1042,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 311L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -1074,7 +1074,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 312L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 60f,
@@ -1106,7 +1106,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 313L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1138,7 +1138,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 314L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 90f,
@@ -1170,7 +1170,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 315L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1202,7 +1202,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 316L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 120f,
@@ -1234,7 +1234,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 317L,
                             Affects = (byte)0,
                             AimMode = (byte)1,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1267,7 +1267,7 @@ namespace Avalon.Database.World.Migrations
                             Id = 318L,
                             Affects = (byte)0,
                             AimMode = (byte)0,
-                            AllowedClasses = new int[0],
+                            AllowedClasses = new byte[0],
                             Anchor = (byte)0,
                             AnimationId = 0L,
                             ArcDegrees = 0f,
@@ -1574,8 +1574,8 @@ namespace Avalon.Database.World.Migrations
 
             modelBuilder.Entity("Avalon.Domain.World.CharacterCreateInfo", b =>
                 {
-                    b.Property<int>("Class")
-                        .HasColumnType("integer");
+                    b.Property<byte>("Class")
+                        .HasColumnType("smallint");
 
                     b.Property<int>("Map")
                         .HasColumnType("integer");
@@ -1607,7 +1607,7 @@ namespace Avalon.Database.World.Migrations
                     b.HasData(
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2,3",
@@ -1618,7 +1618,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
@@ -1629,7 +1629,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
@@ -1640,7 +1640,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
@@ -1864,8 +1864,8 @@ namespace Avalon.Database.World.Migrations
 
             modelBuilder.Entity("Avalon.Domain.World.ClassLevelStat", b =>
                 {
-                    b.Property<int>("Class")
-                        .HasColumnType("integer");
+                    b.Property<byte>("Class")
+                        .HasColumnType("smallint");
 
                     b.Property<int>("Level")
                         .HasColumnType("integer");
@@ -1895,7 +1895,7 @@ namespace Avalon.Database.World.Migrations
                     b.HasData(
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 1,
                             Agility = 20L,
                             BaseHp = 20L,
@@ -1906,7 +1906,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 2,
                             Agility = 21L,
                             BaseHp = 40L,
@@ -1917,7 +1917,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 3,
                             Agility = 23L,
                             BaseHp = 60L,
@@ -1928,7 +1928,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 4,
                             Agility = 24L,
                             BaseHp = 80L,
@@ -1939,7 +1939,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 5,
                             Agility = 26L,
                             BaseHp = 100L,
@@ -1950,7 +1950,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 1,
                             Agility = 20L,
                             BaseHp = 16L,
@@ -1961,7 +1961,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 2,
                             Agility = 21L,
                             BaseHp = 32L,
@@ -1972,7 +1972,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 3,
                             Agility = 22L,
                             BaseHp = 48L,
@@ -1983,7 +1983,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 4,
                             Agility = 23L,
                             BaseHp = 64L,
@@ -1994,7 +1994,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 5,
                             Agility = 24L,
                             BaseHp = 80L,
@@ -2005,7 +2005,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 1,
                             Agility = 23L,
                             BaseHp = 18L,
@@ -2016,7 +2016,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 2,
                             Agility = 25L,
                             BaseHp = 36L,
@@ -2027,7 +2027,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 3,
                             Agility = 27L,
                             BaseHp = 54L,
@@ -2038,7 +2038,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 4,
                             Agility = 29L,
                             BaseHp = 72L,
@@ -2049,7 +2049,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 5,
                             Agility = 31L,
                             BaseHp = 90L,
@@ -2060,7 +2060,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 1,
                             Agility = 21L,
                             BaseHp = 18L,
@@ -2071,7 +2071,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 2,
                             Agility = 22L,
                             BaseHp = 36L,
@@ -2082,7 +2082,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 3,
                             Agility = 23L,
                             BaseHp = 54L,
@@ -2093,7 +2093,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 4,
                             Agility = 24L,
                             BaseHp = 72L,
@@ -2104,7 +2104,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 5,
                             Agility = 25L,
                             BaseHp = 90L,
@@ -2115,7 +2115,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 6,
                             Agility = 27L,
                             BaseHp = 120L,
@@ -2126,7 +2126,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 7,
                             Agility = 29L,
                             BaseHp = 140L,
@@ -2137,7 +2137,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 8,
                             Agility = 30L,
                             BaseHp = 160L,
@@ -2148,7 +2148,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 9,
                             Agility = 32L,
                             BaseHp = 180L,
@@ -2159,7 +2159,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 10,
                             Agility = 33L,
                             BaseHp = 200L,
@@ -2170,7 +2170,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 11,
                             Agility = 35L,
                             BaseHp = 220L,
@@ -2181,7 +2181,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 12,
                             Agility = 36L,
                             BaseHp = 240L,
@@ -2192,7 +2192,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 13,
                             Agility = 38L,
                             BaseHp = 260L,
@@ -2203,7 +2203,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 14,
                             Agility = 39L,
                             BaseHp = 280L,
@@ -2214,7 +2214,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 15,
                             Agility = 41L,
                             BaseHp = 300L,
@@ -2225,7 +2225,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             Level = 16,
                             Agility = 42L,
                             BaseHp = 320L,
@@ -2236,7 +2236,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 6,
                             Agility = 25L,
                             BaseHp = 96L,
@@ -2247,7 +2247,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 7,
                             Agility = 26L,
                             BaseHp = 112L,
@@ -2258,7 +2258,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 8,
                             Agility = 27L,
                             BaseHp = 128L,
@@ -2269,7 +2269,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 9,
                             Agility = 28L,
                             BaseHp = 144L,
@@ -2280,7 +2280,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 10,
                             Agility = 29L,
                             BaseHp = 160L,
@@ -2291,7 +2291,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 11,
                             Agility = 30L,
                             BaseHp = 176L,
@@ -2302,7 +2302,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 12,
                             Agility = 31L,
                             BaseHp = 192L,
@@ -2313,7 +2313,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 13,
                             Agility = 32L,
                             BaseHp = 208L,
@@ -2324,7 +2324,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 14,
                             Agility = 33L,
                             BaseHp = 224L,
@@ -2335,7 +2335,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 15,
                             Agility = 34L,
                             BaseHp = 240L,
@@ -2346,7 +2346,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             Level = 16,
                             Agility = 35L,
                             BaseHp = 256L,
@@ -2357,7 +2357,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 6,
                             Agility = 33L,
                             BaseHp = 108L,
@@ -2368,7 +2368,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 7,
                             Agility = 35L,
                             BaseHp = 126L,
@@ -2379,7 +2379,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 8,
                             Agility = 37L,
                             BaseHp = 144L,
@@ -2390,7 +2390,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 9,
                             Agility = 39L,
                             BaseHp = 162L,
@@ -2401,7 +2401,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 10,
                             Agility = 41L,
                             BaseHp = 180L,
@@ -2412,7 +2412,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 11,
                             Agility = 43L,
                             BaseHp = 198L,
@@ -2423,7 +2423,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 12,
                             Agility = 45L,
                             BaseHp = 216L,
@@ -2434,7 +2434,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 13,
                             Agility = 47L,
                             BaseHp = 234L,
@@ -2445,7 +2445,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 14,
                             Agility = 49L,
                             BaseHp = 252L,
@@ -2456,7 +2456,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 15,
                             Agility = 51L,
                             BaseHp = 270L,
@@ -2467,7 +2467,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             Level = 16,
                             Agility = 53L,
                             BaseHp = 288L,
@@ -2478,7 +2478,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 6,
                             Agility = 26L,
                             BaseHp = 108L,
@@ -2489,7 +2489,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 7,
                             Agility = 27L,
                             BaseHp = 126L,
@@ -2500,7 +2500,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 8,
                             Agility = 28L,
                             BaseHp = 144L,
@@ -2511,7 +2511,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 9,
                             Agility = 29L,
                             BaseHp = 162L,
@@ -2522,7 +2522,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 10,
                             Agility = 30L,
                             BaseHp = 180L,
@@ -2533,7 +2533,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 11,
                             Agility = 31L,
                             BaseHp = 198L,
@@ -2544,7 +2544,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 12,
                             Agility = 32L,
                             BaseHp = 216L,
@@ -2555,7 +2555,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 13,
                             Agility = 33L,
                             BaseHp = 234L,
@@ -2566,7 +2566,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 14,
                             Agility = 34L,
                             BaseHp = 252L,
@@ -2577,7 +2577,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 15,
                             Agility = 35L,
                             BaseHp = 270L,
@@ -2588,7 +2588,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             Level = 16,
                             Agility = 36L,
                             BaseHp = 288L,
@@ -2601,8 +2601,8 @@ namespace Avalon.Database.World.Migrations
 
             modelBuilder.Entity("Avalon.Domain.World.ClassStatFactors", b =>
                 {
-                    b.Property<int>("Class")
-                        .HasColumnType("integer");
+                    b.Property<byte>("Class")
+                        .HasColumnType("smallint");
 
                     b.Property<double>("AbilityPerIntellect")
                         .HasColumnType("double precision");
@@ -2662,7 +2662,7 @@ namespace Avalon.Database.World.Migrations
                     b.HasData(
                         new
                         {
-                            Class = 1,
+                            Class = (byte)1,
                             AbilityPerIntellect = 0.20000000000000001,
                             AttackPerAgility = 0.0,
                             AttackPerStrength = 2.0,
@@ -2676,7 +2676,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 2,
+                            Class = (byte)2,
                             AbilityPerIntellect = 3.0,
                             AttackPerAgility = 0.0,
                             AttackPerStrength = 0.5,
@@ -2689,7 +2689,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 3,
+                            Class = (byte)3,
                             AbilityPerIntellect = 0.5,
                             AttackPerAgility = 1.5,
                             AttackPerStrength = 0.5,
@@ -2702,7 +2702,7 @@ namespace Avalon.Database.World.Migrations
                         },
                         new
                         {
-                            Class = 4,
+                            Class = (byte)4,
                             AbilityPerIntellect = 2.0,
                             AttackPerAgility = 0.0,
                             AttackPerStrength = 0.5,
@@ -7689,8 +7689,8 @@ namespace Avalon.Database.World.Migrations
                     b.Property<long>("Id")
                         .HasColumnType("bigint");
 
-                    b.Property<int?>("ClassRequirement")
-                        .HasColumnType("integer");
+                    b.Property<byte?>("ClassRequirement")
+                        .HasColumnType("smallint");
 
                     b.Property<int>("CompletionTextId")
                         .HasColumnType("integer");

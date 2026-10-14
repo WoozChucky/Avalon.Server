@@ -169,7 +169,7 @@ public class WhisperCommandShould
 
         Run(a, "/w Kaela hi");
 
-        Assert.Equal((ushort)CharacterClass.Wizard, Assert.Single(Whispers(b)).CharacterClass);
-        Assert.Equal((ushort)CharacterClass.Wizard, Assert.Single(Whispers(a)).CharacterClass);
+        Assert.Equal(CharacterClass.Wizard, Assert.Single(Whispers(b)).CharacterClass);
+        Assert.Equal(CharacterClass.Wizard, Assert.Single(Whispers(a)).CharacterClass);
     }
 }

@@ -249,7 +249,7 @@ public static class TemplateValidation
         if (classes is null) return;
         foreach (CharacterClass c in classes)
         {
-            if (!Enum.IsDefined(c)) e.Add("allowedClasses", $"'{c}' is not a known class.");
+            if (!CharacterClasses.IsPlayable(c)) e.Add("allowedClasses", $"'{c}' is not a known class.");
         }
 
         if (classes.Distinct().Count() != classes.Count) e.Add("allowedClasses", "A class is listed more than once.");

@@ -55,7 +55,7 @@ public class CombatReloadShould
         StaticData data = await Load(new Rows());
 
         Assert.Equal(50f, data.Combat.Formula.ArmorBase);
-        Assert.Equal(Enum.GetValues<CharacterClass>().Order(), data.Combat.Factors.Keys.Order());
+        Assert.Equal(CharacterClasses.Playable.Order(), data.Combat.Factors.Keys.Order());
     }
 
     [Fact]

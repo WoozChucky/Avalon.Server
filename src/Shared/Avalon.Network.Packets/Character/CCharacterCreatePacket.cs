@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
@@ -13,7 +14,11 @@ public class CCharacterCreatePacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public string Name { get; set; }
-    [ProtoMember(2)] public int Class { get; set; }
+    /// <summary>
+    /// The class to create. Any number that fits a byte decodes, so the server refuses one that is not a class a
+    /// character can have (None included) as InvalidClass; one past 255 fails the packet's decode.
+    /// </summary>
+    [ProtoMember(2)] public CharacterClass Class { get; set; }
 
     /// <summary>
     /// A <c>CharacterGender</c> value. Optional on the wire: a client that omits it sends 0,
@@ -21,7 +26,7 @@ public class CCharacterCreatePacket : Packet
     /// </summary>
     [ProtoMember(3)] public int Gender { get; set; }
 
-    public static NetworkPacket Create(string name, int @class, int gender, EncryptFunc encrypt)
+    public static NetworkPacket Create(string name, CharacterClass @class, int gender, EncryptFunc encrypt)
     {
         using var memoryStream = new MemoryStream();
 

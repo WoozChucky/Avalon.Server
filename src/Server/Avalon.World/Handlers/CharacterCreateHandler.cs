@@ -24,7 +24,9 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         if (connection.AccountId is null || connection.Character is not null || connection.PendingSpawn is not null ||
             connection.SelectInProgress || connection.LeaveInProgress || connection.IsClosing)
         { connection.Close(); return; }
-        if (packet.Gender is < byte.MinValue or > byte.MaxValue || !Enum.IsDefined((CharacterGender)(byte)packet.Gender))
+        // A protobuf enum member carries any number that fits it, so the class (None included) is checked here.
+        if (!CharacterClasses.IsPlayable(packet.Class) ||
+            packet.Gender is < byte.MinValue or > byte.MaxValue || !Enum.IsDefined((CharacterGender)(byte)packet.Gender))
         { Answer(connection, SCharacterCreateResult.InvalidClass); return; }
         CharacterNameProblem nameProblem = CharacterName.Check(packet.Name);
         if (nameProblem != CharacterNameProblem.None)
@@ -38,8 +40,8 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         }
         if (connection.GameplayAuthority is not { } authority || authority.AccountId != connection.AccountId)
         { connection.Close(); return; }
-        CharacterCreateInfo? createInfo = world.Data.CharacterCreateInfos.FirstOrDefault(c => c.Class == (CharacterClass)packet.Class);
-        ClassLevelStat? level = world.Data.ClassLevelStats.FirstOrDefault(c => c.Class == (CharacterClass)packet.Class && c.Level == 1);
+        CharacterCreateInfo? createInfo = world.Data.CharacterCreateInfos.FirstOrDefault(c => c.Class == packet.Class);
+        ClassLevelStat? level = world.Data.ClassLevelStats.FirstOrDefault(c => c.Class == packet.Class && c.Level == 1);
         if (createInfo is null || level is null) { Answer(connection, SCharacterCreateResult.InternalDatabaseError); return; }
         DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(level, [], world.Data.Combat.Factors[createInfo.Class]);
         var row = new Character

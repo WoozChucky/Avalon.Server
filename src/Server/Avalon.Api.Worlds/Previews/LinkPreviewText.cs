@@ -61,7 +61,7 @@ public static partial class LinkPreviewText
     private static string? Restricted(List<CharacterClass> allowed)
     {
         var distinct = allowed.Distinct().ToList();
-        return distinct.Count == 0 || distinct.Count >= Enum.GetValues<CharacterClass>().Length
+        return distinct.Count == 0 || distinct.Count >= CharacterClasses.Playable.Count
             ? null
             : string.Join(", ", distinct);
     }

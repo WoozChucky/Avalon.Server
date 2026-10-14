@@ -44,7 +44,7 @@ public static class CombatDataRules
         foreach (ClassStatFactors row in factors)
         {
             string name = $"ClassStatFactors {row.Class}";
-            if (!Enum.IsDefined(row.Class))
+            if (!CharacterClasses.IsPlayable(row.Class))
                 throw new InvalidDataException($"{name}: not a class");
             if (!byClass.TryAdd(row.Class, row))
                 throw new InvalidDataException($"{name}: the class has two rows");
@@ -62,7 +62,7 @@ public static class CombatDataRules
             RequireNonNegative(name, nameof(row.BaseCrit), row.BaseCrit);
         }
 
-        foreach (CharacterClass @class in Enum.GetValues<CharacterClass>())
+        foreach (CharacterClass @class in CharacterClasses.Playable)
         {
             if (!byClass.ContainsKey(@class))
                 throw new InvalidDataException($"ClassStatFactors {@class}: the class has no row");

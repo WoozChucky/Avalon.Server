@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
@@ -32,7 +33,7 @@ public class CharacterInfo
     [ProtoMember(1)] public uint CharacterId { get; set; }
     [ProtoMember(2)] public string Name { get; set; }
     [ProtoMember(3)] public int Level { get; set; }
-    [ProtoMember(4)] public ushort Class { get; set; }
+    [ProtoMember(4)] public CharacterClass Class { get; set; }
     [ProtoMember(5)] public float X { get; set; }
     [ProtoMember(6)] public float Y { get; set; }
     [ProtoMember(7)] public float Z { get; set; }

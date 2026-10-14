@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
@@ -45,7 +46,7 @@ public class PartyPacketsShould
     public void Keep_the_invite_field_numbers()
     {
         Assert.Equal("0a0141", Hex(new SPartyInvitePacket { InviterName = "A" }));
-        Assert.Equal(EmptyInviterName + "1002", Hex(new SPartyInvitePacket { InviterClass = 2 }));
+        Assert.Equal(EmptyInviterName + "1002", Hex(new SPartyInvitePacket { InviterClass = CharacterClass.Wizard }));
         Assert.Equal(EmptyInviterName + "1803", Hex(new SPartyInvitePacket { InviterLevel = 3 }));
         Assert.Equal(EmptyInviterName + "2004", Hex(new SPartyInvitePacket { ExpiresInMs = 4 }));
     }
@@ -71,7 +72,7 @@ public class PartyPacketsShould
     {
         Assert.Equal("0801" + EmptyMemberName, Hex(new PartyMemberDto { CharacterId = 1 }));
         Assert.Equal("120141", Hex(new PartyMemberDto { Name = "A" }));
-        Assert.Equal(EmptyMemberName + "1803", Hex(new PartyMemberDto { Class = 3 }));
+        Assert.Equal(EmptyMemberName + "1803", Hex(new PartyMemberDto { Class = CharacterClass.Hunter }));
         Assert.Equal(EmptyMemberName + "2004", Hex(new PartyMemberDto { Level = 4 }));
         Assert.Equal(EmptyMemberName + "2801", Hex(new PartyMemberDto { IsLeader = true }));
         Assert.Equal(EmptyMemberName + "3001", Hex(new PartyMemberDto { Online = true }));

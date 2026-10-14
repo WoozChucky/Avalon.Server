@@ -350,7 +350,7 @@ public class SeedIntegrityShould
             Assert.Single(items[e.ItemTemplateId!].AllowedClasses);
         });
         Assert.Equal(
-            Enum.GetValues<CharacterClass>().Order(),
+            CharacterClasses.Playable.Order(),
             table.Entries.Select(e => items[e.ItemTemplateId!].AllowedClasses[0]).Order());
     }
 
@@ -401,7 +401,7 @@ public class SeedIntegrityShould
             .Select(e => items[e.ItemTemplateId!])
             .Select(i => (i.AllowedClasses[0], i.SubClass))
             .ToHashSet();
-        var expected = Enum.GetValues<CharacterClass>()
+        var expected = CharacterClasses.Playable
             .SelectMany(c => s_armourSubClasses.Select(s => (c, s)))
             .ToHashSet();
         Assert.True(expected.SetEquals(covered), "the armour table should hold one piece per class per slot");
@@ -564,7 +564,7 @@ public class SeedIntegrityShould
 
         var rows = context.ClassLevelStats.AsNoTracking().ToList();
         var missing = new List<string>();
-        foreach (CharacterClass @class in Enum.GetValues<CharacterClass>())
+        foreach (CharacterClass @class in CharacterClasses.Playable)
         {
             for (ushort level = 1; level <= topLevel; level++)
             {
@@ -985,7 +985,7 @@ public class SeedIntegrityShould
             (f.Id, f.ArmorBase, f.ArmorPerLevel, f.ArmorCap, f.CritMultiplier, f.BlockMultiplier, f.CritCap, f.DodgeCap, f.BlockCap));
 
         var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(r => r.Class);
-        Assert.Equal(Enum.GetValues<CharacterClass>().Order(), factors.Keys.Order());
+        Assert.Equal(CharacterClasses.Playable.Order(), factors.Keys.Order());
         ClassStatFactors w = factors[CharacterClass.Warrior];
         Assert.Equal((10L, 0d, 0d, (long?)100L, 2d, 0d, 0.2d, 5.0f, 3.664f, 5.0f),
             (w.HpPerStamina, w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower, w.AttackPerStrength, w.AttackPerAgility,

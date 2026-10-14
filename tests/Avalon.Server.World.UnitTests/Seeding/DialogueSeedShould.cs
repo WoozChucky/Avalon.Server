@@ -143,7 +143,7 @@ public class DialogueSeedShould
         var named = context.CharacterClassNames.AsNoTracking().ToList()
             .Select(n => n.Class).ToHashSet();
 
-        var missing = Enum.GetValues<CharacterClass>()
+        var missing = CharacterClasses.Playable
             .Where(c => !named.Contains(c)).ToList();
 
         Assert.True(missing.Count == 0,

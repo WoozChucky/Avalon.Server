@@ -176,9 +176,9 @@ public class PartyCommandsShould
 
         Run(new PartyChatCommand(_w.Parties, ChatLimits.Off()), a, "/p heal up");
 
-        Assert.Equal((ushort)CharacterClass.Healer,
+        Assert.Equal(CharacterClass.Healer,
             Assert.Single(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
-        Assert.Equal((ushort)CharacterClass.Healer,
+        Assert.Equal(CharacterClass.Healer,
             Assert.Single(a.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).CharacterClass);
     }
 }

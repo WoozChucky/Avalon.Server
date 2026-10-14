@@ -65,7 +65,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         {
             // Nowhere to say it: the sender still sees its own line.
             connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
-                PacketEncoder.Shared, characterClass: (ushort)sender.Class));
+                PacketEncoder.Shared, characterClass: sender.Class));
             rateLimiter.Record(sender.Guid.Id);
             return;
         }
@@ -82,7 +82,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
             if (line.Payload is null)
             {
                 line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
-                    PacketEncoder.Shared, characterClass: (ushort)sender.Class);
+                    PacketEncoder.Shared, characterClass: sender.Class);
             }
 
             target.Send(line.Share());

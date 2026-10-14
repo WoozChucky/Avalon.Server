@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Social;
 using ProtoBuf;
 using Xunit;
@@ -59,8 +60,8 @@ public class ChatPacketsShould
     [Fact]
     public void Carry_the_sender_class_as_field_8()
     {
-        Assert.Equal(DefaultDateTime + "4003", Hex(new SChatMessagePacket { CharacterClass = 3 }));
-        Assert.Equal(DefaultDateTime, Hex(new SChatMessagePacket { CharacterClass = 0 }));
+        Assert.Equal(DefaultDateTime + "4003", Hex(new SChatMessagePacket { CharacterClass = CharacterClass.Hunter }));
+        Assert.Equal(DefaultDateTime, Hex(new SChatMessagePacket { CharacterClass = CharacterClass.None }));
     }
 
     [Fact]
@@ -69,6 +70,6 @@ public class ChatPacketsShould
         using var stream = new MemoryStream(Convert.FromHexString(DefaultDateTime + "3001"));
         SChatMessagePacket read = Serializer.Deserialize<SChatMessagePacket>(stream);
 
-        Assert.Equal((ushort)0, read.CharacterClass);
+        Assert.Equal(CharacterClass.None, read.CharacterClass);
     }
 }

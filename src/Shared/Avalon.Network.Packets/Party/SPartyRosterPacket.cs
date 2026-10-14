@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
@@ -9,7 +10,7 @@ public class PartyMemberDto
 {
     [ProtoMember(1)] public uint CharacterId { get; set; }
     [ProtoMember(2)] public string Name { get; set; } = string.Empty;
-    [ProtoMember(3)] public ushort Class { get; set; }
+    [ProtoMember(3)] public CharacterClass Class { get; set; }
     [ProtoMember(4)] public ushort Level { get; set; }
     [ProtoMember(5)] public bool IsLeader { get; set; }
     [ProtoMember(6)] public bool Online { get; set; }
