@@ -152,6 +152,27 @@ public class GroundedMovementShould
         Assert.Equal(1, farther);
     }
 
+    /// <summary>
+    /// A 1 m square at 0 m whose detail surface rises to 0.8 m in the middle, under a second square at 1.8 m, with a
+    /// 0.9 m climb: from 1.3 m up, the raised surface (0.72 m under the point) and the upper square both score zero, and
+    /// DotRecast answers the first. A tile without a bounding-volume tree is searched by its polygons' corners, which
+    /// leave the lower square out of a narrow box that its raised surface reaches; so such a mesh takes the full box.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Answer_as_the_full_search_does_with_or_without_a_tree(bool tree)
+    {
+        DtNavMesh mesh = RaisedDetailUnderASquare(tree);
+        var nav = new MapNavigator(NullLoggerFactory.Instance);
+        nav.LoadFromNavMesh(mesh);
+        var point = new Vector3(0.45f, 1.3f, 0.45f);
+        NavmeshGroundKind expectedKind = new DetourNavigationReference(mesh).FindGround(point, out Vector3 expected);
+
+        Assert.Equal(expectedKind, nav.FindGround(point, out Vector3 ground));
+        Assert.Equal(expected, ground);
+    }
+
     [Fact]
     public void Answer_for_the_mesh_loaded_now()
     {
@@ -242,6 +263,46 @@ public class GroundedMovementShould
             bmin = new RcVec3f(0, 0, 0),
             bmax = new RcVec3f(1, 2, 1),
             buildBvTree = true,
+        };
+        var mesh = new DtNavMesh();
+        mesh.Init(DtNavMeshBuilder.CreateNavMeshData(create), Nvp, 0);
+        return mesh;
+    }
+
+    /// <summary>
+    /// One tile, 1 cm cells: a 1 m square at 0 m with a detail vertex 0.8 m up in its middle, and an unconnected 1 m
+    /// square at 1.8 m over it; climb 0.9 m; with or without a bounding-volume tree.
+    /// </summary>
+    private static DtNavMesh RaisedDetailUnderASquare(bool tree)
+    {
+        const int Nvp = 6, None = 0xffff;
+        int[] Square(int first) => [first, first + 1, first + 2, first + 3, None, None, None, None, None, None, None, None];
+        var create = new DtNavMeshCreateParams
+        {
+            verts = [0, 0, 0, 0, 0, 100, 100, 0, 100, 100, 0, 0, 0, 180, 0, 0, 180, 100, 100, 180, 100, 100, 180, 0],
+            vertCount = 8,
+            polys = [.. Square(0), .. Square(4)],
+            polyFlags = [1, 1],
+            polyAreas = [0, 0],
+            polyCount = 2,
+            nvp = Nvp,
+            detailMeshes = [0, 5, 0, 4, 5, 4, 4, 2],
+            detailVerts =
+            [
+                0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0.5f, 0.8f, 0.5f,
+                0, 1.8f, 0, 0, 1.8f, 1, 1, 1.8f, 1, 1, 1.8f, 0,
+            ],
+            detailVertsCount = 9,
+            detailTris = [0, 1, 4, 0, 1, 2, 4, 0, 2, 3, 4, 0, 3, 0, 4, 0, 0, 1, 2, 0, 0, 2, 3, 0],
+            detailTriCount = 6,
+            cs = 0.01f,
+            ch = 0.01f,
+            walkableHeight = 2f,
+            walkableRadius = 0.6f,
+            walkableClimb = 0.9f,
+            bmin = new RcVec3f(0, 0, 0),
+            bmax = new RcVec3f(1, 2, 1),
+            buildBvTree = tree,
         };
         var mesh = new DtNavMesh();
         mesh.Init(DtNavMeshBuilder.CreateNavMeshData(create), Nvp, 0);
