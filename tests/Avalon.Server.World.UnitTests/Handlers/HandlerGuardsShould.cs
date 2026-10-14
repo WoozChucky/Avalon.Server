@@ -57,7 +57,6 @@ public class HandlerGuardsShould
         IWorld world = Substitute.For<IWorld>();
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns((ICharacter?)null);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         ICharacterEconomy economy = Substitute.For<ICharacterEconomy>();
 
         switch (request)

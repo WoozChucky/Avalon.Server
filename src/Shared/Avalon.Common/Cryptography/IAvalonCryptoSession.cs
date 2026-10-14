@@ -346,13 +346,14 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     /// </exception>
     /// <exception cref="InvalidOperationException">
     /// The session never completed its exchange, or its send counter is spent. While no exchange has completed (none
-    /// was started, or one is under way) it is the derived <see cref="CryptoSessionNotInitializedException" />: a
-    /// packet flagged Encrypted that arrives before the keys is the sender's doing. After an exchange that failed, or
-    /// with the counter spent, it is a plain one.
+    /// was started, one is under way, or one failed) it is the derived <see cref="CryptoSessionNotInitializedException" />:
+    /// a packet flagged Encrypted that arrives with no keys to open it is the sender's doing, and an exchange fails on
+    /// the peer's key, or on a server fault that the code keying the session reports itself. With the counter spent it
+    /// is a plain one.
     /// </exception>
     public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
     {
-        if (_state != Ready) throw NotReady();
+        if (_state != Ready) throw NotReadyToOpen();
         if (data.Length < SessionKeys.NonceSize + SessionKeys.TagSize)
         {
             throw new CryptographicException("Sealed packet is shorter than its nonce and tag");
@@ -381,6 +382,13 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
         return length;
     }
+
+    // An open's refusal. A failed exchange is a session with no exchange completed, as one not yet started is: a peer
+    // that sent a key the exchange refused and then a sealed frame reaches it before its connection closes, and is
+    // refused as the peer's, not logged as a server error. Seals keep NotReady: what the server seals is its own doing.
+    private InvalidOperationException NotReadyToOpen() => _state == Failed
+        ? new CryptoSessionNotInitializedException("Crypto session failed to initialize: no exchange completed")
+        : NotReady();
 
     // Off the packet path: built only when a packet is refused.
     private InvalidOperationException NotReady() => _state switch

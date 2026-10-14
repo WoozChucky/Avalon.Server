@@ -32,7 +32,6 @@ public class CharacterLeaveHandlerShould
         _connection.IsConnected.Returns(true);
         // A substitute answers an interface-typed property with another substitute, never null.
         _connection.Character.Returns((ICharacter?)null);
-        _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         _connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => _sent.Add(ci.Arg<OutboundPacket>()));
         _connection.When(c => c.EnqueueContinuation(Arg.Any<Task<bool>>(), Arg.Any<Action<bool>>()))
             .Do(ci => _continuations.Add((ci.Arg<Task<bool>>(), ci.Arg<Action<bool>>())));

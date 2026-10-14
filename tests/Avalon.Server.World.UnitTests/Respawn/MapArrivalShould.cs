@@ -252,7 +252,6 @@ public class MapArrivalShould
 
         var sent = new List<OutboundPacket>();
         IWorldConnection connection = PendingSpawnConnection.Create();
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(call => sent.Add(call.Arg<OutboundPacket>()));
         RunInline<(Character? Character, bool SaveStillRunning)>(connection);
         RunInline<IMapInstance>(connection);

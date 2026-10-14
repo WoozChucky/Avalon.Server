@@ -16,7 +16,6 @@ internal sealed class CommandConnection
     public CommandConnection(AccountAccessLevel level = AccountAccessLevel.Player)
     {
         Connection.AccessLevel.Returns(level);
-        Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         Connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => Sent.Add(ci.Arg<OutboundPacket>()));
 
         // What the tick does a tick later, done now: the task settles, then the callback runs.

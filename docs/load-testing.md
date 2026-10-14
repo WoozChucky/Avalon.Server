@@ -304,7 +304,7 @@ Entering is the client's sequence. Each step has its own timeout:
 |---|---|---|
 | `join` | 60 s | The join ticket. A timeout, a 5xx or `CONTEXT_CHANGED` is retried twice under the same idempotency key. A reply for any world but the run's is refused (`join:wrong-world`) and never dialled |
 | `connect` | 10 s | TCP and TLS, pinned to the SHA-256 of the certificate the join reply names |
-| `admission` | 20 s | The join ticket and the client's session key, in the clear. The reply's `PacketEncryption` (#875) sets the connection's mode, as the game client is to follow it (Avalon.Client#213): on, the bot seals every packet it sends after it with the session, but the pong, which the world takes plain; off, it sends them plain inside TLS. Either way it opens what the world sends by each packet's header |
+| `admission` | 20 s | The join ticket and the client's public key, in the clear. The reply's `PacketEncryption` (#875) sets the connection's mode, as the game client is to follow it (Avalon.Client#213): on, the bot keys its session from the reply's key and seals every packet it sends after it, but the pong, which the world takes plain; off, the reply has no key (#878), the bot keys nothing and sends them plain inside TLS. Either way it opens what the world sends by each packet's header |
 | `handshake` | 10 s | The protocol version, `0.3.0` |
 | `list`, `create`, `select` | 30 s each | `create` only when the list lacks the character |
 | `spawn` | 35 s from the select reply | Inputs start only after the first world-state frame, the sign the character has spawned |

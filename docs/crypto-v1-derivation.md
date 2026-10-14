@@ -5,8 +5,11 @@
 **Addresses:** findings 3, 4, 5 and 6 of `docs/security-review-network-crypto.md`.
 
 Since #875 the per-packet session layer is a per-world setting on the world server, `Network:PacketEncryption`, off by
-default: a world that leaves it off relies on its pinned TLS alone, and its admission reply tells the client so. The
-derivation, the vectors and the key exchange below are unchanged, and the exchange still runs on every connection.
+default: a world that leaves it off relies on its pinned TLS alone, and its admission reply tells the client so. Since
+#878 such a world runs no key exchange at all: its connections build no key pair and no session, its admission reply
+carries an empty public key, and a packet flagged `Encrypted` closes the connection (`sealed_before_key`, below). The
+exchange below runs on every auth server connection and on every connection of a world that seals, and the derivation
+and the vectors are unchanged.
 
 Both ends of a connection derive the same two keys independently and never compare them. A
 derivation that disagrees therefore fails as a packet that will not open — on a live connection,
@@ -83,12 +86,13 @@ identical, so the secret, both derived keys and both counters would be too. It w
 security property the server could neither verify nor enforce, resting on a sentence in this
 document.
 
-So the server now agrees every connection on a key pair of its own (`Connection`, not
-`ServerBase`), which closes it unilaterally: the salt and the secret differ per connection
-whatever the client does. Cost is one P-256 keygen per accepted connection — **0.23 ms**, measured
-in Release, against well under a microsecond per sealed 256-byte packet and against a TLS handshake
-on the same path.
-It is per connection, not per packet.
+So the server now agrees every connection on a key pair of its own (`ConnectionKeyExchange`, one
+per connection, not `ServerBase`), which closes it unilaterally: the salt and the secret differ per
+connection whatever the client does. Cost is one P-256 keygen per connection that runs the exchange —
+**0.23 ms** when first measured in Release, 64 µs and 61 KB allocated on the 2026-10-14 measurement,
+and the session keyed at admission, off the world's tick, about 140 µs more ([benchmarks](benchmarks.md#connection-key-exchange--connectionkeyexchangebenchmarkscs-878)),
+against well under a microsecond per sealed 256-byte packet and against a TLS handshake on the same
+path. It is per connection, not per packet, and a world that does not seal does not pay it (#878).
 
 `ServerBase.Crypto` is gone rather than left unused, because a process-wide key pair within reach
 is how this would come back.
@@ -173,11 +177,14 @@ claims the session first, so a second call is refused even after a failed first 
 both ciphers, and only then marks the session ready, with a volatile write that publishes the
 ciphers with it. An `Initialize` that throws (a peer key that does not parse, say) leaves the session failed
 for good, and every later `Encrypt` or `Decrypt` refuses with an `InvalidOperationException` rather
-than reaching a missing cipher. A session with no exchange yet (none started, or one under way) refuses
+than reaching a missing cipher; a `Decrypt` with the derived `CryptoSessionNotInitializedException`, since no exchange
+completed and the peer whose key was refused can reach it with a sealed frame before its connection closes (#878). A session with no exchange yet (none started, or one under way) refuses
 with the derived `CryptoSessionNotInitializedException` (#897): of the refusals it is the one the other
 end causes, by flagging a packet `Encrypted` before it has exchanged keys, and a server's read loop
 closes that connection with a Warning where a failed or spent session stays an Error
-([packet handlers](packet-handlers.md)). `GetPublicKey` and `GetOtherEndPublicKey` refuse the same way
+([packet handlers](packet-handlers.md)). A connection with no session at all (a world that does not
+seal, #878) refuses every packet flagged `Encrypted` the same way, through the same path, and is
+counted under the same `reason`, `sealed_before_key`. `GetPublicKey` and `GetOtherEndPublicKey` refuse the same way
 until the exchange has completed; a spent session still returns them, since exhaustion ends what
 it may seal, not which exchange it was. The ready check is one volatile read before each packet, so it
 adds no lock and no allocation. Exhaustion is written by the one thread sealing, so no seal passes the
@@ -191,7 +198,9 @@ images carry), rather than failing at the first handshake. The check is in the h
 ## Roles
 
 `AvalonCryptoSession` takes a `CryptoRole` at construction — there is no default and no
-inference. The server's is built in `src/Server/Avalon.Hosting/Networking/Connection.cs`. A
+inference. The server's is built in `src/Server/Avalon.Hosting/Networking/ConnectionKeyExchange.cs`,
+which each server's connection creates for itself: the auth server's for every connection, a world's
+only while `Network:PacketEncryption` is on (#878); the base `Connection` takes it, or none. A
 session that guessed its role would complete its handshake and fail to open the first packet it
 was sent, so the guess is not available.
 

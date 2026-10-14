@@ -64,7 +64,6 @@ public class CharacterSheetShould
         var sent = new List<OutboundPacket>();
         IWorldConnection connection = PendingSpawnConnection.Create(
             new PendingSpawn(character, Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks));
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         CharacterSheetFlusher.Flush(connection, s_seeded);

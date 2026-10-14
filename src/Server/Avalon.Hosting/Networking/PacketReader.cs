@@ -148,9 +148,10 @@ public class PacketReader : IPacketReader
                 {
                     len = decrypt(frame.Payload.Span, rented);
                 }
-                // The two refusals of an open that the sender causes, each by its own type. A session that failed its
-                // exchange or spent its counter refuses with a plain InvalidOperationException, and a cipher that
-                // fails on a well-formed packet with a plain CryptographicException: both propagate.
+                // The two refusals of an open that the sender causes, each by its own type: no exchange completed
+                // (none yet, none on this connection, or one that failed on the peer's key, #878), and a seal that does
+                // not open. A session that spent its counter refuses with a plain InvalidOperationException, and a
+                // cipher that fails on a well-formed packet with a plain CryptographicException: both propagate.
                 catch (CryptoSessionNotInitializedException e)
                 {
                     throw new PacketReadException(PacketReadFailure.SealedBeforeKey, frame.Header.Type, e);

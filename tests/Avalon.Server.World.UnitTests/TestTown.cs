@@ -55,7 +55,6 @@ internal static class TestTown
     {
         connection.Character.Returns(character);
         connection.Locale.Returns(AccountLocale.enUS);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
     }
 

@@ -1,13 +1,11 @@
 using Avalon.Common;
 using Avalon.Common.Accounts;
-using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
-using Avalon.World.Testing.Fakes;
 
 namespace Avalon.Benchmarking.CrowdBudget;
 
@@ -23,8 +21,6 @@ internal sealed class BenchConnection(CharacterEntity character) : IWorldConnect
 
     public (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
 
-    public IAvalonCryptoSession CryptoSession { get; } = new FakeAvalonCryptoSession();
-
     public void Send(OutboundPacket packet)
     {
         Sent++;
@@ -34,7 +30,6 @@ internal sealed class BenchConnection(CharacterEntity character) : IWorldConnect
     public Guid Id => throw new NotSupportedException();
     public Task? ExecuteTask => throw new NotSupportedException();
     public string RemoteEndPoint => throw new NotSupportedException();
-    public ICryptoManager ServerCrypto => throw new NotSupportedException();
     public AccountId? AccountId { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     public PendingSpawn? PendingSpawn => throw new NotSupportedException();
     public bool SelectInProgress => throw new NotSupportedException();

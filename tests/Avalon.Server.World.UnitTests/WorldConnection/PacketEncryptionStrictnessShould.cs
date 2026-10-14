@@ -17,8 +17,9 @@ namespace Avalon.Server.World.UnitTests.WorldConnection;
 /// <summary>
 /// With <c>Network:PacketEncryption</c> on (#875), every packet the world runs arrives sealed from a client that follows
 /// its admission reply: a plain one is a protocol violation and closes the connection. Admission and pong are plain by
-/// design, and an opcode the world never runs is dropped as before, whatever its flags. With the flag off both are
-/// accepted, so today's client, which seals, still plays.
+/// design, and an opcode the world never runs is dropped as before, whatever its flags. With the flag off a plain packet is
+/// accepted; a sealed one never reaches this check, since a world that does not seal has no session and its read loop
+/// closes the connection on it (#878, <c>AdmissionKeyExchangeShould</c>).
 /// </summary>
 public sealed class PacketEncryptionStrictnessShould
 {
@@ -35,9 +36,8 @@ public sealed class PacketEncryptionStrictnessShould
         { true, NetworkPacketType.CMSG_GAME_ADMISSION, NetworkPacketFlags.ClearText, false, false },
         { true, NetworkPacketType.CMSG_PONG, NetworkPacketFlags.None, false, true },
         { true, NetworkPacketType.CMSG_PING, NetworkPacketFlags.ClearText, false, false },
-        // TLS alone: plain and sealed are both accepted.
+        // TLS alone: plain is accepted.
         { false, NetworkPacketType.CMSG_CHARACTER_LIST, NetworkPacketFlags.None, false, true },
-        { false, NetworkPacketType.CMSG_CHARACTER_LIST, NetworkPacketFlags.Encrypted, false, true },
     };
 
     [Theory]

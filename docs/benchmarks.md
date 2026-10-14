@@ -14,6 +14,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickLoop
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EntityTracking*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Serialization*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SessionCipher*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ConnectionKeyExchange*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketEncoder*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketSerializationGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderGc*"
@@ -1335,6 +1336,42 @@ shared by both arms, so the two differ in call shape only — never in key mater
 
 **Status:** Baseline recorded 2026-09-10; re-measured 2026-10-09 before and after #850, and 2026-10-10 before and
 after the session lock went (#875). Until #875 both session arms took the session's one lock.
+
+---
+
+### Connection key exchange — `ConnectionKeyExchangeBenchmarks.cs` (#878)
+
+What a connection's key exchange costs, which a world with `Network:PacketEncryption` off no longer pays (#878): until
+then every world connection built a P-256 key pair and a session around it as it was created, and keyed the session
+at admission, whatever the world's mode. Now only a world that seals, and the auth server, do.
+
+| Scenario | What it models |
+|---|---|
+| `Construct` | `new ConnectionKeyExchange()`: the key pair (BouncyCastle P-256 keygen, the public key's DER) and the session object, with its own `SecureRandom`. What a connection paid as it was created |
+| `ConstructAndKey` | The same, then `Session.Initialize` with a client's public key: the agreement, the two HKDF derivations and the two platform `AesGcm` instances. What admission added |
+
+| Method | Mean | Error | StdDev | Allocated |
+|---|---:|---:|---:|---:|
+| `Construct` | 63.48 µs | 0.734 µs | 0.573 µs | 61.38 KB |
+| `ConstructAndKey` | 202.46 µs | 2.922 µs | 2.440 µs | 238.49 KB |
+
+So a plain world's connection no longer spends about 63 µs and 61 KB of allocation as it is created, nor about 139 µs
+and 177 KB more at admission: about 0.2 ms and 238 KB allocated per connection in all.
+The key pair is built in the connection's constructor, on the accept path. Until the #878 review the session was keyed
+on the tick, in the admission's continuation, so on a world that seals the 139 µs came off a tick's budget once per
+world entry, and reconnects after a restart that became ready in one tick added up (thirty, about 4 ms). It is now
+keyed off the tick, on the thread the ticket's redemption finished on, before the result is handed to the tick; the
+tick publishes the admission and encodes the reply, which carries the key the exchange already holds.
+
+What the connection holds for its life, from a probe outside BenchmarkDotNet (2,000 exchanges held in an array,
+`GC.GetTotalMemory(true)` before and after, three rounds, the same machine): **1,839 B** retained per connection once
+built, and **1,006 B** more once keyed, **2,846 B** in all. That is the managed heap only: the two `AesGcm` instances
+of a keyed session also hold native key handles, which the GC does not count. A plain world's connection keeps none
+of it: the base `Connection` and the `WorldConnection` hold null references where the exchange was.
+
+BenchmarkDotNet 0.15.8, DefaultJob, Windows 11, Intel Core i9-12900K, .NET SDK 10.0.401 / runtime 10.0.12, concurrent
+workstation GC, 2026-10-14. The per-connection keygen was first measured at 0.23 ms ([session crypto](crypto-v1-derivation.md));
+this run's 63 µs is the same operation, with the session object, in a warmed-up process.
 
 ---
 

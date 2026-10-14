@@ -91,8 +91,15 @@ public class ConnectionReadLoopShould
 
         public ProbeConnection(TcpClient client, ILogger logger, IPacketReader reader,
             Func<TcpClient, Task<PacketStream>>? handshake = null)
-            : base(logger, new FakeServer(), reader)
+            : this(client, logger, reader, handshake, new ConnectionKeyExchange())
         {
+        }
+
+        private ProbeConnection(TcpClient client, ILogger logger, IPacketReader reader,
+            Func<TcpClient, Task<PacketStream>>? handshake, ConnectionKeyExchange keyExchange)
+            : base(logger, new FakeServer(), reader, keyExchange)
+        {
+            CryptoSession = keyExchange.Session;
             Reader = reader;
             _handshake = handshake;
             Init(client);
@@ -106,6 +113,9 @@ public class ConnectionReadLoopShould
             reader.Read(default, null).ReturnsForAnyArgs(new CRequestServerInfoPacket());
             return reader;
         }
+
+        /// <summary>The session the connection opens with, as the auth server keys every connection's.</summary>
+        public IAvalonCryptoSession CryptoSession { get; }
 
         public int FramesRefused => Volatile.Read(ref _framesRefused);
         public int Handled => Volatile.Read(ref _handled);
@@ -308,6 +318,7 @@ public class ConnectionReadLoopShould
     {
         NotAPacket,
         SealedBeforeAnyKey,
+        SealedAfterAFailedExchange,
         SealedUnderAnotherKey,
         SealedAndTooShort,
         PayloadCutShort,
@@ -324,6 +335,7 @@ public class ConnectionReadLoopShould
     [Theory]
     [InlineData(WrongFrame.NotAPacket, "malformed_frame")]
     [InlineData(WrongFrame.SealedBeforeAnyKey, "sealed_before_key")]
+    [InlineData(WrongFrame.SealedAfterAFailedExchange, "sealed_before_key")]
     [InlineData(WrongFrame.SealedUnderAnotherKey, "seal_not_authentic")]
     [InlineData(WrongFrame.SealedAndTooShort, "seal_not_authentic")]
     [InlineData(WrongFrame.PayloadCutShort, "undecodable_payload")]
@@ -338,12 +350,16 @@ public class ConnectionReadLoopShould
             NetworkPacketType known = CRequestServerInfoPacket.PacketType;
             if (wrong is WrongFrame.SealedUnderAnotherKey or WrongFrame.SealedAndTooShort)
                 connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
+            // A key the exchange refuses: the session has no exchange, and never will (#878).
+            if (wrong is WrongFrame.SealedAfterAFailedExchange)
+                Assert.ThrowsAny<Exception>(() => connection.CryptoSession.Initialize(new byte[91]));
 
             await client.GetStream().WriteAsync(wrong switch
             {
                 // A header that declares five bytes with one left.
                 WrongFrame.NotAPacket => [0x03, 0x0A, 0x05, 0x01],
-                WrongFrame.SealedBeforeAnyKey => Frame(known, NetworkPacketFlags.Encrypted, new byte[40]),
+                WrongFrame.SealedBeforeAnyKey or WrongFrame.SealedAfterAFailedExchange =>
+                    Frame(known, NetworkPacketFlags.Encrypted, new byte[40]),
                 WrongFrame.SealedUnderAnotherKey => Frame(known, NetworkPacketFlags.Encrypted, new byte[40]),
                 // Less than a nonce and a tag.
                 WrongFrame.SealedAndTooShort => Frame(known, NetworkPacketFlags.Encrypted, new byte[5]),
@@ -401,22 +417,23 @@ public class ConnectionReadLoopShould
     }
 
     /// <summary>
-    /// What is not the peer's doing stays an Error with its exception. A session whose key exchange failed refuses
-    /// to open anything, as it refuses before any exchange, and with the same base type: only the second is
-    /// something a peer does by sending a sealed frame early.
+    /// What is not the peer's doing stays an Error with its exception: here a reader that fails with a type it does not
+    /// use for a payload the peer got wrong, as a cipher or a packet class that threw would.
     /// </summary>
     [Fact]
     public async Task Keep_the_error_and_its_exception_for_a_failure_that_is_not_the_peers()
     {
         var logger = new CapturingLogger();
-        (ProbeConnection connection, TcpClient client) = await ConnectAsync(logger, RealReader(logger));
+        IPacketReader reader = Substitute.For<IPacketReader>();
+        reader.BufferSize.Returns(256);
+        reader.Read(default, null).ReturnsForAnyArgs(_ => throw new InvalidOperationException("the server's own fault"));
+        (ProbeConnection connection, TcpClient client) = await ConnectAsync(logger, reader);
         using (client) using (connection)
         {
             connection.Outbox.Release.SetResult();
-            Assert.ThrowsAny<Exception>(() => connection.CryptoSession.Initialize(new byte[91]));
 
             await client.GetStream().WriteAsync(
-                Frame(CRequestServerInfoPacket.PacketType, NetworkPacketFlags.Encrypted, new byte[40]));
+                Frame(CRequestServerInfoPacket.PacketType, NetworkPacketFlags.ClearText, new byte[4]));
             await connection.Closed.Task.WaitAsync(s_wait);
 
             (LogLevel level, Exception exception) = Assert.Single(logger.Exceptions);

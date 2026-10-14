@@ -243,7 +243,6 @@ public class DialogueChooseHandlerShould
             fixture.Connection = Substitute.For<IWorldConnection>();
             fixture.Connection.Character.Returns(fixture.Character);
             fixture.Connection.Locale.Returns(AccountLocale.enUS);
-            fixture.Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
             var sentPackets = new List<OutboundPacket>();
             fixture.Connection.When(c => c.Send(Arg.Any<OutboundPacket>()))

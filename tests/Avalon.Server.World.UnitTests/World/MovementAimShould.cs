@@ -62,7 +62,6 @@ public class MovementAimShould
         _behind = _arena.Creature(0f, -2f);
 
         _connection.Character.Returns(_caster);
-        _connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
     }
 
     /// <summary>Cleave's shape: a 2.5 m, 100-degree Movement cone.</summary>

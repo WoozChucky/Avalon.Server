@@ -11,6 +11,10 @@ public sealed class SGameAdmissionPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_GAME_ADMISSION;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.ClearText;
+    /// <summary>
+    /// The connection's own public key, on an acceptance from a world that seals; empty from a world that does not, which
+    /// runs no key exchange (#878), and on a refusal.
+    /// </summary>
     [ProtoMember(1)] public byte[] PublicKey { get; set; } = [];
     [ProtoMember(2)] public GameAdmissionResult Result { get; set; }
 
@@ -18,9 +22,10 @@ public sealed class SGameAdmissionPacket : Packet
     /// Whether this world seals every gameplay payload with the session layer inside TLS (<c>Network:PacketEncryption</c>,
     /// #875). True: the client seals every gameplay packet it sends; one the world runs (the handshake, and every packet
     /// a session filter names but the pong) that arrives plain closes the connection, and an opcode the world never runs
-    /// is dropped, whatever its flags. False: TLS alone, and the client sends plain; plain and sealed are both accepted.
-    /// Absent, from a server before #875, reads false; such a server opens a packet by its header, sealed or not. A
-    /// refusal says false: the connection closes.
+    /// is dropped, whatever its flags. False: TLS alone, no key exchanged (#878), and the client sends plain; a packet
+    /// flagged Encrypted closes the connection, since there is no key to open it with. Absent, from a server before #875,
+    /// reads false; such a server opens a packet by its header, sealed or not. A refusal says false: the connection
+    /// closes.
     /// </summary>
     [ProtoMember(3)] public bool PacketEncryption { get; set; }
 

@@ -30,7 +30,6 @@ public class PlayerInputHandlerShould
         IWorldConnection conn = Substitute.For<IWorldConnection>();
         conn.Character.Returns(ch);
         conn.LastInputSeq.Returns(0u);
-        conn.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
         IMapNavigator nav = navigator ?? Substitute.For<IMapNavigator>();
         if (navigator is null)

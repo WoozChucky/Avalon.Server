@@ -94,7 +94,6 @@ public class CastAbilityHandlerShould
             Character.CurrentPower = 100;
             Character.Spells.Load([]);
             Connection.Character.Returns(Character);
-            Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
             Instance.RunInstantAbility(default!, default, default!).ReturnsForAnyArgs(true);
             IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
             registry.GetInstanceById(Arg.Any<Guid>()).Returns(Instance);
@@ -425,7 +424,6 @@ public class CastAbilityHandlerShould
 
             Connection.Character.Returns(Character);
             // NSubstitute cannot proxy ReadOnlySpan<byte> on IAvalonCryptoSession.Encrypt — use the concrete fake.
-            Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
             IWorld world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(Registry);

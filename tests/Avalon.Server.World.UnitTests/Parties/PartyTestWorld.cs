@@ -44,7 +44,6 @@ internal sealed class PartyTestWorld
         IWorldConnection connection = Substitute.For<IWorldConnection, Avalon.World.ISettledContinuations>();
         connection.Character.Returns(character);
         connection.AccountId.Returns(new AccountId(id));
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         Parties.CharacterOnline(connection);

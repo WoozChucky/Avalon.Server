@@ -88,7 +88,6 @@ public class MapInstanceVendorShould
         var sent = new List<OutboundPacket>();
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.Character.Returns(character);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<OutboundPacket>())).Do(ci => sent.Add(ci.Arg<OutboundPacket>()));
 
         if (shopOpen)

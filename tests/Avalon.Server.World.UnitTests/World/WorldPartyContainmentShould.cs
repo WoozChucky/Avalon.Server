@@ -125,7 +125,6 @@ public class WorldPartyContainmentShould
         connection.Character.Returns(character);
         connection.AccountId.Returns(new AccountId(id));
         connection.Locale.Returns(AccountLocale.enUS);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         _parties.CharacterOnline(connection);
         return (connection, character);
     }

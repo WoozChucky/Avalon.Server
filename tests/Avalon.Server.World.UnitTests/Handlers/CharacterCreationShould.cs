@@ -427,7 +427,6 @@ public class CharacterCreationShould : IDisposable
         // A substitute hands back a substitute for an interface-typed property, and a non-null
         // Character reads to the handler as "one is already selected".
         connection.Character.Returns((Avalon.World.Public.Characters.ICharacter?)null!);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         return connection;
     }
 

@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using Avalon.Common;
 using Avalon.Common.Accounts;
+using Avalon.Common.Cryptography;
 using Avalon.Common.GameAuth;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
@@ -80,11 +81,6 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private readonly IWorldServer _server;
 
-    // Network:PacketEncryption (#875), the world's, fixed for this connection's life: its sender seals with the session or
-    // sends plain inside TLS, and its admission reply names the mode. While it seals, a packet the world runs (the
-    // handshake and every session- or map-filter packet but the pong) that arrives plain closes the connection.
-    private readonly bool _packetEncryption;
-
     private CharacterEntity? _characterEntity;
 
     private long _lastClientTicks;
@@ -94,12 +90,14 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     private readonly TimeProvider _time;
     private volatile bool _maintenanceBlocked;
 
+    // The key exchange runs only on a world that seals (#878): a plain world's connection builds no key pair and no
+    // session, sends no public key, and opens nothing, so a frame flagged Encrypted closes it as sealed_before_key.
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader, TimeProvider? time = null)
-        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
+        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader,
+            server.PacketEncryption ? new ConnectionKeyExchange() : null)
     {
         _server = server;
-        _packetEncryption = server.PacketEncryption;
         // A substitute server in tests has none.
         _receiveQueueLimit = server.ReceiveQueueLimit ?? ReceiveQueueLimit.Default;
         _receiveLoop.MaxDepth = (uint)_receiveQueueLimit.MaxDepth;
@@ -477,22 +475,34 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// The connection's sender on its send thread (#875). Its close action runs on that thread or where a write completed:
     /// <see cref="Connection.Close" /> only starts the teardown (the sender's close is awaited off that thread, then the
     /// socket closes), so it neither blocks nor throws there, and a close already started makes it a no-op. It seals with
-    /// the session only while the world seals (Network:PacketEncryption); otherwise every packet goes plain inside TLS,
-    /// its Encrypted flag cleared.
+    /// the session, which exists only while the world seals (Network:PacketEncryption); otherwise every packet goes plain
+    /// inside TLS, its Encrypted flag cleared.
     /// </summary>
     protected override IOutbox OnCreateOutbox()
     {
         NetworkSendScheduler scheduler = _server.SendScheduler
             ?? throw new InvalidOperationException("The world server has no send scheduler");
 #pragma warning disable MA0045 // a slow connection's close starts on its send thread, which must not wait on it
-        _sender = scheduler.CreateSender(Id, _logger, _packetEncryption ? CryptoSession : null, close: () => Close(false),
+        _sender = scheduler.CreateSender(Id, _logger, KeyExchange?.Session, close: () => Close(false),
             onPingWritten: CountPing);
 #pragma warning restore MA0045
         return _sender;
     }
 
-    /// <summary>Whether this connection's gameplay packets are sealed both ways (Network:PacketEncryption, #875).</summary>
-    public bool PacketEncryption => _packetEncryption;
+    /// <summary>
+    /// Whether this connection's gameplay packets are sealed both ways (Network:PacketEncryption, #875): the world's,
+    /// fixed for the connection's life, and true exactly when it has a key exchange (#878). Its sender seals with the
+    /// session or sends plain inside TLS, and its admission reply names the mode. While it seals, a packet the world runs
+    /// (the handshake and every session- or map-filter packet but the pong) that arrives plain closes the connection;
+    /// while it does not, one that arrives sealed does, in the read loop.
+    /// </summary>
+    public bool PacketEncryption => KeyExchange is not null;
+
+    /// <summary>The connection's session (<see cref="Connection.KeyExchange" />); null on a world that does not seal.</summary>
+    public IAvalonCryptoSession? CryptoSession => KeyExchange?.Session;
+
+    /// <summary>The connection's own key pair (<see cref="Connection.KeyExchange" />); null on a world that does not seal.</summary>
+    public ICryptoManager? ServerCrypto => KeyExchange?.ServerCrypto;
 
     public void InitOutboxForTest(PacketStream stream)
     {
@@ -525,7 +535,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             return new ValueTask(Server.CallListener(this, header, payload));
         // Network:PacketEncryption on (#875): a client that follows its admission reply seals every packet the world runs,
         // so a plain one is a protocol violation and closes the connection.
-        if (_packetEncryption && (header.Flags & NetworkPacketFlags.Encrypted) == 0 && MustArriveSealed(header.Type))
+        if (KeyExchange is not null && (header.Flags & NetworkPacketFlags.Encrypted) == 0 && MustArriveSealed(header.Type))
         {
             ReceiveLog.PlainPacketRefused(_logger, Id, header.Type);
 #pragma warning disable MA0045 // the read loop must not wait on the close it starts
@@ -634,8 +644,38 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         && (type == NetworkPacketType.CMSG_WORLD_HANDSHAKE || WorldSessionFilter.IsSessionPacket(type)
             || MapSessionFilter.IsMapPacket(type));
 
+    /// <summary>
+    /// Admission refused the client's public key on a world that seals: the right length, and not a P-256 point
+    /// (<see cref="InvalidPublicKeyException" />). What the peer sent, not a server fault: one Warning, of fixed text and
+    /// without the exception, and one count under <c>bad_public_key</c>, as the read loop's refusals are (#897). Once per
+    /// connection: admission runs once, and the caller closes the connection.
+    /// </summary>
+    public void ReportBadPublicKey(long accountId)
+    {
+        ReceiveLog.BadPublicKey(_logger, Id, accountId, RemoteEndPoint);
+        OnProtocolViolation(ProtocolViolation.BadPublicKey);
+    }
+
+    /// <summary>Keying the session from a valid client key failed: the server's fault, logged with its exception.</summary>
+    public void ReportKeyingFailed(Exception error) => ReceiveLog.KeyingFailed(_logger, error, Id);
+
+    /// <summary>Publishing an admitted connection, or sending its reply, failed: the server's fault, logged with its exception.</summary>
+    public void ReportAdmissionFailed(Exception error) => ReceiveLog.AdmissionFailed(_logger, error, Id);
+
     private static partial class ReceiveLog
     {
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint}: its admission's public key is not a P-256 point")]
+        public static partial void BadPublicKey(ILogger logger, Guid connectionId, long accountId, string remoteEndPoint);
+
+        [LoggerMessage(Level = LogLevel.Error,
+            Message = "Closing connection {ConnectionId}: its session could not be keyed from a valid client key")]
+        public static partial void KeyingFailed(ILogger logger, Exception error, Guid connectionId);
+
+        [LoggerMessage(Level = LogLevel.Error,
+            Message = "Closing connection {ConnectionId}: its admission could not be published or answered")]
+        public static partial void AdmissionFailed(ILogger logger, Exception error, Guid connectionId);
+
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Closed connection {ConnectionId}: {PacketType} arrived unsealed while this world seals packets (Network:PacketEncryption)")]
         public static partial void PlainPacketRefused(ILogger logger, Guid connectionId, NetworkPacketType packetType);

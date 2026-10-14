@@ -2,6 +2,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Common.Cryptography;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
@@ -33,6 +34,12 @@ public interface IAuthConnection : IConnection
 
     AuthServer Server { get; }
 
+    /// <summary>The connection's session: the auth server runs its key exchange on every connection.</summary>
+    IAvalonCryptoSession CryptoSession { get; }
+
+    /// <summary>The connection's own key pair, whose public key <c>SServerInfoPacket</c> sends.</summary>
+    ICryptoManager ServerCrypto { get; }
+
     byte[] GenerateHandshakeData();
     bool VerifyHandshakeData(byte[] handshakeData);
 }
@@ -43,15 +50,19 @@ public class AuthConnection : Connection, IAuthConnection
 
     private byte[] _handshakeData = [];
 
+    // Every auth connection runs the key exchange.
     public AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory)
-        : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader)
+        : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader, new ConnectionKeyExchange())
     {
         _serviceScopeFactory = serviceScopeFactory;
         Server = (server as AuthServer)!;
         Init(client);
     }
 
+    // Never null: the one constructor hands the base an exchange.
+    public IAvalonCryptoSession CryptoSession => KeyExchange!.Session;
+    public ICryptoManager ServerCrypto => KeyExchange!.ServerCrypto;
     public AccountId? AccountId { get; set; }
     public int CredentialsVersion { get; set; }
     public long LoggedInAt { get; set; }

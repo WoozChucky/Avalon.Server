@@ -56,7 +56,7 @@ public class ConnectionSendBenchmarks
         _fixture = new ReceiveQueueFixture(Stream.Null, packetEncryption: Sealed);
         AsymmetricCipherKeyPair client = AsymmetricCipher.GenerateECDHKeyPair(256);
         byte[] clientKey = AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(client));
-        _fixture.Connection.CryptoSession.Initialize(clientKey);
+        _fixture.Connection.CryptoSession?.Initialize(clientKey);
 
         // The same sender with no connection in front of it: the fixture's scheduler, the same kind of stream, and a
         // session of its own when it seals.

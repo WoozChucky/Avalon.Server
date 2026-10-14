@@ -65,7 +65,6 @@ public sealed class ScenarioConnection : IWorldConnection
         (AsymmetricCipherKeyPair serverKeys, byte[] clientPublicKey) = s_keys.Value;
         var session = new AvalonCryptoSession(CryptoRole.Server, serverKeys);
         session.Initialize(clientPublicKey);
-        CryptoSession = session;
 
         _sender = scheduler.CreateSender(Guid.NewGuid(), NullLogger.Instance, sealPayloads ? session : null, close: () => { });
         _sender.Connect(new PacketStream(_stream));
@@ -84,8 +83,6 @@ public sealed class ScenarioConnection : IWorldConnection
     public ulong? CurrentTargetGuid { get; set; }
 
     public uint LastInputSeq { get; set; }
-
-    public IAvalonCryptoSession CryptoSession { get; }
 
     public bool IsConnected => true;
     public bool InGame => true;
@@ -116,7 +113,6 @@ public sealed class ScenarioConnection : IWorldConnection
     public Guid Id => throw new NotSupportedException();
     public Task? ExecuteTask => throw new NotSupportedException();
     public string RemoteEndPoint => throw new NotSupportedException();
-    public ICryptoManager ServerCrypto => throw new NotSupportedException();
     public AccountId? AccountId { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     public PendingSpawn? PendingSpawn => throw new NotSupportedException();
     public bool SelectInProgress => throw new NotSupportedException();
