@@ -198,6 +198,8 @@ through its own code, and a return to town refuses nothing by a reply.
 
 Every handler run records `avalon.packet.handler.duration` (ms, tagged `avalon.packet.type` and `avalon.outcome`) and, when it throws, `avalon.packet.handler.errors`. A packet of a high-rate type (`Hosting:Telemetry:NoSpanPacketTypes`, default `CMSG_PLAYER_INPUT` and `CMSG_PONG`) opens no span and no log scope (#875): at 60 inputs a second per player those cost the tick several objects per packet (248 B with a scope-reading provider). The default types' handlers write `{ConnectionId}` and `{PacketType}` into their own lines (`HighRatePacketLog`); a type added to the list loses its handlers' log scope with nothing in its place. Every other packet opens its span and a log scope with `PacketType`, `ConnectionId`, `AccountId` and `CharacterId`.
 
+What the duration costs per packet with the SDK listening, measured for #977: about 190 to 290 ns per input on a developer machine, almost all of it the SDK finding the series of a measurement with two tags (one tag costs about 36 ns, none about 13); the sent-packet counters (`network.out.packets`, `network.out.bytes`) about 20 ns per packet sent. The ways to make them cheaper change a series or what is recorded, and are listed for a decision in [benchmarks](benchmarks.md#per-connection-work-every-tick--connectiontickbenchmarkscs-questflushbenchmarkscs-packetmetricsbenchmarkscs-977).
+
 ### Character saves
 
 `world.character.save.duration` (`ms`, Prometheus `world_character_save_duration_milliseconds_bucket`) times one save batch with buckets `5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000`. It is tagged:

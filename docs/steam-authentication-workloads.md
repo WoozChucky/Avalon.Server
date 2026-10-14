@@ -133,7 +133,17 @@ branch while clients still use the retired protocol.
 Provider calls, redemption, heartbeat and character persistence run outside the simulation tick.
 Connection identity, role, session and fence bind once from admission. Every queued gameplay packet
 is checked again at dispatch. A renewal outage grants no additional time: the world stops mutations
-five seconds before the lease deadline to flush final state, then ends the session. Character
+five seconds before the lease deadline to flush final state, then ends the session.
+
+The world checks every connection's lease once per tick, first thing (`WorldConnection.AdvanceGameplayLease`),
+against the tick's time: the container's clock read once for every connection (`TickTime`, #977). The lease holds
+two due times set when it is granted or renewed, the deadline less the five seconds on the wall clock and the
+time granted less the five seconds on the monotonic one, and the check ends gameplay on the first tick at or past
+either (`GameSessionLease.DrainDueAt`), so a wall clock set back cannot stretch a lease. The heartbeat is due 15
+seconds after the last one by the same time. The dispatch check that follows in the same tick (each pass, each
+packet) judges the lease at the time that check was made, not by reading the clock again: the check has already
+ended a lease within five seconds of its end, so the two differ only for a tick longer than five seconds. The read
+loop's check of a packet as it arrives reads the clock. Character
 creation and its initial children commit atomically under the same durable account guard; select,
 update and delete also validate the current owner and lease inside their database transaction.
 
