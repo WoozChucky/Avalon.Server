@@ -82,6 +82,41 @@ public class StateUpdateEncodingShould
         Assert.True(adds > 0 && updates > 0, $"Compared {adds} adds and {updates} updates");
     }
 
+    /// <summary>
+    /// An entity asked for with two field sets in one broadcast gets an entry for each, never one written for the other:
+    /// unreachable while every recipient is sent an entity with the fields its snapshot marked, but what a way of
+    /// finding watchers that tracks fields per recipient (#981, #982) would rely on. Three recipients ask for one
+    /// character, with motion, with motion and health, then with motion again; each packet is compared with its entry
+    /// encoded whole by <see cref="SInstanceStateUpdatePacket.Create" />.
+    /// </summary>
+    [Fact]
+    public void Keep_an_entry_for_each_field_set_an_entity_is_asked_for()
+    {
+        CharacterEntity character = Inventory.TestCharacters.New(980_190);
+        character.Position = new Vector3(4f, 0f, 2f);
+        character.Velocity = new Vector3(1f, 0f, 0f);
+        character.CurrentHealth = 42;
+        const GameEntityFields Motion = GameEntityFields.Position | GameEntityFields.Velocity;
+        const GameEntityFields Hurt = Motion | GameEntityFields.CurrentHealth;
+        var encoder = new PacketEncoder(new PayloadSegmentPool());
+        var updates = StatePacketAssembler.ForUpdates();
+        updates.BeginBroadcast();
+
+        foreach (GameEntityFields fields in new[] { Motion, Hurt, Motion })
+        {
+            updates.BeginPacket();
+            if (!updates.TryAppendShared(character.Guid, fields))
+                updates.AppendShared(character.Guid, fields, ObjectStateWriter.From((ICharacter)character, fields));
+
+            OutboundPacket assembled = updates.Finish(encoder);
+            OutboundPacket whole = SInstanceStateUpdatePacket.Create(
+                [ObjectStateWriter.From((ICharacter)character, fields)], encoder);
+            Assert.Equal(whole.PayloadMemory.ToArray(), assembled.PayloadMemory.ToArray());
+            assembled.Release();
+            whole.Release();
+        }
+    }
+
     /// <summary>The one packet of <paramref name="type" /> the recipient was sent this tick against the expected bytes, or none against null.</summary>
     private static int Compare(MapInstanceClient recipient, NetworkPacketType type, NetworkPacketFlags flags, byte[]? expected)
     {
