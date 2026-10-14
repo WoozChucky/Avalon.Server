@@ -248,7 +248,9 @@ internal sealed class CreatureScheduler
         }
 
         TimeSpan wait = script.NextUpdateIn;
-        if (wait == Timeout.InfiniteTimeSpan)
+
+        // A wait past the end of the clock (TimeSpan.MaxValue, say) is a wait for an event, not an overflow.
+        if (wait == Timeout.InfiniteTimeSpan || wait >= TimeSpan.MaxValue - _clock)
         {
             creature.Schedule.Wait = CreatureWait.Event;
             ClearPlace(creature);

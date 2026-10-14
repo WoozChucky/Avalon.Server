@@ -84,6 +84,7 @@ public sealed class CreatureSchedulingShould
     /// </summary>
     [Theory]
     [InlineData("hit")]
+    [InlineData("hit, after waiting for TimeSpan.MaxValue")]
     [InlineData("attacked for nothing")]
     [InlineData("a character left")]
     [InlineData("a new patrol path")]
@@ -96,7 +97,12 @@ public sealed class CreatureSchedulingShould
         world.Join(town, watcher, TownNavmesh.LoopCentre);
         ScenarioConnection leaver = world.Join(town, world.NewCharacter(2), TownNavmesh.LoopCentre);
         var template = new CreatureTemplate { Id = new CreatureTemplateId(1) };
-        TimeSpan wait = wake == "its due time" ? TimeSpan.FromSeconds(0.5) : Timeout.InfiniteTimeSpan;
+        TimeSpan wait = wake switch
+        {
+            "its due time" => TimeSpan.FromSeconds(0.5),
+            "hit, after waiting for TimeSpan.MaxValue" => TimeSpan.MaxValue,
+            _ => Timeout.InfiniteTimeSpan,
+        };
         WaitingScript script = null!;
         Creature creature = Place(town, 1, template, TownNavmesh.EntrySpawn, c => script = new WaitingScript(c, town, wait));
 
@@ -105,7 +111,7 @@ public sealed class CreatureSchedulingShould
             world.Tick();
         Assert.Single(script.Updates);
 
-        if (wait != Timeout.InfiniteTimeSpan)
+        if (wake == "its due time")
         {
             for (int i = 0; i < 60; i++)
                 world.Tick();
@@ -124,7 +130,7 @@ public sealed class CreatureSchedulingShould
         var combat = (CombatService)town.CombatService;
         switch (wake)
         {
-            case "hit": combat.ApplyDamage(watcher, creature, 5); break;
+            case "hit" or "hit, after waiting for TimeSpan.MaxValue": combat.ApplyDamage(watcher, creature, 5); break;
             case "attacked for nothing": combat.EnterAuraCombat(watcher, creature); break;
             case "a character left": town.RemoveCharacter(leaver); break;
             case "a new patrol path": creature.PatrolPath = [new PatrolPoint(TownNavmesh.LoopCentre, TimeSpan.Zero)]; break;
