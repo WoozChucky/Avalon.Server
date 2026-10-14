@@ -19,6 +19,7 @@ using Avalon.World.Maintenance;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
+using Avalon.World.Telemetry;
 using Microsoft.Extensions.Logging;
 using Packet = Avalon.Network.Packets.Packet;
 
@@ -318,12 +319,12 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     public void UpdateSession()
     {
-        ProcessQueue(_sessionFilterPredicate, dropStaleMapPackets: true);
+        WorldTickTrace.CountSessionPackets(ProcessQueue(_sessionFilterPredicate, dropStaleMapPackets: true));
     }
 
     public void UpdateMap()
     {
-        ProcessQueue(_mapFilterPredicate, dropStaleMapPackets: false);
+        WorldTickTrace.CountMapPackets(ProcessQueue(_mapFilterPredicate, dropStaleMapPackets: false));
     }
 
     public void BlockForMaintenance() => _maintenanceBlocked = true;
@@ -346,7 +347,11 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     ///     world, behind a leave (#663) or a despawn, and nothing can accept it any more: left there, it
     ///     would hold back everything behind it, the next character list included.
     /// </param>
-    private void ProcessQueue(Func<WorldPacket, bool> predicate, bool dropStaleMapPackets)
+    /// <returns>
+    ///     The packets the pass took off the queue: dispatched (or without a handler), or dropped as stale. Not a held
+    ///     head, nor a queue an unauthorised connection discards.
+    /// </returns>
+    private uint ProcessQueue(Func<WorldPacket, bool> predicate, bool dropStaleMapPackets)
     {
         if (!IsGameplayAuthorized)
         {
@@ -354,7 +359,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
                 ReleaseReceivePacket();
             while (_receiveQueue.TryDequeue(out _))
                 ReleaseReceivePacket();
-            return;
+            return 0;
         }
 
         uint processedPackets = 0;
@@ -418,6 +423,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             if (++processedPackets >= MaxPacketsPerUpdate)
                 break;
         }
+
+        return processedPackets;
     }
 
     /// <summary>

@@ -29,6 +29,7 @@ internal struct InstanceTickProfile
     public long Removed;
     public long StatePackets;
     public long StateBytes;
+    public long MapPackets;
 
     public readonly long Timestamp() => Enabled ? Stopwatch.GetTimestamp() : 0;
     public readonly long Elapsed(long start) => Enabled ? Stopwatch.GetTimestamp() - start : 0;

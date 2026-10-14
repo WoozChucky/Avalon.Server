@@ -1,5 +1,7 @@
 using System.Diagnostics.Tracing;
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Movement;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Testing.Scenarios;
@@ -52,6 +54,39 @@ public class WorldTickTraceShould
         Assert.Equal(world.Connections.Sum(c => c.Sent) - packetsBefore, instances.Sum(e => e.Values["statePackets"]));
         Assert.Contains(instances, e => e.Values["updated"] > 0 && e.Values["stateEncodingTicks"] > 0);
         Assert.All(instances.Where(e => e.Values["broadcast"] == 0), e => Assert.Equal(0, e.Values["updated"]));
+    }
+
+    [Fact]
+    public void Count_the_packets_the_map_pass_took_for_each_instance_on_its_own_tick()
+    {
+        using var world = new ScenarioWorld();
+        MapInstance busy = world.AddInstance();
+        MapInstance quiet = world.AddInstance();
+        using var queue = new ReceiveQueueFixture();
+        CharacterEntity character = world.NewCharacter(1);
+        character.Data!.Map = 1;
+        character.InstanceId = busy.InstanceId;
+        queue.Connection.Character = character;
+        busy.AddCharacter(queue.Connection);
+        world.Join(quiet, world.NewCharacter(2), new Vector3(0, 0, 0));
+        world.Tick();
+
+        using var listener = new Capture();
+        for (int i = 0; i < 3; i++)
+            queue.Connection.Deliver(NetworkPacketType.CMSG_PLAYER_INPUT, new CPlayerInputPacket());
+        world.Tick();
+        world.Tick();
+
+        long busyLow = BitConverter.ToInt64(busy.InstanceId.ToByteArray(), 0);
+        var ticks = listener.Events.Where(e => e.Name == "InstanceTick")
+            .GroupBy(e => e.Values["tickId"])
+            .Select(tick => tick.ToDictionary(e => e.Values["instanceLow"] == busyLow, e => e.Values["mapPackets"]))
+            .ToList();
+        Assert.Equal(3, queue.Dispatched);
+        Assert.Equal(2, ticks.Count);
+        Assert.Equal(3, ticks[0][true]);
+        Assert.Equal(0, ticks[0][false]);
+        Assert.Equal(0, ticks[1][true]);
     }
 
     [Fact]

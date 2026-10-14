@@ -1106,6 +1106,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             Players = _characters.Count,
             Creatures = _creatures.Count,
         };
+        long mapPackets = WorldTickTrace.MapPackets;
         bool completed = false;
         try
         {
@@ -1114,6 +1115,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
         finally
         {
+            _tickProfile.MapPackets = WorldTickTrace.MapPackets - mapPackets;
             WorldTickTrace.Log.RecordInstance(in _tickProfile, InstanceId, (int)MapType, completed);
             _tickProfile = default;
         }

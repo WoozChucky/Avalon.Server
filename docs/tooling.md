@@ -11,6 +11,7 @@
 | `Avalon.LoadTest` | load testing ([load testing](load-testing.md)): `provision` creates a run of bot accounts as an admin and keeps it in a local run file; `check` takes one bot (or one fighters' party) end to end into the run's world; `ramp` adds headless bots in steps (idle, walking, changing character, or fighting through the forest, alone or in parties), judges each step against the limits (Prometheus, the bots, the bot PC) and writes a report with the capacity and what failed first; `cleanup` deletes the run |
 | `Avalon.LocalDev` | local runs ([development setup](development-setup.md#from-clone-to-client-in-world)): `setup` makes the world's three local TLS certificates and writes the API's and the world server's user-secrets for them; `login` signs in over the REST API and hands the game client its game ticket; `check` walks the client's REST chain up to a join ticket |
 | `Avalon.Scenarios` | the scenario runner (below): runs the world server's fixed scenarios in process and reports tick-thread allocations, tick times and GC |
+| `Avalon.TraceReader` | the trace reader (below): reads a world's captured traces into CSV and TSV files: `tick` (the tick provider's records), `kcpu` (a `collect-linux` trace's kernel CPU samples and stacks), `survey` (what a trace holds) |
 | `Avalon.Exporter`, `Avalon.Exporter.Emitters` | exports every artifact the client vendors, one subcommand per artifact |
 | `api-smoke` | `smoke.sh`, a read-only smoke check of the deployed API (below) |
 | `release` | `channel-version.sh` (dev, nightly and release version numbers) and `registry_cleanup.py` (prunes old dev and nightly images from the container registry), with their tests; run by the CI, nightly, release and registry-cleanup workflows |
@@ -104,13 +105,29 @@ It exits 0 when every status is one its line expects, 1 when one is not (000: no
 `forest-combat`, from `tests/Avalon.World.Testing`) in process, with the server's GC settings, and prints one row per
 scenario: the
 tick-thread bytes of one 60-tick window (the least of five; for `forest-combat`, a fight of fixed length, the mean
-over its measured minute), bytes per player per tick, tick times (mean, p95, p99, max), the share of ticks over the
+over its measured minute), bytes per player per tick, tick times (mean, p50, p95, p99, max), the share of ticks over the
 60 Hz budget, and the timed phase's collections and GC pauses. Run it in Release;
 `--write-baseline perf/local/<host>.json` keeps a run (`perf/local/` is ignored by git), `--baseline <file>` prints
 current, baseline and change per figure against such a run and never fails, and `--write-allocations <file>` writes
-the committed allocation baseline from this run. Timings are machine-specific and only compare on one machine.
+the committed allocation baseline from this run. `--broadcast-ticks <n>` adds, after the timed runs, a census of how
+many instances broadcast state on each of `n` untimed ticks, read from the world's own tick trace: it shows broadcast
+lockstep ([benchmarks](benchmarks.md#comparing-broadcast-schedules-976)). Timings are machine-specific and only compare
+on one machine.
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write-baseline perf/local/$(hostname).json
 dotnet run -c Release --project tools/Avalon.Scenarios -- --baseline perf/local/$(hostname).json
+```
+
+## The trace reader
+
+`tools/Avalon.TraceReader` reads the `.nettrace` files captured from a world ([tick phase traces](tick-profiling.md#the-trace-reader),
+where its modes and output columns are described): `survey <trace>` lists what a trace holds, `tick <trace> <out-dir>`
+writes the `Avalon-World-Tick` records to `instance.csv`, `world.csv` and `batch.csv`, and `kcpu <trace> <out-dir>`
+resolves a `collect-linux` trace's kernel CPU samples through TraceEvent's `TraceLog` into `ksamples.tsv` and
+`kstacks.tsv`. It uses `Microsoft.Diagnostics.Tracing.TraceEvent` 3.2.8. The analysis of those files (scripts) stays
+outside the repository.
+
+```bash
+dotnet run -c Release --project tools/Avalon.TraceReader -- tick tick.nettrace out/tick
 ```

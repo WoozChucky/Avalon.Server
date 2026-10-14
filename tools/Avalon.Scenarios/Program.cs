@@ -37,6 +37,10 @@ foreach (IScenario scenario in options.Scenarios)
 
 PrintReports(reports);
 
+// After every timed run, so the trace it attaches touches none of them.
+if (options.BroadcastTicks > 0)
+    PrintBroadcastCensus(options.Scenarios, options.BroadcastTicks);
+
 try
 {
     if (options.Json is not null)
@@ -69,7 +73,7 @@ static void PrintReports(IReadOnlyList<ScenarioReport> reports)
     {
         new[]
         {
-            "scenario", "players", "instances", "bytes/window", "B/player/tick", "tick ms mean", "p95", "p99", "max",
+            "scenario", "players", "instances", "bytes/window", "B/player/tick", "tick ms mean", "p50", "p95", "p99", "max",
             "% > 16.7 ms", "gen0", "gen1", "gen2", "GC pause ms", "GC pause %",
         },
     };
@@ -78,9 +82,32 @@ static void PrintReports(IReadOnlyList<ScenarioReport> reports)
         rows.Add(
         [
             r.Scenario, Count(r.Players), Count(r.Instances), Count(r.BytesPerWindow), Fixed(r.BytesPerPlayerPerTick, 2),
-            Fixed(r.TickMsMean, 3), Fixed(r.TickMsP95, 3), Fixed(r.TickMsP99, 3), Fixed(r.TickMsMax, 3),
+            Fixed(r.TickMsMean, 3), Fixed(r.TickMsP50, 3), Fixed(r.TickMsP95, 3), Fixed(r.TickMsP99, 3), Fixed(r.TickMsMax, 3),
             Fixed(r.TicksOverBudgetPercent, 2), Count(r.Gen0), Count(r.Gen1), Count(r.Gen2),
             Fixed(r.GcPauseMs, 2), Fixed(r.GcPausePercent, 2),
+        ]);
+    }
+
+    PrintTable(rows);
+}
+
+static void PrintBroadcastCensus(IReadOnlyList<IScenario> scenarios, int ticks)
+{
+    Console.WriteLine();
+    Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
+        $"Broadcast census: instances broadcasting state per tick, over {ticks} untimed ticks of a fresh world with the tick trace attached"));
+    var rows = new List<string[]>
+    {
+        new[] { "scenario", "instances", "ticks", "ticks with any", "per such tick min", "mean", "max", "ticks with every" },
+    };
+    foreach (IScenario scenario in scenarios)
+    {
+        Console.Error.WriteLine($"{scenario.Name}: broadcast census over {ticks} ticks");
+        BroadcastCensus.Result r = BroadcastCensus.Run(scenario, ticks);
+        rows.Add(
+        [
+            r.Scenario, Count(r.Instances), Count(r.Ticks), Count(r.TicksWithBroadcast), Count(r.Min), Fixed(r.Mean, 1),
+            Count(r.Max), Count(r.TicksWithEvery),
         ]);
     }
 
@@ -220,6 +247,8 @@ static int Usage()
           --write-baseline <file>     the same, meant as a baseline for --baseline (perf/local/ is ignored by git)
           --baseline <file>           compares with an earlier --json or --write-baseline file: current, baseline, change
           --write-allocations <file>  writes the allocation baseline (perf/scenario-allocations.json); needs every scenario
+          --broadcast-ticks <n>       after the runs, ticks a fresh world of each scenario <n> times with the tick trace
+                                      attached and prints how many instances broadcast state per tick; default 0, none
         """);
     return 2;
 }
@@ -227,7 +256,7 @@ static int Usage()
 /// <summary>The runner's options.</summary>
 internal sealed record CommandLine(
     IReadOnlyList<IScenario> Scenarios, int WarmupSeconds, int MeasureTicks,
-    string? Json, string? Baseline, string? WriteBaseline, string? WriteAllocations)
+    string? Json, string? Baseline, string? WriteBaseline, string? WriteAllocations, int BroadcastTicks)
 {
     public const int DefaultWarmupSeconds = 10;
     public const int DefaultMeasureTicks = 3600;
@@ -235,7 +264,7 @@ internal sealed record CommandLine(
     public static CommandLine Parse(string[] args)
     {
         string scenario = "all";
-        int warmupSeconds = DefaultWarmupSeconds, measureTicks = DefaultMeasureTicks;
+        int warmupSeconds = DefaultWarmupSeconds, measureTicks = DefaultMeasureTicks, broadcastTicks = 0;
         string? json = null, baseline = null, writeBaseline = null, writeAllocations = null;
         for (int i = 0; i < args.Length; i++)
         {
@@ -251,6 +280,7 @@ internal sealed record CommandLine(
                 case "--baseline": baseline = value; break;
                 case "--write-baseline": writeBaseline = value; break;
                 case "--write-allocations": writeAllocations = value; break;
+                case "--broadcast-ticks": broadcastTicks = Count(option, value); break;
                 default: throw new CommandLineException($"Unknown option {option}.");
             }
         }
@@ -261,7 +291,7 @@ internal sealed record CommandLine(
         if (writeAllocations is not null && scenarios.Count != Avalon.World.Testing.Scenarios.Scenarios.All.Count)
             throw new CommandLineException("--write-allocations needs every scenario: run it with --scenario all (the default).");
 
-        return new(scenarios, warmupSeconds, measureTicks, json, baseline, writeBaseline, writeAllocations);
+        return new(scenarios, warmupSeconds, measureTicks, json, baseline, writeBaseline, writeAllocations, broadcastTicks);
     }
 
     private static IReadOnlyList<IScenario> Pick(string name)
