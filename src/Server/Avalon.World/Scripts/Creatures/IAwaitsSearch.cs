@@ -9,7 +9,8 @@ internal interface IAwaitsSearch
 {
     /// <summary>
     /// True when every Update until the next search would only add the tick to the detector's timer; then
-    /// <paramref name="elapsed" /> is that timer, in seconds.
+    /// <paramref name="elapsed" /> is that timer, in seconds. False means the script is active, needing the next tick:
+    /// the scheduler reads nothing else (not <c>NextUpdateIn</c>) from a script that implements this.
     /// </summary>
     bool AwaitsSearch(out float elapsed);
 

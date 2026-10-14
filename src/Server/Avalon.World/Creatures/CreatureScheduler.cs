@@ -19,9 +19,10 @@ namespace Avalon.World.Creatures;
 /// waiting for an event. After each Update its script says which (<see cref="AiScript.NextUpdateIn" />, or, for a
 /// built-in that only waits for its search, <see cref="IAwaitsSearch" />); the creature is woken (<see cref="Wake" />)
 /// by its due time, by every event the instance delivers to its script (a hit, an attack that dealt nothing, a
-/// character leaving), by a new script or patrol path, and by joining the instance. Every move between states goes
-/// through <see cref="MakeActive" /> or <see cref="Park" />, so a rule that holds or wakes a creature (crowd control,
-/// #770) has one place to do it.
+/// character leaving), by a new script or patrol path, and by joining the instance. Every activation (joining, a new
+/// script, a wake, a due search or time) goes through <see cref="MakeActive" />, and every wait begins in
+/// <see cref="Park" />, so a rule that holds or wakes a creature (crowd control, #770) has one place for each; reading
+/// the roster again (<see cref="ReadRoster" />) changes no state, it only sets each place's bit from it.
 /// </para>
 /// <para>
 /// <b>Order.</b> The creatures that run on a step run in the order of the instance's creature dictionary, the order
@@ -67,9 +68,9 @@ internal sealed class CreatureScheduler
     // The cohort the last creature joined, tried first: the creatures searching on one tick all join the same.
     private int _lastJoined = -1;
 
-    // Creatures waiting for a time, a list linked through them, and the earliest time any of them waits for.
-    private Creature? _timed;
-    private TimeSpan _nextTimed = TimeSpan.MaxValue;
+    // Creatures waiting for a time: a binary min-heap on their due times, each holding its slot in it.
+    private Creature?[] _timed = new Creature?[CohortCapacity];
+    private int _timedCount;
 
     public CreatureScheduler(Dictionary<ObjectGuid, ICreature> creatures)
     {
@@ -83,6 +84,10 @@ internal sealed class CreatureScheduler
     public void Joined(ICreature creature)
     {
         _rosterStale = true;
+
+        // Room for every creature now, here rather than on the step: an instance's creatures join as it is built, off the
+        // tick, so its first tick allocates nothing.
+        EnsureRoom(_creatures.Count);
         if (creature is not Creature scheduled)
             return;
 
@@ -179,8 +184,7 @@ internal sealed class CreatureScheduler
         Array.Copy(_every, _now, words);
 
         AdvanceCohorts((float)deltaTime.TotalSeconds);
-        if (_clock >= _nextTimed)
-            WakeDueTimes();
+        WakeDueTimes();
 
         try
         {
@@ -241,9 +245,12 @@ internal sealed class CreatureScheduler
     /// <summary>An opted-in creature that has just run waits for whatever its script says, or stays active.</summary>
     private void Park(Creature creature, AiScript script)
     {
-        if (creature.Schedule.Search is { } search && search.AwaitsSearch(out float elapsed))
+        // A built-in with a search wait answers for itself: it waits for its search, or it is active (IAwaitsSearch), so
+        // its NextUpdateIn, which asks the same question, is not read.
+        if (creature.Schedule.Search is { } search)
         {
-            JoinCohort(creature, elapsed);
+            if (search.AwaitsSearch(out float elapsed))
+                JoinCohort(creature, elapsed);
             return;
         }
 
@@ -261,9 +268,15 @@ internal sealed class CreatureScheduler
         }
     }
 
-    private void MakeActive(Creature creature, bool runNow)
+    /// <summary>
+    /// The one way a creature comes to run (#979): joining, a new script, a wake, a due time. It runs from the next step,
+    /// and on this one too when <paramref name="runNow" />. <paramref name="state" /> is <see cref="CreatureWait.Active" />,
+    /// or <see cref="CreatureWait.EveryTick" /> for a script that did not opt in. A rule that holds a creature (crowd
+    /// control, #770) belongs here.
+    /// </summary>
+    private void MakeActive(Creature creature, bool runNow, CreatureWait state = CreatureWait.Active)
     {
-        creature.Schedule.Wait = CreatureWait.Active;
+        creature.Schedule.Wait = state;
         int index = creature.Schedule.Index;
         if (index < 0)
             return; // Not in the roster yet: reading it marks the creature to run.
@@ -276,31 +289,22 @@ internal sealed class CreatureScheduler
     private void Register(Creature creature, bool runNow)
     {
         AiScript? script = creature.Script;
-        ref CreatureSchedule schedule = ref creature.Schedule;
-        schedule.Search = null;
+        creature.Schedule.Search = null;
         if (script is null)
         {
-            schedule.Wait = CreatureWait.None;
+            creature.Schedule.Wait = CreatureWait.None;
             ClearPlace(creature);
             return;
         }
 
         if (!script.UpdatesWhenDue)
         {
-            schedule.Wait = CreatureWait.EveryTick;
-        }
-        else
-        {
-            schedule.Wait = CreatureWait.Active;
-            schedule.Search = script as IAwaitsSearch;
+            MakeActive(creature, runNow, CreatureWait.EveryTick);
+            return;
         }
 
-        if (schedule.Index >= 0)
-        {
-            Set(_every, schedule.Index);
-            if (runNow)
-                Set(_now, schedule.Index);
-        }
+        creature.Schedule.Search = script as IAwaitsSearch;
+        MakeActive(creature, runNow);
     }
 
     /// <summary>Takes the creature out of whatever it waits in, leaving its state for the caller to set.</summary>
@@ -437,44 +441,87 @@ internal sealed class CreatureScheduler
     {
         creature.Schedule.Wait = CreatureWait.Timed;
         creature.Schedule.Due = due;
-        creature.Schedule.Previous = null;
-        creature.Schedule.Next = _timed;
-        if (_timed is not null)
-            _timed.Schedule.Previous = creature;
-        _timed = creature;
-        if (due < _nextTimed)
-            _nextTimed = due;
+        if (_timedCount == _timed.Length)
+            Array.Resize(ref _timed, _timed.Length * 2); // Grows to the most that ever wait at once, then stays.
+
+        int at = _timedCount++;
+        _timed[at] = creature;
+        creature.Schedule.Slot = at;
+        SiftUp(at);
         ClearPlace(creature);
     }
 
     private void LeaveTimed(Creature creature)
     {
-        Unlink(creature, ref _timed);
-        creature.Schedule.Wait = CreatureWait.Active;
-        // _nextTimed may now be early: the next look finds nothing due and reads it again.
-    }
-
-    private void WakeDueTimes()
-    {
-        TimeSpan next = TimeSpan.MaxValue;
-        Creature? creature = _timed;
-        while (creature is not null)
+        int at = creature.Schedule.Slot;
+        int last = --_timedCount;
+        if (at != last)
         {
-            Creature? following = creature.Schedule.Next;
-            if (creature.Schedule.Due <= _clock)
-            {
-                LeaveTimed(creature);
-                MakeActive(creature, runNow: true);
-            }
-            else if (creature.Schedule.Due < next)
-            {
-                next = creature.Schedule.Due;
-            }
-
-            creature = following;
+            Creature moved = _timed[last]!;
+            _timed[at] = moved;
+            moved.Schedule.Slot = at;
+            SiftDown(at);
+            SiftUp(moved.Schedule.Slot);
         }
 
-        _nextTimed = next;
+        _timed[last] = null;
+        creature.Schedule.Slot = -1;
+        creature.Schedule.Wait = CreatureWait.Active;
+    }
+
+    /// <summary>Wakes every timed waiter whose time has come: O(log n) for each, nothing for those still waiting.</summary>
+    private void WakeDueTimes()
+    {
+        while (_timedCount > 0 && _timed[0]!.Schedule.Due <= _clock)
+        {
+            Creature creature = _timed[0]!;
+            LeaveTimed(creature);
+            MakeActive(creature, runNow: true);
+        }
+    }
+
+    private void SiftUp(int at)
+    {
+        Creature creature = _timed[at]!;
+        while (at > 0)
+        {
+            int parent = (at - 1) >> 1;
+            Creature above = _timed[parent]!;
+            if (above.Schedule.Due <= creature.Schedule.Due)
+                break;
+
+            _timed[at] = above;
+            above.Schedule.Slot = at;
+            at = parent;
+        }
+
+        _timed[at] = creature;
+        creature.Schedule.Slot = at;
+    }
+
+    private void SiftDown(int at)
+    {
+        Creature creature = _timed[at]!;
+        while (true)
+        {
+            int child = (at << 1) + 1;
+            if (child >= _timedCount)
+                break;
+
+            if (child + 1 < _timedCount && _timed[child + 1]!.Schedule.Due < _timed[child]!.Schedule.Due)
+                child++;
+
+            Creature below = _timed[child]!;
+            if (creature.Schedule.Due <= below.Schedule.Due)
+                break;
+
+            _timed[at] = below;
+            below.Schedule.Slot = at;
+            at = child;
+        }
+
+        _timed[at] = creature;
+        creature.Schedule.Slot = at;
     }
 
     private static void Unlink(Creature creature, ref Creature? head)
@@ -497,19 +544,9 @@ internal sealed class CreatureScheduler
     private void ReadRoster()
     {
         int count = _creatures.Count;
-        if (_roster.Length < count)
-        {
-            // Room to spare, so creatures joining one by one (summons) do not grow it each time.
-            int capacity = Math.Max(64, (int)BitOperations.RoundUpToPowerOf2((uint)count));
-            _roster = new ICreature?[capacity];
-            _every = new ulong[Words(capacity)];
-            _now = new ulong[Words(capacity)];
-        }
-        else
-        {
-            Array.Clear(_roster, 0, _rosterCount);
-            Array.Clear(_every, 0, Words(_rosterCount));
-        }
+        EnsureRoom(count);
+        Array.Clear(_roster, 0, _rosterCount);
+        Array.Clear(_every, 0, Words(_rosterCount));
 
         int index = 0;
         foreach (ICreature creature in _creatures.Values)
@@ -531,6 +568,22 @@ internal sealed class CreatureScheduler
 
         _rosterCount = count;
         _rosterStale = false;
+    }
+
+    /// <summary>
+    /// Room in the roster and its bit sets for <paramref name="count" /> creatures, with some to spare so creatures joining
+    /// one by one (summons) do not grow it each time. Only a roster about to be read again is grown: its places are
+    /// all assigned anew then.
+    /// </summary>
+    private void EnsureRoom(int count)
+    {
+        if (_roster.Length >= count)
+            return;
+
+        int capacity = Math.Max(64, (int)BitOperations.RoundUpToPowerOf2((uint)count));
+        Array.Resize(ref _roster, capacity);
+        Array.Resize(ref _every, Words(capacity));
+        Array.Resize(ref _now, Words(capacity));
     }
 
     private static int Words(int places) => (places + 63) >> 6;
@@ -595,7 +648,10 @@ internal struct CreatureSchedule
     /// <summary>Its script's search wait, when its script is a built-in that has one.</summary>
     public IAwaitsSearch? Search;
 
-    /// <summary>The creatures before and after it in the list it waits in.</summary>
+    /// <summary>Its slot in the timed waits' heap, while it waits for a time.</summary>
+    public int Slot;
+
+    /// <summary>The creatures before and after it in its cohort, while it waits for its search.</summary>
     public Creature? Previous;
     public Creature? Next;
 }
