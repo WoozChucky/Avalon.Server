@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Avalon.Balance.Contract;
 using Avalon.Balance.Core;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 
 namespace Avalon.Balance.Service.Mapping;
 

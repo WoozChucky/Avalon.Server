@@ -1,6 +1,6 @@
+using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.World.Localization;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Localization;
 
 namespace Avalon.Server.World.UnitTests.Localization;

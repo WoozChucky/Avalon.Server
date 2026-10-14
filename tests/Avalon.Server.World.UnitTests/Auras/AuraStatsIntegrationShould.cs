@@ -8,7 +8,6 @@ using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
 using NSubstitute;
 

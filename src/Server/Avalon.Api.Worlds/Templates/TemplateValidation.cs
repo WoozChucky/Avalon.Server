@@ -1,9 +1,9 @@
 using System.Globalization;
 using Avalon.Api.Contract;
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Domain.World;
 using Avalon.Infrastructure.Scripts;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Api.Worlds.Templates;
 
@@ -244,7 +244,7 @@ public static class TemplateValidation
         if ((Convert.ToInt64(value, CultureInfo.InvariantCulture) & ~all) != 0) e.Add(field, "Contains a flag that does not exist.");
     }
 
-    private static void Classes(TemplateErrors e, List<Avalon.World.Public.Enums.CharacterClass>? classes)
+    private static void Classes(TemplateErrors e, List<CharacterClass>? classes)
     {
         if (classes is null) return;
         foreach (CharacterClass c in classes)

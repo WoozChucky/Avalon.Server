@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Database.World.Repositories;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
-using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 using Microsoft.EntityFrameworkCore;
 using NSubstitute;

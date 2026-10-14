@@ -3,7 +3,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
 

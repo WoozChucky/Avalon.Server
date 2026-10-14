@@ -1,8 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Public.Dialogue;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Quests;

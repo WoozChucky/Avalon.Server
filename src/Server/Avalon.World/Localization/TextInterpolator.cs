@@ -1,5 +1,5 @@
 using System.Text;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 using Avalon.World.Public.Localization;
 
 namespace Avalon.World.Localization;

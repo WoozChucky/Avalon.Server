@@ -1,9 +1,9 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Quest;
 using Avalon.World.Inventory;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Quests;
 using Avalon.World.Reload;

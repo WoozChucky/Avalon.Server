@@ -12,7 +12,6 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
-using Avalon.World.Public.Enums;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;

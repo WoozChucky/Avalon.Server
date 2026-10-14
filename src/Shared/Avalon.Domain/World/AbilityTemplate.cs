@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.State;

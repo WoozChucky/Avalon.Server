@@ -11,7 +11,6 @@ using Avalon.Network.Packets.Serialization;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;

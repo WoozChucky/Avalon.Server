@@ -1,4 +1,5 @@
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.GameAuth;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;

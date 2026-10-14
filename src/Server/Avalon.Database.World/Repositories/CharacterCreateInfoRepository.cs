@@ -1,5 +1,5 @@
+using Avalon.Common;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.World.Repositories;

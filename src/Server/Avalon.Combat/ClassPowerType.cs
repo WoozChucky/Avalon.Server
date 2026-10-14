@@ -1,5 +1,5 @@
+using Avalon.Common;
 using Avalon.Network.Packets.State;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Combat;
 

@@ -1,4 +1,5 @@
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -9,7 +10,6 @@ using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging.Abstractions;

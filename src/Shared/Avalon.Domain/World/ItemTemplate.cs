@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Domain.World;
 

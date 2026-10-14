@@ -1,8 +1,8 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Migrations;
 using Avalon.Database.Character.Repositories;
-using Avalon.World.Public.Enums;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;

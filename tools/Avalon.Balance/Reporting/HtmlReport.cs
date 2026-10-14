@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Text;
 using Avalon.Balance.Core;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 
 namespace Avalon.Balance.Reporting;
 

@@ -1,5 +1,5 @@
 using System.Globalization;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 
 namespace Avalon.Balance;
 

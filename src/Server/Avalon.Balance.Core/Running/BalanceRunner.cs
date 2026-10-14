@@ -1,6 +1,6 @@
 using Avalon.Combat;
+using Avalon.Common;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Balance.Core;
 

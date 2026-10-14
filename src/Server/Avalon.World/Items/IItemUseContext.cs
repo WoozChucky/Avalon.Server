@@ -3,7 +3,6 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.State;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Items;
 

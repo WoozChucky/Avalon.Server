@@ -1,6 +1,6 @@
+using Avalon.Common;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
 
 namespace Avalon.Server.World.UnitTests;

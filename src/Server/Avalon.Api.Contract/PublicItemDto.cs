@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 
 namespace Avalon.Api.Contract;
 

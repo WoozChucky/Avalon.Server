@@ -1,5 +1,5 @@
+using Avalon.Common;
 using Avalon.World.Combat;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Server.World.UnitTests.Combat;
 

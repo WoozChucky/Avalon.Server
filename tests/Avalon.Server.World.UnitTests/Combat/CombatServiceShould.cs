@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
@@ -5,7 +6,6 @@ using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;

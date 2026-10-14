@@ -1,6 +1,6 @@
 using Avalon.Balance.Core;
 using Avalon.Balance.Reporting;
-using Avalon.World.Public.Enums;
+using Avalon.Common;
 using Xunit;
 
 namespace Avalon.Balance.UnitTests;
