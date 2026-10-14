@@ -1,14 +1,26 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.State;
+using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.World;
+using Avalon.World.Public.Combat;
 using Avalon.World.Entities;
+using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Maps;
+using Avalon.World.Scripts;
 using Avalon.World.Serialization;
+using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -25,25 +37,26 @@ public class StateUpdateEncodingShould
     private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     public static TheoryData<string> Broadcasts =>
-        ["town", "forest", "self", "listed-and-changed", "out-of-view", "arrivals"];
+        ["town", "forest", "self", "listed-and-changed", "out-of-view", "arrivals", "projectiles"];
 
     /// <summary>
     /// Real broadcasts through a real instance: a crowded town where everyone moves, everyone listed to everyone on its
     /// first tick; a forest of creatures moving and hurt at different distances; characters whose own update is health
     /// alone or motion alone (left out for themselves); a character listed to some recipients on the broadcast tick it
     /// changed and updated to the others, then listed again after leaving their view; a recipient too far to see
-    /// anyone; and creatures walking into the view of several recipients on one tick, out and back in, with a character
-    /// arriving midway (its own add, and everyone listed to it). Every recipient's add and update of every tick, or
-    /// their absence, is compared.
+    /// anyone; creatures walking into the view of several recipients on one tick, out and back in, with a character
+    /// arriving midway (its own add, and everyone listed to it); and projectiles cast through the real cast system,
+    /// one flying into a recipient's view mid-flight and one finishing in flight. Every recipient's add and update of
+    /// every tick, or their absence, is compared.
     /// </summary>
     [Theory]
     [MemberData(nameof(Broadcasts))]
     public void Be_byte_for_byte_the_per_recipient_encoding(string broadcast)
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld());
+        using MapInstance instance = Casting(out CastAbilityHandler handler);
         var characters = new List<MapInstanceClient>();
         var creatures = new List<Creature>();
-        Action<int> change = Setup(broadcast, instance, characters, creatures);
+        Action<int> change = Setup(broadcast, instance, handler, characters, creatures);
         var encoder = new PacketEncoder(new PayloadSegmentPool());
         int adds = 0;
         int updates = 0;
@@ -58,9 +71,9 @@ public class StateUpdateEncodingShould
             foreach (MapInstanceClient recipient in characters)
             {
                 adds += Compare(recipient, NetworkPacketType.SMSG_WORLD_STATE_ADD, SInstanceStateAddPacket.Flags,
-                    PerRecipientAdds(recipient.Character, characters, creatures, encoder));
+                    PerRecipientAdds(recipient.Character, instance, characters, creatures, encoder));
                 updates += Compare(recipient, NetworkPacketType.SMSG_WORLD_STATE_UPDATE, SInstanceStateUpdatePacket.Flags,
-                    PerRecipientUpdates(recipient.Character, characters, creatures, encoder));
+                    PerRecipientUpdates(recipient.Character, instance, characters, creatures, encoder));
             }
         }
 
@@ -84,8 +97,8 @@ public class StateUpdateEncodingShould
     }
 
     /// <summary>Who is where, and what changes before each tick.</summary>
-    private static Action<int> Setup(string broadcast, MapInstance instance, List<MapInstanceClient> characters,
-        List<Creature> creatures)
+    private static Action<int> Setup(string broadcast, MapInstance instance, CastAbilityHandler handler,
+        List<MapInstanceClient> characters, List<Creature> creatures)
     {
         switch (broadcast)
         {
@@ -189,6 +202,22 @@ public class StateUpdateEncodingShould
                         characters.Add(JoinAt(instance, 980_163, new Vector3(1f, 0f, 1f)));
                 };
 
+            case "projectiles":
+                characters.Add(JoinAt(instance, 980_180, Vector3.zero));
+                characters.Add(JoinAt(instance, 980_181, new Vector3(5f, 0f, 20f)));
+                characters.Add(JoinAt(instance, 980_182, new Vector3(0f, 0f, 66f)));   // the first comes into view
+                characters.Add(JoinAt(instance, 980_183, new Vector3(500f, 0f, 0f)));   // sees none
+                return tick =>
+                {
+                    // At 20 m/s: the first flies on past tick 25 and into the third character's view around tick 20; the
+                    // second character's finishes 3 m out around tick 14, and its final state goes out on the next
+                    // broadcast. The second is cast by another character: the first's global cooldown still runs.
+                    if (tick == 2)
+                        CastProjectile(handler, characters[0], new Vector3(0f, 0f, 90f), reach: 90f);
+                    if (tick == 5)
+                        CastProjectile(handler, characters[1], new Vector3(15f, 0f, 20f), reach: 3f);
+                };
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(broadcast), broadcast, null);
         }
@@ -199,8 +228,8 @@ public class StateUpdateEncodingShould
     /// every entity its tracking reported new, described in full as the instance describes it for this recipient (a
     /// character's motion left out for itself), the list encoded whole.
     /// </summary>
-    private static byte[]? PerRecipientAdds(CharacterEntity recipient, List<MapInstanceClient> characters,
-        List<Creature> creatures, PacketEncoder encoder)
+    private static byte[]? PerRecipientAdds(CharacterEntity recipient, MapInstance instance,
+        List<MapInstanceClient> characters, List<Creature> creatures, PacketEncoder encoder)
     {
         var adds = new List<ObjectState>();
         foreach (ObjectGuid guid in recipient.CharacterGameState.NewObjects)
@@ -209,6 +238,10 @@ public class StateUpdateEncodingShould
             {
                 adds.Add(ObjectStateWriter.From((ICharacter)character.Character,
                     MapInstance.MaskSelfSuppression(GameEntityFields.All, guid, recipient.Guid)));
+            }
+            else if (guid.Type == ObjectType.SpellProjectile)
+            {
+                adds.Add(ObjectStateWriter.From((IWorldObject)Projectile(instance, guid)));
             }
             else
             {
@@ -231,8 +264,8 @@ public class StateUpdateEncodingShould
     /// character's motion left out for itself, a character left with nothing dropped, a creature's routine selection
     /// plus its death and maximum health when marked), the list encoded whole.
     /// </summary>
-    private static byte[]? PerRecipientUpdates(CharacterEntity recipient, List<MapInstanceClient> characters,
-        List<Creature> creatures, PacketEncoder encoder)
+    private static byte[]? PerRecipientUpdates(CharacterEntity recipient, MapInstance instance,
+        List<MapInstanceClient> characters, List<Creature> creatures, PacketEncoder encoder)
     {
         var updates = new List<ObjectState>();
         foreach ((ObjectGuid guid, GameEntityFields fields) in recipient.CharacterGameState.UpdatedObjects)
@@ -242,6 +275,10 @@ public class StateUpdateEncodingShould
                 GameEntityFields own = MapInstance.MaskSelfSuppression(fields, guid, recipient.Guid);
                 if ((own & ~GameEntityFields.None) != 0)
                     updates.Add(ObjectStateWriter.From((ICharacter)character.Character, own));
+            }
+            else if (guid.Type == ObjectType.SpellProjectile)
+            {
+                updates.Add(ObjectStateWriter.From((IWorldObject)Projectile(instance, guid), fields));
             }
             else
             {
@@ -258,6 +295,39 @@ public class StateUpdateEncodingShould
         byte[] bytes = packet.PayloadMemory.ToArray();
         packet.Release();
         return bytes;
+    }
+
+    private static FlyingProjectileScript Projectile(MapInstance instance, ObjectGuid guid) =>
+        FlyingProjectileScript.In(instance).Single(p => p.Guid == guid);
+
+    /// <summary>
+    /// An instance the real cast handler reaches, whose projectiles are <see cref="FlyingProjectileScript" />s, over a
+    /// navigator that lets every ray through.
+    /// </summary>
+    private static MapInstance Casting(out CastAbilityHandler handler)
+    {
+        IScriptManager scripts = Substitute.For<IScriptManager>();
+        scripts.GetAbilityScript("ProjectileAbilityScript").Returns(typeof(FlyingProjectileScript));
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
+        navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
+        IWorld world = NewWorld();
+        MapInstance instance = TestMapInstances.Build(world, scripts, navigator);
+        world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
+        handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(),
+            TimeProvider.System);
+        return instance;
+    }
+
+    /// <summary>Casts a 20 m/s projectile from <paramref name="caster" /> toward <paramref name="towards" />.</summary>
+    private static void CastProjectile(CastAbilityHandler handler, MapInstanceClient caster, Vector3 towards, float reach)
+    {
+        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: reach, speed: 20f))]);
+        handler.Execute(caster.Connection, new CCastAbilityPacket
+        {
+            AbilityId = 210,
+            GroundPos = new Vector3Dto { X = towards.x, Y = towards.y, Z = towards.z },
+        });
+        Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
     }
 
     private static MapInstanceClient JoinAt(MapInstance instance, uint id, Vector3 position)
