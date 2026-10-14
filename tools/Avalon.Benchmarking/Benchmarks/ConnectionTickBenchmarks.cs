@@ -4,24 +4,33 @@ using System.Reflection;
 using Avalon.Domain.Characters;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Movement;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.GameAuth;
 using Avalon.World.Public;
+using Avalon.World.Testing.Fakes;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace Avalon.Benchmarking.Benchmarks;
 
-/// <summary>The production readiness, lease and input-filter paths, per connection at 60 Hz (#880).</summary>
+/// <summary>
+/// The production readiness, lease and input-filter paths, per connection at 60 Hz (#880); and a connection's whole
+/// share of a tick outside its handlers (#977): the lease check and both passes, with no packet and with one input.
+/// Every clock here reads the system's clock on each call, as production's does, and answers a fixed time: what a
+/// read costs is part of what is measured.
+/// </summary>
 [MemoryDiagnoser]
 public class ConnectionTickBenchmarks
 {
     private const int Connections = 300;
     private readonly FixedClock _clock = new();
+    private readonly CPlayerInputPacket _input = new();
+    private ReceiveQueueFixture _fixture = null!;
     private WorldConnection _connection = null!;
     private TcpClient _peer = null!;
     private IWorldConnection[] _connections = null!;
@@ -63,6 +72,10 @@ public class ConnectionTickBenchmarks
         Array.Fill(_connections, _connection);
         _world = Substitute.For<IWorld>();
         _filter = new MapSessionFilter(_connection);
+
+        _fixture = new ReceiveQueueFixture(clockPaysForReads: true);
+        if (IdleTicks() != 0 || InputTicks() != Connections)
+            throw new InvalidOperationException("The fixture's connection did not dispatch its input.");
     }
 
     [Benchmark(OperationsPerInvoke = Connections)]
@@ -88,16 +101,56 @@ public class ConnectionTickBenchmarks
         return accepted;
     }
 
+    /// <summary>A connection's tick with nothing received: the lease check, then the session and map passes.</summary>
+    [Benchmark(OperationsPerInvoke = Connections)]
+    public int IdleTicks()
+    {
+        int before = _fixture.Dispatched;
+        for (int i = 0; i < Connections; i++)
+        {
+            _fixture.Connection.AdvanceGameplayLease();
+            _fixture.Pump();
+        }
+
+        return _fixture.Dispatched - before;
+    }
+
+    /// <summary>The same with one input received (the read loop's queueing of it included), dispatched by the map pass.</summary>
+    [Benchmark(OperationsPerInvoke = Connections)]
+    public int InputTicks()
+    {
+        int before = _fixture.Dispatched;
+        for (int i = 0; i < Connections; i++)
+        {
+            _fixture.Connection.Deliver(NetworkPacketType.CMSG_PLAYER_INPUT, _input);
+            _fixture.Connection.AdvanceGameplayLease();
+            _fixture.Pump();
+        }
+
+        return _fixture.Dispatched - before;
+    }
+
     [GlobalCleanup]
     public void Cleanup()
     {
+        _fixture.Dispose();
         _connection.Dispose();
         _peer.Dispose();
     }
 
+    /// <summary>A fixed time, each read paying for a read of the system's clock (#977).</summary>
     private sealed class FixedClock : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow() => new(2026, 10, 11, 0, 0, 0, TimeSpan.Zero);
-        public override long GetTimestamp() => 0;
+        public override DateTimeOffset GetUtcNow()
+        {
+            _ = TimeProvider.System.GetUtcNow();
+            return new DateTimeOffset(2026, 10, 11, 0, 0, 0, TimeSpan.Zero);
+        }
+
+        public override long GetTimestamp()
+        {
+            _ = TimeProvider.System.GetTimestamp();
+            return 0;
+        }
     }
 }
