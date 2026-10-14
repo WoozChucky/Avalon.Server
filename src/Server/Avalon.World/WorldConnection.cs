@@ -81,9 +81,10 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private readonly IWorldServer _server;
 
-    // Network:PacketEncryption (#875), the world's, fixed for this connection's life: its sender seals with the session or
-    // sends plain inside TLS, and its admission reply names the mode. While it seals, a packet the world runs (the
-    // handshake and every session- or map-filter packet but the pong) that arrives plain closes the connection.
+    // Network:PacketEncryption (#875), the world's, fixed for this connection's life: true exactly when the connection has
+    // a session (#878). Its sender seals with the session or sends plain inside TLS, and its admission reply names the
+    // mode. While it seals, a packet the world runs (the handshake and every session- or map-filter packet but the pong)
+    // that arrives plain closes the connection; while it does not, one that arrives sealed does, in the read loop.
     private readonly bool _packetEncryption;
 
     private CharacterEntity? _characterEntity;
@@ -97,18 +98,21 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader, TimeProvider? time = null)
-        : this(server, client, loggerFactory, packetReader, time, new ConnectionKeyExchange())
+        : this(server, client, loggerFactory, packetReader, time,
+            server.PacketEncryption ? new ConnectionKeyExchange() : null)
     {
     }
 
+    // The key exchange runs only on a world that seals (#878): a plain world's connection builds no key pair and no
+    // session, sends no public key, and opens nothing, so a frame flagged Encrypted closes it as sealed_before_key.
     private WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
-        IPacketReader packetReader, TimeProvider? time, ConnectionKeyExchange keyExchange)
+        IPacketReader packetReader, TimeProvider? time, ConnectionKeyExchange? keyExchange)
         : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader, keyExchange)
     {
-        CryptoSession = keyExchange.Session;
-        ServerCrypto = keyExchange.ServerCrypto;
+        CryptoSession = keyExchange?.Session;
+        ServerCrypto = keyExchange?.ServerCrypto;
         _server = server;
-        _packetEncryption = server.PacketEncryption;
+        _packetEncryption = keyExchange is not null;
         // A substitute server in tests has none.
         _receiveQueueLimit = server.ReceiveQueueLimit ?? ReceiveQueueLimit.Default;
         _receiveLoop.MaxDepth = (uint)_receiveQueueLimit.MaxDepth;
@@ -486,15 +490,15 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// The connection's sender on its send thread (#875). Its close action runs on that thread or where a write completed:
     /// <see cref="Connection.Close" /> only starts the teardown (the sender's close is awaited off that thread, then the
     /// socket closes), so it neither blocks nor throws there, and a close already started makes it a no-op. It seals with
-    /// the session only while the world seals (Network:PacketEncryption); otherwise every packet goes plain inside TLS,
-    /// its Encrypted flag cleared.
+    /// the session, which exists only while the world seals (Network:PacketEncryption); otherwise every packet goes plain
+    /// inside TLS, its Encrypted flag cleared.
     /// </summary>
     protected override IOutbox OnCreateOutbox()
     {
         NetworkSendScheduler scheduler = _server.SendScheduler
             ?? throw new InvalidOperationException("The world server has no send scheduler");
 #pragma warning disable MA0045 // a slow connection's close starts on its send thread, which must not wait on it
-        _sender = scheduler.CreateSender(Id, _logger, _packetEncryption ? CryptoSession : null, close: () => Close(false),
+        _sender = scheduler.CreateSender(Id, _logger, CryptoSession, close: () => Close(false),
             onPingWritten: CountPing);
 #pragma warning restore MA0045
         return _sender;
@@ -503,11 +507,16 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>Whether this connection's gameplay packets are sealed both ways (Network:PacketEncryption, #875).</summary>
     public bool PacketEncryption => _packetEncryption;
 
-    /// <summary>The connection's session, keyed at admission from the client's public key.</summary>
-    public IAvalonCryptoSession CryptoSession { get; }
+    /// <summary>
+    /// The connection's session, keyed at admission from the client's public key; null on a world that does not seal
+    /// (#878), which runs no key exchange.
+    /// </summary>
+    public IAvalonCryptoSession? CryptoSession { get; }
 
-    /// <summary>The connection's own key pair, whose public key the admission reply sends.</summary>
-    public ICryptoManager ServerCrypto { get; }
+    /// <summary>
+    /// The connection's own key pair, whose public key the admission reply sends; null on a world that does not seal.
+    /// </summary>
+    public ICryptoManager? ServerCrypto { get; }
 
     public void InitOutboxForTest(PacketStream stream)
     {

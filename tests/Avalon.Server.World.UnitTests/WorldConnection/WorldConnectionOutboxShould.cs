@@ -57,7 +57,8 @@ public class WorldConnectionOutboxShould : IDisposable
     public async Task Write_a_queued_packet_when_its_send_thread_runs_sealed_only_while_the_world_seals(bool packetEncryption)
     {
         Avalon.World.WorldConnection connection = Connect(packetEncryption);
-        AvalonCryptoSession client = PairWithClient(connection);
+        // Only a world that seals has a session to pair with (#878).
+        AvalonCryptoSession? client = packetEncryption ? PairWithClient(connection) : null;
         var wire = new MemoryStream();
         connection.InitOutboxForTest(new PacketStream(wire));
 
@@ -68,7 +69,7 @@ public class WorldConnectionOutboxShould : IDisposable
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         (NetworkPacketHeader header, byte[] payload) = Assert.Single(await FramesAsync(wire.ToArray(), timeout.Token));
         Assert.Equal(packetEncryption, (header.Flags & NetworkPacketFlags.Encrypted) != 0);
-        byte[] plain = packetEncryption ? Open(client, payload) : payload;
+        byte[] plain = client is not null ? Open(client, payload) : payload;
         Assert.Equal(7u, Serializer.Deserialize<SPlayerStateAckPacket>(plain.AsSpan()).Seq);
     }
 
@@ -89,8 +90,9 @@ public class WorldConnectionOutboxShould : IDisposable
     {
         AsymmetricCipherKeyPair keys = AsymmetricCipher.GenerateECDHKeyPair();
         var client = new AvalonCryptoSession(CryptoRole.Client, keys);
-        connection.CryptoSession.Initialize(AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(keys)));
-        client.Initialize(connection.CryptoSession.GetPublicKey());
+        IAvalonCryptoSession session = connection.CryptoSession!;
+        session.Initialize(AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(keys)));
+        client.Initialize(session.GetPublicKey());
         return client;
     }
 

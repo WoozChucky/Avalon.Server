@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Combat;
-using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
@@ -144,7 +143,6 @@ public class WorldServerBarrierTickShould : IDisposable
         coordinator.ApplyCommitted(new WorldMaintenanceState(false, 1, null));
         (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate, coordinator: coordinator);
         connection.AccountId = new AccountId(42);
-        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
@@ -289,7 +287,6 @@ public class WorldServerBarrierTickShould : IDisposable
     public void Send_a_characters_inventory_changes_on_the_tick_they_were_made()
     {
         (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build();
-        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
 
         CharacterEntity character = New();
         connection.Character = character;
@@ -305,7 +302,6 @@ public class WorldServerBarrierTickShould : IDisposable
     public void Send_a_characters_sheet_on_the_tick_it_is_in_the_world()
     {
         (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build();
-        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
 
         CharacterEntity character = New();
         character.ApplyStats(new DerivedCharacterStats(MaxHealth: 240, MaxPower: 100, Stamina: 22, Strength: 23,

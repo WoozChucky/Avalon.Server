@@ -83,11 +83,11 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         IServiceProvider serviceProvider, IOptions<HostingConfiguration> hostingOptions,
         PacketDispatchTelemetry? packetTelemetry = null)
     {
-        // Every connection keys a session that seals and opens packets with the platform AesGcm
-        // (AvalonCryptoSession, #850): the auth server seals always, a world opens any sealed packet
-        // and seals while Network:PacketEncryption is on (#875). Refuse to start where it is unavailable
-        // rather than fail at the first handshake: the session layer has no fallback, and a server that
-        // cannot open a packet should not listen.
+        // A connection's session seals and opens packets with the platform AesGcm (AvalonCryptoSession,
+        // #850): every auth connection has one, and a world's has one only while Network:PacketEncryption
+        // is on (#875, #878). Refuse to start where it is unavailable rather than fail at the first
+        // handshake: the session layer has no fallback, and a server that cannot open a packet should not
+        // listen.
         if (!AesGcm.IsSupported)
         {
             throw new PlatformNotSupportedException(

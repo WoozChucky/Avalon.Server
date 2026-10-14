@@ -8,18 +8,25 @@ using Avalon.World.Persistence;
 
 namespace Avalon.Server.World.Handlers;
 
+/// <summary>
+/// Redeems a join ticket and admits the connection. On a world that seals (<c>Network:PacketEncryption</c>), admission
+/// also completes the key exchange: the client's public key must be one, the session is keyed from it, and the reply
+/// carries the connection's own. A world that does not seal runs no exchange (#878): whatever public key the client
+/// sends (a 0.3.0 client sends one before it knows the mode) is ignored, and the reply's key is empty.
+/// </summary>
 public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorldPacketHandler<CGameAdmissionPacket>
 {
     public Task ExecuteAsync(WorldPacketContext<CGameAdmissionPacket> ctx, CancellationToken token = default)
     {
         if (ctx.Connection is not WorldConnection connection || !connection.IsTlsAuthenticated ||
-            !GameAuthCryptography.IsToken(ctx.Packet.JoinTicket) || ctx.Packet.PublicKey.Length != connection.ServerCrypto.GetValidKeySize() ||
+            !GameAuthCryptography.IsToken(ctx.Packet.JoinTicket) ||
+            (connection.ServerCrypto is { } serverCrypto && ctx.Packet.PublicKey.Length != serverCrypto.GetValidKeySize()) ||
             !connection.TryBeginAdmission())
         {
             ctx.Connection.Send(SGameAdmissionPacket.Create([], PacketEncoder.Shared, GameAdmissionResult.InvalidRequest));
             return ctx.Connection.CloseAsync(false);
         }
-        byte[] publicKey = ctx.Packet.PublicKey.ToArray();
+        byte[] publicKey = connection.CryptoSession is null ? [] : ctx.Packet.PublicKey.ToArray();
         Task<WorldAdmissionResult> result = WorldDatabaseWork.Admission.Run(() => admission.AdmitAsync(ctx.Packet.JoinTicket, connection.Id, Guid.NewGuid(), token));
         connection.TrackAdmission(result);
         connection.EnqueueContinuation(result, reply =>
@@ -36,9 +43,14 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             }
             try
             {
-                connection.CryptoSession.Initialize(publicKey);
+                byte[] serverKey = [];
+                if (connection.CryptoSession is { } session && connection.ServerCrypto is { } keys)
+                {
+                    session.Initialize(publicKey);
+                    serverKey = keys.GetPublicKey();
+                }
                 connection.PublishAdmission(reply.Lease);
-                connection.Send(SGameAdmissionPacket.Create(connection.ServerCrypto.GetPublicKey(), PacketEncoder.Shared,
+                connection.Send(SGameAdmissionPacket.Create(serverKey, PacketEncoder.Shared,
                     GameAdmissionResult.Accepted, connection.PacketEncryption));
             }
             catch (Exception)

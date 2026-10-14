@@ -199,10 +199,11 @@ public sealed class WorldConnection : IAsyncDisposable
     }
 
     /// <summary>
-    /// Sends the join ticket and the client's public key in the clear and waits for the answer. Accepted: the session
-    /// is keyed with the server's key, and every later packet but the pong, which the world takes plain, is sealed or
-    /// plain, as the reply says. Otherwise an <see cref="AdmissionRefusedException"/>, and the server closes the
-    /// connection.
+    /// Sends the join ticket and the client's public key in the clear, as the game client does before it knows the
+    /// world's mode, and waits for the answer. Accepted by a world that seals: the session is keyed with the server's
+    /// key, and every later packet but the pong, which the world takes plain, is sealed. Accepted by one that does not:
+    /// no key is exchanged, and every packet is plain. Otherwise an <see cref="AdmissionRefusedException"/>, and the
+    /// server closes the connection.
     /// </summary>
     public async Task AdmitAsync(string joinTicket, CancellationToken ct)
     {
@@ -213,6 +214,12 @@ public sealed class WorldConnection : IAsyncDisposable
             throw new AdmissionRefusedException(admission.Result);
 
         Codec.Seals = admission.PacketEncryption;
+
+        // A world that does not seal runs no key exchange (#878): its reply carries no key, and nothing is sealed or
+        // opened on the connection. The game client reads the mode first in the same way.
+        if (!admission.PacketEncryption)
+            return;
+
         try
         {
             _session.Initialize(admission.PublicKey);

@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Sockets;
 using Avalon.Combat;
 using Avalon.Common;
-using Avalon.Common.Cryptography;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
@@ -84,9 +83,6 @@ public class CharacterSelectChainShould : IDisposable
             AccountId = s_theAccount
         };
 
-        // The select handler sends, and a real connection seals what it sends. Agreeing a key with
-        // a throwaway peer is the cheapest way to make Encrypt work.
-        _connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
         GameplayTestAdmission.Admit(_connection);
 
         _select = BuildSelectHandler();

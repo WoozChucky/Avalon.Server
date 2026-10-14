@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Combat;
-using Avalon.Common.Cryptography;
 using Avalon.Common.GameAuth;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -42,7 +41,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using Org.BouncyCastle.Crypto;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -379,13 +377,7 @@ public class CharacterLeaveShould : IDisposable
         public RecordingConnection(IWorldServer server, TcpClient client)
             : base(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>())
         {
-            // A session reports its public key only once initialized, so each end's is taken from its pair.
-            AsymmetricCipherKeyPair clientKeys = AsymmetricCipher.GenerateECDHKeyPair();
-            CryptoSession.Initialize(PublicKey(clientKeys));
         }
-
-        private static byte[] PublicKey(Org.BouncyCastle.Crypto.AsymmetricCipherKeyPair keys) =>
-            AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(keys));
 
         public override void Send(OutboundPacket packet)
         {

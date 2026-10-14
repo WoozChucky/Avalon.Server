@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Common.Cryptography;
 using Avalon.Hosting.Networking;
 using Avalon.World;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,7 +9,8 @@ using NSubstitute;
 namespace Avalon.Server.World.UnitTests.WorldConnection;
 
 /// <summary>
-/// Each connection agrees its session key on a key pair of its own.
+/// Each connection of a world that seals (<c>Network:PacketEncryption</c>) agrees its session key on a key pair of its
+/// own. A world that does not seal runs no key exchange (#878), so its connections have none to share.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -34,7 +36,7 @@ public class ConnectionKeyPairShould : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private Avalon.World.WorldConnection NewConnection(IWorldServer server)
+    private (ICryptoManager Keys, IAvalonCryptoSession Session) NewConnection(IWorldServer server)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -47,29 +49,37 @@ public class ConnectionKeyPairShould : IDisposable
         _sockets.Add(clientSide);
         _sockets.Add(serverSide);
 
-        return new Avalon.World.WorldConnection(
+        var connection = new Avalon.World.WorldConnection(
             server, clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
+        return (connection.ServerCrypto!, connection.CryptoSession!);
+    }
+
+    private static IWorldServer SealingServer()
+    {
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
+        server.PacketEncryption.Returns(true);
+        return server;
     }
 
     [Fact]
     public void DifferFromEveryOtherConnectionOnTheSameServer()
     {
-        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = SealingServer();
 
-        Avalon.World.WorldConnection first = NewConnection(server);
-        Avalon.World.WorldConnection second = NewConnection(server);
+        (ICryptoManager Keys, IAvalonCryptoSession Session) first = NewConnection(server);
+        (ICryptoManager Keys, IAvalonCryptoSession Session) second = NewConnection(server);
 
-        Assert.NotEqual(first.ServerCrypto.GetPublicKey(), second.ServerCrypto.GetPublicKey());
+        Assert.NotEqual(first.Keys.GetPublicKey(), second.Keys.GetPublicKey());
 
         // And the session really agrees on the connection's own pair, rather than on one key while
         // the handshake announces another. The session only knows its own public key once it has a
         // peer's, so both are initialized first.
-        var peer = new Avalon.Common.Cryptography.CryptoManager();
-        first.CryptoSession.Initialize(peer.GetPublicKey());
-        second.CryptoSession.Initialize(peer.GetPublicKey());
+        var peer = new CryptoManager();
+        first.Session.Initialize(peer.GetPublicKey());
+        second.Session.Initialize(peer.GetPublicKey());
 
-        Assert.Equal(first.ServerCrypto.GetPublicKey(), first.CryptoSession.GetPublicKey());
-        Assert.Equal(second.ServerCrypto.GetPublicKey(), second.CryptoSession.GetPublicKey());
+        Assert.Equal(first.Keys.GetPublicKey(), first.Session.GetPublicKey());
+        Assert.Equal(second.Keys.GetPublicKey(), second.Session.GetPublicKey());
     }
 
     /// <summary>
@@ -79,19 +89,19 @@ public class ConnectionKeyPairShould : IDisposable
     [Fact]
     public void SealDifferentlyOnTwoConnectionsFromOnePeerKeyPair()
     {
-        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
+        IWorldServer server = SealingServer();
 
         // One client key pair, presented twice.
-        var peer = new Avalon.Common.Cryptography.CryptoManager();
+        var peer = new CryptoManager();
 
-        Avalon.World.WorldConnection first = NewConnection(server);
-        Avalon.World.WorldConnection second = NewConnection(server);
+        (ICryptoManager Keys, IAvalonCryptoSession Session) first = NewConnection(server);
+        (ICryptoManager Keys, IAvalonCryptoSession Session) second = NewConnection(server);
 
-        first.CryptoSession.Initialize(peer.GetPublicKey());
-        second.CryptoSession.Initialize(peer.GetPublicKey());
+        first.Session.Initialize(peer.GetPublicKey());
+        second.Session.Initialize(peer.GetPublicKey());
 
-        byte[] a = first.CryptoSession.Encrypt("the same plaintext"u8);
-        byte[] b = second.CryptoSession.Encrypt("the same plaintext"u8);
+        byte[] a = first.Session.Encrypt("the same plaintext"u8);
+        byte[] b = second.Session.Encrypt("the same plaintext"u8);
 
         // Both nonces are zero — that is what a counter does, and it is not the problem. The
         // ciphertexts differing is what says the keys are not shared.

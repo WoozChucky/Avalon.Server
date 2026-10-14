@@ -1,4 +1,3 @@
-using Avalon.Common.Cryptography;
 using Avalon.Server.World.Handlers;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
@@ -17,7 +16,6 @@ public sealed class WorldHandshakeHandlerShould
     public async Task Accept_supported_client_only_after_admission_and_request_the_initial_ping()
     {
         using var connection = WorldAdmissionConnection.Create();
-        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
         connection.PublishAdmission(WorldAdmissionConnection.Lease());
         await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.3.0" } });
         Assert.True(connection.IsGameplayAuthorized);
