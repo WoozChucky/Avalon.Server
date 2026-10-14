@@ -29,6 +29,7 @@ public class PacketMetricsBenchmarks
     private PacketDispatchTelemetry _telemetry = null!;
     private Counter<long> _bytesSent = null!;
     private Counter<long> _packetsSent = null!;
+    private Histogram<double> _durationAlone = null!;
     private readonly Guid _connectionId = Guid.NewGuid();
 
     [Params(false, true)]
@@ -41,6 +42,11 @@ public class PacketMetricsBenchmarks
         _telemetry = new PacketDispatchTelemetry(_source, _meter);
         _bytesSent = _meter.CreateCounter<long>("network.out.bytes", "By");
         _packetsSent = _meter.CreateCounter<long>("network.out.packets", "{packets}");
+        _durationAlone = _meter.CreateHistogram<double>("benchmark.handler.duration", "ms", "The handler duration's shape, alone",
+            tags: null, advice: new InstrumentAdvice<double>
+            {
+                HistogramBucketBoundaries = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000],
+            });
         if (Listened)
         {
             _provider = Sdk.CreateMeterProviderBuilder()
@@ -59,6 +65,46 @@ public class PacketMetricsBenchmarks
                 new PacketTags(_connectionId, "127.0.0.1", 42, 7), NullLogger.Instance);
             dispatch.Dispose();
         }
+    }
+
+    /// <summary>
+    /// The handler duration's record alone, with the two tags the dispatch gives it, with only the type's, and with
+    /// none: what each tag costs, for the options in docs/benchmarks.md (#977). Not what production records.
+    /// </summary>
+    [Benchmark(OperationsPerInvoke = Packets)]
+    public void RecordBothTags()
+    {
+        for (int i = 0; i < Packets; i++)
+        {
+            _durationAlone.Record(0.004, new KeyValuePair<string, object?>("avalon.packet.type", "CMSG_PLAYER_INPUT"),
+                new KeyValuePair<string, object?>("avalon.outcome", "ok"));
+        }
+    }
+
+    [Benchmark(OperationsPerInvoke = Packets)]
+    public void RecordBothTagsSorted()
+    {
+        for (int i = 0; i < Packets; i++)
+        {
+            _durationAlone.Record(0.004, new KeyValuePair<string, object?>("avalon.outcome", "ok"),
+                new KeyValuePair<string, object?>("avalon.packet.type", "CMSG_PLAYER_INPUT"));
+        }
+    }
+
+    [Benchmark(OperationsPerInvoke = Packets)]
+    public void RecordTypeTag()
+    {
+        for (int i = 0; i < Packets; i++)
+        {
+            _durationAlone.Record(0.004, new KeyValuePair<string, object?>("avalon.packet.type", "CMSG_PLAYER_INPUT"));
+        }
+    }
+
+    [Benchmark(OperationsPerInvoke = Packets)]
+    public void RecordUntagged()
+    {
+        for (int i = 0; i < Packets; i++)
+            _durationAlone.Record(0.004);
     }
 
     [Benchmark(OperationsPerInvoke = Packets)]
