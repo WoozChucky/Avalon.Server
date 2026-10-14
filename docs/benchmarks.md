@@ -3513,9 +3513,10 @@ Every instance used to broadcast its state on the same tick, and each instance's
 dropping its overshoot. The 950-player profile (#974, section 5) found all 121 instances broadcasting together on 273
 of 1,800 ticks and on no other, those ticks averaging 15.78 ms against 11.60 ms, and the interval six or seven ticks
 apart, 9.1 broadcasts a second. Each instance now has a slot on the world's broadcast schedule, six slots a tick apart
-handed out round-robin as instances are published, and its clock keeps the remainder (see
-[world simulation](world-simulation.md)). Measured on `many-instances` (250 instances published together, two walkers
-in each), before at `1e7d9618` and after at `934b4354`, Release, developer machine (i9-12900K, Windows 11, .NET
+given to each instance as it is published (the slot with the fewest live instances), and its clock keeps the remainder (see
+[world simulation](world-simulation.md)). The figures below were taken with slots handed out round-robin; with every
+instance published together, as here, the fewest-live rule hands out the same slots. Measured on `many-instances` (250 instances published together, two walkers
+in each), before at `1e7d9618` and after at `ab7913c7`, Release, developer machine (i9-12900K, Windows 11, .NET
 10.0.12), with other builds and tests running on it, so wall-clock figures are given as ranges over runs.
 
 **Where the broadcasts fall** (3,600 ticks after a 600-tick warm-up, read from the `Avalon-World-Tick` provider by an
@@ -3563,7 +3564,8 @@ once with the before build's `Avalon.World` and `Avalon.World.Testing` and once 
 An operation of 42 ticks held six broadcasts per instance before (every seventh tick) and seven after (every sixth),
 so it does a sixth more broadcast work; the allocation of the crowded single town grows by exactly that (103,438 B ×
 7/6 = 120,678 B; 2,214,458 B × 7/6 = 2,583,534 B): what one broadcast to 300 or 600 players in one instance allocates is
-unchanged. The times are within the noise, the 600-player, 20-town case reading up by the sixth more broadcasts.
+unchanged. The times are within the noise: the four cases moved by -3% to +16% at the same 7/6 ratio of broadcasts,
+with a standard deviation of 10% to 25%, so they show no cost per broadcast either way.
 
 **The allocation gate does not move**: `town-idle`, `town-walk` and `many-instances` 0 B, `forest-combat` 10,357 B, in
 Debug and Release, and `ForestCombatScenarioShould`'s two runs agree. The fight's four forests, published together,
