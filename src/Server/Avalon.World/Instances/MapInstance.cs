@@ -102,6 +102,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// its packets are serialized as they are created, so the next player can have the messages back.
     /// </summary>
     private readonly ObjectStatePool _statePool = new();
+
+    /// <summary>Each changed unit's aura update, encoded once per broadcast pass for every client that hears it (#980).</summary>
+    private readonly SharedAuraUpdates _auraUpdates = new();
     private readonly List<PortalInstance> _portals = new();
 
     /// <summary>This tick's ability objects (projectiles), which the cast system fills and the broadcast reads.</summary>
@@ -1423,7 +1426,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
         finally
         {
-            ClearAuraChanges();
+            try
+            {
+                _auraUpdates.ReleaseAll();
+            }
+            finally
+            {
+                ClearAuraChanges();
+            }
         }
     }
 
@@ -1552,7 +1562,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// characters first. Only the units whose auras changed are walked (<see cref="AuraRoster" />, #898). A unit it was
     /// just told about is skipped: its list carried them. A unit out of view is skipped too, and its changes are cleared
     /// with everyone's at the end of the broadcast, so a client never hears of a copy it was not listed; a unit that comes
-    /// back into view is listed again. Allocates nothing while no unit changed.
+    /// back into view is listed again. Each unit's packet is encoded once for the whole pass, by the first client that
+    /// hears it, and shared with the others (<see cref="SharedAuraUpdates" />, #980). Allocates nothing while no unit
+    /// changed.
     /// </summary>
     private void SendAuraUpdates(IWorldConnection connection, CharacterEntity recipient, IReadOnlyList<ObjectGuid> added)
     {
@@ -1565,7 +1577,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             SendAuraUpdate(connection, recipient, creatures[i], added);
     }
 
-    private static void SendAuraUpdate(IWorldConnection connection, CharacterEntity recipient, IUnit unit,
+    private void SendAuraUpdate(IWorldConnection connection, CharacterEntity recipient, IUnit unit,
         IReadOnlyList<ObjectGuid> added)
     {
         if (AuraHolders.Of(unit) is not { HasChanges: true } auras)
@@ -1580,8 +1592,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 return;
         }
 
-        connection.Send(SAuraUpdatePacket.Create(unit.Guid.RawValue, AuraWire.Updates(auras.Changes),
-            PacketEncoder.Shared));
+        connection.Send(_auraUpdates.For(unit, auras));
     }
 
     /// <summary>
