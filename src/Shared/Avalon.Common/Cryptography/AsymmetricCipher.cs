@@ -85,7 +85,11 @@ public class AsymmetricCipher
             var publicKeyInfo = SubjectPublicKeyInfo.GetInstance(asn1Object);
             publicKeyParameter = PublicKeyFactory.CreateKey(publicKeyInfo);
         }
-        catch (Exception e) when (e is not InvalidPublicKeyException)
+        // What the bytes can make the parse throw is the peer's. What the process or the library does not survive (no
+        // memory, a type BouncyCastle could not set up) is the server's, and propagates as itself: taken for a bad key,
+        // a broken library would refuse every peer's key with nothing to say it was the server.
+        catch (Exception e) when (e is not (InvalidPublicKeyException or OutOfMemoryException
+                                      or TypeInitializationException))
         {
             throw new InvalidPublicKeyException("Invalid public key: malformed SubjectPublicKeyInfo", e);
         }

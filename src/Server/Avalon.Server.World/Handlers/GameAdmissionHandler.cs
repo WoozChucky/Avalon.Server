@@ -75,8 +75,9 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
                 connection.Send(SGameAdmissionPacket.Create(keys?.ServerCrypto.GetPublicKey() ?? [], PacketEncoder.Shared,
                     GameAdmissionResult.Accepted, connection.PacketEncryption));
             }
-            catch (Exception)
+            catch (Exception error)
             {
+                connection.ReportAdmissionFailed(error);
                 reply.Lease.Revoke();
 #pragma warning disable MA0045 // Tick continuations must not await socket cleanup.
                 connection.Close(false);

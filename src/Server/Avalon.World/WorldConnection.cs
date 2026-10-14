@@ -659,6 +659,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>Keying the session from a valid client key failed: the server's fault, logged with its exception.</summary>
     public void ReportKeyingFailed(Exception error) => ReceiveLog.KeyingFailed(_logger, error, Id);
 
+    /// <summary>Publishing an admitted connection, or sending its reply, failed: the server's fault, logged with its exception.</summary>
+    public void ReportAdmissionFailed(Exception error) => ReceiveLog.AdmissionFailed(_logger, error, Id);
+
     private static partial class ReceiveLog
     {
         [LoggerMessage(Level = LogLevel.Warning,
@@ -668,6 +671,10 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         [LoggerMessage(Level = LogLevel.Error,
             Message = "Closing connection {ConnectionId}: its session could not be keyed from a valid client key")]
         public static partial void KeyingFailed(ILogger logger, Exception error, Guid connectionId);
+
+        [LoggerMessage(Level = LogLevel.Error,
+            Message = "Closing connection {ConnectionId}: its admission could not be published or answered")]
+        public static partial void AdmissionFailed(ILogger logger, Exception error, Guid connectionId);
 
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Closed connection {ConnectionId}: {PacketType} arrived unsealed while this world seals packets (Network:PacketEncryption)")]
