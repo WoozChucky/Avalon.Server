@@ -8,6 +8,7 @@ using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Public.Units;
 using Microsoft.Extensions.Time.Testing;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -136,6 +137,64 @@ public class AuraReplicationShould
         Assert.Equal(AuraUpdateAction.Unknown, Assert.Single(ofBoar.Entries).Action);
         Assert.DoesNotContain(watcher.Read<SAuraUpdatePacket>(NetworkPacketType.SMSG_AURA_UPDATE),
             u => u.UnitGuid == boar.Guid.RawValue);
+    }
+
+    /// <summary>
+    /// A unit leaves the instance holding a Bleed, its stack added the same tick: the instance it left neither ticks its
+    /// aura nor tells its watcher of the stack (#898: the unit leaves the instance's aura roster as it leaves).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Neither_tick_nor_replicate_a_unit_that_left_with_an_aura(bool creature)
+    {
+        using MapInstance instance = TestMapInstances.Build(await WorldAsync(), time: _clock);
+        MapInstanceClient watcher = Player(instance, 915_108, 0f);
+        MapInstanceClient? player = creature ? null : Player(instance, 915_109, 3f);
+        IUnit leaver = creature ? Boar(instance, 915_904) : player!.Character;
+        instance.Auras.Apply(watcher.Character, leaver, new AuraId(901), AuraSource.None);
+        instance.Update(s_tick);
+        uint health = leaver.CurrentHealth;
+
+        instance.Auras.Apply(watcher.Character, leaver, new AuraId(901), AuraSource.None);
+        if (creature)
+            instance.RemoveCreature((Creature)leaver);
+        else
+            instance.RemoveCharacter(player!.Connection);
+        _clock.Advance(TimeSpan.FromSeconds(3));
+        instance.Update(s_tick);
+
+        Assert.Equal(health, leaver.CurrentHealth);
+        Assert.DoesNotContain(watcher.Read<SAuraUpdatePacket>(NetworkPacketType.SMSG_AURA_UPDATE),
+            u => u.UnitGuid == leaver.Guid.RawValue);
+    }
+
+    /// <summary>
+    /// A character takes a portal with a change to its auras not yet sent: the instance it arrives in lists its auras,
+    /// and its next change there reaches its watchers alone, never with the one made before the move.
+    /// </summary>
+    [Fact]
+    public async Task Send_a_moved_character_only_the_changes_made_after_its_arrival()
+    {
+        IWorld world = await WorldAsync();
+        using MapInstance first = TestMapInstances.Build(world, time: _clock);
+        using MapInstance second = TestMapInstances.Build(world, time: _clock);
+        MapInstanceClient traveller = Player(first, 915_110, 0f);
+        MapInstanceClient watcher = Player(second, 915_111, 3f);
+        first.Update(s_tick);
+        second.Update(s_tick);
+        first.Auras.Apply(traveller.Character, traveller.Character, new AuraId(904), AuraSource.None);
+
+        first.RemoveCharacter(traveller.Connection);
+        traveller.Character.InstanceId = second.InstanceId;
+        second.AddCharacter(traveller.Connection);
+        second.Update(s_tick);
+        second.Auras.Apply(traveller.Character, traveller.Character, new AuraId(904), AuraSource.None);
+        second.Update(s_tick);
+
+        SAuraUpdatePacket update = Assert.Single(watcher.Read<SAuraUpdatePacket>(NetworkPacketType.SMSG_AURA_UPDATE),
+            u => u.UnitGuid == traveller.Character.Guid.RawValue);
+        Assert.Equal(AuraUpdateAction.Refreshed, Assert.Single(update.Entries).Action);
     }
 
     /// <summary>

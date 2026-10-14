@@ -524,6 +524,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             ResumeAuras();
 
         _characters[connection.Character!.Guid] = connection.Character;
+        _auras.Roster.Join(connection.Character);
         _connections[connection.Character.Guid] = connection;
         _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
         _lootSnapshotOwed.Add(connection.Character.Guid);
@@ -598,6 +599,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
         // hook that threw ahead of them used to leave a despawned character live in the instance.
         _characters.Remove(guid);
+        _auras.Roster.Leave(character);
         _connections.Remove(guid);
         _broadcastStates.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
@@ -649,6 +651,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public void AddCreature(ICreature creature)
     {
         _creatures[creature.Guid] = creature;
+        _auras.Roster.Join(creature);
         _locomotion.Register(creature, _creatureAgentRadius);
 
         // A creature spawned later in a party instance starts at the health the players here make.
@@ -698,6 +701,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public void RemoveCreature(ICreature creature)
     {
         _creatures.Remove(creature.Guid);
+        _auras.Roster.Leave(creature);
 
         // A wind-up in progress ends here, out loud, and a projectile in flight is dropped (#163): a corpse
         // removed or a script hot reloaded mid-cast would otherwise fire it later, from a creature that is gone
@@ -1544,18 +1548,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// This tick's aura changes of every unit the client has in view, its own character included, one packet a unit.
-    /// A unit it was just told about is skipped: its list carried them. A unit out of view is skipped too, and its
-    /// changes are cleared with everyone's at the end of the broadcast, so a client never hears of a copy it was not
-    /// listed; a unit that comes back into view is listed again. Allocates nothing while no unit changed.
+    /// This tick's aura changes of every unit the client has in view, its own character included, one packet a unit,
+    /// characters first. Only the units whose auras changed are walked (<see cref="AuraRoster" />, #898). A unit it was
+    /// just told about is skipped: its list carried them. A unit out of view is skipped too, and its changes are cleared
+    /// with everyone's at the end of the broadcast, so a client never hears of a copy it was not listed; a unit that comes
+    /// back into view is listed again. Allocates nothing while no unit changed.
     /// </summary>
     private void SendAuraUpdates(IWorldConnection connection, CharacterEntity recipient, IReadOnlyList<ObjectGuid> added)
     {
-        foreach (ICharacter unit in _characters.Values)
-            SendAuraUpdate(connection, recipient, unit, added);
+        IReadOnlyList<IUnit> characters = _auras.Roster.ChangedCharacters;
+        for (int i = 0; i < characters.Count; i++)
+            SendAuraUpdate(connection, recipient, characters[i], added);
 
-        foreach (ICreature unit in _creatures.Values)
-            SendAuraUpdate(connection, recipient, unit, added);
+        IReadOnlyList<IUnit> creatures = _auras.Roster.ChangedCreatures;
+        for (int i = 0; i < creatures.Count; i++)
+            SendAuraUpdate(connection, recipient, creatures[i], added);
     }
 
     private static void SendAuraUpdate(IWorldConnection connection, CharacterEntity recipient, IUnit unit,
@@ -1579,22 +1586,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Every unit's changes have gone to whoever sees it: forgotten, so each is sent once and none waits for a watcher
-    /// that never comes.
+    /// that never comes. Only the units that changed are walked (<see cref="AuraRoster" />, #898).
     /// </summary>
-    private void ClearAuraChanges()
-    {
-        foreach (ICharacter character in _characters.Values)
-        {
-            if (character is CharacterEntity entity && entity.Auras.HasChanges)
-                entity.Auras.ClearChanges();
-        }
-
-        foreach (ICreature creature in _creatures.Values)
-        {
-            if (creature is Creature held && held.Auras.HasChanges)
-                held.Auras.ClearChanges();
-        }
-    }
+    private void ClearAuraChanges() => _auras.Roster.ClearChanges();
 
     private IUnit? UnitHere(ObjectGuid guid) =>
         _characters.TryGetValue(guid, out ICharacter? character) ? character

@@ -1,13 +1,15 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Auras;
 
 /// <summary>
 /// The auras one unit holds, and the changes its watchers are owed this tick. Owned by the World-side CharacterEntity
 /// and Creature, never by anything on the modding API. Only the aura system (and select, through Load) changes it.
-/// Tick thread only.
+/// While its unit is a member of an instance it is bound to that instance's <see cref="AuraRoster" />, which it tells
+/// of every change it records (#898). Tick thread only.
 /// </summary>
 /// <param name="changed">Called on every change (not on Load): a character's marks its save.</param>
 public sealed class UnitAuras(Action? changed = null)
@@ -16,6 +18,8 @@ public sealed class UnitAuras(Action? changed = null)
     private readonly List<AuraChange> _changes = [];
     private uint _nextKey = 1;
     private AuraStatTotals? _totals;
+    private AuraRoster? _roster;
+    private IUnit? _owner;
 
     public int Count => _auras.Count;
 
@@ -25,6 +29,30 @@ public sealed class UnitAuras(Action? changed = null)
 
     /// <summary>This tick's changes, oldest first; cleared once they are sent.</summary>
     public IReadOnlyList<AuraChange> Changes => _changes;
+
+    /// <summary>The roster of the instance its unit is a member of; null outside any instance.</summary>
+    internal AuraRoster? Roster => _roster;
+
+    /// <summary>The unit these auras belong to, while bound to a roster.</summary>
+    internal IUnit? Owner => _owner;
+
+    /// <summary>Whether the bound roster lists its unit as a holder; the roster's own to set.</summary>
+    internal bool ListedAsHolder { get; set; }
+
+    /// <summary>Whether the bound roster lists its unit as changed this tick; the roster's own to set.</summary>
+    internal bool ListedAsChanged { get; set; }
+
+    internal void Bind(AuraRoster roster, IUnit owner)
+    {
+        _roster = roster;
+        _owner = owner;
+    }
+
+    internal void Unbind()
+    {
+        _roster = null;
+        _owner = null;
+    }
 
     /// <summary>What the held auras add to each stat; worked out again only after a change.</summary>
     public AuraStatTotals StatTotals =>
@@ -90,6 +118,7 @@ public sealed class UnitAuras(Action? changed = null)
 
         HeldSince = heldSince;
         _totals = null;
+        _roster?.Noted(this);
     }
 
     /// <summary>
@@ -117,6 +146,7 @@ public sealed class UnitAuras(Action? changed = null)
             aura.Schedule = aura.Schedule with { ExpiresAt = aura.Schedule.ExpiresAt + waited };
     }
 
+    /// <summary>Forgets this tick's changes. Its roster is not told: it calls this itself, as it empties its list.</summary>
     public void ClearChanges() => _changes.Clear();
 
     private void Record(ActiveAura aura, AuraChangeKind kind, DateTimeOffset now)
@@ -124,6 +154,7 @@ public sealed class UnitAuras(Action? changed = null)
         uint remaining = kind == AuraChangeKind.Removed ? 0u : RemainingMs(aura, now);
         _changes.Add(new AuraChange(aura.Id, aura.Key, aura.CasterGuid.RawValue, aura.Stacks, remaining, aura.DurationMs, kind));
         _totals = null;
+        _roster?.Noted(this);
         changed?.Invoke();
     }
 
