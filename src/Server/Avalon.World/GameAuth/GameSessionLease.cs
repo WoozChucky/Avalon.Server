@@ -66,6 +66,12 @@ public sealed class GameSessionLease
     public DateTime LeaseUntil { get { lock (_gate) return _until; } }
 
     /// <summary>
+    /// Whether the lease was revoked (or found ended), without the lock or the clock (#977): the tick's dispatch asks
+    /// it of a lease its check found not due at the tick's time, which within the tick only a revocation can change.
+    /// </summary>
+    public bool IsRevoked => Volatile.Read(ref _revoked);
+
+    /// <summary>
     /// Whether the tick must stop gameplay now (#977): the lease is revoked or has ended, or it is within
     /// <see cref="GameAuthPolicy.SaveDrainMargin" /> of its end by either clock, its <see cref="LeaseUntil" /> on the wall
     /// clock or the time granted counted from the grant on the monotonic one, so the final save runs under a lease still
