@@ -94,9 +94,10 @@ public sealed class TownSocialScenario : IScenario
 
     /// <summary>
     /// Every player present, sent to and walking, and, over the measured windows, every event of the schedule done and
-    /// checked once in each window at least: leaders leaving, invites sent and accepted, lines said to the town,
-    /// whispers reaching their target, party lines reaching every member, and the command run. A town that stopped
-    /// any of them would measure cheaper, and the scenario would pass the allocation gate as an improvement.
+    /// checked, each at least as many times as there are windows (the schedule puts each once in every window):
+    /// leaders leaving, invites sent and accepted, lines said to the town, whispers reaching their target, party lines
+    /// reaching every member, and the command run. A town that stopped any of them would measure cheaper, and the
+    /// scenario would pass the allocation gate as an improvement.
     /// </summary>
     public void Verify(ScenarioWorld world)
     {

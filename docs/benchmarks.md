@@ -3599,8 +3599,8 @@ and line) are not in the gate.
 left with its new leader, the invite sent to the one invited, the party whole again, a said line sent to every player,
 a whisper to its target and its echo to the sender, a party line to each member, and the command run (counted around
 `IgnoreListCommand`, since "Unknown command." is a line too) and answered. `Verify` requires every player present, sent
-to and walking, no failed check, and each of the seven events once in each measured window at least. Weakened in a
-scratch copy, it fails: a whisper sent to the sender's own name ("player 10 (Socialak) whispered, and the line did not
+to and walking, no failed check, and each of the seven events at least as many times as there are measured windows
+(the schedule puts each event once in every window). Weakened in a scratch copy, it fails: a whisper sent to the sender's own name ("player 10 (Socialak) whispered, and the line did not
 reach its target with its echo back, at tick 30"), and a schedule with no party line ("0 party lines delivered during
 the 5 measured windows").
 
