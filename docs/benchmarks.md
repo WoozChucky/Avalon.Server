@@ -978,8 +978,10 @@ for every connection whether or not anything had changed: the lease check (521 k
 connection), the quest flush (486, every connection every tick), clock reads in all (673, spread over the lease, the
 session pass's `ProcessQueue`, `WorldSessionFilter.CanProcess` and `PacketDispatchTelemetry.Begin`), the per-packet
 metrics (`AggregatorStore.Update` 365 inclusive) and `CharacterEntity.InstanceId` (208 exclusive plus `Guid.DecodeByte`
-112: the row's text parsed on every read, 124 under `PlayerInputHandler` and 55 under the quest flusher). #977 changed
-four of them, one commit each:
+112: the row's text parsed on every read, 124 under `PlayerInputHandler` and 55 under the quest flusher). This branch
+changed four of them, one commit each, and left two: **#977 is not done.** The per-packet metrics were measured and
+left for an owner decision (below), and `CharacterEntity.Update`'s clock reads (up to four per character per tick:
+`IsInCombat`, regeneration, casting) need the tick's time handed into the instances, recorded separately:
 
 - **The instance id is kept parsed.** `CharacterEntity.InstanceId` keeps the id it wrote beside the row's text and
   answers from it while the row holds that text; the row is still what is saved, and a row written another way is
@@ -996,6 +998,10 @@ four of them, one commit each:
   clock, the time granted less the margin on the monotonic one), and the check is two comparisons. Same boundary:
   `WorldServerBarrierTickShould.End_gameplay_on_the_tick_the_lease_comes_within_the_save_margin_of_its_end` pins it on
   each clock, and fails with either comparison made strict or either margin dropped.
+- **The tick's dispatch asks a lease its check found not due only whether it was revoked** (`IsRevoked`, a volatile
+  read), instead of taking the lease's lock and comparing both clocks again for each pass and each packet. A tick
+  whose session pass runs past the 5 s margin reads its time again and checks every lease before the map pass (the
+  long-tick guard; the barrier test's "long session pass" row fails without it).
 - **The quest flush skips a connection with nothing to flush** (`QuestLog.FlushOwed`, [quests](quests.md)).
 
 ```bash
@@ -1024,6 +1030,10 @@ for each column (three for the last), as a range. Nothing in any row allocates, 
 | `QuestFlushBenchmarks.NoChange` | 95–101 | 25 | | 3.6–3.7 |
 | `QuestFlushBenchmarks.OneChanged` | 91–92 | 24 | | 4.8–5.0 |
 | `QuestFlushBenchmarks.AllChanged` (200 B: the update) | 459–571 | 416 | | 253–352 |
+
+After the reviews, on main `c32d3a17` (#983) and two runs each: dispatch asking a lease its check found not due only
+whether it was revoked took `IdleTicks` from 48–49 to 25.5 ns and `InputTicks` from 285–291 to 241–242 ns; `LeaseChecks`
+stayed at 17–19 ns (its pass-time guard is once per tick, not per connection, and not in these rows).
 
 At 950 connections (the profile's), the lease check, both passes' authorization and the quest flush with nothing
 changed come to about (313 + 98) × 950 ≈ 390 µs a tick before and (55 + 4) × 950 ≈ 55 µs after on this machine; the

@@ -141,9 +141,14 @@ two due times set when it is granted or renewed, the deadline less the five seco
 time granted less the five seconds on the monotonic one, and the check ends gameplay on the first tick at or past
 either (`GameSessionLease.DrainDueAt`), so a wall clock set back cannot stretch a lease. The heartbeat is due 15
 seconds after the last one by the same time. The dispatch check that follows in the same tick (each pass, each
-packet) judges the lease at the time that check was made, not by reading the clock again: the check has already
-ended a lease within five seconds of its end, so the two differ only for a tick longer than five seconds. The read
-loop's check of a packet as it arrives reads the clock. Character
+packet) judges the lease at the time that check was made, not by reading the clock again: a lease the check found
+not due is only asked whether it has been revoked since (`GameSessionLease.IsRevoked`, no lock), so a revocation
+still takes effect at the next packet. The check has already ended a lease within five seconds of its end, so this
+differs from a fresh read only in a tick that runs longer than five seconds, and the tick closes that too: when its
+session pass has run past the five seconds since the time was read, it reads the time again and checks every lease
+at it before the map pass dispatches anything, so a lease that came due during that pass ends there. What is left is
+a single pass longer than five seconds, whose later packets are judged at that pass's start (and the save that
+follows is refused by the database's own lease check). The read loop's check of a packet as it arrives reads the clock. Character
 creation and its initial children commit atomically under the same durable account guard; select,
 update and delete also validate the current owner and lease inside their database transaction.
 
