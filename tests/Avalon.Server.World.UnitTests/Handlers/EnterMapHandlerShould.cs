@@ -163,6 +163,8 @@ public class EnterMapHandlerShould
         TheInstanceIsReleasedAndTheSecondRequestThrows,
         TheTransferThrows,
         TheCharacterDiesWhileItsInstanceIsBuilt,
+        TheBuildFaultsAndTheCharacterDied,
+        TheBuildFaultsAndTheCharacterLeft,
     }
 
     /// <summary>
@@ -178,15 +180,21 @@ public class EnterMapHandlerShould
     [InlineData(Ending.TheInstanceIsReleasedAndTheSecondRequestThrows)]
     [InlineData(Ending.TheTransferThrows)]
     [InlineData(Ending.TheCharacterDiesWhileItsInstanceIsBuilt)]
+    [InlineData(Ending.TheBuildFaultsAndTheCharacterDied)]
+    [InlineData(Ending.TheBuildFaultsAndTheCharacterLeft)]
     public void Take_a_later_portal_entry_after_one_that_ended_without_arriving(Ending ending)
     {
         // The failed build's Error line is written on the tick, in the arrival, by a logger that rethrows what its
         // providers throw.
-        var entry = new Entry(log: ending == Ending.TheBuildFaultsAndItsLogLineThrows ? new ThrowingLog() : null);
+        var log = new TestLog();
+        var entry = new Entry(log: ending == Ending.TheBuildFaultsAndItsLogLineThrows
+            ? new ThrowingLog()
+            : new Logger<EnterMapHandler>(log));
         bool failing = true;
         switch (ending)
         {
-            case Ending.TheBuildFaults or Ending.TheBuildFaultsAndItsLogLineThrows:
+            case Ending.TheBuildFaults or Ending.TheBuildFaultsAndItsLogLineThrows
+                or Ending.TheBuildFaultsAndTheCharacterDied or Ending.TheBuildFaultsAndTheCharacterLeft:
                 entry.Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(
                     Task.FromException<IMapInstance>(new InvalidOperationException("bake failed")),
                     Task.FromResult(entry.Target));
@@ -224,9 +232,23 @@ public class EnterMapHandlerShould
 
         // The dispatch contains what the handler throws, and the continuation drain what an arrival throws.
         Record.Exception(() => entry.Request());
-        if (ending == Ending.TheCharacterDiesWhileItsInstanceIsBuilt)
+        if (ending is Ending.TheCharacterDiesWhileItsInstanceIsBuilt or Ending.TheBuildFaultsAndTheCharacterDied)
             entry.Character.IsDead = true; // asked alive; dead by the time the instance is ready
+        if (ending == Ending.TheBuildFaultsAndTheCharacterLeft)
+            entry.Connection.Character.Returns((ICharacter?)null); // a select of it elsewhere took it
         entry.Flush();
+
+        // A failed build is logged whatever became of the character: nobody else logs it.
+        if (ending is Ending.TheBuildFaultsAndTheCharacterDied or Ending.TheBuildFaultsAndTheCharacterLeft)
+            Assert.Single(log.Errors, e => e.Exception?.InnerException is InvalidOperationException);
+
+        if (ending == Ending.TheBuildFaultsAndTheCharacterLeft)
+        {
+            // Not this arrival's to clear: the connection cleared it as the character left (ResetCharacterState).
+            Assert.True(entry.Connection.RespawnInFlight);
+            return;
+        }
+
         if (ending == Ending.TheInstanceIsReleasedTwice)
         {
             // Released once: the arrival resolved the target again, and the move is that second resolve now.

@@ -362,7 +362,7 @@ every path out of it; the one that does not (asking for the instance throws, so 
 | The instance was released before the arrival, the first time | nothing yet: the target is resolved again | kept: the second resolve is the move now, and ends as any other |
 | Released a second time | `MapNotFound` | cleared |
 | No longer in the party the instance is for, or the instance is full | `MapNotFound`, `InstanceFull` | cleared |
-| The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error by the arrival, on the tick | cleared, in the same `finally`: a log provider that throws does not keep it |
+| The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error by the arrival, on the tick, once, before any other check: also when the character died or left meanwhile, since nothing else logs a failed build | cleared, in the same `finally`: a log provider that throws does not keep it (for a character that left, as that row says) |
 | A step of the arrival throws (the transfer, a send) | whatever was sent before it | cleared; the throw is logged by the continuation drain |
 | Asking for the instance throws, before anything is queued | nothing; the throw is logged by the packet dispatch | cleared |
 | The character left the connection meanwhile | nothing | left alone: the connection cleared it as the character left (`ResetCharacterState`), and it may be the next character's |

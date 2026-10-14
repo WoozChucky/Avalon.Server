@@ -268,9 +268,12 @@ public partial class EnterMapHandler(
         // The character can leave the connection while the instance loads: a select of it on
         // another connection despawns it here and kicks this one. Transferring then would put a
         // discarded entity back into an instance, beside the new session's copy. The flag is left alone: the
-        // connection cleared it as the character left, and it may already be the next character's.
+        // connection cleared it as the character left, and it may already be the next character's. A build that
+        // failed is still logged: nobody else logs it. A log that throws here goes to the drain, which contains it,
+        // and no flag is left set by it: this one is not the arrival's to clear.
         if (!ReferenceEquals(connection.Character, character))
         {
+            LogIfFailed(request, character, targetMapId);
             Log.LeftBeforeInstanceReady(logger, character.Name);
             return;
         }
@@ -279,6 +282,11 @@ public partial class EnterMapHandler(
         bool resolvingAgain = false;
         try
         {
+            // A build that faulted or was cancelled is logged first, whatever else ends the request: the client is
+            // told nothing of it, as when the connection's drain logged it and dropped the arrival, and the character
+            // may ask again. Inside the try: a log that throws still ends the move.
+            bool built = !LogIfFailed(request, character, targetMapId);
+
             // A character that died while its instance was being built is not moved: no transfer, no save, as an
             // item's teleport leaves one where it died (MapTeleport). The request ends as a dead character's does in
             // step 1: dropped with no reply, and counted; the character respawns from where it is.
@@ -289,13 +297,8 @@ public partial class EnterMapHandler(
                 return;
             }
 
-            if (!request.IsCompletedSuccessfully)
+            if (!built)
             {
-                // The build faulted or was cancelled. Logged here, on the tick, where the connection's drain logged
-                // it when it dropped the arrival of a request that failed; the client is told nothing, as then, and
-                // the character may ask again. The line is inside the try: a log that throws still ends the move.
-                logger.LogError(request.Exception, "EnterMap: the instance of map {MapId} could not be built for {Name}",
-                    targetMapId, character.Name);
                 return;
             }
 
@@ -327,6 +330,22 @@ public partial class EnterMapHandler(
                 connection.RespawnInFlight = false;
             }
         }
+    }
+
+    /// <summary>
+    /// Logs at Error, once, that <paramref name="request" />'s build faulted or was cancelled, and says whether it did:
+    /// nothing else logs it, since the registry only hands the failure to its requesters.
+    /// </summary>
+    private bool LogIfFailed(Task<IMapInstance> request, ICharacter character, MapId targetMapId)
+    {
+        if (request.IsCompletedSuccessfully)
+        {
+            return false;
+        }
+
+        logger.LogError(request.Exception, "EnterMap: the instance of map {MapId} could not be built for {Name}",
+            targetMapId, character.Name);
+        return true;
     }
 
     /// <summary>
