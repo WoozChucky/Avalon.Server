@@ -3205,7 +3205,9 @@ in-process listener boxes every payload). Lockstep reads as every instance on th
 scenario reads that way, `many-instances` as 60 ticks of 420 with all 250 instances broadcasting and none in between
 (the scenario's step reaches the 0.1 s interval every seventh tick, the 9.1 Hz cadence of
 [#974](https://github.com/WoozChucky/Avalon.Server/issues/974)). A broadcast spread over the ticks reads as most
-ticks with some, and a per-tick maximum near the instance count over the ticks per interval.
+ticks with some, and a per-tick maximum near the instance count over the ticks per interval. With
+[the broadcast schedule](#results--the-broadcast-schedule-975-2026-10-14), `many-instances` reads 41 or 42 instances
+on 419 ticks of 420 (the first tick has none) and every instance on none.
 
 What the census shows is the phase each instance starts with under a fixed step, every instance built on the same
 tick. It does not show the two ways instances fall into step in production: a long tick re-synchronising them, and
