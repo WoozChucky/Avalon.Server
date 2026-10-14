@@ -87,6 +87,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly ThrottledErrorLog _auraApplyFailures;
     private readonly ThrottledErrorLog _auraDeathFailures;
 
+    // A recipient's state broadcast that threw (#981), logged at most once per ThrottledErrorLog.Interval.
+    private readonly ThrottledErrorLog _broadcastFailures;
+
     // Set by a tick that found nobody here, so the aura pass did not run: the next tick with players skips the ticks
     // owed meanwhile rather than paying them all at once.
     private bool _aurasPaused;
@@ -290,6 +293,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraPassFailures = new ThrottledErrorLog(_logger, _time, $"The aura pass of instance {InstanceId}");
         _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
         _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
+        _broadcastFailures = new ThrottledErrorLog(_logger, _time, $"A client's state broadcast in instance {InstanceId}");
         _replicationEncoder = serviceProvider.GetService<PacketEncoder>() ?? PacketEncoder.Shared;
         _auraWire = new AuraWire();
         _auraUpdates = new SharedAuraUpdates(_auraWire, _replicationEncoder);
@@ -1497,7 +1501,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             foreach (ICharacter character in _characters.Values)
             {
                 if (character is CharacterEntity entity)
-                    BroadcastStateTo(entity);
+                    BroadcastStateContained(entity);
             }
         }
         finally
@@ -1510,6 +1514,48 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             {
                 ClearAuraChanges();
             }
+        }
+    }
+
+    /// <summary>
+    /// One client's broadcast, contained (#981). Its view was decided before any client was sent anything, so a throw
+    /// that reached the tick would leave every client after it with a view it was never told of (adds and removes lost
+    /// until each object left its view and came back), and the one that threw with a view part told. The others go on;
+    /// the one that threw is started over, as a move between instances starts it (#611): told to drop everything it was
+    /// told of here, then listed itself and everything in view in full on the next tick, since what it was sent before the
+    /// throw cannot be known.
+    /// </summary>
+    private void BroadcastStateContained(CharacterEntity character)
+    {
+        try
+        {
+            BroadcastStateTo(character);
+        }
+        catch (Exception e)
+        {
+            _broadcastFailures.Failed(e);
+            StartOver(character);
+        }
+    }
+
+    /// <summary>
+    /// Forgets the client's view and tells it to drop everything it was told of, its own character included; its view is
+    /// decided in full on the next tick (<see cref="CharacterCharacterGameState.Reset" />). A connection that refuses
+    /// that too is logged and left: it is told nothing more until its next decision.
+    /// </summary>
+    private void StartOver(CharacterEntity character)
+    {
+        IReadOnlyList<ObjectGuid> forgotten = character.CharacterGameState.Reset();
+        if (forgotten.Count == 0 || !_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
+            return;
+
+        try
+        {
+            connection.Send(SInstanceStateRemovePacket.Create(forgotten, _replicationEncoder));
+        }
+        catch (Exception e)
+        {
+            _broadcastFailures.Failed(e);
         }
     }
 

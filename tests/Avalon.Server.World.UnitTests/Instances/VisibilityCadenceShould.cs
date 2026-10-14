@@ -10,6 +10,7 @@ using Avalon.World.Auras;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Microsoft.Extensions.Time.Testing;
+using NSubstitute;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -129,6 +130,76 @@ public class VisibilityCadenceShould
 
         string Name(ulong guid) => guid == boar.Guid.RawValue ? "boar"
             : guid == watcher.Character.Guid.RawValue ? "watcher" : "self";
+    }
+
+    /// <summary>
+    /// A client whose state broadcast throws, on the broadcast tick that lists the boar, does not cost the client after it
+    /// its add: each client's broadcast is contained. The one that threw is started over: told to drop all it was told of,
+    /// and listed itself and its view in full on the next tick. Later, a tick that throws before the views are decided (a
+    /// client's packets throwing, on the broadcast tick that would remove the boar) leaves the decision owed to the next
+    /// tick, rather than to the next broadcast.
+    /// </summary>
+    [Fact]
+    public async Task Tell_the_others_and_start_over_a_client_whose_broadcast_throws_and_decide_after_a_tick_that_throws()
+    {
+        using MapInstance instance = TestMapInstances.Build(await WorldAsync(), time: _clock);
+        MapInstanceClient failing = Player(instance, 981_021, 0f);
+        MapInstanceClient after = Player(instance, 981_022, 5f);
+        Creature boar = Boar(instance, 981_921, 200f);
+        instance.Auras.Apply(boar, boar, s_fortified, AuraSource.None);
+
+        bool refuseNextAdd = false;
+        failing.Connection.When(c => c.Send(Arg.Is<OutboundPacket>(p => p.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_ADD)))
+            .Do(call =>
+            {
+                if (!refuseNextAdd)
+                    return;
+                refuseNextAdd = false;
+                failing.Sent.Remove(call.Arg<OutboundPacket>());
+                throw new InvalidOperationException("The connection refused the packet.");
+            });
+        bool throwOnInput = false;
+        failing.Connection.When(c => c.UpdateMap()).Do(_ =>
+        {
+            if (!throwOnInput)
+                return;
+            throwOnInput = false;
+            throw new InvalidOperationException("The client's packets threw.");
+        });
+
+        ulong[] watched = [boar.Guid.RawValue, failing.Character.Guid.RawValue];
+        var failingTold = new List<string>();
+        var afterTold = new List<string>();
+        for (int tick = 1; tick <= 26; tick++)
+        {
+            if (tick == ChangeBefore)
+                boar.Position = new Vector3(0f, 0f, 10f);       // listed on the broadcast, tick 13
+            if (tick == 13)
+                refuseNextAdd = true;                           // that broadcast's add to the first client throws
+            if (tick == 20)
+                boar.Position = new Vector3(0f, 0f, 90f);       // removed on the broadcast, tick 25 ...
+            if (tick == 25)
+                throwOnInput = true;                            // ... which throws before the views are decided
+
+            int failingFrom = failing.Sent.Count, afterFrom = after.Sent.Count;
+            if (tick == 25)
+                Assert.Throws<InvalidOperationException>(() => instance.Update(s_tick));
+            else
+                instance.Update(s_tick);
+
+            if (tick < ChangeBefore)
+                continue;
+            foreach (ulong guid in watched)
+            {
+                string name = guid == boar.Guid.RawValue ? "boar" : "first";
+                failingTold.AddRange(ToldOf(failing.Sent.Skip(failingFrom), guid).Select(kind => $"{tick} {name} {kind}"));
+                afterTold.AddRange(ToldOf(after.Sent.Skip(afterFrom), guid).Select(kind => $"{tick} {name} {kind}"));
+            }
+        }
+
+        Assert.Equal("13 boar add, 13 boar aura list, 26 boar remove", string.Join(", ", afterTold));
+        Assert.Equal("13 boar remove, 13 first remove, 14 boar add, 14 boar aura list, 14 first add, 14 first aura list, "
+                     + "26 boar remove", string.Join(", ", failingTold));
     }
 
     private static void Make(Change change, MapInstance instance, MapInstanceClient other, Creature boar)

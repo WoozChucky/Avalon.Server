@@ -20,7 +20,8 @@ public class SharedAuraUpdatesShould
     /// <summary>
     /// Through a real instance's broadcast: one aura update reaches the caster, the unit and a watcher as one payload,
     /// each recipient's own reference to it, and the instance gives up its own when the broadcast ends, also when the
-    /// broadcast throws partway (a recipient's send refuses the update, letting go of it, and throws). So every payload
+    /// broadcast meets a throw partway (a recipient's send refuses the update, letting go of it, and throws; contained per
+    /// recipient since #981, so the recipients after it are still sent theirs). So every payload
     /// the broadcast encoded is still out while a recipient holds it, and none is once they have all let go. An
     /// instance that never gave its reference back would keep the update out of the pool for good; one that gave it
     /// back while a recipient still held it would let the pool hand that recipient's bytes to the next packet.
@@ -56,12 +57,9 @@ public class SharedAuraUpdatesShould
         }
 
         instance.Auras.Apply(caster.Character, target.Character, new AuraId(904), AuraSource.None);
-        if (broadcastThrows)
-            Assert.Throws<InvalidOperationException>(() => instance.Update(s_tick));
-        else
-            instance.Update(s_tick);
+        instance.Update(s_tick);
 
-        MapInstanceClient[] told = broadcastThrows ? [caster] : clients;
+        MapInstanceClient[] told = broadcastThrows ? [caster, watcher] : clients;
         PayloadSegment shared = Assert.Single(told
             .Select(c => Assert.Single(c.Sent, p => p.Header.Type == NetworkPacketType.SMSG_AURA_UPDATE).Payload!)
             .Distinct());
