@@ -610,7 +610,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             SCharacterCreateResult result = await StepAsync("create", s_characterTimeout, async token =>
             {
                 NetworkPacket reply = await connection.RequestAsync(connection.Outgoing(
-                    new CCharacterCreatePacket { Name = account, Class = (CharacterClass)(index % 4 + 1), Gender = index % 2 },
+                    new CCharacterCreatePacket { Name = account, Class = (CharacterClass)(index % 4 + 1), Gender = (CharacterGender)(index % 2) },
                     NetworkPacketType.CMSG_CHARACTER_CREATE), NetworkPacketType.SMSG_CHARACTER_CREATED, token);
                 return connection.Codec.Decode<SCharacterCreatedPacket>(reply).Result;
             }, ct);

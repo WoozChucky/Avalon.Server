@@ -24,9 +24,8 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
         if (connection.AccountId is null || connection.Character is not null || connection.PendingSpawn is not null ||
             connection.SelectInProgress || connection.LeaveInProgress || connection.IsClosing)
         { connection.Close(); return; }
-        // A protobuf enum member carries any number that fits it, so the class (None included) is checked here.
-        if (!CharacterClasses.IsPlayable(packet.Class) ||
-            packet.Gender is < byte.MinValue or > byte.MaxValue || !Enum.IsDefined((CharacterGender)(byte)packet.Gender))
+        // A protobuf enum member carries any number that fits it, so the class (None included) and gender are checked here.
+        if (!CharacterClasses.IsPlayable(packet.Class) || !Enum.IsDefined(packet.Gender))
         { Answer(connection, SCharacterCreateResult.InvalidClass); return; }
         CharacterNameProblem nameProblem = CharacterName.Check(packet.Name);
         if (nameProblem != CharacterNameProblem.None)
@@ -50,7 +49,7 @@ public sealed class CharacterCreateHandler(ILogger<CharacterCreateHandler> logge
             Name = CharacterName.Display(packet.Name),
             Level = level.Level,
             Class = createInfo.Class,
-            Gender = (CharacterGender)(byte)packet.Gender,
+            Gender = packet.Gender,
             X = createInfo.X,
             Y = createInfo.Y,
             Z = createInfo.Z,

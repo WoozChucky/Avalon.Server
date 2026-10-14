@@ -400,7 +400,7 @@ public class ObjectStateWriterShould
         ObjectState parsed = RoundTrip(ObjectStateWriter.From(character, fields));
 
         Assert.Equal(CharacterClass.Hunter, parsed.Class);
-        Assert.Equal((uint)CharacterGender.Female, parsed.Gender);
+        Assert.Equal(CharacterGender.Female, parsed.Gender);
     }
 
     [Fact]
@@ -409,7 +409,7 @@ public class ObjectStateWriterShould
         CharacterEntity character = TestCharacters.New(1);
         character.Data!.Gender = CharacterGender.Male;
 
-        Assert.Equal(0u, RoundTrip(ObjectStateWriter.From(character, GameEntityFields.Position)).Gender);
+        Assert.Equal(CharacterGender.Male, RoundTrip(ObjectStateWriter.From(character, GameEntityFields.Position)).Gender);
     }
 
     [Fact]
@@ -429,7 +429,7 @@ public class ObjectStateWriterShould
     public void Carry_Class_as_field_23_and_Gender_as_field_24()
     {
         using var stream = new MemoryStream();
-        Serializer.Serialize(stream, new ObjectState { Class = CharacterClass.Wizard, Gender = 0 });
+        Serializer.Serialize(stream, new ObjectState { Class = CharacterClass.Wizard, Gender = CharacterGender.Male });
 
         Assert.Equal(new byte[] { 0xB8, 0x01, 0x02, 0xC0, 0x01, 0x00 }, stream.ToArray());
     }

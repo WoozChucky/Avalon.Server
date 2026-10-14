@@ -21,12 +21,13 @@ public class CCharacterCreatePacket : Packet
     [ProtoMember(2)] public CharacterClass Class { get; set; }
 
     /// <summary>
-    /// A <c>CharacterGender</c> value. Optional on the wire: a client that omits it sends 0,
-    /// which is <c>CharacterGender.Male</c>. The server rejects any value the enum does not define.
+    /// Optional on the wire: a client that omits it sends 0, which is <see cref="CharacterGender.Male" />. Any number
+    /// that fits a byte decodes, so the server refuses one the enum does not define as InvalidClass; one past 255
+    /// fails the packet's decode.
     /// </summary>
-    [ProtoMember(3)] public int Gender { get; set; }
+    [ProtoMember(3)] public CharacterGender Gender { get; set; }
 
-    public static NetworkPacket Create(string name, CharacterClass @class, int gender, EncryptFunc encrypt)
+    public static NetworkPacket Create(string name, CharacterClass @class, CharacterGender gender, EncryptFunc encrypt)
     {
         using var memoryStream = new MemoryStream();
 

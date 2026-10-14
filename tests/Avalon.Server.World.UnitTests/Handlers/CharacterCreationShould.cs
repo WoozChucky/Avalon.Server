@@ -161,7 +161,7 @@ public class CharacterCreationShould : IDisposable
         {
             Name = "Guerreira",
             Class = createInfo.Class,
-            Gender = (int)CharacterGender.Female,
+            Gender = CharacterGender.Female,
         });
 
         await PumpAsync(connection);
@@ -208,15 +208,14 @@ public class CharacterCreationShould : IDisposable
     /// <summary>
     /// Both values come from the client, and a protobuf enum member carries any number that fits it, so a class a
     /// character cannot have (None, or no member at all) and a gender the enum does not define are refused rather
-    /// than stored. A gender of 256 is there because the enum is a byte: a cast alone would wrap it to Male.
+    /// than stored. A number past 255 does not fit either enum and fails the packet's decode before it gets here.
     /// </summary>
     [Theory]
     [InlineData(0, 0)]
     [InlineData(5, 0)]
     [InlineData(255, 0)]
     [InlineData(1, 2)]
-    [InlineData(1, -1)]
-    [InlineData(1, 256)]
+    [InlineData(1, 255)]
     public async Task Reject_a_class_or_gender_a_character_cannot_have(int @class, int gender)
     {
         StaticData data = await LoadStaticDataAsync();
@@ -226,7 +225,7 @@ public class CharacterCreationShould : IDisposable
         {
             Name = "Nobody",
             Class = (CharacterClass)@class,
-            Gender = gender,
+            Gender = (CharacterGender)gender,
         });
 
         await PumpAsync(connection);

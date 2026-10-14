@@ -133,11 +133,11 @@ public class ObjectState
     [ProtoMember(23)] public CharacterClass? Class { get; set; }
 
     /// <summary>
-    ///     A character's gender (0 Male, 1 Female — <c>CharacterGender</c>), alongside <see cref="Class" />.
+    ///     A character's gender, alongside <see cref="Class" />.
     /// </summary>
     /// <remarks>
     ///     Nullable so that Male, which is 0, is still sent: absent means "not a character", never Male.
     ///     Carried and fixed exactly like <see cref="Class" />.
     /// </remarks>
-    [ProtoMember(24)] public uint? Gender { get; set; }
+    [ProtoMember(24)] public CharacterGender? Gender { get; set; }
 }
