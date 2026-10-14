@@ -3,8 +3,8 @@
   "date": "2026-10-14",
   "scenarios": {
     "forest-combat": {
-      "bytesPerWindow": 14292,
-      "bytesPerPlayerPerTick": 19.849999999999998
+      "bytesPerWindow": 14176,
+      "bytesPerPlayerPerTick": 19.68888888888889
     },
     "many-instances": {
       "bytesPerWindow": 0,

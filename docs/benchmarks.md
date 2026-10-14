@@ -3517,10 +3517,12 @@ with the committed figure, in every build (Debug and Release, see below) and for
   104 B above Release and inside the floor (see the results).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the one figure above 0 (14,292 B per window since #972 gave the fight a healer, a kill quest and
-  loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14); 10,357 B before), and at that size the 256 B floor
-  decides for it too (1% is 143 B): it fails above 14,548 B, a little over 4 B per tick for the whole fight, so one 24 B
-  object every five ticks fails it. Its Debug run reads 14,360 B, 68 B above Release and inside the floor: each item
+  `forest-combat` is the one figure above 0 (14,176 B per window since #980 shared the aura updates and reused their
+  entries, [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
+  which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
+  10,357 B before), and at that size the 256 B floor decides for it too (1% is 142 B): it fails above 14,432 B, a little
+  over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads 14,244 B, 68 B
+  above Release and inside the floor: each item
   destroy in the measured minute (85) pays 48 B in unoptimised code for the two boxes `Enum.HasFlag` makes in
   `InventoryMove.DecideDestroy`, which optimised code keeps off the heap. From #890 to #972 Debug read the committed
   figure exactly (since [the kill path](#results--the-kill-path-890-883-2026-10-13)). Before that a Debug build read 237 B per
@@ -3825,7 +3827,9 @@ scenario twice in one process and requires the same outcome (every count above) 
 kills and deaths in it; the second run's creatures carry higher ids (the process-wide object id counter), which
 changes neither.
 
-**Gate.** Committed at **14,292 B per window** (19.9 B per player per tick, 238 B per tick) since #972, the sum of
+**Gate.** Committed at **14,176 B per window** (19.7 B per player per tick, 236 B per tick) since #980, 116 B under the
+14,292 B committed since #972 ([shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14)).
+The 14,292 B were the sum of
 10,361 B (the fight before #972: the file held 10,357 B, and the 4 B are #898's roster lists growing to their size
 once during the run, see [aura scans](#aura-scans--benchmarksaurascanbenchmarkscs-898)) and the increments of [a fuller fight](#results--a-fuller-fight-972-2026-10-14): the real send
 call 0 B, the healer +1,118 B, the kill quest +1,457 B and loot +1,356 B. A hard gate like the town scenarios: see
@@ -3866,8 +3870,10 @@ summary.
 | After the corpse remover (#883, PGO on) | 10,357 |
 | Release with PGO off, then | 10,357 |
 | Debug, then | 10,357 |
-| A fuller fight: healer, kill quest, loot (#972, PGO on), now | 14,292 |
-| Debug, now | 14,360 |
+| A fuller fight: healer, kill quest, loot (#972, PGO on) | 14,292 |
+| Debug, then | 14,360 |
+| Aura updates shared, their entries reused (#980, PGO on), now | 14,176 |
+| Debug, now | 14,244 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
