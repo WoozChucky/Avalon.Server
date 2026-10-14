@@ -97,11 +97,11 @@ dotnet-trace collect-linux -p 1 --profile cpu-sampling,thread-time \
   --duration 00:00:02:00 -o /root/ktick1.nettrace
 ```
 
-Kernel events are recorded for every process on the node by default; `-p 1` limits only the .NET events to the world. That is wanted here: what ran on the tick thread's CPU when it was off it is the question. This combination has not been run on the homelab yet (#974 ran `cpu-sampling` alone, without the provider). On the first capture, survey the file before anything else, counting events by provider and name, and check that it holds `WorldTick` records, samples, context switches and migrations; and expect a larger file than capture A, so start with two minutes.
+Kernel events are recorded for every process on the node by default; `-p 1` limits only the .NET events to the world. That is wanted here: what ran on the tick thread's CPU when it was off it is the question. This combination has not been run on the homelab yet (#974 ran `cpu-sampling` alone, without the provider). On the first capture, survey the file before anything else ([the trace reader](#the-trace-reader)'s `survey` mode) and check that it holds `WorldTick` records, samples, context switches and migrations; and expect a larger file than capture A, so start with two minutes.
 
 What to read: for each `WorldTick` over 16.67 ms and a set of median ticks, the tick thread's (the thread writing `WorldTick`) switches out and their off-CPU time inside the tick, its migrations and the CPUs it ran on, the samples on those CPUs of other threads while it was off them, and interrupt handling (`asm_common_interrupt`, `net_rx_action`) on its CPU. A slowdown with no time off the CPU and no interrupts points instead to the thread running slower on the CPU (its hyperthread sibling busy, cache, frequency), which needs C and hardware counters.
 
-**Reading kernel samples.** `dotnet-trace convert` cannot read these samples: it produced an empty speedscope from the 950 capture. TraceEvent can: `TraceLog.CreateFromEventPipeDataFile(path, etlxPath)` builds an `.etlx`, and each event of the resulting `TraceLog` gives its stack through `CallStack()`. Managed frames resolve from the trace's own method events and kernel frames as `vmlinux!...`; `libcoreclr.so` and some runtime stubs stay as raw addresses unless symbols for that exact runtime build are found (`dotnet-symbol`). On a thread busy throughout, consecutive samples were 1.000 ms apart, so one sample counts as one millisecond of CPU.
+**Reading kernel samples.** `dotnet-trace convert` cannot read these samples: it produced an empty speedscope from the 950 capture. The trace reader's `kcpu` mode does ([the trace reader](#the-trace-reader)): it reads the file through TraceEvent's `TraceLog`, which resolves the stacks. Managed frames resolve from the trace's own method events and kernel frames as `vmlinux!...`; `libcoreclr.so` and some runtime stubs stay as raw addresses unless symbols for that exact runtime build are found (`dotnet-symbol`). On a thread busy throughout, consecutive samples were 1.000 ms apart, so one sample counts as one millisecond of CPU.
 
 **Hardware counters** (cycles, instructions, cache misses on the tick thread) are not covered by a tried recipe. `collect-linux --perf-events` takes tracepoints; whether it takes hardware events was not tried. From the same privileged container, a `perf` built for the node's kernel (6.8) could count them per second for the tick thread's TID (`perf stat -e cycles,instructions,cache-misses -t <tid> -I 1000`), to line up with the ticks by wall time.
 
@@ -129,6 +129,28 @@ done
 ```
 
 `--rundown:false` skips the method rundown at the end of each session, which the tick provider's numeric records do not need and which would otherwise land at the start of each off window. Compare the world's own `world.tick.duration` histogram over the on windows against the off windows, from Prometheus: on the load-test world it is exported every 10 s, so drop the export interval each switch falls in and keep the two whole intervals of each window. Compare the mean (the histogram's `_sum` over its `_count`, exact) and the share of ticks over 16,667 µs (a bucket edge, exact); its p99 is interpolated inside the 16,667–25,000 µs bucket, too coarse to resolve a difference of a millisecond. Ten pairs give twenty intervals a side; repeat in a second hold before calling the difference.
+
+### The trace reader
+
+`tools/Avalon.TraceReader` reads these captures into plain files for analysis (a script, a spreadsheet); the analysis itself stays outside the repository. It runs on any machine with the .NET SDK, against a copied-out `.nettrace`:
+
+```sh
+dotnet run -c Release --project tools/Avalon.TraceReader -- survey tick.nettrace
+dotnet run -c Release --project tools/Avalon.TraceReader -- tick tick.nettrace out/tick
+dotnet run -c Release --project tools/Avalon.TraceReader -- kcpu ktick1.nettrace out/kcpu
+```
+
+A bad command line prints the usage and exits 2; a missing or unreadable trace exits 1.
+
+- **`survey <trace>`** prints the session's start (UTC), length, pointer size and processor count, every event type in the trace (provider, event name, id and version) with its count, and the events per process. Run it first on a capture of a new kind. Runtime rundown events are listed under their provider with raw task and event ids.
+- **`tick <trace> <out-dir>`** writes the `Avalon-World-Tick` records to `instance.csv` (event 1), `world.csv` (event 2) and `batch.csv` (event 3), one row per event, and prints the row counts. Each file's columns are `thread` (the writing thread's id), `ts_ms` (the event's time in ms from the session start, four decimals; the end of the record's span, see [correlation](#correlation-and-durations)), then the event's fields in the provider's order under their own names (the lists in [correlation and durations](#correlation-and-durations) and [instance phases](#instance-phases-and-counters)). Each column is filled from the field of its name, so a version 0 record (before #976) leaves `mapPackets` and `sessionPackets` empty. Values are written as 64-bit integers, never through a floating-point type. A field the reader has no column for is named on the console and not written: the reader's columns are kept equal to the provider's fields by `TickTraceReaderShould`.
+- **`kcpu <trace> <out-dir>`** reads a `collect-linux` trace through TraceEvent's `TraceLog` (`TraceLog.CreateFromEventPipeDataFile`; the `trace.etlx` it builds stays in the output directory) and writes two tab-separated files with a header row:
+  - `ksamples.tsv`, one row per CPU sample: `pid`, `tid`, `cpu` (the processor it was taken on) and `ts_ms` (ms from the session start).
+  - `kstacks.tsv`, every event that carries a stack, counted: `pid`, `tid`, `event` (`provider/name`; a CPU sample is `Universal.Events/cpu`), `count` and `stack` (root first, frames joined by `;`, each `module!method`, or `module!0xaddress` where the module has no symbols), most frequent first.
+
+  It also prints the processes and threads the trace holds and the samples per processor.
+
+Read against the 950-player captures (#974), `tick` wrote 217,934 instance, 1,800 world and 1,800 batch rows from `tick.nettrace` (version 0: the two packet columns empty), and `kcpu` 155,757 sample rows and 34,544 stack rows from `kcpu.nettrace`, 22,566 of the samples on the tick thread, as the report counts.
 
 ### Reading a GC trace
 

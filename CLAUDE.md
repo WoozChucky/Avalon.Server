@@ -71,7 +71,7 @@ Target framework: .NET 10 (`global.json`). The long notes — the local run (the
 | Balance | `src/Server/Avalon.Balance.Core`, `.Balance.Data`, `.Balance.Contract`, `.Balance.Service` | Simulator library (Core references Combat and Domain only, `BalanceCoreAssemblyShould`), seed reader, DTOs, in-cluster service |
 | Aspire | `src/Server/Avalon`, `src/Server/Avalon.ServiceDefaults` | Local AppHost and shared service defaults |
 | Shared | `src/Shared/Avalon.Common`, `.Configuration`, `.Domain`, `.Metrics`, `.Network.Packets`, `.Network.Packets.Abstractions` | `ValueObject<T>` and utilities, options classes, the domain model, OpenTelemetry, packet contracts (protobuf-net) |
-| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking`, `Avalon.LocalDev` (local run: certificates and user-secrets, game tickets), `Avalon.LoadTest` (load-test bots and the capacity ramp), `api-smoke` (read-only API smoke check), `release` (CI version and registry scripts) ([docs/tooling.md](docs/tooling.md)) |
+| Tools | `tools/*` | `Avalon.Exporter` (+ `.Emitters`: wire schema, catalogs, navmesh vectors), `Avalon.ChunkGen`, `Avalon.Balance`, `Avalon.Benchmarking`, `Avalon.LocalDev` (local run: certificates and user-secrets, game tickets), `Avalon.LoadTest` (load-test bots and the capacity ramp), `Avalon.TraceReader` (a world's captured traces to CSV and TSV), `api-smoke` (read-only API smoke check), `release` (CI version and registry scripts) ([docs/tooling.md](docs/tooling.md)) |
 | Vendored | `vendor/DotRecast` | Navmesh (Recast/Detour); not ours to restyle |
 
 `src/Server/Avalon.PluginFramework` is an empty placeholder project.

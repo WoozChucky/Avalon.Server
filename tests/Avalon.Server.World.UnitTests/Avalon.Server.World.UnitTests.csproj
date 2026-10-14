@@ -41,6 +41,8 @@
     <ProjectReference Include="..\..\src\Server\Avalon.Balance.Core\Avalon.Balance.Core.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Balance.Data\Avalon.Balance.Data.csproj"/>
     <ProjectReference Include="..\..\tools\Avalon.ChunkGen\Avalon.ChunkGen.csproj"/>
+    <!-- The tick trace reader: its columns must follow the provider's fields (TickTraceReaderShould). -->
+    <ProjectReference Include="..\..\tools\Avalon.TraceReader\Avalon.TraceReader.csproj"/>
     <ProjectReference Include="..\Avalon.World.Testing\Avalon.World.Testing.csproj"/>
   </ItemGroup>
 
