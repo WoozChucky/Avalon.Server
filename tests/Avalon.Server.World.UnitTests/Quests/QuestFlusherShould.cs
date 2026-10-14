@@ -6,7 +6,11 @@ using Avalon.Network.Packets.Quest;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Instances;
 using Avalon.World.Quests;
+using NSubstitute;
+using NSubstitute.Extensions;
 using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
 
 namespace Avalon.Server.World.UnitTests.Quests;
@@ -227,5 +231,73 @@ public class QuestFlusherShould
         Assert.Single(c.Read<SQuestLogPacket>(NetworkPacketType.SMSG_QUEST_LOG));
         Assert.Single(c.Read<SQuestMarkersPacket>(NetworkPacketType.SMSG_QUEST_MARKERS));
         Assert.Contains(log.Errors, e => e.Message.Contains(QuestFlusher.RecountStep, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// #977: a connection whose quests had nothing to flush is skipped until something the flush reads changes. Each
+    /// change here comes after a tick that flushed nothing, and must still reach the client on the next one: a kill
+    /// credit, an accept and an abandon through the quest service, and a move to another instance, whose quest NPCs the
+    /// markers must then list. (A level-up and a Bag change are pinned in QuestMarkersShould and QuestCollectShould.)
+    /// </summary>
+    [Theory]
+    [InlineData("kill")]
+    [InlineData("accept")]
+    [InlineData("abandon")]
+    [InlineData("instance")]
+    public async Task Flush_a_change_that_follows_a_tick_with_nothing_to_flush(string change)
+    {
+        QuestTestWorld w = await QuestTestWorld.CreateAsync();
+        Creature boar = w.Place(Boar);
+        QuestClient c = w.Join();
+        if (change != "accept")
+            w.Accept(c, Hunt);
+        Tick(w, c);
+        c.Clear();
+        Tick(w, c);
+        Assert.Empty(c.Sent);   // settled: this tick had nothing to flush
+
+        Creature? ender = null;
+        switch (change)
+        {
+            case "kill":
+                w.Quests.CreatureKilled(boar, [c.Character]);
+                break;
+            case "accept":
+                w.Accept(c, Hunt);
+                break;
+            case "abandon":
+                Assert.Equal(QuestResult.Ok, w.Quests.Abandon(c.Character, Hunt));
+                break;
+            case "instance":
+                ender = w.Place(Ender);
+                w.Remove(ender);
+                IMapInstance other = Substitute.For<IMapInstance>();
+                var otherId = Guid.NewGuid();
+                other.InstanceId.Returns(otherId);
+                other.Creatures.Returns(new Dictionary<ObjectGuid, ICreature> { [ender.Guid] = ender });
+                Guid home = w.Instance.InstanceId;
+                w.World.InstanceRegistry.Configure().GetInstanceById(Arg.Any<Guid>())
+                    .Returns(ci => ci.Arg<Guid>() == otherId ? other : ci.Arg<Guid>() == home ? w.Instance : null);
+                c.Character.InstanceId = otherId;
+                break;
+        }
+
+        Tick(w, c);
+
+        if (ender is not null)
+        {
+            SQuestMarkersPacket markers = Assert.Single(c.Read<SQuestMarkersPacket>(NetworkPacketType.SMSG_QUEST_MARKERS));
+            Assert.Equal([ender.Guid.RawValue], markers.Markers.Select(m => m.CreatureGuid));
+            return;
+        }
+
+        QuestUpdateKind expected = change switch
+        {
+            "kill" => QuestUpdateKind.Progress,
+            "accept" => QuestUpdateKind.Accepted,
+            _ => QuestUpdateKind.Removed,
+        };
+        SQuestUpdatePacket update = Assert.Single(Updates(c));
+        Assert.Equal((Hunt, expected), (update.QuestId, update.Kind));
     }
 }

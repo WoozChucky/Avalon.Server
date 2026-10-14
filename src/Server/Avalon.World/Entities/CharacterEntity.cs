@@ -652,6 +652,9 @@ public partial class CharacterEntity : ICharacter
         {
             if (Data != null)
             {
+                // A quest marker's input (#977): the next quest flush works the markers out again.
+                if (Data.Level != value)
+                    Quests.MarkFlushOwed();
                 Data.Level = value;
                 _dirtyFields |= GameEntityFields.Level;
             }
@@ -773,6 +776,9 @@ public partial class CharacterEntity : ICharacter
             _instanceId = value;
             Volatile.Write(ref _instanceIdText, text);
             Data.InstanceId = text;
+
+            // The quest hooks' and markers' input (#977): the next quest flush looks at the instance again.
+            Quests.MarkFlushOwed();
         }
     }
 

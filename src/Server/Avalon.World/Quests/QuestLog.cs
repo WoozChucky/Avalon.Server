@@ -167,6 +167,22 @@ public sealed class QuestLog(SaveStateTracker save)
     /// <summary>The instance the OnEnterInstance hooks last ran for. Never saved.</summary>
     public Guid? ScriptsInstance { get; set; }
 
+    /// <summary>
+    /// Whether the next quest flush has anything of this character's to do (#977). Set by everything that changes what
+    /// the flush sends or settles from the character: every change to the log (<see cref="Start" />,
+    /// <see cref="SetProgress" />, <see cref="SetStage" />, <see cref="SetState" />, <see cref="Remove" />,
+    /// <see cref="Complete" />), every line (<see cref="Say" />), a <see cref="Load" />, and the character's instance
+    /// and level (the hooks' and the markers' inputs; <c>CharacterEntity</c>'s setters mark them as they change, so an
+    /// instance or a level written to the row directly is not seen). Set to begin with, so a new session's first flush
+    /// sends the log. Cleared by QuestFlusher once a flush leaves nothing for a later one. What a flush reads from
+    /// elsewhere it checks itself: the catalog's generation (a /reload quests, one for every character) and the Bag's
+    /// slot changes (the inventory's). Never saved.
+    /// </summary>
+    public bool FlushOwed { get; internal set; } = true;
+
+    /// <summary>Something a quest flush reads from the character changed (#977): see <see cref="FlushOwed" />.</summary>
+    internal void MarkFlushOwed() => FlushOwed = true;
+
     /// <summary>Replaces the whole log at select. Marks nothing.</summary>
     public void Load(CharacterQuestRows rows)
     {
@@ -187,6 +203,7 @@ public sealed class QuestLog(SaveStateTracker save)
             _completed[row.QuestId] = row.CompletedAt;
 
         HeldVersion++;
+        FlushOwed = true;
     }
 
     public ActiveQuest Start(uint questId, DateTime now)
@@ -246,7 +263,11 @@ public sealed class QuestLog(SaveStateTracker save)
         Changed(questId, QuestClientChange.Completed);
     }
 
-    public void Say(string line) => _lines.Add(line);
+    public void Say(string line)
+    {
+        _lines.Add(line);
+        FlushOwed = true;
+    }
 
     public void ClearClientChanges()
     {
@@ -265,5 +286,6 @@ public sealed class QuestLog(SaveStateTracker save)
 
         save.QuestChanged(questId);
         Version++;
+        FlushOwed = true;
     }
 }
