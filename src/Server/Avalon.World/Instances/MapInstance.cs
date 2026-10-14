@@ -1355,10 +1355,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         // Step 4: Update creature scripts. A creature's cooldowns run down inside its combat script (#163),
         // the one thing that casts them.
-        foreach (ICreature creature in _creatures.Values)
-        {
-            creature.Script?.Update(deltaTime);
-        }
+        UpdateCreatureScripts(deltaTime);
 
         // Players are told to the crowd, never asked: PlayerInputHandler already decided where they
         // are earlier in this tick. Off unless configured, because it makes body-blocking real. The
@@ -1378,6 +1375,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // which is the only thing in the suite that fails if these two are swapped. Player positions are
         // already current: input was processed in connection.UpdateMap() earlier in this same tick.
         _locomotion.Update(deltaTime);
+    }
+
+    /// <summary>
+    /// The creature scripts' part of step 4. Bound by name by <c>CreatureDispatchBenchmarks</c>, which measures it alone.
+    /// </summary>
+    private void UpdateCreatureScripts(TimeSpan deltaTime)
+    {
+        foreach (ICreature creature in _creatures.Values)
+        {
+            creature.Script?.Update(deltaTime);
+        }
     }
 
     /// <summary>Step 5a of <see cref="Update" />.</summary>
