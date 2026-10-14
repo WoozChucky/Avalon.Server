@@ -352,8 +352,9 @@ the step ends, at the character's height, for the ground). Since #978 the naviga
 around the point (`StandingPolygonSearch`): a character on the ground scores zero on the polygon under it, nothing
 scores lower, and the first zero in the narrow box is the first in DotRecast's full 4 x 8 x 4 m box, so the answer is
 the full search's to the bit, overlapping floors and polygon edges included; beside the mesh, or between floors, the
-full box decides as before. Nothing is kept from one input to the next. `GroundedMovementShould` compares the navigator's
-steps and ground queries with DotRecast's own full searches (`DetourMovementReference`) on the town, a forest and overlapping floors.
+full box decides as before. Nothing is kept from one input to the next. Creatures' routes and lines of sight and
+projectiles' steps use the same search. `GroundedMovementShould` compares the navigator's queries with DotRecast's own
+full searches (`DetourNavigationReference`) on the town, a forest and overlapping floors.
 
 ---
 
