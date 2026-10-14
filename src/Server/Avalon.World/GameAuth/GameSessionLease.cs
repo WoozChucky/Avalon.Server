@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
+using Avalon.World.Threading;
 
 namespace Avalon.World.GameAuth;
 
@@ -47,18 +48,30 @@ public sealed class GameSessionLease
     public AccountAccessLevel AccessLevel => (AccountAccessLevel)_identity.AccessLevel!.Value;
     public string ServerId => _identity.ServerId!;
     public ushort WorldId => _identity.WorldId!.Value;
-    public bool IsActive { get { lock (_gate) return ActiveUnderLock(); } }
-    public DateTime LeaseUntil { get { lock (_gate) return _until; } }
-    public TimeSpan Remaining
+    public bool IsActive => IsActiveAt(TickTime.Read(_clock));
+
+    /// <summary>
+    /// <see cref="IsActive" /> at <paramref name="now" />: the tick's time (#977), so a tick asks it of every connection
+    /// and every packet without a clock read each. A time read from another clock than this lease's is read again.
+    /// </summary>
+    public bool IsActiveAt(in TickTime now)
     {
-        get
+        TickTime at = now.On(_clock);
+        lock (_gate) return ActiveUnderLock(at);
+    }
+
+    public DateTime LeaseUntil { get { lock (_gate) return _until; } }
+    public TimeSpan Remaining => RemainingAt(TickTime.Read(_clock));
+
+    /// <summary><see cref="Remaining" /> at <paramref name="now" />, as <see cref="IsActiveAt" /> reads it (#977).</summary>
+    public TimeSpan RemainingAt(in TickTime now)
+    {
+        TickTime at = now.On(_clock);
+        lock (_gate)
         {
-            lock (_gate)
-            {
-                if (!ActiveUnderLock()) return TimeSpan.Zero;
-                return TimeSpan.FromTicks(Math.Min((_until - _clock.GetUtcNow().UtcDateTime).Ticks,
-                    (_duration - _clock.GetElapsedTime(_started)).Ticks));
-            }
+            if (!ActiveUnderLock(at)) return TimeSpan.Zero;
+            return TimeSpan.FromTicks(Math.Min((_until - at.UtcNow).Ticks,
+                (_duration - _clock.GetElapsedTime(_started, at.Timestamp)).Ticks));
         }
     }
 
@@ -82,7 +95,7 @@ public sealed class GameSessionLease
     {
         lock (_gate)
         {
-            if (!ActiveUnderLock() || !ValidDeadline(response, _clock.GetUtcNow().UtcDateTime) ||
+            if (!ActiveUnderLock(TickTime.Read(_clock)) || !ValidDeadline(response, _clock.GetUtcNow().UtcDateTime) ||
                 response.AccountId != _identity.AccountId || response.GameSessionId != _identity.GameSessionId ||
                 response.GameContextId != _identity.GameContextId || response.FencingToken != _identity.FencingToken ||
                 response.ServerId != _identity.ServerId || response.WorldId != _identity.WorldId ||
@@ -98,9 +111,9 @@ public sealed class GameSessionLease
     }
 
     public void Revoke() { lock (_gate) _revoked = true; }
-    private bool ActiveUnderLock()
+    private bool ActiveUnderLock(in TickTime now)
     {
-        if (!_revoked && (_clock.GetUtcNow().UtcDateTime >= _until || _clock.GetElapsedTime(_started) >= _duration))
+        if (!_revoked && (now.UtcNow >= _until || _clock.GetElapsedTime(_started, now.Timestamp) >= _duration))
             _revoked = true;
         return !_revoked;
     }

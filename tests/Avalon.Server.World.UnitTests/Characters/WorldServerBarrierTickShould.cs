@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Combat;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
@@ -361,6 +362,53 @@ public class WorldServerBarrierTickShould : IDisposable
 
         server.Tick();
         Assert.Null(presence.Take());
+    }
+
+    /// <summary>
+    /// The lease check (#977): the tick ends gameplay on the first tick its lease is within
+    /// <see cref="GameAuthPolicy.SaveDrainMargin" /> of its end, by whichever clock gets there first, the wall clock
+    /// (its <c>LeaseUntil</c>) or the monotonic one (the time granted, counted from the grant), and not a tick before.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void End_gameplay_on_the_tick_the_lease_comes_within_the_save_margin_of_its_end(bool wallClock)
+    {
+        var clock = new SplitClock();
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build(clock: clock);
+        Avalon.World.GameAuth.GameSessionLease lease = Avalon.Server.World.UnitTests.GameAuth.GameplayTestAdmission.Admit(
+            connection, clock: clock); // 44 s
+        TimeSpan due = TimeSpan.FromSeconds(44) - GameAuthPolicy.SaveDrainMargin;
+
+        clock.Move(due - TimeSpan.FromTicks(1), wallClock);
+        server.Tick();
+        Assert.True(connection.IsGameplayAuthorized);
+        Assert.False(connection.IsClosing);
+
+        clock.Move(TimeSpan.FromTicks(1), wallClock);
+        server.Tick();
+        Assert.False(lease.IsActive);
+        Assert.False(connection.IsGameplayAuthorized);
+        Assert.True(connection.IsClosing);
+    }
+
+    /// <summary>A clock whose wall and monotonic readings move apart, as a wall clock that is set does.</summary>
+    private sealed class SplitClock : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 10, 14, 12, 0, 0, TimeSpan.Zero);
+        private long _timestamp = 1_000;
+
+        public override DateTimeOffset GetUtcNow() => _now;
+        public override long GetTimestamp() => _timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public void Move(TimeSpan by, bool wallClock)
+        {
+            if (wallClock)
+                _now += by;
+            else
+                _timestamp += by.Ticks;
+        }
     }
 
     /// <summary>Reference data with the seeded combat formula, which the tick's sheet flush reads (#506).</summary>

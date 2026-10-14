@@ -686,15 +686,19 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Cache once — both phases iterate the same set.
         ImmutableArray<IWorldConnection> conns = Connections;
 
+        // The tick's time (#977): one read of the container's clock for every connection's lease check, and through it
+        // every dispatch's authorization this tick, where each read the clock for itself.
+        var now = TickTime.Read(_time);
+
         // Revoked or expiring sessions leave their instance before packets and simulation run.
         foreach (IWorldConnection connection in conns)
-            if (connection is WorldConnection admitted) admitted.AdvanceGameplayLease();
+            if (connection is WorldConnection admitted) admitted.AdvanceGameplayLease(now);
 
         // Before the session pass, so a cutoff blocks a non-Admin's queued packets on the tick it arrives. Applies a
         // state the notification or the reconciliation offered from off the tick. Contained: the tick goes on.
         try
         {
-            _maintenanceCoordinator?.Advance(_time.GetUtcNow().UtcDateTime, conns);
+            _maintenanceCoordinator?.Advance(now.UtcNow, conns);
         }
         catch (Exception e)
         {

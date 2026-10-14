@@ -106,8 +106,10 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         _receiveQueue = new ConcurrentQueue<WorldPacket>();
         _worldSessionFilter = new WorldSessionFilter(this);
         _worldMapFilter = new MapSessionFilter(this);
-        _sessionFilterPredicate = wp => _worldSessionFilter.CanProcess(wp.Type);
-        _mapFilterPredicate = wp => _worldMapFilter.CanProcess(wp.Type);
+        // The tick's own authorization, at the tick's time (#977); the filters' CanProcess, which the read loop asks,
+        // reads the clock.
+        _sessionFilterPredicate = wp => IsGameplayAuthorizedOnTick && _worldSessionFilter.Accepts(wp.Type);
+        _mapFilterPredicate = wp => IsGameplayAuthorizedOnTick && _worldMapFilter.Accepts(wp.Type);
         Init(client);
     }
 
@@ -353,7 +355,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// </returns>
     private uint ProcessQueue(Func<WorldPacket, bool> predicate, bool dropStaleMapPackets)
     {
-        if (!IsGameplayAuthorized)
+        if (!IsGameplayAuthorizedOnTick)
         {
             if (_hasPendingReceivePacket != 0)
                 ReleaseReceivePacket();

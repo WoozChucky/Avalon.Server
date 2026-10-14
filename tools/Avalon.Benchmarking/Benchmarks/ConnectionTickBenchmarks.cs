@@ -12,6 +12,7 @@ using Avalon.World.Filters;
 using Avalon.World.GameAuth;
 using Avalon.World.Public;
 using Avalon.World.Testing.Fakes;
+using Avalon.World.Threading;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -85,8 +86,10 @@ public class ConnectionTickBenchmarks
     [Benchmark(OperationsPerInvoke = Connections)]
     public void LeaseChecks()
     {
+        // The tick reads its time once for every connection (#977).
+        var now = TickTime.Read(_clock);
         for (int i = 0; i < Connections; i++)
-            _connection.AdvanceGameplayLease();
+            _connection.AdvanceGameplayLease(now);
     }
 
     [Benchmark(OperationsPerInvoke = Connections)]
@@ -106,9 +109,10 @@ public class ConnectionTickBenchmarks
     public int IdleTicks()
     {
         int before = _fixture.Dispatched;
+        var now = TickTime.Read(_fixture.Clock);
         for (int i = 0; i < Connections; i++)
         {
-            _fixture.Connection.AdvanceGameplayLease();
+            _fixture.Connection.AdvanceGameplayLease(now);
             _fixture.Pump();
         }
 
@@ -120,10 +124,11 @@ public class ConnectionTickBenchmarks
     public int InputTicks()
     {
         int before = _fixture.Dispatched;
+        var now = TickTime.Read(_fixture.Clock);
         for (int i = 0; i < Connections; i++)
         {
             _fixture.Connection.Deliver(NetworkPacketType.CMSG_PLAYER_INPUT, _input);
-            _fixture.Connection.AdvanceGameplayLease();
+            _fixture.Connection.AdvanceGameplayLease(now);
             _fixture.Pump();
         }
 
