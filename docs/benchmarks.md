@@ -3176,6 +3176,7 @@ The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `too
 |---|---:|---:|---|
 | `town-idle` | 1 town | 30 | Players standing on a grid of points checked against the town's navmesh. Nothing moves, so this is the floor: what a tick costs when there is nothing to do. |
 | `town-walk` | 1 town | 30 | Players walking an 8 m circle centred at (45, 10), the south-east chunk's open square. Each player's input goes through the real `PlayerInputHandler` (one input packet per player, reused every tick), and each player is sent the real `SPlayerStateAckPacket` through the real cipher every tick. Ten engaged "Bench Wolf" creatures (seed 425) share the instance. |
+| `town-social` | 1 town | 30 | A town at its cap (`MaxPlayers`, 30) walking `town-walk`'s circle with no creatures, in ten parties of three that keep changing, and chatting, through the real party and chat handlers: in every second a party's leader leaves, is invited back and accepts, one player says a line to the town, one whispers, one speaks to its party and one runs `/ignorelist`. See [The town-social scenario](#the-town-social-scenario) (#972). |
 | `many-instances` | 250 normal maps | 500 | Two walking players in each of 250 normal-map instances, every instance created through the real `InstanceRegistry.GetOrCreateNormalInstanceAsync`. It measures many small instances rather than one crowd. |
 | `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 1 to 4, each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 200, 269, 173 and 200 creatures, every one ticking), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
 
@@ -3215,18 +3216,20 @@ its order and before the outbox flush (#875): quests, inventory, character sheet
 scenario does changes an inventory, the stats or the abilities, so there they send nothing; they must allocate nothing
 either, and with a closure the inventory flusher allocated on every call (32 B per player per tick, 57,600 B per window
 in `town-idle`), which the gate would fail. In `forest-combat` a fight changes them, and they send what they would in
-production, the quest flusher's log, updates, lines, markers and Bag recount among them (#972). Combat, parties (their
-tick, and the members' status after the flushers), quests, the character economy and the World server's reference data
-are modelled by `forest-combat` alone. Of `World.Update` itself, the scenario tick runs the registry's
-publication of finished builds (`InstanceRegistry.PublishFinished`), the parties tick (in `forest-combat`) and the
-instance pass, and leaves out:
+production, the quest flusher's log, updates, lines, markers and Bag recount among them (#972). Combat, quests and the
+character economy are modelled by `forest-combat` alone; parties (their tick, and the members' status after the
+flushers) by it and by `town-social`, which holds the World server's reference data too, and chat, the command
+dispatcher and the chat rate limit by `town-social` alone. Of `World.Update` itself, the scenario tick runs the registry's
+publication of finished builds (`InstanceRegistry.PublishFinished`), the parties tick (in `forest-combat` and `town-social`) and
+the instance pass, and leaves out:
 
 - `Time.Update`, and the content and script hot reloads.
 - `InstanceRegistry.ProcessExpiredInstances`, the last step. Its walk of the registry allocates a 72 B enumerator per
   tick in an unoptimized (Debug) build and, measured, nothing in Release, so it would add nothing to the committed
   figure and would fail `town-idle`'s gate (4,320 B per window over a 0 B baseline) in every local Debug run.
-- The map pass's queue: `WorldConnection.ProcessQueue`. `LoopWalker` calls `PlayerInputHandler` directly, so the queue
-  and the per-packet session filter are not in the numbers (the dispatch is, since #875; see The allocation gate).
+- The map pass's queue: `WorldConnection.ProcessQueue`. `LoopWalker` calls `PlayerInputHandler` directly, and
+  `SocialSchedule` the party and chat handlers, so the queue and the per-packet session filter are not in the numbers
+  (the input's dispatch is, since #875; see The allocation gate).
 
 ### How a scenario is measured
 
@@ -3239,7 +3242,8 @@ instance pass, and leaves out:
 - **Checked.** After the windows, outside the measured region, each scenario checks that it still did its work
   (`IScenario.Verify`): every player still in its instance; in the walking scenarios every player sent packets and
   its input advanced by one per tick (300) with a change of position; in `town-walk` every wolf still in combat within
-  4 m of the player it fights. A scenario that stopped walking or fighting would allocate less and pass the gate as an
+  4 m of the player it fights; in `town-social` every event of its schedule done and checked once in every window at
+  least. A scenario that stopped walking or fighting would allocate less and pass the gate as an
   improvement, so a failed check throws instead, failing the gate and stopping the runner.
 - **Two levels.** `town-walk` and `many-instances` alternated between two window levels from one window to the next;
   the minimum landed on the lower one, and that lower level was the committed figure. Each instance broadcast every
@@ -3272,7 +3276,7 @@ The world server runs with dynamic PGO on (the runtime's default), and so do the
 tier devirtualises an interface call from the profile it gathered at run time and can then keep on the stack the boxed
 enumerator, closure, delegate or box the call would have allocated. How much it keeps depends on the profile and on
 when a method reached that tier, so an allocation of that kind is a figure that moves: between runs, between machines,
-and between Debug (never optimised) and Release. The town scenarios have none on their path. `forest-combat` had many
+and between Debug (never optimised) and Release. `town-idle` and `town-walk` have none on their path, and `town-social` 104 B per window, inside the floor ([a social town](#results--a-social-town-972-2026-10-14)). `forest-combat` had many
 when it was added, all in combat, AI and kill code, and the fight's rarer paths (a kill's drop, an aura's tick) reach
 the optimised tier late, so its first figure was not reproducible:
 
@@ -3408,12 +3412,16 @@ with the committed figure, in every build (Debug and Release, see below) and for
 - **Fail** when the current figure is more than 1% **and** more than 256 B over the committed one. The 256 B floor
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
-- **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
-  since server packets are built in per-thread messages; the file was last regenerated at `75aeb59e`, for `forest-combat`'s
-  fuller fight, #972), so the 256 B floor decides in every scenario:
+- **Detection floor.** `town-idle`, `town-walk` and `many-instances` read 0 since `75a16697` (#875: none of them
+  allocates on the tick thread since server packets are built in per-thread messages; the file was last regenerated at
+  `2ca42aff`, for `town-social`'s first entry, #972), so the 256 B floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
-  allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
+  allocated every tick, anywhere on the measured path, fails every steady scenario (the smallest, 24 B, is 1,440 B
   per window).
+  `town-social` reads 3,904 B per window since #972, all of it its events' own, one of each kind a window
+  ([a social town](#results--a-social-town-972-2026-10-14)): the floor decides for it too (1% is 39 B), so it fails
+  above 4,160 B, and one more 40 B enumerator on each of its seven events (280 B) fails it. Its Debug run reads 4,008 B,
+  104 B above Release and inside the floor (see the results).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
   `forest-combat` is the one figure above 0 (14,292 B per window since #972 gave the fight a healer, a kill quest and
@@ -3498,8 +3506,8 @@ got no longer changes what a send allocates. The gate runs in a non-parallel xUn
 World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
 under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that; a fixed-length scenario
 (`forest-combat`) has no minimum to lean on, and relies instead on its settled rehearsal, which waits out a busy machine
-before its one measured run. The gate adds about 25 s to the World
-suite (`forest-combat` about 10 s of it since #972), and `ForestCombatScenarioShould`, the forest's two-run check, 12 to 17 s more.
+before its one measured run. The gate adds about 30 to 40 s to the World
+suite (`forest-combat` 7 to 11 s of it since #972, `town-social` about 6 s), and `ForestCombatScenarioShould`, the forest's two-run check, 12 to 17 s more.
 
 ### Allocation tests and background collections
 
@@ -3544,6 +3552,119 @@ So a test of this kind reads the counter one of two ways:
 The scenario gate needs neither. The steady scenarios keep the least of five windows. `forest-combat`, one run of 60
 windows with no least to lean on, runs alone (its xUnit collection is not parallel) and after two blocking collections;
 one background collection in its run would add at most about 136 B per window, under the 256 B floor.
+
+### The town-social scenario
+
+`town-social` (#972) puts a full town through what its players do besides walking: their parties change and they
+chat. One town at its cap, 30 players (`MaxPlayers` of the town, and the default where a template sets none), in a
+world with the World server's reference data, which it needs for the party service and for level 1 characters of a
+class (the classes cycle over all four). They walk `town-walk`'s 8 m circle through the real `PlayerInputHandler`, as
+there but with no creatures, since walking players are what a town holds; they are named `Socialaa` to `Socialbd`,
+because an invite and a whisper find a player by a name of letters only (`CharacterName.IsValid`), and every name has
+the same length, so every line naming one is the same size. At the start they form ten parties of three (players
+3k, 3k+1 and 3k+2) through the real `PartyService`.
+
+Every player then runs `SocialSchedule` (`tests/Avalon.World.Testing/Scenarios/SocialSchedule.cs`) from its map update,
+as `LoopWalker` does: client packets handed to the real handlers, inside the instance pass and the input's dispatch,
+as the forest's casts are, one prepared packet of each kind, so the driver allocates nothing. The chat goes through
+the real `ChatMessageHandler`, `CommandDispatcher`, `ChatRateLimiter` and commands, the limit at production's
+`Game:ChatMessagesPerMinute` of 10 (the C# default, 0, turns it off), and every listener's ignore check runs
+(`Ignoring.Hides`; every ignore list is empty). The schedule repeats every second, one window, and every second holds
+one event of each kind, at a fixed tick, period w (second w since the build) choosing who acts:
+
+| Tick of the second | Event | Who | Through |
+|---:|---|---|---|
+| 0 | The leader leaves; the leadership goes to the longest-standing member, and the party keeps two | Party w mod 10's leader | `PartyLeaveHandler` |
+| 10 | A line said to the town, heard by all 30 | Player w mod 30 | `ChatMessageHandler` |
+| 20 | The new leader invites the one who left, by name | That party's new leader | `PartyInviteHandler` |
+| 30 | A whisper (`/w`) to a player of another party, and its echo | Player (w + 10) mod 30 | `ChatMessageHandler`, `CommandDispatcher`, `WhisperCommand` |
+| 40 | The one who left accepts, and joins last | The leader who left | `PartyInviteResponseHandler` |
+| 45 | `/ignorelist`, the cheap command: no database and no state, one constant line back while the list is empty | Player (w + 5) mod 30 | `ChatMessageHandler`, `CommandDispatcher`, `IgnoreListCommand` |
+| 50 | A party line (`/p`), heard by the three members | Player (w + 20) mod 30 | `ChatMessageHandler`, `CommandDispatcher`, `PartyChatCommand` |
+
+So each player leaves its party, is invited back and accepts once every 30 s (the one who joined last leads last and
+leaves last, so the three take turns), chats every 10 s (said, party and whisper in turn, six lines a minute, inside
+the limit, so none is refused), and runs the command every 30 s, which the limit does not count.
+
+**Why the parties never break up.** The gated figure is the least of five windows, and the windows start wherever the
+wall-clock warm-up ends, so every 60 ticks in a row must hold the same events, made by players in the same state, or
+the least window would keep only the cheapest second. Ten parties of three, each player changing party every 30 s,
+make one leave, one invite and one accept a second; a cycle that formed a party and disbanded it (two invites, two
+accepts, two leaves) would make six different events every three seconds, which no window of one second can hold
+alike. A party that hands its leadership round, by contrast, does the same three events every second. So no party is
+formed or disbanded during the windows: those two paths (a new `Party` and its log lines, every member's empty roster
+and line) are not in the gate.
+
+**Checks.** Each event is checked by the driver as it is handed in, by what it changed, without allocating: the party
+left with its new leader, the invite sent to the one invited, the party whole again, a said line sent to every player,
+a whisper to its target and its echo to the sender, a party line to each member, and the command run (counted around
+`IgnoreListCommand`, since "Unknown command." is a line too) and answered. `Verify` requires every player present, sent
+to and walking, no failed check, and each of the seven events at least as many times as there are measured windows
+(the schedule puts each event once in every window). Weakened in a scratch copy, it fails: a whisper sent to the sender's own name ("player 10 (Socialak) whispered, and the line did not
+reach its target with its echo back, at tick 30"), and a schedule with no party line ("0 party lines delivered during
+the 5 measured windows").
+
+### Results — a social town (#972, 2026-10-14)
+
+`town-social` is committed at **3,904 B per window** (2.17 B per player per tick), the runner's Release run at
+`2ca42aff` that wrote it (developer machine, i9-12900K, Windows 11, .NET 10.0.13, other agents building and testing
+beside it). Every other figure stayed where it was: `forest-combat` 14,292 B, the others 0. The figure is the seven
+events of one second and nothing else: over 30 consecutive windows after a 5 s warm-up (a probe on the scenario's
+world, the first window starting 22 ticks into the schedule's second), every window held one of each event and read
+3,904 B, and 1,590 of the 1,800 ticks read 0 B, the other 210 being exactly the seven event ticks of each window. So
+no tick allocates without an event, and the least window, the gated one, holds them all.
+
+Bytes per event, read on its tick (the same in every window; Release with dynamic PGO on, and Debug, which reads the
+same as Release with `DOTNET_TieredPGO=0` or `DOTNET_JitObjectStackAllocation=0`):
+
+| Event | Release | Debug | What allocates (Debug) |
+|---|---:|---:|---|
+| A leader leaves | 1,184 | 1,248 | Two rosters to the two left, after the handover and after the leave (424 B each: per recipient a new `List<PartyMemberDto>` and a DTO per member, and an enumerator); the lines "X left the party." (72 B) and "X is now the party leader." (88 B); `Party.Remove`'s closure and predicate (88 B); the leaver's empty roster's new empty list (32 B); three boxed enumerators over `Party.Members` (120 B) |
+| An invite | 104 | 104 | The `PartyInvite` (64 B) and the target's lookup key (40 B, `CharacterName.LookupKey`) |
+| The accept | 960 | 1,000 | The roster to three (760 B: three lists and nine DTOs, and enumerators); the `PartyMember` and its `CharacterId` (80 B); "X joined the party." (80 B); two boxed enumerators over `Party.Members` (80 B), one of which Release keeps on the stack |
+| A line said to the town | 40 | 40 | The boxed enumerator over `MapInstance.Connections` |
+| A whisper (`/w`, 7 words) | 872 | 872 | The dispatcher's arguments (312 B: an array and a string per word); the text after the command word made twice (192 B: a slice, then `Trim`'s copy) and split again (192 B: the name, then the rest made twice); three lookup keys (120 B: `CharacterName.Same` makes two, `OnlineCharacters.ByName` one); the `CommandContext` (56 B) |
+| A party line (`/p`, 9 words) | 688 | 688 | The dispatcher's arguments (384 B); the text after the command word made twice (208 B); the `CommandContext` (56 B); the boxed enumerator over `Party.Members` (40 B) |
+| `/ignorelist` | 56 | 56 | The `CommandContext` |
+| **A window** | **3,904** | **4,008** | |
+
+A whisper and a party line are the dearest chat by far, and both grow with the message: the dispatcher splits every
+command's text into an array of new strings before it runs the command, and neither `/p` nor `/w` reads them (each
+reads its text from the packet, `CommandText`), so a long `/p` of short words pays a string per word for nothing. The
+party events cost what their rosters cost: each roster is built anew for each recipient.
+
+**Debug and Release.** Debug reads 104 B per window above Release: 64 B on a leave and 40 B on the accept, which
+optimised code keeps on the stack with the dynamic profile (Release with `DOTNET_TieredPGO=0` reads Debug's 4,008 B).
+The accept's is a boxed enumerator over `Party.Members`, kept by the runtime's conditional escape analysis
+(`DOTNET_JitObjectStackAllocationConditionalEscape=0` puts it back alone); the leave's was not traced to its object. An
+allocation that only the profile keeps off the heap can read differently in the gate alone and in a whole suite run
+([Dynamic PGO](#dynamic-pgo)); here both readings are inside the 256 B floor.
+
+**Stability.** The runner, five runs in Release: 3,904 B every time. The gate alone, five runs in each build: 3,904 B
+in Release and 4,008 B in Debug every time (+2.66%, +104 B, within), and 4,008 B in Release with dynamic PGO off. A
+spread of 0 B within each build.
+
+**Findings, per event, none on a per-tick path** (production code is unchanged here; each looks avoidable):
+
+- `CommandDispatcher.Dispatch` builds the arguments (`Arguments`: an array and a string per word) for every command it
+  runs, and `/p` and `/w` never read them: 384 B per 9-word party line and 312 B per 7-word whisper here, more for a
+  longer message.
+- `CommandText.AfterCommandWord` slices the text and then trims the slice into a second copy, and `FirstWord` does the
+  same for the rest after the name: a party line's text is made twice (104 B here), a whisper's three times (96 + 96 B,
+  then 80 + 72 B for the rest).
+- `CharacterName.LookupKey` makes a new upper-case string per lookup: in `OnlineCharacters.TryIdByName` (an invite, a
+  whisper: 40 B each) and twice in `CharacterName.Same` (the whisper's self check: 80 B). A comparison over spans,
+  or an alternate lookup with an ignore-case comparer, would make none.
+- `PartyService.SendRoster` builds a new `List<PartyMemberDto>` and a new DTO per member for every recipient (n lists
+  and n² DTOs a roster: 760 B for three, 424 B for two), and a leader's leave sends the roster twice (after the
+  handover, then after the leave). `SPartyRosterPacket.Empty` makes a new empty list for every empty roster (32 B).
+- `Party.Remove` uses `RemoveAll` over a lambda capturing the id: a closure and a delegate, 88 B per leave or kick.
+- Boxed enumerators, 40 B each: `ChatMessageHandler` walks `MapInstance.Connections` (an `IEnumerable` over a
+  dictionary's values) per said line; `PartyChatCommand` and `PartyService` (`SendLine` to a party, `SendRoster` once
+  and once per recipient, `ResetStatuses`, `HandOverLeadership`) walk `Party.Members` as an `IReadOnlyList`.
+
+Not counted as findings: the state an event creates (the `PartyInvite`, the `PartyMember` and its `CharacterId`), the
+`CommandContext` a command runs with (#883), and the system lines, which name a member and so are a string each.
 
 ### The forest-combat scenario
 

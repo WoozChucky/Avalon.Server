@@ -1,5 +1,5 @@
 {
-  "commit": "75aeb59e",
+  "commit": "2ca42aff",
   "date": "2026-10-14",
   "scenarios": {
     "forest-combat": {
@@ -13,6 +13,10 @@
     "town-idle": {
       "bytesPerWindow": 0,
       "bytesPerPlayerPerTick": 0
+    },
+    "town-social": {
+      "bytesPerWindow": 3904,
+      "bytesPerPlayerPerTick": 2.1688888888888886
     },
     "town-walk": {
       "bytesPerWindow": 0,

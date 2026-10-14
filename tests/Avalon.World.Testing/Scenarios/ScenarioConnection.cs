@@ -71,6 +71,7 @@ public sealed class ScenarioConnection : IWorldConnection, IDisposable
     {
         ArgumentNullException.ThrowIfNull(scheduler);
         Character = character;
+        AccountId = character.Data?.AccountId;
         _onUpdateMap = onUpdateMap;
 
         _wire = new WireConnection(new WireServer(scheduler, sealPayloads));
@@ -129,7 +130,8 @@ public sealed class ScenarioConnection : IWorldConnection, IDisposable
     public Guid Id => throw new NotSupportedException();
     public Task? ExecuteTask => throw new NotSupportedException();
     public string RemoteEndPoint => throw new NotSupportedException();
-    public AccountId? AccountId { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+    /// <summary>The character's account, as the connection was admitted with it: the chat lines carry it.</summary>
+    public AccountId? AccountId { get; set; }
     public PendingSpawn? PendingSpawn => throw new NotSupportedException();
     public bool SelectInProgress => throw new NotSupportedException();
     public bool LeaveInProgress => throw new NotSupportedException();
@@ -140,7 +142,8 @@ public sealed class ScenarioConnection : IWorldConnection, IDisposable
     public long CurrentPacketArrivedTicks => throw new NotSupportedException();
     /// <summary>The account's locale, which the quest texts are worded in: a world connection's default.</summary>
     public AccountLocale Locale { get; set; } = AccountLocale.enUS;
-    public AccountAccessLevel AccessLevel => throw new NotSupportedException();
+    /// <summary>A player's, as admitted: the command dispatcher checks it before it runs a command.</summary>
+    public AccountAccessLevel AccessLevel => AccountAccessLevel.Player;
     public bool RespawnInFlight { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     public void Close(bool expected = true) => throw new NotSupportedException();
     public Task CloseAsync(bool expected = true) => throw new NotSupportedException();
