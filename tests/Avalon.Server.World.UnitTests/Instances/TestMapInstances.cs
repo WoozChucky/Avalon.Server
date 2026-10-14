@@ -96,6 +96,7 @@ internal static class TestMapInstances
         }
         serviceProvider.GetService(typeof(IScriptManager)).Returns(scripts ?? Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        serviceProvider.GetService(typeof(IChunkLibrary)).Returns(new AnyChunkLibrary());
         if (pvp is not null)
         {
             serviceProvider.GetService(typeof(PvpToggle)).Returns(pvp);

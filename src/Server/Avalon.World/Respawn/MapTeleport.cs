@@ -3,8 +3,8 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
+using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
@@ -30,8 +30,8 @@ namespace Avalon.World.Respawn;
 /// An instance released between the resolve and the arrival (Game:AbandonedInstanceLifetimeMinutes ran out meanwhile) is
 /// never entered: the arrival resolves it again once, as a portal arrival does.
 /// </summary>
-public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChunkLibrary chunkLibrary,
-    ICharacterSaver saver, PartyService? parties = null)
+public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, ICharacterSaver saver,
+    PartyService? parties = null)
 {
     /// <summary>False, changing nothing, for no character, a move under way, an unknown map or a level outside its band.</summary>
     public bool Start(IWorldConnection connection, MapTemplateId map, Vector3? position)
@@ -39,7 +39,7 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
         if (connection.Character is not { } character || connection.RespawnInFlight)
             return false;
 
-        MapTemplate? template = world.MapTemplates.FirstOrDefault(t => t.Id == map);
+        MapTemplate? template = world.MapTemplates.FindById(map);
         if (template is null
             || (template.MinLevel is { } min && character.Level < min)
             || (template.MaxLevel is { } max && character.Level > max))
@@ -155,7 +155,7 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChun
             world.TransferPlayer(connection, target);
 
             character.Position = at;
-            MapArrival.Send(connection, target, template, at, chunkLibrary);
+            MapArrival.Send(connection, target, template, at);
             SaveOnArrival(connection, target, template, at);
         }
         catch (Exception e)

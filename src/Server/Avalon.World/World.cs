@@ -454,12 +454,10 @@ public class World : IWorld
         // If logging out from a Normal map, redirect the character to the associated town
         else if (instance?.MapType == MapType.Normal)
         {
-            MapTemplate? normalTemplate =
-                _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
+            MapTemplate? normalTemplate = _mapManager.Templates.FindById(instance.TemplateId);
             if (normalTemplate?.LogoutMapId is { } logoutMapId)
             {
-                MapTemplate? town = _mapManager.Templates.FirstOrDefault(t =>
-                    t.Id == (MapTemplateId)logoutMapId);
+                MapTemplate? town = _mapManager.Templates.FindById(logoutMapId);
                 dbCharacter.Map = logoutMapId;
                 dbCharacter.X = town?.DefaultSpawnX ?? 0f;
                 dbCharacter.Y = town?.DefaultSpawnY ?? 0f;
@@ -524,8 +522,9 @@ public class World : IWorld
         }
 
         // Instances whose builds finished since the last tick join the registry here (#639), after the hot reload
-        // above and before the parties and the instance ticks below, so those see them and their requesters'
-        // continuations run this tick. After the reload rather than before it: a just-published instance whose build
+        // above and before the parties and the instance ticks below, so those see them and the continuations of
+        // the requesters that poll the build's task (a select, a portal entry) run in this tick's flush. After the
+        // reload rather than before it: a just-published instance whose build
         // saw the old script types is brought up to date once, as it is published, instead of being rebuilt by the
         // reload's walk and then checked again. Contained: a throw here must not cost the instances their tick.
         try
@@ -669,7 +668,7 @@ public class World : IWorld
         }
         catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            MapTemplate? fallback = templates.FirstOrDefault(t => t.Id == s_fallbackTownId);
+            MapTemplate? fallback = templates.FindById(s_fallbackTownId);
             if (fallback is null)
             {
                 logger.LogError(e,
@@ -687,7 +686,7 @@ public class World : IWorld
             return;
         }
 
-        MapTemplate? town = templates.FirstOrDefault(t => t.Id == townId);
+        MapTemplate? town = templates.FindById(townId);
         row.Map = townId.Value;
         row.X = town?.DefaultSpawnX ?? 0f;
         row.Y = town?.DefaultSpawnY ?? 0f;

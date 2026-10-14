@@ -30,6 +30,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Connecti
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AbilityScriptBuild*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveScriptLookup*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlush*" "*ItemRequest*" --job short
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ArrivalBenchmarks*" --job short
 
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
@@ -41,6 +42,166 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- outbox-flush 50,200
 ---
 
 ## Suites
+
+### Arrival in a map — `Benchmarks/ArrivalBenchmarks.cs` (#883)
+
+What one character's arrival in a map costs the tick, through the code that handles it and up to the last packet it
+sends: a `CMSG_ENTER_MAP` through `EnterMapHandler` and its arrival continuation, into the forest and into the town; a
+`TownReturn` (a respawn, a scroll, a party's leave countdown); a `CMSG_CHARACTER_SELECTED` through the whole select
+chain to the pending spawn; and the five portal entries the handler refuses, each of which a client can send as often
+as it likes. No scenario has an arrival in its measured window, so the allocation gate never saw this path.
+
+Three things on it allocated for nothing, until #883:
+
+- **The chunk layout packet's entries, built again for every arrival, in four copies of one block.** A portal entry,
+  a return to town, a select and an item's teleport each turned the instance's layout into the packet's entries with
+  two queries, a closure each, and an entry per chunk and per portal; the packet's factory then copied both lists.
+  An instance keeps the layout it was built from, and the chunk library that names the chunks is loaded once, so the
+  entries are now built once, with the instance (`MapInstance.LayoutEntries`, `MapLayoutEntries`: its constructor
+  makes them, off the tick, where the instance is built), and the same two lists are written into every packet, from
+  one place (`MapArrival`). The packet's thread-local message holds them while it is encoded and is cleared after;
+  nothing changes an entry.
+- **The map template, found with a query.** `MapTemplates.FirstOrDefault` with a closure, and at two sites a
+  `MapTemplateId` made for every template walked; the portal the same way. The map manager now holds the templates
+  with a lookup by id (`KeyedRows`, as the item templates and the level rows have; `MapTemplateRows.FindById`), and
+  the portal is found by a walk of the instance's portals.
+- **A refusal's log line.** Four `LogDebug` calls that made an array of their arguments with Debug off, and a
+  diagnostic left at Warning that boxed two positions, two floats and a `Guid` for every request from a character
+  away from its portal, and wrote a line for each. They are `[LoggerMessage]` methods at Debug now.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ArrivalBenchmarks*" --job short
+```
+
+The instances are real: the town as the World server builds it from `Maps/TownLayouts/1.json` (4 chunks, 1 portal)
+and a forest off its generator on seed 7 (19 chunks, 1 portal). Everything around the handlers is hand-written and
+holds its answers, so a row is the handler and what it sends: the transfer only writes the character's instance id
+(`World.TransferPlayer`'s membership change is not here), a save is a task already finished, and a select reads an
+empty inventory and no abilities from tasks already finished, so its row is mostly the character it builds. Nothing
+the benchmark does to put the character back allocates. The instances of `ArrivalBenchmarks` are built once, so its
+rows arrive where others have arrived before; `FirstArrivalBenchmarks`, in the same file and under the same filter,
+arrives in a new instance of the same layout on every call (the 1,024 instances of an iteration are built before it,
+without creatures), which is what a character's own forest is on every entry outside its re-entry window.
+
+**Allocated per call.** Measured 2026-10-13, BenchmarkDotNet 0.15.8, Windows 11, i9-12900K, SDK 10.0.401 / runtime
+10.0.12, concurrent workstation GC. Each column is the same benchmark over one step of the change, in order: the code
+as it was (`808eec90`, where the world's templates are the list the map manager held then), then with the lookup by
+id, then with the entries built once, then with the log lines. Three runs for the first and the last, two for the two
+between; every run of a step read the same, with one exception noted below. The last column is also what the
+finished change reads (two more runs, with the entries built in the constructor, the move marked and the refusals
+counted), but for the select, whose figure moves with main: the table's select is at `808eec90`. On the base the
+change now sits on (`e908a63f`) a select reads 29,978 B as it was (the benchmark over the original code, two runs)
+and 29,154 B at the branch's tip (two runs), the same 824 B less; the other rows read the same there.
+
+| | As it was | Templates by id | Entries built once | Log lines |
+|---|---:|---:|---:|---:|
+| `Portal_entry_into_the_forest` (19 chunks) | 2,216 B | 2,112 B | 504 B | 504 B |
+| `Portal_entry_into_the_town` (4 chunks) | 1,352 B | 1,272 B | 504 B | 504 B |
+| `Return_to_town` | 1,744 B | 1,648 B | 880 B | 880 B |
+| `Character_select` | 30,002 B | 29,946 B | 29,178 B | 29,178 B |
+| `Refused_from_a_dead_character` | 56 B | 32 B | 32 B | 0 B |
+| `Refused_while_a_move_is_under_way` | 56 B | 32 B | 32 B | 0 B |
+| `Refused_for_an_unknown_map` | 160 B | 56 B | 56 B | 0 B |
+| `Refused_without_a_portal` | 136 B | 56 B | 56 B | 0 B |
+| `Refused_too_far_from_the_portal` | 352 B | 248 B | 248 B | 0 B |
+
+- **The layout cost 1,608 B for 19 chunks and 768 B for 4**, 56 B a chunk on top of 544 B: an entry (40 B) and its
+  place in the list the handler built and in the copy the factory made. A portal entry is now 504 B whatever the
+  size of the map it leads to, whether or not anyone arrived in the instance before and whether or not the instance
+  was built yet when it was asked for (both below); a return to town or a select is 768 B less.
+- **A refused portal entry allocates nothing.** It cost 56 to 352 B, and at Warning one written line for every
+  request from too far away.
+- **The lookups** were 80 to 104 B of a portal entry that got as far as looking a template up, arrived or refused,
+  96 B of a return to town and 56 B of a select; and 24 B of every other `CMSG_ENTER_MAP`: the closure the handler's
+  two queries shared was made as the handler was entered.
+- One of the three runs of the code as it was read `Return_to_town` at 1,808 B, 64 B more: the size of one delegate,
+  in code that made two for its template queries, and optimised code keeps some delegates off the heap. Nothing in
+  the last column moved between runs.
+- **What is left of an arrival** was not taken apart by measurement. By reading: the two continuations' closures (the
+  instance request and the save), the instance id written on the row as text, the entry spawn's `Vector3Dto`, and
+  the arguments of the Information line each arrival writes.
+
+**The first arrival in an instance costs what any other does: 504 B.** `First_portal_entry_into_a_forest` and
+`First_portal_entry_into_the_town` (`FirstArrivalBenchmarks`, two runs) read 504 B each, the figure of the rows
+above. The entries are not built by an arrival at all: the instance's constructor builds them, and
+`ChunkLayoutInstanceFactory` runs it off the tick, after the layout is generated or read and the navmesh baked.
+
+| Where the entries' bytes go | Before #883 | Now |
+|---|---|---|
+| Built | by every arrival, on the tick | once, in the instance's constructor, off the tick |
+| Allocated | 544 B and 56 B a chunk per arrival: 768 B for the town, 1,608 B for the 19-chunk forest | 272 B and 48 B a chunk per instance: 464 B for the town, 1,184 B for that forest, 1,136 to 1,568 B for forests of 18 to 27 chunks |
+| Lifetime | garbage as soon as the packet was encoded | the instance's: freed with it |
+
+The second row's figures are a probe, not a benchmark: an instance without creatures constructed with and without a
+chunk library in its container (the least of 200 constructions each, Release), 15,224 B without and the entries more
+with, for the town and for forests on seven seeds, taken while an instance could still be built without one. An
+instance pays them whether or not anyone ever arrives, and none is built without them: the constructor requires the
+chunk library.
+
+Each call of the two rows takes 6.3 to 7.3 us into a forest and 4.2 to 4.3 us into the town, against 1.8 to 2.3 us
+and 1.1 to 1.3 us for the rows that arrive in one kept instance: every call reads an instance, its portals and its
+entries for the first time, where the kept instance's are in the processor's caches, as a real first arrival finds
+them.
+
+**A portal entry marks the move under way** from the moment it is accepted until it ends
+([instanced maps](instanced-maps.md#a-portal-entry-is-a-move-under-way)), and counts each refusal
+(`world.portal_entry.refusals`, [instrumentation](instrumentation.md#refused-portal-entries)). Both are in the last
+figures: an accepted entry whose instance request has already finished is still 504 B, and a refusal still 0 B with
+its count in place (one tag, passed as a struct; no benchmark here attaches a listener to the meter).
+
+**An entry whose instance is still being built costs the same: 504 B.** That is the usual entry of a character's
+own forest, which starts the build. `Portal_entry_into_a_forest_still_being_built` (`FirstArrivalBenchmarks`) hands
+the handler a request that is not finished, completed as the registry completes its own, publishes the build and
+runs the arrival once the continuation the connection was handed is ready.
+
+| A portal entry asked for while its instance is being built | Allocated | The arrival runs |
+|---|---:|---|
+| The request wrapped in a task that cannot fault, with the state to log a failed build (as first written here) | 664 B | once a thread-pool thread has run the wrapper: the first flush after that |
+| The same wrapper without state, as `TownReturn` and `MapTeleport` have it (a failed build's exception is not logged) | 624 B | the same |
+| Queued to run whatever the request's outcome (`ISettledContinuations`), as it is now | 504 B | in the flush of the tick that published the build |
+
+The arrival must run for a build that failed too, since it is what ends the move, and the connection's ordinary
+continuation drops the callback of a task that failed. The first two rows got it run by wrapping the request, which
+allocated the wrapper on the tick (160 B and 120 B over the same arrival into an instance already built, two runs
+and one) and left the arrival waiting for the thread pool, where the server also bakes navmeshes: the row waits for
+its continuation to be ready, and took 8.9 to 24.5 us a call that way on an idle pool. The connection now has a
+queue entry the drain runs whatever its task's outcome: one object, as an ordinary continuation is, ready the moment
+the registry completes the build's task. The row reads 504 B (two runs), the figure of the same arrival with the
+build already finished.
+
+**Time per call**, the mean of each run. The machine was shared with other builds and test runs: for the arrivals
+the spread between two runs of the same code is as large as the difference between the columns, so the claim is only
+that nothing is slower, for every row: short jobs on a shared machine do not show more. The first run of the code as
+it was is BenchmarkDotNet's default job; every other run is `--job short`. The second column is the finished change.
+
+| | As it was, each run | Now, each run |
+|---|---:|---:|
+| `Portal_entry_into_the_forest` | 2,197 / 5,021 / 2,478 ns | 2,267 / 1,832 ns |
+| `Portal_entry_into_the_town` | 1,660 / 2,006 / 1,144 ns | 1,303 / 1,073 ns |
+| `Return_to_town` | 1,691 / 1,530 / 1,408 ns | 956 / 1,061 ns |
+| `Character_select` | 6,507 / 5,695 / 6,266 ns | 7,505 / 5,396 ns |
+| `Refused_from_a_dead_character` | 36.7 / 31.1 / 32.0 ns | 6.6 / 5.9 ns |
+| `Refused_while_a_move_is_under_way` | 132.0 / 152.8 / 122.4 ns | 90.9 / 112.9 ns |
+| `Refused_for_an_unknown_map` | 224.4 / 180.3 / 169.2 ns | 145.6 / 118.4 ns |
+| `Refused_without_a_portal` | 219.7 / 187.9 / 304.1 ns | 155.0 / 118.7 ns |
+| `Refused_too_far_from_the_portal` | 259.7 / 250.1 / 433.0 ns | 127.1 / 125.3 ns |
+
+**The packets are what they were.** `MapArrivalShould` arrives in a real town, a real forest and a party's forest
+through each of the four paths, twice, and holds the chunk layout each is sent to the layout byte for byte, both from
+the entries the instance was built with. It was written first and passed over the four blocks as they were. It also
+holds the transition a portal entry, a return to town and a teleport send before the layout to the instance, the
+map, its template's name and description and the layout's entry spawn.
+
+**Five other queries over the map templates** became lookups by id with the same change: a logout from a normal map
+(two), the respawn town of a logout while dead (two) and the start of an instance's build. The manager's templates
+are no longer a `List`, which a query walks without an enumerator, so each would have gained one: 32 B by a probe of
+the same call over the keyed rows, 0 B by id.
+
+**The allocation gate does not move.** The gate alone, after the change: `forest-combat` 10,357 B per window in Debug
+and in Release, the committed figure, and the three town scenarios 0. No scenario has an arrival in its measured
+window, so `perf/scenario-allocations.json` is not regenerated. The scenario harness now registers the chunk library
+for the forests it builds through the instance factory, so they are built with their entries as the server's are:
+build cost, outside every measured window.
 
 ### Inventory update and item requests — `Benchmarks/InventoryFlushBenchmarks.cs`, `Benchmarks/ItemRequestBenchmarks.cs` (#883)
 

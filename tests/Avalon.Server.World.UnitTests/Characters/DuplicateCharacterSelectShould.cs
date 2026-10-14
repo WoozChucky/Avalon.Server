@@ -549,7 +549,6 @@ public class DuplicateCharacterSelectShould : IDisposable
             Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(),
             Substitute.For<ICharacterAbilityRepository>(),
-            Substitute.For<IChunkLibrary>(),
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
@@ -669,6 +668,7 @@ public class DuplicateCharacterSelectShould : IDisposable
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        serviceProvider.GetService(typeof(IChunkLibrary)).Returns(new AnyChunkLibrary());
         serviceProvider.GetService(typeof(ICharacterSaveScheduler)).Returns(scheduler);
 
         IWorld world = Substitute.For<IWorld>();

@@ -60,6 +60,7 @@ public class MapInstanceLootShould
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        serviceProvider.GetService(typeof(IChunkLibrary)).Returns(new AnyChunkLibrary());
         serviceProvider.GetService(typeof(ILootRoller))
             .Returns(roller ?? new LootRoller(new LootRandom(new Random(460)), NullLogger<LootRoller>.Instance));
         serviceProvider.GetService(typeof(ILootAllocator))

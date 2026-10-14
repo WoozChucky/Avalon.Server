@@ -138,6 +138,7 @@ public static class CrowdBudgetHarness
         var services = new ServiceCollection();
         services.AddSingleton(new CombatConfig());
         services.AddSingleton(Substitute.For<IScriptManager>());
+        services.AddSingleton<IChunkLibrary>(new TownLibrary()); // an instance names its layout's chunks as it is built
         ServiceProvider sp = services.BuildServiceProvider();
 
         // Harness-side instrumentation: through MapInstance's locomotion hook (#638), wrap the very

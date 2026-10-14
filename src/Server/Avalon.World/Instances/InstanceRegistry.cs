@@ -23,8 +23,10 @@ namespace Avalon.World.Instances;
 /// When it ends it only queues its outcome. <see cref="PublishFinished" />, which <c>World.Update</c> runs on every tick
 /// before the parties and the instances tick, registers each finished instance, writes its index entry, drops the
 /// build's pending entry and only then completes the task its requesters hold. A requester that polls that task
-/// (a connection continuation) runs in the same tick's flush; one that first settles it through a continuation of its
-/// own (<c>TownReturn</c>, <c>ctx.Then</c>) runs a tick later. Either way it is answered, never left waiting.
+/// (a connection continuation: a select's, or a portal entry's arrival, queued to run whatever the build's outcome,
+/// <see cref="ISettledContinuations" />) runs in the same tick's flush; one that first settles it through a
+/// continuation of its own (<c>TownReturn</c>, <c>MapTeleport</c>, <c>ctx.Then</c>) waits for a thread-pool thread to
+/// run that, and runs in the first flush after it. Either way it is answered, never left waiting.
 /// Every index (and the instance list hot reload walks) is written on the tick alone. A failed build is published the
 /// same way: its requesters get the failure and the next request starts a fresh build.
 /// </para>
@@ -399,7 +401,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         Task<MapInstance> build;
         try
         {
-            MapTemplate template = _mapManager.Templates.FirstOrDefault(t => t.Id == pending.TemplateId)
+            MapTemplate template = _mapManager.Templates.FindById(pending.TemplateId)
                                    ?? throw new InvalidOperationException($"MapTemplate {pending.TemplateId} not found.");
 
             // CancellationToken.None: several requesters share this build, so no one requester's token may cancel it

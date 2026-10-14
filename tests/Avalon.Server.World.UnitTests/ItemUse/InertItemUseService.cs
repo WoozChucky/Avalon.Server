@@ -20,9 +20,8 @@ internal static class InertItemUseService
     {
         IWorld world = Substitute.For<IWorld>();
         var tools = new ItemUseTools(world, Substitute.For<ICharacterEconomy>(),
-            new TownReturn(NullLogger.Instance, world, Substitute.For<IRespawnTargetResolver>(),
-                Substitute.For<IChunkLibrary>()),
-            new MapTeleport(NullLogger<MapTeleport>.Instance, world, Substitute.For<IChunkLibrary>(),
+            new TownReturn(NullLogger.Instance, world, Substitute.For<IRespawnTargetResolver>()),
+            new MapTeleport(NullLogger<MapTeleport>.Instance, world,
                 Substitute.For<ICharacterSaver>()),
             Substitute.For<ICreaturePlacementService>(), TimeProvider.System, NullLogger<ItemUseTools>.Instance);
         return new ItemUseService(tools, Substitute.For<IScriptManager>(), Substitute.For<IServiceProvider>(),

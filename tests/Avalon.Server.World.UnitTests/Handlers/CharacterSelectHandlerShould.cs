@@ -21,7 +21,6 @@ using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Quests;
 using Avalon.World;
 using Avalon.World.Characters;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -166,7 +165,6 @@ public class CharacterSelectHandlerShould
             inventoryRepository,
             itemInstanceRepository,
             abilityRepository,
-            Substitute.For<IChunkLibrary>(),
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
@@ -685,7 +683,6 @@ public class CharacterSelectHandlerShould
             Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(),
             Substitute.For<ICharacterAbilityRepository>(),
-            Substitute.For<IChunkLibrary>(),
             Substitute.For<IWorld>(),
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),

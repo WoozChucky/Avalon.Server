@@ -28,6 +28,9 @@ public sealed class ScenarioReferenceData
     /// <summary>The forest's map template: the procedural map the town's portal leads to.</summary>
     public static readonly MapTemplateId ForestMap = new(2);
 
+    /// <summary>The town's map template: where every character enters the world.</summary>
+    public static readonly MapTemplateId TownMap = new(1);
+
     // A named in-memory database: each context opens its own connection to it, so repositories may be read from more
     // than one thread, and the keep-alive connection held below keeps it for the life of the process.
     private const string ConnectionString = "Data Source=avalon-scenario-reference;Mode=Memory;Cache=Shared";
@@ -36,6 +39,7 @@ public sealed class ScenarioReferenceData
 
     private readonly SqliteConnection _keepAlive;
     private readonly ServiceProvider _repositories;
+    private readonly Lazy<(MapTemplate Template, ChunkLayout Layout)> _town;
 
     private ScenarioReferenceData(SqliteConnection keepAlive, ServiceProvider repositories, StaticData data,
         IScriptManager scripts, IChunkLibrary chunks, MapTemplate forestTemplate, ProceduralMapConfig forestConfig,
@@ -49,6 +53,7 @@ public sealed class ScenarioReferenceData
         ForestTemplate = forestTemplate;
         ForestConfig = forestConfig;
         LoadTime = loadTime;
+        _town = new Lazy<(MapTemplate, ChunkLayout)>(LoadTown);
     }
 
     /// <summary>The reference data, loaded on first use (thread-safe).</summary>
@@ -69,6 +74,17 @@ public sealed class ScenarioReferenceData
     /// <summary>The forest's procedural config (<c>Maps/ProceduralMaps/2.json</c>), depth bands included.</summary>
     public ProceduralMapConfig ForestConfig { get; }
 
+    /// <summary>The town's map template row. Read on first use: no scenario reads it.</summary>
+    public MapTemplate TownTemplate => _town.Value.Template;
+
+    /// <summary>
+    /// The town's layout as the World server builds it: <see cref="PredefinedChunkLayoutSource" /> over the placement
+    /// rows seeded from <c>Maps/TownLayouts/1.json</c>, so its four chunks under the ids and names of the catalog, and
+    /// its portal to the forest. Built on first use (thread-safe): no scenario reads it; a scenario's town instance
+    /// is <see cref="TownNavmesh.Layout" />, which leaves the portal out.
+    /// </summary>
+    public ChunkLayout TownLayout => _town.Value.Layout;
+
     /// <summary>How long the load took: the database, the catalog, the reference data and the scripts.</summary>
     public TimeSpan LoadTime { get; }
 
@@ -77,6 +93,17 @@ public sealed class ScenarioReferenceData
 
     /// <summary>The authored creature spawns the creature placement places after the rolled ones.</summary>
     internal IMapCreatureSpawnRepository AuthoredSpawns => _repositories.GetRequiredService<IMapCreatureSpawnRepository>();
+
+    private (MapTemplate, ChunkLayout) LoadTown()
+    {
+        MapTemplate template = _repositories.GetRequiredService<IMapTemplateRepository>().FindByIdAsync(TownMap)
+                                   .GetAwaiter().GetResult()
+                               ?? throw new InvalidOperationException($"The seed has no map template {TownMap.Value}");
+        ChunkLayout layout = PredefinedChunkLayoutSource
+            .ForTesting(_repositories.GetRequiredService<IMapChunkPlacementRepository>(), Chunks)
+            .BuildAsync(template, CancellationToken.None).GetAwaiter().GetResult();
+        return (template, layout);
+    }
 
     private static ScenarioReferenceData Load()
     {

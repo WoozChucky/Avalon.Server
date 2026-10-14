@@ -2,7 +2,6 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -20,7 +19,6 @@ public class RespawnAtTownHandlerShould
         IRespawnTargetResolver resolver, IInstanceRegistry registry, IMapInstance townInstance)
         Build(bool isDead, ushort currentMapId = 2, ushort townMapId = 1)
     {
-        IChunkLibrary chunkLibrary = Substitute.For<IChunkLibrary>();
         ICharacter ch = Substitute.For<ICharacter>();
         ch.IsDead.Returns(isDead);
         ch.Map.Returns(new MapId(currentMapId));
@@ -49,7 +47,7 @@ public class RespawnAtTownHandlerShould
 
         var handler = new RespawnAtTownHandler(
             NullLogger<RespawnAtTownHandler>.Instance,
-            world, resolver, chunkLibrary);
+            world, resolver);
 
         return (handler, conn, ch, world, resolver, registry, townInstance);
     }

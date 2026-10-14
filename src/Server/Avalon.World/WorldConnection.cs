@@ -24,6 +24,7 @@ using Packet = Avalon.Network.Packets.Packet;
 namespace Avalon.World;
 
 public partial class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable, ICharacterLeaveControl,
+    ISettledContinuations,
     IMaintenanceBlockable
 {
     private readonly ConcurrentQueue<IContinuation> _continuationQueue = new();
@@ -752,6 +753,33 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     public void EnqueueContinuation(Task task, Action callback)
         => _continuationQueue.Enqueue(new Continuation(task, callback));
+
+    /// <inheritdoc />
+    public void EnqueueSettled<T>(Task<T> task, Action<Task<T>> callback)
+        => _continuationQueue.Enqueue(new SettledContinuation<T>(task, callback));
+
+    /// <summary>
+    /// A continuation the drain runs whatever its task's outcome (<see cref="ISettledContinuations" />): to the drain it
+    /// is one that has succeeded as soon as its task has ended, so it takes the same path as the others, in the same
+    /// order, with a throw contained the same way. The callback is handed the task and reads the outcome.
+    /// </summary>
+    private sealed class SettledContinuation<T> : IContinuation
+    {
+        private readonly Task<T> _task;
+        private readonly Action<Task<T>> _callback;
+
+        internal SettledContinuation(Task<T> task, Action<Task<T>> callback)
+        {
+            _task = task;
+            _callback = callback;
+        }
+
+        public Task Work => _task;
+        public bool IsReady => _task.IsCompleted;
+        public bool IsSuccess => true; // ended is enough: the callback reads the outcome
+        public Exception? Error => null;
+        public void Execute() => _callback(_task);
+    }
 
     private void ProcessContinuations()
     {

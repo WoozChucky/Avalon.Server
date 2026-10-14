@@ -16,7 +16,6 @@ using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Characters;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -597,7 +596,6 @@ public class CharacterSelectChainShould : IDisposable
             _inventory,
             _itemInstances,
             abilities,
-            Substitute.For<IChunkLibrary>(),
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),

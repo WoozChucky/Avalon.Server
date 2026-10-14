@@ -1,7 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Parties;
 using Avalon.World.Public;
 using Avalon.World.Public.Enums;
@@ -71,7 +70,7 @@ public class PartyReturnRetryShould
                 : Task.FromResult(s_townMap);
         });
 
-        _town = new TownReturn(_log, _world, _resolver, Substitute.For<IChunkLibrary>());
+        _town = new TownReturn(_log, _world, _resolver);
     }
 
     /// <summary>What World.Update does each tick: the party tick, then the returns it hands over.</summary>

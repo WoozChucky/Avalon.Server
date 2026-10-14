@@ -449,6 +449,7 @@ public class MapInstanceLocomotionShould
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        serviceProvider.GetService(typeof(IChunkLibrary)).Returns(new AnyChunkLibrary());
 
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(config ?? new GameConfiguration());
@@ -540,6 +541,7 @@ public class MapInstanceLocomotionShould
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        serviceProvider.GetService(typeof(IChunkLibrary)).Returns(new AnyChunkLibrary());
 
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(config);
@@ -646,6 +648,7 @@ public class MapInstanceLocomotionShould
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        serviceProvider.GetService(typeof(IChunkLibrary)).Returns(new AnyChunkLibrary());
 
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CrowdIncludesPlayers = crowdIncludesPlayers });

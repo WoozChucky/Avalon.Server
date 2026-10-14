@@ -96,6 +96,10 @@ public class WorldHostGraphShould
             // #433. MapInstance and WorldServer read it with GetService, so only this proves production registers it.
             Assert.NotNull(host.Services.GetRequiredService<QuestService>());
 
+            // The chunk layout packet (#883). MapInstance requires the chunk library as it is built, to name its
+            // layout's chunks; without the registration no instance could be built at all.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.ChunkLayouts.IChunkLibrary>());
+
             // PvP (#164). MapInstance reads the toggle with GetService, so a missing registration would
             // silently build a second toggle over a different clock. /pvp is found through ICommand.
             Assert.NotNull(host.Services.GetRequiredService<PvpToggle>());

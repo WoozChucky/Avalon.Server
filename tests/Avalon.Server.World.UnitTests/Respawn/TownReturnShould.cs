@@ -1,7 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
@@ -56,7 +55,7 @@ public class TownReturnShould
         _resolver.ResolveTownAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
             .Returns(new MapTemplateId(1));
 
-        _town = new TownReturn(_log, _world, _resolver, Substitute.For<IChunkLibrary>());
+        _town = new TownReturn(_log, _world, _resolver);
         _connection.RespawnInFlight = true;
     }
 

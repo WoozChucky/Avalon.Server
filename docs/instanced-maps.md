@@ -136,6 +136,7 @@ runs off the tick; the finished instance is published on the tick, and the task 
 | `_corpseRemover` | Removes corpses after their `BodyRemoveTimer`; creatures never respawn |
 | `MapNavigator _navigator` | Single combined navmesh for the whole instance, baked from the chunk layout |
 | `ChunkLayout Layout` | Authoritative layout (chunks, entry spawn, portals) sent to clients via `SChunkLayoutPacket` |
+| `MapLayoutEntries LayoutEntries` | `Layout` as that packet carries it: an entry per chunk, with its name, and per portal. Built in the constructor, never changed (see "What an arrival is sent") |
 
 ### Update Loop
 
@@ -277,19 +278,27 @@ public class SMapTransitionPacket : Packet
 ### `EnterMapHandler` Flow
 
 The numbers are those of the handler's own step comments (`src/Server/Avalon.World/Handlers/EnterMapHandler.cs`), so
-"step 10" means the same thing here and there. The handler has no step 5. Steps 1 to 8 run as the packet is handled, up
-to the request for the target instance; the arrival checks listed under step 8 and steps 8b to 13 run in the connection
-continuation, once that instance is ready. A refusal is an `SMapTransitionPacket` whose `Result` is the
-`MapTransitionResult` named and whose other fields are empty (`SMapTransitionPacket.CreateFailure`).
+"step 10" means the same thing here and there. Steps 1 to 7 run as the packet is handled, up to the request for the
+target instance; the arrival checks listed under step 7 and steps 8 to 13 run in the connection continuation, once
+that instance is ready. A refusal is an `SMapTransitionPacket` whose `Result` is the `MapTransitionResult` named and
+whose other fields are empty (`SMapTransitionPacket.CreateFailure`). Each refusal a client can cause by what it sends
+(a dead character, a move under way, an unknown map, no portal, too far from the portal) writes one Debug line, built
+only when Debug is written, as a packet refused for the connection's current state does
+([packet handlers](packet-handlers.md)). Every refusal, at whichever step, is counted in
+`world.portal_entry.refusals` under its `reason` ([instrumentation](instrumentation.md#refused-portal-entries)): a
+world does not write Debug as shipped, so the count is what shows, for one, clients and the server disagreeing about
+where characters stand (`not_near_portal`).
 
 ```
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 
 1.  Guards: not connection.InGame → ignored, no reply; a dead character → ignored, no reply
     Another move under way (connection.RespawnInFlight: a scroll return, an item teleport,
-       a respawn or a party return) → send MoveInProgress, return, before anything is looked up
+       a respawn, a party return, or an earlier portal entry that has not ended) → send
+       MoveInProgress, return, before anything is looked up
 2.  Resolve the current instance: InstanceRegistry.GetInstanceById(character.InstanceId)
-3.  Load the MapTemplate for packet.TargetMapId from world.MapTemplates
+3.  Find the MapTemplate of packet.TargetMapId among world.MapTemplates, by id
+       (MapTemplateRows.FindById: the map manager holds the templates with a lookup by id)
        → none: send MapNotFound, return
 4.  Find the portal. The current instance must be a live MapInstance
        → not one: send MapNotFound, return
@@ -297,36 +306,101 @@ continuation, once that instance is ready. A refusal is an `SMapTransitionPacket
        (portals are surfaced from ChunkLayout.Portals at instance build time —
         single source of truth, no DB fallback)
        → no portal: send MapNotFound, return
-6.  Proximity check: Vector3.Distance(character.Position, portal.Position) <= portal.Radius
+5.  Proximity check: Vector3.Distance(character.Position, portal.Position) <= portal.Radius
        → too far: send NotNearPortal, return
-7.  Level checks against the template's MinLevel and MaxLevel, each only when set
+6.  Level checks against the template's MinLevel and MaxLevel, each only when set
        → send LevelTooLow / LevelTooHigh, return
-8.  Resolve the target instance (built off the tick when there is none to reuse):
+7.  The request is accepted: set connection.RespawnInFlight (the move is under way until it
+       ends, see below), then resolve the target instance (built off the tick when there is
+       none to reuse):
        Town   → GetOrCreateTownInstanceAsync(templateId, MaxPlayers ?? 30)
        Normal → in a party: GetOrCreatePartyInstanceAsync(partyId, templateId), then re-check the
                 party (MapNotFound) and the seats (InstanceFull) once it is built;
                 otherwise GetOrCreateNormalInstanceAsync(characterId, templateId)
        The arrival continuation first checks the character is still the connection's (a select
-       on another connection can take it meanwhile: nothing is done, no reply), then that the
+       on another connection can take it meanwhile: nothing is done, no reply), then that it is
+       still alive (one that died meanwhile is not moved: no reply), then that the
        instance is still registered; one released meanwhile is resolved again once (see Expiry
        Cleanup), and a second release in a row → send MapNotFound, return
-8b. Exit path: drop the character from any encounter in progress on the source instance
+8.  Exit path: drop the character from any encounter in progress on the source instance
        (CombatService.DropPlayerFromEncounter); the transfer moves instance membership only
 9.  world.TransferPlayer(connection, targetInstance):
        a. currentInstance.RemoveCharacter(connection)
        b. character.InstanceId = targetInstance.InstanceId
        c. targetInstance.AddCharacter(connection) — connection.LastInputSeq is not reset: it
           stays monotonic for the connection's life
-    It also ends an open NPC conversation and a bank or shop opened in it, before (a)
-10. Resolve the spawn: the target MapInstance's EntrySpawnWorldPos (its layout's entry spawn);
-       the template's DefaultSpawnX/Y/Z only for a target that is not a MapInstance
+    It also ends an open NPC conversation and a bank or shop opened in it, before (a).
+    It does not move the character: the position is the row's, written in step 13
+10. Resolve the spawn (MapArrival.SpawnOf): the target MapInstance's EntrySpawnWorldPos (its
+       layout's entry spawn); the template's DefaultSpawnX/Y/Z only for a target that is not a
+       MapInstance
 11. Send SMapTransitionPacket(Success, instanceId, mapId, spawn, map name and description)
 12. Send SChunkLayoutPacket for the new instance (seed, cell size, chunks, entry spawn, portals)
        when the target is a MapInstance, in the same continuation as 9 and 11: the instance
        sends its loot snapshot on its next tick, and the client has to know the map first
+    11 and 12 are MapArrival.Send, the one place every arrival's packets are sent from (below)
 13. Save the character (ICharacterSaver.Save: the row's map, instance and the spawn of step 10
        as its position, with any dirty inventory and money)
 ```
+
+### A portal entry is a move under way
+
+From step 7 until it ends, an accepted portal entry holds `connection.RespawnInFlight`, as a return to town
+(`TownReturn`), a teleport (`MapTeleport`) and a respawn hold it: the continuation that arrives runs after the packet
+pass, so without it a second `CMSG_ENTER_MAP` handled in the same pass, or while the instance is still being built,
+would pass the checks the first one passed and arrive, and save, once more. The second is answered `MoveInProgress`
+in step 1, and so is any other move asked for meanwhile.
+
+Every ending clears it. One that reaches the arrival is cleared in `EnterMapHandler.Arrive`, in a `finally`, on
+every path out of it; the one that does not (asking for the instance throws, so no arrival is queued) is cleared in
+`Execute`'s `catch`:
+
+| Ending | What the client is sent | The flag |
+|---|---|---|
+| The arrival (steps 8 to 13) | the transition and the layout | cleared |
+| The character died while the instance was being built | nothing, as a dead character's request in step 1: it is not moved, and respawns from where it died | cleared |
+| The instance was released before the arrival, the first time | nothing yet: the target is resolved again | kept: the second resolve is the move now, and ends as any other |
+| Released a second time | `MapNotFound` | cleared |
+| No longer in the party the instance is for, or the instance is full | `MapNotFound`, `InstanceFull` | cleared |
+| The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error by the arrival, on the tick, once, before any other check: also when the character died or left meanwhile, since nothing else logs a failed build | cleared, in the same `finally`: a log provider that throws does not keep it (for a character that left, as that row says) |
+| A step of the arrival throws (the transfer, a send) | whatever was sent before it | cleared; the throw is logged by the continuation drain |
+| Asking for the instance throws, before anything is queued | nothing; the throw is logged by the packet dispatch | cleared |
+| The character left the connection meanwhile | nothing | left alone: the connection cleared it as the character left (`ResetCharacterState`), and it may be the next character's |
+
+The arrival is queued on the connection to run whatever becomes of the request for the instance
+(`ISettledContinuations.EnqueueSettled`, World-side: an interface of `Avalon.World` that `WorldConnection`
+implements, beside the modding API's two continuations and in the same queue). The ordinary continuation would not
+do: its drain logs and drops the callback of a task that did not succeed, and the arrival is what ends the move, so
+a failed build would leave the flag set for good. `TownReturn`, `MapTeleport` and a chat command's `ctx.Then` get
+their callback run another way, by wrapping the task in one that cannot fault, which costs a task per request and
+hands the outcome to a thread-pool thread first; they still do. A portal entry's arrival is one queued entry, as the
+direct hand-off was before the move was marked, ready the moment the registry completes the build's task: it runs in
+the flush of the tick that published the build, and an entry asked for while the instance is still being built
+allocates no more than one whose instance already exists
+([benchmarks](benchmarks.md#arrival-in-a-map--benchmarksarrivalbenchmarkscs-883)).
+
+A build that never finishes keeps the move under way until the character leaves the world, as it does for a return
+to town and a teleport: nothing times a build out (#969).
+
+A party's leave countdown that runs out while a portal entry is under way finds the move in flight, as it does for
+a respawn: it is re-armed as a failed return (logged at Warning, "A return to town was already under way") and
+spends one of its retries ([parties](parties.md)).
+
+### What an arrival is sent
+
+Every arrival sends the same two packets from one place, `MapArrival` (`Avalon.World/Respawn`): a portal entry, a
+return to town (`TownReturn`) and an item's teleport (`MapTeleport`) call `MapArrival.Send`, the transition and then
+the chunk layout; a character select sends its own `SCharacterSelectedPacket` and then `MapArrival.SendLayout`. The
+layout packet's chunk and portal entries are built once, with the instance (`MapInstance.LayoutEntries`,
+`MapLayoutEntries`, #883): the instance's constructor makes them, so they are built where the instance is, off the
+tick, and the first character to arrive costs the tick what every other one does. They come from the instance's
+`ChunkLayout`, which it keeps for its life, and from the chunk library's names, loaded once with the world; neither
+is something `/reload` or live template editing replaces. Every `MapInstance` has them, as it has a layout (#912): a
+client completes a transition on the layout it is sent behind it, so a `Success` with no layout must not be
+possible. The constructor requires the chunk library from its container, as it requires the combat settings and the
+script manager (`WorldHostGraphShould` holds the registration): without one the build fails, and so it does for a
+chunk the library does not hold, as the navmesh bake before it already did. The entries are written into each
+packet and never changed, and `MapArrivalShould` holds every arrival's packet to the layout byte for byte.
 
 ---
 
@@ -338,11 +412,11 @@ continuation, once that instance is ready. A refusal is an `SMapTransitionPacket
 IMapInstance? instance = InstanceRegistry.GetInstanceById(connection.Character.InstanceIdGuid);
 if (instance?.MapType == MapType.Normal)
 {
-    MapTemplate? template = _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
+    MapTemplate? template = _mapManager.Templates.FindById(instance.TemplateId);
     if (template?.LogoutMapId is { } logoutMapId)
     {
-        MapTemplate? town = _mapManager.Templates.FirstOrDefault(t => t.Id == logoutMapId);
-        dbCharacter.Map = logoutMapId.Value;
+        MapTemplate? town = _mapManager.Templates.FindById(logoutMapId);
+        dbCharacter.Map = logoutMapId;
         dbCharacter.X   = town?.DefaultSpawnX ?? 0f;
         dbCharacter.Y   = town?.DefaultSpawnY ?? 0f;
         dbCharacter.Z   = town?.DefaultSpawnZ ?? 0f;

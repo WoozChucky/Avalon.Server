@@ -59,8 +59,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Server/Avalon.World.Generation/ChunkRotation.cs` | `ChunkRotation.LocalToWorld`, the one rotation case table (bake, slot placement, client mirror) |
 | `src/Server/Avalon.World/Maps/Navigation/MapNavigator.cs` | DotRecast queries (`RaycastWalkable`, `SampleGroundHeight`) |
 | `src/Server/Avalon.World/Maps/Navigation/NavmeshBuildSettings.cs` | Single source of truth for DotRecast bake constants |
-| `src/Server/Avalon.World/Handlers/CharacterSelectHandler.cs` | Sends `SChunkLayoutPacket` on character enter |
-| `src/Server/Avalon.World/Handlers/EnterMapHandler.cs` | Sends `SChunkLayoutPacket` on portal traversal |
+| `src/Server/Avalon.World/Respawn/MapArrival.cs` | Sends `SChunkLayoutPacket` behind every arrival: a character select (`CharacterSelectHandler`), a portal entry (`EnterMapHandler`), a return to town and an item's teleport. Its chunk and portal entries are built with the instance, off the tick (`MapLayoutEntries`) |
 | `src/Shared/Avalon.Network.Packets/World/SChunkLayoutPacket.cs` | Wire format |
 | `src/Shared/Avalon.Domain/World/ChunkTemplate.cs` | DB entity for chunk metadata |
 | `src/Shared/Avalon.Domain/World/MapChunkPlacement.cs` | DB entity joining MapTemplate → predefined chunk placements |
