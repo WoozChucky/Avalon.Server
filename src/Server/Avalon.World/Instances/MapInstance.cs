@@ -106,6 +106,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>The aura lists' and updates' entries, reused from one packet to the next (#980).</summary>
     private readonly AuraWire _auraWire;
 
+    /// <summary>
+    /// What the replication packets (world state and auras) are encoded with: <see cref="PacketEncoder.Shared" />, unless
+    /// the container holds one (a test that counts the payloads the broadcast has out, #980).
+    /// </summary>
+    private readonly PacketEncoder _replicationEncoder;
+
     /// <summary>Each changed unit's aura update, encoded once per broadcast pass for every client that hears it (#980).</summary>
     private readonly SharedAuraUpdates _auraUpdates;
 
@@ -260,8 +266,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraPassFailures = new ThrottledErrorLog(_logger, _time, $"The aura pass of instance {InstanceId}");
         _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
         _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
+        _replicationEncoder = serviceProvider.GetService<PacketEncoder>() ?? PacketEncoder.Shared;
         _auraWire = new AuraWire();
-        _auraUpdates = new SharedAuraUpdates(_auraWire, PacketEncoder.Shared);
+        _auraUpdates = new SharedAuraUpdates(_auraWire, _replicationEncoder);
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
         _hits = new UnitHitQuery(_characters, _creatures);
@@ -522,7 +529,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         {
             IReadOnlyList<ObjectGuid> forgotten = arriving.CharacterGameState.Reset();
             if (forgotten.Count > 0)
-                connection.Send(SInstanceStateRemovePacket.Create(forgotten, PacketEncoder.Shared));
+                connection.Send(SInstanceStateRemovePacket.Create(forgotten, _replicationEncoder));
 
             // #526: every instance move comes through here (map entry, respawn at a town, a portal), and
             // each one starts with no Fury. Mana and Energy are kept.
@@ -1494,7 +1501,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (state.AddedObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
-            SendStatePacket(connection, SInstanceStateAddPacket.Create(state.AddedObjects, PacketEncoder.Shared), profileStart);
+            SendStatePacket(connection, SInstanceStateAddPacket.Create(state.AddedObjects, _replicationEncoder), profileStart);
         }
 
         // Auras: a list for every unit that came into view this tick, and the changes of every other unit in view. After
@@ -1516,14 +1523,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 AppendUpdate(updatedObjects[i], character.Guid);
 
             if (!_stateUpdates.IsEmpty)
-                SendStatePacket(connection, _stateUpdates.Finish(PacketEncoder.Shared), profileStart);
+                SendStatePacket(connection, _stateUpdates.Finish(_replicationEncoder), profileStart);
         }
 
         if (character.CharacterGameState.RemovedObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
             SendStatePacket(connection, SInstanceStateRemovePacket.Create(
-                character.CharacterGameState.RemovedObjects, PacketEncoder.Shared), profileStart);
+                character.CharacterGameState.RemovedObjects, _replicationEncoder), profileStart);
         }
     }
 
@@ -1579,7 +1586,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
 
             connection.Send(SAuraListPacket.Create(guid.RawValue, _auraWire.List(auras, _time.GetUtcNow()),
-                PacketEncoder.Shared));
+                _replicationEncoder));
         }
     }
 
