@@ -15,7 +15,7 @@ public sealed class WorldTickTrace : EventSource
 
     // Running totals of the packets each pass took off the receive queues on this thread, while a listener is attached;
     // a record reads the difference across its own span. Per thread, so instances ticked on several threads (#639)
-    // each count their own.
+    // each count their own, as long as a connection's map pass runs on the thread that runs its instance's update.
     [ThreadStatic] private static long t_sessionPackets;
     [ThreadStatic] private static long t_mapPackets;
 #pragma warning restore IDE1006

@@ -63,6 +63,8 @@ The 950-player profile ([#974](https://github.com/WoozChucky/Avalon.Server/issue
 
 #### A. Tick provider with runtime events
 
+Not run on a world pod yet: dotnet-trace 10.0.750501 accepted this provider string, with D's options, against a local process.
+
 In the `general` debug container of steps 1 and 2:
 
 ```sh
@@ -107,6 +109,8 @@ What to read: for each `WorldTick` over 16.67 ms and a set of median ticks, the 
 
 #### C. Per-CPU node usage at one second
 
+Not run on the homelab yet.
+
 Prometheus's node figures are scraped too coarsely to show a 100 ms to few-second stretch. `/proc/stat` is not per-container, so any debug container reads the node's per-CPU counters; sample it every second for the length of the capture, beside A or B:
 
 ```sh
@@ -116,6 +120,8 @@ sh -c 'end=$(( $(date +%s) + 180 )); while [ $(date +%s) -lt $end ]; do date -u 
 Busy share of a CPU over an interval is the change in its non-idle fields (all but `idle` and `iowait`) over the change in all of them. Line the seconds up with the trace by UTC wall time (a `.nettrace` records its session's start time).
 
 #### D. Provider overhead
+
+Not run on a world pod yet.
 
 No unprofiled run exists in the same window as a traced one (#974, provider overhead caveat). In one hold, alternate the provider on and off in 30 s windows, logging each window's UTC start and end:
 

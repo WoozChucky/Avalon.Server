@@ -3205,6 +3205,10 @@ scenario reads that way, `many-instances` as 60 ticks of 420 with all 250 instan
 [#974](https://github.com/WoozChucky/Avalon.Server/issues/974)). A broadcast spread over the ticks reads as most
 ticks with some, and a per-tick maximum near the instance count over the ticks per interval.
 
+What the census shows is the phase each instance starts with under a fixed step, every instance built on the same
+tick. It does not show the two ways instances fall into step in production: a long tick re-synchronising them, and
+slots bunching as instances come and go. Those are the ramp's to judge.
+
 The timed run's tail is what to compare, and it is noisy on a shared machine: three runs of `many-instances` at
 `5b3d3adf` on the developer machine, with other builds and tests running beside it, read p50 2.75 to 3.30 ms, p95
 4.07 to 5.61 ms and p99 4.74 to 22.38 ms. Take each variant's figure from several runs on an idle machine. With
