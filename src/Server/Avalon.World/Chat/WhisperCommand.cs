@@ -24,6 +24,9 @@ public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rate
     public string Name => "w";
     public string[] Aliases => ["whisper"];
 
+    /// <summary>It reads its text from the message (<see cref="CommandText" />), never the arguments.</summary>
+    public bool ReadsRawText => true;
+
     public static string NotOnline(string name) => $"No player named {name} is online.";
 
     public void Execute(CommandContext ctx, string[] args)
@@ -31,8 +34,10 @@ public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rate
         if (ctx.Connection.Character is not { } sender)
             return;
 
-        (string name, string message) = CommandText.FirstWord(CommandText.AfterCommandWord(ctx.Packet.Message));
-        if (name.Length == 0 || message.Length == 0)
+        // Slices of the message: the name is looked up in place, and only the text sent on is made a string (#973).
+        CommandText.FirstWord(CommandText.AfterCommandWord(ctx.Packet.Message), out ReadOnlySpan<char> name,
+            out ReadOnlySpan<char> text);
+        if (name.IsEmpty || text.IsEmpty)
         {
             ctx.Reply(Usage);
             return;
@@ -53,10 +58,11 @@ public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rate
         // A name that is not a character name (#936) is nobody's: it is answered as an unknown one, with no lookup.
         if (!CharacterName.IsValid(name) || online.ByName(name) is not { Character: { } recipient } target)
         {
-            ctx.Reply(NotOnline(name));
+            ctx.Reply(NotOnline(name.ToString()));
             return;
         }
 
+        string message = text.ToString();
         ulong accountId = ctx.Connection.AccountId is { } account ? (ulong)account.Value : 0UL;
         // A recipient ignoring the sender never gets the line (#723); the sender is not told, so the echo below and the
         // rate limit are exactly as for a delivered whisper.

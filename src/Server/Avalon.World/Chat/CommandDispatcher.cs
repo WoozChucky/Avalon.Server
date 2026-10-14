@@ -44,7 +44,7 @@ public sealed class CommandDispatcher : ICommandDispatcher
     /// <remarks>
     /// A message that names no command, or one the caller may not run, allocates nothing: a client can send those as
     /// fast as its connection is read. A command that runs is given a context and its arguments, and nothing else is
-    /// made. Before #883 every message was trimmed into a new string and split into an array of strings before the
+    /// made; one that reads only the message's own text (<see cref="ICommand.ReadsRawText" />) is given no arguments. Before #883 every message was trimmed into a new string and split into an array of strings before the
     /// command was looked up, and the failure report was a closure made on entry, whether a command ran or not.
     /// </remarks>
     public bool Dispatch(IWorldConnection connection, CChatMessagePacket packet)
@@ -69,7 +69,8 @@ public sealed class CommandDispatcher : ICommandDispatcher
 
         try
         {
-            command.Execute(ctx, Arguments(text[word.Length..]));
+            // A command that reads only the message's own text is handed no arguments: it would not read them (#973).
+            command.Execute(ctx, command.ReadsRawText ? [] : Arguments(text[word.Length..]));
         }
         catch (Exception ex)
         {
