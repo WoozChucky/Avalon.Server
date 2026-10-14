@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.Hosting.Telemetry;
 
 /// <summary>
-/// What every packet handler run records, at both dispatch points: its duration and outcome and an error count, and,
+/// What every packet handler run records, at both dispatch points: its duration by type and an error count, and,
 /// unless its type is high-rate (<c>Hosting:Telemetry:NoSpanPacketTypes</c>), a span and a log scope carrying who sent
 /// it.
 /// </summary>
@@ -123,8 +123,10 @@ public sealed class PacketDispatchTelemetry
 
     internal void Record(NetworkPacketType type, double milliseconds, bool failed)
     {
+        // The type alone (#977): with a second tag the SDK took about four times as long to find the series, on every
+        // packet. Failures are counted by the error counter, and the span keeps its outcome.
         KeyValuePair<string, object?> packetType = new("avalon.packet.type", NameOf(type));
-        _duration.Record(milliseconds, packetType, new("avalon.outcome", failed ? "error" : "ok"));
+        _duration.Record(milliseconds, packetType);
         if (failed)
             _errors.Add(1, packetType);
     }

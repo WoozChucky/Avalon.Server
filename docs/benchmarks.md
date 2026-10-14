@@ -979,9 +979,9 @@ connection), the quest flush (486, every connection every tick), clock reads in 
 session pass's `ProcessQueue`, `WorldSessionFilter.CanProcess` and `PacketDispatchTelemetry.Begin`), the per-packet
 metrics (`AggregatorStore.Update` 365 inclusive) and `CharacterEntity.InstanceId` (208 exclusive plus `Guid.DecodeByte`
 112: the row's text parsed on every read, 124 under `PlayerInputHandler` and 55 under the quest flusher). This branch
-changed four of them, one commit each, and left two: **#977 is not done.** The per-packet metrics were measured and
-left for an owner decision (below), and `CharacterEntity.Update`'s clock reads (up to four per character per tick:
-`IsInCombat`, regeneration, casting) need the tick's time handed into the instances, recorded separately:
+changed five of them, one commit each (the per-packet metrics after they were measured and the owner chose, below), and
+left one: `CharacterEntity.Update`'s clock reads (up to four per character per tick: `IsInCombat`, regeneration,
+casting) need the tick's time handed into the instances, recorded separately:
 
 - **The instance id is kept parsed.** `CharacterEntity.InstanceId` keeps the id it wrote beside the row's text and
   answers from it while the row holds that text; the row is still what is saved, and a row written another way is
@@ -1003,6 +1003,9 @@ left for an owner decision (below), and `CharacterEntity.Update`'s clock reads (
   whose session pass runs past the 5 s margin reads its time again and checks every lease before the map pass (the
   long-tick guard; the barrier test's "long session pass" row fails without it).
 - **The quest flush skips a connection with nothing to flush** (`QuestLog.FlushOwed`, [quests](quests.md)).
+- **A handler's duration is recorded under its packet type alone**, without `avalon.outcome` (owner's decision): a
+  second tag made the SDK's search for the series cost about four times as much on every packet. Failures are counted
+  by `avalon.packet.handler.errors`, and the span keeps its outcome ([instrumentation](instrumentation.md#packet-handlers)).
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*ConnectionTickBenchmarks*' '*QuestFlushBenchmarks*' '*PacketMetricsBenchmarks*' --job short
@@ -1039,12 +1042,12 @@ At 950 connections (the profile's), the lease check, both passes' authorization 
 changed come to about (313 + 98) × 950 ≈ 390 µs a tick before and (55 + 4) × 950 ≈ 55 µs after on this machine; the
 homelab node ran the same work 1.2 to 1.6 times slower in the profile. A ramp on world 4 decides what it is worth.
 
-**Per-packet metrics: measured, not changed.** `PacketMetricsBenchmarks` measures, per packet, with the OpenTelemetry
-SDK listening (a reader that exports nothing within a run) and without: `DispatchInput` is the dispatch telemetry
-around a received input (no span, no scope; its duration recorded under `avalon.packet.type` and `avalon.outcome`),
-`CountSent` the two untagged counters `WorldConnection.OnQueued` adds for every packet sent; the `Record*` rows record
-into a histogram shaped like the handler duration with both tags, with them in the other order, with the type alone
-and with none. Same runs:
+**Per-packet metrics: measured, then the outcome tag dropped.** `PacketMetricsBenchmarks` measures, per packet, with
+the OpenTelemetry SDK listening (a reader that exports nothing within a run) and without: `DispatchInput` is the
+dispatch telemetry around a received input (no span, no scope; its duration was recorded under `avalon.packet.type` and
+`avalon.outcome`, and is now under the type alone), `CountSent` the two untagged counters `WorldConnection.OnQueued`
+adds for every packet sent; the `Record*` rows record into a histogram shaped like the handler duration with both tags,
+with them in the other order, with the type alone and with none. Same runs, with both tags:
 
 | ns per packet | Nothing listening | SDK listening |
 |---|---:|---:|
@@ -1057,14 +1060,27 @@ and with none. Same runs:
 
 Nearly all of a dispatch's metric cost is the SDK finding the series of a measurement with two tags: about 150 ns,
 where one tag costs about 36 and none 13; the tags' order changes nothing. Every way to make it cheaper changes a
-series or what is recorded, so none was taken; they are left for the owner to choose (#977): record the duration of the high-rate types
-(input, pong) under the type alone or not at all; drop `avalon.outcome` from the duration (the error counter already
-counts failures) or fold it into the type's value; sample the high-rate types; or keep per-type buckets on the tick and
-publish them through an observable instrument once per export, which turns the histogram into another kind of series.
-The sent-packet counters cost about 20 ns per packet sent and could be summed per connection and added once per tick
-with the same series and totals, but `Connection.Send` is called off the tick too (admission replies), so where and
-when to add them is a design choice as well. The handler's duration still reads the clock twice per packet; one read
-(the end of one dispatch as the start of the next) would put the loop's own work between packets into each duration.
+series or what is recorded, so the owner chose (#977) among: record the duration of the high-rate types (input, pong)
+under the type alone or not at all; drop `avalon.outcome` from the duration (the error counter already counts failures)
+or fold it into the type's value; sample the high-rate types; or keep per-type buckets on the tick and publish them
+through an observable instrument once per export, which turns the histogram into another kind of series. **Chosen: drop
+`avalon.outcome` from the duration, for every type.** The histogram's series are now one per packet type (its `ok` and
+`error` series merged; no homelab dashboard or alert read the tag); `avalon.packet.handler.errors`, by type, counts
+failures, and a span still carries its outcome. The others were not taken.
+
+| `DispatchInput`, ns per packet | Nothing listening | SDK listening |
+|---|---:|---:|
+| Both tags (`2c0d2ed4`) | 37.9–40.8 | 189–225 |
+| The type alone | 37.5–37.7 | 77.6–83.4 |
+
+`--filter '*PacketMetricsBenchmarks.DispatchInput*' --job short`, four runs a side (the fourth pair taken in turn, one
+right after the other), 2026-10-14, same machine and toolchain, with other builds and tests running on it: the ranges
+are the runs' means. Nothing allocates, either way. About 120 ns less per input is about 0.11 ms of every tick at 950
+players sending one input a tick each, on this machine. The sent-packet counters cost about 20 ns per packet sent and
+could be summed per connection and added once per tick with the same series and totals, but `Connection.Send` is
+called off the tick too (admission replies), so where and when to add them is a design choice as well. The handler's
+duration still reads the clock twice per packet; one read (the end of one dispatch as the start of the next) would put
+the loop's own work between packets into each duration.
 
 ---
 

@@ -13,7 +13,7 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// What the tick's metrics cost per packet (#977), with the OpenTelemetry SDK listening as the World server's exporter
 /// does (<see cref="Listened" />) and with nothing listening. <see cref="DispatchInput" />: the dispatch telemetry
 /// <c>WorldConnection.ProcessQueue</c> wraps every handler run in, for a received input (a high-rate type: no span, no
-/// scope; its duration recorded in <c>avalon.packet.handler.duration</c> under its type and outcome), the connection's
+/// scope; its duration recorded in <c>avalon.packet.handler.duration</c> under its type alone), the connection's
 /// tags built as ProcessQueue builds them. <see cref="CountSent" />: what <c>WorldConnection.OnQueued</c> adds for every
 /// packet the tick sends, <c>network.out.bytes</c> and <c>network.out.packets</c>, untagged. The meter is this
 /// benchmark's own, its instruments shaped as production's. The exporter's reader exports nothing within a run.
@@ -68,8 +68,8 @@ public class PacketMetricsBenchmarks
     }
 
     /// <summary>
-    /// The handler duration's record alone, with the two tags the dispatch gives it, with only the type's, and with
-    /// none: what each tag costs, for the options in docs/benchmarks.md (#977). Not what production records.
+    /// The handler duration's record alone, with the two tags the dispatch gave it before #977, with only the type's
+    /// (what it records now), and with none: what each tag costs, for the options in docs/benchmarks.md (#977).
     /// </summary>
     [Benchmark(OperationsPerInvoke = Packets)]
     public void RecordBothTags()
