@@ -89,8 +89,9 @@ as it was (`808eec90`, where the world's templates are the list the map manager 
 id, then with the entries built once, then with the log lines. Three runs for the first and the last, two for the two
 between; every run of a step read the same, with one exception noted below. The last column is also what the
 finished change reads (two more runs, with the entries built in the constructor, the move marked and the refusals
-counted), but for the select: main moved under the change (`d4f53921`), and there a select reads 30,050 B as it was
-and 29,226 B now, 48 B more on both sides, the other rows the same.
+counted), but for the select, whose figure moves with main: the table's select is at `808eec90`. On the base the
+change now sits on (`e908a63f`) a select reads 29,978 B as it was (the benchmark over the original code, two runs)
+and 29,154 B at the branch's tip (two runs), the same 824 B less; the other rows read the same there.
 
 | | As it was | Templates by id | Entries built once | Log lines |
 |---|---:|---:|---:|---:|
