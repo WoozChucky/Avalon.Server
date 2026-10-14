@@ -835,7 +835,8 @@ collection read 8.6–12.2 µs there; it now writes back only once a holder has 
 `Tick` is not conclusive on this machine: the same row varied up to twofold between runs on either side (200 units,
 all holding: 1.08–1.34 ms before, 0.76–1.62 ms after), so the scans' share (up to about 0.2 ms at 200 units) is within
 its noise. It allocates the same before and after (94 B to 7.5 KB per tick, the aura update packets each refresh
-sends to every watcher, which #980 is about).
+sends to every watcher); since #980 it allocates 0 to 11 B per tick ([shared state and aura
+encoding](#results--shared-state-and-aura-encoding-980-2026-10-14)).
 
 BenchmarkDotNet 0.15.8 (in-process toolchain: the generated project's build timed out on the busy machine), Windows 11,
 i9-12900K, SDK 10.0.401 / runtime 10.0.12, five warmups and eight measured iterations (the pass alone eight and
@@ -1655,6 +1656,23 @@ sends, of one entity and of thirty (`Entities`, a crowded town).
 | `EncodeFramePlain` | The same, framed without sealing, as for a connection with no sealer (TLS only) |
 
 **Status:** Baseline recorded 2026-10-10 (#875).
+
+### State broadcast encoding — `StateBroadcastEncodingBenchmarks.cs` (#980)
+
+One town broadcast's state updates, every player moving and seeing every other (`Players` 10, 25 and 30: a town holds
+at most 30, `MaxPlayers`), encoding only: the entities are already described, and a motion-only update has no entry
+for its own client. One operation is one broadcast to every player.
+
+| Scenario | What it models |
+|---|---|
+| `PerRecipient` | Each recipient's update encoded whole from its list (`SInstanceStateUpdatePacket.Create`): the encoding before #980 |
+| `Shared` | Each recipient's update put together from entries encoded once per broadcast (`StateUpdateAssembler`): since #980 |
+
+Results in [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14).
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*StateBroadcastEncodingBenchmarks*" --inProcess
+```
 
 ---
 
@@ -3946,6 +3964,86 @@ scenario a `List<IAbility>`) and the closures on the combat path this scenario r
 and `147_0` cannot be matched by name from a profile; any left on paths the forest does not take stay open). It does
 not touch `MapId`, which no forest tick allocates, nor the network-layer items. The driver itself allocates nothing: it
 holds its packets and its ability, and reads the ability's cooldown itself rather than asking the character.
+
+### Results — shared state and aura encoding (#980, 2026-10-14)
+
+On a broadcast every recipient got its own state update, and every entity it sees was encoded into it again: in a
+town, where every player sees every other, each moving player was encoded once per recipient. At 950 players on world 4
+that was 2.33 ms of a broadcast tick, 1.90 ms of it town: 7,879 entries in 677 packets, 397 KB (#974, sections 4 and
+10 C6). Aura updates were the same shape: one unit's `SMSG_AURA_UPDATE` built for each watcher, though its bytes depend
+only on the unit. Since #980 (see [world simulation](world-simulation.md) and [auras](auras.md)):
+
+- each changed unit's aura update is encoded once per broadcast pass and the same packet goes to every watcher
+  (`SharedAuraUpdates`, `OutboundPacket.Share`), and its entries, and the aura lists', are reused from one packet to
+  the next (`AuraWire`);
+- each recipient's state update is copied together from entries encoded once per broadcast (`StateUpdateAssembler`,
+  `SInstanceStateUpdatePacket.WriteEntry`, `PacketEncoder.FromPayload`); a character's update to its own client, whose
+  motion is left out, is encoded for that client alone.
+
+The bytes on the wire are unchanged: `StateUpdateEncodingShould` compares every recipient's update of real broadcasts
+with the per-recipient encoding, and `WireSchemaShould` and the corpus are untouched.
+
+**Encodes and bytes per broadcast** (`TickPhaseBenchmarks`' town: everyone moving, so every update is motion alone and
+no recipient has an entry of its own; counted on one instance's real broadcast, and identical on every broadcast after
+the first):
+
+| Players in the town | Packets | Entries in them | Encoded before: entries, bytes | Encoded after: entries, bytes | Copied after |
+|---:|---:|---:|---|---|---:|
+| 15 | 15 | 210 | 210, 8,554 B | 15, 611 B | 8,554 B |
+| 30 | 30 | 870 | 870, 35,699 B | 30, 1,231 B | 35,699 B |
+| 300 | 300 | 89,700 | 89,700, 3,765,008 B | 300, 12,592 B | 3,765,008 B |
+
+The protobuf encoding falls from one per entry sent to one per entity that changed. What each packet still costs is
+copying its entries into the packet being put together, then that into its pooled segment (the second copy, from the
+encoder's stream, was there before), and the segment, as before.
+
+**`StateBroadcastEncodingBenchmarks`** (one broadcast, encoding only; one run, after build `85f98ed9`):
+
+| Players | `PerRecipient` | `Shared` | Allocated |
+|---:|---:|---:|---:|
+| 10 | 16.0 µs | 3.7 µs | 0 B both |
+| 25 | 101.6 µs | 12.2 µs | 0 B both |
+| 30 | 215.1 µs (StdDev 41 µs) | 15.3 µs | 0 B both |
+
+**`TickPhaseBenchmarks`** (the tick, per tick, 42 ticks per operation, every player moving; `--inProcess`, short job,
+ten warmups and eight iterations; before is `ba0d327b` built from a copy of the tree, after is `85f98ed9`; two rounds,
+each after then before, on a machine shared with other agents' builds and tests):
+
+| Players | Instances | Before | After | Allocated before | Allocated after |
+|---:|---:|---:|---:|---:|---:|
+| 300 | 1 | 3,580–3,683 µs | 1,857–1,928 µs | 120,677 B | 120,677 B |
+| 300 | 20 | 268–286 µs | 191–285 µs | 2 B | 1–2 B |
+| 600 | 1 | 14,345–14,572 µs | 7,683–9,842 µs | 2,583,524 B | 2,583,413–2,583,517 B |
+| 600 | 20 | 945–1,031 µs | 580–1,104 µs | 9 B | 3–12 B |
+
+The crowded town halves its tick at 300 players and loses a third to a half at 600: there the broadcast's encoding was
+most of the tick. Spread over 20 towns (15 and 30 players each) the encoding was a small share of a tick that
+visibility and tracking dominate, and the two rounds disagree (the second shows -29% and -39%, the first nothing):
+within this machine's noise. Allocation per operation is the same before and after: what these cases allocate is the
+payload segments the pool cannot keep at that many packets of that size (300 and 600 recipients of 12 KB and 25 KB
+updates), and the update sizes are unchanged.
+
+**`AuraScanBenchmarks.Tick`** (whole world ticks, a tenth of the holders refreshed every second, each refresh an aura
+update to every character; two runs each, `--inProcess`, five warmups and eight iterations):
+
+| Units | Holding | Before | After | Allocated before | Allocated after |
+|---:|---:|---:|---:|---:|---:|
+| 50 | 10% | 39.6–44.4 µs | 38.4–40.3 µs | 93 B | 0 B |
+| 50 | 100% | 49.4–65.8 µs | 41.8–44.0 µs | 467–468 B | 1 B |
+| 100 | 10% | 165.8–184.5 µs | 158.3–174.1 µs | 189 B | 2–4 B |
+| 100 | 100% | 205.7–214.6 µs | 173.6–177.8 µs | 1,869 B | 2 B |
+| 200 | 10% | 698.7–832.5 µs | 688.9–730.5 µs | 757–759 B | 10–11 B |
+| 200 | 100% | 762.6–887.2 µs | 677.3–679.3 µs | 7,479 B | 10 B |
+
+An aura update is now one encode and one list of entries per changed unit rather than per watcher, and the entries are
+reused: what was left allocated per tick is the run's few bytes of noise.
+
+**The allocation gate**: `forest-combat` reads 14,216 B per window in Release with the aura updates shared (14,292 B
+before) and 14,176 B with their entries reused too, the new committed figure; Debug reads 14,284 B and 14,244 B
+(14,360 B before). The fight has three watchers per update at most, so the saving is small. The town scenarios and
+`many-instances` read 0 B before and after: the shared encoding allocates nothing per tick or per packet beyond the
+pooled payload segment each packet had before. `TickPhaseBenchmarks`, `StateBroadcastEncodingBenchmarks` and the gate
+are Windows figures (i9-12900K, Windows 11, .NET 10.0.13, BenchmarkDotNet 0.15.8).
 
 ### Results — a fuller fight (#972, 2026-10-14)
 
