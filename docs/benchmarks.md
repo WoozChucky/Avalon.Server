@@ -4046,6 +4046,58 @@ and `147_0` cannot be matched by name from a profile; any left on paths the fore
 not touch `MapId`, which no forest tick allocates, nor the network-layer items. The driver itself allocates nothing: it
 holds its packets and its ability, and reads the ability's cooldown itself rather than asking the character.
 
+### Results — visibility on the broadcast cadence (#981, 2026-10-15)
+
+Every tick, every character rescanned every creature, character and projectile of its instance for visibility and ran
+three tracking passes, while state goes out on the instance's broadcast tick alone, one tick in six. The 1,300-player
+profile read 5.25 ms of a traced tick for it, the town part growing with players per town squared (#1001, sections 4
+and 9 D1). Since #981 (the owner's decision; see [world simulation](world-simulation.md)) an instance decides its
+clients' views on its broadcast tick, right before the broadcast, and holds them on the five ticks between: an object
+is listed or removed up to one period (100 ms) later. An arriving client still scans on its first tick, and a
+character that left is still removed on the next tick; both are rare next to the ticks they save.
+
+What one scan costs is unchanged: **`InterestVisibilityBenchmarks`** (one `CharacterCharacterGameState.Update` over 200
+creatures; `--inProcess`, short job, ten warmups, eight iterations; two runs each, before at `89491613`, after at
+`19f30af6`):
+
+| Layout | Before | After | Allocated |
+|---|---:|---:|---:|
+| dense | 2.48–2.79 µs | 2.62–2.67 µs | 0 B |
+| margin | 2.47–2.68 µs | 2.56–3.41 µs | 0 B |
+| sparse | 0.93–1.02 µs | 0.92–0.99 µs | 0 B |
+
+The 3.41 µs is one noisy run (its error was ±0.99 µs). What changes is how many scans a tick runs: a sixth.
+
+**`TickPhaseBenchmarks`** (the tick, 42 ticks per operation; `--inProcess`, short job, ten warmups, eight iterations;
+three runs each, interleaved after, before, after, before, after, the before build run from a copy of its binaries;
+`forest-3` is new in `89491613`, forests of three players standing at the entry with seed 1's creatures and AI; the
+machine otherwise idle, but the second round's errors were 30% to 50% of its means):
+
+| Players | Layout | Before | After | Allocated before | Allocated after |
+|---:|---|---:|---:|---:|---:|
+| 300 | town-1 | 2,099–4,750 µs | 724–1,190 µs | 120,710–120,724 B | 120,692–120,698 B |
+| 300 | town-20 | 204–274 µs | 108–287 µs | 3–4 B | 2–4 B |
+| 300 | forest-3 | 1,283–1,454 µs | 495–998 µs | 0–33 B | 0–15 B |
+| 600 | town-1 | 8,491–9,831 µs | 3,052–4,677 µs | 2,583,612–2,583,644 B | 2,583,471–2,583,480 B |
+| 600 | town-20 | 671–1,589 µs | 341–649 µs | 6–33 B | 4–14 B |
+| 600 | forest-3 | 2,964–4,705 µs | 984–2,297 µs | 50–58 B | 19–38 B |
+
+The crowded town (one instance, every player seeing every other, all moving) loses half to two thirds of its tick, as
+the scan and the tracking were most of the ticks between broadcasts. The forests lose a third to two thirds: each of the
+three players checked about 200 creatures every tick. Twenty towns of 15 or 30 read the same or up to half less; their
+ticks are short and the runs disagree. Allocation per operation is the same: what the crowded towns allocate is the
+payload segments of their broadcasts, which are unchanged.
+
+**The allocation gate does not move**: `forest-combat` 14,176 B in Release and 14,244 B in Debug, `town-social` 3,904 B
+and 4,008 B, the others 0 B, as before. `ForestCombatScenarioShould`'s fight is the same kill for kill before and
+after (105 kills, 2 deaths, 18 heals, 93 quest credits, 198 pickups, 106 destroys): nothing in gameplay reads the views,
+and the fighters find their creatures in the instance, not through what their clients were told. Windows figures
+(i9-12900K, Windows 11, .NET 10.0.13, BenchmarkDotNet 0.15.8).
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*TickPhaseBenchmarks*' '*InterestVisibilityBenchmarks*' --inProcess --job short --warmupCount 10 --iterationCount 8
+```
+
 ### Results — shared state and aura encoding (#980, 2026-10-14)
 
 On a broadcast every recipient got its own state update, and every entity it sees was encoded into it again: in a
