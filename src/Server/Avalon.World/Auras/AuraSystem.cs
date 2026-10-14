@@ -8,7 +8,6 @@ using Avalon.Network.Packets.Auras;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.World.Combat;
-using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -21,8 +20,9 @@ namespace Avalon.World.Auras;
 /// <summary>
 /// The auras of one instance's units (auras): applies them (by their row's stacking, up to Game:MaxAurasPerUnit a unit),
 /// ticks them right after the ability cast system on the instance's clock, removes them, refreshes the stats they
-/// modify, and runs their scripts. One per MapInstance; it keeps no state of its own beyond reused lists and its log
-/// throttle, since every aura lives on its unit, so an aura goes wherever its unit goes. Tick thread only. World-side.
+/// modify, and runs their scripts. One per MapInstance; every aura lives on its unit, so an aura goes wherever its unit
+/// goes, and beyond reused lists and its log throttles it keeps only its <see cref="Roster" /> of which units here hold
+/// an aura or changed. Tick thread only. World-side.
 /// </summary>
 public sealed class AuraSystem
 {
@@ -41,6 +41,9 @@ public sealed class AuraSystem
     // When each refusal was last logged, by what was refused, so one that repeats every cast cannot flood the log.
     private readonly Dictionary<(string Why, uint AuraId), DateTimeOffset> _refusalsLogged = [];
 
+    // Which units here hold an aura, and which changed this tick (#898): kept as they change, never found by a walk.
+    private readonly AuraRoster _roster = new();
+
     // Reused by every update: the units holding an aura, and the auras of the unit being ticked, walked as a copy so
     // that an aura ending (a death included) never changes the list under the walk.
     private readonly List<IUnit> _holders = [];
@@ -57,8 +60,8 @@ public sealed class AuraSystem
     private readonly Dictionary<uint, ThrottledErrorLog> _tickFailures = [];
     private readonly Dictionary<ObjectGuid, ThrottledErrorLog> _unitFailures = [];
 
-    /// <param name="characters">The instance's characters, the dictionary itself, so a tick walks it without allocating.</param>
-    /// <param name="creatures">The instance's creatures, likewise.</param>
+    /// <param name="characters">The instance's characters, the dictionary itself, where a caster is looked up.</param>
+    /// <param name="creatures">The instance's creatures, likewise. Who holds an aura is the <see cref="Roster" />'s.</param>
     /// <param name="catalog">The current aura catalog (StaticData.Auras), read once per update and once per application.</param>
     /// <param name="data">The current reference data, for a character's stats refresh.</param>
     /// <param name="time">The instance's clock.</param>
@@ -84,6 +87,12 @@ public sealed class AuraSystem
     }
 
     public AuraCatalog Catalog => _catalog();
+
+    /// <summary>
+    /// The units of this instance holding an aura and those whose auras changed this tick. Its instance joins each unit
+    /// as it becomes a member and has it leave as it goes; the auras keep it from there.
+    /// </summary>
+    public AuraRoster Roster => _roster;
 
     /// <summary>
     /// Applies the loaded aura <paramref name="aura" />, looked up in the current catalog now; Refused (and logged)
@@ -210,8 +219,8 @@ public sealed class AuraSystem
     }
 
     /// <summary>
-    /// One pass, right after the instance's ability cast system: for each unit holding an aura (characters, then
-    /// creatures), a dead unit loses them all; a creature walking home loses its harmful ones; then each aura, in the
+    /// One pass, right after the instance's ability cast system: for each unit holding an aura as the pass starts
+    /// (characters, then creatures, each in the order the <see cref="Roster" /> keeps), a dead unit loses them all; a creature walking home loses its harmful ones; then each aura, in the
     /// order applied, expires if its template is no longer loaded, takes every tick it is owed at the clock's now (a late
     /// pass catches up, never more than the aura has left), ends if its script asked, and expires once its time is up,
     /// after its last tick. A tick that kills its unit ends every aura it holds and ticks nothing more on it. After a
@@ -223,7 +232,7 @@ public sealed class AuraSystem
     /// </summary>
     public void Update()
     {
-        if (!CollectHolders())
+        if (!_roster.CollectHolders(_holders))
             return;
 
         try
@@ -258,7 +267,7 @@ public sealed class AuraSystem
     /// </summary>
     public void SkipOwed()
     {
-        if (!CollectHolders())
+        if (!_roster.CollectHolders(_holders))
             return;
 
         try
@@ -318,25 +327,6 @@ public sealed class AuraSystem
         {
             _working.Clear();
         }
-    }
-
-    /// <summary>Fills the reused holder list with every unit here holding an aura; false when none does.</summary>
-    private bool CollectHolders()
-    {
-        _holders.Clear();
-        foreach (ICharacter character in _characters.Values)
-        {
-            if (character is CharacterEntity { Auras.Count: > 0 } entity)
-                _holders.Add(entity);
-        }
-
-        foreach (ICreature creature in _creatures.Values)
-        {
-            if (creature is Creature { Auras.Count: > 0 } held)
-                _holders.Add(held);
-        }
-
-        return _holders.Count > 0;
     }
 
     private void UpdateUnit(IUnit unit, DateTimeOffset now, AuraCatalog catalog)

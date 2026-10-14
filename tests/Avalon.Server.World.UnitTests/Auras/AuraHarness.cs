@@ -69,7 +69,7 @@ internal sealed class AuraHarness
         CharacterEntity character = TestCharacters.New(id);
         character.Health = health;
         character.CurrentHealth = health;
-        Characters[character.Guid] = character;
+        Enter(character);
         return character;
     }
 
@@ -86,7 +86,15 @@ internal sealed class AuraHarness
             Speed = 4f,
         };
         Creatures[creature.Guid] = creature;
+        Auras.Roster.Join(creature);
         return creature;
+    }
+
+    /// <summary>Makes <paramref name="character" /> a member, as MapInstance.AddCharacter does: in the dictionary and the aura roster.</summary>
+    public void Enter(CharacterEntity character)
+    {
+        Characters[character.Guid] = character;
+        Auras.Roster.Join(character);
     }
 
     public void Advance(TimeSpan by) => Time.Advance(by);

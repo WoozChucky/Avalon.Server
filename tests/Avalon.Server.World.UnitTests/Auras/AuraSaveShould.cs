@@ -253,7 +253,7 @@ public class AuraSaveShould
         CharacterEntity player = Character(913_107, h.Time);
         player.Health = 500;
         player.CurrentHealth = 500;
-        h.Characters[player.Guid] = player;
+        h.Enter(player);
         CharacterAura row = Saved(901, 7500, 3);
         row.Stacks = 1;
         row.CasterGuid = boar.Guid.RawValue;
