@@ -32,6 +32,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AbilityS
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveScriptLookup*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlush*" "*ItemRequest*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ArrivalBenchmarks*" --job short
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
 
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
@@ -793,6 +794,57 @@ the live effect still requires a matched load test after deployment.
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CreatureDispatchBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario forest-combat --warmup-seconds 15 --measure-ticks 3600
+```
+
+### Aura scans — `Benchmarks/AuraScanBenchmarks.cs` (#898)
+
+The aura work of one instance's tick, in a town instance of 50, 100 or 200 characters who all see one another, 10%
+or all of them holding Renew (12 s, a heal every 3 s, on characters at full health, so a tick restores nothing and
+sends nothing). Every row is per tick of that instance: `Aura_pass` is `AuraSystem.Update` with nothing due (finding
+the holders, then each holder's look at its auras); `Update_scan` is the broadcast's aura updates to every character
+with no unit changed, which is only the walk for changed units, once per recipient; `Clear_scan` is forgetting every
+unit's changes at the end of the broadcast with none changed; `Tick` is whole world ticks with the auras ticking and a
+tenth of the holders refreshed every second (each holder every 10 s, every refresh an aura update to every
+character). The update scan and the clear are private to `MapInstance` and bound by name, the same before and after.
+
+Before #898 the pass found its holders by walking every character and creature of the instance each tick, and the
+broadcast walked every unit once per recipient for changes and once more to clear them: 1,529 of the tick thread's
+19,804 samples at 950 players on world 4, about 0.85 ms a tick (#974, section 7). Since #898 each instance keeps an
+`AuraRoster` (see [Auras](auras.md)): the pass copies only the holders, and the broadcast walks and clears only the
+units that changed.
+
+Before (`b12fd6f3`) and after (`aa844df2`) on 2026-10-14, ranges over two runs each (the pass over six before and
+two after, alternated); the machine was shared with other builds and tests, so times are noisy, allocations exact:
+
+| Units | Holding | `Update_scan` before | after | `Clear_scan` before | after | `Aura_pass` before | after |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 50 | 10% | 6.6–12.1 µs | 0.19–0.20 µs | 110–113 ns | 2.0 ns | 236–412 ns | 175–185 ns |
+| 50 | 100% | 7.0–11.3 µs | 0.14–0.19 µs | 85–118 ns | 1.7–2.5 ns | 1.35–2.51 µs | 1.39–1.44 µs |
+| 100 | 10% | 22.3–26.0 µs | 0.28–0.31 µs | 141–193 ns | 1.9–2.4 ns | 454–837 ns | 282–352 ns |
+| 100 | 100% | 38.0–45.5 µs | 0.39–0.42 µs | 214–247 ns | 2.1–2.3 ns | 3.01–5.60 µs | 3.26–4.77 µs |
+| 200 | 10% | 121–156 µs | 0.54–0.89 µs | 362–631 ns | 1.9–2.5 ns | 0.94–1.68 µs | 520–576 ns |
+| 200 | 100% | 181–207 µs | 0.55–0.69 µs | 535–618 ns | 1.6–1.7 ns | 5.96–9.78 µs | 6.58–7.24 µs |
+
+Every scan row allocates nothing before and after. The update scan was the large one: every recipient looked at every
+unit, so it grew with the square of the units in view (about 4 ns a look); it is now a look at the units that changed.
+The pass gains where few units hold an aura; where every unit holds one it is level within the noise (the alternated
+pairs at 200 units read 6.0–6.4 µs before and 6.6–7.2 µs after), since the holders' own look at their auras is the
+cost there, the same before and after. A first version that wrote every kept holder back into its list on every
+collection read 8.6–12.2 µs there; it now writes back only once a holder has been dropped.
+
+`Tick` is not conclusive on this machine: the same row varied up to twofold between runs on either side (200 units,
+all holding: 1.08–1.34 ms before, 0.76–1.62 ms after), so the scans' share (up to about 0.2 ms at 200 units) is within
+its noise. It allocates the same before and after (94 B to 7.5 KB per tick, the aura update packets each refresh
+sends to every watcher, which #980 is about).
+
+BenchmarkDotNet 0.15.8 (in-process toolchain: the generated project's build timed out on the busy machine), Windows 11,
+i9-12900K, SDK 10.0.401 / runtime 10.0.12, five warmups and eight measured iterations (the pass alone eight and
+fifteen). The scenario gate reads `forest-combat` at 10,361 B per window after #898 in Debug and Release, 4 B over the
+committed 10,357 B, within the 256 B floor: the roster's lists growing to their size once during the run (with the
+lists made at 64 entries up front it reads 10,357 B). Nothing is allocated per tick.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
 ```
 
 ### Grounded player movement — `NavigationMovementBenchmarks.cs` (#880, #896)
