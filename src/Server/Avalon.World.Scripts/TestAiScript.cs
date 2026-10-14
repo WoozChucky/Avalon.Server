@@ -17,5 +17,7 @@ public class TestAiScript : AiScript
 
     public override object State { get; set; }
 
+    public override TimeSpan NextUpdateIn => TimeSpan.Zero;
+
     protected override bool ShouldRun() => false;
 }

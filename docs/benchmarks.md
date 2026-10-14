@@ -796,6 +796,83 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Creature
 dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario forest-combat --warmup-seconds 15 --measure-ticks 3600
 ```
 
+#### Results — active and waiting creatures (#979, 2026-10-14)
+
+Since #979 the benchmark binds the instance's own script step (`MapInstance.UpdateCreatureScripts`, private, bound by
+name) rather than calling each script from an array, so it measures which creatures the instance visits, the walk
+over its creature dictionary included; the population, the mix and the 61 ticks per invocation are as above. Before
+(`main` with the step extracted, every creature visited) and after (the scheduler: a waiting creature is in
+a search cohort and costs the step nothing until its search is due). `ForestTickBenchmarks` is whole world ticks of one
+forest (seed 1, about 200 creatures, its real AI) with three players standing at its entry.
+
+| Row | Before mean/tick | After mean/tick | Allocated, both |
+|---|---:|---:|---:|
+| 0% active | 169–228 µs | 10–60 µs | 0–1 B |
+| 5% active | 221–381 µs | 161–308 µs | 1–2 B |
+| 100% active | 818–7,758 µs | 814–7,680 µs | 7–76 B |
+| `ForestTickBenchmarks.Tick` | 33.3–34.4 µs | 33.0–34.4 µs | 1 B |
+
+Ranges over three runs each, BenchmarkDotNet 0.15.8 in process (`--inProcess`, from a copy of each Release build),
+Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, concurrent workstation GC, affinity mask 4, five warmups and
+eight measured iterations; nothing else ran on the machine, but the rows still vary between runs. The waiting row is the
+gain: 11,000 creatures cost the step their searches once a second and nothing on the other 60 ticks. The active rows
+are the combat script's own work (550 or 11,000 creatures chasing one target whose locomotion never runs, so they
+re-plan every tick), bimodal from run to run before and after, and the same within that noise; an active creature
+costs the scheduler one more look at its script after its Update. One forest is level: about 200 creatures were cheap
+to visit while they all stayed in cache, which is not the world's case (17,265 creatures at 950 players, about 79 ns a
+visit, #974 section 7).
+
+`forest-combat`, five runs each, alternated, the Release scenario runner (ms per tick; one before run, 0.123 mean and
+0.270 p99 for everything, was a machine hiccup and is left out): mean 0.073–0.075 before, 0.065–0.079 after; p50
+0.069–0.070 before, 0.059–0.068 after; p95 0.103–0.111 before, 0.101–0.136 after; p99 0.137–0.184 before, 0.146–0.206
+after. The middle of the distribution is cheaper and the tail overlaps. In the review, three runs each pinned to 16 cores
+at high priority: p99 0.125–0.127 ms on `main`, 0.137–0.139 ms on the branch, mean 0.071–0.074 against 0.064–0.068.
+
+The tail is the search tick. Creatures built together search on the same tick, as they did before #979; the ticks in
+between no longer visit them, the search tick still runs every search, now over scripts the step has not touched since
+the last one, and lets the waiting creatures go and take them back. The review measured it at the profile's scale with a
+harness of 80 forests on seeds 1 to 40 (16,682 creatures, a party of three fighting in each, all joined on one tick,
+600 warm-up and 3,600 measured ticks, the mean tick of each residue modulo 61, the detector's period at 1/60 s): the
+search tick 4.62 and 3.97 ms on `main` against 4.48 and 4.35 ms on the branch, every other tick about 0.5 ms cheaper
+(3.22 and 2.84 ms against 2.59 and 2.34), and the whole tick 0.3 to 1.0 ms cheaper at mean and p50 with p95 and p99
+equal or lower. Letting a due cohort go in one pass rather than member by member took the search tick's
+cost over the other ticks from 1.97–2.04 ms to 1.87 ms in that harness (three alternated runs each; search tick
+4.32–4.63 ms before, 4.27–4.34 ms after). The fight is the same fight, kill for kill
+(`ForestCombatScenarioShould`: 105 kills, 2 deaths, as on `main`), and the gate reads 14,176 B per window in Release and
+14,244 B in Debug for `forest-combat`, 3,904 and 4,008 B for `town-social`, the other scenarios 0, as before: the
+scheduler allocates nothing per tick (its roster, bit sets and cohorts grow only as an instance's creatures do).
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CreatureDispatchBenchmarks*" "*ForestTickBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
+```
+
+#### Results — a script that needs every tick (#979, 2026-10-14) — `Benchmarks/EveryTickScriptBenchmarks.cs`
+
+Every AI script answers `AiScript.NextUpdateIn` (the owner's decision: no default, every script decides), and the
+scheduler reads the answer after each Update of a creature's own script. The cost falls on a script that answers zero:
+it used to be run without being asked. Eleven thousand creatures whose script only counts its Updates, per tick, through
+the instance's own step, scheduled or walked every tick as before #979 (`UpdateEveryCreatureEveryTick`), three runs each,
+the same machine and settings as above:
+
+| Build | Every creature walked | Scheduled | Scheduled, per creature over the walk |
+|---|---:|---:|---:|
+| Opt-in (`UpdatesWhenDue` false: run, never asked) | 90–92 µs | 138–143 µs | 4.3–4.7 ns |
+| `NextUpdateIn` read, then the ownership checks | 91–97 µs | 167–190 µs | 6.6–8.7 ns |
+| `NextUpdateIn` read first, the next tick returning at once, `Run` inlined | 89–101 µs | 134–154 µs | 3.9–4.8 ns |
+
+The first answer read after every Update cost about 3–4 ns per such creature per tick: the virtual call, then three
+checks that the script still owned its creature, which for the next tick can only end in leaving it as it is. Since the
+re-review the answer is read first and the next tick returns at once (four runs): the cost is back to the opt-in's, the
+scheduler's own 4–5 ns over the walk (its bit set, the roster read, the call). It allocates nothing. No built-in pays it
+where it matters: a waiting `AggroDefendScript` (every forest creature) is asked through its search wait, and a creature
+that waits is not visited at all. A world full of custom scripts that need every tick would pay about 4–5 ns a creature
+a tick more than before #979: under 0.1 ms a tick at the 17,265 creatures of the 950-player profile, if every one of
+them were such a script.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EveryTickScriptBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
+```
+
 ### Aura scans — `Benchmarks/AuraScanBenchmarks.cs` (#898)
 
 The aura work of one instance's tick, in a town instance of 50, 100 or 200 characters who all see one another, 10%
@@ -3292,7 +3369,7 @@ The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `too
 | `town-walk` | 1 town | 30 | Players walking an 8 m circle centred at (45, 10), the south-east chunk's open square. Each player's input goes through the real `PlayerInputHandler` (one input packet per player, reused every tick), and each player is sent the real `SPlayerStateAckPacket` through the real cipher every tick. Ten engaged "Bench Wolf" creatures (seed 425) share the instance. |
 | `town-social` | 1 town | 30 | A town at its cap (`MaxPlayers`, 30) walking `town-walk`'s circle with no creatures, in ten parties of three that keep changing, and chatting, through the real party and chat handlers: in every second a party's leader leaves, is invited back and accepts, one player says a line to the town, one whispers, one speaks to its party and one runs `/ignorelist`. See [The town-social scenario](#the-town-social-scenario) (#972). |
 | `many-instances` | 250 normal maps | 500 | Two walking players in each of 250 normal-map instances, every instance created through the real `InstanceRegistry.GetOrCreateNormalInstanceAsync`. It measures many small instances rather than one crowd. |
-| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 1 to 4, each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 200, 269, 173 and 200 creatures, every one ticking), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
+| `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 1 to 4, each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 200, 269, 173 and 200 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
 
 No scenario was reduced in size: `many-instances` takes 5 to 7 s for its warm-up and windows, `forest-combat` about
 10 s for its rehearsal and run in the gate (since #972; 8 s before).

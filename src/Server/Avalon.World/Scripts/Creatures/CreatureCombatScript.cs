@@ -204,6 +204,18 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     public override object State { get; set; } = CombatState.None;
 
+    /// <summary>
+    /// Only after an event while it is idle with nothing to count down, since Update then does nothing: a hit, a dodge or
+    /// a range detector's report is what starts a fight. The next tick otherwise. Only as a creature's own script, named
+    /// as it is (#979): a subclass may run something of its own while idle, so it gets every tick unless it answers
+    /// itself. Chained under another script, the owner's answer is the one read.
+    /// </summary>
+    public override TimeSpan NextUpdateIn =>
+        GetType() == typeof(CreatureCombatScript)
+        && (_dead || (State is CombatState.None && _target is null)) && !_abilities.AnyCoolingDown
+            ? Timeout.InfiniteTimeSpan
+            : TimeSpan.Zero;
+
     bool IReturningHome.IsReturningHome => State is CombatState.Returning;
 
     /// <summary>

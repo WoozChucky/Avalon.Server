@@ -35,8 +35,15 @@ public class TownNpcScript(ICreature creature, ISimulationContext context) : AiS
     public override object State { get; set; } = false;
 
     /// <summary>
-    /// Always false. <c>MapInstance</c> calls <c>Script.Update</c> unconditionally, so this governs
+    /// Always false. <c>MapInstance</c> calls <c>Script.Update</c> whenever it is due, so this governs
     /// chained scripts only — of which a town NPC has none. Both are no-ops, which is the point.
     /// </summary>
     protected override bool ShouldRun() => false;
+
+    /// <summary>
+    /// Never due, named as it is (#979): its Update does nothing, so only an event wakes it, and it does nothing then
+    /// either. A subclass gets every tick unless it answers itself.
+    /// </summary>
+    public override TimeSpan NextUpdateIn =>
+        GetType() == typeof(TownNpcScript) ? Timeout.InfiniteTimeSpan : TimeSpan.Zero;
 }

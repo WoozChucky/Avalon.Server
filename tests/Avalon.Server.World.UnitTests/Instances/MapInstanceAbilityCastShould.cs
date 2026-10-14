@@ -64,6 +64,8 @@ public class MapInstanceAbilityCastShould
     {
         public override object State { get; set; } = 0;
 
+        public override TimeSpan NextUpdateIn => TimeSpan.Zero;
+
         protected override bool ShouldRun() => false;
 
         public override void OnHit(IUnit attacker, uint damage) =>

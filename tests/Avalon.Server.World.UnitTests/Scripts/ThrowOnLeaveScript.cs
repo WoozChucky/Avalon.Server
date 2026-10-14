@@ -10,6 +10,8 @@ public sealed class ThrowOnLeaveScript(ICreature creature, ISimulationContext co
 {
     public override object State { get; set; } = 0;
 
+    public override TimeSpan NextUpdateIn => TimeSpan.Zero;
+
     protected override bool ShouldRun() => false;
 
     public override void OnCharacterLeft(ICharacter character) =>

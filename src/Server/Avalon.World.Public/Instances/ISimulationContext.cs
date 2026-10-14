@@ -34,6 +34,14 @@ public interface ISimulationContext
     IMeleeSlots MeleeSlots { get; }
 
     /// <summary>
+    /// The instance's creature time (#979): the sum of the deltas of every tick on which it updated its creatures, this
+    /// one's included while its scripts run. It stands still while nobody is in the instance, as the creatures do. What a
+    /// script that waits (<see cref="Scripts.AiScript.NextUpdateIn" />) measures its wait against, since it is not called
+    /// on the ticks it waits through. Read only.
+    /// </summary>
+    TimeSpan CreatureClock { get; }
+
+    /// <summary>
     /// Queues a cast-time ability aimed at <paramref name="aim" />, captured now (#164), and tells every client
     /// that the cast started, with where it will land (#648). False, with nothing spent or sent and
     /// <c>Casting</c> left clear, when the cast cannot be taken. Any unit may cast (#163).

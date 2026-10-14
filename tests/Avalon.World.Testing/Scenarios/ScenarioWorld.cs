@@ -67,9 +67,9 @@ namespace Avalon.World.Testing.Scenarios;
 /// the loaded script manager (so creatures fight with their AI and casts run their ability scripts), the world itself
 /// (<see cref="IWorld" />, which a creature's AI reads its abilities through), the catalog's chunk library, the aura scripts,
 /// the loot roller and allocator, each roll seeded, and the <see cref="PartyService" /> (<see cref="FormParty" />),
-/// which <see cref="Tick" /> ticks and flushes as the World server does, the character economy (<see cref="Economy" />,
+/// which <see cref="Tick()" /> ticks and flushes as the World server does, the character economy (<see cref="Economy" />,
 /// over item ids handed out in order) and the <see cref="QuestService" /> (<see cref="Quests" />), which an instance
-/// tells of every kill and <see cref="Tick" /> flushes as the World server does. Its loggers all write to one
+/// tells of every kill and <see cref="Tick()" /> flushes as the World server does. Its loggers all write to one
 /// <see cref="ErrorLog" />: an error logged while a forest is built or ticked, which the instance contains and goes on
 /// without, ends the scenario instead. Still left out: the periodic save.
 /// </para>
@@ -226,11 +226,11 @@ public sealed class ScenarioWorld : IDisposable
         public ItemInstanceId Next() => new(new Guid(++_next, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1));
     }
 
-    /// <summary>The world's clock: every instance, character and timer here reads it, and <see cref="Tick" /> advances it.</summary>
+    /// <summary>The world's clock: every instance, character and timer here reads it, and <see cref="Tick()" /> advances it.</summary>
     public FakeTimeProvider Clock { get; }
 
     /// <summary>
-    /// The send threads every connection's sender belongs to. Never started: <see cref="Tick" /> signals it as the tick's
+    /// The send threads every connection's sender belongs to. Never started: <see cref="Tick()" /> signals it as the tick's
     /// outbox stage does, then runs its pass on the calling thread, so the measured tick includes the send path (#875).
     /// </summary>
     public NetworkSendScheduler Scheduler { get; }
@@ -239,7 +239,7 @@ public sealed class ScenarioWorld : IDisposable
     public IWorld Host => _world;
 
     /// <summary>
-    /// The quest service every instance of a world with reference data tells of its kills, and <see cref="Tick" />
+    /// The quest service every instance of a world with reference data tells of its kills, and <see cref="Tick()" />
     /// flushes, as production's; null in a world without reference data. Tick thread only.
     /// </summary>
     public QuestService? Quests => _quests;
@@ -248,14 +248,14 @@ public sealed class ScenarioWorld : IDisposable
     public ICharacterEconomy? Economy { get; }
 
     /// <summary>
-    /// The party service the instances and <see cref="Tick" /> use, as the party handlers and the party and whisper
+    /// The party service the instances and <see cref="Tick()" /> use, as the party handlers and the party and whisper
     /// commands are given it; null in a world without reference data. Tick thread only.
     /// </summary>
     public PartyService? Parties => _parties;
 
     /// <summary>
     /// The loggers of everything in a world with reference data: a handler or command a scenario builds logs here too,
-    /// so an error it contains and goes on without ends the scenario at the next <see cref="Tick" /> check instead of
+    /// so an error it contains and goes on without ends the scenario at the next <see cref="Tick()" /> check instead of
     /// being measured as cheaper work. Never written in a world without reference data.
     /// </summary>
     public ILoggerFactory Logs => _errorLog;
@@ -285,7 +285,13 @@ public sealed class ScenarioWorld : IDisposable
     /// committed (Release) figure and 4,320 B per window to a Debug run, failing <c>town-idle</c>'s gate in every local
     /// Debug <c>dotnet test</c>.
     /// </remarks>
-    public void Tick()
+    public void Tick() => Tick(Dt);
+
+    /// <summary>
+    /// One world tick of <paramref name="delta" /> rather than <see cref="Dt" />, as <see cref="Tick()" /> is otherwise:
+    /// for a test whose ticks vary in length, as a server's do (#979). No scenario uses it.
+    /// </summary>
+    public void Tick(TimeSpan delta)
     {
         // The tick's sends leave the wake-up to SignalAll, as on WorldServer's tick thread, for this tick only: the
         // calling thread's later users (another test on the same thread) wake their send threads at once (#875).
@@ -299,7 +305,7 @@ public sealed class ScenarioWorld : IDisposable
             if (_parties is not null && _parties.Tick().Count > 0)
                 throw new NotSupportedException("A party leave countdown ran out: a scenario cannot return a character to town");
 
-            _ticker.Tick(_registry.TickInstances(), Dt);
+            _ticker.Tick(_registry.TickInstances(), delta);
             if (_failures.First is { } failure)
                 throw new InvalidOperationException("An instance threw during a scenario tick", failure);
             if (_errorLog.First is { } error)
@@ -335,7 +341,7 @@ public sealed class ScenarioWorld : IDisposable
             Scheduler.SignalAll();
             Scheduler.RunAllPasses();
 
-            Clock.Advance(Dt);
+            Clock.Advance(delta);
         }
         finally
         {
@@ -707,7 +713,7 @@ public sealed class ScenarioWorld : IDisposable
         Scheduler.Dispose();
     }
 
-    /// <summary>The ticker's log: it logs only an instance's throw, and the first one is kept for <see cref="Tick" /> to raise.</summary>
+    /// <summary>The ticker's log: it logs only an instance's throw, and the first one is kept for <see cref="Tick()" /> to raise.</summary>
     private sealed class TickFailures : ILogger
     {
         public Exception? First { get; private set; }
@@ -728,7 +734,7 @@ public sealed class ScenarioWorld : IDisposable
     /// The log of everything in a world with reference data: a forest's build (the instance factory, the creature
     /// placement, the spawner), its instances for their whole life (their loot, aura and cast failures among them), the
     /// scripts and the services the container builds. An error there is one the code contained and went on without; the
-    /// first one is kept, and <see cref="NewForestInstance" /> or <see cref="Tick" /> raises it, since a scenario that
+    /// first one is kept, and <see cref="NewForestInstance" /> or <see cref="Tick()" /> raises it, since a scenario that
     /// goes on without would measure cheaper than it is. Never written in a world without reference data, whose instances
     /// log nowhere.
     /// </summary>

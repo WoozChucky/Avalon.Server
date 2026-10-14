@@ -248,11 +248,23 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             enc.AddThreat(target, attacker, baseThreat * ClassThreatModifier.Get(attackerClass));
 
             // The creature fights back as if hit, though it took nothing (#506 review).
-            creature.Script?.OnAttacked(attacker);
+            Attacked(creature, attacker);
         }
 
         if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
         if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
+    }
+
+    /// <summary>
+    /// Tells the creature's script it was attacked for nothing, waking a World-side creature first so it acts on it
+    /// (#979). Any other creature (a test's) is told directly.
+    /// </summary>
+    private static void Attacked(ICreature creature, IUnit attacker)
+    {
+        if (creature is Creature scheduled)
+            scheduled.OnAttacked(attacker);
+        else
+            creature.Script?.OnAttacked(attacker);
     }
 
     /// <summary>What a unit attacks with (#506); a unit that is neither a character nor a creature brings its level alone.</summary>
@@ -501,7 +513,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
             if (healthBefore > 0 && creature.CurrentHealth == 0)
                 _outcomes?.CreatureKilled(creature, caster);
             else if (caster is not null)
-                creature.Script?.OnAttacked(caster);
+                Attacked(creature, caster);
         }
 
         if (dealt > 0 && healthBefore > 0 && hit.Source.PowerGainPerHit > 0 && caster is CharacterEntity gainer)
@@ -589,7 +601,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         ResolveOrSpawn(caster, target);
         if (target is ICreature creature)
-            creature.Script?.OnAttacked(caster);
+            Attacked(creature, caster);
         if (caster is ICharacter casterCharacter) casterCharacter.MarkCombat();
         if (target is ICharacter targetCharacter) targetCharacter.MarkCombat();
     }

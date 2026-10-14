@@ -76,10 +76,28 @@ internal sealed class KitCombatScript : CreatureCombatScript
 internal sealed class KitAggroDefendScript(ICreature creature, ISimulationContext context)
     : AggroDefendScript(creature, context, new KitCombatScript(creature, context));
 
-/// <summary>A patrol whose fights use a <see cref="KitCombatScript" />.</summary>
+/// <summary>
+/// A patrol whose fights use a <see cref="KitCombatScript" />, on a substitute context: each Update first moves the
+/// context's creature clock on by its delta, as the instance does before its scripts run (#979), since a patrol times
+/// its pauses on that clock.
+/// </summary>
 [ChainedScript]
-internal sealed class KitPatrolScript(ICreature creature, ISimulationContext context)
-    : CreaturePatrolScript(creature, context, new KitCombatScript(creature, context));
+internal sealed class KitPatrolScript : CreaturePatrolScript
+{
+    private TimeSpan _clock;
+
+    public KitPatrolScript(ICreature creature, ISimulationContext context)
+        : base(creature, context, new KitCombatScript(creature, context))
+    {
+        context.CreatureClock.Returns(_ => _clock);
+    }
+
+    public override void Update(TimeSpan deltaTime)
+    {
+        _clock += deltaTime;
+        base.Update(deltaTime);
+    }
+}
 
 /// <summary>
 /// Plays the cast system for a substitute <see cref="ISimulationContext" /> (#163): an instant cast sets the

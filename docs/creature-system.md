@@ -172,11 +172,22 @@ Custom subclasses keep the original chain dispatch. The timer-only shortcut is a
 sealed built-in scripts with the original two-member chain and the default idle combat predicate. A
 built-in script gaining an idle callback or another chain member must drop that opt-in.
 
+Since #979 the instance does not even visit those creatures while they wait. Every script answers
+`AiScript.NextUpdateIn` (abstract: there is no default), read after each Update of a creature's own
+script: zero for the next tick, a time to wait on the creature clock, or `Timeout.InfiniteTimeSpan` to wait
+for an event. These scripts answer how long until their search, and the instance's `CreatureScheduler`
+keeps their detector timers in cohorts and runs them on the tick their search is due, or after a hit, an
+attack that dealt nothing or a character leaving. `CreatureCombatScript` and `CreaturePatrolScript` named as
+a creature's own script, and `TownNpcScript`, wait too. Each built-in answers for its own type only: a
+subclass that does not answer `NextUpdateIn` itself is called on every tick. A script that needs every tick
+answers zero. The contract and its wake rules are under [World simulation](world-simulation.md) and on
+`AiScript.NextUpdateIn` itself.
+
 `AiScript` has these hooks. By default each one forwards to the chained scripts.
 
 | Hook | Called when |
 |---|---|
-| `Update(deltaTime)` | Every instance tick, for every creature with a script. An instance ticks only while a character is in it. |
+| `Update(deltaTime)` | Every instance tick while the script answers `NextUpdateIn` zero; while it waits, only at its due time and after an event (#979). An instance ticks only while a character is in it. |
 | `OnHit(attacker, damage)` | The creature is hit: `Creature.OnHit` forwards to its script |
 | `OnEnteredRange(character)` | A range detector reports a character |
 | `OnCharacterLeft(character)` | A character left the creature's instance (#546) |
