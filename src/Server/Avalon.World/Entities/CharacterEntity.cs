@@ -738,15 +738,41 @@ public partial class CharacterEntity : ICharacter
         }
     }
 
+    // The instance id as last set here, and the row's text it was written as (#977). The row stays what is saved; these
+    // only spare a read the parse, which every input packet and every tick's quest flush used to pay. Written only by
+    // the setter (a transfer, a select: the tick), the id before the text, and read only while the row holds that text.
+    private Guid _instanceId;
+    private string? _instanceIdText;
+
+    /// <summary>
+    /// The instance the character is in, <see cref="System.Guid.Empty" /> when the row names none (or names one that
+    /// does not parse). Read from the value the setter kept while the row still holds the text the setter wrote; a row
+    /// whose text was written another way (a load, a direct write) is parsed, as every read used to be.
+    /// </summary>
     public Guid InstanceId
     {
-        get => System.Guid.TryParse(Data?.InstanceId, out Guid g) ? g : System.Guid.Empty;
+        get
+        {
+            string? text = Data?.InstanceId;
+            if (text is not null && ReferenceEquals(text, Volatile.Read(ref _instanceIdText)))
+                return _instanceId;
+
+            return System.Guid.TryParse(text, out Guid parsed) ? parsed : System.Guid.Empty;
+        }
         set
         {
-            if (Data != null)
-            {
-                Data.InstanceId = value.ToString();
-            }
+            if (Data == null)
+                return;
+
+            // Unchanged: the row keeps its text, and nothing is formatted (a transfer's save names the instance its
+            // transfer has already set).
+            if (Data.InstanceId is { } current && ReferenceEquals(current, _instanceIdText) && _instanceId == value)
+                return;
+
+            string text = value.ToString();
+            _instanceId = value;
+            Volatile.Write(ref _instanceIdText, text);
+            Data.InstanceId = text;
         }
     }
 

@@ -28,6 +28,37 @@ public class CharacterEntityShould
     }
 
     /// <summary>
+    /// #977: the entity keeps the instance id it set instead of parsing the row on every read, but the row is what is
+    /// saved, so the row always holds the id, and a row written another way (a load, a direct write) is what a read sees.
+    /// </summary>
+    [Fact]
+    public void Keep_the_instance_id_and_the_row_that_is_saved_in_step()
+    {
+        CharacterEntity entity = NewEntity();
+        Assert.Equal(Guid.Empty, entity.InstanceId);
+
+        var first = Guid.NewGuid();
+        entity.InstanceId = first;
+        Assert.Equal(first, entity.InstanceId);
+        Assert.Equal(first.ToString(), entity.Data!.InstanceId);
+
+        string written = entity.Data.InstanceId!;
+        entity.InstanceId = first;
+        Assert.Same(written, entity.Data.InstanceId); // unchanged: nothing formatted, the row keeps its text
+
+        var direct = Guid.NewGuid();
+        entity.Data.InstanceId = direct.ToString();
+        Assert.Equal(direct, entity.InstanceId);
+
+        entity.InstanceId = first;
+        Assert.Equal(first, entity.InstanceId);
+        Assert.Equal(first.ToString(), entity.Data.InstanceId);
+
+        entity.Data.InstanceId = null;
+        Assert.Equal(Guid.Empty, entity.InstanceId);
+    }
+
+    /// <summary>
     /// #506: the row stores the maximums as int, so a gear total past int.MaxValue is clamped there, not
     /// cast to a negative, and a pool filled to the new maximum is filled to what was stored.
     /// </summary>

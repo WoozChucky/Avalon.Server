@@ -195,7 +195,8 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChar
             return;
 
         row.Map = new MapId(template.Id.Value);
-        row.InstanceId = target.InstanceId.ToString();
+        // Through the entity, which keeps the id it parses (#977); the transfer has set it already.
+        entity.InstanceId = target.InstanceId;
         row.X = at.x;
         row.Y = at.y;
         row.Z = at.z;
