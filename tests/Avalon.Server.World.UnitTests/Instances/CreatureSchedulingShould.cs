@@ -46,8 +46,9 @@ public sealed class CreatureSchedulingShould
         {
             reference.Act(tick);
             scheduled.Act(tick);
-            reference.World.Tick();
-            scheduled.World.Tick();
+            TimeSpan delta = Jittered(tick);
+            reference.World.Tick(delta);
+            scheduled.World.Tick(delta);
 
             for (int m = 0; m < reference.Maps.Count; m++)
             {
@@ -68,6 +69,9 @@ public sealed class CreatureSchedulingShould
 
         // The equivalence would hold trivially if nothing waited: most creatures must have been off the every-step list.
         Assert.True(visits < possible / 2, $"{place}: {visits} of {possible} creature places ran on every step");
+
+        if (place == "forest")
+            Assert.True(reference.Swapped && scheduled.Swapped, "No forest creature was fighting with a cooldown running to reload");
 
         // A script that does not opt in is called on every tick, scheduled or not.
         if (place == "town")
@@ -99,7 +103,8 @@ public sealed class CreatureSchedulingShould
         var template = new CreatureTemplate { Id = new CreatureTemplateId(1) };
         TimeSpan wait = wake switch
         {
-            "its due time" => TimeSpan.FromSeconds(0.5),
+            // Exactly thirty ticks: the call falls on the tick the clock reaches its due time, not the one after.
+            "its due time" => TimeSpan.FromTicks(ScenarioWorld.Dt.Ticks * 30),
             "hit, after waiting for TimeSpan.MaxValue" => TimeSpan.MaxValue,
             _ => Timeout.InfiniteTimeSpan,
         };
@@ -116,7 +121,7 @@ public sealed class CreatureSchedulingShould
             for (int i = 0; i < 60; i++)
                 world.Tick();
 
-            // Called at the first tick at which half a second had passed since the last call, each time.
+            // Called at the first tick at which its wait had passed since the last call, each time.
             Assert.Equal(3, script.Updates.Count);
             for (int i = 1; i < script.Updates.Count; i++)
             {
@@ -190,9 +195,31 @@ public sealed class CreatureSchedulingShould
                 first.RemoveCharacter(leaver!);
             else if (tick == 900)
                 world.Join(second, world.NewCharacter(9002), Beside(second, 60));
+            else if (tick >= 1000 && !side.Swapped)
+                side.Swapped = ReloadAsPlainCombat(world, first);
         };
 
         return side;
+    }
+
+    /// <summary>
+    /// A hot reload that names the plain <see cref="CreatureCombatScript" /> for the first creature fighting with a
+    /// cooldown running: the creature keeps its abilities and their cooldowns (they are the creature's), and its new
+    /// script, idle from the start, must still count them down on every tick. False while none is fighting so.
+    /// </summary>
+    private static bool ReloadAsPlainCombat(ScenarioWorld world, MapInstance map)
+    {
+        foreach (ICreature creature in map.Creatures.Values)
+        {
+            if (creature is Creature { Script: AggroDefendScript script, Abilities.AnyCoolingDown: true } fighter
+                && ((AiScript)Field(script, "_combat")!).State is CreatureCombatScript.CombatState.Combat)
+            {
+                HotReload(map, fighter, c => new CreatureCombatScript(NullLoggerFactory.Instance, c, map, world.Clock));
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Four metres from the <paramref name="nth" /> creature: inside every forest creature's detection range.</summary>
@@ -233,6 +260,38 @@ public sealed class CreatureSchedulingShould
         Creature aggroA = Place(town, 20, template, entry + new Vector3(8f, 0f, -4f), Aggro(town, world));
         Creature aggroB = Place(town, 21, template, square + new Vector3(0f, 0f, -6f), Aggro(town, world), dodge: 100f);
         side.Counting = new CountingScript(Place(town, 30, template, entry + new Vector3(0f, 0f, -6f), _ => null), town);
+
+        // Patrols pausing for different times, so several timed waits are due in turn.
+        for (uint i = 0; i < 3; i++)
+        {
+            Vector3 start = square + new Vector3(-8f + 4f * i, 0f, 8f);
+            var pause = TimeSpan.FromSeconds(0.1 + 0.35 * i);
+            Place(town, 12 + i, template, start, c => new CreaturePatrolScript(NullLoggerFactory.Instance, c, town, world.Clock),
+                path: [new PatrolPoint(start + new Vector3(2f, 0f, 0f), pause), new PatrolPoint(start, pause * 2)]);
+        }
+
+        // What a mod can do from a script, mid-step (#979): a script running between waiting creatures hits one before
+        // it and one after it in the instance's order, gives a later creature a new script, and hits a later creature
+        // that waits for an event alone. Each must act on the tick it would have when every creature ran every tick.
+        Vector3 corner = entry + new Vector3(5f, 0f, 13f);
+        Creature earlier = Place(town, 40, template, corner, Aggro(town, world));
+        Creature meddling = Place(town, 41, template, corner + new Vector3(2f, 0f, 0f), _ => null);
+        Creature later = Place(town, 42, template, corner + new Vector3(4f, 0f, 0f), Aggro(town, world));
+        Creature swapped = Place(town, 43, template, corner + new Vector3(6f, 0f, 0f), c => new TownNpcScript(c, town));
+        Creature waiting = Place(town, 44, template, corner + new Vector3(8f, 0f, 0f),
+            c => new CreatureCombatScript(NullLoggerFactory.Instance, c, town, world.Clock));
+        meddling.Script = new MeddlingScript(meddling, town, updates =>
+        {
+            switch (updates)
+            {
+                case 100:
+                    town.CombatService.ApplyDamage(meddling, later, 1);
+                    town.CombatService.ApplyDamage(meddling, earlier, 1);
+                    break;
+                case 300: swapped.Script = Aggro(town, world)(swapped); break;
+                case 400: town.CombatService.ApplyDamage(meddling, waiting, 1); break;
+            }
+        });
 
         // Three characters, one always far from everything, so the town ticks throughout.
         CharacterEntity walker = world.NewCharacter(1, health: 1000);
@@ -310,11 +369,18 @@ public sealed class CreatureSchedulingShould
         var views = new CreatureView[map.Creatures.Count];
         int i = 0;
         foreach (ICreature creature in map.Creatures.Values)
-            views[i++] = View(creature);
+            views[i++] = View(map, creature);
         return views;
     }
 
-    private static CreatureView View(ICreature creature)
+    /// <summary>
+    /// A tick of about 1/60 s, a little longer or shorter each time and the same for both sides, as a server's ticks
+    /// are: a float timer summed over varying deltas drifts if the scheduler sums them differently.
+    /// </summary>
+    private static TimeSpan Jittered(int tick) =>
+        TimeSpan.FromTicks(ScenarioWorld.Dt.Ticks + ((tick * 7919) % 41 - 20) * 500);
+
+    private static CreatureView View(MapInstance map, ICreature creature)
     {
         AiScript? script = creature.Script;
         AiScript? combat = script switch
@@ -332,9 +398,35 @@ public sealed class CreatureSchedulingShould
             creature.Velocity.x, creature.Velocity.z, creature.Orientation.y,
             creature.MoveState, creature.CurrentHealth,
             script?.GetType().Name, combat?.State, Describe(target), detector?.State,
+            detector is null ? -1f : SearchTimer(map, creature, detector),
+            Cooldowns(creature),
             patrol?.State, patrol is null ? -1 : (int)Field(patrol, "_currentWaypointIndex")!,
             patrol is not null && (bool)Field(patrol, "_pausing")!);
     }
+
+    /// <summary>
+    /// The seconds toward the detector's next search: its own timer, or, while the creature waits for its search, the
+    /// timer its cohort keeps for it (the scheduler's, internal, read by name), which is what it is handed back.
+    /// </summary>
+    private static float SearchTimer(MapInstance map, ICreature creature, AiScript detector)
+    {
+        if (creature is Creature scheduled && Field(scheduled, "_schedule") is { } schedule
+            && Field(schedule, "Wait")!.ToString() == "Search")
+        {
+            object scheduler = typeof(MapInstance).GetField("_scheduler", Private)!.GetValue(map)!;
+            var cohorts = (Array)Field(scheduler, "_cohorts")!;
+            object cohort = cohorts.GetValue((int)Field(schedule, "Cohort")!)!;
+            return (float)cohort.GetType().GetField("Elapsed")!.GetValue(cohort)!;
+        }
+
+        return (float)Field(detector, "_searchTimer")!;
+    }
+
+    /// <summary>Each of a World-side creature's ability cooldowns, in its order.</summary>
+    private static string Cooldowns(ICreature creature) =>
+        creature is Creature { Abilities.All: { Count: > 0 } abilities }
+            ? string.Join(",", abilities.Select(a => a.CooldownTimer.ToString("R", System.Globalization.CultureInfo.InvariantCulture)))
+            : string.Empty;
 
     private static string? Describe(object? unit) => unit switch
     {
@@ -348,7 +440,7 @@ public sealed class CreatureSchedulingShould
     {
         for (Type? type = owner.GetType(); type is not null; type = type.BaseType)
         {
-            if (type.GetField(name, Private) is { } field)
+            if (type.GetField(name, Private | BindingFlags.Public) is { } field)
                 return field.GetValue(owner);
         }
 
@@ -364,7 +456,8 @@ public sealed class CreatureSchedulingShould
 
     private readonly record struct CreatureView(
         float X, float Y, float Z, float VelocityX, float VelocityZ, float Yaw, MoveState Move, uint Health,
-        string? Script, object? Combat, string? Target, object? Detector, object? Patrol, int Waypoint, bool Pausing);
+        string? Script, object? Combat, string? Target, object? Detector, float SearchTimer, string Cooldowns,
+        object? Patrol, int Waypoint, bool Pausing);
 
     /// <summary>One run of a world: its instances, what is done to them on which tick, and the counting script.</summary>
     private sealed class Side(ScenarioWorld world) : IDisposable
@@ -377,6 +470,9 @@ public sealed class CreatureSchedulingShould
 
         public CountingScript? Counting { get; set; }
 
+        /// <summary>Whether a fighting forest creature was hot reloaded as a plain combat script (<see cref="ReloadAsPlainCombat" />).</summary>
+        public bool Swapped { get; set; }
+
         public void Add(MapInstance map, bool scheduled)
         {
             if (!scheduled)
@@ -387,6 +483,24 @@ public sealed class CreatureSchedulingShould
         public void Act(int tick) => Actions?.Invoke(tick);
 
         public void Dispose() => World.Dispose();
+    }
+
+    /// <summary>
+    /// A custom script that opts in and stays active, doing what <paramref name="act" /> does with the count of its own
+    /// Updates: the same count on both sides, since it runs on every tick on both.
+    /// </summary>
+    private sealed class MeddlingScript(ICreature creature, ISimulationContext context, Action<int> act)
+        : AiScript(creature, context)
+    {
+        private int _updates;
+
+        public override object State { get; set; } = 0;
+
+        public override bool UpdatesWhenDue => true;
+
+        public override void Update(TimeSpan deltaTime) => act(++_updates);
+
+        protected override bool ShouldRun() => false;
     }
 
     /// <summary>A custom script that opts in, waits as it is told, and records when it is called and what it heard.</summary>
