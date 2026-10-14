@@ -13,7 +13,14 @@ namespace Avalon.World.Scripts.Creatures;
 /// Named as it is, it fights with no abilities (#163), so a creature on it never attacks: each creature
 /// type's own script subclasses it and hands it a combat script carrying its abilities and rotation.
 /// </summary>
-public class AggroDefendScript : AiScript, IReturningHome
+/// <remarks>
+/// Updated only when due (#979), but for a subclass built through the protected constructor, which keeps every tick
+/// (#916): while it fights,
+/// returns home or re-arms its detector it runs every tick; while it only waits for its next search, the instance keeps
+/// its detector's timer (<see cref="IAwaitsSearch" />) and runs it on the tick that search is due, or after a hit, a
+/// dodge or a character leaving.
+/// </remarks>
+public class AggroDefendScript : AiScript, IReturningHome, IAwaitsSearch
 {
     private const float DefaultAggroRange = 10.0f;
 
@@ -57,6 +64,27 @@ public class AggroDefendScript : AiScript, IReturningHome
 
     public override object State { get; set; } = string.Empty;
     protected override bool ShouldRun() => true;
+
+    /// <summary>
+    /// The plain script and the sealed built-in ones, the same ones whose idle visits only advance the detector's timer
+    /// (#916): a subclass outside this assembly keeps its chain's every-tick callbacks.
+    /// </summary>
+    public override bool UpdatesWhenDue => _idleTimerOnly;
+
+    /// <summary>Until the next search while it only waits for it; otherwise the next tick.</summary>
+    public override TimeSpan NextUpdateIn => ((IAwaitsSearch)this).AwaitsSearch(out float elapsed)
+        ? TimeSpan.FromSeconds(CreatureRangeDetectorScript.SearchInterval - elapsed)
+        : TimeSpan.Zero;
+
+    // Exactly the state in which Update's idle shortcut below only advances the detector's timer until it is due.
+    bool IAwaitsSearch.AwaitsSearch(out float elapsed)
+    {
+        elapsed = _detector.SearchTimer;
+        return _idleTimerOnly && _combat.State is CreatureCombatScript.CombatState.None
+                              && _detector.State is CreatureRangeDetectorScript.RangeDetectionState.Searching;
+    }
+
+    void IAwaitsSearch.ResumeSearchWait(float elapsed) => _detector.SearchTimer = elapsed;
 
     bool IReturningHome.IsReturningHome => _combat is IReturningHome { IsReturningHome: true };
 

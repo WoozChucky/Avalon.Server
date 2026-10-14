@@ -6,6 +6,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Auras;
 using Avalon.World.Creatures;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
@@ -29,6 +30,8 @@ public class Creature : ICreature
     private uint? _currentPower;
     private ushort _level;
     private MoveState _moveState = MoveState.Idle;
+    private AiScript? _script;
+    private IReadOnlyList<PatrolPoint> _patrolPath = [];
 
     public CreatureTemplateId TemplateId { get; set; } = null!;
     public ObjectGuid Guid { get; set; }
@@ -206,9 +209,37 @@ public class Creature : ICreature
     /// </summary>
     public UnitAuras Auras { get; } = new();
 
-    public AiScript? Script { get; set; }
+    public AiScript? Script
+    {
+        get => _script;
+        set
+        {
+            _script = value;
+            Scheduler?.ScriptChanged(this);
+        }
+    }
 
-    public IReadOnlyList<PatrolPoint> PatrolPath { get; set; } = [];
+    /// <summary>A new path wakes the creature (#979): a patrol that stood for want of one walks it.</summary>
+    public IReadOnlyList<PatrolPoint> PatrolPath
+    {
+        get => _patrolPath;
+        set
+        {
+            _patrolPath = value;
+            Scheduler?.Wake(this);
+        }
+    }
+
+    /// <summary>
+    /// The creature scheduler of the instance this creature is in (#979), set while it is a member; null outside one, or
+    /// in an instance that updates every creature every tick. World-side, never on ICreature.
+    /// </summary>
+    internal CreatureScheduler? Scheduler { get; set; }
+
+    /// <summary>Its place in <see cref="Scheduler" />: what it waits for, and where. The scheduler's alone.</summary>
+    internal ref CreatureSchedule Schedule => ref _schedule;
+
+    private CreatureSchedule _schedule;
 
     public IUnit? TauntedBy { get; set; }
     public DateTime TauntExpiresAt { get; set; } = DateTime.MinValue;
@@ -306,5 +337,27 @@ public class Creature : ICreature
         return Mathf.Abs(Orientation.y - orientation.y) < threshold;
     }
 
-    public void OnHit(IUnit attacker, uint damage) => Script?.OnHit(attacker, damage);
+    /// <summary>Wakes the creature (#979), then tells its script of the hit.</summary>
+    public void OnHit(IUnit attacker, uint damage)
+    {
+        Scheduler?.Wake(this);
+        Script?.OnHit(attacker, damage);
+    }
+
+    /// <summary>
+    /// An attack that dealt nothing (a dodge, a harmful aura's landing or tick, #506): wakes the creature (#979), then
+    /// tells its script. World-side; the combat service calls it.
+    /// </summary>
+    internal void OnAttacked(IUnit attacker)
+    {
+        Scheduler?.Wake(this);
+        Script?.OnAttacked(attacker);
+    }
+
+    /// <summary>A character left the instance (#546): wakes the creature (#979), then tells its script.</summary>
+    internal void OnCharacterLeft(ICharacter character)
+    {
+        Scheduler?.Wake(this);
+        Script?.OnCharacterLeft(character);
+    }
 }

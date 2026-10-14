@@ -60,6 +60,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly Dictionary<ObjectGuid, IWorldConnection> _connections = [];
     private readonly ICorpseRemover _corpseRemover;
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
+
+    // Which creatures run their script on a tick (#979): the active ones, and the waiting ones when due or woken. Off
+    // only for a test that compares it against every creature on every tick (UpdateEveryCreatureEveryTick).
+    private readonly CreatureScheduler _scheduler;
+    private bool _scheduleCreatures = true;
+
+    // The creature clock (#979): the sum of the deltas of the ticks on which the creature scripts ran.
+    private TimeSpan _creatureClock;
     private readonly ILogger<MapInstance> _logger;
     private readonly IMapNavigator _navigator;
     private readonly ICreatureLocomotion _locomotion;
@@ -205,6 +213,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         PartyId? ownerPartyId = null)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
+        _scheduler = new CreatureScheduler(_creatures);
         _world = world;
         InstanceId = Guid.NewGuid();
         TemplateId = templateId;
@@ -391,6 +400,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IHitQuery Hits => _hits;
     public ICreatureLocomotion Locomotion => _locomotion;
     public IMeleeSlots MeleeSlots => _meleeSlots;
+    public TimeSpan CreatureClock => _creatureClock;
+
+    /// <summary>
+    /// Runs every creature's script on every tick, as before #979, rather than only the active and the due: the reference
+    /// the scheduling is compared against. For tests only, before the instance's first tick; World-side and internal, so
+    /// reached by name.
+    /// </summary>
+    internal void UpdateEveryCreatureEveryTick()
+    {
+        _scheduleCreatures = false;
+        foreach (ICreature creature in _creatures.Values)
+            _scheduler.Left(creature);
+    }
 
     /// <summary>What every creature's maximum health is multiplied by now: 1 outside a party instance.</summary>
     public double HealthFactor => _healthFactor;
@@ -661,7 +683,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         {
             try
             {
-                creature.Script?.OnCharacterLeft(character);
+                // A World-side creature is woken first, so a waiting script acts on it (#979).
+                if (creature is Creature scheduled)
+                    scheduled.OnCharacterLeft(character);
+                else
+                    creature.Script?.OnCharacterLeft(character);
             }
             catch (Exception e)
             {
@@ -674,6 +700,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public void AddCreature(ICreature creature)
     {
         _creatures[creature.Guid] = creature;
+        if (_scheduleCreatures)
+            _scheduler.Joined(creature);
         _auras.Roster.Join(creature);
         _locomotion.Register(creature, _creatureAgentRadius);
 
@@ -724,6 +752,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public void RemoveCreature(ICreature creature)
     {
         _creatures.Remove(creature.Guid);
+        _scheduler.Left(creature);
         _auras.Roster.Leave(creature);
 
         // A wind-up in progress ends here, out loud, and a projectile in flight is dropped (#163): a corpse
@@ -1378,10 +1407,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// The creature scripts' part of step 4. Bound by name by <c>CreatureDispatchBenchmarks</c>, which measures it alone.
+    /// The creature scripts' part of step 4: the creature clock moves on, and the scheduler runs the creatures that are
+    /// active or due (#979). Bound by name by <c>CreatureDispatchBenchmarks</c>, which measures it alone.
     /// </summary>
     private void UpdateCreatureScripts(TimeSpan deltaTime)
     {
+        _creatureClock += deltaTime;
+        if (_scheduleCreatures)
+        {
+            _scheduler.Step(deltaTime, _creatureClock);
+            return;
+        }
+
         foreach (ICreature creature in _creatures.Values)
         {
             creature.Script?.Update(deltaTime);

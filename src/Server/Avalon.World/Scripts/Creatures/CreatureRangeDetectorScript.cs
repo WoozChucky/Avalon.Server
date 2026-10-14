@@ -24,8 +24,10 @@ public class CreatureRangeDetectorScript : AiScript
 
     public event CharacterDetectedEventHandler? CharacterDetected;
 
+    /// <summary>Seconds between searches. The instance's creature scheduler times a waiting detector against it (#979).</summary>
+    internal const float SearchInterval = 1.0f;
+
     private readonly float _aggroRange;
-    private const float SearchInterval = 1.0f;
     private float _searchTimer = 0.0f;
 
     public CreatureRangeDetectorScript(ICreature creature, ISimulationContext context, float aggroRange) : base(creature, context)
@@ -54,6 +56,16 @@ public class CreatureRangeDetectorScript : AiScript
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// The seconds accumulated toward the next search: read while the creature waits for it, and put back where the
+    /// per-tick visits would have it before it runs again (#979).
+    /// </summary>
+    internal float SearchTimer
+    {
+        get => _searchTimer;
+        set => _searchTimer = value;
     }
 
     public override void Update(TimeSpan deltaTime)

@@ -147,6 +147,21 @@ public sealed class CreatureAbilities
         }
     }
 
+    /// <summary>Whether any cooldown is still counting down, which <see cref="Update" /> would change (#979).</summary>
+    public bool AnyCoolingDown
+    {
+        get
+        {
+            foreach (IAbility ability in _abilities)
+            {
+                if (ability.CooldownTimer > 0f)
+                    return true;
+            }
+
+            return false;
+        }
+    }
+
     /// <summary>Takes every cooldown off, so no countdown carries from one fight into the next.</summary>
     public void ResetCooldowns()
     {

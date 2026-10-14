@@ -43,7 +43,11 @@ public class CreaturePatrolScript : AiScript, IReturningHome
     private int _currentWaypointIndex;
     private bool _hasRequestedCurrentWaypoint;
     private bool _pausing;
-    private TimeSpan _pauseRemaining;
+
+    // When the pause at the current point ends, on the instance's creature clock (#979): the creature is not called on
+    // the ticks it pauses through, so the pause is measured against the clock rather than counted down tick by tick. It
+    // ends on the tick it always did, the first on which the ticks since it began add up to its wait.
+    private TimeSpan _pauseEndsAt;
 
     /// <summary>A patrol whose fights use a combat script with no abilities (#163): named as it is, it never attacks.</summary>
     public CreaturePatrolScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
@@ -66,6 +70,40 @@ public class CreaturePatrolScript : AiScript, IReturningHome
     public override object State { get; set; } = PatrolState.Patrolling;
 
     protected override bool ShouldRun() => State is PatrolState.Patrolling;
+
+    /// <summary>
+    /// When it is a creature's own script, named as it is (#979): a subclass may do something of its own while it stands,
+    /// so it keeps every tick unless it opts in itself.
+    /// </summary>
+    public override bool UpdatesWhenDue => GetType() == typeof(CreaturePatrolScript);
+
+    /// <summary>
+    /// The next tick while it walks, fights or resumes its path; the end of the pause while it stands at a point; only an
+    /// event (a hit, or a new path) while it has no path, and for a corpse.
+    /// </summary>
+    public override TimeSpan NextUpdateIn
+    {
+        get
+        {
+            if (Creature.CurrentHealth == 0)
+                return Timeout.InfiniteTimeSpan;
+
+            if (InCombat || State is PatrolState.Idle)
+                return TimeSpan.Zero;
+
+            IReadOnlyList<PatrolPoint> waypoints = Creature.PatrolPath;
+            if (waypoints.Count == 0)
+                return Timeout.InfiniteTimeSpan;
+
+            if (_pausing && _currentWaypointIndex < waypoints.Count)
+            {
+                TimeSpan left = _pauseEndsAt - Context.CreatureClock;
+                return left > TimeSpan.Zero ? left : TimeSpan.Zero;
+            }
+
+            return TimeSpan.Zero;
+        }
+    }
 
     bool IReturningHome.IsReturningHome => _combat is IReturningHome { IsReturningHome: true };
 
@@ -103,10 +141,10 @@ public class CreaturePatrolScript : AiScript, IReturningHome
             ResumeFromNearestPoint();
         }
 
-        Patrol(deltaTime);
+        Patrol();
     }
 
-    private void Patrol(TimeSpan deltaTime)
+    private void Patrol()
     {
         IReadOnlyList<PatrolPoint> waypoints = Creature.PatrolPath;
         if (waypoints.Count == 0)
@@ -126,8 +164,7 @@ public class CreaturePatrolScript : AiScript, IReturningHome
         {
             // Standing at the point. No MoveState write: locomotion set Idle when the creature came
             // to rest, and writing Walking here would stomp it every tick of the pause.
-            _pauseRemaining -= deltaTime;
-            if (_pauseRemaining > TimeSpan.Zero)
+            if (Context.CreatureClock < _pauseEndsAt)
             {
                 return;
             }
@@ -152,7 +189,7 @@ public class CreaturePatrolScript : AiScript, IReturningHome
                 if (wait > TimeSpan.Zero)
                 {
                     _pausing = true;
-                    _pauseRemaining = wait;
+                    _pauseEndsAt = Context.CreatureClock + wait;
                     return;
                 }
 
