@@ -151,7 +151,7 @@ Otherwise, in this order:
    then the vendor pass, once a shop has been opened here
 3. combat: the ability cast system, the aura pass, item cast bars, the combat service, threat broadcasts
 4. creature scripts, then the locomotion that executes what they decided
-5. snapshot dirty fields, then per character: visibility and the state broadcast
+5. snapshot dirty fields, then per character: its view (decided on the broadcast tick, #981) and the state broadcast
 ```
 
 `RemoveCharacter` sets `LastEmptyAt` from the instance's `TimeProvider` when the last player leaves, and so does

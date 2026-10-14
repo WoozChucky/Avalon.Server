@@ -242,7 +242,7 @@ Convert duration ticks with `milliseconds = ticks * 1000 / frequency`. These are
 | combatTicks | Abilities, combat, threat and aura simulation |
 | creatureTicks | Creature scripts and locomotion |
 | dirtyTicks | Dirty-field snapshot pass |
-| visibilityTicks | Clearing recipient state lists and scanning characters, creatures and projectiles for visibility |
+| visibilityTicks | Clearing recipient state lists and scanning characters, creatures and projectiles for visibility; since #981 only on the ticks that decide views (the broadcast tick, and an arriving client's first tick) |
 | trackingTicks | Reconciling visible entities with recipient tracking state |
 | statePreparationTicks | Describing the entities a recipient is added or updated: since #980 each entity's entry is described once per broadcast, by the first recipient sent it, and a character's own entry for itself alone |
 | stateEncodingTicks | Encoding each entity's add and update entry once per broadcast, copying the entries into each recipient's add and update packet, and creating those and the remove packets (#980) |
@@ -255,7 +255,7 @@ Convert duration ticks with `milliseconds = ticks * 1000 / frequency`. These are
 | statePackets / stateBytes | State packets handed to Send and their plain header-plus-payload bytes; excludes aura packets, sealing and TLS |
 | mapPackets | Received packets the map pass took off this instance's connections' queues (version 1; see above). `inputTicks` also covers each character's own update, PvP expiry and save scheduling, so `inputTicks` ÷ `mapPackets` bounds the cost per packet from above |
 
-Players and creatures are roster counts at update entry; projectiles are counted after combat. Broadcast marks whether this tick reaches the state-update cadence. Adds, removes and aura work can occur outside that cadence. Packet counters count the handoff even if the connection later refuses enqueue; they are not socket delivery counters. A failed phase can be absent from the accumulated phase totals, which is why completed=0 records must not be used as successful cheap ticks.
+Players and creatures are roster counts at update entry; projectiles are counted after combat. Broadcast marks whether this tick reaches the state-update cadence. Since #981 the views are decided on that tick, so visibility, tracking, `candidateChecks`, `visiblePairs` and the adds and removes are on it too, except an arriving client's first tick (its own view) and a departed character's removal (the next tick); aura work can occur outside that cadence. Packet counters count the handoff even if the connection later refuses enqueue; they are not socket delivery counters. A failed phase can be absent from the accumulated phase totals, which is why completed=0 records must not be used as successful cheap ticks.
 
 ## Density benchmark
 
@@ -263,6 +263,6 @@ Players and creatures are roster counts at update entry; projectiles are counted
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*TickPhaseBenchmarks*' --job short --warmupCount 10 --iterationCount 8
 ```
 
-TickPhaseBenchmarks moves 300 or 600 players within mutual visibility, either together or across 20 towns. It uses real instance ticks, packet encoding and inline scenario sends/sealing. It excludes real sockets/TLS, database work, AI/combat and input validation, so it isolates density costs rather than reproducing a production world tick. Production sends run on separate threads.
+TickPhaseBenchmarks lays 300 or 600 players out three ways (`Layout`): moving within mutual visibility in one town (`town-1`) or across 20 towns (`town-20`), or standing three to a forest at its entry (`forest-3`, #981: seed 1's layout, spawn table and real creature AI, the players too tough to die), each checking about 200 creatures for visibility. It uses real instance ticks, packet encoding and inline scenario sends/sealing. It excludes real sockets/TLS, database work and input validation, and the towns AI and combat, so it isolates density costs rather than reproducing a production world tick. Production sends run on separate threads.
 
 Each invocation contains 42 ticks: six broadcast periods with ScenarioWorld's rounded fixed timestep. Setup warms for 15 seconds. Use the identical harness on both revisions and report allocations and uncertainty alongside timing. Investigate actual captured broadcast counts before comparing short windows. See [benchmarks](benchmarks.md) and [world metrics](instrumentation.md) for complementary measurements.

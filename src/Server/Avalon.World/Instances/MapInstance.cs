@@ -102,6 +102,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     // Whether this tick broadcasts state, decided once at the top of the tick: the dirty snapshot, and with it the state
     // updates, and the tick profile all read it.
     private bool _broadcastTick;
+
+    // Whether every recipient's view is owed a decision (#981): set by a broadcast tick, cleared once every view has been
+    // decided, so a tick that throws before then has them decided on the next tick rather than a period later.
+    private bool _viewsOwed;
+
+    // The characters that left since the last broadcast pass (#981), whose removal is reported to every client that held
+    // them on the next pass rather than at the views' next decision (CharacterCharacterGameState.CharacterLeft).
+    private readonly List<ObjectGuid> _departedCharacters = new(4);
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
 
     /// <summary>
@@ -330,6 +338,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootSnapshotOwed.Clear();
         _pvpStateOwed.Clear();
         _summons.Clear();
+        _departedCharacters.Clear();
     }
 
     public Guid InstanceId { get; }
@@ -649,6 +658,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _connections.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
         _pvpStateOwed.Remove(guid);
+        _departedCharacters.Add(guid);
         NotePresenceChange(character, "left");
 
         if (_characters.Count == 0)
@@ -1190,6 +1200,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // empty check: an empty instance's clock runs too, so it is still in its slot when someone comes.
         _broadcastTick = AdvanceBroadcastClock(deltaTime);
 
+        // The views are decided on the broadcast tick (#981); one owed by a tick that threw is still owed.
+        _viewsOwed |= _broadcastTick;
+
         // Every hit list the last tick handed out was read within it: the hit query may reuse them (#880).
         _hits.Recycle();
 
@@ -1301,6 +1314,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // that never comes, and show frozen to the next player to enter (#164). Nobody is left to send
         // its final state to, so drop it now.
         _abilityCastSystem.DropFinished();
+
+        // Nobody is left to tell that a character left (#981); whoever comes next has been told of nothing here.
+        _departedCharacters.Clear();
 
         // Auras stand still too; their time does not, and the first tick with players skips what came due meanwhile.
         _aurasPaused = true;
@@ -1464,23 +1480,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    /// <summary>Steps 5b and 6 of <see cref="Update" />: every character's visibility first, then every broadcast.</summary>
+    /// <summary>Steps 5b and 6 of <see cref="Update" />: every character's view first, then every broadcast.</summary>
     private void BroadcastState(List<IWorldObject> objectAbilities)
     {
         // The aura changes are forgotten even when a step below throws, so none is held over and sent again next tick.
         try
         {
-            // Step 5b: Update entity visibility state per character, each by its own interest range (#593)
-            // The replication state is World-side (#612), so a character that is not a CharacterEntity is
-            // seen by the others but is sent nothing itself.
-            foreach (ICharacter character in _characters.Values)
-            {
-                if (character is CharacterEntity entity)
-                {
-                    entity.CharacterGameState.UpdateProfiled(entity.Guid, entity.Position, _interest, _creatures,
-                        _characters, objectAbilities, _frameDirtyFields, ref _tickProfile);
-                }
-            }
+            // Step 5b: every character's view, decided on the broadcast tick (#981).
+            DecideViews(objectAbilities);
 
             // Step 6: Broadcast instance state to each character. Each entity's add and update is encoded once for all
             // of them (#980); the last broadcast's encodings are forgotten first, also when it threw.
@@ -1503,6 +1510,75 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             {
                 ClearAuraChanges();
             }
+        }
+    }
+
+    /// <summary>
+    /// Step 5b of <see cref="Update" />: which objects each character's client is told exist, each by its own interest
+    /// range (#593). Decided once per broadcast period, on the broadcast tick, right before the broadcast, so an object
+    /// is listed or removed up to one period after it came into range or left it, and the decisions cost a sixth of what
+    /// one every tick did, spread over the ticks with the broadcasts (#981, the owner's decision). Between, every view
+    /// holds. Two things do not wait for the broadcast tick: a client entering (the world or this instance) is listed
+    /// itself and everything in view on its first tick (<see cref="CharacterCharacterGameState.ScanOwed" />), and a
+    /// character that left is removed from every client that held it on the next tick
+    /// (<see cref="TellCharactersLeft" />). The replication state is World-side (#612), so a character that is not a
+    /// <see cref="CharacterEntity" /> is seen by the others but is sent nothing itself.
+    /// </summary>
+    private void DecideViews(List<IWorldObject> objectAbilities)
+    {
+        bool decideAll = _viewsOwed;
+        foreach (ICharacter character in _characters.Values)
+        {
+            if (character is not CharacterEntity entity)
+                continue;
+
+            CharacterCharacterGameState view = entity.CharacterGameState;
+            if (decideAll || view.ScanOwed)
+            {
+                view.UpdateProfiled(entity.Guid, entity.Position, _interest, _creatures, _characters, objectAbilities,
+                    _frameDirtyFields, ref _tickProfile);
+            }
+            else
+            {
+                view.Hold();
+            }
+        }
+
+        _viewsOwed = false;
+
+        if (_departedCharacters.Count > 0)
+            TellCharactersLeft();
+    }
+
+    /// <summary>
+    /// Every character that left since the last pass is removed from every client here that still held it (#981), on the
+    /// next tick as before, not at the views' next decision: a character's guid comes back with it, and a client that
+    /// held it across a stay elsewhere would never hear what changed there. One that is back already (a move into the
+    /// instance it was in, before this instance ticked again) is left as it is, as a decision every tick left it.
+    /// </summary>
+    private void TellCharactersLeft()
+    {
+        try
+        {
+            for (int i = 0; i < _departedCharacters.Count; i++)
+            {
+                ObjectGuid departed = _departedCharacters[i];
+                if (_characters.ContainsKey(departed))
+                    continue;
+
+                foreach (ICharacter character in _characters.Values)
+                {
+                    if (character is CharacterEntity watcher && watcher.CharacterGameState.CharacterLeft(departed)
+                        && _tickProfile.Enabled)
+                    {
+                        _tickProfile.Removed++;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _departedCharacters.Clear();
         }
     }
 

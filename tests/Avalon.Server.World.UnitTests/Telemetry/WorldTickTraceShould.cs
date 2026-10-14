@@ -41,8 +41,10 @@ public class WorldTickTraceShould
         {
             var records = instances.Where(e => e.Values["tickId"] == batch.Values["tickId"]).ToList();
             Assert.Equal(2, records.Count);
-            Assert.Equal(5, records.Sum(e => e.Values["candidateChecks"]));
-            Assert.Equal(5, records.Sum(e => e.Values["visiblePairs"]));
+            // The views are decided on each instance's broadcast tick (#981): every player checks every player there.
+            Assert.All(records, e => Assert.Equal(e.Values["broadcast"] * e.Values["players"] * e.Values["players"],
+                e.Values["candidateChecks"]));
+            Assert.All(records, e => Assert.Equal(e.Values["candidateChecks"], e.Values["visiblePairs"]));
             Assert.All(records, e => Assert.Equal(1, e.Values["completed"]));
             Assert.All(records, e => Assert.Equal(0, e.Values["added"] + e.Values["removed"]));
             Assert.All(records, e => Assert.True(e.Values["durationTicks"] >=

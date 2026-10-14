@@ -11,9 +11,11 @@ using Avalon.World.Telemetry;
 namespace Avalon.World.Entities;
 
 /// <summary>
-/// What one character's client has been told exists: its replication state, which its instance diffs
-/// every tick. World-side only (#612): World.Public is the modding API, and a mod able to drive this
-/// could change what a player's client is told it can see.
+/// What one character's client has been told exists: its replication state. Its instance decides the view again once
+/// per broadcast period, on the instance's broadcast tick (<see cref="Update" />), and holds it on the ticks between
+/// (<see cref="Hold" />, #981); this decides who is in view, the instance decides when. World-side only (#612):
+/// World.Public is the modding API, and a mod able to drive this could change what a player's client is told it can
+/// see.
 /// </summary>
 public class CharacterCharacterGameState
 {
@@ -38,6 +40,14 @@ public class CharacterCharacterGameState
     public IReadOnlyList<ObjectGuid> NewObjects => _newObjects;
     public IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> UpdatedObjects => _updatedObjects;
     public IReadOnlyList<ObjectGuid> RemovedObjects => _removedObjects;
+
+    /// <summary>
+    /// Whether the view must be decided on the next tick, whatever the instance's cadence (#981): true for a new state
+    /// and after <see cref="Reset" />, until an <see cref="Update" /> completes. A client entering the world or an
+    /// instance has been told of nothing there, so its first tick lists it itself and everything in view, as every tick
+    /// did before #981, rather than leaving it in an empty world until the instance's next broadcast.
+    /// </summary>
+    internal bool ScanOwed { get; private set; } = true;
 
     public CharacterCharacterGameState()
     {
@@ -127,6 +137,35 @@ public class CharacterCharacterGameState
             profile.Updated += _updatedObjects.Count;
             profile.Removed += _removedObjects.Count;
         }
+
+        ScanOwed = false;
+    }
+
+    /// <summary>
+    /// A tick on which the view is not decided again (#981): what the client has been told stays as it is, and nothing
+    /// the last <see cref="Update" /> reported is reported a second time. Updates need no decision of their own: an
+    /// entity's changes are sent only on its instance's broadcast tick, which decides the view first.
+    /// </summary>
+    internal void Hold()
+    {
+        _newObjects.Clear();
+        _updatedObjects.Clear();
+        _removedObjects.Clear();
+    }
+
+    /// <summary>
+    /// A character that has left the instance (#981): if the client was told of it, the removal is reported now, among
+    /// this tick's removes, rather than at the view's next decision. A character's guid comes back with it, so a client
+    /// still holding it when it came back would never be told of what changed while it was elsewhere. Call after this
+    /// tick's <see cref="Update" /> or <see cref="Hold" />, which empty the removes. True when it was reported.
+    /// </summary>
+    internal bool CharacterLeft(ObjectGuid guid)
+    {
+        if (!_characterTrackingSystem.Untrack(guid))
+            return false;
+
+        _removedObjects.Add(guid);
+        return true;
     }
 
     /// <summary>
@@ -147,10 +186,14 @@ public class CharacterCharacterGameState
         _creatureTrackingSystem.Forget(_forgotten);
         _characterTrackingSystem.Forget(_forgotten);
         _worldObjectTrackingSystem.Forget(_forgotten);
+        ScanOwed = true;
         return _forgotten;
     }
 
-    /// <summary>Whether the client has this character or creature in view, as of the last update (auras).</summary>
+    /// <summary>
+    /// Whether the client has been told of this character or creature and not told it is gone, as of the last decision
+    /// of its view (auras): what it holds, which since #981 can be up to a broadcast period behind what is in range.
+    /// </summary>
     public bool Knows(ObjectGuid guid) => _characterTrackingSystem.IsTracked(guid) || _creatureTrackingSystem.IsTracked(guid);
 
     // "Already tracked" is the object's own tracking system's set, so a tracked object keeps its margin.
