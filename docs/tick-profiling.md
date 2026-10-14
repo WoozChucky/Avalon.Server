@@ -80,7 +80,13 @@ Kernel sampling needs `perf_event_open`, and the homelab node has `perf_event_pa
 
 ```sh
 kubectl -n avalon debug avalon-world-loadtest-0 --image=mcr.microsoft.com/dotnet/sdk:10.0 \
-  --target=avalon-world --container=ktrace1 --profile=sysadmin -- sleep 1800
+  --target=avalon-world --container=ktrace1 --profile=sysadmin -- sleep 2700
+```
+
+`collect-linux` needs the kernel's tracing file system, which the debug container does not mount: without it the collection fails at once with "TraceFS is not accessible". Mount it inside the container first (the mount stays in the container's own mount namespace):
+
+```sh
+mkdir -p /sys/kernel/tracing && mount -t tracefs nodev /sys/kernel/tracing
 ```
 
 `collect-linux` is a dotnet-trace 10 command (the 950 capture used 10.0.750501); install that version, with the same two exports as step 2, and probe first that the world can be traced this way (it needs the runtime's user_events support):
@@ -99,7 +105,17 @@ dotnet-trace collect-linux -p 1 --profile cpu-sampling,thread-time \
   --duration 00:00:02:00 -o /root/ktick1.nettrace
 ```
 
-Kernel events are recorded for every process on the node by default; `-p 1` limits only the .NET events to the world. That is wanted here: what ran on the tick thread's CPU when it was off it is the question. This combination has not been run on the homelab yet (#974 ran `cpu-sampling` alone, without the provider). On the first capture, survey the file before anything else ([the trace reader](#the-trace-reader)'s `survey` mode) and check that it holds `WorldTick` records, samples, context switches and migrations; and expect a larger file than capture A, so start with two minutes.
+Kernel events are recorded for every process on the node by default; `-p 1` limits only the .NET events to the world. That is wanted here: what ran on the tick thread's CPU when it was off it is the question. Survey each file before anything else ([the trace reader](#the-trace-reader)'s `survey` mode) and check what it holds.
+
+**What the command above gave at 1,200 and 1,300 players** ([#1001](https://github.com/WoozChucky/Avalon.Server/issues/1001), section 2), and what to change next time:
+
+- **Size and time:** a two-minute capture is about 220–240 MB and takes about 6.5 minutes, 4.5 of them resolving symbols after recording stops. Give the container's `sleep` room for every capture planned in it, plus copying out.
+- **The tick provider does not belong in this session.** Its events go through the kernel into the same per-CPU buffer as the samples on the tick thread's CPU, and the buffer overflows mid-tick: about 70% of `InstanceTick` records and about 60% of the tick thread's CPU samples were lost, unevenly within the tick (few samples survive 5–7 ms into a tick). The provider's writes also cost the tick 1.5–1.8 ms, 14–15% of the tick thread's samples, and widen the tail. Take the provider in a separate `collect` session (capture A) and the kernel events alone here, or keep only `WorldTick` and `InstanceBatch`; line the two up by wall time.
+- **No context switches were recorded:** the `thread-time` profile produced none. Name the tracepoint explicitly with the others: `--perf-events sched:sched_switch,sched:sched_migrate_task,sched:sched_wakeup`, and check the survey for it before relying on off-CPU time.
+- **Migrations and wakeups were sampled and partly lost** (most on the tick thread's own CPU), so read the tick thread's CPU changes from the samples' CPU numbers rather than from `sched_migrate_task`.
+- **Read the node's topology and interrupt placement beside the capture**, since where the tick thread runs explains most slow ticks (#1001 section 6): `/sys/devices/system/cpu/cpu*/topology/thread_siblings_list`, `/proc/interrupts` and `/proc/irq/*/smp_affinity_list`, from the same container.
+- Only the world process's CPU samples were kept; other processes on the node show only in the per-second `/proc/stat` figures (C).
+- The trace reader's `tick` mode skips `WorldTick` and `InstanceBatch` records that arrive without their event metadata, as these did; #1001's analysis read them by position (every field is a 64-bit integer).
 
 What to read: for each `WorldTick` over 16.67 ms and a set of median ticks, the tick thread's (the thread writing `WorldTick`) switches out and their off-CPU time inside the tick, its migrations and the CPUs it ran on, the samples on those CPUs of other threads while it was off them, and interrupt handling (`asm_common_interrupt`, `net_rx_action`) on its CPU. A slowdown with no time off the CPU and no interrupts points instead to the thread running slower on the CPU (its hyperthread sibling busy, cache, frequency), which needs C and hardware counters.
 
