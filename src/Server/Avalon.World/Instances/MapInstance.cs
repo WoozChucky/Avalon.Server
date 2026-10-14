@@ -117,6 +117,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>Each player's state adds and updates, put together from each entity's entry, encoded once per broadcast (#980).</summary>
     private readonly StatePacketAssembler _stateAdds = StatePacketAssembler.ForAdds();
     private readonly StatePacketAssembler _stateUpdates = StatePacketAssembler.ForUpdates();
+
+    // Whether this tick's broadcast puts its adds and updates together from shared entries: only with at least
+    // StatePacketAssembler.MinRecipientsToShare characters here; with fewer, each list is encoded whole (#980).
+    private bool _shareStateEntries;
+
+    // One recipient's described adds or updates, encoded whole when nothing is shared, reused for every packet (#980).
+    private readonly List<ObjectState> _described = new(32);
     private readonly List<PortalInstance> _portals = new();
 
     /// <summary>This tick's ability objects (projectiles), which the cast system fills and the broadcast reads.</summary>
@@ -1434,6 +1441,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             // of them (#980); the last broadcast's encodings are forgotten first, also when it threw.
             _stateAdds.BeginBroadcast();
             _stateUpdates.BeginBroadcast();
+            _shareStateEntries = _characters.Count >= StatePacketAssembler.MinRecipientsToShare;
             foreach (ICharacter character in _characters.Values)
             {
                 if (character is CharacterEntity entity)
@@ -1483,7 +1491,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Indexed rather than walked with foreach, which boxes an interface's enumerator (#640).
         IReadOnlyList<ObjectGuid> newObjects = character.CharacterGameState.NewObjects;
         long profileStart;
-        if (newObjects.Count > 0)
+        if (newObjects.Count > 0 && !_shareStateEntries)
+        {
+            SendWholeAdds(connection, character.Guid, newObjects);
+        }
+        else if (newObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
             _stateAdds.BeginPacket();
@@ -1507,7 +1519,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
         IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updatedObjects =
             character.CharacterGameState.UpdatedObjects;
-        if (updatedObjects.Count > 0)
+        if (updatedObjects.Count > 0 && !_shareStateEntries)
+        {
+            SendWholeUpdates(connection, character.Guid, updatedObjects);
+        }
+        else if (updatedObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
             _stateUpdates.BeginPacket();
@@ -1526,6 +1542,54 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             SendStatePacket(connection, SInstanceStateRemovePacket.Create(
                 character.CharacterGameState.RemovedObjects, _replicationEncoder), profileStart);
         }
+    }
+
+    /// <summary>
+    /// The recipient's adds described and encoded whole, as one packet: a broadcast with fewer recipients than
+    /// <see cref="StatePacketAssembler.MinRecipientsToShare" /> has nothing to share, and one encode of the list is
+    /// cheaper than its entries one by one (#980).
+    /// </summary>
+    private void SendWholeAdds(IWorldConnection connection, ObjectGuid recipientGuid, IReadOnlyList<ObjectGuid> added)
+    {
+        long start = _tickProfile.Timestamp();
+        _described.Clear();
+        for (int i = 0; i < added.Count; i++)
+        {
+            if (DescribeNewObject(added[i], recipientGuid) is { } state)
+                _described.Add(state);
+        }
+
+        SendWhole(connection, start, adds: true);
+    }
+
+    /// <summary>The recipient's updates described and encoded whole, as one packet (<see cref="SendWholeAdds" />).</summary>
+    private void SendWholeUpdates(IWorldConnection connection, ObjectGuid recipientGuid,
+        IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updated)
+    {
+        long start = _tickProfile.Timestamp();
+        _described.Clear();
+        for (int i = 0; i < updated.Count; i++)
+        {
+            if (DescribeUpdatedObject(updated[i], recipientGuid) is { } state)
+                _described.Add(state);
+        }
+
+        SendWhole(connection, start, adds: false);
+    }
+
+    /// <summary>Encodes and sends what <see cref="_described" /> holds, if anything; the describing counted as preparation.</summary>
+    private void SendWhole(IWorldConnection connection, long start, bool adds)
+    {
+        NoteDescribed(start);
+        if (_described.Count == 0)
+        {
+            _tickProfile.StateEncodingTicks += _tickProfile.Elapsed(start);
+            return;
+        }
+
+        SendStatePacket(connection, adds
+            ? SInstanceStateAddPacket.Create(_described, _replicationEncoder)
+            : SInstanceStateUpdatePacket.Create(_described, _replicationEncoder), start);
     }
 
     /// <summary>

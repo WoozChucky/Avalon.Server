@@ -37,7 +37,7 @@ public class StateUpdateEncodingShould
     private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
     public static TheoryData<string> Broadcasts =>
-        ["town", "forest", "self", "listed-and-changed", "out-of-view", "arrivals", "projectiles"];
+        ["town", "forest", "self", "listed-and-changed", "out-of-view", "arrivals", "projectiles", "solo", "pair"];
 
     /// <summary>
     /// Real broadcasts through a real instance: a crowded town where everyone moves, everyone listed to everyone on its
@@ -46,8 +46,10 @@ public class StateUpdateEncodingShould
     /// changed and updated to the others, then listed again after leaving their view; a recipient too far to see
     /// anyone; creatures walking into the view of several recipients on one tick, out and back in, with a character
     /// arriving midway (its own add, and everyone listed to it); and projectiles cast through the real cast system,
-    /// one flying into a recipient's view mid-flight and one finishing in flight. Every recipient's add and update of
-    /// every tick, or their absence, is compared.
+    /// one flying into a recipient's view mid-flight and one finishing in flight; and a solo player and a pair among
+    /// creatures that move, are hurt and come into and out of view, the first encoded whole (fewer recipients than
+    /// <see cref="StatePacketAssembler.MinRecipientsToShare" />) and the second from shared entries. Every recipient's add
+    /// and update of every tick, or their absence, is compared.
     /// </summary>
     [Theory]
     [MemberData(nameof(Broadcasts))]
@@ -216,6 +218,35 @@ public class StateUpdateEncodingShould
                         CastProjectile(handler, characters[0], new Vector3(0f, 0f, 90f), reach: 90f);
                     if (tick == 5)
                         CastProjectile(handler, characters[1], new Vector3(15f, 0f, 20f), reach: 3f);
+                };
+
+            case "solo":
+            case "pair":
+                characters.Add(JoinAt(instance, broadcast == "solo" ? 980_200u : 980_210u, Vector3.zero));
+                if (broadcast == "pair")
+                    characters.Add(JoinAt(instance, 980_211, new Vector3(2f, 0f, 2f)));
+                for (uint i = 0; i < 6; i++)
+                {
+                    creatures.Add(AddCreature(instance, (broadcast == "solo" ? 980_970u : 980_980u) + i,
+                        new Vector3(10f + i * 5f, 0f, 4f)));
+                }
+
+                return tick =>
+                {
+                    // Its own update: motion, left out for itself, and health.
+                    characters[0].Character.Position = new Vector3(tick * 0.05f, 0f, 0f);
+                    characters[0].Character.CurrentHealth = (uint)(90 - tick);
+                    for (int i = 0; i < 5; i++)
+                    {
+                        if ((i + tick) % 2 == 0)
+                            creatures[i].Position = new Vector3(10f + i * 5f + tick * 0.1f, 0f, 4f);
+                        if ((i + tick) % 5 == 0)
+                            creatures[i].CurrentHealth = (uint)(95 - tick);
+                    }
+
+                    // The last walks out of view on tick 10 and back in on tick 16: removed, then listed again.
+                    if (tick is 10 or 16)
+                        creatures[5].Position = new Vector3(tick == 10 ? 200f : 30f, 0f, 4f);
                 };
 
             default:

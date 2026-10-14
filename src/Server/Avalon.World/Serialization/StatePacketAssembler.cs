@@ -37,6 +37,20 @@ public sealed class StatePacketAssembler
 {
     private readonly bool _adds;
 
+    /// <summary>
+    /// The fewest recipients a broadcast must have for its packets to be put together from shared entries; with fewer,
+    /// each recipient's list is encoded whole by the packet's <c>Create</c>, as before #980 (the same bytes).
+    /// </summary>
+    /// <remarks>
+    /// An entry encoded on its own costs about 1.6 times its share of a whole encode (each entry is a serializer call of
+    /// its own, then copied twice), so it pays off only once another recipient copies it rather than encoding it again.
+    /// Measured (docs/benchmarks.md, shared state and aura encoding): for one recipient the shared entries were 50% to
+    /// 65% slower than a whole encode (fifteen creatures; 20% to 71% for one to forty), for two recipients seeing the
+    /// same entities 9% to 14% faster (15% to 39% for one to forty creatures), and for three 37% to 38% faster. A party
+    /// of two in a forest mostly sees the same creatures, so two it is.
+    /// </remarks>
+    public const int MinRecipientsToShare = 2;
+
     // This broadcast's shared entries, back to back, and where each entity's is.
     private readonly MemoryStream _entries = new(1024);
     private readonly Dictionary<ulong, Entry> _index = [];

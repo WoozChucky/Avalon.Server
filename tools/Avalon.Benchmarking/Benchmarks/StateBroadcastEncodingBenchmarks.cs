@@ -9,16 +9,19 @@ using BenchmarkDotNet.Attributes;
 namespace Avalon.Benchmarking.Benchmarks;
 
 /// <summary>
-/// #980: one town broadcast's state packets, every player seeing every other: each recipient's packet encoded whole from
-/// its list (the per-recipient encoding), against one put together from entries encoded once per broadcast
-/// (<see cref="StatePacketAssembler" />). The updates are a broadcast with every player moving (a motion-only update has
-/// no entry for its own client); the adds are the town's first tick, everyone listed to everyone in full, each player
-/// its own character without its motion. Encoding only: the entities are already described. One operation is one
-/// broadcast to every player.
+/// #980: one broadcast's state packets in an instance where every player sees every other player and the same fifteen
+/// creatures: a solo player or a party in a forest (1 to 3 players), a town (10 to 30). Each recipient's packet encoded
+/// whole from its list (<c>Before</c>, the encoding before #980), put together from entries encoded once per broadcast
+/// (<c>Shared</c>, <see cref="StatePacketAssembler" />), and what the instance does now (<c>After</c>: shared from
+/// <see cref="StatePacketAssembler.MinRecipientsToShare" /> recipients, whole below). The updates are a broadcast with
+/// every player and creature moving (a motion-only update has no entry for its own client); the adds are everyone
+/// listed everything in full, each player its own character without its motion. Encoding only: the entities are
+/// already described. One operation is one broadcast to every player.
 /// </summary>
 [MemoryDiagnoser]
 public class StateBroadcastEncodingBenchmarks
 {
+    private const int Creatures = 15;
     private const GameEntityFields Moved = GameEntityFields.Position | GameEntityFields.Velocity | GameEntityFields.Orientation;
 
     private readonly PacketEncoder _encoder = new(new PayloadSegmentPool());
@@ -26,49 +29,71 @@ public class StateBroadcastEncodingBenchmarks
     private readonly StatePacketAssembler _adds = StatePacketAssembler.ForAdds();
     private readonly List<ObjectState> _list = new(64);
     private ObjectGuid[] _guids = null!;
-    private ObjectState[] _states = null!;
+    private ObjectState[] _moved = null!;
     private ObjectState[] _full = null!;
     private ObjectState[] _own = null!;
 
-    [Params(10, 25, 30)]
+    [Params(1, 2, 3, 10, 25, 30)]
     public int Players { get; set; }
+
+    private int Entities => Players + Creatures;
 
     [GlobalSetup]
     public void Setup()
     {
-        _guids = new ObjectGuid[Players];
-        _states = new ObjectState[Players];
-        _full = new ObjectState[Players];
+        _guids = new ObjectGuid[Entities];
+        _moved = new ObjectState[Entities];
+        _full = new ObjectState[Entities];
         _own = new ObjectState[Players];
-        for (int i = 0; i < Players; i++)
+        for (int i = 0; i < Entities; i++)
         {
-            _guids[i] = new ObjectGuid(ObjectType.Character, (uint)(1_000 + i));
-            _states[i] = new ObjectState
+            bool player = i < Players;
+            _guids[i] = new ObjectGuid(player ? ObjectType.Character : ObjectType.Creature, (uint)(1_000 + i));
+            _moved[i] = new ObjectState
             {
                 Guid = _guids[i].RawValue,
                 Position = new Vec3 { X = 100.25f + i, Y = 0.5f, Z = -42.75f - i },
                 Velocity = new Vec3 { X = 3.5f, Y = 0f, Z = -3.5f },
                 Orientation = 135f,
-                Name = $"Player{i:D4}",
-                Class = CharacterClass.Warrior,
-                Gender = CharacterGender.Female,
+                Name = player ? $"Player{i:D4}" : "Forest Wolf",
+                Class = player ? CharacterClass.Warrior : null,
+                Gender = player ? CharacterGender.Female : null,
+                CreatureMetadataId = player ? null : 7UL,
             };
-            _full[i] = Full(_states[i], motion: true);
-            _own[i] = Full(_states[i], motion: false);
+            _full[i] = Full(_moved[i], motion: true);
+            if (player)
+                _own[i] = Full(_moved[i], motion: false);
         }
     }
 
-    [Benchmark(Baseline = true, Description = "Updates: each recipient's encoded whole")]
-    public int PerRecipient()
+    [Benchmark(Baseline = true, Description = "Updates: Before")]
+    public int UpdatesBefore() => UpdatesWhole();
+
+    [Benchmark(Description = "Updates: Shared")]
+    public int UpdatesShared() => UpdatesAssembled();
+
+    [Benchmark(Description = "Updates: After")]
+    public int UpdatesAfter() => Players >= StatePacketAssembler.MinRecipientsToShare ? UpdatesAssembled() : UpdatesWhole();
+
+    [Benchmark(Description = "Adds: Before")]
+    public int AddsBefore() => AddsWhole();
+
+    [Benchmark(Description = "Adds: Shared")]
+    public int AddsShared() => AddsAssembled();
+
+    [Benchmark(Description = "Adds: After")]
+    public int AddsAfter() => Players >= StatePacketAssembler.MinRecipientsToShare ? AddsAssembled() : AddsWhole();
+
+    private int UpdatesWhole()
     {
         int bytes = 0;
         for (int recipient = 0; recipient < Players; recipient++)
         {
             _list.Clear();
-            for (int entity = 0; entity < Players; entity++)
+            for (int entity = 0; entity < Entities; entity++)
             {
                 if (entity != recipient)
-                    _list.Add(_states[entity]);
+                    _list.Add(_moved[entity]);
             }
 
             OutboundPacket packet = SInstanceStateUpdatePacket.Create(_list, _encoder);
@@ -79,18 +104,17 @@ public class StateBroadcastEncodingBenchmarks
         return bytes;
     }
 
-    [Benchmark(Description = "Updates: put together from entries encoded once per broadcast")]
-    public int Shared()
+    private int UpdatesAssembled()
     {
         int bytes = 0;
         _updates.BeginBroadcast();
         for (int recipient = 0; recipient < Players; recipient++)
         {
             _updates.BeginPacket();
-            for (int entity = 0; entity < Players; entity++)
+            for (int entity = 0; entity < Entities; entity++)
             {
                 if (entity != recipient && !_updates.TryAppendShared(_guids[entity], Moved))
-                    _updates.AppendShared(_guids[entity], Moved, _states[entity]);
+                    _updates.AppendShared(_guids[entity], Moved, _moved[entity]);
             }
 
             OutboundPacket packet = _updates.Finish(_encoder);
@@ -101,14 +125,13 @@ public class StateBroadcastEncodingBenchmarks
         return bytes;
     }
 
-    [Benchmark(Description = "Adds: each recipient's encoded whole")]
-    public int AddsPerRecipient()
+    private int AddsWhole()
     {
         int bytes = 0;
         for (int recipient = 0; recipient < Players; recipient++)
         {
             _list.Clear();
-            for (int entity = 0; entity < Players; entity++)
+            for (int entity = 0; entity < Entities; entity++)
                 _list.Add(entity == recipient ? _own[entity] : _full[entity]);
 
             OutboundPacket packet = SInstanceStateAddPacket.Create(_list, _encoder);
@@ -119,15 +142,14 @@ public class StateBroadcastEncodingBenchmarks
         return bytes;
     }
 
-    [Benchmark(Description = "Adds: put together from entries encoded once per broadcast")]
-    public int AddsShared()
+    private int AddsAssembled()
     {
         int bytes = 0;
         _adds.BeginBroadcast();
         for (int recipient = 0; recipient < Players; recipient++)
         {
             _adds.BeginPacket();
-            for (int entity = 0; entity < Players; entity++)
+            for (int entity = 0; entity < Entities; entity++)
             {
                 if (entity == recipient)
                     _adds.AppendOwn(_own[entity]);
@@ -143,7 +165,7 @@ public class StateBroadcastEncodingBenchmarks
         return bytes;
     }
 
-    /// <summary>A character's full state, as an add describes it; without its motion for its own client.</summary>
+    /// <summary>An entity's full state, as an add describes it; without its motion for a character's own client.</summary>
     private static ObjectState Full(ObjectState moved, bool motion) => new()
     {
         Guid = moved.Guid,
@@ -158,10 +180,9 @@ public class StateBroadcastEncodingBenchmarks
         CurrentPower = 35,
         Level = 12,
         IsDead = false,
-        Experience = 4_500,
-        RequiredExperience = 9_000,
         Name = moved.Name,
         Class = moved.Class,
         Gender = moved.Gender,
+        CreatureMetadataId = moved.CreatureMetadataId,
     };
 }
