@@ -2,48 +2,79 @@ using Avalon.Network.Packets.Auras;
 
 namespace Avalon.World.Auras;
 
-/// <summary>A unit's auras as a client is told them (auras).</summary>
-public static class AuraWire
+/// <summary>
+/// A unit's auras as a client is told them (auras), in entries reused from one packet to the next (#980): a packet is
+/// encoded before its <c>Create</c> returns, so the list and its entries are free again as soon as it is. What one call
+/// returns is good until the next. One per instance, tick thread only; it allocates only as it grows to the most entries
+/// one packet has held.
+/// </summary>
+/// <remarks>
+/// Every entry handed out has each of its members set by the call that hands it out, so it says only what a new one
+/// would; a member added to <see cref="AuraEntryDto" /> must be set by both <see cref="List" /> and
+/// <see cref="Updates" /> (<c>AuraWireShould</c> fails until it is).
+/// </remarks>
+public sealed class AuraWire
 {
+    private readonly List<AuraEntryDto> _entries = new(8);
+    private readonly List<AuraEntryDto> _made = new(8);
+
     /// <summary>Every aura held, with the time each has left now; no action.</summary>
-    public static List<AuraEntryDto> List(UnitAuras auras, DateTimeOffset now)
+    public List<AuraEntryDto> List(UnitAuras auras, DateTimeOffset now)
     {
-        var entries = new List<AuraEntryDto>(auras.Count);
-        foreach (ActiveAura aura in auras.All)
+        _entries.Clear();
+        // Indexed rather than walked with foreach, which boxes an interface's enumerator (#640).
+        IReadOnlyList<ActiveAura> held = auras.All;
+        for (int i = 0; i < held.Count; i++)
         {
-            entries.Add(new AuraEntryDto
-            {
-                AuraId = aura.Id.Value,
-                InstanceKey = aura.Key,
-                CasterGuid = aura.CasterGuid.RawValue,
-                Stacks = aura.Stacks,
-                RemainingMs = UnitAuras.RemainingMs(aura, now),
-                DurationMs = aura.DurationMs,
-            });
+            ActiveAura aura = held[i];
+            AuraEntryDto entry = Next();
+            entry.AuraId = aura.Id.Value;
+            entry.InstanceKey = aura.Key;
+            entry.CasterGuid = aura.CasterGuid.RawValue;
+            entry.Stacks = aura.Stacks;
+            entry.RemainingMs = UnitAuras.RemainingMs(aura, now);
+            entry.DurationMs = aura.DurationMs;
+            entry.Action = default;
         }
 
-        return entries;
+        return _entries;
     }
 
     /// <summary>This tick's changes, in order, each as it stood when it happened.</summary>
-    public static List<AuraEntryDto> Updates(IReadOnlyList<AuraChange> changes)
+    public List<AuraEntryDto> Updates(IReadOnlyList<AuraChange> changes)
     {
-        var entries = new List<AuraEntryDto>(changes.Count);
+        _entries.Clear();
         for (int i = 0; i < changes.Count; i++)
         {
             AuraChange change = changes[i];
-            entries.Add(new AuraEntryDto
-            {
-                AuraId = change.AuraId.Value,
-                InstanceKey = change.Key,
-                CasterGuid = change.CasterGuid,
-                Stacks = change.Stacks,
-                RemainingMs = change.RemainingMs,
-                DurationMs = change.DurationMs,
-                Action = (AuraUpdateAction)change.Kind,
-            });
+            AuraEntryDto entry = Next();
+            entry.AuraId = change.AuraId.Value;
+            entry.InstanceKey = change.Key;
+            entry.CasterGuid = change.CasterGuid;
+            entry.Stacks = change.Stacks;
+            entry.RemainingMs = change.RemainingMs;
+            entry.DurationMs = change.DurationMs;
+            entry.Action = (AuraUpdateAction)change.Kind;
         }
 
-        return entries;
+        return _entries;
+    }
+
+    /// <summary>The next entry of this call, added to the list: one made before if there is one free, else a new one.</summary>
+    private AuraEntryDto Next()
+    {
+        AuraEntryDto entry;
+        if (_entries.Count < _made.Count)
+        {
+            entry = _made[_entries.Count];
+        }
+        else
+        {
+            entry = new AuraEntryDto();
+            _made.Add(entry);
+        }
+
+        _entries.Add(entry);
+        return entry;
     }
 }

@@ -103,8 +103,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private readonly ObjectStatePool _statePool = new();
 
+    /// <summary>The aura lists' and updates' entries, reused from one packet to the next (#980).</summary>
+    private readonly AuraWire _auraWire;
+
     /// <summary>Each changed unit's aura update, encoded once per broadcast pass for every client that hears it (#980).</summary>
-    private readonly SharedAuraUpdates _auraUpdates = new();
+    private readonly SharedAuraUpdates _auraUpdates;
 
     /// <summary>Each player's state update, put together from each entity's entry, encoded once per broadcast (#980).</summary>
     private readonly StateUpdateAssembler _stateUpdates = new();
@@ -257,6 +260,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraPassFailures = new ThrottledErrorLog(_logger, _time, $"The aura pass of instance {InstanceId}");
         _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
         _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
+        _auraWire = new AuraWire();
+        _auraUpdates = new SharedAuraUpdates(_auraWire);
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
         _hits = new UnitHitQuery(_characters, _creatures);
@@ -1573,7 +1578,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (auras.Count == 0 && guid != recipient.Guid)
                 continue;
 
-            connection.Send(SAuraListPacket.Create(guid.RawValue, AuraWire.List(auras, _time.GetUtcNow()),
+            connection.Send(SAuraListPacket.Create(guid.RawValue, _auraWire.List(auras, _time.GetUtcNow()),
                 PacketEncoder.Shared));
         }
     }

@@ -21,7 +21,8 @@ namespace Avalon.World.Auras;
 /// One per instance, tick thread only; it allocates only as its table grows to the most units changed in one pass.
 /// </para>
 /// </remarks>
-public sealed class SharedAuraUpdates
+/// <param name="wire">The instance's reused aura entries, which each update is written from.</param>
+public sealed class SharedAuraUpdates(AuraWire wire)
 {
     private readonly Dictionary<ulong, OutboundPacket> _encoded = [];
 
@@ -35,7 +36,7 @@ public sealed class SharedAuraUpdates
         if (!_encoded.TryGetValue(guid, out OutboundPacket packet))
         {
             // Encoded before it is kept, so a throw leaves nothing half made in the table.
-            packet = SAuraUpdatePacket.Create(guid, AuraWire.Updates(auras.Changes), PacketEncoder.Shared);
+            packet = SAuraUpdatePacket.Create(guid, wire.Updates(auras.Changes), PacketEncoder.Shared);
             _encoded.Add(guid, packet);
         }
 
