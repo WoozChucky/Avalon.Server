@@ -801,7 +801,7 @@ dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario forest-comb
 Since #979 the benchmark binds the instance's own script step (`MapInstance.UpdateCreatureScripts`, private, bound by
 name) rather than calling each script from an array, so it measures which creatures the instance visits, the walk
 over its creature dictionary included; the population, the mix and the 61 ticks per invocation are as above. Before
-(`bd41f2a0`, the step extracted, every creature visited) and after (`fbb25600`, the scheduler: a waiting creature is in
+(`main` with the step extracted, every creature visited) and after (the scheduler: a waiting creature is in
 a search cohort and costs the step nothing until its search is due). `ForestTickBenchmarks` is whole world ticks of one
 forest (seed 1, about 200 creatures, its real AI) with three players standing at its entry.
 
@@ -825,9 +825,19 @@ visit, #974 section 7).
 `forest-combat`, five runs each, alternated, the Release scenario runner (ms per tick; one before run, 0.123 mean and
 0.270 p99 for everything, was a machine hiccup and is left out): mean 0.073–0.075 before, 0.065–0.079 after; p50
 0.069–0.070 before, 0.059–0.068 after; p95 0.103–0.111 before, 0.101–0.136 after; p99 0.137–0.184 before, 0.146–0.206
-after. The middle of the distribution is cheaper and the tail overlaps. Inferred, not measured: the ticks in between are
-cheaper, and the ticks a cohort's search falls on do the same searches as before,
-now over scripts the step had not touched since the last one. The fight is the same fight, kill for kill
+after. The middle of the distribution is cheaper and the tail overlaps. In the review, three runs each pinned to 16 cores
+at high priority: p99 0.125–0.127 ms on `main`, 0.137–0.139 ms on the branch, mean 0.071–0.074 against 0.064–0.068.
+
+The tail is the search tick. Creatures built together search on the same tick, as they did before #979; the ticks in
+between no longer visit them, the search tick still runs every search, now over scripts the step has not touched since
+the last one, and lets the waiting creatures go and take them back. The review measured it at the profile's scale with a
+harness of 80 forests on seeds 1 to 40 (16,682 creatures, a party of three fighting in each, all joined on one tick,
+600 warm-up and 3,600 measured ticks, the mean tick of each residue modulo 61, the detector's period at 1/60 s): the
+search tick 4.62 and 3.97 ms on `main` against 4.48 and 4.35 ms on the branch, every other tick about 0.5 ms cheaper
+(3.22 and 2.84 ms against 2.59 and 2.34), and the whole tick 0.3 to 1.0 ms cheaper at mean and p50 with p95 and p99
+equal or lower. Letting a due cohort go in one pass rather than member by member took the search tick's
+cost over the other ticks from 1.97–2.04 ms to 1.87 ms in that harness (three alternated runs each; search tick
+4.32–4.63 ms before, 4.27–4.34 ms after). The fight is the same fight, kill for kill
 (`ForestCombatScenarioShould`: 105 kills, 2 deaths, as on `main`), and the gate reads 14,176 B per window in Release and
 14,244 B in Debug for `forest-combat`, 3,904 and 4,008 B for `town-social`, the other scenarios 0, as before: the
 scheduler allocates nothing per tick (its roster, bit sets and cohorts grow only as an instance's creatures do).
