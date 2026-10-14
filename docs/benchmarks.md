@@ -3409,7 +3409,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
   keeps a scenario that allocates almost nothing (`town-idle`) from failing on one stray object.
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** Every town figure is 0 since `75a16697` (#875: no town scenario allocates on the tick thread
-  since server packets are built in per-thread messages; the file was last regenerated at `64c12d2a`, for `forest-combat`'s
+  since server packets are built in per-thread messages; the file was last regenerated at `75aeb59e`, for `forest-combat`'s
   fuller fight, #972), so the 256 B floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails all three town scenarios (the smallest, 24 B, is 1,440 B
@@ -3739,10 +3739,10 @@ tests running beside it; every run of a step read the same figure, to the byte:
 | Step | Commit | Release | Debug | Increment (Release) | Runs |
 |---|---|---:|---:|---:|---|
 | Before (main `2d948654`; the file held 10,357, 4 B under #898's roster lists) | | 10,361 | 10,361 | | 3 + 3 |
-| The real send path: `Connection.Send` and `OnQueued` | `80ca3ca8` | 10,361 | 10,361 | 0 | 3 + 3 |
-| A healer in three parties in four | `b9842d23` | 11,479 | 11,479 | +1,118 | 3 + 3 |
-| The kill quest | `a779b4e3` | 12,936 | 12,936 | +1,457 | 3 + 3 |
-| Loot and item destroys | `64c12d2a` | 14,292 | 14,360 | +1,356 | 3 + 3, then 5 + 5 |
+| The real send path: `Connection.Send` and `OnQueued` | `6291eaa2` | 10,361 | 10,361 | 0 | 3 + 3 |
+| A healer in three parties in four | `45704b77` | 11,479 | 11,479 | +1,118 | 3 + 3 |
+| The kill quest | `aaca7ed8` | 12,936 | 12,936 | +1,457 | 3 + 3 |
+| Loot and item destroys | `75aeb59e` | 14,292 | 14,360 | +1,356 | 3 + 3, then 5 + 5 |
 
 **The committed figure, 14,292 B, is the sum**: 10,361 + 0 + 1,118 + 1,457 + 1,356. Release with dynamic PGO off
 (`DOTNET_TieredPGO=0`) reads 14,292 too. The gate reads 14,292 in Release and 14,360 in Debug (+0.48%, inside the
