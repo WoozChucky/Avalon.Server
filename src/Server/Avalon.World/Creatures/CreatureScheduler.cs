@@ -353,13 +353,21 @@ internal sealed class CreatureScheduler
                 continue;
             }
 
-            // Due: every creature in it searches on this tick, its timer as it stood before the tick.
+            // Due: every creature in it searches on this tick, its timer as it stood before the tick. The cohort is let go
+            // whole, in one pass over its list, rather than member by member.
             float elapsed = cohort.Elapsed;
-            while (cohort.Head is { } creature)
+            Creature? member = cohort.Head;
+            cohort.Head = null;
+            FreeCohort(c);
+            while (member is not null)
             {
-                creature.Schedule.Search!.ResumeSearchWait(elapsed);
-                LeaveCohort(creature);
-                MakeActive(creature, runNow: true);
+                Creature? following = member.Schedule.Next;
+                member.Schedule.Search!.ResumeSearchWait(elapsed);
+                member.Schedule.Cohort = -1;
+                member.Schedule.Previous = null;
+                member.Schedule.Next = null;
+                MakeActive(member, runNow: true);
+                member = following;
             }
         }
     }
@@ -406,14 +414,17 @@ internal sealed class CreatureScheduler
         creature.Schedule.Cohort = -1;
         creature.Schedule.Wait = CreatureWait.Active;
         if (cohort.Head is null)
-        {
-            // Free for the next cohort to take: cohorts are kept, never allocated per tick.
-            if (_freeCohortCount == _freeCohorts.Length)
-                Array.Resize(ref _freeCohorts, _freeCohorts.Length * 2);
-            _freeCohorts[_freeCohortCount++] = c;
-            if (_lastJoined == c)
-                _lastJoined = -1;
-        }
+            FreeCohort(c);
+    }
+
+    /// <summary>An emptied cohort, free for the next to take: cohorts are kept, never allocated per tick.</summary>
+    private void FreeCohort(int c)
+    {
+        if (_freeCohortCount == _freeCohorts.Length)
+            Array.Resize(ref _freeCohorts, _freeCohorts.Length * 2);
+        _freeCohorts[_freeCohortCount++] = c;
+        if (_lastJoined == c)
+            _lastJoined = -1;
     }
 
     private int NewCohort(float elapsed)
