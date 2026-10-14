@@ -64,6 +64,32 @@ public class AuraTickShould
         Assert.Equal(AuraChangeKind.Removed, boar.Auras.Changes[^1].Kind);
     }
 
+    /// <summary>
+    /// A unit whose last aura ended ticks the next one it gets: whether a pass dropped it from the instance's holders
+    /// before the new aura landed (listed again then, #898) or not (it kept its place).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Tick_a_new_aura_on_a_unit_whose_last_one_ended(bool droppedFromTheHolders)
+    {
+        CharacterEntity warrior = _h.Player(910_115);
+        Creature boar = _h.Creature(910_915);
+        _h.Auras.Apply(warrior, boar, s_bleed, AuraSource.None);
+        _h.Advance(TimeSpan.FromSeconds(13));
+        _h.Auras.Update();   // the four ticks, then it expires
+        if (droppedFromTheHolders)
+            _h.Auras.Update();
+        Assert.Equal(0, boar.Auras.Count);
+        uint health = boar.CurrentHealth;
+
+        _h.Auras.Apply(warrior, boar, s_bleed, AuraSource.None);
+        _h.Advance(TimeSpan.FromSeconds(3));
+        _h.Auras.Update();
+
+        Assert.Equal(health - 3u, boar.CurrentHealth);
+    }
+
     /// <summary>A stall of a minute delivers the four owed ticks once, then the aura is gone.</summary>
     [Fact]
     public void Catch_up_every_owed_tick_after_a_stall_and_no_more()
