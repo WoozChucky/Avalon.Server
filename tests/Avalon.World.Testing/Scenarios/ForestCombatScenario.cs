@@ -17,8 +17,9 @@ namespace Avalon.World.Testing.Scenarios;
 /// parties in four carry a healer. Every player is a <see cref="LoopFighter" />: it walks to the nearest live creature
 /// through the real input handler and casts its class's basic ability at it through the real cast handler, and a healer
 /// heals its party first when one of them is hurt. What is measured is a fight: the forests' creature AI (about 200
-/// creatures each, all ticking), casts, projectiles, hits, heals, threat and encounters, deaths and revives, kills with
-/// their real loot and experience shared by the party, and the state broadcast of all of it.
+/// creatures each, their AI run when active or due as in production, #979), casts, projectiles, hits, heals, threat
+/// and encounters, deaths and revives, kills with their real loot and experience shared by the party, and the state
+/// broadcast of all of it.
 /// </summary>
 /// <remarks>
 /// <para>
