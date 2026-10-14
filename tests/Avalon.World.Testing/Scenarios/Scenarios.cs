@@ -8,6 +8,7 @@ public static class Scenarios
     [
         new TownIdleScenario(),
         new TownWalkScenario(),
+        new TownSocialScenario(),
         new ManyInstancesScenario(),
         new ForestCombatScenario(),
     ];

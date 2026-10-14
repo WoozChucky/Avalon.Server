@@ -247,6 +247,19 @@ public sealed class ScenarioWorld : IDisposable
     /// <summary>The characters' inventories and wallets, as the item and loot handlers are given them; null without reference data.</summary>
     public ICharacterEconomy? Economy { get; }
 
+    /// <summary>
+    /// The party service the instances and <see cref="Tick" /> use, as the party handlers and the party and whisper
+    /// commands are given it; null in a world without reference data. Tick thread only.
+    /// </summary>
+    public PartyService? Parties => _parties;
+
+    /// <summary>
+    /// The loggers of everything in a world with reference data: a handler or command a scenario builds logs here too,
+    /// so an error it contains and goes on without ends the scenario at the next <see cref="Tick" /> check instead of
+    /// being measured as cheaper work. Never written in a world without reference data.
+    /// </summary>
+    public ILoggerFactory Logs => _errorLog;
+
     /// <summary>Every player's connection, in the order they joined.</summary>
     public IReadOnlyList<ScenarioConnection> Connections => _connections;
 
@@ -290,7 +303,7 @@ public sealed class ScenarioWorld : IDisposable
             if (_failures.First is { } failure)
                 throw new InvalidOperationException("An instance threw during a scenario tick", failure);
             if (_errorLog.First is { } error)
-                throw new InvalidOperationException("A forest instance logged an error during a tick", error);
+                throw new InvalidOperationException("An instance or a handler logged an error during a tick", error);
 
             // The quest flush (a world with reference data has the quest service), before the inventory flush clears the
             // slot changes its recount reads, then the flushers that need no service, in WorldServer's order after the
