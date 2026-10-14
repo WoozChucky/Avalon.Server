@@ -843,6 +843,11 @@ fifteen). The scenario gate reads `forest-combat` at 10,361 B per window after #
 committed 10,357 B, within the 256 B floor: the roster's lists growing to their size once during the run (with the
 lists made at 64 entries up front it reads 10,357 B). Nothing is allocated per tick.
 
+From #972 on, `Tick` rows include more than the aura work above: the scenario harness sends every packet through the
+real `Connection.Send` and the world connection's `OnQueued`, and its tick runs `QuestFlusher.Flush` for every
+connection (the fast path: nothing owed). `Tick` timings before and after #972 are not like for like; the pass and
+scan rows are unchanged.
+
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
 ```
@@ -3607,8 +3612,8 @@ kills and deaths in it; the second run's creatures carry higher ids (the process
 changes neither.
 
 **Gate.** Committed at **14,292 B per window** (19.9 B per player per tick, 238 B per tick) since #972, the sum of
-10,361 B (the fight before #972, as this machine read it on the day: the file held 10,357 B, 4 B lower, inside the
-noise of a runtime patch) and the increments of [a fuller fight](#results--a-fuller-fight-972-2026-10-14): the real send
+10,361 B (the fight before #972: the file held 10,357 B, and the 4 B are #898's roster lists growing to their size
+once during the run, see [aura scans](#aura-scans--benchmarksaurascanbenchmarkscs-898)) and the increments of [a fuller fight](#results--a-fuller-fight-972-2026-10-14): the real send
 call 0 B, the healer +1,118 B, the kill quest +1,457 B and loot +1,356 B. A hard gate like the town scenarios: see
 [The allocation gate](#the-allocation-gate) for the floor. Before #972 it was committed at **10,357 B per window**
 (14.4 B per player per tick, 173 B per tick), recorded on the developer machine, Release,
@@ -3733,7 +3738,7 @@ tests running beside it; every run of a step read the same figure, to the byte:
 
 | Step | Commit | Release | Debug | Increment (Release) | Runs |
 |---|---|---:|---:|---:|---|
-| Before (main `2d948654`; the file held 10,357) | | 10,361 | 10,361 | | 3 + 3 |
+| Before (main `2d948654`; the file held 10,357, 4 B under #898's roster lists) | | 10,361 | 10,361 | | 3 + 3 |
 | The real send path: `Connection.Send` and `OnQueued` | `80ca3ca8` | 10,361 | 10,361 | 0 | 3 + 3 |
 | A healer in three parties in four | `b9842d23` | 11,479 | 11,479 | +1,118 | 3 + 3 |
 | The kill quest | `a779b4e3` | 12,936 | 12,936 | +1,457 | 3 + 3 |
@@ -3834,6 +3839,10 @@ so it does a sixth more broadcast work; the allocation of the crowded single tow
 7/6 = 120,678 B; 2,214,458 B × 7/6 = 2,583,534 B): what one broadcast to 300 or 600 players in one instance allocates is
 unchanged. The times are within the noise: the four cases moved by -3% to +16% at the same 7/6 ratio of broadcasts,
 with a standard deviation of 10% to 25%, so they show no cost per broadcast either way.
+
+From #972 on, `TickPhaseBenchmarks` (and `CharacterDeltaBenchmarks`, built on the same harness) send every packet
+through the real `Connection.Send` and the world connection's `OnQueued` rather than the sender's `Enqueue` alone:
+rows from #972 on include the send call, so their timings and those above are not compared like for like.
 
 **The allocation gate does not move**: `town-idle`, `town-walk` and `many-instances` 0 B, `forest-combat` 10,357 B, in
 Debug and Release, and `ForestCombatScenarioShould`'s two runs agree. The fight's four forests, published together,

@@ -20,8 +20,8 @@ public class ScenarioConnectionShould
         // One send thread, never started: the test runs its pass.
         using var scheduler = new NetworkSendScheduler(new NetworkConfiguration { SendThreads = 1 },
             NullLoggerFactory.Instance, TimeProvider.System, NetworkSendMetrics.Disabled);
-        using var sealedConnection = new ScenarioConnection(TestCharacters.New(650_001), scheduler);
-        using var plainConnection = new ScenarioConnection(TestCharacters.New(650_002), scheduler, sealPayloads: false);
+        var sealedConnection = new ScenarioConnection(TestCharacters.New(650_001), scheduler);
+        var plainConnection = new ScenarioConnection(TestCharacters.New(650_002), scheduler, sealPayloads: false);
 
         sealedConnection.Send(SPlayerStateAckPacket.Create(1, 2f, 3f, 4f, 0f, 0f, 90, PacketEncoder.Shared));
         plainConnection.Send(SPlayerStateAckPacket.Create(1, 2f, 3f, 4f, 0f, 0f, 90, PacketEncoder.Shared));
@@ -33,6 +33,11 @@ public class ScenarioConnectionShould
         Assert.True(plainConnection.BytesWritten > 0);
         Assert.True(sealedConnection.BytesWritten >= plainConnection.BytesWritten + NonceSize + TagSize,
             $"sealed {sealedConnection.BytesWritten} bytes, plain {plainConnection.BytesWritten}");
+
+        // The closes start, the pass finishes both senders, and each close ends without waiting out its budget.
+        sealedConnection.Dispose();
+        plainConnection.Dispose();
+        scheduler.RunAllPasses();
     }
 
     [Fact]

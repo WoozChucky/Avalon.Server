@@ -37,8 +37,9 @@ namespace Avalon.World.Testing.Scenarios;
 /// layer. Each connection makes its own key pair, as a world that seals does (<see cref="ConnectionKeyExchange" />), and
 /// agrees its session with one client key the process shares, which is fit for cost measurement only.
 /// <para>
-/// Dispose it (<see cref="ScenarioWorld" /> disposes its own) after its scheduler's last pass: the world connection is
-/// closed, which untracks it from the process-wide connection rates.
+/// Dispose it (<see cref="ScenarioWorld" /> disposes its own), then run its scheduler's passes once more: disposing
+/// starts the world connection's close, the next pass finishes its sender, and the close then untracks it from the
+/// process-wide connection rates. Without that pass the close waits out the sender's close budget.
 /// </para>
 /// </remarks>
 public sealed class ScenarioConnection : IWorldConnection, IDisposable
@@ -99,8 +100,9 @@ public sealed class ScenarioConnection : IWorldConnection, IDisposable
     public void Send(OutboundPacket packet) => _wire.Send(packet);
 
     /// <summary>
-    /// Closes the world connection: its sender finishes on the scheduler's next pass (<see cref="ScenarioWorld" /> runs
-    /// one before it disposes the connections), and it leaves the process-wide connection rates.
+    /// Starts the world connection's close: its sender finishes on the scheduler's next pass, which the caller runs
+    /// after this (<see cref="ScenarioWorld" /> runs one after it disposes its connections), and the close then leaves
+    /// the process-wide connection rates.
     /// </summary>
     public void Dispose()
     {

@@ -686,7 +686,8 @@ public sealed class ScenarioWorld : IDisposable
         _services.Dispose();
         _meter.Dispose();
 
-        // Each connection's close finishes its sender on the scheduler's next pass, run here as its thread never starts.
+        // Each connection's close starts here; the pass after it finishes each sender (the scheduler's thread never starts),
+        // and each close then untracks its connection.
         foreach (ScenarioConnection connection in _connections)
             connection.Dispose();
         Scheduler.RunAllPasses();
