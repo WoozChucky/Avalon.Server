@@ -46,6 +46,90 @@ Before starting: check that the worlds sharing the node are quiet (see [load tes
 
 Record with each capture the image, the population and mix, the report of the ramp or hold it was taken under, and its start and end times; write the result on the issue it serves, not only in a pull request.
 
+### Captures for slow ticks (#976)
+
+The 950-player profile ([#974](https://github.com/WoozChucky/Avalon.Server/issues/974), sections 6 and 11) left open why the same work sometimes runs 1.2 to 1.6 times slower, what one 14.5 ms stall outside the instance batch was, whether the tick thread really waits on locks, what an input packet costs, and what the provider itself costs. The captures below answer those. None replaces the other: each adds a kind of event the tick provider's wall times cannot show, in the same session as the provider, so a slow tick can be matched with what happened during it.
+
+**Under a held load, not a ramp.** Hold one population with the load-test tool, `ramp --start N --max N --hold 900s` (one step held 15 minutes; [load testing](load-testing.md#ramp)), with the bot PC otherwise idle, after checking that no players are on the other worlds of the node. Take each capture **two to five minutes long, and repeat it** two or three times in the same hold, rather than one 30 s window: the slow stretches last from 100 ms to a few seconds and cluster, so one short window can miss them or hold only one. The tick provider alone writes about **2.8 MB a second at 121 instances** (84 MB in 30 s at 950 players), so a five-minute capture is about 840 MB; check the debug container's free space (`df -h /root`) before starting, and copy each file out and delete it before the next.
+
+**Reading the times.** `WorldTick`, `InstanceBatch` and `InstanceTick` are written when their span ends, so an event's timestamp is the end of its span and its start is that timestamp less `durationTicks` (converted as below). Use that interval to find what overlaps a tick.
+
+| Capture | Container | Answers |
+|---|---|---|
+| A. Tick provider with runtime GC, suspension and contention events | `general` (as above) | The stall outside the batch (#974 M4): a GC suspension overlapping the tick, or not. Blocked time on locks (M5): contention on the tick thread, with its duration, during slow ticks or not. Input packets per tick and the cost per packet (the provider's `mapPackets` and `sessionPackets`, version 1) |
+| B. Kernel CPU samples and scheduler events with the tick provider | `sysadmin` (privileged; the owner's go-ahead first) | The 1.2–1.6x slowdowns (M1): for each slow tick, whether the tick thread was switched out, woke or migrated to another CPU, and what else ran on its CPU (other threads of the world, its neighbours, network interrupts, M3); on-CPU time per phase |
+| C. Per-CPU node usage at one second | any | Whether the node, or the tick thread's CPUs, were busy during a slow stretch: the 35% node figure of #974 is a three-minute average |
+| D. Provider overhead | `general` | How much the provider itself adds to the tick (item 5 of #976), so traced figures can be read against unprofiled ones |
+
+#### A. Tick provider with runtime events
+
+In the `general` debug container of steps 1 and 2:
+
+```sh
+dotnet-trace collect -p 1 --providers Avalon-World-Tick:0:4,Microsoft-Windows-DotNETRuntime:0x4001:4 \
+  --duration 00:00:03:00 -o /root/tick-rt1.nettrace
+```
+
+Runtime keyword `0x1` (GC) at level 4 adds each collection's start and end and the execution engine's suspension and restart (`GCSuspendEEBegin`, `GCSuspendEEEnd`, `GCRestartEEBegin`, `GCRestartEEEnd`) without the verbose allocation samples, which are level 5. Keyword `0x4000` (contention) adds `ContentionStart` and `ContentionStop` on the thread that waited, the stop carrying the wait's duration. Both are low-rate. With them a tick whose part outside the batch stalls can be read against a suspension window, and a lock wait on the tick thread (thread of the `WorldTick` events) shows as a contention pair inside a tick, measured where the managed sampler of trace 2 in #974 could only guess.
+
+#### B. Kernel CPU samples and scheduler events (privileged)
+
+Kernel sampling needs `perf_event_open`, and the homelab node has `perf_event_paranoid = 4`, which refuses it to any process without `CAP_PERFMON` or `CAP_SYS_ADMIN`: a `general` debug container cannot sample. The `sysadmin` profile grants those, which makes the container **root on the node**. Use it only with the owner's go-ahead, given in that session, for that capture; give it a short `sleep` so it ends by itself.
+
+```sh
+kubectl -n avalon debug avalon-world-loadtest-0 --image=mcr.microsoft.com/dotnet/sdk:10.0 \
+  --target=avalon-world --container=ktrace1 --profile=sysadmin -- sleep 1800
+```
+
+`collect-linux` is a dotnet-trace 10 command (the 950 capture used 10.0.750501); install that version, with the same two exports as step 2, and probe first that the world can be traced this way (it needs the runtime's user_events support):
+
+```sh
+dotnet tool install -g dotnet-trace --version 10.0.750501
+dotnet-trace collect-linux --probe -p 1 -o stdout
+```
+
+dotnet-trace 10 lists two kernel profiles for `collect-linux` (`dotnet-trace list-profiles`): `cpu-sampling` (kernel CPU sampling, about one sample per millisecond of CPU per thread, with kernel and user stacks) and `thread-time` (kernel context-switch events: when each thread went off and on a CPU, so wall time splits into running and waiting). `--perf-events` adds kernel tracepoints by name (`category:name`); `sched:sched_migrate_task` records each move of a thread to another CPU, and `sched:sched_wakeup` each wake. `--providers` adds .NET providers in the same session, and their events are written through the kernel on the same clock as the samples:
+
+```sh
+dotnet-trace collect-linux -p 1 --profile cpu-sampling,thread-time \
+  --perf-events sched:sched_migrate_task,sched:sched_wakeup \
+  --providers Avalon-World-Tick:0:4,Microsoft-Windows-DotNETRuntime:0x4001:4 \
+  --duration 00:00:02:00 -o /root/ktick1.nettrace
+```
+
+Kernel events are recorded for every process on the node by default; `-p 1` limits only the .NET events to the world. That is wanted here: what ran on the tick thread's CPU when it was off it is the question. This combination has not been run on the homelab yet (#974 ran `cpu-sampling` alone, without the provider). On the first capture, survey the file before anything else, counting events by provider and name, and check that it holds `WorldTick` records, samples, context switches and migrations; and expect a larger file than capture A, so start with two minutes.
+
+What to read: for each `WorldTick` over 16.67 ms and a set of median ticks, the tick thread's (the thread writing `WorldTick`) switches out and their off-CPU time inside the tick, its migrations and the CPUs it ran on, the samples on those CPUs of other threads while it was off them, and interrupt handling (`asm_common_interrupt`, `net_rx_action`) on its CPU. A slowdown with no time off the CPU and no interrupts points instead to the thread running slower on the CPU (its hyperthread sibling busy, cache, frequency), which needs C and hardware counters.
+
+**Reading kernel samples.** `dotnet-trace convert` cannot read these samples: it produced an empty speedscope from the 950 capture. TraceEvent can: `TraceLog.CreateFromEventPipeDataFile(path, etlxPath)` builds an `.etlx`, and each event of the resulting `TraceLog` gives its stack through `CallStack()`. Managed frames resolve from the trace's own method events and kernel frames as `vmlinux!...`; `libcoreclr.so` and some runtime stubs stay as raw addresses unless symbols for that exact runtime build are found (`dotnet-symbol`). On a thread busy throughout, consecutive samples were 1.000 ms apart, so one sample counts as one millisecond of CPU.
+
+**Hardware counters** (cycles, instructions, cache misses on the tick thread) are not covered by a tried recipe. `collect-linux --perf-events` takes tracepoints; whether it takes hardware events was not tried. From the same privileged container, a `perf` built for the node's kernel (6.8) could count them per second for the tick thread's TID (`perf stat -e cycles,instructions,cache-misses -t <tid> -I 1000`), to line up with the ticks by wall time.
+
+#### C. Per-CPU node usage at one second
+
+Prometheus's node figures are scraped too coarsely to show a 100 ms to few-second stretch. `/proc/stat` is not per-container, so any debug container reads the node's per-CPU counters; sample it every second for the length of the capture, beside A or B:
+
+```sh
+sh -c 'end=$(( $(date +%s) + 180 )); while [ $(date +%s) -lt $end ]; do date -u +%s.%N; grep "^cpu[0-9]" /proc/stat; sleep 1; done' > /root/cpu1.txt
+```
+
+Busy share of a CPU over an interval is the change in its non-idle fields (all but `idle` and `iowait`) over the change in all of them. Line the seconds up with the trace by UTC wall time (a `.nettrace` records its session's start time).
+
+#### D. Provider overhead
+
+No unprofiled run exists in the same window as a traced one (#974, provider overhead caveat). In one hold, alternate the provider on and off in 30 s windows, logging each window's UTC start and end:
+
+```sh
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  date -u +on-%H:%M:%S
+  dotnet-trace collect -p 1 --providers Avalon-World-Tick:0:4 --rundown:false --duration 00:00:00:30 -o /root/on$i.nettrace
+  date -u +off-%H:%M:%S; sleep 30
+  rm -f /root/on$i.nettrace
+done
+```
+
+`--rundown:false` skips the method rundown at the end of each session, which the tick provider's numeric records do not need and which would otherwise land at the start of each off window. Compare the world's own `world.tick.duration` histogram over the on windows against the off windows, from Prometheus: on the load-test world it is exported every 10 s, so drop the export interval each switch falls in and keep the two whole intervals of each window. Compare the mean (the histogram's `_sum` over its `_count`, exact) and the share of ticks over 16,667 µs (a bucket edge, exact); its p99 is interpolated inside the 16,667–25,000 µs bucket, too coarse to resolve a difference of a millisecond. Ten pairs give twenty intervals a side; repeat in a second hold before calling the difference.
+
 ### Reading a GC trace
 
 A `.nettrace` opens in PerfView or Visual Studio. For a summary on any machine, this reader (a console project referencing `Microsoft.Diagnostics.Tracing.TraceEvent`) prints the collections by generation and reason, the pauses, the bytes promoted per collection and the sampled allocation by type, which is what the allocation findings in [GC pressure](gc-pressure.md) were read from:
