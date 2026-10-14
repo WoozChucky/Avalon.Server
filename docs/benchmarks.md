@@ -857,14 +857,17 @@ the same machine and settings as above:
 | Build | Every creature walked | Scheduled | Scheduled, per creature over the walk |
 |---|---:|---:|---:|
 | Opt-in (`UpdatesWhenDue` false: run, never asked) | 90–92 µs | 138–143 µs | 4.3–4.7 ns |
-| `NextUpdateIn` read after every Update | 91–97 µs | 167–190 µs | 6.6–8.7 ns |
+| `NextUpdateIn` read, then the ownership checks | 91–97 µs | 167–190 µs | 6.6–8.7 ns |
+| `NextUpdateIn` read first, the next tick returning at once, `Run` inlined | 89–101 µs | 134–154 µs | 3.9–4.8 ns |
 
-Reading the answer costs about 3–4 ns per such creature per tick (the virtual call and the comparison), on top of the
-scheduler's own 4–5 ns (its bit set, the roster read and the checks after the Update). It allocates nothing. No built-in
-pays it where it matters: a waiting `AggroDefendScript` (every forest creature) is asked through its search wait, as
-before, and a creature that waits is not visited at all. A world full of custom scripts that need every tick would pay
-about 8 ns a creature a tick more than before #979: 0.14 ms a tick at the 17,265 creatures of the 950-player profile, if
-every one of them were such a script.
+The first answer read after every Update cost about 3–4 ns per such creature per tick: the virtual call, then three
+checks that the script still owned its creature, which for the next tick can only end in leaving it as it is. Since the
+re-review the answer is read first and the next tick returns at once (four runs): the cost is back to the opt-in's, the
+scheduler's own 4–5 ns over the walk (its bit set, the roster read, the call). It allocates nothing. No built-in pays it
+where it matters: a waiting `AggroDefendScript` (every forest creature) is asked through its search wait, and a creature
+that waits is not visited at all. A world full of custom scripts that need every tick would pay about 4–5 ns a creature
+a tick more than before #979: under 0.1 ms a tick at the 17,265 creatures of the 950-player profile, if every one of
+them were such a script.
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EveryTickScriptBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
