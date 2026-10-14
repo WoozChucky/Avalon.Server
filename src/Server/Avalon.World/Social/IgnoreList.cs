@@ -32,7 +32,17 @@ public sealed class IgnoreList(SaveStateTracker save, TickThreadGuard? tickThrea
     /// The entry with this name, ignoring case and surrounding spaces (by <see cref="CharacterName.Key" />, #757), or
     /// none. Names are unique by key in a world, so at most one entry matches.
     /// </summary>
-    public IgnoredCharacter? FindByName(string name) => _entries.Find(e => CharacterName.Same(e.Name, name));
+    public IgnoredCharacter? FindByName(string name)
+    {
+        // By index: List.Find over a lambda capturing the name cost a closure and a delegate a call (#973).
+        for (int i = 0; i < _entries.Count; i++)
+        {
+            if (CharacterName.Same(_entries[i].Name, name))
+                return _entries[i];
+        }
+
+        return null;
+    }
 
     /// <summary>Replaces the whole list with the stored rows, in their order. Marks nothing.</summary>
     public void Load(IEnumerable<IgnoredCharacterRow> rows)
@@ -66,7 +76,13 @@ public sealed class IgnoreList(SaveStateTracker save, TickThreadGuard? tickThrea
         if (!_ids.Remove(characterId))
             return false;
 
-        _entries.RemoveAll(e => e.Id == characterId);
+        // By index, from the end, as RemoveAll over a lambda capturing the id was, with no closure or delegate (#973).
+        for (int i = _entries.Count - 1; i >= 0; i--)
+        {
+            if (_entries[i].Id == characterId)
+                _entries.RemoveAt(i);
+        }
+
         save.IgnoreChanged(characterId);
         return true;
     }
