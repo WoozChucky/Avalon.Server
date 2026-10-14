@@ -8,8 +8,10 @@
 > `C:\dev\3D` is retired, so finding 1 is a question for the C++ client (repository Avalon.Client). The QUIC
 > discussion and the line references (`WorldConnection.cs:169` among them) describe code that has since changed.
 > Since #875 the per-packet session layer is a per-world setting, `Network:PacketEncryption`, off by default: the world
-> relies on its pinned TLS, as finding 7 recommends. A world can turn the layer back on without a code change. The key
-> exchange still runs on every connection; retiring it is #878.
+> relies on its pinned TLS, as finding 7 recommends. A world can turn the layer back on without a code change. Since
+> #878 a world with the layer off runs no key exchange either: no key pair or session per connection, no public key in
+> its admission reply, and a packet flagged `Encrypted` closes the connection. The exchange runs on the auth server and
+> on worlds that seal.
 
 **Date:** 2026-09-04
 **Scope:** Auth and World transport security, the ECDH handshake, and the AES-GCM session layer.

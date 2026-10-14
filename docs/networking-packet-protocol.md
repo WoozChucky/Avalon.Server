@@ -18,8 +18,8 @@ neither a received frame nor a sent packet allocates a header (#875); the wire i
 
 `Encrypted` is the only flag anything acts on. A receiver opens the payload with the session keys when the header
 carries the flag and takes the payload as plain when it does not (`Connection`'s read loop). A flagged payload that
-does not open, or that arrives before the session has keys, closes the connection
-([failure modes](#failure-modes--safeguards)). A packet class declares
+does not open, or that arrives before the session has keys or on a connection that has no session (a world that does
+not seal, #878), closes the connection ([failure modes](#failure-modes--safeguards)). A packet class declares
 its flags in a static `Flags` field; the outbox seals a packet flagged `Encrypted` when its connection seals, and when
 it does not, the payload goes plain and the flag is cleared from the header as the frame is written
 ([Sending a packet](#sending-a-packet)). A world with `Network:PacketEncryption` on closes a connection that sends
@@ -34,7 +34,8 @@ Transport: TCP inside TLS, one connection per phase (Auth, then World). The auth
 TLS 1.2 with its certificate, the world server in TLS 1.2 or 1.3 with its own (both `Hosting:Security:CertificatePath`),
 and a client pins the world's leaf named in its join reply. Ordering guaranteed by TCP.  
 Encryption: inside TLS, session crypto negotiated via ephemeral public key exchange during handshake stages; on the
-world server the per-packet session layer is a per-world setting, `Network:PacketEncryption`, off by default (#875).  
+world server the per-packet session layer is a per-world setting, `Network:PacketEncryption`, off by default (#875),
+and a world with it off runs no key exchange (#878).  
 Framing: a frame is a varint length prefix, then that many bytes: one protobuf `NetworkPacket` message, whose field 1
 is the header and field 2 the payload, each length-delimited (a tag byte, a varint length, the bytes). No part has a
 fixed length. The header is itself a protobuf message of four varint fields, and a field that is 0 is not written: the
@@ -71,7 +72,7 @@ frame as declared):
 | Frame | Largest | What bounds it |
 |---|---:|---|
 | `CMSG_CHAT_MESSAGE` | about 570 bytes sealed | At most 511 bytes of UTF-8, which the world enforces (#936): the chat box takes 255, and a whisper typed after `/w Name` goes out with its prefix |
-| `CMSG_GAME_ADMISSION` | about 150 bytes | A 43-character ticket and a 91-byte P-256 public key, both checked for exactly that size by the world |
+| `CMSG_GAME_ADMISSION` | about 150 bytes | A 43-character ticket and a 91-byte P-256 public key, both checked for exactly that size by a world that seals; one that does not checks the ticket and does not read the key (#878) |
 | `CMSG_CHARACTER_CREATE` | about 80 bytes sealed | A name of 3 to 12 letters (`CharacterName`) |
 | `CMSG_PARTY_INVITE` | about 60 bytes sealed | A character's name, 3 to 12 letters, which the world checks before any lookup (#936) |
 | `CMSG_WORLD_HANDSHAKE` | about 50 bytes sealed | The client's version string |
@@ -141,13 +142,15 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
 10. The client gets a join ticket from the REST API (`POST /game/join-tickets`, against its game context), bound to one
     world, character and world server, for at most 30 seconds.
 11. Client opens a TCP connection to that world server and completes TLS.
-12. `CGameAdmissionPacket(JoinTicket, PublicKey)` — clear text inside TLS: the ticket and a new ephemeral public key.
+12. `CGameAdmissionPacket(JoinTicket, PublicKey)` — clear text inside TLS: the ticket and a new ephemeral public key,
+    which the client sends before it knows the world's mode.
 13. The world server redeems the ticket and activates the session through the API's internal admission routes, off the
-    tick, then initializes the session crypto. The key exchange runs for every connection, whatever the world's mode, so
-    a client that always seals keeps working (retiring it is #878).
-14. `SGameAdmissionPacket(PublicKey, Result, PacketEncryption)` — `Accepted` with the server's public key and the
-    world's mode (field 3, `Network:PacketEncryption`, #875): true, the client seals every gameplay packet it sends;
-    false, TLS alone and it sends plain. The client seals exactly as told. Otherwise `InvalidRequest`,
+    tick. A world that seals then initializes the session crypto from the client's key. A world that does not runs no
+    key exchange (#878): its connection has no key pair and no session, and the client's key is not read.
+14. `SGameAdmissionPacket(PublicKey, Result, PacketEncryption)` — `Accepted` with the world's mode (field 3,
+    `Network:PacketEncryption`, #875): true, the reply carries the connection's public key and the client seals every
+    gameplay packet it sends; false, TLS alone, the public key is empty and the client sends plain, keying nothing
+    (client 0.3.0 reads the mode before it asks for a key). The client seals exactly as told. Otherwise `InvalidRequest`,
     `AuthorizationRequired` or `ServiceUnavailable` (`UnsupportedClient` is declared beside them; this server refuses
     an old client at step 15 instead), `PacketEncryption` false, and the connection is closed.
 15. `CWorldHandshakePacket(Version)` / `SWorldHandshakePacket` — sealed only when the world seals; the client's version
@@ -158,19 +161,19 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
 Strictness of the mode (#875). With `Network:PacketEncryption` on, a plain packet the world runs (the version
 handshake, and every packet a session filter names but the pong) closes the connection as a protocol violation, at
 arrival, before any filter is asked (`WorldConnection.OnReceive`). Admission and pong are plain by design and accepted
-plain. An opcode no world filter takes is dropped as before, whatever its flags. With the flag off, plain and sealed
-are both accepted.
+plain. An opcode no world filter takes is dropped as before, whatever its flags. With the flag off a plain packet is
+accepted, and one flagged `Encrypted`, whatever its opcode, closes the connection in the read loop as a protocol
+violation, counted under `sealed_before_key` (#878, [packet handlers](packet-handlers.md)): the connection has no
+session to open it with, before admission or after.
 
-Compatibility of the mode (#875). A server opens a client packet by its header, sealed or not; a client opens a server
-packet by its header too.
+Compatibility of the mode (#875, #878). A client opens a server packet by its header. A server opens a client packet
+by its header while its connection has a session; a world that does not seal has none.
 
 | Client | Server | Client to server | Server to client |
 |---|---|---|---|
-| before #875 | flag off | the client still seals; the server opens it by its header | plain; the client follows the header |
-| before #875 | flag on | sealed, as before | sealed, as before |
-| current | flag off | plain | plain |
-| current | flag on | sealed | sealed |
-| current | before #875 (field absent, reads false) | plain; that server decides by the header | sealed; the client follows the header |
+| 0.3.0 | flag off | plain; no key exchanged | plain |
+| 0.3.0 | flag on | sealed | sealed |
+| before 0.3.0 | either | refused at sign-in and at world allocation (#948); one that reached a world with the flag off would seal, and be closed | |
 
 ## Time Sync: `SMSG_PING` and `CMSG_PONG`
 
@@ -325,7 +328,8 @@ in it, so a fix will turn that test red rather than pass unnoticed.
 - Single-use join tickets mitigate replay: a ticket lives at most 30 seconds, is bound to one world server, and is
   redeemed once, by that server, over its mutually authenticated workload connection.
 - Separation of the auth and world sessions limits the blast radius of a compromised session token.
-- Public key re-exchange on world join prevents key reuse across phases.
+- Public key re-exchange on world join, on a world that seals, prevents key reuse across phases; a world that does not
+  seal exchanges no key.
 - Auth failures are budgeted per source and per username ([auth server](auth-server.md)).
 
 ## Extensibility
