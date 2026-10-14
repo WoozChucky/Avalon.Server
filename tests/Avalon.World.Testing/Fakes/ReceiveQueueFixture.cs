@@ -39,9 +39,14 @@ public sealed class ReceiveQueueFixture : IDisposable
     /// <c>Network:PacketEncryption</c> for this connection's world: true, its sender seals every packet flagged
     /// Encrypted, once the caller has initialised the connection's session.
     /// </param>
+    /// <param name="clockPaysForReads">
+    /// The clock reads the system's clock on every call, as production's does, and still answers its own time: for a
+    /// benchmark, so a read costs what it costs on a server (#977).
+    /// </param>
     public ReceiveQueueFixture(Stream? timeSyncWire = null, ReceiveQueueLimit? receiveQueueLimit = null,
-        ILoggerFactory? loggerFactory = null, bool packetEncryption = false)
+        ILoggerFactory? loggerFactory = null, bool packetEncryption = false, bool clockPaysForReads = false)
     {
+        Clock = new QueueClock { PaysForReads = clockPaysForReads };
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         _client = new TcpClient();
@@ -82,7 +87,7 @@ public sealed class ReceiveQueueFixture : IDisposable
     }
 
     public ReceiveConnection Connection { get; }
-    public QueueClock Clock { get; } = new();
+    public QueueClock Clock { get; }
     public NetworkSendScheduler? Scheduler { get; }
     public int Dispatched => _recorder.Count;
     public int QueueDepth => s_queueDepth(Connection);
@@ -107,8 +112,23 @@ public sealed class ReceiveQueueFixture : IDisposable
     public sealed class QueueClock : TimeProvider
     {
         public DateTimeOffset Now { get; set; } = new(2026, 10, 11, 0, 0, 0, TimeSpan.Zero);
-        public override DateTimeOffset GetUtcNow() => Now;
-        public override long GetTimestamp() => 0;
+
+        /// <summary>Each read also reads the system's clock, and drops it: what a read costs, with a fixed answer.</summary>
+        public bool PaysForReads { get; init; }
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            if (PaysForReads)
+                _ = TimeProvider.System.GetUtcNow();
+            return Now;
+        }
+
+        public override long GetTimestamp()
+        {
+            if (PaysForReads)
+                _ = TimeProvider.System.GetTimestamp();
+            return 0;
+        }
     }
 
     public sealed class ReceiveConnection(IWorldServer server, TcpClient client, TimeProvider clock,

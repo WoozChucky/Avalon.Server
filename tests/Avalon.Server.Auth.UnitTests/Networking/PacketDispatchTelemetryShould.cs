@@ -117,8 +117,10 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     }
 
     [Fact]
-    public void Record_the_duration_by_packet_type_and_outcome()
+    public void Record_the_duration_of_a_handler_that_succeeded_or_failed_by_packet_type_alone()
     {
+        // A second tag costs the SDK about four times as long per packet to find the series (#977); failures are
+        // counted by avalon.packet.handler.errors.
         PacketDispatchTelemetry telemetry = Create();
         using (telemetry.Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ScopeLogger())) { }
         using (PacketDispatch failed = telemetry.Begin(NetworkPacketType.CMSG_AUTH, s_tags, new ScopeLogger()))
@@ -126,8 +128,12 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
 
         var durations = _measurements.Where(m => m.Instrument == "avalon.packet.handler.duration").ToList();
         Assert.Equal(2, durations.Count);
-        Assert.All(durations, d => Assert.Equal("CMSG_AUTH", d.Tags["avalon.packet.type"]));
-        Assert.Equal(["ok", "error"], durations.Select(d => d.Tags["avalon.outcome"]));
+        Assert.All(durations, d =>
+        {
+            KeyValuePair<string, object?> tag = Assert.Single(d.Tags);
+            Assert.Equal("avalon.packet.type", tag.Key);
+            Assert.Equal("CMSG_AUTH", tag.Value);
+        });
         Assert.All(durations, d => Assert.True(d.Value >= 0));
     }
 

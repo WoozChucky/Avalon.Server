@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Combat;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
@@ -8,6 +9,8 @@ using Avalon.Database.World.Seeding;
 using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Character;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
@@ -361,6 +364,99 @@ public class WorldServerBarrierTickShould : IDisposable
 
         server.Tick();
         Assert.Null(presence.Take());
+    }
+
+    /// <summary>
+    /// The lease check (#977): the tick ends gameplay on the first tick its lease is within
+    /// <see cref="GameAuthPolicy.SaveDrainMargin" /> of its end, by whichever clock gets there first, the wall clock
+    /// (its <c>LeaseUntil</c>) or the monotonic one (the time granted, counted from the grant), and not a tick before.
+    /// The passes judge the lease at the time the check was made, so a session pass that runs past the margin (here a
+    /// handler that takes 6 s) has every lease checked again before the map pass: one that came due meanwhile ends
+    /// there, and the map pass finds its connection closing.
+    /// </summary>
+    [Theory]
+    [InlineData("wall clock")]
+    [InlineData("monotonic clock")]
+    [InlineData("long session pass")]
+    public void End_gameplay_on_the_tick_the_lease_comes_within_the_save_margin_of_its_end(string reaches)
+    {
+        var clock = new SplitClock();
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection built) = Build(clock: clock);
+        // A connection a packet can be delivered to, for the long pass; the built one for the others.
+        using Avalon.Server.World.UnitTests.GameAuth.WorldAdmissionConnection? deliverable = reaches == "long session pass"
+            ? Avalon.Server.World.UnitTests.GameAuth.WorldAdmissionConnection.Create(server, clock: clock)
+            : null;
+        Avalon.World.WorldConnection connection = built;
+        if (deliverable is not null)
+        {
+            server.Add(deliverable);
+            connection = deliverable;
+        }
+
+        Avalon.World.GameAuth.GameSessionLease lease = Avalon.Server.World.UnitTests.GameAuth.GameplayTestAdmission.Admit(
+            connection, clock: clock); // 44 s
+        TimeSpan due = TimeSpan.FromSeconds(44) - GameAuthPolicy.SaveDrainMargin;
+
+        if (reaches == "long session pass")
+        {
+            clock.Move(due - TimeSpan.FromSeconds(1), wallClock: true);
+            server.Tick();
+            Assert.True(connection.IsGameplayAuthorized);
+
+            // A session packet whose handler takes 6 s of both clocks, past the margin and past the lease's due time.
+            server.PacketHandlers[NetworkPacketType.CMSG_CHARACTER_LIST] = new Slow(() =>
+            {
+                clock.Move(TimeSpan.FromSeconds(6), wallClock: true);
+                clock.Move(TimeSpan.FromSeconds(6), wallClock: false);
+            });
+            bool? closingAtMapPass = null;
+            world.When(w => w.Update(Arg.Any<TimeSpan>())).Do(_ => closingAtMapPass = connection.IsClosing);
+            deliverable!.Deliver(
+                NetworkPacketType.CMSG_CHARACTER_LIST, new CCharacterListPacket());
+
+            server.Tick();
+
+            Assert.True(closingAtMapPass);
+            Assert.False(lease.IsActive);
+            return;
+        }
+
+        bool wallClock = reaches == "wall clock";
+        clock.Move(due - TimeSpan.FromTicks(1), wallClock);
+        server.Tick();
+        Assert.True(connection.IsGameplayAuthorized);
+        Assert.False(connection.IsClosing);
+
+        clock.Move(TimeSpan.FromTicks(1), wallClock);
+        server.Tick();
+        Assert.False(lease.IsActive);
+        Assert.False(connection.IsGameplayAuthorized);
+        Assert.True(connection.IsClosing);
+    }
+
+    /// <summary>A handler that takes as long as <paramref name="takeTime" /> moves the clock.</summary>
+    private sealed class Slow(Action takeTime) : IWorldPacketHandler
+    {
+        public void Execute(IWorldConnection connection, Avalon.Network.Packets.Packet packet) => takeTime();
+    }
+
+    /// <summary>A clock whose wall and monotonic readings move apart, as a wall clock that is set does.</summary>
+    private sealed class SplitClock : TimeProvider
+    {
+        private DateTimeOffset _now = new(2026, 10, 14, 12, 0, 0, TimeSpan.Zero);
+        private long _timestamp = 1_000;
+
+        public override DateTimeOffset GetUtcNow() => _now;
+        public override long GetTimestamp() => _timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public void Move(TimeSpan by, bool wallClock)
+        {
+            if (wallClock)
+                _now += by;
+            else
+                _timestamp += by.Ticks;
+        }
     }
 
     /// <summary>Reference data with the seeded combat formula, which the tick's sheet flush reads (#506).</summary>

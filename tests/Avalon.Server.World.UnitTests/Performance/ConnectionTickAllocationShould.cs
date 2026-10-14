@@ -8,6 +8,7 @@ using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Public;
 using Avalon.World.Public.Instances;
+using Avalon.World.Threading;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -48,11 +49,11 @@ public class ConnectionTickAllocationShould
         using var connection = WorldAdmissionConnection.Create(clock: clock);
         GameplayTestAdmission.Admit(connection, clock: clock);
         for (int i = 0; i < 100; i++)
-            connection.AdvanceGameplayLease();
+            connection.AdvanceGameplayLease(TickTime.Read(clock));
 
         long before = ThreadAllocations.BeforeQuietWindow();
         for (int i = 0; i < 1_000; i++)
-            connection.AdvanceGameplayLease();
+            connection.AdvanceGameplayLease(TickTime.Read(clock));
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.Equal(0, allocated);

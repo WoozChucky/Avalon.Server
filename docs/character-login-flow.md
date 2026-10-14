@@ -326,6 +326,12 @@ map back to its town) and joins the town's one shared, persistent instance
 entered later through portals, into a per-character instance (`GetOrCreateNormalInstanceAsync`, with a 15-minute
 re-entry window) or the party's ([instanced maps](instanced-maps.md)).
 
+A character's instance id is saved as text on its row (`Character.InstanceId`). `CharacterEntity.InstanceId` keeps
+the id it last wrote there beside that text and answers from it while the row still holds that text (#977): every
+input packet and every tick's quest flush read it, and parsed the text each time before. Set it through the entity
+(a transfer, a select, an arrival's save), which writes the row; a row written another way is parsed on each read
+until the entity sets it again.
+
 ---
 
 ## Movement

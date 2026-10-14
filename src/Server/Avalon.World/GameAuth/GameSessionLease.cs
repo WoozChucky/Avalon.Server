@@ -2,6 +2,7 @@ using System.Globalization;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
+using Avalon.World.Threading;
 
 namespace Avalon.World.GameAuth;
 
@@ -32,6 +33,9 @@ public sealed class GameSessionLease
     private DateTime _until;
     private long _started;
     private TimeSpan _duration;
+    // When the tick stops gameplay (DrainDueAt, #977): the save margin before the end, on each clock.
+    private DateTime _drainAtUtc;
+    private TimeSpan _drainAfter;
     private bool _revoked;
 
     private GameSessionLease(SessionLeaseResponse response, GameplayWriteAuthority authority, TimeProvider clock)
@@ -47,18 +51,41 @@ public sealed class GameSessionLease
     public AccountAccessLevel AccessLevel => (AccountAccessLevel)_identity.AccessLevel!.Value;
     public string ServerId => _identity.ServerId!;
     public ushort WorldId => _identity.WorldId!.Value;
-    public bool IsActive { get { lock (_gate) return ActiveUnderLock(); } }
-    public DateTime LeaseUntil { get { lock (_gate) return _until; } }
-    public TimeSpan Remaining
+    public bool IsActive => IsActiveAt(TickTime.Read(_clock));
+
+    /// <summary>
+    /// <see cref="IsActive" /> at <paramref name="now" />: the tick's time (#977), so a tick asks it of every connection
+    /// and every packet without a clock read each. A time read from another clock than this lease's is read again.
+    /// </summary>
+    public bool IsActiveAt(in TickTime now)
     {
-        get
+        TickTime at = now.On(_clock);
+        lock (_gate) return ActiveUnderLock(at);
+    }
+
+    public DateTime LeaseUntil { get { lock (_gate) return _until; } }
+
+    /// <summary>
+    /// Whether the lease was revoked (or found ended), without the lock or the clock (#977): the tick's dispatch asks
+    /// it of a lease its check found not due at the tick's time, which within the tick only a revocation can change.
+    /// </summary>
+    public bool IsRevoked => Volatile.Read(ref _revoked);
+
+    /// <summary>
+    /// Whether the tick must stop gameplay now (#977): the lease is revoked or has ended, or it is within
+    /// <see cref="GameAuthPolicy.SaveDrainMargin" /> of its end by either clock, its <see cref="LeaseUntil" /> on the wall
+    /// clock or the time granted counted from the grant on the monotonic one, so the final save runs under a lease still
+    /// valid. Two comparisons against the due times the grant set, where the check worked the time left out on both
+    /// clocks: due exactly when that time left was at most the margin. <paramref name="now" /> is the tick's time; one
+    /// read from another clock than this lease's is read again.
+    /// </summary>
+    public bool DrainDueAt(in TickTime now)
+    {
+        TickTime at = now.On(_clock);
+        lock (_gate)
         {
-            lock (_gate)
-            {
-                if (!ActiveUnderLock()) return TimeSpan.Zero;
-                return TimeSpan.FromTicks(Math.Min((_until - _clock.GetUtcNow().UtcDateTime).Ticks,
-                    (_duration - _clock.GetElapsedTime(_started)).Ticks));
-            }
+            // Past either due time is past the margin, so an expired lease is due too, revoked or not.
+            return _revoked || at.UtcNow >= _drainAtUtc || _clock.GetElapsedTime(_started, at.Timestamp) >= _drainAfter;
         }
     }
 
@@ -82,7 +109,7 @@ public sealed class GameSessionLease
     {
         lock (_gate)
         {
-            if (!ActiveUnderLock() || !ValidDeadline(response, _clock.GetUtcNow().UtcDateTime) ||
+            if (!ActiveUnderLock(TickTime.Read(_clock)) || !ValidDeadline(response, _clock.GetUtcNow().UtcDateTime) ||
                 response.AccountId != _identity.AccountId || response.GameSessionId != _identity.GameSessionId ||
                 response.GameContextId != _identity.GameContextId || response.FencingToken != _identity.FencingToken ||
                 response.ServerId != _identity.ServerId || response.WorldId != _identity.WorldId ||
@@ -98,9 +125,9 @@ public sealed class GameSessionLease
     }
 
     public void Revoke() { lock (_gate) _revoked = true; }
-    private bool ActiveUnderLock()
+    private bool ActiveUnderLock(in TickTime now)
     {
-        if (!_revoked && (_clock.GetUtcNow().UtcDateTime >= _until || _clock.GetElapsedTime(_started) >= _duration))
+        if (!_revoked && (now.UtcNow >= _until || _clock.GetElapsedTime(_started, now.Timestamp) >= _duration))
             _revoked = true;
         return !_revoked;
     }
@@ -109,6 +136,8 @@ public sealed class GameSessionLease
         _until = until;
         _started = _clock.GetTimestamp();
         _duration = until - _clock.GetUtcNow().UtcDateTime;
+        _drainAtUtc = until - GameAuthPolicy.SaveDrainMargin;
+        _drainAfter = _duration - GameAuthPolicy.SaveDrainMargin;
     }
     private static bool Positive(string? text, out long value) =>
         long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value) && value > 0 && value.ToString(CultureInfo.InvariantCulture) == text;

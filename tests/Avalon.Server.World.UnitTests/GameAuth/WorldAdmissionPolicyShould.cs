@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.World;
 using Avalon.World.GameAuth;
 using Avalon.World.Public;
+using Avalon.World.Threading;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Packet = Avalon.Network.Packets.Packet;
@@ -35,8 +36,15 @@ public sealed class WorldAdmissionPolicyShould
         connection.Deliver(NetworkPacketType.CMSG_CHARACTER_LIST, new CCharacterListPacket());
         connection.UpdateSession(); Assert.Equal(0, handler.Calls);
     }
-    [Fact]
-    public void Recheck_authority_at_dispatch_and_drop_packets_queued_before_expiry()
+    /// <summary>
+    /// A packet queued while the session was authorized is not dispatched once it is not: the lease ended (here with no
+    /// lease check since, so the dispatch reads the clock), or revoked after the tick's lease check found it not due
+    /// (#977: the tick's dispatch then asks only whether it was revoked, and must still see it).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Recheck_authority_at_dispatch_and_drop_packets_queued_before_expiry_or_revocation(bool revokedAfterTheCheck)
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>(); var handler = new Recorder();
         server.PacketHandlers.Returns(new Dictionary<NetworkPacketType, IWorldPacketHandler> { [NetworkPacketType.CMSG_CHARACTER_LIST] = handler });
@@ -45,7 +53,16 @@ public sealed class WorldAdmissionPolicyShould
         GameSessionLease lease = WorldAdmissionConnection.Lease(clock);
         connection.PublishAdmission(lease); Assert.True(connection.AcceptProtocol());
         connection.Deliver(NetworkPacketType.CMSG_CHARACTER_LIST, new CCharacterListPacket());
-        clock.Advance(TimeSpan.FromSeconds(44));
+        if (revokedAfterTheCheck)
+        {
+            connection.AdvanceGameplayLease(TickTime.Read(clock));   // the tick's check: not due
+            lease.Revoke();
+        }
+        else
+        {
+            clock.Advance(TimeSpan.FromSeconds(44));
+        }
+
         connection.UpdateSession(); Assert.Equal(0, handler.Calls);
     }
     [Fact]

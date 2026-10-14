@@ -7,9 +7,14 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
 {
     public override bool Process(NetworkPacket packet) => throw new NotImplementedException();
 
-    public override bool CanProcess(NetworkPacketType type)
+    public override bool CanProcess(NetworkPacketType type) => connection.IsGameplayAuthorized && Accepts(type);
+
+    /// <summary>
+    /// Whether the connection's current state takes the packet, its authorization aside: the tick asks that at its own
+    /// time (#977), <see cref="CanProcess" /> by the clock.
+    /// </summary>
+    public bool Accepts(NetworkPacketType type)
     {
-        if (!connection.IsGameplayAuthorized) return false;
         if (connection.Character == null)
         {
             return false;

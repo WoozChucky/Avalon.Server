@@ -25,6 +25,29 @@ public static class QuestFlusher
         if (connection.Character is not CharacterEntity character)
             return;
 
+        // Nothing any step below reads changed since the last flush that left nothing over (#977): every connection
+        // is flushed every tick, and almost every tick changes no one's quests. The character's own inputs mark the log
+        // (QuestLog.FlushOwed); the catalog, which a reload swaps for everyone at once, and the Bag's changes, which the
+        // inventory keeps, are looked at here.
+        QuestLog log = character.Quests;
+        QuestCatalog catalog = quests.Catalog;
+        bool bagTouched = TouchedTheBag(character.ClientChanges);
+        if (!log.FlushOwed && !bagTouched && ReferenceEquals(log.SettledCatalog, catalog)
+            && ReferenceEquals(log.MarkersCatalog, catalog))
+        {
+            return;
+        }
+
+        FlushSteps(connection, character, quests, bagTouched);
+
+        // Kept for the next tick while a step still has something to do: the hooks and the markers wait for a live
+        // instance (a character between instances), and a step that threw left its changes or lines unsent.
+        log.FlushOwed = StillOwed(character, log, quests.Catalog);
+    }
+
+    private static void FlushSteps(IWorldConnection connection, CharacterEntity character, QuestService quests,
+        bool bagTouched)
+    {
         // A /reload quests since the last flush (#738): every held quest is settled once against the new catalog.
         try
         {
@@ -36,7 +59,7 @@ public static class QuestFlusher
         }
 
         // A quest item that arrived, left or moved by any path this tick is counted again.
-        if (TouchedTheBag(character.ClientChanges))
+        if (bagTouched)
         {
             try
             {
@@ -77,6 +100,20 @@ public static class QuestFlusher
         {
             quests.FlushStepFailed(MarkersStep, e);
         }
+    }
+
+    /// <summary>
+    /// Whether a flush now would still do something, the catalog and the Bag aside: the log not sent yet, an update or a
+    /// line not sent, the hooks or the markers not yet run for the character's instance, level, log and catalog.
+    /// Each step's own test for having nothing to do.
+    /// </summary>
+    private static bool StillOwed(CharacterEntity character, QuestLog log, QuestCatalog catalog)
+    {
+        Guid instance = character.InstanceId;
+        return !log.LogSent || log.ClientChanges.Count > 0 || log.PendingLines.Count > 0
+               || log.ScriptsInstance != instance
+               || log.MarkersInstance != instance || log.MarkersLevel != character.Level
+               || log.MarkersVersion != log.Version || !ReferenceEquals(log.MarkersCatalog, catalog);
     }
 
     private static bool TouchedTheBag(InventoryClientChanges changes)

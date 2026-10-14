@@ -942,6 +942,9 @@ Server GC pause and admission measurements require a follow-up controlled load r
 Measures the production readiness sweep with no pending spawn, an admitted connection's lease check before its
 heartbeat is due, and the input session filter for an admitted character in a map. Setup supplies a connected TCP
 socket, a fixed clock and an active lease; authentication setup and substitutes stay outside the measured paths.
+Since #977 its clocks also pay for a read of the system's clock on each call, and it measures a connection's whole
+tick outside its handlers ([below](#per-connection-work-every-tick--connectiontickbenchmarkscs-questflushbenchmarkscs-packetmetricsbenchmarkscs-977));
+the table here is from before that.
 Each invocation performs 300 checks on the same connection, with results normalized per check. This isolates the
 recurring allocation and does not model the cache behavior of 300 distinct connections.
 
@@ -965,6 +968,119 @@ checks and input filtering, including map changes through either the character o
 
 Server GC pauses require a repeat of the controlled k3s load runs after deployment; these local measurements do
 not establish a new player-capacity limit or justify GC configuration changes.
+
+---
+
+### Per-connection work every tick — `ConnectionTickBenchmarks.cs`, `QuestFlushBenchmarks.cs`, `PacketMetricsBenchmarks.cs` (#977)
+
+The 950-player profile (#974, section 7, "Outside the batch" and C7) found 0.5 to 0.9 ms of every tick in work done
+for every connection whether or not anything had changed: the lease check (521 kernel samples, a UTC clock read per
+connection), the quest flush (486, every connection every tick), clock reads in all (673, spread over the lease, the
+session pass's `ProcessQueue`, `WorldSessionFilter.CanProcess` and `PacketDispatchTelemetry.Begin`), the per-packet
+metrics (`AggregatorStore.Update` 365 inclusive) and `CharacterEntity.InstanceId` (208 exclusive plus `Guid.DecodeByte`
+112: the row's text parsed on every read, 124 under `PlayerInputHandler` and 55 under the quest flusher). This branch
+changed five of them, one commit each (the per-packet metrics after they were measured and the owner chose, below), and
+left one: `CharacterEntity.Update`'s clock reads (up to four per character per tick: `IsInCombat`, regeneration,
+casting) need the tick's time handed into the instances, recorded separately:
+
+- **The instance id is kept parsed.** `CharacterEntity.InstanceId` keeps the id it wrote beside the row's text and
+  answers from it while the row holds that text; the row is still what is saved, and a row written another way is
+  parsed. A portal entry's and a teleport's arrival save wrote the row's text again after the transfer had set it;
+  they go through the entity, which leaves it alone, so a transfer formats the id once instead of twice (96 B less
+  per portal entry and teleport in production; `ArrivalBenchmarks` still reads 504 B, its transfer writing a text it
+  made in advance, so its one format is now the save's step 13's).
+- **One clock read per tick.** `WorldServer` reads the container's clock once per tick (`TickTime`: the wall clock and
+  the monotonic one) and hands it to every connection's lease check, which keeps it; the tick's passes and each of
+  their packets judge the lease at that time instead of reading the clock, and the heartbeat and admission timings use
+  it too. Before, a connection's lease check read the clock about six times (the lease's activity and its time left
+  each read both clocks, under the lease's lock) and each pass and each packet's filter twice more.
+- **The lease is checked against due times.** The grant sets two (the deadline less the 5 s save margin on the wall
+  clock, the time granted less the margin on the monotonic one), and the check is two comparisons. Same boundary:
+  `WorldServerBarrierTickShould.End_gameplay_on_the_tick_the_lease_comes_within_the_save_margin_of_its_end` pins it on
+  each clock, and fails with either comparison made strict or either margin dropped.
+- **The tick's dispatch asks a lease its check found not due only whether it was revoked** (`IsRevoked`, a volatile
+  read), instead of taking the lease's lock and comparing both clocks again for each pass and each packet. A tick
+  whose session pass runs past the 5 s margin reads its time again and checks every lease before the map pass (the
+  long-tick guard; the barrier test's "long session pass" row fails without it).
+- **The quest flush skips a connection with nothing to flush** (`QuestLog.FlushOwed`, [quests](quests.md)).
+- **A handler's duration is recorded under its packet type alone**, without `avalon.outcome` (owner's decision): a
+  second tag made the SDK's search for the series cost about four times as much on every packet. Failures are counted
+  by `avalon.packet.handler.errors`, and the span keeps its outcome ([instrumentation](instrumentation.md#packet-handlers)).
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*ConnectionTickBenchmarks*' '*QuestFlushBenchmarks*' '*PacketMetricsBenchmarks*' --job short
+```
+
+`ConnectionTickBenchmarks`' clocks now read the system's clock on every call, as production's does, and answer a fixed
+time (before #977 they read nothing, which hid the cost this issue is about). `IdleTicks` is one connection's share
+of a tick outside its handlers with nothing received: the lease check, then the session and map passes; `InputTicks`
+the same with one input received (the read loop's queueing of it included, which still reads the clock for its
+arrival stamp and the filters') and dispatched to a handler that counts it. `QuestFlushBenchmarks` flushes 300
+connections through the real `QuestService` over the seeded quests and a real town instance (no quest NPC placed in
+it, so markers walk no creature; #973 row 1 grows with them), each character holding quest 1 with its log already
+sent; `NoChange` is the common tick, `OneChanged` one character's kill count moved, `AllChanged` every one's.
+
+**Results, per connection, ns.** BenchmarkDotNet 0.15.8 ShortRun, Windows 11, i9-12900K, SDK 10.0.401 / runtime
+10.0.12, 2026-10-14. Other builds and tests ran on the machine at the same time, so the timings are noisy: two runs
+for each column (three for the last), as a range. Nothing in any row allocates, but `AllChanged`'s update packets.
+
+| | As it was (`1e7d9618`) | Instance id kept | One clock read per tick | Lease due times, quest flag (the branch) |
+|---|---:|---:|---:|---:|
+| `LeaseChecks` | 184–192 | | 44 | 19–23 |
+| `IdleTicks` | 313–315 | | 82–85 | 50–66 |
+| `InputTicks` | 714–715 | | 406–439 | 359–404 |
+| `InputFilters` (the read loop's, unchanged) | 63–65 | | 53–58 | 53–59 |
+| `QuestFlushBenchmarks.NoChange` | 95–101 | 25 | | 3.6–3.7 |
+| `QuestFlushBenchmarks.OneChanged` | 91–92 | 24 | | 4.8–5.0 |
+| `QuestFlushBenchmarks.AllChanged` (200 B: the update) | 459–571 | 416 | | 253–352 |
+
+After the reviews, on main `c32d3a17` (#983) and two runs each: dispatch asking a lease its check found not due only
+whether it was revoked took `IdleTicks` from 48–49 to 25.5 ns and `InputTicks` from 285–291 to 241–242 ns; `LeaseChecks`
+stayed at 17–19 ns (its pass-time guard is once per tick, not per connection, and not in these rows).
+
+At 950 connections (the profile's), the lease check, both passes' authorization and the quest flush with nothing
+changed come to about (313 + 98) × 950 ≈ 390 µs a tick before and (55 + 4) × 950 ≈ 55 µs after on this machine; the
+homelab node ran the same work 1.2 to 1.6 times slower in the profile. A ramp on world 4 decides what it is worth.
+
+**Per-packet metrics: measured, then the outcome tag dropped.** `PacketMetricsBenchmarks` measures, per packet, with
+the OpenTelemetry SDK listening (a reader that exports nothing within a run) and without: `DispatchInput` is the
+dispatch telemetry around a received input (no span, no scope; its duration was recorded under `avalon.packet.type` and
+`avalon.outcome`, and is now under the type alone), `CountSent` the two untagged counters `WorldConnection.OnQueued`
+adds for every packet sent; the `Record*` rows record into a histogram shaped like the handler duration with both tags,
+with them in the other order, with the type alone and with none. Same runs, with both tags:
+
+| ns per packet | Nothing listening | SDK listening |
+|---|---:|---:|
+| `DispatchInput` | 39–46 | 188–286 |
+| `CountSent` (two counters) | 0.7–1.1 | 20–26 |
+| `RecordBothTags` | 0.6 | 149–171 |
+| `RecordBothTagsSorted` | 0.6 | 157–159 |
+| `RecordTypeTag` | 0.4 | 36 |
+| `RecordUntagged` | 0.4–0.5 | 12.6 |
+
+Nearly all of a dispatch's metric cost is the SDK finding the series of a measurement with two tags: about 150 ns,
+where one tag costs about 36 and none 13; the tags' order changes nothing. Every way to make it cheaper changes a
+series or what is recorded, so the owner chose (#977) among: record the duration of the high-rate types (input, pong)
+under the type alone or not at all; drop `avalon.outcome` from the duration (the error counter already counts failures)
+or fold it into the type's value; sample the high-rate types; or keep per-type buckets on the tick and publish them
+through an observable instrument once per export, which turns the histogram into another kind of series. **Chosen: drop
+`avalon.outcome` from the duration, for every type.** The histogram's series are now one per packet type (its `ok` and
+`error` series merged; no homelab dashboard or alert read the tag); `avalon.packet.handler.errors`, by type, counts
+failures, and a span still carries its outcome. The others were not taken.
+
+| `DispatchInput`, ns per packet | Nothing listening | SDK listening |
+|---|---:|---:|
+| Both tags (`2c0d2ed4`) | 37.9–40.8 | 189–225 |
+| The type alone | 37.5–37.7 | 77.6–83.4 |
+
+`--filter '*PacketMetricsBenchmarks.DispatchInput*' --job short`, four runs a side (the fourth pair taken in turn, one
+right after the other), 2026-10-14, same machine and toolchain, with other builds and tests running on it: the ranges
+are the runs' means. Nothing allocates, either way. About 120 ns less per input is about 0.11 ms of every tick at 950
+players sending one input a tick each, on this machine. The sent-packet counters cost about 20 ns per packet sent and
+could be summed per connection and added once per tick with the same series and totals, but `Connection.Send` is
+called off the tick too (admission replies), so where and when to add them is a design choice as well. The handler's
+duration still reads the clock twice per packet; one read (the end of one dispatch as the start of the next) would put
+the loop's own work between packets into each duration.
 
 ---
 

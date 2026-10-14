@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using Avalon.Common.GameAuth;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
@@ -192,6 +193,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ThrottledErrorLog _maintenanceErrors;
     // The container's clock, so the maintenance cutoff and the entry checks read one time.
     private readonly TimeProvider _time;
+
+    // The save margin in the clock's timestamps, for the long-tick guard (#977): one subtraction a tick. A clock that
+    // counts no time (a test's substitute, whose frequency is 0) never trips it.
+    private readonly long _saveMarginTimestamps;
     private readonly NetworkSendScheduler _sendScheduler;
     private readonly ReceiveQueueLimit _receiveQueueLimit;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
@@ -273,6 +278,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _presenceErrors = new ThrottledErrorLog(_logger,
             serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System, "The presence capture");
         _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+        long frequency = _time.TimestampFrequency;
+        _saveMarginTimestamps = frequency > 0
+            ? (long)Math.Ceiling(GameAuthPolicy.SaveDrainMargin.Ticks * (double)frequency / TimeSpan.TicksPerSecond)
+            : long.MaxValue;
         // #875. From the container; the tests that build a WorldServer from a bare provider get one with the defaults.
         _sendScheduler = serviceProvider.GetService<NetworkSendScheduler>()
             ?? new NetworkSendScheduler(new NetworkConfiguration(), loggerFactory, _time, NetworkSendMetrics.Disabled);
@@ -686,15 +695,19 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Cache once — both phases iterate the same set.
         ImmutableArray<IWorldConnection> conns = Connections;
 
+        // The tick's time (#977): one read of the container's clock for every connection's lease check, and through it
+        // every dispatch's authorization this tick, where each read the clock for itself.
+        var now = TickTime.Read(_time);
+
         // Revoked or expiring sessions leave their instance before packets and simulation run.
         foreach (IWorldConnection connection in conns)
-            if (connection is WorldConnection admitted) admitted.AdvanceGameplayLease();
+            if (connection is WorldConnection admitted) admitted.AdvanceGameplayLease(now);
 
         // Before the session pass, so a cutoff blocks a non-Admin's queued packets on the tick it arrives. Applies a
         // state the notification or the reconciliation offered from off the tick. Contained: the tick goes on.
         try
         {
-            _maintenanceCoordinator?.Advance(_time.GetUtcNow().UtcDateTime, conns);
+            _maintenanceCoordinator?.Advance(now.UtcNow, conns);
         }
         catch (Exception e)
         {
@@ -703,6 +716,17 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         foreach (IWorldConnection worldConnection in conns)
             worldConnection.UpdateSession();
+
+        // The long-tick guard (#977): the passes judge every lease at the tick's time, so a session pass that ran past
+        // the save margin since then reads the time again and checks every lease at it before the map pass dispatches.
+        // A lease that came due meanwhile ends here, as it would have at the next packet when each read the clock.
+        if (_time.GetTimestamp() - now.Timestamp >= _saveMarginTimestamps)
+        {
+            now = TickTime.Read(_time);
+            foreach (IWorldConnection connection in conns)
+                if (connection is WorldConnection admitted) admitted.AdvanceGameplayLease(now);
+        }
+
         long t1 = Stopwatch.GetTimestamp();
         double sessionUs = TicksToUs(t1 - t0);
         _sessionUpdateHist.Record((long)sessionUs);

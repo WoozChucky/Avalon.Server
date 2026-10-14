@@ -426,7 +426,9 @@ public partial class EnterMapHandler(
         if (connection.Character is CharacterEntity { Data: { } dbCharacter } entity)
         {
             dbCharacter.Map = targetMapId;
-            dbCharacter.InstanceId = targetInstance.InstanceId.ToString();
+            // Through the entity, which keeps the id it parses (#977): TransferPlayer above has set it already, so
+            // nothing is formatted again.
+            entity.InstanceId = targetInstance.InstanceId;
             dbCharacter.X = spawn.x;
             dbCharacter.Y = spawn.y;
             dbCharacter.Z = spawn.z;
