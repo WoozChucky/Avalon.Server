@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Testing.Navigation;
 using Avalon.World.Testing.Scenarios;
+using DotRecast.Core.Numerics;
 using DotRecast.Detour;
 using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
@@ -121,6 +122,36 @@ public class GroundedMovementShould
             $"standing {standing}, beside {beside}, moved {moved}, clamped {clamped}, routed {routed}, seen {seen}, hidden {hidden}");
     }
 
+    /// <summary>
+    /// Two polygons stacked 0.79 m apart, under the 0.8 m climb, so a point on either scores zero on both and
+    /// DotRecast answers whichever comes first in its order: for one of the two points that is the polygon 0.79 m
+    /// away. The narrow box must reach that far up and down. Baked meshes cannot hold this (floors stand at least the
+    /// agent's 2 m apart, and their bounds are rounded out to 0.3 m); this one is built by hand with 1 cm cells, so
+    /// a narrow box lower than the climb misses the far polygon and answers the near one.
+    /// </summary>
+    [Fact]
+    public void Reach_every_polygon_within_the_climb_up_and_down()
+    {
+        DtNavMesh mesh = StackedPolygons(gapCells: 79, climb: 0.8f);
+        var nav = new MapNavigator(NullLoggerFactory.Instance);
+        nav.LoadFromNavMesh(mesh);
+        var reference = new DetourNavigationReference(mesh);
+        int farther = 0;
+
+        foreach (float y in (ReadOnlySpan<float>)[0f, 0.79f])
+        {
+            var point = new Vector3(0.5f, y, 0.5f);
+            Assert.Equal(NavmeshGroundKind.Under, reference.FindGround(point, out Vector3 expected));
+            Assert.Equal(NavmeshGroundKind.Under, nav.FindGround(point, out Vector3 ground));
+            Assert.Equal(expected, ground);
+            if (MathF.Abs(expected.y - y) > 0.5f)
+                farther++;
+        }
+
+        // The case is only a test if DotRecast's answer is the far polygon for one of the points.
+        Assert.Equal(1, farther);
+    }
+
     [Fact]
     public void Answer_for_the_mesh_loaded_now()
     {
@@ -188,6 +219,34 @@ public class GroundedMovementShould
 
     private static Vector3 Lerp(Vector3 a, Vector3 b, float t) =>
         new(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t);
+
+    /// <summary>One tile of two 1 m squares, one <paramref name="gapCells" /> centimetres above the other, unconnected.</summary>
+    private static DtNavMesh StackedPolygons(int gapCells, float climb)
+    {
+        const int Nvp = 6, None = 0xffff;
+        int[] Square(int first) => [first, first + 1, first + 2, first + 3, None, None, None, None, None, None, None, None];
+        var create = new DtNavMeshCreateParams
+        {
+            verts = [0, 0, 0, 0, 0, 100, 100, 0, 100, 100, 0, 0, 0, gapCells, 0, 0, gapCells, 100, 100, gapCells, 100, 100, gapCells, 0],
+            vertCount = 8,
+            polys = [.. Square(0), .. Square(4)],
+            polyFlags = [1, 1],
+            polyAreas = [0, 0],
+            polyCount = 2,
+            nvp = Nvp,
+            cs = 0.01f,
+            ch = 0.01f,
+            walkableHeight = 2f,
+            walkableRadius = 0.6f,
+            walkableClimb = climb,
+            bmin = new RcVec3f(0, 0, 0),
+            bmax = new RcVec3f(1, 2, 1),
+            buildBvTree = true,
+        };
+        var mesh = new DtNavMesh();
+        mesh.Init(DtNavMeshBuilder.CreateNavMeshData(create), Nvp, 0);
+        return mesh;
+    }
 
     private static DtNavMesh BakeFloors()
     {

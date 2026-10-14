@@ -67,6 +67,8 @@ internal readonly struct StandingPolygonSearch
                 climb = MathF.Max(climb, header.walkableClimb);
         }
 
+        // Up and down, the climb itself: a polygon whose surface is the climb away from the point still scores zero.
+        // GroundedMovementShould.Reach_every_polygon_within_the_climb_up_and_down fails with any less.
         var narrow = new RcVec3f(Margin, climb + Margin, Margin);
         bool inside = narrow.X <= pickExtents.X && narrow.Y <= pickExtents.Y && narrow.Z <= pickExtents.Z;
         return new StandingPolygonSearch(pickExtents, narrow, climb, inside);
