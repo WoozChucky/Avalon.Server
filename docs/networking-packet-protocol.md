@@ -99,10 +99,15 @@ instance and party chat, a party member's status, a maintenance warning) is enco
 hears it, and each recipient takes a reference of its own (`OutboundPacket.Share`); the broadcaster releases its own
 after the loop (#875). Each send thread copies the payload into its own connection's burst, sealing it there when its
 connection seals, and releases its reference as it frames it, or at once when its connection refuses the packet; the
-segment is never sealed in place, and it returns to its pool after the last reference. World-state packets
-(`SInstanceStateAdd/Update/Remove`, the aura list and updates) stay per recipient: each recipient hears its own set of
-units, and they are sent inside the per-recipient state pass. An aura update's bytes depend only on its unit, so sharing
-it needs a per-unit cache across that pass (#898).
+segment is never sealed in place, and it returns to its pool after the last reference. An aura update
+(`SMSG_AURA_UPDATE`) is shared the same way inside the per-recipient state pass: its bytes depend only on its unit, so
+the instance keeps each unit's packet for the pass (`SharedAuraUpdates`), encoded for the first recipient that hears it,
+and releases its own references when the pass ends, also when it throws (#980). The world-state packets
+(`SInstanceStateAdd/Update/Remove`) and the aura list stay per recipient: each recipient hears its own set of units.
+An add's and an update's payload, though, is copied together from entries each encoded once per broadcast
+(`SInstanceStateAddPacket.WriteEntry`, `SInstanceStateUpdatePacket.WriteEntry`, `PacketEncoder.FromPayload`): a
+repeated message field is its entries one after another, so the bytes are those `Create` writes for the same list
+([world simulation](world-simulation.md)).
 
 Nor a message object per packet. `Create` fills the calling thread's instance of its message type
 (`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that

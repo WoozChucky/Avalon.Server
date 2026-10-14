@@ -16,11 +16,37 @@ public class SInstanceStateAddPacket : Packet
 
     [ProtoMember(1)] public List<ObjectState> Adds { get; set; }
 
+    // One single-entry list per thread, for WriteEntry: the entry is written before WriteEntry returns.
+#pragma warning disable IDE1006
+    [ThreadStatic] private static List<ObjectState>? t_entry;
+#pragma warning restore IDE1006
+
     public static OutboundPacket Create(List<ObjectState> adds, PacketEncoder encoder)
     {
         SInstanceStateAddPacket message = PacketEncoder.Scratch<SInstanceStateAddPacket>();
         message.Adds = adds;
         return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="add" /> at <paramref name="destination" />'s position as one entry of <see cref="Adds" />,
+    /// byte for byte as <see cref="Create" /> writes it inside a packet (#980): see
+    /// <see cref="SInstanceStateUpdatePacket.WriteEntry" />, whose layout this packet shares.
+    /// </summary>
+    public static void WriteEntry(ObjectState add, MemoryStream destination)
+    {
+        List<ObjectState> entry = t_entry ??= new List<ObjectState>(1);
+        entry.Add(add);
+        try
+        {
+            SInstanceStateAddPacket message = PacketEncoder.Scratch<SInstanceStateAddPacket>();
+            message.Adds = entry;
+            PacketEncoder.Write(message, destination);
+        }
+        finally
+        {
+            entry.Clear();
+        }
     }
 }
 
@@ -33,11 +59,43 @@ public class SInstanceStateUpdatePacket : Packet
 
     [ProtoMember(1)] public List<ObjectState> Updates { get; set; }
 
+    // One single-entry list per thread, for WriteEntry: the entry is written before WriteEntry returns.
+#pragma warning disable IDE1006
+    [ThreadStatic] private static List<ObjectState>? t_entry;
+#pragma warning restore IDE1006
+
     public static OutboundPacket Create(List<ObjectState> updates, PacketEncoder encoder)
     {
         SInstanceStateUpdatePacket message = PacketEncoder.Scratch<SInstanceStateUpdatePacket>();
         message.Updates = updates;
         return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="update" /> at <paramref name="destination" />'s position as one entry of
+    /// <see cref="Updates" />, byte for byte as <see cref="Create" /> writes it inside a packet (#980).
+    /// </summary>
+    /// <remarks>
+    /// The message has one member, a repeated message, and each entry is written on its own (its tag, its length, its
+    /// bytes), so a packet's payload is its entries one after another, in order. A payload put together from entries
+    /// written here, each written once and copied into every packet that carries it, is the payload <see cref="Create" />
+    /// writes for the same list (<see cref="PacketEncoder.FromPayload" />). Written through a packet of one entry, so the
+    /// tag and the framing are the contract's own.
+    /// </remarks>
+    public static void WriteEntry(ObjectState update, MemoryStream destination)
+    {
+        List<ObjectState> entry = t_entry ??= new List<ObjectState>(1);
+        entry.Add(update);
+        try
+        {
+            SInstanceStateUpdatePacket message = PacketEncoder.Scratch<SInstanceStateUpdatePacket>();
+            message.Updates = entry;
+            PacketEncoder.Write(message, destination);
+        }
+        finally
+        {
+            entry.Clear();
+        }
     }
 }
 

@@ -95,13 +95,35 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     // updates, and the tick profile all read it.
     private bool _broadcastTick;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
-    private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
 
     /// <summary>
     /// The messages every player's state broadcast describes its view with (#640), reset for each player:
-    /// its packets are serialized as they are created, so the next player can have the messages back.
+    /// each is encoded as soon as it is described, so the next player can have the messages back.
     /// </summary>
     private readonly ObjectStatePool _statePool = new();
+
+    /// <summary>The aura lists' and updates' entries, reused from one packet to the next (#980).</summary>
+    private readonly AuraWire _auraWire;
+
+    /// <summary>
+    /// What the replication packets (world state and auras) are encoded with: <see cref="PacketEncoder.Shared" />, unless
+    /// the container holds one (a test that counts the payloads the broadcast has out, #980).
+    /// </summary>
+    private readonly PacketEncoder _replicationEncoder;
+
+    /// <summary>Each changed unit's aura update, encoded once per broadcast pass for every client that hears it (#980).</summary>
+    private readonly SharedAuraUpdates _auraUpdates;
+
+    /// <summary>Each player's state adds and updates, put together from each entity's entry, encoded once per broadcast (#980).</summary>
+    private readonly StatePacketAssembler _stateAdds = StatePacketAssembler.ForAdds();
+    private readonly StatePacketAssembler _stateUpdates = StatePacketAssembler.ForUpdates();
+
+    // Whether this tick's broadcast puts its adds and updates together from shared entries: only with at least
+    // StatePacketAssembler.MinRecipientsToShare characters here; with fewer, each list is encoded whole (#980).
+    private bool _shareStateEntries;
+
+    // One recipient's described adds or updates, encoded whole when nothing is shared, reused for every packet (#980).
+    private readonly List<ObjectState> _described = new(32);
     private readonly List<PortalInstance> _portals = new();
 
     /// <summary>This tick's ability objects (projectiles), which the cast system fills and the broadcast reads.</summary>
@@ -251,6 +273,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraPassFailures = new ThrottledErrorLog(_logger, _time, $"The aura pass of instance {InstanceId}");
         _auraApplyFailures = new ThrottledErrorLog(_logger, _time, $"An ability's aura in instance {InstanceId}");
         _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
+        _replicationEncoder = serviceProvider.GetService<PacketEncoder>() ?? PacketEncoder.Shared;
+        _auraWire = new AuraWire();
+        _auraUpdates = new SharedAuraUpdates(_auraWire, _replicationEncoder);
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
         _hits = new UnitHitQuery(_characters, _creatures);
@@ -511,7 +536,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         {
             IReadOnlyList<ObjectGuid> forgotten = arriving.CharacterGameState.Reset();
             if (forgotten.Count > 0)
-                connection.Send(SInstanceStateRemovePacket.Create(forgotten, PacketEncoder.Shared));
+                connection.Send(SInstanceStateRemovePacket.Create(forgotten, _replicationEncoder));
 
             // #526: every instance move comes through here (map entry, respawn at a town, a portal), and
             // each one starts with no Fury. Mana and Energy are kept.
@@ -526,7 +551,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _characters[connection.Character!.Guid] = connection.Character;
         _auras.Roster.Join(connection.Character);
         _connections[connection.Character.Guid] = connection;
-        _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
         _lootSnapshotOwed.Add(connection.Character.Guid);
         _pvpStateOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
@@ -601,7 +625,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _characters.Remove(guid);
         _auras.Roster.Leave(character);
         _connections.Remove(guid);
-        _broadcastStates.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
         _pvpStateOwed.Remove(guid);
         NotePresenceChange(character, "left");
@@ -1414,7 +1437,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 }
             }
 
-            // Step 6: Broadcast instance state to each character
+            // Step 6: Broadcast instance state to each character. Each entity's add and update is encoded once for all
+            // of them (#980); the last broadcast's encodings are forgotten first, also when it threw.
+            _stateAdds.BeginBroadcast();
+            _stateUpdates.BeginBroadcast();
+            _shareStateEntries = _characters.Count >= StatePacketAssembler.MinRecipientsToShare;
             foreach (ICharacter character in _characters.Values)
             {
                 if (character is CharacterEntity entity)
@@ -1423,7 +1450,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
         finally
         {
-            ClearAuraChanges();
+            try
+            {
+                _auraUpdates.ReleaseAll();
+            }
+            finally
+            {
+                ClearAuraChanges();
+            }
         }
     }
 
@@ -1451,43 +1485,27 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     private void BroadcastStateTo(CharacterEntity character)
     {
-        long profileStart = _tickProfile.Timestamp();
         IWorldConnection connection = _connections[character.Guid];
-        PerPlayerBroadcastState state = _broadcastStates[character.Guid];
-
-        state.AddedObjects.Clear();
-        state.UpdatedObjects.Clear();
         _statePool.Reset();
 
         // Indexed rather than walked with foreach, which boxes an interface's enumerator (#640).
         IReadOnlyList<ObjectGuid> newObjects = character.CharacterGameState.NewObjects;
-        for (int i = 0; i < newObjects.Count; i++)
+        long profileStart;
+        if (newObjects.Count > 0 && !_shareStateEntries)
         {
-            ObjectState? added = DescribeNewObject(newObjects[i], character.Guid);
-
-            if (added is not null)
-            {
-                state.AddedObjects.Add(added);
-            }
+            SendWholeAdds(connection, character.Guid, newObjects);
         }
-
-        IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updatedObjects =
-            character.CharacterGameState.UpdatedObjects;
-        for (int i = 0; i < updatedObjects.Count; i++)
-        {
-            ObjectState? updated = DescribeUpdatedObject(updatedObjects[i], character.Guid);
-
-            if (updated is not null)
-            {
-                state.UpdatedObjects.Add(updated);
-            }
-        }
-
-        _tickProfile.StatePreparationTicks += _tickProfile.Elapsed(profileStart);
-        if (state.AddedObjects.Count > 0)
+        else if (newObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
-            SendStatePacket(connection, SInstanceStateAddPacket.Create(state.AddedObjects, PacketEncoder.Shared), profileStart);
+            _stateAdds.BeginPacket();
+            for (int i = 0; i < newObjects.Count; i++)
+                AppendAdd(newObjects[i], character.Guid);
+
+            if (!_stateAdds.IsEmpty)
+                SendStatePacket(connection, _stateAdds.Finish(_replicationEncoder), profileStart);
+            else
+                _tickProfile.StateEncodingTicks += _tickProfile.Elapsed(profileStart);
         }
 
         // Auras: a list for every unit that came into view this tick, and the changes of every other unit in view. After
@@ -1499,18 +1517,143 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // _frameDirtyFields is populated only on broadcast ticks (see Step 5a in Update),
         // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
-        if (state.UpdatedObjects.Count > 0)
+        IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updatedObjects =
+            character.CharacterGameState.UpdatedObjects;
+        if (updatedObjects.Count > 0 && !_shareStateEntries)
+        {
+            SendWholeUpdates(connection, character.Guid, updatedObjects);
+        }
+        else if (updatedObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
-            SendStatePacket(connection, SInstanceStateUpdatePacket.Create(state.UpdatedObjects, PacketEncoder.Shared), profileStart);
+            _stateUpdates.BeginPacket();
+            for (int i = 0; i < updatedObjects.Count; i++)
+                AppendUpdate(updatedObjects[i], character.Guid);
+
+            if (!_stateUpdates.IsEmpty)
+                SendStatePacket(connection, _stateUpdates.Finish(_replicationEncoder), profileStart);
+            else
+                _tickProfile.StateEncodingTicks += _tickProfile.Elapsed(profileStart);
         }
 
         if (character.CharacterGameState.RemovedObjects.Count > 0)
         {
             profileStart = _tickProfile.Timestamp();
             SendStatePacket(connection, SInstanceStateRemovePacket.Create(
-                character.CharacterGameState.RemovedObjects, PacketEncoder.Shared), profileStart);
+                character.CharacterGameState.RemovedObjects, _replicationEncoder), profileStart);
         }
+    }
+
+    /// <summary>
+    /// The recipient's adds described and encoded whole, as one packet: a broadcast with fewer recipients than
+    /// <see cref="StatePacketAssembler.MinRecipientsToShare" /> has nothing to share, and one encode of the list is
+    /// cheaper than its entries one by one (#980).
+    /// </summary>
+    private void SendWholeAdds(IWorldConnection connection, ObjectGuid recipientGuid, IReadOnlyList<ObjectGuid> added)
+    {
+        long start = _tickProfile.Timestamp();
+        _described.Clear();
+        for (int i = 0; i < added.Count; i++)
+        {
+            if (DescribeNewObject(added[i], recipientGuid) is { } state)
+                _described.Add(state);
+        }
+
+        SendWhole(connection, start, adds: true);
+    }
+
+    /// <summary>The recipient's updates described and encoded whole, as one packet (<see cref="SendWholeAdds" />).</summary>
+    private void SendWholeUpdates(IWorldConnection connection, ObjectGuid recipientGuid,
+        IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> updated)
+    {
+        long start = _tickProfile.Timestamp();
+        _described.Clear();
+        for (int i = 0; i < updated.Count; i++)
+        {
+            if (DescribeUpdatedObject(updated[i], recipientGuid) is { } state)
+                _described.Add(state);
+        }
+
+        SendWhole(connection, start, adds: false);
+    }
+
+    /// <summary>Encodes and sends what <see cref="_described" /> holds, if anything; the describing counted as preparation.</summary>
+    private void SendWhole(IWorldConnection connection, long start, bool adds)
+    {
+        NoteDescribed(start);
+        if (_described.Count == 0)
+        {
+            _tickProfile.StateEncodingTicks += _tickProfile.Elapsed(start);
+            return;
+        }
+
+        SendStatePacket(connection, adds
+            ? SInstanceStateAddPacket.Create(_described, _replicationEncoder)
+            : SInstanceStateUpdatePacket.Create(_described, _replicationEncoder), start);
+    }
+
+    /// <summary>
+    /// Appends one entity's update to the recipient's packet (#980): the entry every recipient shares, encoded by the
+    /// first that is sent it this broadcast, or, for the recipient's own character, the one entry that depends on who
+    /// receives it (<see cref="MaskSelfSuppression" />), described and encoded for it alone. Byte for byte the packet
+    /// <see cref="SInstanceStateUpdatePacket.Create" /> wrote from the recipient's described list.
+    /// </summary>
+    private void AppendUpdate((ObjectGuid Guid, GameEntityFields Fields) updated, ObjectGuid recipientGuid)
+    {
+        if (updated.Guid != recipientGuid && _stateUpdates.TryAppendShared(updated.Guid, updated.Fields))
+            return;
+
+        long describeStart = _tickProfile.Timestamp();
+        ObjectState? state = DescribeUpdatedObject(updated, recipientGuid);
+        NoteDescribed(describeStart);
+
+        if (updated.Guid == recipientGuid)
+        {
+            if (state is not null)
+                _stateUpdates.AppendOwn(state);
+            return;
+        }
+
+        // Described for a recipient other than the entity itself, which is how every recipient that shares it sees it.
+        _stateUpdates.AppendShared(updated.Guid, updated.Fields, state);
+    }
+
+    /// <summary>
+    /// Appends one entity's add to the recipient's packet (#980): the entry every recipient shares, encoded by the first
+    /// that is sent it this tick, or, for the recipient's own character, the one entry that depends on who receives it
+    /// (<see cref="MaskSelfSuppression" />), described and encoded for it alone. An add describes the entity in full, so
+    /// its entry is kept as one of <see cref="GameEntityFields.All" />. Byte for byte the packet
+    /// <see cref="SInstanceStateAddPacket.Create" /> wrote from the recipient's described list.
+    /// </summary>
+    private void AppendAdd(ObjectGuid added, ObjectGuid recipientGuid)
+    {
+        if (added != recipientGuid && _stateAdds.TryAppendShared(added, GameEntityFields.All))
+            return;
+
+        long describeStart = _tickProfile.Timestamp();
+        ObjectState? state = DescribeNewObject(added, recipientGuid);
+        NoteDescribed(describeStart);
+
+        if (added == recipientGuid)
+        {
+            if (state is not null)
+                _stateAdds.AppendOwn(state);
+            return;
+        }
+
+        // Described for a recipient other than the entity itself, which is how every recipient that shares it sees it.
+        _stateAdds.AppendShared(added, GameEntityFields.All, state);
+    }
+
+    /// <summary>
+    /// Counts the describing of an entry since <paramref name="start" /> as state preparation, rather than as the
+    /// encoding the rest of the packet's assembly is counted as (the tick trace).
+    /// </summary>
+    private void NoteDescribed(long start)
+    {
+        long described = _tickProfile.Elapsed(start);
+        _tickProfile.StatePreparationTicks += described;
+        _tickProfile.StateEncodingTicks -= described;
     }
 
     private void SendStatePacket(IWorldConnection connection, OutboundPacket packet, long encodingStart)
@@ -1542,8 +1685,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (auras.Count == 0 && guid != recipient.Guid)
                 continue;
 
-            connection.Send(SAuraListPacket.Create(guid.RawValue, AuraWire.List(auras, _time.GetUtcNow()),
-                PacketEncoder.Shared));
+            connection.Send(SAuraListPacket.Create(guid.RawValue, _auraWire.List(auras, _time.GetUtcNow()),
+                _replicationEncoder));
         }
     }
 
@@ -1552,7 +1695,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// characters first. Only the units whose auras changed are walked (<see cref="AuraRoster" />, #898). A unit it was
     /// just told about is skipped: its list carried them. A unit out of view is skipped too, and its changes are cleared
     /// with everyone's at the end of the broadcast, so a client never hears of a copy it was not listed; a unit that comes
-    /// back into view is listed again. Allocates nothing while no unit changed.
+    /// back into view is listed again. Each unit's packet is encoded once for the whole pass, by the first client that
+    /// hears it, and shared with the others (<see cref="SharedAuraUpdates" />, #980). Allocates nothing while no unit
+    /// changed.
     /// </summary>
     private void SendAuraUpdates(IWorldConnection connection, CharacterEntity recipient, IReadOnlyList<ObjectGuid> added)
     {
@@ -1565,7 +1710,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             SendAuraUpdate(connection, recipient, creatures[i], added);
     }
 
-    private static void SendAuraUpdate(IWorldConnection connection, CharacterEntity recipient, IUnit unit,
+    private void SendAuraUpdate(IWorldConnection connection, CharacterEntity recipient, IUnit unit,
         IReadOnlyList<ObjectGuid> added)
     {
         if (AuraHolders.Of(unit) is not { HasChanges: true } auras)
@@ -1580,8 +1725,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 return;
         }
 
-        connection.Send(SAuraUpdatePacket.Create(unit.Guid.RawValue, AuraWire.Updates(auras.Changes),
-            PacketEncoder.Shared));
+        connection.Send(_auraUpdates.For(unit, auras));
     }
 
     /// <summary>
@@ -2218,13 +2362,5 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         if (subjectGuid != recipientGuid) return fields;
         return fields & ~(GameEntityFields.Position | GameEntityFields.Velocity | GameEntityFields.Orientation);
-    }
-
-    private sealed class PerPlayerBroadcastState
-    {
-        // Capacities sized for a typical instance (32 entities visible per player).
-        // List<T> grows automatically if exceeded — this avoids early reallocation.
-        public List<ObjectState> AddedObjects { get; } = new(32);
-        public List<ObjectState> UpdatedObjects { get; } = new(32);
     }
 }

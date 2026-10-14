@@ -46,7 +46,7 @@ this fires hundreds of times per second under any load.
 
 ## GC-002 — Per-tick entity state: `new byte[]` per visible entity per broadcast
 
-**Status:** Gone with the shape it described. Entity state is a message the serializer owns, so nothing on this path places bytes by hand any more: no rented scratch buffer, no per-entity `byte[]`, and no slice whose lifetime has to outlive the buffer it points into. The per-player lists survive and are still reused (`PerPlayerBroadcastState` on `MapInstance`); what they hold is one object per entity, which together with the single encrypted payload per call is the residual allocation.
+**Status:** Gone with the shape it described. Entity state is a message the serializer owns, so nothing on this path places bytes by hand any more: no rented scratch buffer, no per-entity `byte[]`, and no slice whose lifetime has to outlive the buffer it points into. The per-player lists that survived it are gone too since #980: each entity's add and update entry is encoded once per broadcast into a buffer the instance keeps (`StatePacketAssembler`) and copied into each recipient's packet, so what is left per packet is its pooled payload segment.
 **Severity:** Critical (historical)
 **File:** `src/Server/Avalon.World/Instances/MapInstance.cs`
 
