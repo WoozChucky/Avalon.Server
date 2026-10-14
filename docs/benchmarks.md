@@ -883,10 +883,10 @@ step measured; 113 of 256 blocked starts in the town and 147 of 256 in the fores
 polygon test leaves out goes to the full box); no beside input. `town-walk`'s walkers loop over open ground, which is
 the walking case.
 
-Measured 2026-10-14 after rebasing on `ba0d327b`, before (`ba0d327b`'s navigator) and after (`afd1e2d8`), alternated
+Measured 2026-10-14 after rebasing on `ba0d327b`, before (`ba0d327b`'s navigator) and after (`eb50dfa5`), alternated
 on a mostly idle machine (another agent's work ran during some runs). The step is minimum–median–maximum over three
 runs before and five after, the reference column over every run of the step; the queries are minimum–maximum over
-three runs each, with three of `7c8e089d` for the zeroing alone. Allocations exact:
+three runs each, with three of `442fdef4` for the zeroing alone. Allocations exact:
 
 | Map | Input | Reference | Before | After | Allocated |
 |---|---|---:|---:|---:|---:|
@@ -901,7 +901,7 @@ three runs each, with three of `7c8e089d` for the zeroing alone. Allocations exa
 | Forest | Blocked | 388–430–531 ns | 409–418–422 ns | 335–340–348 ns | 0 B |
 | Forest | Beside | 449–457–535 ns | 452–454–622 ns | 524–540–1,211 ns | 0 B |
 
-| Map | Query | Before | Narrow search (`7c8e089d`) | + no zeroing (`afd1e2d8`) | Allocated |
+| Map | Query | Before | Narrow search (`442fdef4`) | + no zeroing (`eb50dfa5`) | Allocated |
 |---|---|---:|---:|---:|---:|
 | Town | Route | 14,356–14,759 ns | 12,858–13,120 ns | 12,812–18,972 ns | 0 B |
 | Town | Line of sight | 1,552–2,336 ns | 489–542 ns | 463–510 ns | 0 B |
@@ -933,8 +933,9 @@ two polygons 0.79 m apart both score zero and DotRecast answers the far one for 
 DotRecast rounds their bounds out to the 0.3 m cell.
 
 BenchmarkDotNet 0.15.8, in-process toolchain, Windows 11, i9-12900K, SDK 10.0.402 / runtime 10.0.13, five warmups
-and ten measured iterations. The scenario gate reads main's figures after #978: `forest-combat` 14,292 B per window
-in Release and 14,360 B in Debug (committed 14,292 B), the others 0 B; the baseline does not move.
+and ten measured iterations. The scenario gate reads main's figures after #978 (rebased on `fb5dfd13`): `forest-combat`
+14,292 B per window in Release and 14,360 B in Debug (committed 14,292 B), `town-social` 3,904 B and 4,008 B (committed
+3,904 B), the others 0 B; the baseline does not move.
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*NavigationMovementBenchmarks*" --inProcess --warmupCount 5 --iterationCount 10
