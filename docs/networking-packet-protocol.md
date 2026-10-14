@@ -104,9 +104,10 @@ segment is never sealed in place, and it returns to its pool after the last refe
 the instance keeps each unit's packet for the pass (`SharedAuraUpdates`), encoded for the first recipient that hears it,
 and releases its own references when the pass ends, also when it throws (#980). The world-state packets
 (`SInstanceStateAdd/Update/Remove`) and the aura list stay per recipient: each recipient hears its own set of units.
-An update's payload, though, is copied together from entries each encoded once per broadcast
-(`SInstanceStateUpdatePacket.WriteEntry`, `PacketEncoder.FromPayload`): a repeated message field is its entries one
-after another, so the bytes are those `Create` writes for the same list ([world simulation](world-simulation.md)).
+An add's and an update's payload, though, is copied together from entries each encoded once per broadcast
+(`SInstanceStateAddPacket.WriteEntry`, `SInstanceStateUpdatePacket.WriteEntry`, `PacketEncoder.FromPayload`): a
+repeated message field is its entries one after another, so the bytes are those `Create` writes for the same list
+([world simulation](world-simulation.md)).
 
 Nor a message object per packet. `Create` fills the calling thread's instance of its message type
 (`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that

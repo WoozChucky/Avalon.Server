@@ -14,23 +14,27 @@ using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
-/// #980: every player's state update is put together from entries each encoded once per broadcast, and must be byte for
-/// byte the packet the per-recipient encoding wrote: the recipient's described list, encoded whole by
-/// <see cref="SInstanceStateUpdatePacket.Create" />. Character ids 980_1xx and creature ids 980_9xx are this class's.
+/// #980: every player's state adds and updates are put together from entries each encoded once per broadcast, and must
+/// be byte for byte the packets the per-recipient encoding wrote: the recipient's described list, encoded whole by
+/// <see cref="SInstanceStateAddPacket.Create" /> or <see cref="SInstanceStateUpdatePacket.Create" />. Character ids
+/// 980_1xx and creature ids 980_9xx are this class's.
 /// </summary>
 public class StateUpdateEncodingShould
 {
     // 166,666 TimeSpan ticks, a hair under 1/60 s: an instance built outside the registry broadcasts on ticks 7, 13, 19, 25.
     private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
 
-    public static TheoryData<string> Broadcasts => ["town", "forest", "self", "listed-and-changed", "out-of-view"];
+    public static TheoryData<string> Broadcasts =>
+        ["town", "forest", "self", "listed-and-changed", "out-of-view", "arrivals"];
 
     /// <summary>
-    /// Real broadcasts through a real instance: a crowded town where everyone moves, a forest of creatures moving and
-    /// hurt at different distances, characters whose own update is health alone or motion alone (left out for
-    /// themselves), a character listed to some recipients on the broadcast tick it changed and updated to the others,
-    /// and a recipient too far to see anyone. Every recipient's packet of every broadcast tick, or its absence, is
-    /// compared.
+    /// Real broadcasts through a real instance: a crowded town where everyone moves, everyone listed to everyone on its
+    /// first tick; a forest of creatures moving and hurt at different distances; characters whose own update is health
+    /// alone or motion alone (left out for themselves); a character listed to some recipients on the broadcast tick it
+    /// changed and updated to the others, then listed again after leaving their view; a recipient too far to see
+    /// anyone; and creatures walking into the view of several recipients on one tick, out and back in, with a character
+    /// arriving midway (its own add, and everyone listed to it). Every recipient's add and update of every tick, or
+    /// their absence, is compared.
     /// </summary>
     [Theory]
     [MemberData(nameof(Broadcasts))]
@@ -41,7 +45,8 @@ public class StateUpdateEncodingShould
         var creatures = new List<Creature>();
         Action<int> change = Setup(broadcast, instance, characters, creatures);
         var encoder = new PacketEncoder(new PayloadSegmentPool());
-        int compared = 0;
+        int adds = 0;
+        int updates = 0;
 
         for (int tick = 1; tick <= 25; tick++)
         {
@@ -52,23 +57,30 @@ public class StateUpdateEncodingShould
 
             foreach (MapInstanceClient recipient in characters)
             {
-                byte[]? expected = PerRecipientEncoding(recipient.Character, characters, creatures, encoder);
-                OutboundPacket[] sent = recipient.Sent
-                    .Where(p => p.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_UPDATE).ToArray();
-                if (expected is null)
-                {
-                    Assert.Empty(sent);
-                    continue;
-                }
-
-                OutboundPacket packet = Assert.Single(sent);
-                Assert.Equal(SInstanceStateUpdatePacket.Flags, packet.Header.Flags);
-                Assert.Equal(expected, packet.PayloadMemory.ToArray());
-                compared++;
+                adds += Compare(recipient, NetworkPacketType.SMSG_WORLD_STATE_ADD, SInstanceStateAddPacket.Flags,
+                    PerRecipientAdds(recipient.Character, characters, creatures, encoder));
+                updates += Compare(recipient, NetworkPacketType.SMSG_WORLD_STATE_UPDATE, SInstanceStateUpdatePacket.Flags,
+                    PerRecipientUpdates(recipient.Character, characters, creatures, encoder));
             }
         }
 
-        Assert.True(compared > 0, "No state update was compared");
+        Assert.True(adds > 0 && updates > 0, $"Compared {adds} adds and {updates} updates");
+    }
+
+    /// <summary>The one packet of <paramref name="type" /> the recipient was sent this tick against the expected bytes, or none against null.</summary>
+    private static int Compare(MapInstanceClient recipient, NetworkPacketType type, NetworkPacketFlags flags, byte[]? expected)
+    {
+        OutboundPacket[] sent = recipient.Sent.Where(p => p.Header.Type == type).ToArray();
+        if (expected is null)
+        {
+            Assert.Empty(sent);
+            return 0;
+        }
+
+        OutboundPacket packet = Assert.Single(sent);
+        Assert.Equal(flags, packet.Header.Flags);
+        Assert.Equal(expected, packet.PayloadMemory.ToArray());
+        return 1;
     }
 
     /// <summary>Who is where, and what changes before each tick.</summary>
@@ -155,18 +167,71 @@ public class StateUpdateEncodingShould
                     creatures[0].CurrentHealth = (uint)(95 - tick);
                 };
 
+            case "arrivals":
+                characters.Add(JoinAt(instance, 980_160, Vector3.zero));
+                characters.Add(JoinAt(instance, 980_161, new Vector3(3f, 0f, 0f)));
+                characters.Add(JoinAt(instance, 980_162, new Vector3(0f, 0f, 3f)));
+                for (uint i = 0; i < 3; i++)
+                    creatures.Add(AddCreature(instance, 980_960 + i, new Vector3(200f, 0f, i * 2f)));
+                return tick =>
+                {
+                    // Listed to all three on tick 4, out of everyone's view on tick 10, listed again on tick 16.
+                    if (tick is 4 or 10 or 16)
+                    {
+                        for (int i = 0; i < creatures.Count; i++)
+                        {
+                            creatures[i].Position = new Vector3(tick == 10 ? 200f : 5f, 0f, i * 2f);
+                            creatures[i].CurrentHealth = (uint)(90 - tick - i);
+                        }
+                    }
+
+                    if (tick == 8)
+                        characters.Add(JoinAt(instance, 980_163, new Vector3(1f, 0f, 1f)));
+                };
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(broadcast), broadcast, null);
         }
     }
 
     /// <summary>
-    /// The packet the per-recipient encoding sent <paramref name="recipient" /> on the tick just run, or null for none:
+    /// The add the per-recipient encoding sent <paramref name="recipient" /> on the tick just run, or null for none:
+    /// every entity its tracking reported new, described in full as the instance describes it for this recipient (a
+    /// character's motion left out for itself), the list encoded whole.
+    /// </summary>
+    private static byte[]? PerRecipientAdds(CharacterEntity recipient, List<MapInstanceClient> characters,
+        List<Creature> creatures, PacketEncoder encoder)
+    {
+        var adds = new List<ObjectState>();
+        foreach (ObjectGuid guid in recipient.CharacterGameState.NewObjects)
+        {
+            if (characters.Find(c => c.Character.Guid == guid) is { } character)
+            {
+                adds.Add(ObjectStateWriter.From((ICharacter)character.Character,
+                    MapInstance.MaskSelfSuppression(GameEntityFields.All, guid, recipient.Guid)));
+            }
+            else
+            {
+                adds.Add(ObjectStateWriter.From((ICreature)creatures.Single(c => c.Guid == guid), GameEntityFields.All));
+            }
+        }
+
+        if (adds.Count == 0)
+            return null;
+
+        OutboundPacket packet = SInstanceStateAddPacket.Create(adds, encoder);
+        byte[] bytes = packet.PayloadMemory.ToArray();
+        packet.Release();
+        return bytes;
+    }
+
+    /// <summary>
+    /// The update the per-recipient encoding sent <paramref name="recipient" /> on the tick just run, or null for none:
     /// every entity its tracking reported updated, described as the instance describes it for this recipient (a
     /// character's motion left out for itself, a character left with nothing dropped, a creature's routine selection
     /// plus its death and maximum health when marked), the list encoded whole.
     /// </summary>
-    private static byte[]? PerRecipientEncoding(CharacterEntity recipient, List<MapInstanceClient> characters,
+    private static byte[]? PerRecipientUpdates(CharacterEntity recipient, List<MapInstanceClient> characters,
         List<Creature> creatures, PacketEncoder encoder)
     {
         var updates = new List<ObjectState>();

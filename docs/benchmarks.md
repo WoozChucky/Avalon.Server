@@ -1666,7 +1666,7 @@ for its own client. One operation is one broadcast to every player.
 | Scenario | What it models |
 |---|---|
 | `PerRecipient` | Each recipient's update encoded whole from its list (`SInstanceStateUpdatePacket.Create`): the encoding before #980 |
-| `Shared` | Each recipient's update put together from entries encoded once per broadcast (`StateUpdateAssembler`): since #980 |
+| `Shared` | Each recipient's update put together from entries encoded once per broadcast (`StatePacketAssembler.ForUpdates`): since #980 |
 
 Results in [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14).
 
@@ -3976,7 +3976,7 @@ only on the unit. Since #980 (see [world simulation](world-simulation.md) and [a
 - each changed unit's aura update is encoded once per broadcast pass and the same packet goes to every watcher
   (`SharedAuraUpdates`, `OutboundPacket.Share`), and its entries, and the aura lists', are reused from one packet to
   the next (`AuraWire`);
-- each recipient's state update is copied together from entries encoded once per broadcast (`StateUpdateAssembler`,
+- each recipient's state update is copied together from entries encoded once per broadcast (`StatePacketAssembler`,
   `SInstanceStateUpdatePacket.WriteEntry`, `PacketEncoder.FromPayload`); a character's update to its own client, whose
   motion is left out, is encoded for that client alone.
 

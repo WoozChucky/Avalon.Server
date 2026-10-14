@@ -16,11 +16,37 @@ public class SInstanceStateAddPacket : Packet
 
     [ProtoMember(1)] public List<ObjectState> Adds { get; set; }
 
+    // One single-entry list per thread, for WriteEntry: the entry is written before WriteEntry returns.
+#pragma warning disable IDE1006
+    [ThreadStatic] private static List<ObjectState>? t_entry;
+#pragma warning restore IDE1006
+
     public static OutboundPacket Create(List<ObjectState> adds, PacketEncoder encoder)
     {
         SInstanceStateAddPacket message = PacketEncoder.Scratch<SInstanceStateAddPacket>();
         message.Adds = adds;
         return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="add" /> at <paramref name="destination" />'s position as one entry of <see cref="Adds" />,
+    /// byte for byte as <see cref="Create" /> writes it inside a packet (#980): see
+    /// <see cref="SInstanceStateUpdatePacket.WriteEntry" />, whose layout this packet shares.
+    /// </summary>
+    public static void WriteEntry(ObjectState add, MemoryStream destination)
+    {
+        List<ObjectState> entry = t_entry ??= new List<ObjectState>(1);
+        entry.Add(add);
+        try
+        {
+            SInstanceStateAddPacket message = PacketEncoder.Scratch<SInstanceStateAddPacket>();
+            message.Adds = entry;
+            PacketEncoder.Write(message, destination);
+        }
+        finally
+        {
+            entry.Clear();
+        }
     }
 }
 

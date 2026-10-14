@@ -11,7 +11,7 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <summary>
 /// #980: one town broadcast's state updates, every player moving and seeing every other: each recipient's packet encoded
 /// whole from its list (the per-recipient encoding), against one put together from entries encoded once per broadcast
-/// (<see cref="StateUpdateAssembler" />). Encoding only: the entities are already described, and a motion-only update
+/// (<see cref="StatePacketAssembler" />). Encoding only: the entities are already described, and a motion-only update
 /// has no entry for its own client. One operation is one broadcast to every player.
 /// </summary>
 [MemoryDiagnoser]
@@ -20,7 +20,7 @@ public class StateBroadcastEncodingBenchmarks
     private const GameEntityFields Moved = GameEntityFields.Position | GameEntityFields.Velocity | GameEntityFields.Orientation;
 
     private readonly PacketEncoder _encoder = new(new PayloadSegmentPool());
-    private readonly StateUpdateAssembler _assembler = new();
+    private readonly StatePacketAssembler _assembler = StatePacketAssembler.ForUpdates();
     private readonly List<ObjectState> _list = new(64);
     private ObjectGuid[] _guids = null!;
     private ObjectState[] _states = null!;
