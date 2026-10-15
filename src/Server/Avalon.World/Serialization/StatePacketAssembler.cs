@@ -17,8 +17,9 @@ namespace Avalon.World.Serialization;
 /// (<see cref="SInstanceStateAddPacket.WriteEntry" />, <see cref="SInstanceStateUpdatePacket.WriteEntry" />), so a
 /// packet copied together from entries is byte for byte the one the packet's <c>Create</c> writes for the same list.
 /// An entity's entry depends on the entity and the fields it is described with, which are the same for every
-/// recipient; the one exception is a character's add or update to its own client, whose motion is left out
-/// (<c>MapInstance.MaskSelfSuppression</c>), and which the caller describes and appends for that recipient alone
+/// recipient but one: a character's add or update to its own client, whose motion is left out and which alone carries
+/// its experience (<c>MapInstance.MaskForRecipient</c>, #993), and which the caller describes and appends for that
+/// recipient alone
 /// (<see cref="AppendOwn" />). An entry is keyed by the entity and kept with its fields: a recipient that asks for the
 /// entity with other fields gets an entry of its own, so a shared entry is never one written for different fields.
 /// </para>

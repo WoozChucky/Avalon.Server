@@ -303,7 +303,7 @@ public class StateUpdateEncodingShould
             if (characters.Find(c => c.Character.Guid == guid) is { } character)
             {
                 adds.Add(ObjectStateWriter.From((ICharacter)character.Character,
-                    MapInstance.MaskSelfSuppression(GameEntityFields.All, guid, recipient.Guid)));
+                    MapInstance.MaskForRecipient(GameEntityFields.All, guid, recipient.Guid)));
             }
             else if (guid.Type == ObjectType.SpellProjectile)
             {
@@ -338,7 +338,7 @@ public class StateUpdateEncodingShould
         {
             if (characters.Find(c => c.Character.Guid == guid) is { } character)
             {
-                GameEntityFields own = MapInstance.MaskSelfSuppression(fields, guid, recipient.Guid);
+                GameEntityFields own = MapInstance.MaskForRecipient(fields, guid, recipient.Guid);
                 if ((own & ~GameEntityFields.None) != 0)
                     updates.Add(ObjectStateWriter.From((ICharacter)character.Character, own));
             }
