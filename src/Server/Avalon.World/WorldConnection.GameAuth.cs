@@ -102,7 +102,7 @@ public partial class WorldConnection
             {
                 RenewalLedger.Unresolved(ref _renewals);
                 if (heartbeat.IsCompletedSuccessfully &&
-                    (heartbeat.Result.Error is null || heartbeat.Result.Error is not (GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending)))
+                    heartbeat.Result.Error is not (GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending))
                 {
                     lease.Revoke();
                 }

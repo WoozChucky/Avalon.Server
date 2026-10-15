@@ -892,7 +892,8 @@ and which is written at Debug: one per player every 15 seconds, about 87 lines a
 count and latency the `http.server.request.duration` metric already carries. A heartbeat that fails, and every other
 `/internal/game` route, stays at Information (`WorkloadRequestLogShould`), as does a request an exception escaped from:
 the exception handler runs outside the request log, so its status still reads 200 there, and it is written as
-`HTTP {Method} {Path}{Query} failed with an exception in {Elapsed} ms` instead. Game authentication's own line
+`HTTP {Method} {Path}{Query} failed with an exception in {Elapsed} ms` instead. A cancellation because the caller hung
+up is not a failure: that request is logged as before, so a heartbeat stays at Debug and a probe silent. Game authentication's own line
 (`Game authentication {Operation} responded {StatusCode} with {ErrorCode}`) is not written for a context refresh
 answered 200 with no error, which only repeats the request line; every other answer, and every other operation's, is.
 The environment brings the Debug

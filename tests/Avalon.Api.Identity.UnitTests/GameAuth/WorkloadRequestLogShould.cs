@@ -36,21 +36,34 @@ public sealed class WorkloadRequestLogShould
         Assert.Equal(level, RequestLoggingMiddleware.LevelOf(path, status, failed, options));
     }
 
-    /// <summary>The middleware itself: a heartbeat an exception escaped from is not written off as a quiet 200.</summary>
-    [Fact]
-    public async Task Log_a_heartbeat_an_exception_escaped_from_at_Information()
+    /// <summary>
+    /// The middleware itself: a heartbeat an exception escaped from is not written off as a quiet 200. A caller that hung
+    /// up is no failure: its request keeps the level it had, so a heartbeat stays Debug, a probe silent, and any other
+    /// route at Information.
+    /// </summary>
+    [Theory]
+    [InlineData("/internal/game/sessions/heartbeat", false, 1)]
+    [InlineData("/internal/game/sessions/heartbeat", true, 0)]
+    [InlineData("/health", true, 0)]
+    [InlineData("/internal/game/sessions/end", true, 1)]
+    public async Task Log_an_escaped_exception_as_a_failure_unless_the_caller_hung_up(string path, bool callerHungUp, int informationLines)
     {
         var options = new RequestLoggingOptions();
         options.QuietOnSuccess.Add(GameInternalRoutes.IsHeartbeat);
         var logs = new LevelCapture();
-        var middleware = new RequestLoggingMiddleware(_ => throw new InvalidOperationException("fixture"), logs, Options.Create(options));
-        var context = new DefaultHttpContext();
+        using var aborted = new CancellationTokenSource();
+        var middleware = new RequestLoggingMiddleware(_ => Task.FromException(callerHungUp
+            ? new OperationCanceledException(aborted.Token)
+            : new InvalidOperationException("fixture")), logs, Options.Create(options));
+        var context = new DefaultHttpContext { RequestAborted = aborted.Token };
         context.Request.Method = "POST";
-        context.Request.Path = GameInternalRoutes.HeartbeatPath;
+        context.Request.Path = path;
+        if (callerHungUp) await aborted.CancelAsync();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => middleware.InvokeAsync(context));
+        await Assert.ThrowsAnyAsync<Exception>(() => middleware.InvokeAsync(context));
 
-        Assert.Equal(new[] { LogLevel.Information }, logs.Levels);
+        Assert.Equal(informationLines, logs.Levels.Count(level => level == LogLevel.Information));
+        Assert.Equal(informationLines, logs.Levels.Count);
     }
 
     private sealed class LevelCapture : ILoggerFactory, ILogger

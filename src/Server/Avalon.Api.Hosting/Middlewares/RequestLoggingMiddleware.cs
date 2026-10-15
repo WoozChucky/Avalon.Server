@@ -28,11 +28,12 @@ public class RequestLoggingMiddleware
             // Call the next middleware in the pipeline
             await _next(httpContext);
         }
-        catch
+        catch (Exception error)
         {
             // The exception handler runs outside this middleware, so the status code still reads as the default 200
-            // here (#1051): an exception that escaped is a failure whatever it says.
-            failed = true;
+            // here (#1051): an exception that escaped is a failure whatever it says. A caller that hung up is not: its
+            // request is logged as it was before, and a probe's stays silent.
+            failed = !(error is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested);
             throw;
         }
         finally

@@ -20,6 +20,7 @@ using Avalon.World.Pvp;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -299,14 +300,25 @@ public class WorldServerShutdownShould : IDisposable
 
     /// <summary>
     /// A session whose lease ran out more than the clocks' skew ago holds nothing identity's end would release (#1051),
-    /// so its end is not sent; one with a renewal asked for and not applied here is, since identity may have renewed it.
+    /// so its end is not sent. One whose heartbeat once ended without its renewal applied (here answered
+    /// <c>SERVICE_UNAVAILABLE</c>) is ended even after a later heartbeat was applied: identity may still hold the earlier
+    /// request and renew the session past the lease held here. The heartbeats run through the tick's lease check.
     /// </summary>
     [Fact]
-    public async Task Skip_the_end_of_a_lease_long_run_out_unless_a_renewal_is_outstanding()
+    public async Task Skip_the_end_of_a_lease_long_run_out_unless_a_heartbeats_outcome_was_unknown()
     {
-        var clock = new FakeTimeProvider();
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 15, 20, 0, 0, TimeSpan.Zero));
         var ended = new List<long>();
+        int unavailableLeft = 1;
         IGameAdmissionClient admission = Substitute.For<IGameAdmissionClient>();
+        admission.HeartbeatAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            GameSessionLease lease = call.Arg<GameSessionLease>();
+            // Account 2's first heartbeat: identity's answer is an outage, so what it did with the request is unknown.
+            if (lease.Authority.AccountId.Value == 2 && Interlocked.Exchange(ref unavailableLeft, 0) == 1)
+                return Task.FromResult(new SessionLeaseResponse { Error = GameAuthErrors.ServiceUnavailable });
+            return Task.FromResult(Renewal(lease, clock));
+        });
         admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             lock (ended) ended.Add(call.Arg<GameSessionLease>().Authority.AccountId.Value);
@@ -316,18 +328,47 @@ public class WorldServerShutdownShould : IDisposable
         var pairs = new List<(TcpClient, TcpClient)>();
         try
         {
-            // Accounts 1 and 2 are admitted with 44-second leases; account 2 has a heartbeat outstanding.
             List<Avalon.World.WorldConnection> connections = AdmitSessions(server, 2, clock, pairs);
-            typeof(Avalon.World.WorldConnection).GetField("_renewals", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .SetValue(connections[1], RenewalLedger.InFlight);
-            clock.Advance(TimeSpan.FromSeconds(44) + Avalon.World.WorldServer.SessionEndSkew);
+            await HeartbeatAsync(connections[0], clock);   // applied
+            await HeartbeatAsync(connections[1], clock);   // SERVICE_UNAVAILABLE
+            await HeartbeatAsync(connections[1], clock);   // applied
+            Assert.Equal(clock.GetUtcNow().UtcDateTime.AddSeconds(45), connections[1].GameSessionLease!.LeaseUntil);
 
+            clock.Advance(TimeSpan.FromSeconds(45) + Avalon.World.WorldServer.SessionEndSkew);
             await server.Stop().WaitAsync(TimeSpan.FromSeconds(30));
 
             Assert.Equal(new[] { 2L }, ended);
         }
         finally { Dispose(pairs); }
     }
+
+    /// <summary>One heartbeat through the tick's lease check: asked for, answered off the tick, applied by the next check.</summary>
+    private static async Task HeartbeatAsync(Avalon.World.WorldConnection connection, TimeProvider clock)
+    {
+        connection.RequestGameplayRevalidation();
+        connection.AdvanceGameplayLease(TickTime.Read(clock));
+        var heartbeat = (Task)typeof(Avalon.World.WorldConnection)
+            .GetField("_heartbeat", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(connection)!;
+        await heartbeat.WaitAsync(TimeSpan.FromSeconds(30));
+        connection.AdvanceGameplayLease(TickTime.Read(clock));
+    }
+
+    /// <summary>Identity's renewal of <paramref name="lease"/>: 45 seconds from now, on the test's clock.</summary>
+    private static SessionLeaseResponse Renewal(GameSessionLease lease, TimeProvider clock) => new()
+    {
+        State = "active",
+        AccountId = lease.Authority.AccountId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        GameSessionId = lease.Authority.GameSessionId.ToString("D"),
+        GameContextId = lease.GameContextId.ToString("D"),
+        FencingToken = lease.Authority.FencingToken.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ServerId = lease.ServerId,
+        WorldId = lease.WorldId,
+        AccessLevel = (ushort)lease.AccessLevel,
+        CredentialsVersion = 0,
+        SessionEpoch = "0",
+        LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(45),
+        AuthorizationUntil = clock.GetUtcNow().UtcDateTime.AddMinutes(5),
+    };
 
     private static List<Avalon.World.WorldConnection> AdmitSessions(TestWorldServer server, int count, TimeProvider clock,
         List<(TcpClient, TcpClient)> pairs)
