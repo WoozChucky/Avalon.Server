@@ -238,6 +238,16 @@ public class GameConfiguration
     /// </summary>
     public bool TickThreadGuard { get; set; }
 
+    /// <summary>
+    /// The CPU the tick thread runs on alone (#1002, <see cref="Threading.TickThreadPlacement" />), with the world's other
+    /// threads kept off it and off its hyperthread siblings. Linux only: elsewhere the tick runs unpinned, with a warning.
+    /// Unset (the default), nothing is pinned. Startup refuses a negative value, one above
+    /// <see cref="Threading.TickThreadPlacement.MaxCpu" />, a CPU the process may not run on, and one whose core is every
+    /// CPU the process has. Read once, when the tick thread starts.
+    /// </summary>
+    [Range(0, Threading.TickThreadPlacement.MaxCpu)]
+    public int? TickThreadCpu { get; set; }
+
     /// <summary>The default of <see cref="FuryFromDamageTaken" />, for whatever is built without the options.</summary>
     public const float DefaultFuryFromDamageTaken = Avalon.Combat.Fury.DefaultFromDamageTaken;
 

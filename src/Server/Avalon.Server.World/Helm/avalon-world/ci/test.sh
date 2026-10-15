@@ -90,6 +90,29 @@ for bad in "server.game.abandonedInstanceLifetimeMinutes=-1" "server.game.abando
   fi
 done
 
+# Tick thread placement (#1002): neither setting renders unset; a CPU (0 too, and a values-file float) renders as digits,
+# a GC CPU list as given; anything else fails.
+! grep -q "Game__TickThreadCpu" <<<"$off"                                                      || { echo "tick thread CPU rendered when unset"; exit 1; }
+! grep -q "DOTNET_GCHeapAffinitizeRanges" <<<"$off"                                            || { echo "GC heap ranges rendered when unset"; exit 1; }
+tt=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.tickThread.cpu=8 --set-string 'server.tickThread.gcHeapAffinitizeRanges=0-7\,9-19\,21-23')
+grep -A1 "name: Game__TickThreadCpu" <<<"$tt" | grep -q '"8"'                                   || { echo "tick thread CPU must render"; exit 1; }
+grep -A1 "name: DOTNET_GCHeapAffinitizeRanges" <<<"$tt" | grep -q '"0-7,9-19,21-23"'           || { echo "GC heap ranges must render"; exit 1; }
+for n in 0 11; do
+  tj=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-json "server.tickThread.cpu=$n")
+  grep -A1 "name: Game__TickThreadCpu" <<<"$tj" | grep -q "\"$n\""                              || { echo "tick thread CPU $n must render as digits"; exit 1; }
+done
+# A GC CPU list that includes the tick's CPU fails, as a range or on its own.
+for ranges in '0-23' '0-7\,8\,9-23' '8'; do
+  if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.tickThread.cpu=8 --set-string "server.tickThread.gcHeapAffinitizeRanges=$ranges" >/dev/null 2>&1; then
+    echo "GC heap ranges $ranges holding the tick's CPU must fail"; exit 1
+  fi
+done
+for bad in "server.tickThread.cpu=-1""server.tickThread.cpu=1.5" "server.tickThread.cpu=eight" "server.tickThread.gcHeapAffinitizeRanges=0-7;9" "server.tickThread.gcHeapAffinitizeRanges=all"; do
+  if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set "$bad" >/dev/null 2>&1; then
+    echo "rendering with $bad must fail"; exit 1
+  fi
+done
+
 # Packet encryption (#875): false unless set; true renders; anything but a boolean fails.
 grep -A1 "name: Network__PacketEncryption" <<<"$off" | grep -q '"false"'                       || { echo "packet encryption must default to false"; exit 1; }
 pe=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.network.packetEncryption=true)

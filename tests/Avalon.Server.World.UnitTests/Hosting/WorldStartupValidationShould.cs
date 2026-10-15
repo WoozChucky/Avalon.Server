@@ -53,7 +53,7 @@ public class WorldStartupValidationShould
     /// <summary>
     /// A Game setting out of its range stops the start, naming the setting: a row at each bound with a reason. The
     /// floats must be finite (#532, #593, #526): the interest radius at least 1 m, the interest remove margin and both
-    /// Fury rates 0 or more.
+    /// Fury rates 0 or more. The tick's CPU (#1002) is a CPU number a mask can name, on every system.
     /// </summary>
     [Theory]
     [InlineData("InterestRadius", "0.5")]
@@ -84,6 +84,8 @@ public class WorldStartupValidationShould
     [InlineData("MaxAurasPerUnit", "257")]
     [InlineData("MaxIgnoredCharacters", "0")]
     [InlineData("MaxIgnoredCharacters", "501")]
+    [InlineData("TickThreadCpu", "-1")]
+    [InlineData("TickThreadCpu", "1024")]
     public async Task Refuse_to_start_with_a_game_setting_out_of_range(string setting, string value)
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
