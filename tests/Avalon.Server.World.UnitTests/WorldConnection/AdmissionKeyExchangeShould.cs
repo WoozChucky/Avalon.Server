@@ -32,7 +32,12 @@ namespace Avalon.Server.World.UnitTests.WorldConnection;
 /// </summary>
 public sealed class AdmissionKeyExchangeShould
 {
-    private static readonly TimeSpan s_wait = TimeSpan.FromSeconds(10);
+    /// <summary>
+    /// A limit on a hang only: the ticket is redeemed, the session keyed and the frames read on the thread pool, which a
+    /// loaded test run can hold for seconds (#960). So the test waits for each outcome, never for an amount of time
+    /// (#1019).
+    /// </summary>
+    private static readonly TimeSpan s_wait = TimeSpan.FromSeconds(30);
 
     /// <summary>
     /// A real world connection whose stream is the socket itself: the world's TLS needs a running server, and what the
@@ -152,12 +157,7 @@ public sealed class AdmissionKeyExchangeShould
                 JoinTicket = GameAuthCryptography.NewToken(),
                 PublicKey = clientKeys.GetPublicKey(),
             })));
-        DateTime deadline = DateTime.UtcNow.Add(s_wait);
-        while (connection.AccountId is null && DateTime.UtcNow < deadline)
-        {
-            connection.FlushContinuations();
-            await Task.Yield();
-        }
+        await Until(connection.FlushContinuations, () => connection.AccountId is not null);
 
         Assert.Equal(lease.Authority.AccountId, connection.AccountId);
         Assert.True(connection.Sent.TryDequeue(out OutboundPacket sent));
@@ -186,12 +186,7 @@ public sealed class AdmissionKeyExchangeShould
         if (packetEncryption)
         {
             // Opened, decoded and queued: the tick's session pass runs it.
-            deadline = DateTime.UtcNow.Add(s_wait);
-            while (dispatched.Count == 0 && !connection.IsClosing && DateTime.UtcNow < deadline)
-            {
-                connection.UpdateSession();
-                await Task.Yield();
-            }
+            await Until(connection.UpdateSession, () => dispatched.Count > 0 || connection.IsClosing);
 
             Assert.Equal([CCharacterListPacket.PacketType], dispatched);
             Assert.Empty(connection.Violations);
@@ -202,6 +197,19 @@ public sealed class AdmissionKeyExchangeShould
             await connection.Closed.Task.WaitAsync(s_wait);
             Assert.Equal(["sealed_before_key"], connection.Violations);
             Assert.Empty(dispatched);
+        }
+    }
+
+    /// <summary>Runs <paramref name="pass" /> (a tick's part) until <paramref name="settled" /> holds after one.</summary>
+    private static async Task Until(Action pass, Func<bool> settled)
+    {
+        using var hang = new CancellationTokenSource(s_wait);
+        while (true)
+        {
+            pass();
+            if (settled())
+                return;
+            await Task.Delay(1, hang.Token);
         }
     }
 }
