@@ -99,12 +99,7 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!connection.IsClosing && DateTime.UtcNow < deadline)
-        {
-            server.Tick();
-            await Task.Delay(10);
-        }
+        await TickUntil(server, () => connection.IsClosing || connection.PendingSpawn is null);
 
         Assert.True(connection.IsClosing);
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
@@ -123,12 +118,7 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance,
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (connection.PendingSpawn is not null && DateTime.UtcNow < deadline)
-        {
-            server.Tick();
-            await Task.Delay(10);
-        }
+        await TickUntil(server, () => connection.IsClosing || connection.PendingSpawn is null);
 
         Assert.Null(connection.PendingSpawn);
         world.Received(1).SpawnInInstance(connection, instance);
@@ -196,12 +186,7 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance,
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        DateTime timeout = DateTime.UtcNow.AddSeconds(5);
-        while (connection.PendingSpawn is not null && DateTime.UtcNow < timeout)
-        {
-            server.Tick();
-            await Task.Delay(10);
-        }
+        await TickUntil(server, () => connection.IsClosing || connection.PendingSpawn is null);
 
         Assert.Null(connection.PendingSpawn);
         Assert.False(connection.IsClosing);
@@ -263,12 +248,7 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!connection.IsClosing && DateTime.UtcNow < deadline)
-        {
-            server.Tick();
-            await Task.Delay(10);
-        }
+        await TickUntil(server, () => connection.IsClosing || connection.PendingSpawn is null);
 
         Assert.True(connection.IsClosing);
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
