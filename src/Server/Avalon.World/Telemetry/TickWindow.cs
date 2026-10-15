@@ -2,7 +2,8 @@ namespace Avalon.World.Telemetry;
 
 /// <summary>
 /// The world's ticks gathered into windows of about one second (#1016), from each tick's start and end timestamps: the
-/// mean tick time every time-sync ping carries (<c>SPingPacket.TickMicros</c>). The first window opens at the start of
+/// mean tick time every time-sync ping carries (<c>SPingPacket.TickMicros</c>), and the tick rate
+/// (<c>world.tick.rate</c>). The first window opens at the start of
 /// the first tick; each later one where the one before it closed, so the windows follow one another without a gap. A
 /// window closes at the end of the first tick that ends a second or more after it opened, and holds the ticks that ended
 /// in it. No clock read and no allocation: a sum and a count per tick, one division per window. Tick thread only.
@@ -22,6 +23,12 @@ public struct TickWindow(long frequency)
     /// </summary>
     public uint MeanMicros { get; private set; }
 
+    /// <summary>
+    /// The ticks per second of the last window that closed: its ticks over its length, from where the window before it
+    /// closed (or the first tick's start) to the end of its last tick. <c>world.tick.rate</c>; 0 until one has closed.
+    /// </summary>
+    public double TicksPerSecond { get; private set; }
+
     /// <summary>Adds one tick that ran from <paramref name="start" /> to <paramref name="end" />; true when it closed the window.</summary>
     public bool Add(long start, long end)
     {
@@ -33,11 +40,13 @@ public struct TickWindow(long frequency)
 
         _busy += end - start;
         _ticks++;
-        if (end - _start < _frequency)
+        long length = end - _start;
+        if (length < _frequency)
             return false;
 
         // Never 0, which the ping keeps for "not reported", and no more than the field holds.
         MeanMicros = (uint)Math.Clamp(Math.Round(_busy * 1_000_000.0 / _frequency / _ticks), 1, uint.MaxValue);
+        TicksPerSecond = _ticks * (double)_frequency / length;
         _start = end;
         _busy = 0;
         _ticks = 0;
