@@ -3620,10 +3620,12 @@ with the committed figure, in every build (Debug and Release, see below) and for
   entries, [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
   10,357 B before), and at that size the 256 B floor decides for it too (1% is 142 B): it fails above 14,432 B, a little
-  over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads 14,244 B, 68 B
-  above Release and inside the floor: each item
-  destroy in the measured minute (85) pays 48 B in unoptimised code for the two boxes `Enum.HasFlag` makes in
-  `InventoryMove.DecideDestroy`, which optimised code keeps off the heap. From #890 to #972 Debug read the committed
+  over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
+  figure again since #981 (#973): from #972 it read 14,244 B, 68 B above Release, because each item destroy in the
+  measured minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
+  Release paid the same while that code was not yet optimised, so a change that moved when it was (#981 did) made
+  Release read up to 14,244 B in some runs and `ForestCombatScenarioShould`'s two runs disagree. The item, quest, vendor
+  and maintenance rules test their flags with bit tests now, and every build reads 14,176 B. From #890 to #972 Debug read the committed
   figure exactly (since [the kill path](#results--the-kill-path-890-883-2026-10-13)). Before that a Debug build read 237 B per
   window above the committed 11,543 B (objects on the kill path and in the creature scripts), 19 B less than the
   floor allows, and 305 B above, 49 B more than it allows, until #883 took the closure out of `CancelScriptsOf`.
@@ -4088,8 +4090,11 @@ three players checked about 200 creatures every tick. Twenty towns of 15 or 30 r
 ticks are short and the runs disagree. Allocation per operation is the same: what the crowded towns allocate is the
 payload segments of their broadcasts, which are unchanged.
 
-**The allocation gate does not move**: `forest-combat` 14,176 B in Release and 14,244 B in Debug, `town-social` 3,904 B
-and 4,008 B, the others 0 B, as before. `ForestCombatScenarioShould`'s fight is the same kill for kill before and
+**The allocation gate does not move**: `forest-combat` 14,176 B in Release, `town-social` 3,904 B (4,008 B in Debug),
+the others 0 B, as before. The change did move when the item rules' `Enum.HasFlag` was optimised, so Release read up to
+14,244 B in some runs, the 68 B those boxes cost while unoptimised; with bit tests in their place (#973), six Release
+runs and two Debug runs of the gate and `ForestCombatScenarioShould` all read 14,176 B, Debug included, where it read
+14,244 B before. `ForestCombatScenarioShould`'s fight is the same kill for kill before and
 after (105 kills, 2 deaths, 18 heals, 93 quest credits, 198 pickups, 106 destroys): nothing in gameplay reads the views,
 and the fighters find their creatures in the instance, not through what their clients were told. Windows figures
 (i9-12900K, Windows 11, .NET 10.0.13, BenchmarkDotNet 0.15.8).
@@ -4266,7 +4271,8 @@ What each step costs, and why:
   boxes the receiver and the argument in unoptimised code: 48 B per item destroy in Debug, 0 in Release. It is why
   Debug reads 68 B per window above Release (85 destroys × 48 B = 4,080 B per minute), found by diffing the per-tick
   bytes of a Release and a Debug run: 84 ticks differ, each by 48 B (one by 96). A bit test, as `CastAbilityHandler`
-  uses since #880, would make Debug read the committed figure again.
+  uses since #880, would make Debug read the committed figure again. Done since #981 (#973), with the other item, quest,
+  vendor and maintenance flag tests: Debug reads 14,176 B.
 - `QuestService.FlushMarkers` walks every creature of the character's instance through
   `IReadOnlyDictionary.Values` (a boxed enumerator, 40 B) and builds a new list (32 B) each time the character's
   quest log, level or instance changed: 72 B and a walk of 200 creatures per kill credit per party member in a

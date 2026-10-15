@@ -36,7 +36,7 @@ public static class QuestTurnInRules
             // The catalog refuses a Unique reward, but /reload items can make one Unique since: TryAdd could then
             // refuse it after the quest items left, so the turn-in is refused instead.
             if (findTemplate(reward.ItemTemplateId) is not { } template
-                || template.Flags.HasFlag(ItemTemplateFlags.Unique))
+                || (template.Flags & ItemTemplateFlags.Unique) != 0)
             {
                 return QuestResult.Error;
             }

@@ -246,7 +246,7 @@ public sealed class WorldMaintenanceCoordinator(
     }
 
     private static bool IsNonAdminPlayer(IWorldConnection connection)
-        => connection.AccountId is not null && !connection.AccessLevel.HasFlag(AccountAccessLevel.Admin);
+        => connection.AccountId is not null && (connection.AccessLevel & AccountAccessLevel.Admin) == 0;
 
     private void Broadcast(string message, DateTime nowUtc, IReadOnlyList<IWorldConnection> connections)
     {
