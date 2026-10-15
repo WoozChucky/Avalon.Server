@@ -3447,8 +3447,9 @@ The scenarios live in `tests/Avalon.World.Testing/Scenarios`, the runner in `too
 | `many-instances` | 250 normal maps | 500 | Two walking players in each of 250 normal-map instances, every instance created through the real `InstanceRegistry.GetOrCreateNormalInstanceAsync`. It measures many small instances rather than one crowd. |
 | `forest-combat` | 4 forests | 12 | A fight. Four forest instances on the fixed seeds 1 to 4, each built as its party's forest is in production, over the World server's reference data (generator, placement, spawn table, depth-band levels and real AI: 200, 269, 173 and 200 creatures, each run on the ticks its script is active or due, as in production since #979), with a party of three level 1 characters in each, joined at the entry; the classes cycle over all four across the roster, so three parties in four carry a healer. Every player is a `LoopFighter`: it walks to the nearest live creature through the real `PlayerInputHandler`, turning away from walls, and in reach casts its class's basic ability through the real `CastAbilityHandler` each time it is ready; a healer heals the most hurt member under 70% first. Kills roll real loot and experience, shared by the party through the real `PartyService`, and credit a kill quest each fighter holds (abandoned and accepted again on completion); fighters pick their drops up through the real `LootPickupHandler` and destroy an item through the real `ItemDestroyHandler` when the bag is near full (#972). See [The forest-combat scenario](#the-forest-combat-scenario). |
 
-No scenario was reduced in size: `many-instances` takes 5 to 7 s for its warm-up and windows, `forest-combat` about
-10 s for its rehearsal and run in the gate (since #972; 8 s before).
+No scenario was reduced in size: `many-instances` takes 1 to 8 s for its 600 warm-up ticks and windows (5 to 7 s with
+the 5 s wall-clock warm-up before #1030), `forest-combat` about 10 s for its rehearsal and run in the gate (since #972;
+8 s before), on a developer machine shared with other builds.
 
 The walking circle is not centred on the entry spawn (15, 15), where the crowd-budget tests stand their players: an
 8 m circle there crosses a building and a wall, and a walker pressed into one stops for good. A half-metre scan of the
@@ -3502,8 +3503,13 @@ the instance pass, and leaves out:
 
 - **Window.** 60 ticks, one second of game time at 60 Hz. Allocations are read with
   `GC.GetAllocatedBytesForCurrentThread` on the tick thread, so work on other threads does not count.
-- **Warm-up.** The scenario first ticks for a wall-clock warm-up (5 s in the gate; `--warmup-seconds`, default 10, in
-  the runner), so the JIT's tiering, first-use caches and pools have settled.
+- **Warm-up.** The scenario first ticks a fixed number of ticks from its build, its own `IScenario.SteadyWarmupTicks`,
+  the same in the gate and the runner: 600 (10 s of the world's time) unless it names more, and 3,600 for
+  `town-social` (one minute, the chat rate limit's window). A count, not a time: the world runs on a fixed step of a
+  fake clock, so every machine measures the same windows of the world's timeline, and whatever the world grows or uses
+  for the first time has done so before them. Until #1030 it was a wall-clock warm-up (5 s in the gate), whose windows
+  landed later in the world's timeline on a faster machine; see
+  [a warm-up of ticks](#results--a-warm-up-of-ticks-1030-2026-10-15).
 - **Gated figure.** `bytesPerWindow` is the **minimum** of five consecutive windows after the warm-up. The minimum
   ignores a window that a one-off allocation (a pool growing, a late tier-up) happened to land in.
 - **Checked.** After the windows, outside the measured region, each scenario checks that it still did its work
@@ -3620,11 +3626,12 @@ dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario all --write
 # A later run against it: current, baseline and change per figure; never fails
 dotnet run -c Release --project tools/Avalon.Scenarios -- --baseline perf/local/$(hostname).json
 
-# One scenario, a shorter warm-up
-dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario town-walk --warmup-seconds 5
+# One scenario, a shorter rehearsal (a fixed-length scenario's; a steady one ticks its own warm-up whatever it says)
+dotnet run -c Release --project tools/Avalon.Scenarios -- --scenario forest-combat --warmup-seconds 5
 ```
 
-Options: `--scenario <name>|all` (default `all`), `--warmup-seconds` (default 10), `--measure-ticks` (default 3600;
+Options: `--scenario <name>|all` (default `all`), `--warmup-seconds` (default 10: a fixed-length scenario's least
+rehearsal, wall-clock; a steady scenario's warm-up is its fixed `SteadyWarmupTicks`, as in the gate), `--measure-ticks` (default 3600;
 0 skips timing), `--json <file>`, `--baseline <file>`, `--write-baseline <file>`, `--write-allocations <file>`,
 `--broadcast-ticks <n>` (default 0; see below). The
 runner uses Server GC with concurrent collection, the world server's own settings, and warns when built in Debug.
@@ -3777,11 +3784,15 @@ Debug build never optimises, so both read about 7% higher in `town-walk` and 14%
 developer machine or the homelab node in Release; the committed figures were CI's, and a faster machine's run was not to
 be committed. #854 passes the session's `Encryptor`, a delegate created once with the session, so how far the JIT has
 got no longer changes what a send allocates. The gate runs in a non-parallel xUnit collection, so no other test in the
-World assembly competes for the CPU during the wall-clock warm-up; other test assemblies still run in parallel processes
-under a solution-wide `dotnet test`, and the minimum-of-windows rule absorbs that; a fixed-length scenario
-(`forest-combat`) has no minimum to lean on, and relies instead on its settled rehearsal, which waits out a busy machine
-before its one measured run. The gate adds about 30 to 40 s to the World
-suite (`forest-combat` 7 to 11 s of it since #972, `town-social` about 6 s), and `ForestCombatScenarioShould`, the forest's two-run check, 12 to 17 s more.
+World assembly competes for the CPU during its runs; a steady scenario's warm-up is a number of ticks (#1030), so a
+busy machine measures the same windows, only later. Other test assemblies still run in parallel processes under a
+solution-wide `dotnet test`, and the minimum-of-windows rule absorbs what a background collection does to the counter
+([below](#allocation-tests-and-background-collections)); a fixed-length scenario (`forest-combat`) has no minimum to
+lean on, and relies instead on its settled rehearsal, which waits out a busy machine before its one measured run. The
+gate adds about 14 to 45 s to the World suite on the developer machine since #1030 (30 to 40 s before, when each of
+the four steady scenarios took at least its 5 s wall-clock warm-up), most of it `forest-combat` (5 to 27 s, the
+range wide because other builds and tests ran beside it), and `ForestCombatScenarioShould`, the forest's two-run
+check, 12 to 17 s more.
 
 ### Allocation tests and background collections
 
@@ -3861,7 +3872,8 @@ leaves last, so the three take turns), chats every 10 s (said, party and whisper
 the limit, so none is refused), and runs the command every 30 s, which the limit does not count.
 
 **Why the parties never break up.** The gated figure is the least of five windows, and the windows start wherever the
-wall-clock warm-up ends, so every 60 ticks in a row must hold the same events, made by players in the same state, or
+warm-up ends (a minute of ticks since #1030, anywhere with the wall-clock warm-up before it; a change of warm-up should
+not have to know the schedule), so every 60 ticks in a row must hold the same events, made by players in the same state, or
 the least window would keep only the cheapest second. Ten parties of three, each player changing party every 30 s,
 make one leave, one invite and one accept a second; a cycle that formed a party and disbanded it (two invites, two
 accepts, two leaves) would make six different events every three seconds, which no window of one second can hold
@@ -4022,6 +4034,67 @@ alternating, the machine shared as above:
 |---|---|---|
 | `SystemLineToParty` (three members) | 1.69–1.78 µs | 1.41–1.70 µs (two at 1.41, one noisy run at 1.70, median 1.62) |
 | `LeaveInviteAccept` | 9.46–9.77 µs | 8.84–9.24 µs |
+
+### Results — a warm-up of ticks (#1030, 2026-10-15)
+
+CI read `town-social` at 992 B per window once, 264 B over its committed 728 B, and passed on a rerun of the same
+commit. The gate warmed each steady scenario up for 5 s of wall-clock time, ticking back to back, so where in the
+world's timeline the five windows fell depended on how fast the machine ticked. `town-social` allocates more from
+tick 2,400 to 3,000 (seconds 40 to 49 of the world's time); the developer machine ticks far past them in 5 s, and
+CI's runner, that once, stopped inside them.
+
+**What allocates.** Every tick's bytes from the build, summed per second of the world's time (a probe on the
+scenario's world at `c72c35a9`; the same in Release, in Debug, and in Release with `DOTNET_TieredCompilation=0`,
+`DOTNET_TieredPGO=0` or `DOTNET_TC_CallCounting=0`, the last never promoting a method at all):
+
+| Scenario | Seconds over the steady figure | Steady from | Steady figure |
+|---|---|---:|---:|
+| `town-idle` | 0 (first use: about 1.5 MB) | second 1 (tick 60) | 0 B |
+| `many-instances` | 0 (about 2 MB) | second 1 (tick 60) | 0 B |
+| `town-walk` | 0 (about 1.6 MB), 1 (984 B), 2 (2,168 B) | second 3 (tick 180) | 0 B |
+| `town-social` | 0 (about 2.1 MB), 1 to 9 (1,016 to 2,104 B), 10 (9,048 B), 40 to 49 (992 B) | second 50 (tick 3,000) | 728 B |
+
+The 264 B of seconds 40 to 49 are the chat rate limit's (`ChatRateLimiter`): it keeps a `Queue<long>` of send times
+per character, made with the character's first counted line (96 B: the queue and its first array of four) and grown
+once, to eight places (an array of 88 B), with the fifth line inside the 60 s window. In the scenario every player
+speaks every 10 s, three of them each second (a said line, a whisper and a party line), so the queues are made in
+seconds 0 to 9 and grown in seconds 40 to 49, 88 B on each of the three lines' ticks (ticks 10, 30 and 50 of the
+second). A queue then never holds more than six send times, and the limit, 10 a minute, caps it at sixteen places in
+any case. The growth is one-off work, not a per-message cost: a probe of the limiter alone, one character sending
+every 10 s, read 96 B on the first line, 88 B on the fifth and 0 B on every other line up to the fourteenth. So it is
+left as it is, and the baseline does not move. (A character whose window empties, after a minute of silence, has its
+queue dropped and makes a new one with its next line; that is the limit's choice of holding nothing for a quiet
+character, not something a steady scenario sees.)
+
+**The warm-up.** A steady scenario now warms up for a fixed number of ticks, `IScenario.SteadyWarmupTicks`, used by
+the gate and the runner alike: 600 (10 s of world time, as long as `forest-combat`'s warm-up) by default, over three
+times the latest point any of the three 0 B scenarios settles, and 3,600 for `town-social`, the rate limit's window
+(`ChatRateLimiter.Window`): ten seconds past the last growth, after two whole turns of its parties. A fresh world per
+warm-up, then five windows, as the gate measures (the least of five, in Release; in Debug for a subset):
+
+| Scenario | Warm-ups probed | Least window, every one |
+|---|---|---:|
+| `town-social` | 3,000 to 4,200 every 60, and 3,331, 3,570, 3,601, 3,637, 3,659 (Debug: 3,000, 3,300, 3,540, 3,600, 3,601, 3,660, 3,900, 4,200) | 728 B, every window of every run |
+| `town-idle`, `town-walk`, `many-instances` | 300 to 900 every 60, and 541, 607, 659 (Debug: 300, 480, 600, 607, 720, 900) | 0 B, every window of every run |
+
+The per-second trace above shows the same thing over a longer stretch: `town-social` reads 728 B in every second from
+50 to 149, and the others 0 B from their third second to their 150th. A count is not lucky where the windows land:
+nothing changes for `town-social` between ticks 3,000 and 9,000, and nothing for the others after tick 180. And what
+a window allocates does not depend on how far the JIT has got (the same with tiering off, with no promotion, and in
+Debug), so ending the warm-up sooner on a fast machine than the 5 s did changes nothing either. `forest-combat` is
+unchanged: its rehearsal keeps a wall-clock minimum, which settles the JIT, and its measured run was a fixed number of
+ticks of a fresh world already.
+
+**The gate.** Every figure is the committed one, in Debug (five runs) and in Release (five runs): `town-idle`,
+`town-walk` and `many-instances` 0 B, `town-social` 728 B, `forest-combat` 14,138 B; the runner (Release, `--measure-ticks
+0`) writes the same file. With a 256-byte array allocated every 60 ticks in a scratch check (280 B per
+window), all five fail: 280 B over 0 B in the three, 1,008 B over 728 B and 14,418 B over 14,138 B. The gate alone took
+31 to 33 s before (two runs in each build) and 14 to 45 s after (five in each), on the developer machine with other
+agents building and testing beside it; the four steady scenarios no longer spend 5 s each whatever the machine, so
+`town-idle` and `town-walk` take under a second and `forest-combat` is most of what is left. A slower runner takes
+as long as its ticks take, where the 5 s took 5 s anywhere: CI's runner ticked `town-social` about 2,500 times in
+5 s that once, so its 3,600 ticks take about 7 s there, and `many-instances`' 600 may take longer than 5 s too;
+`town-idle` and `town-walk` take less.
 
 ### The forest-combat scenario
 

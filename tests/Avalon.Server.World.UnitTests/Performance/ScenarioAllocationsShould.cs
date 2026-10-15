@@ -7,10 +7,13 @@ namespace Avalon.Server.World.UnitTests.Performance;
 
 /// <summary>
 /// Scenarios measure the tick thread's allocations, so they run alone in this assembly: a test allocating on another
-/// thread does not count, but one competing for the CPU would stretch the wall-clock warm-up. Other test assemblies
-/// still run in parallel processes under a solution-wide <c>dotnet test</c>; the minimum of five windows absorbs that. A
-/// fixed-length scenario (<c>forest-combat</c>) is measured in one run, not by a minimum of windows: it relies on its
-/// settled rehearsal instead, which runs until two rehearsals allocate the same before the measured run starts.
+/// thread does not count, but one competing for the CPU would slow the run and stretch <c>forest-combat</c>'s
+/// wall-clock rehearsal. A steady scenario warms up for a fixed number of ticks (<c>IScenario.SteadyWarmupTicks</c>,
+/// #1030), so a busy or slow machine measures the same windows of the world's timeline, only later. Other test
+/// assemblies still run in parallel processes under a solution-wide <c>dotnet test</c>; the minimum of five windows
+/// absorbs what they do to the counter. A fixed-length scenario (<c>forest-combat</c>) is measured in one run, not by a
+/// minimum of windows: it relies on its settled rehearsal instead, which runs until two rehearsals allocate the same
+/// before the measured run starts.
 /// </summary>
 [CollectionDefinition(nameof(ScenarioAllocations), DisableParallelization = true)]
 public sealed class ScenarioAllocations;
@@ -60,7 +63,7 @@ public sealed class ScenarioAllocationsShould(ITestOutputHelper output)
         Assert.True(committed.Scenarios.TryGetValue(name, out AllocationBaseline.Entry? entry),
             $"{name} has no committed baseline; run: {Regenerate}");
 
-        ScenarioReport report = ScenarioMeasurement.Run(Scenarios.Get(name), TimeSpan.FromSeconds(5), measureTicks: 0);
+        ScenarioReport report = ScenarioMeasurement.Run(Scenarios.Get(name), rehearsal: TimeSpan.FromSeconds(5), measureTicks: 0);
 
         AllocationBaseline.Verdict verdict = AllocationBaseline.Compare(report.BytesPerWindow, entry!.BytesPerWindow);
         output.WriteLine($"{name}: {report.BytesPerWindow:N0} B per {ScenarioMeasurement.WindowTicks}-tick window, " +

@@ -22,13 +22,22 @@ public interface IScenario
     void Verify(ScenarioWorld world);
 
     /// <summary>
-    /// Null, the default, for a scenario in a steady state, measured after a wall-clock warm-up by the least of
-    /// <see cref="ScenarioMeasurement.Windows" /> windows. A scenario whose world keeps changing (a fight: creatures die,
-    /// players die and are revived, loot drops) names its fixed length instead, and is measured over exactly those
-    /// ticks of a fresh world, so every machine measures the same stretch of the same fight; see
+    /// Null, the default, for a scenario in a steady state, measured after <see cref="SteadyWarmupTicks" /> by the
+    /// least of <see cref="ScenarioMeasurement.Windows" /> windows. A scenario whose world keeps changing (a fight:
+    /// creatures die, players die and are revived, loot drops) names its fixed length instead, and is measured over
+    /// exactly those ticks of a fresh world, so every machine measures the same stretch of the same fight; see
     /// <see cref="ScenarioMeasurement.Run" />.
     /// </summary>
     FixedLength? Length => null;
+
+    /// <summary>
+    /// A steady scenario's warm-up: the ticks from the world's build to its first measured window, a count rather than
+    /// a time, so every machine measures the same windows of the world's timeline (#1030). Long enough that whatever
+    /// the scenario's world grows or uses for the first time (a list's capacity, a per-character window, a first event)
+    /// has done so; <see cref="ScenarioMeasurement.DefaultWarmupTicks" /> unless the scenario needs more. Unused when
+    /// <see cref="Length" /> is set: a fixed-length scenario has its own warm-up ticks.
+    /// </summary>
+    int SteadyWarmupTicks => ScenarioMeasurement.DefaultWarmupTicks;
 }
 
 /// <summary>

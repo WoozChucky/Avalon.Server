@@ -4,7 +4,8 @@ using System.Runtime.ExceptionServices;
 namespace Avalon.World.Testing.Scenarios;
 
 /// <summary>
-/// Runs a scenario and measures it: a wall-clock warm-up, then <see cref="Windows" /> windows of
+/// Runs a scenario and measures it: a warm-up of the scenario's own number of ticks
+/// (<see cref="IScenario.SteadyWarmupTicks" />), then <see cref="Windows" /> windows of
 /// <see cref="WindowTicks" /> ticks whose least tick-thread allocation is the gated figure, checked afterwards by
 /// <see cref="IScenario.Verify" /> to have done the scenario's work, then an optional timing and GC phase. A scenario
 /// of a fixed length (<see cref="IScenario.Length" />) is measured over its fixed ticks instead. The loops only record,
@@ -19,6 +20,14 @@ public static class ScenarioMeasurement
     /// <summary>How many windows are measured; the least is kept, so one disturbed window does not move the figure.</summary>
     public const int Windows = 5;
 
+    /// <summary>
+    /// A steady scenario's warm-up unless it names its own (<see cref="IScenario.SteadyWarmupTicks" />): ten seconds of
+    /// the world's time, as long as <c>forest-combat</c>'s. The three that read 0 B (<c>town-idle</c>, <c>town-walk</c>,
+    /// <c>many-instances</c>) allocate nothing on any tick from the 181st on, in every build and with or without the
+    /// JIT's tiering (#1030), so they are settled well before it.
+    /// </summary>
+    public const int DefaultWarmupTicks = 600;
+
     private const double TickBudgetMs = 1000d / 60d;
 
     /// <summary>The most rehearsals a fixed-length scenario runs past its warm-up to settle; unsettled, it throws.</summary>
@@ -28,29 +37,45 @@ public static class ScenarioMeasurement
     private static readonly TimeSpan s_tieringPause = TimeSpan.FromMilliseconds(250);
 
     /// <summary>
-    /// Warms up for <paramref name="warmup" /> of wall-clock time, measures <see cref="Windows" /> windows
-    /// (<see cref="ScenarioReport.BytesPerWindow" /> is the least), then, when <paramref name="measureTicks" /> is
-    /// above zero, times that many more ticks and counts their allocations and collections.
+    /// Ticks the scenario's warm-up (<see cref="IScenario.SteadyWarmupTicks" />), measures <see cref="Windows" />
+    /// windows (<see cref="ScenarioReport.BytesPerWindow" /> is the least), then, when <paramref name="measureTicks" />
+    /// is above zero, times that many more ticks and counts their allocations and collections.
     /// </summary>
     /// <remarks>
+    /// The warm-up is a number of ticks, not a time: a scenario's world runs on a fixed step of a fake clock, so a
+    /// count puts the measured windows at the same point of the world's timeline on every machine, where a wall-clock
+    /// warm-up ended earlier on a slower one. Until #1030 it was 5 s of wall-clock time in the gate, and a slow
+    /// runner's windows could land on a one-off growth of <c>town-social</c> that a fast machine had long passed. What
+    /// the windows allocate does not depend on how far the JIT has got by then (the same in Debug, with tiering off and
+    /// with no promotion at all), so a count settles them as a time did.
+    /// <para>
     /// A scenario of a fixed length (<see cref="IScenario.Length" />) is a fight, never in a steady state, so a
     /// wall-clock warm-up would end at a different point of it on every machine. It is run twice instead. First a
-    /// rehearsal: the whole run on worlds of their own, again and again until <paramref name="warmup" /> has passed and
+    /// rehearsal: the whole run on worlds of their own, again and again until <paramref name="rehearsal" /> has passed and
     /// two in a row allocate the same, so the JIT's tiering, first-use caches and pools settle on the code the measured
     /// run takes. Then a fresh world:
     /// its fixed warm-up ticks, then its measured ticks, every one of them counted. Its
     /// <see cref="ScenarioReport.BytesPerWindow" /> is their mean per window (every kill, death and drop of the run is
     /// in it, where the least window would keep only the quietest second), and, when <paramref name="measureTicks" />
     /// is above zero, its timing and collections are those of the same measured ticks: their number is the scenario's,
-    /// not <paramref name="measureTicks" />.
+    /// not <paramref name="measureTicks" />. The rehearsal is the one wall-clock time left: it settles the JIT on the
+    /// fight's code, and what is measured is the fixed ticks of a fresh world, however long the rehearsal took.
+    /// </para>
     /// </remarks>
-    public static ScenarioReport Run(IScenario scenario, TimeSpan warmup, int measureTicks)
+    /// <param name="scenario">The scenario.</param>
+    /// <param name="rehearsal">A fixed-length scenario's least rehearsal time; unused for a steady one.</param>
+    /// <param name="measureTicks">Ticks timed after the windows; 0 skips timing.</param>
+    public static ScenarioReport Run(IScenario scenario, TimeSpan rehearsal, int measureTicks)
     {
         ArgumentNullException.ThrowIfNull(scenario);
         ArgumentOutOfRangeException.ThrowIfNegative(measureTicks);
 
         if (scenario.Length is { } length)
-            return OnOwnThread(() => RunFixed(scenario, length, warmup, measureTicks > 0));
+            return OnOwnThread(() => RunFixed(scenario, length, rehearsal, measureTicks > 0));
+
+        int warmupTicks = scenario.SteadyWarmupTicks;
+        if (warmupTicks < 0)
+            throw new ArgumentException($"{scenario.Name}: a negative warm-up ({warmupTicks} ticks)", nameof(scenario));
 
         using ScenarioWorld world = scenario.Build();
 
@@ -58,7 +83,8 @@ public static class ScenarioMeasurement
         long[] tickBytes = new long[measureTicks];
         long[] tickDurations = new long[measureTicks];
 
-        WarmUp(world, warmup);
+        for (int t = 0; t < warmupTicks; t++)
+            world.Tick();
 
         // Before the collection, so what the mark allocates is long gone from the windows' point of view.
         world.MarkProgress();
@@ -190,13 +216,6 @@ public static class ScenarioMeasurement
         for (int t = 0; t < length.MeasuredTicks; t++)
             world.Tick();
         return GC.GetAllocatedBytesForCurrentThread() - before;
-    }
-
-    private static void WarmUp(ScenarioWorld world, TimeSpan warmup)
-    {
-        long start = Stopwatch.GetTimestamp();
-        while (Stopwatch.GetElapsedTime(start) < warmup)
-            world.Tick();
     }
 
     private static void MeasureWindows(ScenarioWorld world, long[] windowBytes)
