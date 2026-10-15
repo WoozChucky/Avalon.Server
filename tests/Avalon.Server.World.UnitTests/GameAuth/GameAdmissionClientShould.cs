@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.World.GameAuth;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Avalon.Server.World.UnitTests.GameAuth;
 
@@ -109,9 +110,62 @@ public sealed class GameAdmissionClientShould
         WorldAdmissionResult result = await new GameAdmissionClient(http, Options(), TimeProvider.System).AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
         Assert.Null(result.Lease); Assert.Equal("INVALID_ADMISSION", result.Error);
     }
-    private static HttpResponseMessage Json<T>(T value, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = JsonContent.Create(value) };
-    private sealed class RecordingHandler(Func<int, HttpRequestMessage, HttpResponseMessage> reply) : HttpMessageHandler
+    /// <summary>
+    /// #1013: an admission that fails after the redemption ends the session the receipt reserved before the world
+    /// replies, so the player's next join is not refused while that session's lease runs out: whether the activation
+    /// was refused, its transport failed (and the end's hangs too: the reply waits only a bounded time for it), or its
+    /// answer could not be trusted. The end names exactly the receipt's account, session and fencing token.
+    /// </summary>
+    [Theory]
+    [InlineData("refused")]
+    [InlineData("transport")]
+    [InlineData("untrusted")]
+    public async Task End_the_reserved_session_when_admission_fails_after_the_redemption(string failure)
     {
+        var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); JoinRedemptionReceipt receipt = Receipt(connection, redemption);
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var ending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var handler = new RecordingHandler(async (call, request, cancellationToken) =>
+        {
+            if (call == 1) return Json(receipt);
+            if (request.RequestUri!.AbsolutePath.EndsWith("/end", StringComparison.Ordinal))
+            {
+                if (failure != "transport") return Json(new SessionLeaseResponse { State = "ended" });
+                ending.SetResult();
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            return failure switch
+            {
+                "refused" => Json(new SessionLeaseResponse { Error = "BARRIER_PENDING" }, HttpStatusCode.ServiceUnavailable),
+                "transport" => throw new HttpRequestException("connection reset"),
+                _ => Json(Active(receipt) with { FencingToken = "8" })
+            };
+        });
+        using var http = new HttpClient(handler);
+
+        Task<WorldAdmissionResult> admitted = new GameAdmissionClient(http, Options(), clock).AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
+        if (failure == "transport")
+        {
+            await ending.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(admitted.IsCompleted);
+            clock.Advance(TimeSpan.FromSeconds(2));
+        }
+        // Well inside the five-second transport timeout: the end's own bound, not that, lets the reply go.
+        WorldAdmissionResult result = await admitted.WaitAsync(TimeSpan.FromSeconds(failure == "transport" ? 3 : 10));
+
+        Assert.Null(result.Lease);
+        Assert.Equal(failure switch { "refused" => "BARRIER_PENDING", "transport" => "SERVICE_UNAVAILABLE", _ => "INVALID_ADMISSION" }, result.Error);
+        Assert.Equal("/internal/game/sessions/end", handler.Paths[^1]);
+        Assert.Single(handler.Paths, path => path.EndsWith("/end", StringComparison.Ordinal));
+        using var end = System.Text.Json.JsonDocument.Parse(handler.Bodies[^1]);
+        Assert.Equal(receipt.AccountId, end.RootElement.GetProperty("accountId").GetString());
+        Assert.Equal(receipt.GameSessionId, end.RootElement.GetProperty("gameSessionId").GetString());
+        Assert.Equal(receipt.FencingToken, end.RootElement.GetProperty("fencingToken").GetString());
+    }
+    private static HttpResponseMessage Json<T>(T value, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = JsonContent.Create(value) };
+    private sealed class RecordingHandler(Func<int, HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> reply) : HttpMessageHandler
+    {
+        public RecordingHandler(Func<int, HttpRequestMessage, HttpResponseMessage> reply) : this((call, request, _) => Task.FromResult(reply(call, request))) { }
         public List<string> Bodies { get; } = [];
         public List<string> Paths { get; } = [];
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -121,7 +175,7 @@ public sealed class GameAdmissionClientShould
             Assert.Equal(HttpMethod.Post, request.Method);
             Paths.Add(request.RequestUri.AbsolutePath);
             Bodies.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
-            return reply(Paths.Count, request);
+            return await reply(Paths.Count, request, cancellationToken);
         }
     }
 }
