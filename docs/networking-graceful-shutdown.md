@@ -137,7 +137,9 @@ by the close.
    close open past that budget and its 100 ms grace.
 5. The despawns the closes queued, run on this thread, which write the characters back, and then end each session
    with identity: at most 16 ends at once (`WorldDatabaseWork.SessionEnds`, #1051), the rest waiting their turn, so a
-   full world's stop does not send identity every end together
+   full world's stop does not send identity every end together. Ends still waiting once the host's stop timeout has
+   passed are not sent (the one in flight is cancelled), and the end of a lease that ran out more than 5 s ago is
+   skipped
    ([game server admission](steam-authentication-workloads.md#session-activation-and-durable-save-authority)).
 6. The wait for character saves still in flight (`SaveDrainLimit`, 20 s, and the host's stop timeout).
 7. The send threads stop last: they outlive the tick and the closes, so each close's notice goes out (or its budget

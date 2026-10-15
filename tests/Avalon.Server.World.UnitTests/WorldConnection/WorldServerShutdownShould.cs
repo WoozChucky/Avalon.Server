@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
+using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Character.Repositories;
@@ -21,6 +23,7 @@ using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using ProtoBuf;
 
@@ -231,14 +234,7 @@ public class WorldServerShutdownShould : IDisposable
         var pairs = new List<(TcpClient, TcpClient)>();
         try
         {
-            for (int i = 0; i < Sessions; i++)
-            {
-                (TcpClient client, TcpClient serverSide) = CreateLoopbackPair();
-                pairs.Add((client, serverSide));
-                var connection = new Avalon.World.WorldConnection(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
-                server.Add(connection);
-                GameplayTestAdmission.Admit(connection, new AccountId(i + 1));
-            }
+            AdmitSessions(server, Sessions, TimeProvider.System, pairs);
 
             Task stopping = server.Stop();
 
@@ -257,11 +253,105 @@ public class WorldServerShutdownShould : IDisposable
         finally
         {
             release.TrySetResult();
-            foreach ((TcpClient client, TcpClient serverSide) in pairs)
-            {
-                client.Dispose();
-                serverSide.Dispose();
-            }
+            Dispose(pairs);
+        }
+    }
+
+    /// <summary>
+    /// A hung identity must not hold the stop past the pod's grace period (#1051): once the host's stop timeout has
+    /// passed, the end in flight is cancelled and the ends still waiting for their turn are not sent.
+    /// </summary>
+    [Fact]
+    public async Task Drop_the_session_ends_still_waiting_once_the_hosts_stop_timeout_passes()
+    {
+        const int Sessions = 3;
+        var limit = TimeSpan.FromSeconds(30);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int calls = 0;
+        IGameAdmissionClient admission = Substitute.For<IGameAdmissionClient>();
+        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            Interlocked.Increment(ref calls);
+            entered.TrySetResult();
+            // An identity that never answers: the request ends only when its token does, as the client's would.
+            try { await Task.Delay(Timeout.Infinite, call.Arg<CancellationToken>()); }
+            catch (OperationCanceledException) { }
+            return new SessionLeaseResponse { Error = GameAuthErrors.ServiceUnavailable };
+        });
+        var work = new CountingWork(new WorldDatabaseWork(1, int.MaxValue), Sessions);
+        var server = new TestWorldServer(Substitute.For<IWorld>(), admission: admission) { SessionEnds = work };
+        var pairs = new List<(TcpClient, TcpClient)>();
+        using var hostGivesUp = new CancellationTokenSource();
+        try
+        {
+            AdmitSessions(server, Sessions, TimeProvider.System, pairs);
+
+            Task stopping = server.Stop(hostGivesUp.Token);
+            await work.AllSubmitted.WaitAsync(limit);
+            await entered.Task.WaitAsync(limit);
+            await hostGivesUp.CancelAsync();
+
+            await stopping.WaitAsync(limit);
+            Assert.Equal(1, Volatile.Read(ref calls));
+        }
+        finally { Dispose(pairs); }
+    }
+
+    /// <summary>
+    /// A session whose lease ran out more than the clocks' skew ago holds nothing identity's end would release (#1051),
+    /// so its end is not sent; one with a renewal asked for and not applied here is, since identity may have renewed it.
+    /// </summary>
+    [Fact]
+    public async Task Skip_the_end_of_a_lease_long_run_out_unless_a_renewal_is_outstanding()
+    {
+        var clock = new FakeTimeProvider();
+        var ended = new List<long>();
+        IGameAdmissionClient admission = Substitute.For<IGameAdmissionClient>();
+        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            lock (ended) ended.Add(call.Arg<GameSessionLease>().Authority.AccountId.Value);
+            return Task.FromResult(new SessionLeaseResponse { State = "ended" });
+        });
+        var server = new TestWorldServer(Substitute.For<IWorld>(), admission: admission);
+        var pairs = new List<(TcpClient, TcpClient)>();
+        try
+        {
+            // Accounts 1 and 2 are admitted with 44-second leases; account 2 has a heartbeat outstanding.
+            List<Avalon.World.WorldConnection> connections = AdmitSessions(server, 2, clock, pairs);
+            typeof(Avalon.World.WorldConnection).GetField("_renewalUnaccounted", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(connections[1], 1);
+            clock.Advance(TimeSpan.FromSeconds(44) + Avalon.World.WorldServer.SessionEndSkew);
+
+            await server.Stop().WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.Equal(new[] { 2L }, ended);
+        }
+        finally { Dispose(pairs); }
+    }
+
+    private static List<Avalon.World.WorldConnection> AdmitSessions(TestWorldServer server, int count, TimeProvider clock,
+        List<(TcpClient, TcpClient)> pairs)
+    {
+        var connections = new List<Avalon.World.WorldConnection>();
+        for (int i = 0; i < count; i++)
+        {
+            (TcpClient client, TcpClient serverSide) = CreateLoopbackPair();
+            pairs.Add((client, serverSide));
+            var connection = new Avalon.World.WorldConnection(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
+            server.Add(connection);
+            GameplayTestAdmission.Admit(connection, new AccountId(i + 1), clock);
+            connections.Add(connection);
+        }
+
+        return connections;
+    }
+
+    private static void Dispose(List<(TcpClient, TcpClient)> pairs)
+    {
+        foreach ((TcpClient client, TcpClient serverSide) in pairs)
+        {
+            client.Dispose();
+            serverSide.Dispose();
         }
     }
 

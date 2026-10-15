@@ -80,6 +80,14 @@ The send threads' busy time, in cores: `sum(rate(network_send_pass_duration_micr
 
 Any count is worth a look: a client sending faster than the tick takes (150 packets a pass per connection, `WorldConnection.MaxPacketsPerUpdate`), a tick stalled for as long as the cap is deep (about 34 s of input at the default), or a connection whose queue is wedged ([packet handlers](packet-handlers.md)). The counter does not see a flood the tick keeps up with, nor packets dropped as they arrive.
 
+### Session ends not sent
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `world.session_ends.skipped` | `world_session_ends_skipped_total` | Game session ends a drain did not send to identity (#1051), decided as each reached the front of its lane (`WorldDatabaseWork.SessionEnds`), tagged `reason`: `expired` (the lease had run out more than `WorldServer.SessionEndSkew`, 5 s, ago with no renewal outstanding, so the session holds nothing an end would release) or `stopping` (the host's stop timeout had passed; a stop that leaves any writes one Warning with the count). Each such session runs out with its lease ([game server admission](steam-authentication-workloads.md#session-activation-and-durable-save-authority)) |
+
+`expired` counts rise when identity answers ends slower than sessions end; `stopping` means a stop gave up on identity.
+
 ### Failed handshakes
 
 | Metric | Prometheus | Measures |
@@ -211,6 +219,7 @@ through its own code, and a return to town refuses nothing by a reply.
 | `heartbeat` | `WorldDatabaseWork.Heartbeat`: 8,192 outstanding, 128 running | A live player's lease heartbeat not sent; the next is tried 15 s later, and three in a row end the lease ([game server admission](steam-authentication-workloads.md)) | Nothing | Nothing. Any count is worth a look: the lane is sized above any player count a world carries |
 | `select` | The character select's own queue, the one the container hands it (256 outstanding, 64 running, the database lane's capacity): every read and the one write of the select chain, and the world entry check before it | A step of the select, or its entry check: the select is cancelled and the connection closed at once as busy, `SelectTimeout` with "The world is busy; try again", the stalled-select sweep's answer, which it got 15 s later before. An entry check that ran and failed (it threw, or took more than 5 s) still closes with `Maintenance` (#821): a verdict could not be read, so entry fails closed | One Warning (`Avalon.World.Handlers.CharacterSelectHandler`), without an exception, under the same bound, shared with the final spawn's |
 | `database` | `WorldDatabaseWork.ThreadPool`: 256 outstanding, 64 running: character create and delete, and the world entry check before the final spawn | The final spawn's entry check: the connection is closed as busy, as a select is. A create or a delete: its continuation is dropped | The final spawn's busy close as the select's, under the logger of what released it (the load report's handler or the tick); a dropped continuation one Warning (`Avalon.World.WorldConnection`), without an exception, under the same bound |
+| `session_ends` | `WorldDatabaseWork.SessionEnds` (#1051): 16 running, the rest queued without limit | Never counted: the lane refuses nothing, since a refused end would hold the account until its lease runs out. The ends it does not send are counted in `world.session_ends.skipped` ([above](#session-ends-not-sent)) | Nothing | Nothing |
 
 `admission` refusals are expected when many clients reconnect at once (a world restart, an identity service restart):
 each such client is told to try later. A rate that lasts outside such a storm is a world whose redemptions are slow

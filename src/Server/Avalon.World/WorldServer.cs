@@ -107,8 +107,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     public IGameAdmissionClient AdmissionClient => _services.GetRequiredService<IGameAdmissionClient>();
     public WorldTlsTransport TlsTransport => _services.GetRequiredService<WorldTlsTransport>();
 
-    // Invoked on the tick so despawn removes the entity before any further world simulation.
-    internal async Task DrainGameplayAsync(WorldConnection connection)
+    // Invoked on the tick so despawn removes the entity before any further world simulation. The despawn and its final
+    // save first; then the session's end, which waits in its lane holding only what the end needs (#1051).
+    internal Task DrainGameplayAsync(WorldConnection connection) => EndSessionAsync(DespawnForDrainAsync(connection));
+
+    private async Task<SessionEnd?> DespawnForDrainAsync(WorldConnection connection)
     {
         await _world.DeSpawnPlayerAsync(connection).ConfigureAwait(false);
         try { await connection.WhenPendingOperationsIdle().ConfigureAwait(false); } catch (Exception) { }
@@ -116,10 +119,62 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (pendingAdmission is not null)
             try { await pendingAdmission.ConfigureAwait(false); } catch (Exception) { }
         GameSessionLease? lease = connection.GameSessionLease ?? (pendingAdmission is { IsCompletedSuccessfully: true } ? pendingAdmission.Result.Lease : null);
-        // Bounded (#1051): a stop drains every connection at once, and identity must not receive every end together.
-        if (lease is not null)
-            await SessionEnds.Run(() => AdmissionClient.EndAsync(lease, CancellationToken.None)).ConfigureAwait(false);
+        return lease is null ? null : new SessionEnd(lease, connection.RenewalUnaccounted);
     }
+
+    // Bounded (#1051): a stop drains every connection at once, and identity must not receive every end together. This
+    // method holds the end, never the connection, while it waits for its turn.
+    private async Task EndSessionAsync(Task<SessionEnd?> despawned)
+    {
+        if (await despawned.ConfigureAwait(false) is { } end)
+            await SessionEnds.Run(() => EndOrSkipAsync(end)).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// A session's end, at the front of its lane (#1051). Not sent once the stop's deadline has passed (the host's stop
+    /// timeout), nor for a lease that ran out more than <see cref="SessionEndSkew" /> ago with no renewal outstanding:
+    /// identity's session and the characters database's guard ran out with it, and an expired session holds nothing
+    /// an end would release (a join, a reconnect, a takeover, a consolidation and a save all read its lease end). A
+    /// renewal asked for and not applied here may have moved identity's end past this lease's, so such an end is sent.
+    /// </summary>
+    private async Task<SessionLeaseResponse> EndOrSkipAsync(SessionEnd end)
+    {
+        CancellationToken stop = _sessionEndsStop;
+        if (stop.IsCancellationRequested)
+        {
+            Interlocked.Increment(ref _sessionEndsDroppedAtStop);
+            s_sessionEndsSkipped.Add(1, s_stoppedReason);
+            return s_notSent;
+        }
+
+        if (!end.RenewalUnaccounted && end.Lease.HasRunOutBy(SessionEndSkew))
+        {
+            s_sessionEndsSkipped.Add(1, s_expiredReason);
+            return s_notSent;
+        }
+
+        return await AdmissionClient.EndAsync(end.Lease, stop).ConfigureAwait(false);
+    }
+
+    /// <summary>What a session's end needs: the lease, and whether a renewal asked for was never applied to it.</summary>
+    private readonly record struct SessionEnd(GameSessionLease Lease, bool RenewalUnaccounted);
+
+    /// <summary>
+    /// How long past its end a lease must be before its end is not sent (#1051): the clocks of the world, identity and
+    /// the characters database may differ by this much, and identity's session may outlast the guard by that skew.
+    /// </summary>
+    public static readonly TimeSpan SessionEndSkew = TimeSpan.FromSeconds(5);
+
+    private static readonly SessionLeaseResponse s_notSent = new() { Error = GameAuthErrors.ServiceUnavailable };
+    private static readonly Counter<long> s_sessionEndsSkipped = DiagnosticsConfig.World.Meter.CreateCounter<long>(
+        "world.session_ends.skipped", "{sessions}",
+        "Game session ends not sent to identity: the lease had run out (expired) or the stop's deadline had passed (stopping)");
+    private static readonly KeyValuePair<string, object?> s_expiredReason = new("reason", "expired");
+    private static readonly KeyValuePair<string, object?> s_stoppedReason = new("reason", "stopping");
+
+    // The stop's deadline for session ends (#1051): the host's stop token, set as the stop begins. None until then.
+    private CancellationToken _sessionEndsStop;
+    private int _sessionEndsDroppedAtStop;
 
     /// <summary>
     /// Where <see cref="DrainGameplayAsync" /> sends each session's end: <see cref="WorldDatabaseWork.SessionEnds" />, a
@@ -486,6 +541,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         _isListening = false;
 
+        // Session ends still waiting for their turn when the host's stop timeout passes are not sent, and one in flight
+        // is cancelled (#1051): a hung identity must not hold the stop past the pod's grace period. The saves come
+        // before the ends and are waited for as below; a session not ended runs out with its lease.
+        _sessionEndsStop = stoppingToken;
+
         // The restart drain (#768) first, with the listener already stopped: warn the players, and wait until they
         // have left or the drain's deadline has passed. Its countdown and cutoff run on the tick (#639), so the tick
         // keeps running until it ends. Only a running tick can end it; a stop during the load has none, and skips it.
@@ -536,6 +596,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             // A despawn's task does not fault today; if one ever does, the wait for saves below still runs.
             _logger.LogError(e, "A despawn at shutdown failed");
+        }
+
+        int dropped = Interlocked.Exchange(ref _sessionEndsDroppedAtStop, 0);
+        if (dropped > 0)
+        {
+            _logger.LogWarning(
+                "The stop's deadline passed before {Count} game sessions were ended with identity; each runs out with its lease",
+                dropped);
         }
 
         // The pass above only covers despawns it started. A tick starts each despawn without

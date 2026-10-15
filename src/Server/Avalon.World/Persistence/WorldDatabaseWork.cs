@@ -2,7 +2,13 @@ using Avalon.Common.Telemetry;
 
 namespace Avalon.World.Persistence;
 
-/// <summary>Starts bounded work outside the simulation tick. Saturation refuses admission rather than growing a backlog.</summary>
+/// <summary>
+/// Starts bounded work outside the simulation tick: a lane with a number at once and a number waiting. What a full lane
+/// does is the lane's own policy: <see cref="WorldDatabaseWork.Admission" />, <see cref="WorldDatabaseWork.Heartbeat" />,
+/// the character select's lane and <see cref="WorldDatabaseWork.ThreadPool" /> (the database lane) refuse past their
+/// backlog (<see cref="WorldWorkUnavailableException" />, counted on <c>world.work.refusals</c>) rather than grow it;
+/// <see cref="WorldDatabaseWork.SessionEnds" /> queues without limit and refuses nothing.
+/// </summary>
 public interface IWorldDatabaseWork
 {
     Task<T> Run<T>(Func<Task<T>> operation);
@@ -54,7 +60,9 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
     /// <summary>
     /// The session ends a drain sends (#1051): <see cref="SessionEndConcurrency" /> at once, the rest queued, never
     /// refused, since an end refused here would leave the session holding the account until its lease runs out. Its
-    /// lane on <c>world.work.refusals</c>, <c>session_ends</c>, therefore never counts.
+    /// lane on <c>world.work.refusals</c>, <c>session_ends</c>, therefore never counts. An end decides at the front of
+    /// the lane whether it is still worth sending (<c>WorldServer.EndOrSkipAsync</c>: not past the stop's deadline, nor
+    /// for a lease long run out).
     /// </summary>
     public static readonly IWorldDatabaseWork SessionEnds = new WorldDatabaseWork(SessionEndConcurrency, int.MaxValue, "session_ends");
 

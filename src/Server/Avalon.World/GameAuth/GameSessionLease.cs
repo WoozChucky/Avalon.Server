@@ -66,6 +66,16 @@ public sealed class GameSessionLease
     public DateTime LeaseUntil { get { lock (_gate) return _until; } }
 
     /// <summary>
+    /// Whether this lease's end lies more than <paramref name="margin" /> in the past by its clock (#1051): its session's
+    /// end is not sent to identity then, unless a renewal may have moved identity's end past it.
+    /// </summary>
+    public bool HasRunOutBy(TimeSpan margin)
+    {
+        DateTime now = _clock.GetUtcNow().UtcDateTime;
+        lock (_gate) return now >= _until + margin;
+    }
+
+    /// <summary>
     /// Whether the lease was revoked (or found ended), without the lock or the clock (#977): the tick's dispatch asks
     /// it of a lease its check found not due at the tick's time, which within the tick only a revocation can change.
     /// </summary>

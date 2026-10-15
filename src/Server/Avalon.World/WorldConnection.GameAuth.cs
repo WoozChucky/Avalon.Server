@@ -18,6 +18,13 @@ public partial class WorldConnection
     public void RequestGameplayRevalidation() => Interlocked.Exchange(ref _revalidateGameplayLease, 1);
     private long _transportReadyTicks;
     private Task? _gameplayDrain;
+
+    // 1 from a heartbeat's start until its renewal is applied to the lease (#1051): identity may have renewed the session
+    // past the lease held here, so its end is sent even after this lease ran out. Written on the tick.
+    private int _renewalUnaccounted;
+
+    /// <summary>Whether a renewal was asked for and not applied to <see cref="GameSessionLease" /> (#1051).</summary>
+    internal bool RenewalUnaccounted => Volatile.Read(ref _renewalUnaccounted) != 0;
     public bool IsTlsAuthenticated => _tlsAuthenticated;
     public GameSessionLease? GameSessionLease => Volatile.Read(ref _gameSessionLease);
     public bool IsGameplayAuthorized => _tlsAuthenticated && _protocolAccepted && !_maintenanceBlocked &&
@@ -90,7 +97,11 @@ public partial class WorldConnection
             if (heartbeat.IsCompletedSuccessfully)
             {
                 SessionLeaseResponse reply = heartbeat.Result;
-                if (reply.Error is null) { if (!lease.TryRenew(reply)) lease.Revoke(); }
+                if (reply.Error is null)
+                {
+                    if (lease.TryRenew(reply)) Volatile.Write(ref _renewalUnaccounted, 0);
+                    else lease.Revoke();
+                }
                 else if (reply.Error is not (GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending))
                 {
                     lease.Revoke();
@@ -120,6 +131,7 @@ public partial class WorldConnection
     private void StartGameplayHeartbeat(GameSessionLease lease, long timestamp)
     {
         _lastHeartbeatTicks = timestamp;
+        Volatile.Write(ref _renewalUnaccounted, 1);
         _heartbeat = WorldDatabaseWork.Heartbeat.Run(() => ((WorldServer)Server).AdmissionClient.HeartbeatAsync(lease, CancellationToken.None));
     }
 
