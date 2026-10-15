@@ -58,6 +58,9 @@ public partial class WorldConnection
         _lastHeartbeatTicks = _time.GetTimestamp();
     }
 
+    /// <summary>Whether the version handshake has been accepted (<see cref="AcceptProtocol" />), which it is once.</summary>
+    public bool IsProtocolAccepted => _protocolAccepted;
+
     public bool AcceptProtocol()
     {
         if (_protocolAccepted || !_tlsAuthenticated || GameSessionLease?.IsActive != true) return false;

@@ -95,6 +95,37 @@ Game Client              World Server                  Databases / API
 
 ---
 
+## `SWorldHandshakePacket`
+
+The world's answer to `CWorldHandshakePacket(Version)`, the first packet after admission (`WorldHandshakeHandler`).
+The client's version must be at least 0.3.0, the oldest wire any world speaks, and at least the world's `MinVersion`
+(the auth `Worlds` row).
+
+| Field | Type | Meaning |
+|---|---|---|
+| `AccountId` (1) | `int64`, optional | The admitted account, on an acceptance and on a refusal alike |
+| `Verified` (2) | `bool` | True: accepted; character selection follows, and the world's first time-sync ping |
+| `Refusal` (3) | `WorldHandshakeRefusal` | Why the handshake was refused: `None` (0) on an acceptance, `ClientVersionTooOld` (1) for a client older than the world accepts. Append-only: read a value the client does not name as a refusal it cannot explain |
+| `MinVersion` (4) | `string`, optional | On `ClientVersionTooOld`, the oldest client version the world accepts: the world's `MinVersion`, or 0.3.0 when that is higher; absent otherwise |
+
+**A client too old is told so, then closed.** A version below either floor, and one that does not parse as
+`major.minor.patch` (a client that does not speak this versioning), gets `Verified` false, `ClientVersionTooOld` and
+the required version, and the world closes the connection after it. The close flushes the connection's outbox before
+it drops the socket (`Connection.CloseAsync`, [graceful shutdown](networking-graceful-shutdown.md#what-a-closing-connection-reads)),
+so the reply reaches the client first. The world logs the refusal once, at Information: the connection, the account,
+the client's version as it parsed (or `unparsable`; never the string it sent) and the version required. A client shows
+the player that the game must be updated, naming `MinVersion`, rather than a network error; it does not retry, since
+the same build is refused again. Before this field a too-old client was closed with no reply and read it as an
+unreachable server.
+
+**Every other refusal closes with no reply**, as before: a handshake with no active admission, a second handshake on a
+connection already accepted (whatever version it states), and a world whose own `MinVersion` does not parse.
+
+An acceptance is unchanged on the wire: `Refusal` at `None` and `MinVersion` null are not written, so its bytes are
+those of the two first fields alone (`schema/corpus/SWorldHandshakePacket.txt`, `WorldHandshakeHandlerShould`).
+
+---
+
 ## `SCharacterSelectedPacket`
 
 Sent immediately after the character entity is built and spawned. Contains:
