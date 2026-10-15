@@ -15,6 +15,8 @@ public sealed class UpdateCreatureTemplateRequest
     public CreatureRarity Rarity { get; set; }
     public CreatureFamily Family { get; set; }
     public CreatureType Type { get; set; }
+    /// <summary>Which model the game client draws this creature with; 0 is none (#1022).</summary>
+    public uint DisplayId { get; set; }
     /// <summary>The loot table this creature rolls when it dies; null when it drops no items.</summary>
     public int? LootTableId { get; set; }
     public int MinGold { get; set; }

@@ -115,6 +115,7 @@ public class CreatureTemplateController : BaseController
         Rarity = t.Rarity,
         Family = (Avalon.Api.Contract.CreatureFamily)t.Family,
         Type = (Avalon.Api.Contract.CreatureType)t.Type,
+        DisplayId = t.DisplayId,
         LootTableId = t.LootTableId?.Value,
         MinGold = t.MinGold,
         MaxGold = t.MaxGold,
