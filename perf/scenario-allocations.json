@@ -1,10 +1,10 @@
 {
-  "commit": "2ca42aff",
-  "date": "2026-10-14",
+  "commit": "490f1785",
+  "date": "2026-10-15",
   "scenarios": {
     "forest-combat": {
-      "bytesPerWindow": 14176,
-      "bytesPerPlayerPerTick": 19.68888888888889
+      "bytesPerWindow": 14138,
+      "bytesPerPlayerPerTick": 19.63611111111111
     },
     "many-instances": {
       "bytesPerWindow": 0,
@@ -15,8 +15,8 @@
       "bytesPerPlayerPerTick": 0
     },
     "town-social": {
-      "bytesPerWindow": 3904,
-      "bytesPerPlayerPerTick": 2.1688888888888886
+      "bytesPerWindow": 728,
+      "bytesPerPlayerPerTick": 0.40444444444444444
     },
     "town-walk": {
       "bytesPerWindow": 0,
