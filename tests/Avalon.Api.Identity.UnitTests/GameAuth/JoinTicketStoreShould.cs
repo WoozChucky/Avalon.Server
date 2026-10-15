@@ -110,11 +110,17 @@ public sealed class JoinTicketStoreShould
         await _h.Sessions.DidNotReceive().TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task Require_explicit_takeover_and_allow_reconnect_only_for_the_original_context()
+    /// <summary>
+    /// A live session refuses a new ticket unless the player confirms the takeover; a pending one too (#1013), which a
+    /// failed admission may leave behind: the confirmed takeover replaces it rather than waiting out its lease.
+    /// </summary>
+    [Theory]
+    [InlineData(GameSessionState.Active)]
+    [InlineData(GameSessionState.Pending)]
+    public async Task Require_explicit_takeover_and_allow_reconnect_only_for_the_original_context(GameSessionState state)
     {
         GameAuthReply auth = await _h.Authenticate();
-        var active = new GameSession
+        var live = new GameSession
         {
             AccountId = _h.Account.Id,
             GameSessionId = Guid.NewGuid(),
@@ -123,12 +129,12 @@ public sealed class JoinTicketStoreShould
             ServerId = "world-1",
             WorldId = 1,
             Environment = "production",
-            State = GameSessionState.Active,
+            State = state,
             CreatedAt = _h.Clock.GetUtcNow().UtcDateTime,
             LeaseUntil = _h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45),
             LicenseUntil = _h.Clock.GetUtcNow().UtcDateTime.AddMinutes(5),
         };
-        _h.Sessions.FindAsync(_h.Account.Id, Arg.Any<CancellationToken>()).Returns(active);
+        _h.Sessions.FindAsync(_h.Account.Id, Arg.Any<CancellationToken>()).Returns(live);
         Assert.Equal("ACTIVE_GAME_SESSION", (await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), false, false, CancellationToken.None)).Error);
         Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), false, true, CancellationToken.None)).Error);
         Assert.Null((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), true, false, CancellationToken.None)).Error);

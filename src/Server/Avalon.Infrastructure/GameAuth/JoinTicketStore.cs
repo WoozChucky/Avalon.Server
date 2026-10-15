@@ -38,8 +38,9 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         if (destination is null) return new(GameAuthErrors.WorldUnavailable);
         GameSession? head = await sessions.FindAsync(new AccountId(accountId), cancellationToken);
         if (reconnect && (head is null || head.GameContextId != context.Id || head.WorldId != worldId)) return new(GameAuthErrors.ReconnectUnavailable);
-        if (head?.LeaseUntil > Now && head.State != GameSessionState.Ended &&
-            (head.State == GameSessionState.Pending || (!confirmTakeover && !reconnect)))
+        // A confirmed takeover replaces a live session, pending or active (#1013); a reconnect only an active one.
+        if (head?.LeaseUntil > Now && head.State != GameSessionState.Ended && !confirmTakeover &&
+            (head.State == GameSessionState.Pending || !reconnect))
         {
             return new(GameAuthErrors.ActiveGameSession);
         }

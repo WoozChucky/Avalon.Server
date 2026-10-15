@@ -70,9 +70,10 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
             return head;
         }
 
+        // A confirmed takeover replaces a live pending head as it does an active one (#1013): the fencing token keeps
+        // the replaced admission from activating or writing, and a pending head keeps its last active ancestor below.
         if ((head?.FencingToken ?? 0) != reservation.ExpectedFence ||
-            (head?.State == GameSessionState.Pending && head.LeaseUntil > now) ||
-            (head?.State == GameSessionState.Active && head.LeaseUntil > now && !reservation.Takeover))
+            (head?.State is GameSessionState.Pending or GameSessionState.Active && head.LeaseUntil > now && !reservation.Takeover))
         {
             return null;
         }
