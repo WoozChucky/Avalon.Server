@@ -3921,13 +3921,13 @@ now reads Release's figure: the leave's delegate and the accept's enumerator, wh
 the heap, are gone. Whispers and party lines no longer grow with their number of words, only with the text itself.
 
 **The gate.** `town-social` is committed at **728 B per window** (0.40 B per player per tick), from 3,904 B, and
-`forest-combat` at **14,138 B**, from 14,176 B (Debug 14,206 B, from 14,244 B): the forest's one level-up in the
+`forest-combat` at **14,138 B**, from 14,176 B (Debug 14,206 B, from 14,244 B, measured before #981; with #981's bit tests Debug reads 14,138 B too): the forest's one level-up in the
 measured minute, a whole party at one tick (tick 3,422 of 3,600), sends the roster of three once per member, and each
 no longer builds three lists and nine entries (3 × 760 B = 2,280 B over 60 windows, 38 B a window). `town-idle`,
 `town-walk` and `many-instances` stay at 0. The runner's Release run at `ae2ed357` wrote the file (developer machine,
 i9-12900K, Windows 11, .NET 10.0.13, other agents building and testing beside it); the Release runner at `main`
 (`c83cbd59`) read `forest-combat` 14,176 B on the same machine, the committed figure, so the 38 B are this change's.
-**Stability.** The runner, two runs in Release: 728 B and 14,138 B both times. The gate alone, three runs in Release: 728 B and 14,138 B every time; three in Debug: 728 B and 14,206 B every time (+0.48%, +68 B, within). A spread of 0 B within each build.
+**Stability.** The runner, two runs in Release: 728 B and 14,138 B both times. The gate alone, three runs in Release: 728 B and 14,138 B every time; three in Debug: 728 B and 14,206 B every time (+0.48%, +68 B, within). A spread of 0 B within each build. Rebased on #981 (bit tests instead of `HasFlag`), Debug reads 728 B and 14,138 B, the same as Release.
 
 **Timing**, `Benchmarks/SocialEventBenchmarks.cs` (#973): one of each event as the scenario makes it, through the real
 handlers, with the send pass after each (framing and sealing every packet), on a world of 30 in ten parties of three,
@@ -4078,7 +4078,8 @@ summary.
 | Aura updates shared, their entries reused (#980, PGO on) | 14,176 |
 | Debug, then | 14,244 |
 | Each party roster built once: the level-up's roster (#973, PGO on), now | 14,138 |
-| Debug, now | 14,206 |
+| Debug, then | 14,206 |
+| Bit tests instead of `HasFlag` on the tick (#981); Debug, now | 14,138 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
