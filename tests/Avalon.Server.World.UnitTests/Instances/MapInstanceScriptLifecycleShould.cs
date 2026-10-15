@@ -104,10 +104,13 @@ public class MapInstanceScriptLifecycleShould
         MapInstanceClient watcher = Join(instance, 541_152);
         AddCreature(instance, 541_951, new Vector3(0f, 0f, 1f));   // point blank
         caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f))]);
-        Ticks(instance, 7);   // a broadcast has just gone out, so the next few ticks send no update
+        // The broadcasts fall on ticks 7 and 13: cast two ticks before the second, which lists the projectile in flight to
+        // the watcher (the views are decided on the broadcast tick, #981); it hits and finishes after it, its final state
+        // owed to the broadcast on tick 19.
+        Ticks(instance, 11);
 
         handler.Execute(caster.Connection, CastAt(210, 0f, 5f));
-        Ticks(instance, 3);   // it hits and finishes, its final state still owed
+        Ticks(instance, 3);
         ulong projectile = Assert.Single(watcher.Added(), s => IsProjectile(s.Guid)).Guid;
         Assert.DoesNotContain(projectile, watcher.Removed());
 

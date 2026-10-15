@@ -15,7 +15,7 @@ public static class ItemUseRules
     public static string? VendorStockProblem(ItemTemplate item, uint? priceOverride)
     {
         ulong id = item.Id.Value;
-        if (item.Flags.HasFlag(ItemTemplateFlags.QuestItem))
+        if ((item.Flags & ItemTemplateFlags.QuestItem) != 0)
             return $"item template {id} is a quest item; quest items are never sold";
 
         uint price = priceOverride ?? item.BuyPrice;
@@ -28,7 +28,7 @@ public static class ItemUseRules
     /// <summary>Whether a Collect objective may gather <paramref name="item"/>: only a QuestItem can be collected.</summary>
     public static string? CollectObjectiveProblem(ItemTemplate item, uint objectiveId)
     {
-        return item.Flags.HasFlag(ItemTemplateFlags.QuestItem)
+        return (item.Flags & ItemTemplateFlags.QuestItem) != 0
             ? null
             : $"objective {objectiveId} collects item template {item.Id.Value}, which is not a QuestItem";
     }
@@ -36,7 +36,7 @@ public static class ItemUseRules
     /// <summary>Whether a quest may pay <paramref name="item"/> as a reward: a Unique one could not always be paid.</summary>
     public static string? QuestRewardProblem(ItemTemplate item)
     {
-        return item.Flags.HasFlag(ItemTemplateFlags.Unique)
+        return (item.Flags & ItemTemplateFlags.Unique) != 0
             ? $"reward item template {item.Id.Value} is Unique; a turn-in could not always pay it"
             : null;
     }

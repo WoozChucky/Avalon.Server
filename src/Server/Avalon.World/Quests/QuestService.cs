@@ -313,7 +313,7 @@ public sealed class QuestService(
         foreach (QuestItemRewardView reward in quest.ItemRewards)
         {
             ItemTemplate? template = FindTemplate(reward.ItemTemplateId);
-            if (template is null || template.Flags.HasFlag(ItemTemplateFlags.Unique))
+            if (template is null || (template.Flags & ItemTemplateFlags.Unique) != 0)
             {
                 logger.LogError("Quest {QuestId} cannot be turned in: reward item template {Item} is {Problem}",
                     quest.Id, reward.ItemTemplateId.Value, template is null ? "missing" : "Unique");

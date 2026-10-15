@@ -129,8 +129,10 @@ public class AuraReplicationShould
         Assert.DoesNotContain(watcher.Read<SAuraUpdatePacket>(NetworkPacketType.SMSG_AURA_UPDATE),
             u => u.UnitGuid == boar.Guid.RawValue);
 
+        // Listed at the views' next decision, the instance's first broadcast, on its seventh tick (#981).
         watcher.Character.Position = new Vector3(0f, 0f, 0f);
-        instance.Update(s_tick);
+        for (int tick = 3; tick <= 7; tick++)
+            instance.Update(s_tick);
 
         SAuraListPacket ofBoar = Assert.Single(watcher.Read<SAuraListPacket>(NetworkPacketType.SMSG_AURA_LIST),
             l => l.UnitGuid == boar.Guid.RawValue);
@@ -188,7 +190,10 @@ public class AuraReplicationShould
         first.RemoveCharacter(traveller.Connection);
         traveller.Character.InstanceId = second.InstanceId;
         second.AddCharacter(traveller.Connection);
-        second.Update(s_tick);
+
+        // The watcher lists the traveller at the views' next decision, the instance's first broadcast, on its seventh tick (#981).
+        for (int tick = 2; tick <= 7; tick++)
+            second.Update(s_tick);
         second.Auras.Apply(traveller.Character, traveller.Character, new AuraId(904), AuraSource.None);
         second.Update(s_tick);
 

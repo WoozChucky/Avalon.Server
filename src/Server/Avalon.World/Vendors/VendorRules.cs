@@ -50,7 +50,7 @@ public static class VendorRules
     /// row is hidden from the list and a buy of it is NotFound, until /reload vendors drops it. A sale of an item
     /// flagged since is hidden from the buyback list and its buyback NotFound alike (#738).
     /// </summary>
-    public static bool IsStockable(ItemTemplate item) => !item.Flags.HasFlag(ItemTemplateFlags.QuestItem);
+    public static bool IsStockable(ItemTemplate item) => (item.Flags & ItemTemplateFlags.QuestItem) == 0;
 
     /// <summary>A row with a quest requirement is shown, and sold, only once IQuestProgress says it is met.</summary>
     public static bool IsVisible(VendorStockView row, CharacterEntity character, IQuestProgress quests) =>
@@ -123,7 +123,7 @@ public static class VendorRules
         if (RoomFor(item, bagAfter, character.Container(InventoryType.Bag).Capacity) < buying)
             return new BuyDecision(VendorResult.InventoryFull, null);
 
-        if (item.Flags.HasFlag(ItemTemplateFlags.Unique) && OwnedAfter(character, item.Id, bagAfter) + buying > 1)
+        if ((item.Flags & ItemTemplateFlags.Unique) != 0 && OwnedAfter(character, item.Id, bagAfter) + buying > 1)
             return new BuyDecision(VendorResult.UniqueAlreadyOwned, null);
 
         return new BuyDecision(VendorResult.Ok, new BuyPlan(row, item, buying, total, costs));
@@ -152,8 +152,8 @@ public static class VendorRules
             return new SellDecision(VendorResult.NotFound, null);
 
         if (findTemplate(item.TemplateId) is not { } template
-            || template.Flags.HasFlag(ItemTemplateFlags.NoSell)
-            || template.Flags.HasFlag(ItemTemplateFlags.QuestItem)
+            || (template.Flags & ItemTemplateFlags.NoSell) != 0
+            || (template.Flags & ItemTemplateFlags.QuestItem) != 0
             || template.SellPrice == 0)
         {
             return new SellDecision(VendorResult.NotSellable, null);
@@ -208,7 +208,7 @@ public static class VendorRules
             return new BuybackDecision(VendorResult.InventoryFull, null);
 
         if (findTemplate(entry.Item.TemplateId) is { } template
-            && template.Flags.HasFlag(ItemTemplateFlags.Unique)
+            && (template.Flags & ItemTemplateFlags.Unique) != 0
             && HeldAnywhere(character, template.Id) + entry.Item.Count > 1)
         {
             return new BuybackDecision(VendorResult.UniqueAlreadyOwned, null);

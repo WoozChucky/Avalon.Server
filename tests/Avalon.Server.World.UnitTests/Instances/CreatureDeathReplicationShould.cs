@@ -63,7 +63,7 @@ public class CreatureDeathReplicationShould
         Assert.DoesNotContain(watcher.Added(), s => s.Guid == boar.Guid.RawValue);
 
         watcher.Character.Position = Vector3.zero;
-        Ticks(instance, 1);
+        Ticks(instance, 6);   // a broadcast period: the views' next decision (#981)
 
         ObjectState added = Assert.Single(watcher.Added(), s => s.Guid == boar.Guid.RawValue);
         Assert.Equal(0u, added.CurrentHealth);

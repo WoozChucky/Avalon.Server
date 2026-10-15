@@ -152,7 +152,7 @@ public static class InventoryMove
         if (amount == 0 || amount > item.Count)
             return ItemRequestResult.InvalidCount;
 
-        if (findTemplate(item.TemplateId) is { } template && template.Flags.HasFlag(ItemTemplateFlags.NoDestroy))
+        if (findTemplate(item.TemplateId) is { } template && (template.Flags & ItemTemplateFlags.NoDestroy) != 0)
             return ItemRequestResult.CannotDestroy;
 
         destroying = amount;

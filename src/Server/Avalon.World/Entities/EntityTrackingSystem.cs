@@ -21,6 +21,12 @@ public class EntityTrackingSystem(int capacity)
     public bool IsTracked(ObjectGuid guid) => _tracked.ContainsKey(guid.RawValue);
 
     /// <summary>
+    /// Takes <paramref name="guid" /> out of the set without raising <see cref="EntityRemoved" />: for an entity known to
+    /// have gone, whose removal the caller reports itself (#981). False when it was not in the set.
+    /// </summary>
+    public bool Untrack(ObjectGuid guid) => _tracked.Remove(guid.RawValue);
+
+    /// <summary>
     /// Empties the set without raising <see cref="EntityRemoved" /> (#611), appending every guid it held
     /// to <paramref name="forgotten" />, so the next update adds whatever is in view as new.
     /// </summary>

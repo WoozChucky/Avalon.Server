@@ -50,14 +50,14 @@ public class InterestReplicationShould
         Creature creature = AddCreature(instance, 593_941, new Vector3(50f, 0f, 0f));
         Ticks(instance, 2);
 
-        watcher.Character.Position = new Vector3(-30f, 0f, 0f);   // 80 m away: removed
-        Ticks(instance, 1);
+        watcher.Character.Position = new Vector3(-30f, 0f, 0f);   // 80 m away: removed on the broadcast, tick 7 (#981)
+        Ticks(instance, 5);
         Assert.Equal([creature.Guid.RawValue], watcher.Removed());
         creature.CurrentHealth = 37;
-        Ticks(instance, 7);   // past a broadcast, so the change's dirty mark is consumed while away
+        Ticks(instance, 7);   // past the broadcast on tick 13, so the change's dirty mark is consumed while away
 
         watcher.Character.Position = new Vector3(0f, 0f, 0f);
-        Ticks(instance, 1);
+        Ticks(instance, 6);   // the views' next decision, the broadcast on tick 19
 
         var adds = watcher.Added().Where(s => s.Guid == creature.Guid.RawValue).ToList();
         Assert.Equal(2, adds.Count);
@@ -146,7 +146,7 @@ public class InterestReplicationShould
         Assert.Equal("update", seen[^2]);
         ObjectState added = Assert.Single(watcher.Added(), s => IsProjectile(s.Guid));
         Assert.NotNull(added.Position);
-        Assert.InRange(added.Position!.Z, 40f, 41f);   // entered at 60 m from the watcher, mid-flight
+        Assert.InRange(added.Position!.Z, 40f, 42.5f);   // mid-flight, listed on the first broadcast within 60 m (#981)
         Assert.NotNull(added.Velocity);
         ObjectState final = watcher.StateUpdates().Last(s => IsProjectile(s.Guid));
         Assert.Equal(0f, final.Velocity!.Z);
@@ -164,7 +164,7 @@ public class InterestReplicationShould
         Ticks(instance, 2);
         Assert.Contains(watcher.Added(), s => s.Guid == creature.Guid.RawValue);
         watcher.Character.Position = new Vector3(500f, 0f, 0f);
-        Ticks(instance, 2);
+        Ticks(instance, 5);   // removed on the broadcast, tick 7 (#981)
         Assert.Contains(creature.Guid.RawValue, watcher.Removed());
 
         // Targeted only now, from out of view: the first threat list for a new target is always sent.
