@@ -104,12 +104,12 @@ public static class CheckCommand
                 _ => "idle",
             };
             (double latenessP95, CheckTripsVerdict trips) = options.Behaviour == BehaviourKind.Fighter
-                ? await TripAsync(bots, options.ForestTime, ct)
-                : (await DriveAsync(bots[0], step, ct), CheckTripsVerdict.Passed);
+                ? await TripAsync(bots, options.ForestTime, options.DriverLoops, ct)
+                : (await DriveAsync(bots[0], step, options.DriverLoops, ct), CheckTripsVerdict.Passed);
             StepClientValues values = metrics.TakeWindow();
             Console.WriteLine(Invariant(
                 $"  ack        p50 {Ms(values.AckP50)}, p95 {Ms(values.AckP95)}, p99 {Ms(values.AckP99)} over {values.AckSamples} inputs"));
-            Console.WriteLine(Invariant($"  driver     lateness p95 {Ms(latenessP95)}"));
+            Console.WriteLine(Invariant($"  driver     lateness p95 {Ms(latenessP95)} over {options.DriverLoops} loops"));
             Console.WriteLine($"  encryption {BotMetrics.EncryptionText(metrics.Admissions)}");
             if (options.Behaviour == BehaviourKind.Fighter) PrintTrip(values);
             if (values.AckSamples == 0)
@@ -183,10 +183,10 @@ public static class CheckCommand
     /// Runs the input driver over this one bot for <see cref="s_driveTime"/>, then waits for the last acks. Returns the
     /// driver's lateness p95; a walker also prints how far it got from where it started.
     /// </summary>
-    private static async Task<double> DriveAsync(Bot bot, string step, CancellationToken ct)
+    private static async Task<double> DriveAsync(Bot bot, string step, int loops, CancellationToken ct)
     {
         Bot[] inWorld = [bot];
-        var driver = new InputDriver(() => inWorld);
+        var driver = new InputDriver(() => inWorld, loops);
         BotAck from = bot.LastAck;
         long start = Stopwatch.GetTimestamp();
 
@@ -227,7 +227,7 @@ public static class CheckCommand
     /// <see cref="s_tripMargin"/>, fails the check.
     /// </summary>
     private static async Task<(double LatenessP95, CheckTripsVerdict Trips)> TripAsync(Bot[] bots, TimeSpan forestTime,
-        CancellationToken ct)
+        int loops, CancellationToken ct)
     {
         const string Step = "forest";
         var trips = new CheckTrips(bots.Length);
@@ -249,7 +249,7 @@ public static class CheckCommand
             fighter.ReadyToLeaveTown = now => trips.MaySetOut(member) && (party is null || party(now));
         }
 
-        var driver = new InputDriver(() => bots);
+        var driver = new InputDriver(() => bots, loops);
         TimeSpan limit = CheckTrips.MostTrips * (forestTime + Fighter.MostExitBudget(forestTime) + s_tripMargin);
         long start = Stopwatch.GetTimestamp();
 

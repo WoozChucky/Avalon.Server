@@ -75,9 +75,10 @@ Everything here has to be in place, or the run fails early or measures the wrong
    needs the Admin (or Console) role, and MFA has to be off on it: the tool does not answer an MFA challenge. The API
    checks the password again on every create and delete, so a wrong one counts as a failed login.
 8. **A Release build.** The bot PC's CPU is one of the limits, and a Debug build spends more of it per bot. Run the
-   tool with `-c Release`, as every example below does. The input driver sleeps towards each 60 Hz step on a
-   high-resolution waitable timer on Windows 10 1803 and later, and with `Thread.Sleep` where that timer is missing
-   (older Windows, Linux, macOS); on every system it yields the thread through the last millisecond of each step.
+   tool with `-c Release`, as every example below does. Each of the [input driver](#the-input-driver)'s loops sleeps
+   towards its next 60 Hz step on a high-resolution waitable timer on Windows 10 1803 and later, and with
+   `Thread.Sleep` where that timer is missing (older Windows, Linux, macOS); on every system it yields its thread
+   through the last millisecond of each step.
 9. **Asthoria is quiet.** See [Cautions](#cautions): check its player count first.
 
 ## Commands
@@ -136,10 +137,10 @@ dotnet run -c Release --project tools/Avalon.LoadTest -- check --behaviour fight
 `check` takes one bot through everything a ramp does to every bot. It signs in, enters the run's world (join
 ticket, TLS, admission, handshake, character list, create on the first entry, select, load report, spawn, first
 answered input), sends input at 60 Hz for 10 seconds through the same input driver the ramp uses, then leaves and
-signs out. It prints each step's duration, the input-to-ack latency (p50, p95 and p99), the driver's lateness p95,
-the packet encryption the admission replies named (#875: `encryption on (sealed inside TLS, ...)`, `encryption off
-(TLS alone)`, or `mixed` with the counts, as the [report](#the-report) says it), and for a walker how far it walked
-from the spawn point. Run it before the first ramp of a run, and after anything changed on the server or the
+signs out. It prints each step's duration, the input-to-ack latency (p50, p95 and p99), the driver's lateness p95
+over its loops, the packet encryption the admission replies named (#875: `encryption on (sealed inside TLS, ...)`,
+`encryption off (TLS alone)`, or `mixed` with the counts, as the [report](#the-report) says it), and for a walker how
+far it walked from the spawn point. Run it before the first ramp of a run, and after anything changed on the server or the
 network: it is the quickest way to see that the whole chain works.
 
 | Option | Default | Meaning |
@@ -150,6 +151,7 @@ network: it is the quickest way to see that the whole chain works.
 | `--behaviour idle\|walker\|fighter` | `idle` | What the bot does: idle or walk for 10 seconds, or make forest trips until one completes (3 at most) |
 | `--forest-time T` | `5m` | A fighter's time in the forest: `90s`, `5m` or plain seconds, above 0, at most 1 h |
 | `--party-size N` | `1` | Fighters only, 1 to 6: N bots from `--bot` on check together as one party |
+| `--driver-loops N` | 8, or the bot PC's logical cores when fewer | The [input driver](#the-input-driver)'s loops, 1 to 64, as for `ramp` |
 
 **A fighter's check** (`--behaviour fighter`) drives [forest trips](#fighters) instead of the 10 seconds, at once
 (no first-trip wait): to the town's portal, into the forest, fighting for `--forest-time` (or until no live creature
@@ -206,9 +208,11 @@ This is the capacity run, described under [The ramp](#the-ramp).
 | `--sign-in-concurrency N` | `8` | Sign-ins at once, 1 to 64: the ramp's and the context refresher's together |
 | `--forest-time T` | `5m` | How long a [fighter](#fighters)'s trip stays in the forest: `90s`, `5m` or plain seconds, above 0, at most 1 h |
 | `--party-size N` | `1` | The fighters' [party](#parties) size, 1 (solo) to 6 |
+| `--driver-loops N` | 8, or the bot PC's logical cores when fewer | The [input driver](#the-input-driver)'s loops, 1 to 64, each on its own thread, sharing the in-world bots out |
 
-The console prints one line per step, then the result and the report's path. A step with fighters adds their count,
-the forest instances the world ticked per tick and the trips completed:
+The console first prints the ramp's settings in one line (the run, the world, start, step, max, hold, `--dial` and the
+input driver's loops), then one line per step, then the result and the report's path. A step with fighters adds their
+count, the forest instances the world ticked per tick and the trips completed:
 
 ```text
 step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  → pass
@@ -319,9 +323,8 @@ stops at the last failure.
 
 ### Behaviours
 
-One input driver sends every in-world bot's input at 60 Hz, as the game client's fixed step does. Each bot's input
-numbers start at 1 on every connection. If the driver falls more than three steps behind, it drops the missed steps
-rather than sending them in a burst, and its lateness shows it.
+The [input driver](#the-input-driver) sends every in-world bot's input at 60 Hz, as the game client's fixed step does.
+Each bot's input numbers start at 1 on every connection.
 
 | Behaviour | Does |
 |---|---|
@@ -337,6 +340,41 @@ a takeover. A churn that fails is counted, and the bot closes its connection and
 `--mix` shares as closely as whole bots allow, interleaved. With the default mix, every block of ten bot indexes from
 0 (0-9, 10-19, ...) holds 6 idle bots, 3 walkers and 1 churner. Parties never change a bot's behaviour: see
 [parties](#parties).
+
+### The input driver
+
+The input driver sends each in-world bot's input every 60 Hz step, and a fighter's one packet besides it when the step
+brings one (an entry to a map, a cast, a respawn). It shares the bots out over several loops (`--driver-loops`, by
+default 8, or the bot PC's logical cores when fewer), each on its own thread with its own 60 Hz schedule.
+
+- **Why several.** A bot's step is mostly its send, and all of it runs on the loop's thread: the input serialized,
+  sealed when the world asks for it, framed, encrypted into one TLS record and written to the socket, whose send
+  completes at once while the socket has room. That is one record and one send per bot, which cannot be batched across
+  bots (each has its own connection). A single loop held about 1,250 bots on the bot PC (an i9-12900K, 24 logical
+  cores) before its steps started late; at 1,400 its lateness p95 reached 30 ms while the PC's CPU stayed at 11 to
+  14 % (#1042). With 8 loops, the 5,000 bots a run can have put about 625 on each.
+- **One loop per bot, for good.** A bot is given its loop the first time a loop sees it in the world, and keeps it for
+  its whole life, its reconnects and character changes included: only that loop's thread touches what the driver keeps
+  of the bot. Each bot goes to the loop holding the fewest bots of its behaviour, then the fewest bots, so every
+  behaviour is shared out evenly over the loops, the bots that join in later steps too. Not by bot index modulo the
+  loop count: a loop count sharing a factor with the mix's rotation would put a behaviour on a few loops only (with 5
+  loops and the default mix, every churner on one).
+- **Phases.** Loop k of N steps k/N of a step after the first, so the loops' steps are spread over the 16.7 ms as real
+  clients' are: the world does not get every bot's input in one burst, and the threads do not all wake at one
+  instant.
+- **Each step** of a loop fires its bots' sends without awaiting them, then waits for the sends still in flight until
+  its next step is due. A bot whose last send is still in flight then is skipped until it completes, so one stalled
+  socket never holds up the others; a fighter decides on its next packet besides its input only once the last one has
+  gone. Per bot and step a loop allocates the packet and nothing else unless the send has to wait. A loop that falls
+  more than three steps behind drops the missed steps rather than sending them in a burst, and its lateness shows it.
+- **Lateness** is how far each step of each loop began after its planned time. All the loops' steps go into one
+  window, and `gen-lag` is the 95th percentile over all of them together, not an average of the loops' own.
+- **Busy time**, for reading only: the time a loop spent per step deciding its bots' inputs and firing their sends (not
+  waiting for sends in flight), as a share of the 16.7 ms step. Near 100 %, a loop runs out of step time and more
+  loops are needed; low while the lateness is high, the lateness is not the loops' own work but the bot PC's
+  scheduling or timer.
+- **The cost of a loop.** Each loop yields its thread through the last millisecond before each of its steps, about 6 %
+  of a core, whether it has bots or not: 8 loops take about half a core of the bot PC (2 % of 24 cores in `gen-cpu`).
 
 ### Fighters
 
@@ -547,7 +585,7 @@ A step breaches a limit when its value is on the tripping side of the threshold.
 | `gc-pause` | 0.05 | fraction | above | Prometheus: `sum(rate(dotnet_gc_pause_time_seconds_total[w]))`, the share of the window the GC paused the process |
 | `save-p95` | 1000 | ms | above | Prometheus: `histogram_quantile(0.95, sum by (le)(rate(world_character_save_duration_milliseconds_bucket[w])))`; 0 when the window is known to have had no save |
 | `gen-cpu` | 0.80 | fraction | above | The tool: its process CPU time over the judged window ÷ (the window × the bot PC's logical cores) |
-| `gen-lag` | 5 | ms | above | The tool: the input driver's lateness p95 over the judged window (how late each 60 Hz step started) |
+| `gen-lag` | 5 | ms | above | The tool: the [input driver](#the-input-driver)'s lateness p95 over the judged window (how late each 60 Hz step started), over the steps of every loop together |
 
 Every Prometheus query is filtered to the run's world (`avalon_world_id="W"`). `w` is the judged window in whole
 seconds, and the query is evaluated at the hold's end. When a query returns several series, the worst one counts
@@ -689,8 +727,9 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   over the ramp (#875: `on (sealed inside TLS, Network:PacketEncryption)`, `off (TLS alone)`, or `mixed` with the
   sealed and plain admissions counted when the world changed mode during the ramp; `packetEncryption.sealed` and
   `packetEncryption.plain` in the JSON), the ramp settings (start, step, hold and judged window, max, sign-in
-  concurrency), Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its clock's offset from
-  Prometheus's at the start (by which every query's time was corrected), and the limits, each marked when overridden.
+  concurrency, the input driver's loops), Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its
+  clock's offset from Prometheus's at the start (by which every query's time was corrected), and the limits, each
+  marked when overridden.
 - **Result**: one of `capacity N bots`, `no limit reached up to N bots`, `bot PC saturated: capacity ≥ N bots`,
   `stopped: steps that could not be judged`, or `stopped (<reason>)`, followed by `; does not stand: <reason>` when
   the run does not stand (`the world server restarted during the ramp`, `the world server restarted; not proven after
@@ -725,7 +764,10 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
     the window), `busyCores`, `busiestThread` (a fraction of one core) and `pendingBytesP99` (bytes), null unless read;
   - admission as bots that never got in ÷ bots that tried; entry attempts and failed attempts, and failures by kind;
     leave failures by kind and sign-in failures by kind (both apart from admission); disconnects;
-  - the bot PC's CPU and the driver's lateness p95;
+  - the bot PC's CPU, the driver's lateness p95 (every loop's steps together), and the driver's
+    [busy time](#the-input-driver) for reading only: the loops' mean share of a step spent deciding and firing sends,
+    with the busiest loop's in brackets (`23 % (31 %)`); `driverBusy` in the JSON, with `meanShare` and `busiestShare`
+    as fractions, null when no loop stepped;
   - the verdict: `pass`, `pass (blip)`, `re-hold (<breaches, or unknown: names>)`, `stop (...)`,
     `stop, unknown (...)`, or `pass, the last step`. A value Prometheus did not give reads `n/a`.
 - **Fighters**, for reading only (see [the fighters' section](#the-fighters-section)); `None: no step held a fighter.`
@@ -755,8 +797,9 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
 
 **Reading it.** The capacity is the last step that passed. "Failed first" says which limit gave out, and the steps
 before it show how that value climbed. A `bot PC saturated` result is a lower bound: run again with a lighter mix
-(fewer walkers and churners) or a stronger bot PC. A ramp that stopped unknown usually means a missing metric: check
-[the export interval](#before-a-run) and Prometheus. If the bot count and the two cross-checks disagree, bots were
+(fewer walkers and churners) or a stronger bot PC, or, on `gen-lag` with the busiest driver loop near 100 % busy,
+with more `--driver-loops`. A ramp that stopped unknown usually means a missing metric: check [the export
+interval](#before-a-run) and Prometheus. If the bot count and the two cross-checks disagree, bots were
 not where the tool thought they were. Look at the failure kinds and the disconnects.
 
 **Pricing the session layer.** The bots seal or send plain as the world asks, so one world measures both modes: ramp
@@ -800,7 +843,7 @@ empty rate (a window too short for one) or no tick to divide by reads `n/a`. Wit
 the answer lacks reads 0: no instance of it has ticked since the world started, or its first did so only in the
 window's last sample.
 
-**JSON.** The ramp settings carry `ramp.forestTimeSeconds` and `ramp.partySize`, and each step:
+**JSON.** The ramp settings carry `ramp.forestTimeSeconds`, `ramp.partySize` and `ramp.driverLoops`, and each step:
 
 - `byBehaviour.Fighter`, the live fighters;
 - `client.forestEntries`, `client.forestEntryP50` and `client.forestEntryP95` (ms; `NaN` with no entry),

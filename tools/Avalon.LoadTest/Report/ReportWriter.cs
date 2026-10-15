@@ -103,7 +103,7 @@ public static class ReportWriter
         md.AppendLine($"- Fighters: {FightersText(options)}");
         md.AppendLine($"- Packet encryption, as the world's admission replies named it: {BotMetrics.EncryptionText(result.Admissions)}");
         md.AppendLine(Invariant(
-            $"- Ramp: start {options.Start}, step {options.Step}, hold {options.Hold.TotalSeconds:0} s (judged on the last {RampRunner.JudgedWindow(options.Hold).TotalSeconds:0} s), max {options.Max}, {options.SignInConcurrency} sign-ins at once"));
+            $"- Ramp: start {options.Start}, step {options.Step}, hold {options.Hold.TotalSeconds:0} s (judged on the last {RampRunner.JudgedWindow(options.Hold).TotalSeconds:0} s), max {options.Max}, {options.SignInConcurrency} sign-ins at once, input driven by {options.DriverLoops} loops (--driver-loops)"));
         md.AppendLine($"- Prometheus: {options.Prometheus} (pod {options.Pod}){(options.Dial is { } dial ? $"; dialling {dial}" : "")}");
         md.AppendLine(Invariant($"- Bot PC: {cpu}, {Environment.ProcessorCount} logical cores; its clock {RampRunner.ClockOffsetText(result.ClockOffset)} Prometheus's at the start (query times corrected by it)"));
         md.AppendLine();
@@ -132,8 +132,8 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Slow kicks | Receive backlog | Send threads busy: cores (busiest thread) | Pending bytes p99 | Working set | GC stall | GC pause | Gen2 / min (not judged) | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Verdict |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Slow kicks | Receive backlog | Send threads busy: cores (busiest thread) | Pending bytes p99 | Working set | GC stall | GC pause | Gen2 / min (not judged) | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Driver busy: mean (busiest loop) | Verdict |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
             ServerValues s = step.Server;
@@ -173,6 +173,7 @@ public static class ReportWriter
                 c.Disconnects.ToString(CultureInfo.InvariantCulture),
                 Percent(step.GeneratorCpu),
                 Ms(step.GeneratorLagP95Ms, "0.0"),
+                step.DriverBusy is { } busy ? $"{Percent(busy.MeanShare)} ({Percent(busy.BusiestShare)})" : "n/a",
                 RampRunner.Verdict(step, options.Limits) + " |"));
         }
 
@@ -399,6 +400,7 @@ public static class ReportWriter
                 options.Pod,
                 ForestTimeSeconds = options.ForestTime.TotalSeconds,
                 options.PartySize,
+                options.DriverLoops,
             },
             Limits = options.Limits.Select(limit => new { limit.Name, limit.CliName, limit.Threshold, limit.TripsAbove, limit.Unit }),
             BotPc = new { Cpu = cpu, Cores = Environment.ProcessorCount, ClockOffsetSeconds = result.ClockOffset.TotalSeconds },

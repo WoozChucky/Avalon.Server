@@ -19,9 +19,10 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="SignInConcurrency">Sign-ins at once, the runner's and the refresher's together.</param>
 /// <param name="ForestTime">How long a fighter's trip stays in the forest (<c>--forest-time</c>).</param>
 /// <param name="PartySize">The fighters' party size (<c>--party-size</c>), 1 (solo) to <see cref="BotParty.MaxSize"/>.</param>
+/// <param name="DriverLoops">The input driver's loops (<c>--driver-loops</c>), each on its own thread, sharing the bots out.</param>
 public sealed record RampOptions(
     string Mix, int Start, int Step, TimeSpan Hold, int Max, IReadOnlyList<Limit> Limits, string? Dial, Uri Prometheus,
-    string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize);
+    string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops);
 
 /// <summary>One held step: what was there, what was measured, and the decision on it.</summary>
 /// <param name="Index">The step's number from 1; a re-hold is a step of its own at the same count.</param>
@@ -31,7 +32,7 @@ public sealed record RampOptions(
 /// </param>
 /// <param name="ByBehaviour">The live bots by behaviour.</param>
 /// <param name="GeneratorCpu">The bot PC's CPU use over the judged window, a fraction of its cores.</param>
-/// <param name="GeneratorLagP95Ms">The input driver's lateness p95 over the judged window.</param>
+/// <param name="GeneratorLagP95Ms">The input driver's lateness p95 over the judged window, the steps of every loop together.</param>
 public sealed record StepRecord(
     int Index, int Bots, IReadOnlyDictionary<BehaviourKind, int> ByBehaviour, ServerValues Server, StepClientValues Client,
     double GeneratorCpu, double GeneratorLagP95Ms, Decision Decision)
@@ -47,6 +48,12 @@ public sealed record StepRecord(
 
     /// <summary>When the judged window ended, on the bot PC's clock.</summary>
     public DateTimeOffset WindowEnd { get; init; }
+
+    /// <summary>
+    /// How busy the input driver's loops were over the judged window (<see cref="InputDriver.Busy"/>); null when no loop
+    /// stepped. For reading only: no limit is judged on it.
+    /// </summary>
+    public DriverBusy? DriverBusy { get; init; }
 }
 
 /// <summary>How much of the check that the world server did not restart during the ramp could be made.</summary>
@@ -538,7 +545,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         using var api = new ApiClient(run.Api, s_apiTimeout);
         var metrics = new BotMetrics();
         using var signIns = new SemaphoreSlim(options.SignInConcurrency);
-        var driver = new InputDriver(Snapshot);
+        var driver = new InputDriver(Snapshot, options.DriverLoops);
         var refresher = new ContextRefresher(api, Snapshot, metrics, signIns, _signOuts);
         using var background = new CancellationTokenSource();
         using var refreshes = new CancellationTokenSource();
@@ -1028,6 +1035,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         DateTimeOffset end = DateTimeOffset.UtcNow;
         StepClientValues judged = metrics.TakeWindow();
         double lag = driver.LatenessP95Ms();
+        DriverBusy? busy = driver.Busy();
         process.Refresh();
         double cpu = (process.TotalProcessorTime - cpuBefore) / (Stopwatch.GetElapsedTime(windowStart) * Environment.ProcessorCount);
         Bot[] live = [.. _added.Where(bot => bot.State != BotState.Stopped)];
@@ -1055,6 +1063,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             InWorld = inWorld,
             PlayersOnlineAdded = playersAdded,
             WindowEnd = end,
+            DriverBusy = busy,
         };
     }
 

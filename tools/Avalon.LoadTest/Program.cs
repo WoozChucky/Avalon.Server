@@ -62,7 +62,7 @@ static async Task<int> RampAsync(RampArguments arguments, CancellationToken ct)
     string dialling = options.Dial is null ? "" : $", dialling {options.Dial}";
     Console.WriteLine(
         $"Ramp of run {run.RunId} into world {run.WorldId}: {options.Start} bots, +{options.Step} a step, up to {options.Max}, " +
-        $"each held {options.Hold.TotalSeconds:0} s{dialling}. Ctrl+C stops it and still writes the report.");
+        $"each held {options.Hold.TotalSeconds:0} s{dialling}, input driven by {options.DriverLoops} loops. Ctrl+C stops it and still writes the report.");
 
     string? report = null;
     string? earlyResult = null;
@@ -113,7 +113,7 @@ static int Usage()
               enter (default {CommandLine.DefaultWorld}); --api the API origin (default {CommandLine.DefaultApi});
               --run the first run's id, three letters (default: the tool picks one no kept run file lists).
           check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker|fighter] [--forest-time 5m]
-                [--party-size 1]
+                [--party-size 1] [--driver-loops N]
               One bot end to end: signs in, enters the run's world (join ticket, TLS, admission, handshake,
               create or select, loaded), sends input at 60 Hz for 10 s through the input driver, leaves and
               signs out, printing each step's duration, the input-ack latency and the driver's lateness.
@@ -127,10 +127,10 @@ static int Usage()
               invites the others by name, they accept) and enter one shared forest, each going again after a
               death as above; passed when the party formed and every member walked out once. At 1 the fighter
               sends no party packet, except one leave when its character is still in a party of an earlier run
-              (the world keeps parties until it restarts).
+              (the world keeps parties until it restarts). --driver-loops as for ramp.
           ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
                [--limit name=value]... [--dial HOST] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
-               [--forest-time 5m] [--party-size 1]
+               [--forest-time 5m] [--party-size 1] [--driver-loops N]
               The capacity run: adds bots in steps of --step from --start up to --max (default: the run's size),
               holds each step --hold (a settle of at least 30 s, then judged on up to its last 60 s), and stops
               at the first limit breached twice in a row. Behaviours are shared by --mix (idle, walker, churner,
@@ -144,7 +144,9 @@ static int Usage()
               otherwise enter that party's forest. --limit overrides a limit (repeatable):
               {string.Join(", ", Limits.Defaults.Select(l => l.CliName))}; e.g. tick-p99=20, memory=0.9.
               --prometheus (default {CommandLine.DefaultPrometheus}) and --pod (default {CommandLine.DefaultPod})
-              locate the server's metrics; --sign-in-concurrency bounds sign-ins at once (default 8). Every bot
+              locate the server's metrics; --sign-in-concurrency bounds sign-ins at once (default 8).
+              --driver-loops N (1 to {InputDriver.MaxLoops}, default {InputDriver.DefaultLoops} here: 8, or the logical cores
+              when fewer) shares the bots' 60 Hz input out over N loops, each on its own thread. Every bot
               leaves at the end; the report goes to {ReportWriter.Directory}.
           cleanup [--run ABC]
               Deletes the run's accounts as an admin and forgets the run file; refused while bots hold live
