@@ -83,7 +83,7 @@ public class QuestDialogueShould
         SQuestOfferPacket offer = Assert.Single(c.Read<SQuestOfferPacket>(NetworkPacketType.SMSG_QUEST_OFFER));
         Assert.Equal((Hunt, giver.Guid.RawValue, QuestOfferMode.Offer), (offer.QuestId, offer.NpcGuid, offer.Mode));
         Assert.Equal("A Test Quest", offer.Quest!.Title);
-        Assert.Equal("Please do the thing, Tester1.", offer.Quest.Text);
+        Assert.Equal($"Please do the thing, {Inventory.TestCharacters.NameFor(1)}.", offer.Quest.Text);
         QuestObjectiveDto objective = Assert.Single(Assert.Single(offer.Quest.Stages).Objectives);
         Assert.Equal((HuntKill, QuestObjectiveKind.Kill, Boar, 2u, "Things done"),
             (objective.ObjectiveId, objective.Kind, objective.TargetId, objective.Count, objective.Text));
