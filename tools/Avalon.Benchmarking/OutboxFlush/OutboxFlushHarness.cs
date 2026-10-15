@@ -50,6 +50,9 @@ public static class OutboxFlushHarness
 {
     private static readonly long s_ticksPerFrame = Stopwatch.Frequency / 60;
 
+    /// <summary>The read loop's deadline for a started frame, as a server runs it (<c>Hosting:InboundFrameTimeoutSeconds</c>).</summary>
+    private static readonly TimeSpan s_frameTimeout = TimeSpan.FromSeconds(HostingConfiguration.DefaultInboundFrameTimeoutSeconds);
+
     /// <summary>A slow mode's stall: this many ticks of normal reading, then this many with the stalled readers paused.</summary>
     private const int StallTicks = 180;
 
@@ -245,7 +248,7 @@ public static class OutboxFlushHarness
 
     /// <summary>
     /// The other direction, off the tick: every client sends one movement-sized frame per tick, and the server end reads
-    /// them through <see cref="PacketStream.EnumerateRawFramesAsync" /> and <see cref="InboundPacketFrame.ParseFrame" />,
+    /// them through <see cref="PacketStream.EnumerateRawFramesAsync(int, int, TimeSpan, TimeProvider, CancellationToken)" /> and <see cref="InboundPacketFrame.ParseFrame" />,
     /// as <c>Connection</c>'s read loop does before it decrypts. Reports the bytes the process allocated per frame read,
     /// less what the sending thread allocated.
     /// </summary>
@@ -269,7 +272,7 @@ public static class OutboxFlushHarness
                 {
                     try
                     {
-                        await foreach (ReadOnlyMemory<byte> raw in server.EnumerateRawFramesAsync(4096, int.MaxValue, stop.Token))
+                        await foreach (ReadOnlyMemory<byte> raw in server.EnumerateRawFramesAsync(4096, int.MaxValue, s_frameTimeout, TimeProvider.System, stop.Token))
                         {
                             InboundPacketFrame.ParseFrame(raw);
                             Interlocked.Increment(ref frames);

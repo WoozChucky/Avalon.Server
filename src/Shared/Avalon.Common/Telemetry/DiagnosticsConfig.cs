@@ -18,7 +18,7 @@ public static class DiagnosticsConfig
     private const string ProtocolKicksName = "network.in.protocol_kicks";
 
     private const string ProtocolKicksDescription =
-        "Connections closed for a frame the peer got wrong: not a packet, sealed before or against the session key, or a payload that is not its packet";
+        "Connections closed for a frame the peer got wrong: not a packet, sealed before or against the session key, a payload that is not its packet, or a frame not completed in time";
 
     public static class World
     {

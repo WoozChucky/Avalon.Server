@@ -26,6 +26,9 @@ public interface IServerBase
     /// <summary><c>Hosting:MaxInboundFrameSize</c>: the most bytes a frame a peer sends may declare.</summary>
     int MaxInboundFrameSize => HostingConfiguration.DefaultMaxInboundFrameSize;
 
+    /// <summary><c>Hosting:InboundFrameTimeoutSeconds</c>: how long a peer has to complete a frame it has started.</summary>
+    TimeSpan InboundFrameTimeout => TimeSpan.FromSeconds(HostingConfiguration.DefaultInboundFrameTimeoutSeconds);
+
     /// <summary>Which peers prefix their connections with a PROXY v2 header (#524).</summary>
     ProxyProtocolPolicy ProxyProtocol => ProxyProtocolPolicy.Disabled;
 }
@@ -43,6 +46,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public int SendBufferCapacity { get; }
     public int MaxInboundFrameSize { get; }
+    public TimeSpan InboundFrameTimeout { get; }
     public ProxyProtocolPolicy ProxyProtocol { get; }
 
     public PacketDispatchTelemetry PacketTelemetry { get; }
@@ -103,6 +107,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         Port = hostingOptions.Value.Port;
         SendBufferCapacity = hostingOptions.Value.SendBufferCapacity;
         MaxInboundFrameSize = hostingOptions.Value.MaxInboundFrameSize;
+        InboundFrameTimeout = TimeSpan.FromSeconds(hostingOptions.Value.InboundFrameTimeoutSeconds);
         ProxyProtocol = ProxyProtocolPolicy.From(hostingOptions.Value.ProxyProtocol);
         KeepAlive = new TcpKeepAlive(hostingOptions.Value, logger);
 

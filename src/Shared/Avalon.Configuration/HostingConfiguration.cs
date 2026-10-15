@@ -26,6 +26,18 @@ public class HostingConfiguration
     [Range(1024, 16_777_216)]
     public int MaxInboundFrameSize { get; set; } = DefaultMaxInboundFrameSize;
 
+    /// <summary>The default of <see cref="InboundFrameTimeoutSeconds" />.</summary>
+    public const int DefaultInboundFrameTimeoutSeconds = 10;
+
+    /// <summary>
+    /// Seconds a peer has to complete a frame once its first byte has arrived (#938). A frame still incomplete after
+    /// them closes the connection, on either server, before admission or login as after. A connection idle between
+    /// frames is not timed by it. There is no off: the largest frame a client sends is under a kilobyte.
+    /// Valid range: 1–300. Defaults to 10.
+    /// </summary>
+    [Range(1, 300)]
+    public int InboundFrameTimeoutSeconds { get; set; } = DefaultInboundFrameTimeoutSeconds;
+
     /// <summary>
     /// The auth server's per-connection outbound queue (<c>ChannelOutbox</c>): packets beyond it are dropped, oldest
     /// first. The world server does not read it: its connections send through the send threads (<c>Network</c>, #875).

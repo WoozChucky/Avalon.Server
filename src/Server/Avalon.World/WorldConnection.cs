@@ -740,6 +740,9 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     protected override long GetServerTime() => Server.ServerTime;
 
+    /// <summary>The world's clock times a started frame too (#938).</summary>
+    protected override TimeProvider ReadClock => _time;
+
     private readonly record struct WorldPacket(NetworkPacketType Type, Packet? Payload, long ArrivedTicks);
 
     #region Filters
