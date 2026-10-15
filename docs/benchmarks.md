@@ -39,6 +39,9 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Interest
 # Not BenchmarkDotNet: the spatial index's candidates against the creatures in view, along generated forests (#982)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
 
+# Not BenchmarkDotNet: the units a hit query reads over the spatial index against a full scan, in forest-combat (#982)
+dotnet run -c Release --project tools/Avalon.Benchmarking -- hit-candidates
+
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
 
@@ -4367,6 +4370,42 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 3
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" "*SpatialIndexBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*ForestTickBenchmarks*' --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*TickPhaseBenchmarks*' --inProcess --job short --warmupCount 10 --iterationCount 8
+```
+
+### Results — hit queries over a spatial grid (#982, 2026-10-15)
+
+Every hit query (`UnitHitQuery`: a circle, a cone, or a projectile's sweep of one tick, a segment) read every character and
+creature of its instance: whether it is alive, then its position and body radius for the exact overlap. Since #982 a
+query visits the grid's cells under the shape's box on X/Z, widened by the largest body radius the grid has indexed and
+by more than the exact tests' rounding, plus the entities in no cell or not indexed; a cell's entry outside the box is
+left on the grid's copy of its X/Z, and only the rest are read and tested as before (see
+[world simulation](world-simulation.md)). The hits and their order are the full scan's (`UnitHitQueryShould`).
+
+**Timings were not measured.** The machine was shared with other builds, and the owner asked for no BenchmarkDotNet
+runs and no timings for this change; what follows are exact counts, which do not depend on load.
+
+**How many units a query reads** (`hit-candidates`, a harness, not BenchmarkDotNet): the `forest-combat` scenario (four
+generated forests of about 200 creatures, a party of three in each, every player's casts and every creature's), its
+3,600 measured ticks, run once over the grid and once scanning every member (`MapInstance.FindHitsByFullScan`):
+
+| Shape | Queries | Members (a full scan reads all) | Grid entries visited | Units read and tested | Hits |
+|---|---:|---:|---:|---:|---:|
+| Circle | 48 | 202.4 | 12.9 | 4.5 | 3.3 |
+| Cone | 283 | 209.4 | 14.4 | 4.5 | 2.7 |
+| Segment (a projectile's step) | 12,562 | 203.3 | 9.6 | 0.25 | 0.17 |
+| All | 12,893 | 203.4 | 9.7 | 0.36 | 0.23 |
+
+Per query. A full scan read 203.4 units; over the grid a query reads 0.36 on average (0.18%), and visits 9.7 entries of
+the grid's compact array, deciding most of them on the copy without loading the unit. Nearly every query is a
+projectile's step of a tick, a few metres long, which reads a unit only when one is near its path. Both runs fought the
+same fight (105 kills, 2 deaths, 18 heals, 93 quest credits, 198 pickups, 106 destroys, as before), with the same
+bytes and packets sent on every connection.
+
+**The allocation gate does not move**: `forest-combat` 14,138 B and `town-social` 728 B, the others 0 B, in Release and
+Debug.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- hit-candidates
 ```
 
 ### Results — shared state and aura encoding (#980, 2026-10-14)

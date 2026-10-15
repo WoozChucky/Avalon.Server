@@ -306,8 +306,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraWire = new AuraWire();
         _auraUpdates = new SharedAuraUpdates(_auraWire, _replicationEncoder);
 
-        // Shape scripts ask this for the living units their shape overlaps (#164).
-        _hits = new UnitHitQuery(_characters, _creatures);
+        // Shape scripts ask this for the living units their shape overlaps (#164), found in the cells of the grid around
+        // the shape (#982).
+        _hits = new UnitHitQuery(_characters, _creatures, _members);
 
         // The cast system gets `this` as the IAbilityArena every ability script is built with
         // (#164): scripts route damage through CombatService.ApplyDamage. CombatService must be
@@ -1635,6 +1636,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// name.
     /// </summary>
     internal void DecideViewsByFullScan() => _viewsOverIndex = false;
+
+    /// <summary>
+    /// Finds every hit by scanning every member of the instance, as before #982, rather than the cells of the spatial
+    /// grid around the shape: the reference the grid is compared against. For tests and harnesses only; World-side and
+    /// internal, so reached by name.
+    /// </summary>
+    internal void FindHitsByFullScan() => _hits.ScanEveryMember();
 
     /// <summary>
     /// Every character that left since the last pass is removed from every client here that still held it (#981), on the

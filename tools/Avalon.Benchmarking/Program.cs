@@ -30,6 +30,12 @@ public class Program
             return;
         }
 
+        if (args.Length > 0 && args[0] == "hit-candidates")
+        {
+            HitCandidates.HitCandidatesHarness.Run(args[1..]);
+            return;
+        }
+
         BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
     }
 }
