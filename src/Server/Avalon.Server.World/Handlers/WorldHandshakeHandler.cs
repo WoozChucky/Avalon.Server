@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Common.Utils;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Serialization;
@@ -23,18 +24,21 @@ public sealed partial class WorldHandshakeHandler(IWorld world, ILogger<WorldHan
 
     public Task ExecuteAsync(WorldPacketContext<CWorldHandshakePacket> ctx, CancellationToken token = default)
     {
-        if (ctx.Connection is not WorldConnection connection || connection.GameSessionLease?.IsActive != true ||
+        // The account comes from the lease, read once: the admission publishes the lease before it sets the
+        // connection's AccountId, and this runs on the read loop, which can land in between.
+        if (ctx.Connection is not WorldConnection connection || connection.GameSessionLease is not { IsActive: true } lease ||
             connection.IsProtocolAccepted || !SemVerPacker.TryPack(world.MinVersion, out uint minimum))
         {
             return ctx.Connection.CloseAsync(false);
         }
 
+        long accountId = lease.Authority.AccountId.Value;
         bool parsed = SemVerPacker.TryPack(ctx.Packet.Version, out uint version);
         uint required = Math.Max(minimum, s_protocolFloor);
         if (!parsed || version < required)
         {
-            string requiredVersion = minimum >= s_protocolFloor ? world.MinVersion : ProtocolFloor;
-            long accountId = connection.AccountId!.Value;
+            // Canonical, as compared: the configured string may carry what the parser forgives (spaces, zeros, a sign).
+            string requiredVersion = Format(required);
             // The client's version as it parsed, never the string it sent: that is the peer's to choose.
             Log.ClientVersionTooOld(logger, connection.Id, accountId, parsed ? Format(version) : "unparsable",
                 requiredVersion);
@@ -46,12 +50,13 @@ public sealed partial class WorldHandshakeHandler(IWorld world, ILogger<WorldHan
         if (!connection.AcceptProtocol())
             return connection.CloseAsync(false);
 
-        connection.Send(SWorldHandshakePacket.Create(connection.AccountId!, true, PacketEncoder.Shared));
+        connection.Send(SWorldHandshakePacket.Create(accountId, true, PacketEncoder.Shared));
         connection.RequestInitialTimeSyncPing();
         return Task.CompletedTask;
     }
 
-    private static string Format(uint version) => $"{version >> 24}.{(version >> 16) & 0xFF}.{version & 0xFFFF}";
+    private static string Format(uint version) =>
+        string.Create(CultureInfo.InvariantCulture, $"{version >> 24}.{(version >> 16) & 0xFF}.{version & 0xFFFF}");
 
     private static partial class Log
     {

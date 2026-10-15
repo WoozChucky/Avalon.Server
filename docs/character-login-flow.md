@@ -106,7 +106,7 @@ The client's version must be at least 0.3.0, the oldest wire any world speaks, a
 | `AccountId` (1) | `int64`, optional | The admitted account, on an acceptance and on a refusal alike |
 | `Verified` (2) | `bool` | True: accepted; character selection follows, and the world's first time-sync ping |
 | `Refusal` (3) | `WorldHandshakeRefusal` | Why the handshake was refused: `None` (0) on an acceptance, `ClientVersionTooOld` (1) for a client older than the world accepts. Append-only: read a value the client does not name as a refusal it cannot explain |
-| `MinVersion` (4) | `string`, optional | On `ClientVersionTooOld`, the oldest client version the world accepts: the world's `MinVersion`, or 0.3.0 when that is higher; absent otherwise |
+| `MinVersion` (4) | `string`, optional | On `ClientVersionTooOld`, the oldest client version the world accepts: the world's `MinVersion`, or 0.3.0 when that is higher, written as the plain `major.minor.patch` it was compared as (a configured ` 01.00.0` goes out as `1.0.0`); absent otherwise |
 
 **A client too old is told so, then closed.** A version below either floor, and one that does not parse as
 `major.minor.patch` (a client that does not speak this versioning), gets `Verified` false, `ClientVersionTooOld` and
