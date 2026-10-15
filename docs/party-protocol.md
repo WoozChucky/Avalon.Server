@@ -96,6 +96,10 @@ member when:
 
 A member's own client also gets it when it enters the world while in a party.
 
+One change sends it once: when the leader leaves or goes offline, the handover's roster already shows the party
+without it (or with it offline), and is the only one sent (#973; before, a second, identical roster followed the
+handover's "X is now the party leader." line).
+
 - **No party:** an empty roster, `PartyId` 0 and no members. A character that leaves, is kicked, or whose
   party disbands gets one.
 - `Members` are in join order; the first is the longest-standing. Exactly one has `IsLeader`.

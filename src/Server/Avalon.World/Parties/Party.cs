@@ -56,7 +56,21 @@ public sealed class Party
 
     internal void Add(PartyMember member) => _members.Add(member);
 
-    internal bool Remove(uint characterId) => _members.RemoveAll(m => m.Id.Value == characterId) > 0;
+    internal bool Remove(uint characterId)
+    {
+        // By index, from the end: RemoveAll over a lambda capturing the id cost a closure and a delegate a call (#973).
+        bool removed = false;
+        for (int i = _members.Count - 1; i >= 0; i--)
+        {
+            if (_members[i].Id.Value == characterId)
+            {
+                _members.RemoveAt(i);
+                removed = true;
+            }
+        }
+
+        return removed;
+    }
 
     internal void SetExperienceMode(PartyExperienceMode mode, DateTimeOffset lockedUntil)
     {

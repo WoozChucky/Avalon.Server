@@ -189,10 +189,12 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
         ulong accountId = ctx.Connection.AccountId is { } account ? (ulong)account.Value : 0UL;
         // Encoded once, for the first member who hears it, and shared by every one who does (#875).
         OutboundPacket line = default;
-        foreach (PartyMember member in party.Members)
+        // By index: a foreach over the members' interface boxes the list's enumerator (#973).
+        IReadOnlyList<PartyMember> members = party.Members;
+        for (int i = 0; i < members.Count; i++)
         {
             // A member ignoring the sender does not hear it (#723); nobody is told.
-            if (parties.OnlineConnection(member.Id.Value) is { } target && !Ignoring.Hides(target, sender.Guid.Id))
+            if (parties.OnlineConnection(members[i].Id.Value) is { } target && !Ignoring.Hides(target, sender.Guid.Id))
             {
                 if (line.Payload is null)
                 {
