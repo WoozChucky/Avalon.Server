@@ -64,11 +64,22 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
 
         if (!await NeverReachedItsGuardAsync(guard, head, cancellationToken))
             return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
-        if (!await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken))
+        if (await sessions.TryExpirePendingAsync(accountId, sessionId, fence, cancellationToken))
+        {
+            // An activation still in flight may have reached the guard since: block it now, so it cannot activate there.
+            await guard.EndAsync(authority, cancellationToken);
+            return new() { State = "ended" };
+        }
+
+        // The head changed since it was read: replaced, or made active by an activation in flight, which ends as any
+        // active session does, its guard blocked before the head ends.
+        GameSession? current = await sessions.FindAsync(accountId, cancellationToken);
+        if (current is null || current.GameSessionId != sessionId || current.FencingToken != fence)
             return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
-        // An activation still in flight may have reached the guard since: block it now, so it cannot activate there.
-        await guard.EndAsync(authority, cancellationToken);
-        return new() { State = "ended" };
+        if (!await guard.EndAsync(authority, cancellationToken))
+            return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
+        return await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken)
+            ? new() { State = "ended" } : GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
     }
 
     /// <summary>
