@@ -33,6 +33,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ActiveSc
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InventoryFlush*" "*ItemRequest*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ArrivalBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
 
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
@@ -1259,6 +1260,18 @@ duration still reads the clock twice per packet; one read (the end of one dispat
 the loop's own work between packets into each duration.
 
 ---
+
+### Social events — `Benchmarks/SocialEventBenchmarks.cs` (#973)
+
+One of each of `town-social`'s events through the real handlers, with the send pass after each: a line said to a town
+of 30 (`SaidLine`), a `/w` whisper (`Whisper`), a `/p` party line (`PartyLine`), a system line to a party of three
+(`SystemLineToParty`, as a join, a leave or a handover sends one), and a party's turn: its leader leaves, is invited back
+by name and accepts (`LeaveInviteAccept`). The chat rate limit is off, so every line is delivered;
+setup checks what each event sent. Results: [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15).
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
+```
 
 ### Receive queue — `ReceiveQueueBenchmarks.cs` (#880)
 
@@ -3467,7 +3480,7 @@ The world server runs with dynamic PGO on (the runtime's default), and so do the
 tier devirtualises an interface call from the profile it gathered at run time and can then keep on the stack the boxed
 enumerator, closure, delegate or box the call would have allocated. How much it keeps depends on the profile and on
 when a method reached that tier, so an allocation of that kind is a figure that moves: between runs, between machines,
-and between Debug (never optimised) and Release. `town-idle` and `town-walk` have none on their path, and `town-social` 104 B per window, inside the floor ([a social town](#results--a-social-town-972-2026-10-14)). `forest-combat` had many
+and between Debug (never optimised) and Release. `town-idle` and `town-walk` have none on their path, and `town-social` none since #973 (104 B per window from #972, inside the floor: [a social town](#results--a-social-town-972-2026-10-14), [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15)). `forest-combat` had many
 when it was added, all in combat, AI and kill code, and the fight's rarer paths (a kill's drop, an aura's tick) reach
 the optimised tier late, so its first figure was not reproducible:
 
@@ -3605,27 +3618,29 @@ with the committed figure, in every build (Debug and Release, see below) and for
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** `town-idle`, `town-walk` and `many-instances` read 0 since `75a16697` (#875: none of them
   allocates on the tick thread since server packets are built in per-thread messages; the file was regenerated at
-  `2ca42aff` for `town-social`'s first entry, #972, and `forest-combat`'s figure lowered since by #980), so the 256 B
-  floor decides in every scenario:
+  `2ca42aff` for `town-social`'s first entry, #972, and at `ae2ed357` for #973's chat and party fixes, and
+  `forest-combat`'s figure lowered by #980 and #973 between), so the 256 B floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails every steady scenario (the smallest, 24 B, is 1,440 B
   per window).
-  `town-social` reads 3,904 B per window since #972, all of it its events' own, one of each kind a window
-  ([a social town](#results--a-social-town-972-2026-10-14)): the floor decides for it too (1% is 39 B), so it fails
-  above 4,160 B, and one more 40 B enumerator on each of its seven events (280 B) fails it. Its Debug run reads 4,008 B,
-  104 B above Release and inside the floor (see the results).
+  `town-social` reads 728 B per window since #973 (3,904 B from #972), all of it its events' own, one of each kind a
+  window ([a social town, quieter](#results--a-social-town-quieter-973-2026-10-15)): the floor decides for it too (1% is
+  7 B), so it fails above 984 B, and one more 40 B enumerator on each of its seven events (280 B) fails it. Its Debug
+  run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,176 B per window since #980 shared the aura updates and reused their
-  entries, [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
+  `forest-combat` is the largest figure (14,138 B per window since #973 built each party roster once, which its one
+  level-up of the minute sends, [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15); 14,176 B from
+  #980, which shared the aura updates and reused their entries,
+  [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
-  10,357 B before), and at that size the 256 B floor decides for it too (1% is 142 B): it fails above 14,432 B, a little
+  10,357 B before), and at that size the 256 B floor decides for it too (1% is 141 B): it fails above 14,394 B, a little
   over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
-  figure again since #981 (#973): from #972 it read 14,244 B, 68 B above Release, because each item destroy in the
-  measured minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
+  figure again since #981 (#973): from #972 it read 68 B above Release, because each item destroy in the measured
+  minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
   Release paid the same while that code was not yet optimised, so a change that moved when it was (#981 did) made
   Release read up to 14,244 B in some runs and `ForestCombatScenarioShould`'s two runs disagree. The item, quest, vendor
-  and maintenance rules test their flags with bit tests now, and every build reads 14,176 B. From #890 to #972 Debug read the committed
+  and maintenance rules test their flags with bit tests now, and every build reads the same figure. From #890 to #972 Debug read the committed
   figure exactly (since [the kill path](#results--the-kill-path-890-883-2026-10-13)). Before that a Debug build read 237 B per
   window above the committed 11,543 B (objects on the kill path and in the creature scripts), 19 B less than the
   floor allows, and 305 B above, 49 B more than it allows, until #883 took the closure out of `CancelScriptsOf`.
@@ -3840,7 +3855,8 @@ allocation that only the profile keeps off the heap can read differently in the 
 in Release and 4,008 B in Debug every time (+2.66%, +104 B, within), and 4,008 B in Release with dynamic PGO off. A
 spread of 0 B within each build.
 
-**Findings, per event, none on a per-tick path** (production code is unchanged here; each looks avoidable):
+**Findings, per event, none on a per-tick path** (production code is unchanged here; each looks avoidable, and #973
+took them all out: [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15)):
 
 - `CommandDispatcher.Dispatch` builds the arguments (`Arguments`: an array and a string per word) for every command it
   runs, and `/p` and `/w` never read them: 384 B per 9-word party line and 312 B per 7-word whisper here, more for a
@@ -3861,6 +3877,88 @@ spread of 0 B within each build.
 
 Not counted as findings: the state an event creates (the `PartyInvite`, the `PartyMember` and its `CharacterId`), the
 `CommandContext` a command runs with (#883), and the system lines, which name a member and so are a string each.
+
+### Results — a social town, quieter (#973, 2026-10-15)
+
+#973 rows 22 to 28 took out every finding above, and with them the same costs in their neighbours. What each event
+still allocates is its own state and its own words:
+
+- **Command text** (rows 22, 23). A command may declare `ICommand.ReadsRawText`: it reads its text from the message as
+  typed (`CommandText`) and never its arguments, and the dispatcher hands it an empty array rather than a string per
+  word. `/p` and `/w` declare it; every other command gets its arguments as before. `CommandText` returns slices of the
+  message, trimmed in place, so `/p` and `/w` make one string, the text they send on, when they send it.
+- **Names** (row 24). `CharacterName.Same` compares two names in place, as their keys compare (ASCII letters in any
+  case, every other character as it is), and `OnlineCharacters` holds the names under `CharacterName.KeyComparer` and
+  looks a typed name up by a trimmed slice (the dictionary's alternate lookup): no key is made. The key the database
+  stores is unchanged, and so is the name rule (#944).
+- **Rosters** (rows 25, 26). `PartyService.SendRoster` fills one list of reused entries once per roster and sets only
+  `SameInstance` for each recipient; `SPartyRosterPacket.Create` encodes before it returns, and the encoder's scratch
+  lets go of the list, so it is free for the next recipient. A handover's roster is the only one a leader's leave or
+  going offline sends (one packet fewer to each member; the last roster a client holds is the same). An empty roster
+  passes no list: the scratch message's null members encode as the empty list did, nothing (both payloads compared
+  byte for byte).
+- **Closures and boxes** (rows 27, 28). `Party.Remove`, and in the same name lookups `IgnoreList.FindByName` and
+  `IgnoreList.Remove`, walk by index (88 B a call each before); `Party.Members` is walked by index in `PartyService` and
+  `/p`, and `Disband` without its copy; `MapInstance.Connections` returns the dictionary's read-only `ValueCollection`,
+  so a said line's walk takes the struct enumerator.
+
+Bytes per event, read on its tick as in [a social town](#results--a-social-town-972-2026-10-14) (a probe on the
+scenario's world: 30 windows after a 5 s warm-up, every window the same, Release and Debug alike):
+
+| Event | Before, Release | Before, Debug | After | What is left |
+|---|---:|---:|---:|---|
+| A leader leaves | 1,184 | 1,248 | 160 | "X left the party." (72 B) and "X is now the party leader." (88 B) |
+| An invite | 104 | 104 | 64 | The `PartyInvite` |
+| The accept | 960 | 1,000 | 160 | The `PartyMember` and its `CharacterId` (80 B), "X joined the party." (80 B) |
+| A line said to the town | 40 | 40 | 0 | |
+| A whisper (`/w`, 7 words) | 872 | 872 | 128 | The `CommandContext` (56 B) and the text sent on (72 B) |
+| A party line (`/p`, 9 words) | 688 | 688 | 160 | The `CommandContext` (56 B) and the text sent on (104 B) |
+| `/ignorelist` | 56 | 56 | 56 | The `CommandContext` |
+| **A window** | **3,904** | **4,008** | **728** | |
+
+1,620 of the 1,800 probed ticks read 0 B, the other 180 the six event ticks of each window that still allocate. Debug
+now reads Release's figure: the leave's delegate and the accept's enumerator, which only the optimised code kept off
+the heap, are gone. Whispers and party lines no longer grow with their number of words, only with the text itself.
+
+**The gate.** `town-social` is committed at **728 B per window** (0.40 B per player per tick), from 3,904 B, and
+`forest-combat` at **14,138 B**, from 14,176 B (Debug 14,206 B, from 14,244 B, measured before #981; with #981's bit tests Debug reads 14,138 B too): the forest's one level-up in the
+measured minute, a whole party at one tick (tick 3,422 of 3,600), sends the roster of three once per member, and each
+no longer builds three lists and nine entries (3 × 760 B = 2,280 B over 60 windows, 38 B a window). `town-idle`,
+`town-walk` and `many-instances` stay at 0. The runner's Release run at `ae2ed357` wrote the file (developer machine,
+i9-12900K, Windows 11, .NET 10.0.13, other agents building and testing beside it); the Release runner at `main`
+(`c83cbd59`) read `forest-combat` 14,176 B on the same machine, the committed figure, so the 38 B are this change's.
+**Stability.** The runner, two runs in Release: 728 B and 14,138 B both times. The gate alone, three runs in Release: 728 B and 14,138 B every time; three in Debug: 728 B and 14,206 B every time (+0.48%, +68 B, within). A spread of 0 B within each build. Rebased on #981 (bit tests instead of `HasFlag`), Debug reads 728 B and 14,138 B, the same as Release.
+
+**Timing**, `Benchmarks/SocialEventBenchmarks.cs` (#973): one of each event as the scenario makes it, through the real
+handlers, with the send pass after each (framing and sealing every packet), on a world of 30 in ten parties of three,
+the chat rate limit off so every line is delivered. Three runs each at `c83cbd59`'s production code and after, on the
+developer machine with other agents building and testing beside it, so the times are ranges; the bytes are exact.
+
+| Benchmark | Before | After | Allocated before | Allocated after |
+|---|---|---|---:|---:|
+| `SaidLine` (30 hear it) | 12.0–12.2 µs | 11.8–12.0 µs | 40 B | 0 B |
+| `Whisper` | 1.49–1.50 µs | 1.29–1.34 µs | 872 B | 128 B |
+| `PartyLine` | 1.67–1.70 µs | 1.49–1.55 µs | 688 B | 160 B |
+| `LeaveInviteAccept` (three events) | 11.2–11.7 µs | 9.7–10.2 µs | 2,248 B | 384 B |
+
+A fourth run after the change, taken while other builds ran, read all four higher (15.1, 2.32, 1.77 and 10.1 µs); it
+is left out of the ranges, with the same bytes. A said line is the sends' cost, 30 packets sealed and framed, and does
+not move; a whisper and a party line are 0.15 to 0.2 µs (10 to 13%) faster, and a party turn about 1.5 µs (13%), for
+the strings, lists and entries they no longer make.
+
+**A system line to a party, encoded once** (#973, in the same code). `PartyService.SendLine(Party, text)` sent each
+online member the line through the per-character `SendLine`, so the same line was encoded once per member, into a
+payload of its own, and the clock read once per member. It now reads the clock once and encodes the line for the first
+online member, and every other member is sent the same payload (`OutboundPacket.Share`), as a said line is since #875;
+each connection's send pass frames and seals it as for any shared packet. The line is the same for every member: the
+same text, the same time. A join, a leave and a handover each send one, so a party's turn sends three. Allocations do
+not change (the payloads are pooled, 0 B before and after); the time does. Three runs each, before and after
+alternating, the machine shared as above:
+
+| Benchmark | Before | After |
+|---|---|---|
+| `SystemLineToParty` (three members) | 1.69–1.78 µs | 1.41–1.70 µs (two at 1.41, one noisy run at 1.70, median 1.62) |
+| `LeaveInviteAccept` | 9.46–9.77 µs | 8.84–9.24 µs |
 
 ### The forest-combat scenario
 
@@ -3921,15 +4019,19 @@ world's clock). Over the 4,200 ticks since #972: 105 creatures killed (93 in the
 cast and landed (16 in the minute), 36 quest accepts, 93 kill credits (78) and 24 completions (all 24 in the minute),
 198 drops picked up (180) and 106 bag slots destroyed (85, the first 21 in the first steps, from the filled bags), and
 no drop given up. Before #972 the run killed 71 (60 in the minute) with 9 deaths: the healers keep their parties alive,
-and fighters walking to their drops meet more creatures. Experience is shared, but no character reaches level 2. The
+and fighters walking to their drops meet more creatures. Experience is shared; one party's three members reach level 2
+together near the end of the measured minute (tick 3,422 of 3,600, counted at #973), and no other character does. The
 scenario's check (`Verify`) requires, over the measured ticks, besides every fighter casting and every forest losing
 creatures, heals landed, kill credit, a completion, pickups and items destroyed. `ForestCombatScenarioShould` runs the
 scenario twice in one process and requires the same outcome (every count above) and the same bytes per window, and
 kills and deaths in it; the second run's creatures carry higher ids (the process-wide object id counter), which
 changes neither.
 
-**Gate.** Committed at **14,176 B per window** (19.7 B per player per tick, 236 B per tick) since #980, 116 B under the
-14,292 B committed since #972 ([shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14)).
+**Gate.** Committed at **14,138 B per window** (19.6 B per player per tick, 236 B per tick) since #973, 38 B under the
+14,176 B committed since #980: the fight's one level-up, of a whole party at one tick, sends its roster three times
+(one per member levelling), and each roster no longer builds three lists and nine entries, 760 B, 2,280 B over the
+run's 60 windows ([a social town, quieter](#results--a-social-town-quieter-973-2026-10-15)). The 14,176 B were 116 B
+under the 14,292 B committed since #972 ([shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14)).
 The 14,292 B were the sum of
 10,361 B (the fight before #972: the file held 10,357 B, and the 4 B are #898's roster lists growing to their size
 once during the run, see [aura scans](#aura-scans--benchmarksaurascanbenchmarkscs-898)) and the increments of [a fuller fight](#results--a-fuller-fight-972-2026-10-14): the real send
@@ -3973,8 +4075,11 @@ summary.
 | Debug, then | 10,357 |
 | A fuller fight: healer, kill quest, loot (#972, PGO on) | 14,292 |
 | Debug, then | 14,360 |
-| Aura updates shared, their entries reused (#980, PGO on), now | 14,176 |
-| Debug, now | 14,244 |
+| Aura updates shared, their entries reused (#980, PGO on) | 14,176 |
+| Debug, then | 14,244 |
+| Each party roster built once: the level-up's roster (#973, PGO on), now | 14,138 |
+| Debug, then | 14,206 |
+| Bit tests instead of `HasFlag` on the tick (#981); Debug, now | 14,138 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).

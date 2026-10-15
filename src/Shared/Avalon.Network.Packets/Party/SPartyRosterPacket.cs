@@ -51,5 +51,18 @@ public class SPartyRosterPacket : Packet
     }
 
     /// <summary>The recipient is in no party.</summary>
-    public static OutboundPacket Empty(PacketEncoder encoder) => Create(0, PartyExperienceMode.Unknown, 0, [], encoder);
+    /// <remarks>
+    /// No list (#973): the scratch message comes back with no members (<see cref="PacketEncoder.Scratch{T}" /> resets a
+    /// collection to null), and protobuf-net writes a null repeated field as it writes an empty one, nothing, so the
+    /// bytes are those of an empty list, and a client reads an empty <see cref="Members" />. It made a new empty list for
+    /// every empty roster.
+    /// </remarks>
+    public static OutboundPacket Empty(PacketEncoder encoder)
+    {
+        SPartyRosterPacket message = PacketEncoder.Scratch<SPartyRosterPacket>();
+        message.PartyId = 0;
+        message.ExperienceMode = PartyExperienceMode.Unknown;
+        message.ModeLockedForMs = 0;
+        return encoder.Encode(message, PacketType, Flags, Protocol);
+    }
 }

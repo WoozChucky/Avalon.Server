@@ -49,6 +49,14 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     private readonly List<IWorldConnection> _due = [];
     private readonly Dictionary<uint, (MemberStatus Status, DateTimeOffset At)> _statusSent = [];
 
+    // A roster's members, filled once for each roster and handed to every recipient's packet, which is encoded before
+    // SPartyRosterPacket.Create returns and keeps nothing of them: one list, and one entry per member, reused by every
+    // roster (#973). _rosterEntries only grows; _roster holds the first of them a roster needs, and _rosterInstances
+    // where each member is (null when offline), for each recipient's SameInstance.
+    private readonly List<PartyMemberDto> _roster = [];
+    private readonly List<PartyMemberDto> _rosterEntries = [];
+    private readonly List<Guid?> _rosterInstances = [];
+
     /// <summary>At most this often per member (four times a second).</summary>
     public static readonly TimeSpan StatusInterval = TimeSpan.FromMilliseconds(250);
 
@@ -134,8 +142,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         if (PartyOf(id) is not { } party)
             return;
 
-        if (party.IsLeader(id))
-            HandOverLeadership(party);
+        // A handover sends the roster, already without this member online: it is not sent twice (#973).
+        if (party.IsLeader(id) && HandOverLeadership(party))
+            return;
 
         SendRoster(party);
     }
@@ -285,9 +294,11 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         if (party.ExperienceModeLockedUntil is { } lockedUntil && now < lockedUntil)
             return PartyResult.OnCooldown;
 
-        foreach (PartyMember member in party.Members)
+        // By index, here and below: a foreach over the members' interface boxes the list's enumerator (#973).
+        IReadOnlyList<PartyMember> members = party.Members;
+        for (int i = 0; i < members.Count; i++)
         {
-            if (OnlineConnection(member.Id.Value)?.Character is { IsInCombat: true })
+            if (OnlineConnection(members[i].Id.Value)?.Character is { IsInCombat: true })
                 return PartyResult.InCombat;
         }
 
@@ -330,10 +341,31 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             connection.Send(SChatMessagePacket.System(text, time.GetUtcNow().UtcDateTime, PacketEncoder.Shared));
     }
 
+    /// <summary>
+    /// The line to every online member: the same line for each, so it is encoded once, for the first, and shared by the
+    /// others, and the clock is read once (#973, as a said line is shared since #875).
+    /// </summary>
     public void SendLine(Party party, string text)
     {
-        foreach (PartyMember member in party.Members)
-            SendLine(member.Id.Value, text);
+        IReadOnlyList<PartyMember> members = party.Members;
+        OutboundPacket line = default;
+        try
+        {
+            for (int i = 0; i < members.Count; i++)
+            {
+                if (OnlineConnection(members[i].Id.Value) is not { } connection)
+                    continue;
+
+                if (line.Payload is null)
+                    line = SChatMessagePacket.System(text, time.GetUtcNow().UtcDateTime, PacketEncoder.Shared);
+
+                connection.Send(line.Share());
+            }
+        }
+        finally
+        {
+            line.Release();
+        }
     }
 
     public bool InCountdown(uint characterId) => _countdowns.ContainsKey(characterId);
@@ -477,8 +509,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// <summary>Who shares an instance changed: every member is sent afresh on the next flush.</summary>
     private void ResetStatuses(Party party)
     {
-        foreach (PartyMember member in party.Members)
-            _statusSent.Remove(member.Id.Value);
+        IReadOnlyList<PartyMember> members = party.Members;
+        for (int i = 0; i < members.Count; i++)
+            _statusSent.Remove(members[i].Id.Value);
     }
 
     private void OnCharacterOffline(uint characterId)
@@ -616,8 +649,9 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             return;
         }
 
-        if (party.Leader.Value == memberId)
-            HandOverLeadership(party);
+        // A handover sends the roster, already without the member who left: it is not sent twice (#973).
+        if (party.Leader.Value == memberId && HandOverLeadership(party))
+            return;
 
         SendRoster(party);
     }
@@ -627,9 +661,11 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         _parties.Remove(party.Id.Value);
         _instances.ForgetParty(party.Id);
 
-        foreach (PartyMember member in party.Members.ToArray())
+        // By index, with no copy: nothing below changes the members (#973).
+        IReadOnlyList<PartyMember> members = party.Members;
+        for (int i = 0; i < members.Count; i++)
         {
-            uint id = member.Id.Value;
+            uint id = members[i].Id.Value;
             _partyOf.Remove(id);
             Detach(id);
             if (!OnRemovedFromParty(id, party, PartyLeaveReason.Disbanded))
@@ -652,22 +688,26 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     }
 
     /// <summary>To the longest-standing online member other than the current leader; if none is online, the leader stays.</summary>
-    private void HandOverLeadership(Party party)
+    /// <returns>Whether it passed to an online member, which sends the roster.</returns>
+    private bool HandOverLeadership(Party party)
     {
-        foreach (PartyMember member in party.Members)
+        IReadOnlyList<PartyMember> members = party.Members;
+        for (int i = 0; i < members.Count; i++)
         {
+            PartyMember member = members[i];
             if (member.Id.Value == party.Leader.Value || !_onlineCharacters.IsOnline(member.Id.Value))
                 continue;
 
             party.Leader = member.Id;
             SendRoster(party);
             SendLine(party, $"{member.Name} is now the party leader.");
-            return;
+            return true;
         }
 
         // Nobody else online. A leader who has left the party itself is replaced by the first member regardless.
-        if (party.Find(party.Leader.Value) is null && party.Members.Count > 0)
-            party.Leader = party.Members[0].Id;
+        if (party.Find(party.Leader.Value) is null && members.Count > 0)
+            party.Leader = members[0].Id;
+        return false;
     }
 
     private void ExpireInvites(DateTimeOffset now)
@@ -750,33 +790,41 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             ? (uint)(until - now).TotalMilliseconds
             : 0u;
 
-        foreach (PartyMember recipient in party.Members)
+        // Every member as every recipient sees it, but for SameInstance: filled once, not once per recipient (#973).
+        IReadOnlyList<PartyMember> members = party.Members;
+        _roster.Clear();
+        _rosterInstances.Clear();
+        for (int i = 0; i < members.Count; i++)
         {
-            if (OnlineConnection(recipient.Id.Value) is not { } connection)
+            PartyMember member = members[i];
+            ICharacter? character = OnlineConnection(member.Id.Value)?.Character;
+            if (character is not null)
+                _lastLevel[member.Id.Value] = character.Level;
+
+            if (i == _rosterEntries.Count)
+                _rosterEntries.Add(new PartyMemberDto());
+
+            PartyMemberDto entry = _rosterEntries[i];
+            entry.CharacterId = member.Id.Value;
+            entry.Name = member.Name;
+            entry.Class = member.Class;
+            entry.Level = _lastLevel.GetValueOrDefault(member.Id.Value);
+            entry.IsLeader = party.IsLeader(member.Id.Value);
+            entry.Online = character is not null;
+            _roster.Add(entry);
+            _rosterInstances.Add(character?.InstanceId);
+        }
+
+        for (int r = 0; r < members.Count; r++)
+        {
+            if (OnlineConnection(members[r].Id.Value) is not { } connection)
                 continue;
 
             Guid? recipientInstance = connection.Character?.InstanceId;
-            var members = new List<PartyMemberDto>(party.Members.Count);
-            foreach (PartyMember member in party.Members)
-            {
-                IWorldConnection? memberConnection = OnlineConnection(member.Id.Value);
-                ICharacter? character = memberConnection?.Character;
-                if (character is not null)
-                    _lastLevel[member.Id.Value] = character.Level;
+            for (int i = 0; i < _roster.Count; i++)
+                _roster[i].SameInstance = _rosterInstances[i] is { } instance && instance == recipientInstance;
 
-                members.Add(new PartyMemberDto
-                {
-                    CharacterId = member.Id.Value,
-                    Name = member.Name,
-                    Class = member.Class,
-                    Level = _lastLevel.GetValueOrDefault(member.Id.Value),
-                    IsLeader = party.IsLeader(member.Id.Value),
-                    Online = character is not null,
-                    SameInstance = character is not null && character.InstanceId == recipientInstance,
-                });
-            }
-
-            connection.Send(SPartyRosterPacket.Create(party.Id.Value, party.ExperienceMode, lockedForMs, members,
+            connection.Send(SPartyRosterPacket.Create(party.Id.Value, party.ExperienceMode, lockedForMs, _roster,
                 PacketEncoder.Shared));
         }
     }

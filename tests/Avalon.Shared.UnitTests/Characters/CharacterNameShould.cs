@@ -85,6 +85,8 @@ public class CharacterNameShould
     [InlineData("Bob", "  BOB ", true)]
     [InlineData("Bob", "Bill", false)]
     [InlineData("Bill", "Bıll", false)]
+    [InlineData("Élan", "éLAN", false)] // only ASCII letters fold, as in the key
+    [InlineData("Élan", " ÉLAN", true)]
     public void Tell_whether_two_names_are_one(string a, string b, bool same) =>
         Assert.Equal(same, CharacterName.Same(a, b));
 }

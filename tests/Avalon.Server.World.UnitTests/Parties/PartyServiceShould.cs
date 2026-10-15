@@ -151,7 +151,10 @@ public class PartyServiceShould
         Party party = _w.Parties.PartyOf(b.Id)!;
         Assert.True(party.IsLeader(b.Id));
         Assert.Contains("B is now the party leader.", c.Lines());
-        Assert.Equal(["B", "C"], c.Rosters().Last().Members.Select(m => m.Name));
+        // One roster, the handover's, which already shows the party without A: it is not sent again (#973).
+        SPartyRosterPacket roster = Assert.Single(c.Rosters());
+        Assert.Equal(["B", "C"], roster.Members.Select(m => m.Name));
+        Assert.True(roster.Members[0].IsLeader);
     }
 
     [Fact]
@@ -233,7 +236,10 @@ public class PartyServiceShould
 
         _w.Parties.CharacterOffline(a.Connection, a.Character);
         Assert.True(_w.Parties.PartyOf(b.Id)!.IsLeader(b.Id));
-        Assert.False(b.Rosters().Last().Members.Single(m => m.Name == "A").Online);
+        // One roster, the handover's, with A offline and B leading: it is not sent again (#973).
+        SPartyRosterPacket roster = Assert.Single(b.Rosters());
+        Assert.False(roster.Members.Single(m => m.Name == "A").Online);
+        Assert.True(roster.Members.Single(m => m.Name == "B").IsLeader);
 
         _w.Parties.CharacterOffline(c.Connection, c.Character);
         _w.Parties.CharacterOffline(b.Connection, b.Character);

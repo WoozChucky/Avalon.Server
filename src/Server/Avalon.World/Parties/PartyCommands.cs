@@ -159,13 +159,16 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
     public string Name => "p";
     public string[] Aliases => ["party"];
 
+    /// <summary>It reads its text from the message (<see cref="CommandText" />), never the arguments.</summary>
+    public bool ReadsRawText => true;
+
     public void Execute(CommandContext ctx, string[] args)
     {
         if (ctx.Connection.Character is not { } sender)
             return;
 
-        string message = CommandText.AfterCommandWord(ctx.Packet.Message);
-        if (message.Length == 0)
+        ReadOnlySpan<char> text = CommandText.AfterCommandWord(ctx.Packet.Message);
+        if (text.IsEmpty)
         {
             ctx.Reply("Usage: /p <message>");
             return;
@@ -186,15 +189,18 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
         ulong accountId = ctx.Connection.AccountId is { } account ? (ulong)account.Value : 0UL;
         // Encoded once, for the first member who hears it, and shared by every one who does (#875).
         OutboundPacket line = default;
-        foreach (PartyMember member in party.Members)
+        // By index: a foreach over the members' interface boxes the list's enumerator (#973).
+        IReadOnlyList<PartyMember> members = party.Members;
+        for (int i = 0; i < members.Count; i++)
         {
             // A member ignoring the sender does not hear it (#723); nobody is told.
-            if (parties.OnlineConnection(member.Id.Value) is { } target && !Ignoring.Hides(target, sender.Guid.Id))
+            if (parties.OnlineConnection(members[i].Id.Value) is { } target && !Ignoring.Hides(target, sender.Guid.Id))
             {
                 if (line.Payload is null)
                 {
-                    line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
-                        PacketEncoder.Shared, ChatChannel.Party, characterClass: sender.Class);
+                    // The one string the line makes: its text, a slice of the message until now (#973).
+                    line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, text.ToString(),
+                        ctx.Packet.DateTime, PacketEncoder.Shared, ChatChannel.Party, characterClass: sender.Class);
                 }
 
                 target.Send(line.Share());
