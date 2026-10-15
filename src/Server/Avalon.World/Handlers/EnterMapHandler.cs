@@ -429,9 +429,10 @@ public partial class EnterMapHandler(
             // Through the entity, which keeps the id it parses (#977): TransferPlayer above has set it already, so
             // nothing is formatted again.
             entity.InstanceId = targetInstance.InstanceId;
-            dbCharacter.X = spawn.x;
-            dbCharacter.Y = spawn.y;
-            dbCharacter.Z = spawn.z;
+
+            // Through the entity, which writes the row and keeps the target's spatial index where the character is
+            // (#982); the row written alone would move the character but leave its index entry where it stood.
+            entity.Position = spawn;
 
             // The saver logs a failure itself; this logs the transfer once the save has finished.
             connection.EnqueueContinuation(characterSaver.Save(connection, entity), committed =>
