@@ -94,8 +94,9 @@ public class AggroDefendScript : AiScript, IReturningHome, IAwaitsSearch
     // only in Combat or Returning): its Update is the search alone. Combat begins only from what the search finds.
     // AwaitsSearch's own condition, written out here rather than called through the interface again, and read from the
     // fields the two scripts' State setters keep rather than from boxed states: only a script that waits for its search
-    // (_idleTimerOnly) gets past the first test, and its combat script is the plain one or a sealed built-in's, neither
-    // overriding State. The detector's Searching state is SearchDueAfter's to check.
+    // (_idleTimerOnly) gets past the first test, and CreatureCombatScript.State is sealed, so its IsIdle is always
+    // current. The detector's Searching state is SearchDueAfter's to check. The scheduler relies on this answer to park a
+    // skipped creature without asking AwaitsSearch again.
     CreatureRangeDetectorScript? IAwaitsSearch.SearchAlone(TimeSpan deltaTime) =>
         _idleTimerOnly && _combat.IsIdle && _detector.SearchDueAfter(deltaTime)
             ? _detector

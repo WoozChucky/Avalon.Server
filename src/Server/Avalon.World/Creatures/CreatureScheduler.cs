@@ -23,7 +23,7 @@ namespace Avalon.World.Creatures;
 /// by its due time, by every event the instance delivers to its script (a hit, an attack that dealt nothing, a
 /// character leaving), by a new script or patrol path, and by joining the instance. Every activation (joining, a new
 /// script, a wake, a due search or time) goes through <see cref="MakeActive" />, and every wait begins in
-/// <see cref="Park" /> or <see cref="ParkForSearch" />, so a rule that holds or wakes a creature (crowd control, #770)
+/// <see cref="Park" /> or <see cref="ParkForSearch(Creature, float)" />, so a rule that holds or wakes a creature (crowd control, #770)
 /// has its places; reading the roster again (<see cref="ReadRoster" />) changes no state, it only sets each place's
 /// bit from it.
 /// </para>
@@ -288,8 +288,10 @@ internal sealed class CreatureScheduler
     /// <summary>
     /// A creature whose cohort came due, at its turn (#982): when its Update would be its search alone and no character can
     /// be within its range, the search is skipped and the creature waits again as Run leaves it after a search that found
-    /// no one (its detector's timer at zero, then <see cref="ParkForSearch" />, which nothing in between could have
-    /// changed: the script still owns its creature, which is active).
+    /// no one: its detector's timer at zero, then the cohort of timers at zero. That is what <see cref="ParkForSearch(Creature)" />
+    /// would decide, without asking again: the script still owns its creature, which is active, and SearchAlone has just
+    /// answered the question AwaitsSearch asks (waiting for its search, combat idle, detector searching; the combat state
+    /// read from the field its sealed State setter keeps), which skipping the search changes nothing of but the timer.
     /// </summary>
     private bool SkipsSearch(Creature creature, TimeSpan deltaTime)
     {
@@ -298,7 +300,7 @@ internal sealed class CreatureScheduler
             return false;
 
         detector.SkipSearch();
-        ParkForSearch(creature);
+        ParkForSearch(creature, 0f);
         return true;
     }
 
@@ -318,8 +320,14 @@ internal sealed class CreatureScheduler
     private void ParkForSearch(Creature creature)
     {
         if (creature.Schedule.Search!.AwaitsSearch(out float elapsed))
-            JoinCohort(creature, elapsed);
+            ParkForSearch(creature, elapsed);
     }
+
+    /// <summary>
+    /// A creature known to wait for its search, its detector's timer at <paramref name="elapsed" />, waits in the cohort of
+    /// that timer: the place every search wait begins, asked or, for a skipped search (#982), already known.
+    /// </summary>
+    private void ParkForSearch(Creature creature, float elapsed) => JoinCohort(creature, elapsed);
 
     /// <summary>A creature that has just run waits for what its script answered: a time, or an event.</summary>
     private void Park(Creature creature, TimeSpan wait)
