@@ -63,7 +63,8 @@ by both servers) treats what arrives then as follows (#927):
   auth flow relied on it: every close the auth server makes on purpose (a failed handshake, a client too old,
   `PostLoginGuard`, a credentials change, a kick, shutdown) is the end of that connection's conversation, and a
   refused login does not close.
-- **The frame limit still applies**: a frame over `Hosting:MaxInboundFrameSize` ends the stream as it does at any time.
+- **The frame limit still applies**: a frame over `Hosting:MaxInboundFrameSize` ends the stream as it does at any time,
+  and so does a frame not complete within `Hosting:InboundFrameTimeoutSeconds` (#938).
 - **It counts as bytes, not as a packet.** A discarded frame adds the length it declared to `network.in.bytes` and
   nothing to `network.in.packets`: its bytes were received, and no packet was. (A decoded packet's bytes are counted
   as its payload plus a nominal 10-byte header, as before.)
@@ -100,7 +101,8 @@ Not every close the world starts carries one. A connection closed for what it se
 dropped connection is: a plain packet while the world seals (`Network:PacketEncryption`, #875), and a packet arriving
 with `Network:MaxReceiveQueueDepth` already waiting for the tick (#927, [packet handlers](packet-handlers.md)). On
 either server, so is one whose frame declares more than `Hosting:MaxInboundFrameSize`
-([packet protocol](networking-packet-protocol.md#the-inbound-frame-length-limit)).
+([packet protocol](networking-packet-protocol.md#the-inbound-frame-length-limit)), and one whose started frame is not
+complete within `Hosting:InboundFrameTimeoutSeconds` ([packet protocol](networking-packet-protocol.md#the-inbound-frame-deadline)).
 
 ### Factory method
 

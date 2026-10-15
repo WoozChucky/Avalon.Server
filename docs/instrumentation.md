@@ -114,11 +114,11 @@ its address and the declared length), and nothing above Debug.
 
 | Metric | Prometheus | Measures |
 |---|---|---|
-| `network.in.protocol_kicks` | `network_in_protocol_kicks_total` | Connections closed for a frame the peer got wrong (#897, [packet handlers](packet-handlers.md)), tagged `reason`: `malformed_frame` (not a `NetworkPacket`), `sealed_before_key` (flagged `Encrypted` before the session had keys), `seal_not_authentic` (flagged `Encrypted`, and does not authenticate or is shorter than a nonce and a tag), `undecodable_payload` (not an encoding of its opcode's packet) or, on a world only, `bad_public_key` (a world that seals was sent an admission whose public key is the right length and not a P-256 point; counted by the admission, not the read loop, #878). On the world's meter (`world-server`) and on the auth server's (`auth-server`), each counting its own connections |
+| `network.in.protocol_kicks` | `network_in_protocol_kicks_total` | Connections closed for a frame the peer got wrong (#897, [packet handlers](packet-handlers.md)), tagged `reason`: `malformed_frame` (not a `NetworkPacket`), `sealed_before_key` (flagged `Encrypted` before the session had keys), `seal_not_authentic` (flagged `Encrypted`, and does not authenticate or is shorter than a nonce and a tag), `undecodable_payload` (not an encoding of its opcode's packet), `frame_timeout` (a frame started and not complete within `Hosting:InboundFrameTimeoutSeconds`, #938) or, on a world only, `bad_public_key` (a world that seals was sent an admission whose public key is the right length and not a P-256 point; counted by the admission, not the read loop, #878). On the world's meter (`world-server`) and on the auth server's (`auth-server`), each counting its own connections |
 
-`reason` takes those four values and no other: nothing a peer sends becomes a tag. Each count is one connection closed
+`reason` takes those values and no other: nothing a peer sends becomes a tag. Each count is one connection closed
 and one Warning (the connection, its account once it has one, its address, how many packets it had delivered and, but
-for `malformed_frame`, the opcode), without the exception. Each
+for `malformed_frame` and `frame_timeout`, the opcode), without the exception. Each
 was an Error with a stack trace, but a payload cut short, which was reported at Debug as the peer having closed the
 connection. A world's close for a packet that arrives unsealed while it seals
 (`Network:PacketEncryption`) is not counted here; it writes its own Warning. Nor is an opcode the server has no packet
