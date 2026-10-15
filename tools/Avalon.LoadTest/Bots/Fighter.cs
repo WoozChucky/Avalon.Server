@@ -99,7 +99,8 @@ public readonly record struct FighterStep(
 /// answers an input sent since, the fighter stands, and reads neither its position nor a wall from them.
 /// </para>
 /// <para>
-/// <see cref="Step"/>, <see cref="Reset"/> and the properties the driver reads run on the driver's thread only;
+/// <see cref="Step"/>, <see cref="Reset"/> and the properties the driver reads run only on the thread of the one driver
+/// loop that drives the fighter's bot;
 /// <see cref="OnTransition"/>, <see cref="OnCastRefused"/> and <see cref="OnDamaged"/> on the connection's read loop;
 /// <see cref="TakeReconnect"/> on the bot's life loop. A step allocates nothing.
 /// </para>

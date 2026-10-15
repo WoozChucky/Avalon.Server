@@ -103,13 +103,14 @@ public static class CheckCommand
                 BehaviourKind.Fighter => "forest",
                 _ => "idle",
             };
-            (double latenessP95, CheckTripsVerdict trips) = options.Behaviour == BehaviourKind.Fighter
-                ? await TripAsync(bots, options.ForestTime, ct)
-                : (await DriveAsync(bots[0], step, ct), CheckTripsVerdict.Passed);
+            (DriverLateness lateness, CheckTripsVerdict trips) = options.Behaviour == BehaviourKind.Fighter
+                ? await TripAsync(bots, options.ForestTime, options.DriverLoops, ct)
+                : (await DriveAsync(bots[0], step, options.DriverLoops, ct), CheckTripsVerdict.Passed);
             StepClientValues values = metrics.TakeWindow();
             Console.WriteLine(Invariant(
                 $"  ack        p50 {Ms(values.AckP50)}, p95 {Ms(values.AckP95)}, p99 {Ms(values.AckP99)} over {values.AckSamples} inputs"));
-            Console.WriteLine(Invariant($"  driver     lateness p95 {Ms(latenessP95)}"));
+            Console.WriteLine(Invariant(
+                $"  driver     lateness p95 {Ms(lateness.P95Ms)} over {lateness.Loops} loops, worst loop {Ms(lateness.WorstLoopP95Ms)}"));
             Console.WriteLine($"  encryption {BotMetrics.EncryptionText(metrics.Admissions)}");
             if (options.Behaviour == BehaviourKind.Fighter) PrintTrip(values);
             if (values.AckSamples == 0)
@@ -181,12 +182,13 @@ public static class CheckCommand
 
     /// <summary>
     /// Runs the input driver over this one bot for <see cref="s_driveTime"/>, then waits for the last acks. Returns the
-    /// driver's lateness p95; a walker also prints how far it got from where it started.
+    /// driver's lateness; a walker also prints how far it got from where it started. One bot needs one loop: the loops
+    /// asked for are capped at it, so the lateness is that of the loop that drives it, not of loops with no bot.
     /// </summary>
-    private static async Task<double> DriveAsync(Bot bot, string step, CancellationToken ct)
+    private static async Task<DriverLateness> DriveAsync(Bot bot, string step, int loops, CancellationToken ct)
     {
         Bot[] inWorld = [bot];
-        var driver = new InputDriver(() => inWorld);
+        var driver = new InputDriver(() => inWorld, Math.Min(loops, inWorld.Length));
         BotAck from = bot.LastAck;
         long start = Stopwatch.GetTimestamp();
 
@@ -198,11 +200,11 @@ public static class CheckCommand
             if (await Task.WhenAny(driving, closed) == closed)
             {
                 await stop.CancelAsync();
-                await driving;
+                await DriverEndedAsync(driving, step);
                 throw new BotStepException(step, $"{step}:closed", "the world closed the connection while the bot was driven");
             }
 
-            await driving;
+            await DriverEndedAsync(driving, step);
         }
 
         ct.ThrowIfCancellationRequested();
@@ -215,19 +217,35 @@ public static class CheckCommand
             Console.WriteLine(Invariant($"  walked     {moved:0.0} m from the spawn point (straight line)"));
         }
 
-        return driver.LatenessP95Ms();
+        return driver.Lateness();
+    }
+
+    /// <summary>
+    /// Awaits the driver's end; a loop's failure fails the check at <paramref name="step"/> (<c>&lt;step&gt;:driver</c>)
+    /// with what it threw, rather than ending the command with an unhandled exception.
+    /// </summary>
+    private static async Task DriverEndedAsync(Task driving, string step)
+    {
+        try
+        {
+            await driving;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            throw new BotStepException(step, $"{step}:driver", $"the input driver failed: {error.Message}");
+        }
     }
 
     /// <summary>
     /// Runs the input driver over the fighters until each one is done (<see cref="CheckTrips"/>: a trip completed or
     /// failed, or it died on each of its trips), or until one is done without a completed trip, which decides the
-    /// verdict; it prints each death, then waits for the last acks. Returns the
-    /// driver's lateness p95 and the trips' verdict. A connection the world closes, or a member not done within
-    /// <see cref="CheckTrips.MostTrips"/> times <c>--forest-time</c>, the most its exit budget can be and
-    /// <see cref="s_tripMargin"/>, fails the check.
+    /// verdict; it prints each death, then waits for the last acks. Returns the driver's lateness (its loops capped at
+    /// one per fighter) and the trips' verdict; a driver that fails fails the check at once. A connection the world
+    /// closes, or a member not done within <see cref="CheckTrips.MostTrips"/> times <c>--forest-time</c>, the most its
+    /// exit budget can be and <see cref="s_tripMargin"/>, fails the check.
     /// </summary>
-    private static async Task<(double LatenessP95, CheckTripsVerdict Trips)> TripAsync(Bot[] bots, TimeSpan forestTime,
-        CancellationToken ct)
+    private static async Task<(DriverLateness Lateness, CheckTripsVerdict Trips)> TripAsync(Bot[] bots, TimeSpan forestTime,
+        int loops, CancellationToken ct)
     {
         const string Step = "forest";
         var trips = new CheckTrips(bots.Length);
@@ -249,7 +267,7 @@ public static class CheckCommand
             fighter.ReadyToLeaveTown = now => trips.MaySetOut(member) && (party is null || party(now));
         }
 
-        var driver = new InputDriver(() => bots);
+        var driver = new InputDriver(() => bots, Math.Min(loops, bots.Length));
         TimeSpan limit = CheckTrips.MostTrips * (forestTime + Fighter.MostExitBudget(forestTime) + s_tripMargin);
         long start = Stopwatch.GetTimestamp();
 
@@ -258,9 +276,9 @@ public static class CheckCommand
         {
             Task driving = driver.RunAsync(stop.Token);
             Task closed = Task.WhenAny(bots.Select(bot => bot.Closed));
-            Task first = await Task.WhenAny(all, closed, Task.Delay(limit, stop.Token));
+            Task first = await Task.WhenAny(all, closed, driving, Task.Delay(limit, stop.Token));
             await stop.CancelAsync();
-            await driving;
+            await DriverEndedAsync(driving, Step);
             ct.ThrowIfCancellationRequested();
             if (!all.IsCompleted)
             {
@@ -274,7 +292,7 @@ public static class CheckCommand
         await Task.Delay(s_ackDrain, ct);
         if (bots.Length == 1) bots[0].StepTimed?.Invoke(Step, Stopwatch.GetElapsedTime(start));
         else Console.WriteLine(Invariant($"  {Step,-10} {Stopwatch.GetElapsedTime(start).TotalMilliseconds,8:0} ms (every member's trips)"));
-        return (driver.LatenessP95Ms(), trips.Verdict);
+        return (driver.Lateness(), trips.Verdict);
     }
 
     /// <summary>What a fighter's trip counted.</summary>

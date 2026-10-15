@@ -22,8 +22,9 @@ public enum CheckTripsVerdict
 /// one failed, or after its last trip; done, it stands in town. The check passes once every member completed a trip.
 /// </summary>
 /// <remarks>
-/// <see cref="Ended"/> and <see cref="MaySetOut"/> run on the input driver's thread (where a fighter's trip ends and its
-/// gate is asked); <see cref="Verdict"/> is read once <see cref="AllDone"/> has completed, or after the driver stopped.
+/// <see cref="Ended"/> and <see cref="MaySetOut"/> run on the input driver's loops (where a fighter's trip ends and its
+/// gate is asked), a party's members on different loops' threads, so every member is read and written under one lock;
+/// <see cref="Verdict"/> is read once <see cref="AllDone"/> has completed, or after the driver stopped.
 /// </remarks>
 public sealed class CheckTrips
 {
@@ -33,6 +34,7 @@ public sealed class CheckTrips
     private readonly int[] _trips;
     private readonly TripEnd?[] _done;
     private readonly TaskCompletionSource _allDone = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly Lock _lock = new();
     private int _doneCount;
 
     public CheckTrips(int members)
@@ -56,28 +58,43 @@ public sealed class CheckTrips
     {
         get
         {
-            if (_done.Contains(TripEnd.Failed)) return CheckTripsVerdict.Failed;
-            if (_done.Contains(TripEnd.Died)) return CheckTripsVerdict.DiedThrice;
-            return _doneCount < _done.Length ? CheckTripsVerdict.Pending : CheckTripsVerdict.Passed;
+            lock (_lock)
+            {
+                if (_done.Contains(TripEnd.Failed)) return CheckTripsVerdict.Failed;
+                if (_done.Contains(TripEnd.Died)) return CheckTripsVerdict.DiedThrice;
+                return _doneCount < _done.Length ? CheckTripsVerdict.Pending : CheckTripsVerdict.Passed;
+            }
         }
     }
 
     /// <summary>Whether <paramref name="member"/> may set out on a trip: it is not done.</summary>
-    public bool MaySetOut(int member) => _done[member] is null;
+    public bool MaySetOut(int member)
+    {
+        lock (_lock)
+            return _done[member] is null;
+    }
 
     /// <summary>How many trips <paramref name="member"/> has ended.</summary>
-    public int Trips(int member) => _trips[member];
+    public int Trips(int member)
+    {
+        lock (_lock)
+            return _trips[member];
+    }
 
     /// <summary>A trip of <paramref name="member"/> ended; returns whether it goes again (it died with trips left).</summary>
     public bool Ended(int member, TripEnd end)
     {
-        if (_done[member] is not null) return false;
+        lock (_lock)
+        {
+            if (_done[member] is not null) return false;
 
-        _trips[member]++;
-        if (end == TripEnd.Died && _trips[member] < MostTrips) return true;
+            _trips[member]++;
+            if (end == TripEnd.Died && _trips[member] < MostTrips) return true;
 
-        _done[member] = end;
-        if (++_doneCount == _done.Length || end != TripEnd.Completed) _allDone.TrySetResult();
-        return false;
+            _done[member] = end;
+            // Its continuations run elsewhere (RunContinuationsAsynchronously): nothing runs under the lock.
+            if (++_doneCount == _done.Length || end != TripEnd.Completed) _allDone.TrySetResult();
+            return false;
+        }
     }
 }

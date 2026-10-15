@@ -19,9 +19,10 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="SignInConcurrency">Sign-ins at once, the runner's and the refresher's together.</param>
 /// <param name="ForestTime">How long a fighter's trip stays in the forest (<c>--forest-time</c>).</param>
 /// <param name="PartySize">The fighters' party size (<c>--party-size</c>), 1 (solo) to <see cref="BotParty.MaxSize"/>.</param>
+/// <param name="DriverLoops">The input driver's loops (<c>--driver-loops</c>), each on its own thread, sharing the bots out.</param>
 public sealed record RampOptions(
     string Mix, int Start, int Step, TimeSpan Hold, int Max, IReadOnlyList<Limit> Limits, string? Dial, Uri Prometheus,
-    string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize);
+    string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops);
 
 /// <summary>One held step: what was there, what was measured, and the decision on it.</summary>
 /// <param name="Index">The step's number from 1; a re-hold is a step of its own at the same count.</param>
@@ -31,7 +32,7 @@ public sealed record RampOptions(
 /// </param>
 /// <param name="ByBehaviour">The live bots by behaviour.</param>
 /// <param name="GeneratorCpu">The bot PC's CPU use over the judged window, a fraction of its cores.</param>
-/// <param name="GeneratorLagP95Ms">The input driver's lateness p95 over the judged window.</param>
+/// <param name="GeneratorLagP95Ms">The input driver's lateness p95 over the judged window, the steps of every loop together.</param>
 public sealed record StepRecord(
     int Index, int Bots, IReadOnlyDictionary<BehaviourKind, int> ByBehaviour, ServerValues Server, StepClientValues Client,
     double GeneratorCpu, double GeneratorLagP95Ms, Decision Decision)
@@ -47,6 +48,19 @@ public sealed record StepRecord(
 
     /// <summary>When the judged window ended, on the bot PC's clock.</summary>
     public DateTimeOffset WindowEnd { get; init; }
+
+    /// <summary>
+    /// How busy the input driver's loops were over the judged window (<see cref="InputDriver.Busy"/>); null when no loop
+    /// stepped. For reading only: no limit is judged on it.
+    /// </summary>
+    public DriverBusy? DriverBusy { get; init; }
+
+    /// <summary>
+    /// The highest of the input driver's loops' own lateness p95 over the judged window (<see cref="InputDriver.Lateness"/>),
+    /// beside <see cref="GeneratorLagP95Ms"/>, which is over every loop's steps together; NaN when unknown. For reading
+    /// only: no limit is judged on it.
+    /// </summary>
+    public double DriverWorstLoopLagP95Ms { get; init; } = double.NaN;
 }
 
 /// <summary>How much of the check that the world server did not restart during the ramp could be made.</summary>
@@ -538,7 +552,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         using var api = new ApiClient(run.Api, s_apiTimeout);
         var metrics = new BotMetrics();
         using var signIns = new SemaphoreSlim(options.SignInConcurrency);
-        var driver = new InputDriver(Snapshot);
+        var driver = new InputDriver(Snapshot, options.DriverLoops);
         var refresher = new ContextRefresher(api, Snapshot, metrics, signIns, _signOuts);
         using var background = new CancellationTokenSource();
         using var refreshes = new CancellationTokenSource();
@@ -584,7 +598,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
                     if (nextNeed > 0) presign = SignInAsync(nextNeed, api, metrics, signIns, presigning.Token);
                 }
 
-                StepRecord step = await HoldAsync(steps.Count + 1, prometheus, playersBefore, metrics, driver, decider, ct);
+                StepRecord step = await HoldAsync(steps.Count + 1, prometheus, playersBefore, metrics, driver, driving, decider, ct);
                 steps.Add(step);
                 AddCounts(signInFailures, step.Client.SignInFailures);
                 signOutFailures += step.Client.SignOutFailures;
@@ -1010,24 +1024,27 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     /// <summary>
     /// Holds a step: the settle, then the judged window, at whose end the bots' window, the bot PC's CPU and lateness and
     /// Prometheus are read and the decider asked. The settle's entry, leave, sign-in, sign-out and disconnect counts
-    /// count towards the step; its acks do not.
+    /// count towards the step; its acks do not. A driver that fails (<paramref name="driving"/> ends) ends the hold at
+    /// once, and the ramp with it, as an error: its bots get no input any more.
     /// </summary>
     private async Task<StepRecord> HoldAsync(int index, PrometheusClient prometheus, int playersBefore, BotMetrics metrics,
-        InputDriver driver, RampDecider decider, CancellationToken ct)
+        InputDriver driver, Task driving, RampDecider decider, CancellationToken ct)
     {
         TimeSpan window = JudgedWindow(options.Hold);
-        await Task.Delay(options.Hold - window, ct);
+        await WhileDrivingAsync(Task.Delay(options.Hold - window, ct), driving);
         StepClientValues settle = metrics.TakeWindow();
         driver.ResetWindow();
         using var process = Process.GetCurrentProcess();
         TimeSpan cpuBefore = process.TotalProcessorTime;
         long windowStart = Stopwatch.GetTimestamp();
 
-        await Task.Delay(window, ct);
+        await WhileDrivingAsync(Task.Delay(window, ct), driving);
 
         DateTimeOffset end = DateTimeOffset.UtcNow;
         StepClientValues judged = metrics.TakeWindow();
-        double lag = driver.LatenessP95Ms();
+        DriverLateness lateness = driver.Lateness();
+        double lag = lateness.P95Ms;
+        DriverBusy? busy = driver.Busy();
         process.Refresh();
         double cpu = (process.TotalProcessorTime - cpuBefore) / (Stopwatch.GetElapsedTime(windowStart) * Environment.ProcessorCount);
         Bot[] live = [.. _added.Where(bot => bot.State != BotState.Stopped)];
@@ -1055,7 +1072,24 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             InWorld = inWorld,
             PlayersOnlineAdded = playersAdded,
             WindowEnd = end,
+            DriverBusy = busy,
+            DriverWorstLoopLagP95Ms = lateness.WorstLoopP95Ms,
         };
+    }
+
+    /// <summary>
+    /// Waits for <paramref name="wait"/>, unless the input driver ends first, which it does only when a loop failed
+    /// before the ramp's stop: that is thrown as the ramp's error, with what the loop threw.
+    /// </summary>
+    private static async Task WhileDrivingAsync(Task wait, Task driving)
+    {
+        if (await Task.WhenAny(wait, driving) == driving)
+        {
+            Exception cause = driving.Exception?.InnerException ?? new InvalidOperationException("it stopped");
+            throw new InvalidOperationException($"the input driver failed: {cause.Message}", cause);
+        }
+
+        await wait;
     }
 
     /// <summary>
@@ -1199,7 +1233,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     }
 
     /// <summary>
-    /// The console line of a step: <c>step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  → pass</c>; with fighters,
+    /// The console line of a step: <c>step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  lag 0.4 ms (worst loop 0.9)  → pass</c>;
+    /// the driver's lateness p95 over every loop's steps, and the worst loop's own; with fighters,
     /// their count, forest instances per tick and trips before the verdict (<c>fighters 30  forest 9.8  trips 12</c>).
     /// </summary>
     private string StepLine(StepRecord step)
@@ -1210,7 +1245,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             ? ""
             : Invariant($"  fighters {fighters}  forest {Number(step.Server.InstancesByMap.Forest, "0.0")}  trips {step.Client.ForestTrips}");
         return Invariant(
-            $"step {step.Index}  bots {step.Bots}  tick p99 {Number(step.Server.TickP99Ms, "0.0")} ms  ack p95 {Number(step.Client.AckP95, "0")} ms  ws {Percent(step.Server.WorkingSetFraction)}{fighting}  {arrow} {Verdict(step, options.Limits)}");
+            $"step {step.Index}  bots {step.Bots}  tick p99 {Number(step.Server.TickP99Ms, "0.0")} ms  ack p95 {Number(step.Client.AckP95, "0")} ms  ws {Percent(step.Server.WorkingSetFraction)}  lag {Number(step.GeneratorLagP95Ms, "0.0")} ms (worst loop {Number(step.DriverWorstLoopLagP95Ms, "0.0")}){fighting}  {arrow} {Verdict(step, options.Limits)}");
     }
 
     /// <summary>A step's verdict in words: pass, a re-hold and why, or the end.</summary>
