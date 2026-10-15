@@ -22,4 +22,12 @@ internal interface IAwaitsSearch
 
     /// <summary>Puts the detector's timer back to <paramref name="elapsed" />, where the per-tick visits would have it.</summary>
     void ResumeSearchWait(float elapsed);
+
+    /// <summary>
+    /// The detector, when an Update of <paramref name="deltaTime" /> now would be its search and nothing else: the script
+    /// awaits its search (<see cref="AwaitsSearch" />) and the tick brings the detector's timer to its interval. Null
+    /// otherwise. The scheduler may then skip a search that could find no one (#982), leaving the script as a search
+    /// that found no one leaves it.
+    /// </summary>
+    CreatureRangeDetectorScript? SearchAlone(TimeSpan deltaTime);
 }

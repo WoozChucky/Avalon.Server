@@ -231,7 +231,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         PartyId? ownerPartyId = null)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
-        _scheduler = new CreatureScheduler(_creatures);
+        _members = SpatialGrid.For(layout);
+        _scheduler = new CreatureScheduler(_creatures, this, _members);
         _world = world;
         InstanceId = Guid.NewGuid();
         TemplateId = templateId;
@@ -241,7 +242,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         AllowedCharacters = ownerCharacterId.HasValue ? new[] { ownerCharacterId.Value } : Array.Empty<uint>();
         Layout = layout;
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
-        _members = SpatialGrid.For(layout);
 
         // The layout's packet entries (#883), here rather than at the first arrival: an instance is built off the
         // tick, and the first character to arrive should cost the tick what every other one does. The chunk library
@@ -436,6 +436,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         foreach (ICreature creature in _creatures.Values)
             _scheduler.Left(creature);
     }
+
+    /// <summary>
+    /// Runs every due creature's search, as before #982, rather than skipping the ones no character can be within range
+    /// of: the reference the filter is compared against. For tests only; World-side and internal, so reached by name.
+    /// </summary>
+    internal void SearchEveryDueCreature() => _scheduler.SearchEveryDueCreature();
 
     /// <summary>What every creature's maximum health is multiplied by now: 1 outside a party instance.</summary>
     public double HealthFactor => _healthFactor;
