@@ -8,6 +8,7 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// The read loop's framing alone: <see cref="PacketStream.EnumerateRawFramesAsync(int, int, TimeSpan, TimeProvider, CancellationToken)" /> over frames laid back to back in
 /// memory, with the length check every frame gets (<c>Hosting:MaxInboundFrameSize</c>). No socket, TLS, parsing or
 /// decoding. An 80-byte frame has a one-byte length prefix and a 300-byte one two; both are sizes a client sends.
+/// <see cref="Deadline" /> runs it with and without the deadline for a started frame (#938), in the same build.
 /// </summary>
 [MemoryDiagnoser]
 public class PacketStreamBenchmarks
@@ -16,14 +17,20 @@ public class PacketStreamBenchmarks
     private const int ReadBuffer = 4096;
     private const int MaxFrame = 16_384;
 
-    // The deadline for a started frame, as a server's read loop runs it: a 4 KiB read ends mid-frame, so frames here
-    // arrive in pieces as they do off a socket, and each such frame starts and stops the clock (#938).
+    // The deadline for a started frame, as a server's read loop runs it (#938).
     private static readonly TimeSpan s_frameTimeout = TimeSpan.FromSeconds(HostingConfiguration.DefaultInboundFrameTimeoutSeconds);
     private MemoryStream _wire = null!;
     private PacketStream _stream = null!;
 
     [Params(80, 300)]
     public int FrameBytes { get; set; }
+
+    /// <summary>
+    /// Whether the read loop times a started frame, as a server's does (#938), or does not, as it did before. A 4 KiB
+    /// read ends mid-frame, so with it on, the frame cut by each read starts and stops the clock.
+    /// </summary>
+    [Params(false, true)]
+    public bool Deadline { get; set; }
 
     [GlobalSetup]
     public void Setup()
@@ -56,8 +63,10 @@ public class PacketStreamBenchmarks
     {
         _wire.Position = 0;
         long bytes = 0;
-        await foreach (ReadOnlyMemory<byte> frame in _stream.EnumerateRawFramesAsync(ReadBuffer, MaxFrame, s_frameTimeout,
-                           TimeProvider.System))
+        IAsyncEnumerable<ReadOnlyMemory<byte>> frames = Deadline
+            ? _stream.EnumerateRawFramesAsync(ReadBuffer, MaxFrame, s_frameTimeout, TimeProvider.System)
+            : _stream.EnumerateRawFramesAsync(ReadBuffer, MaxFrame);
+        await foreach (ReadOnlyMemory<byte> frame in frames)
         {
             bytes += frame.Length;
         }

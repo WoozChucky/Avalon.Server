@@ -1455,6 +1455,9 @@ spread of 2 to 4 ns inside the run against 0.02 to 0.7 ns otherwise).
   server has no packet type for is dropped there), and catch clauses that cost nothing until a frame is refused.
   It is still not benchmarked as a loop; what it calls per frame is, under
   [the read path's refusals](#results--the-read-paths-refusals-897-2026-10-13).
+- With #938 the framing times a frame that arrives in pieces (`Hosting:InboundFrameTimeoutSeconds`,
+  [packet protocol](networking-packet-protocol.md#the-inbound-frame-deadline)). The benchmark's `Deadline` arm runs it
+  with the deadline and without it in the same build; its figures are owed, not yet measured.
 
 ### Navmesh bake — `navmesh-bake` (#880, #896)
 
