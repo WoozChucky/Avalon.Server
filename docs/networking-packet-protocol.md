@@ -237,8 +237,8 @@ whole tick is what the 60 Hz budget (16,667 µs, a constant on both ends) holds.
 two timestamps the tick already takes for its own histogram, not only under tracing; the tick queues the ping with the
 figure it holds, which is at most one window old. **0 means not reported**: no window has closed yet (the ping queued
 on a world's first second, the handshake ping of a world that just started), or a server from before this field; a
-measured mean is never 0. A client keeps its dash for 0. The field costs 2 to 4 bytes per ping (2,000 µs is 3 bytes,
-16,667 µs is 4), and nothing when 0.
+measured mean is never 0. A client keeps its dash for 0. The field costs 2 to 4 bytes per ping for any mean under
+2.1 s (2,000 µs is 3 bytes, 16,667 µs is 4), 5 or 6 bytes for a stall longer than that, and nothing when 0.
 
 **What a client must do.** Echo `ServerTimestamp` unchanged, answer each ping once, and send no other pong: a pong
 that echoes anything else uses up that ping's one answer, and the true echo sent after it is dropped. Answer as it
