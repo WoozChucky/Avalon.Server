@@ -139,7 +139,12 @@ public class WorldServerBarrierTickShould : IDisposable
     {
         IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         var check = new TaskCompletionSource<WorldEntryDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
-        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(check.Task);
+        var asked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            asked.TrySetResult();
+            return check.Task;
+        });
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
             TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
@@ -151,8 +156,10 @@ public class WorldServerBarrierTickShould : IDisposable
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
         server.Tick();
-        Assert.True(SpinWait.SpinUntil(() => gate.ReceivedCalls().Any(c =>
-            c.GetMethodInfo().Name == nameof(IWorldEntryGate.CheckAsync)), TimeSpan.FromSeconds(5)));
+        // The check is asked on the thread pool, off the tick, whenever a worker is free: a test run can hold every
+        // worker for seconds (#960), so this waits for the call itself, without holding a thread, and the limit is
+        // only on a hang (#1019).
+        await asked.Task.WaitAsync(TimeSpan.FromSeconds(30));
         check.SetResult(new WorldEntryDecision(true, DateTime.MaxValue));
         await Task.Delay(100);
         coordinator.ApplyCommitted(new WorldMaintenanceState(true, 2, DateTime.UtcNow));
