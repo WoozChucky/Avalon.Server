@@ -85,11 +85,19 @@ public static class TickThreadPlacement
             return false;
         }
 
-        if (!TryPlan(target, allowed, os.CoreSiblings(target), out IReadOnlySet<int> reserved, out IReadOnlySet<int> others,
+        IReadOnlySet<int>? siblings = os.CoreSiblings(target);
+        if (!TryPlan(target, allowed, siblings, out IReadOnlySet<int> reserved, out IReadOnlySet<int> others,
                 out string? refusal))
         {
             logger.LogWarning("The tick thread was not pinned: {Refusal}; it runs unpinned", refusal);
             return false;
+        }
+
+        if (siblings is null)
+        {
+            logger.LogWarning(
+                "The hyperthread siblings of CPU {Cpu} could not be read; only that CPU is kept free of the world's other threads",
+                target);
         }
 
         // Read before anything changes, so a failure to read it leaves every thread as it was.

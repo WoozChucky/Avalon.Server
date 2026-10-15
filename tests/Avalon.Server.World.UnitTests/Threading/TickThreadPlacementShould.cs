@@ -109,15 +109,17 @@ public class TickThreadPlacementShould
     /// <summary>
     /// Once the tick is on its CPU it stays pinned, whatever happens to the rest, and what could not be done is one
     /// warning: the threads could not be listed; a thread that took the main thread's old CPUs back after being moved,
-    /// twice (moved again until a pass moves nothing) or every time (the passes give up, with a warning).
+    /// twice (moved again until a pass moves nothing) or every time (the passes give up, with a warning); siblings that
+    /// cannot be read, so only the CPU itself is reserved.
     /// </summary>
     [Theory]
     [InlineData("thread list fails", 1)]
     [InlineData("late thread reverts twice", 0)]
     [InlineData("late thread always reverts", 1)]
+    [InlineData("siblings unreadable", 1)]
     public void Keep_the_tick_pinned_and_warn_when_the_rest_is_incomplete(string situation, int warnings)
     {
-        var os = new FakeCpus("8,20")
+        var os = new FakeCpus(situation == "siblings unreadable" ? null : "8,20")
         {
             ListFails = situation == "thread list fails",
             LateReverts = situation switch
