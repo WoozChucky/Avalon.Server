@@ -307,9 +307,9 @@ public sealed class PlaytestWorldAdmissionShould
             });
             IGameplayFenceRepository gameplay = Substitute.For<IGameplayFenceRepository>();
             repositories.GameplayFences(world.Id).Returns(gameplay);
-            gameplay.AdvanceAsync(Arg.Any<GameplayWriteAuthority>(), false, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
-            gameplay.ActivateAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
-            gameplay.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+            gameplay.AdvanceAsync(Arg.Any<GameplayWriteAuthority>(), false, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => call.ArgAt<DateTime>(2));
+            gameplay.ActivateAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => call.ArgAt<DateTime>(1));
+            gameplay.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => call.ArgAt<DateTime>(1));
             Tickets = new(store, crypto, Authorization, sessions, Allocator, options, _clock, applications);
             _fences = new(sessions, Authorization, repositories, accounts, workloads, _clock, applications);
         }

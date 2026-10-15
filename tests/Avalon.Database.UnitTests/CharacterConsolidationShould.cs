@@ -72,8 +72,8 @@ public sealed class CharacterConsolidationShould
         var old = new GameplayWriteAuthority(_source, Guid.NewGuid(), 1);
         var fences = new GameplayFenceRepository(database, _clock);
         DateTime until = _clock.GetUtcNow().UtcDateTime.AddSeconds(45);
-        Assert.True(await fences.AdvanceAsync(old, false, until, CancellationToken.None));
-        Assert.True(await fences.ActivateAsync(old, until, CancellationToken.None));
+        Assert.NotNull(await fences.AdvanceAsync(old, false, until, CancellationToken.None));
+        Assert.NotNull(await fences.ActivateAsync(old, until, CancellationToken.None));
         var repository = new CharacterConsolidationRepository(database, _clock);
         Assert.True(await repository.PrepareAsync(_operation, _source, _target, CancellationToken.None));
         Assert.Equal("WAITING_FOR_SESSION", (await repository.TransferAsync(_operation, _source, _target, CancellationToken.None)).Error);

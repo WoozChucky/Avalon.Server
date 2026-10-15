@@ -33,13 +33,13 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
             return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         }
 
-        if (!await worlds.GameplayFences(new WorldId(head.WorldId)).RenewAsync(new(accountId, sessionId, fence), until, cancellationToken))
+        if (await worlds.GameplayFences(new WorldId(head.WorldId)).RenewAsync(new(accountId, sessionId, fence), until, cancellationToken) is not { } guarded)
             return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
         read = await ReadAsync(serverId, accountId, sessionId, fence, cancellationToken);
         if (read.Unavailable) return Unavailable;
         valid = read.Valid;
         return valid is { } current && current.Head.State == GameSessionState.Active
-            ? Reply(current.Head, current.Root) : GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
+            ? Reply(current.Head, current.Root, guarded) : GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
     }
     public async Task<GameSessionLeaseReply> EndAsync(string serverId, AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken)
     {
@@ -69,19 +69,20 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         if (head.State == GameSessionState.Pending)
         {
             if (head.PreviousWorldId is { } previous && previous != head.WorldId &&
-                !await worlds.GameplayFences(new WorldId(previous)).AdvanceAsync(authority, true, until, cancellationToken))
+                await worlds.GameplayFences(new WorldId(previous)).AdvanceAsync(authority, true, until, cancellationToken) is null)
             {
                 return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
             }
 
-            if (!await worlds.GameplayFences(new WorldId(head.WorldId)).AdvanceAsync(authority, false, until, cancellationToken))
+            // The target guard's own clock caps its end (#1009): the session activates with that end, never a later one.
+            if (await worlds.GameplayFences(new WorldId(head.WorldId)).AdvanceAsync(authority, false, until, cancellationToken) is not { } held)
                 return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
             // An epoch/recovery/ban change during either world barrier must not activate SQL authority.
             read = await ReadAsync(serverId, accountId, sessionId, fence, cancellationToken);
             if (read.Unavailable) return Unavailable;
             if (read.Valid is null)
                 return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
-            if (!await sessions.TryActivateAsync(accountId, sessionId, fence, Now, until, cancellationToken))
+            if (!await sessions.TryActivateAsync(accountId, sessionId, fence, Now, held, cancellationToken))
                 return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         }
         // Recover a crash after SQL activation by completing its same target guard, never a new reservation.
@@ -90,13 +91,13 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         valid = read.Valid;
         if (valid is null || valid.Value.Head.State != GameSessionState.Active) return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         (head, context, root) = valid.Value;
-        if (!await worlds.GameplayFences(new WorldId(head.WorldId)).ActivateAsync(authority, head.LeaseUntil, cancellationToken))
+        if (await worlds.GameplayFences(new WorldId(head.WorldId)).ActivateAsync(authority, head.LeaseUntil, cancellationToken) is not { } guarded)
             return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
         read = await ReadAsync(serverId, accountId, sessionId, fence, cancellationToken);
         if (read.Unavailable) return Unavailable;
         valid = read.Valid;
         return valid is { } current && current.Head.State == GameSessionState.Active
-            ? Reply(current.Head, current.Root) : GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
+            ? Reply(current.Head, current.Root, guarded) : GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
     }
     /// <summary>A database outage while checking the session's context: the world keeps its lease and asks again.</summary>
     private static GameSessionLeaseReply Unavailable => GameSessionLeaseReply.Failure(GameAuthErrors.ServiceUnavailable);
@@ -138,7 +139,12 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
     }
     private static DateTime Deadline(GameContextRecord context) => GameContextAuthorizationWindow.Deadline(context)!.Value;
     private static DateTime Min(params DateTime[] values) => values.Min();
-    private static GameSessionLeaseReply Reply(GameSession head, Account root) => new()
+    /// <summary>
+    /// The active reply. Its lease ends at the earlier of the session's end and the end the target guard holds: the
+    /// guard's end is capped on the characters database's clock, so the world is never given a lease that outlasts the
+    /// guard its final save needs (#1009).
+    /// </summary>
+    private static GameSessionLeaseReply Reply(GameSession head, Account root, DateTime guarded) => new()
     {
         State = GameAuthStates.Active,
         AccountId = head.AccountId.Value.ToString(CultureInfo.InvariantCulture),
@@ -150,7 +156,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         AccessLevel = (ushort)root.AccessLevel,
         CredentialsVersion = head.CredentialsVersion,
         SessionEpoch = head.SessionEpoch.ToString(CultureInfo.InvariantCulture),
-        LeaseUntil = head.LeaseUntil,
+        LeaseUntil = Min(head.LeaseUntil, guarded),
         AuthorizationUntil = head.LicenseUntil,
     };
 }

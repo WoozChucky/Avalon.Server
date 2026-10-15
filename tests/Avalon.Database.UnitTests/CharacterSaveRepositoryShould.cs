@@ -245,8 +245,8 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         context.Characters.Add(row);
         await context.SaveChangesAsync();
         var fences = new GameplayFenceRepository(_database);
-        Assert.True(await fences.AdvanceAsync(s_authority, false, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
-        Assert.True(await fences.ActivateAsync(s_authority, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
+        Assert.NotNull(await fences.AdvanceAsync(s_authority, false, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
+        Assert.NotNull(await fences.ActivateAsync(s_authority, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
         context.Entry(row).State = EntityState.Detached;
         return row;
     }

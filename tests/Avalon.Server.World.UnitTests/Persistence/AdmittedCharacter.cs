@@ -18,8 +18,8 @@ internal static class AdmittedCharacter
         var authority = new GameplayWriteAuthority(accountId, head is { FencingToken: > 0 } ? head.GameSessionId : Guid.NewGuid(), head is { FencingToken: > 0 } ? head.FencingToken : 1);
         if (head is null || head.FencingToken == 0)
         {
-            Assert.True(await fences.AdvanceAsync(authority, false, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
-            Assert.True(await fences.ActivateAsync(authority, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
+            Assert.NotNull(await fences.AdvanceAsync(authority, false, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
+            Assert.NotNull(await fences.ActivateAsync(authority, DateTime.UtcNow.AddSeconds(44), CancellationToken.None));
         }
         character.BindGameplayAuthority(authority);
     }

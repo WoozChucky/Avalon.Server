@@ -23,12 +23,12 @@ public sealed class GameplayFenceShould
         var replacement = new GameplayWriteAuthority(account, Guid.NewGuid(), 2);
         var fences = new GameplayFenceRepository(database, _clock);
         CharacterRow row = await Seed(database, account, 1);
-        Assert.True(await fences.AdvanceAsync(old, false, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
-        Assert.True(await fences.ActivateAsync(old, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
+        Assert.NotNull(await fences.AdvanceAsync(old, false, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
+        Assert.NotNull(await fences.ActivateAsync(old, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
         var saves = new CharacterSaveRepository(new DbTransactionRunner<CharacterDbContext>(database), _clock);
         row.Money = 25;
         await saves.WriteAsync([Batch(row, old)]);
-        Assert.True(await fences.AdvanceAsync(replacement, true, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
+        Assert.NotNull(await fences.AdvanceAsync(replacement, true, _clock.GetUtcNow().UtcDateTime.AddSeconds(45), CancellationToken.None));
         row.Money = 999;
         var staleItem = new ItemInstance { Id = new ItemInstanceId(Guid.NewGuid()), TemplateId = new ItemTemplateId(1), CharacterId = row.Id, Count = 99, UpdatedAt = _clock.GetUtcNow().UtcDateTime };
         var stale = new CharacterSaveBatch(row, [staleItem], [], [new CharacterInventory { CharacterId = row.Id, Container = InventoryType.Bag, Slot = 0, ItemId = staleItem.Id }], []) { Authority = old };
@@ -49,16 +49,16 @@ public sealed class GameplayFenceShould
         var fences = new GameplayFenceRepository(database, _clock);
         var saves = new CharacterSaveRepository(new DbTransactionRunner<CharacterDbContext>(database), _clock);
         DateTime until = _clock.GetUtcNow().UtcDateTime.AddSeconds(45);
-        Assert.True(await fences.AdvanceAsync(authority, false, until, CancellationToken.None));
+        Assert.NotNull(await fences.AdvanceAsync(authority, false, until, CancellationToken.None));
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([Batch(row, authority)]));
-        Assert.False(await fences.AdvanceAsync(new(authority.AccountId, authority.GameSessionId, 2), false, until, CancellationToken.None));
-        Assert.False(await fences.ActivateAsync(new(authority.AccountId, Guid.NewGuid(), 3), until, CancellationToken.None));
-        Assert.True(await fences.ActivateAsync(authority, until, CancellationToken.None));
+        Assert.Null(await fences.AdvanceAsync(new(authority.AccountId, authority.GameSessionId, 2), false, until, CancellationToken.None));
+        Assert.Null(await fences.ActivateAsync(new(authority.AccountId, Guid.NewGuid(), 3), until, CancellationToken.None));
+        Assert.NotNull(await fences.ActivateAsync(authority, until, CancellationToken.None));
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([new CharacterSaveBatch(row, [], [], [], [])]));
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([Batch(row, new(new AccountId(8), authority.GameSessionId, 3))]));
         _clock.Advance(TimeSpan.FromSeconds(45));
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([Batch(row, authority)]));
-        Assert.False(await fences.RenewAsync(authority, until.AddSeconds(45), CancellationToken.None));
+        Assert.Null(await fences.RenewAsync(authority, until.AddSeconds(45), CancellationToken.None));
     }
     [Fact]
     public async Task Reject_a_multi_character_transaction_atomically_when_either_account_is_fenced()
@@ -72,10 +72,10 @@ public sealed class GameplayFenceShould
         DateTime until = _clock.GetUtcNow().UtcDateTime.AddSeconds(45);
         foreach (GameplayWriteAuthority? authority in new[] { a, b })
         {
-            Assert.True(await fences.AdvanceAsync(authority, false, until, CancellationToken.None));
-            Assert.True(await fences.ActivateAsync(authority, until, CancellationToken.None));
+            Assert.NotNull(await fences.AdvanceAsync(authority, false, until, CancellationToken.None));
+            Assert.NotNull(await fences.ActivateAsync(authority, until, CancellationToken.None));
         }
-        Assert.True(await fences.AdvanceAsync(new(b.AccountId, Guid.NewGuid(), 2), true, until, CancellationToken.None));
+        Assert.NotNull(await fences.AdvanceAsync(new(b.AccountId, Guid.NewGuid(), 2), true, until, CancellationToken.None));
         first.Money = 10; second.Money = 20;
         var saves = new CharacterSaveRepository(new DbTransactionRunner<CharacterDbContext>(database), _clock);
         await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([Batch(second, b), Batch(first, a)]));

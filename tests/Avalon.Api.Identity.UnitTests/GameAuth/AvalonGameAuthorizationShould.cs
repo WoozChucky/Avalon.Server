@@ -101,7 +101,7 @@ public sealed class AvalonGameAuthorizationShould
         IWorldRepositories worlds = Substitute.For<IWorldRepositories>();
         IGameplayFenceRepository fence = Substitute.For<IGameplayFenceRepository>();
         worlds.GameplayFences(new WorldId(1)).Returns(fence);
-        fence.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+        fence.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => call.ArgAt<DateTime>(1));
         var heartbeats = new GameSessionFenceService(sessions, Service(), worlds, _accounts,
             Options.Create(new GameWorkloadConfiguration { Servers = [new() { ServerId = "world-1", WorldId = 1 }] }),
             _clock, new(_options));

@@ -15,8 +15,8 @@ public sealed class GameplayCharacterMutationsShould
     {
         var writer = new GameplayWriteAuthority(new AccountId(account), Guid.NewGuid(), fence);
         var guards = new GameplayFenceRepository(database); DateTime until = DateTime.UtcNow.AddSeconds(44);
-        Assert.True(await guards.AdvanceAsync(writer, false, until, CancellationToken.None));
-        Assert.True(await guards.ActivateAsync(writer, until, CancellationToken.None)); return writer;
+        Assert.NotNull(await guards.AdvanceAsync(writer, false, until, CancellationToken.None));
+        Assert.NotNull(await guards.ActivateAsync(writer, until, CancellationToken.None)); return writer;
     }
     private static CharacterCreationBatch Batch(long account, string name) => new(
         new CharacterRow { AccountId = new AccountId(account), Name = name, CreationDate = DateTime.UtcNow },
