@@ -31,8 +31,8 @@ foreach (IScenario scenario in options.Scenarios)
         ? string.Create(CultureInfo.InvariantCulture,
             $"{scenario.Name}: a rehearsal of at least {options.WarmupSeconds} s, then {length.WarmupTicks} warm-up ticks and {length.MeasuredTicks} measured ticks{(options.MeasureTicks > 0 ? ", timed" : "")}")
         : string.Create(CultureInfo.InvariantCulture,
-            $"{scenario.Name}: {options.WarmupSeconds} s warm-up, {ScenarioMeasurement.Windows} windows of {ScenarioMeasurement.WindowTicks} ticks, {options.MeasureTicks} timed ticks"));
-    reports.Add(ScenarioMeasurement.Run(scenario, TimeSpan.FromSeconds(options.WarmupSeconds), options.MeasureTicks));
+            $"{scenario.Name}: {scenario.SteadyWarmupTicks} warm-up ticks, {ScenarioMeasurement.Windows} windows of {ScenarioMeasurement.WindowTicks} ticks, {options.MeasureTicks} timed ticks"));
+    reports.Add(ScenarioMeasurement.Run(scenario, rehearsal: TimeSpan.FromSeconds(options.WarmupSeconds), options.MeasureTicks));
 }
 
 PrintReports(reports);
@@ -234,13 +234,15 @@ static int Usage()
         Usage:
           dotnet run -c Release --project tools/Avalon.Scenarios -- [options]
               Runs the world server's scenarios in process and prints, per scenario, the tick-thread bytes of one
-              {ScenarioMeasurement.WindowTicks}-tick window (the least of {ScenarioMeasurement.Windows}), tick times, ticks over the 60 Hz budget and garbage collections.
-              A fixed-length scenario (a fight) is rehearsed for at least the warm-up, then measured over its own ticks
+              {ScenarioMeasurement.WindowTicks}-tick window (the least of {ScenarioMeasurement.Windows}, after the scenario's own fixed number of warm-up ticks), tick times, ticks
+              over the 60 Hz budget and garbage collections, the same windows the allocation gate measures.
+              A fixed-length scenario (a fight) is rehearsed for at least --warmup-seconds, then measured over its own ticks
               on a fresh world: the mean window, and the timing of those same ticks.
 
         Options:
           --scenario <name>|all       the scenario to run, default all ({string.Join(", ", Scenarios.All.Select(s => s.Name))})
-          --warmup-seconds <s>        wall-clock warm-up before measuring (a fixed-length scenario's least rehearsal), default {CommandLine.DefaultWarmupSeconds}
+          --warmup-seconds <s>        a fixed-length scenario's least rehearsal, wall-clock, default {CommandLine.DefaultWarmupSeconds}; a steady
+                                      scenario warms up for its own number of ticks, whatever this says
           --measure-ticks <n>         ticks timed after the allocation windows, default {CommandLine.DefaultMeasureTicks}; 0 skips timing
                                       (a fixed-length scenario times its own measured ticks, or none with 0)
           --json <file>               writes the reports, a JSON array

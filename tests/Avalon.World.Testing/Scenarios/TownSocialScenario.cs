@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Chat;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
@@ -43,6 +44,16 @@ public sealed class TownSocialScenario : IScenario
 
     /// <summary>A town's cap (<c>MaxPlayers</c>, 30 for the town and the default where a template sets none).</summary>
     public int Players => 30;
+
+    /// <summary>
+    /// One minute of the world's time, the chat rate limit's window (<see cref="ChatRateLimiter.Window" />), rather than
+    /// the default ten seconds (#1030). The limit keeps a queue of send times per character, made with its first line
+    /// and grown once, from four places to eight, with its fifth line inside the window. Every player speaks every 10 s,
+    /// three of them each second, so the queues are made in seconds 0 to 9 and grown in seconds 40 to 49 (88 B each,
+    /// 264 B a second); none holds more than six lines after that, and from second 50 on every second reads the same.
+    /// A minute puts the windows ten seconds past the last growth, after two whole turns of the parties (30 s each).
+    /// </summary>
+    public int SteadyWarmupTicks => (int)ChatRateLimiter.Window.TotalSeconds * ScenarioMeasurement.WindowTicks;
 
     public ScenarioWorld Build()
     {
