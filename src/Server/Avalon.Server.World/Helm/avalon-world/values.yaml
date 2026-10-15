@@ -50,6 +50,16 @@ server:
   # false (the default): TLS alone. Read at startup: a change rolls the pod. true or false only.
   network:
     packetEncryption: false
+  # Where the tick thread runs (#1002), Linux only. Both empty (off) by default and rendered only when set; read at
+  # startup, so a change rolls the pod. docs/world-simulation.md ("Tick thread placement") has the steps to check it.
+  tickThread:
+    # Game:TickThreadCpu: the CPU the tick thread runs on alone; the world's other threads stay off it and off its
+    # hyperthread siblings. A whole number, 0 or more; the world refuses to start on a CPU the pod may not use. Pick one
+    # that takes no network interrupts (/proc/interrupts).
+    cpu: ""
+    # DOTNET_GCHeapAffinitizeRanges: the CPUs server GC binds its heap threads to, as a CPU list (0-7,9-19,21-23).
+    # Unset, it binds one to every CPU, the tick's and its siblings' included: list every CPU but those.
+    gcHeapAffinitizeRanges: ""
 
 replicaCount: 1
 
