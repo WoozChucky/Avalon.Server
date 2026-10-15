@@ -5,6 +5,7 @@ using Avalon.Common.Mathematics;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Public;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Instances;
 
@@ -95,6 +96,9 @@ internal sealed class SpatialGrid
     private readonly List<IWorldObject> _unindexedCreatures = [];
     private readonly List<IWorldObject> _unindexedCharacters = [];
 
+    // The largest body radius of any entity this grid has indexed (#982), for the hit query's box: 0 until one joins.
+    private float _largestBodyRadius;
+
     private SpatialGrid(float originX, float originZ, float cellSize, int columns, int rows)
     {
         _originX = originX;
@@ -175,7 +179,20 @@ internal sealed class SpatialGrid
         Link(slot, CellOf(position));
         handle.Grid = this;
         handle.Slot = slot;
+
+        // A NaN radius overlaps nothing, so it is left out; an infinite one makes every hit query scan in full.
+        if (obj is IUnit unit && unit.BodyRadius > _largestBodyRadius)
+            _largestBodyRadius = unit.BodyRadius;
     }
+
+    /// <summary>
+    /// The largest body radius (<see cref="IUnit.BodyRadius" />) of any entity this grid has indexed since it was built,
+    /// those that left included, so never below that of an entity in a cell (#982): a hit query widens its box by it. An
+    /// entity's body radius is fixed for its life (a creature's is copied from its template when it is spawned, a
+    /// character's is a constant), so it is taken as the entity joins; a creature spawned after a template's radius changed
+    /// joins with the new one. An entity not indexed is not counted: every query visits those whatever their position.
+    /// </summary>
+    public float LargestBodyRadius => _largestBodyRadius;
 
     /// <summary>Removes a member that left the instance, and clears its handle. Nothing happens for one not here.</summary>
     public void Remove(IWorldObject obj)
@@ -228,6 +245,41 @@ internal sealed class SpatialGrid
                 VisitCircle(x, z, widened, ref visitor);
             else
                 VisitAllCells(ref visitor);
+        }
+
+        VisitUnplaced(ref visitor);
+        VisitUnindexed(_unindexedCreatures, SpatialKind.Creature, ref visitor);
+        VisitUnindexed(_unindexedCharacters, SpatialKind.Character, ref visitor);
+    }
+
+    /// <summary>
+    /// Hands <paramref name="visitor" /> every entity whose X/Z can be within the box from (<paramref name="minX" />,
+    /// <paramref name="minZ" />) to (<paramref name="maxX" />, <paramref name="maxZ" />), edges included: the entities of
+    /// every cell the box overlaps, the entities in no cell, and the entities not indexed, each once (#982). It is the
+    /// visitor's to decide which are in the box: a cell's entries outside it are handed over too. An entry whose X is
+    /// within [<paramref name="minX" />, <paramref name="maxX" />] is in a column from the one of <paramref name="minX" />
+    /// to the one of <paramref name="maxX" />, as a cell is found from the same floats by a rule monotonic in each
+    /// coordinate, and so on Z. Bounds beyond the layout are clamped to its edge cells, infinite ones too; a bound that
+    /// is NaN visits every cell.
+    /// </summary>
+    public void VisitBox<TVisitor>(float minX, float minZ, float maxX, float maxZ, ref TVisitor visitor)
+        where TVisitor : struct, ISpatialVisitor
+    {
+        if (float.IsNaN(minX) || float.IsNaN(minZ) || float.IsNaN(maxX) || float.IsNaN(maxZ))
+        {
+            VisitAllCells(ref visitor);
+        }
+        else
+        {
+            int firstColumn = Column(minX);
+            int lastColumn = Column(maxX);
+            int lastRow = Row(maxZ);
+            for (int row = Row(minZ); row <= lastRow; row++)
+            {
+                int rowStart = row * _columns;
+                for (int column = firstColumn; column <= lastColumn; column++)
+                    VisitCell(_heads[rowStart + column], ref visitor);
+            }
         }
 
         VisitUnplaced(ref visitor);
