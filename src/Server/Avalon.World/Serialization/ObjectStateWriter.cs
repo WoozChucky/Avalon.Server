@@ -84,6 +84,14 @@ public static class ObjectStateWriter
             state.Rarity = ToWire(spawned.Rarity);
         }
 
+        // The model the client draws (#1022), on the same terms as the rarity: whatever is marked changed, only
+        // when not 0, since absent means none and a creature without one pays nothing; World-side value, so no
+        // mod can change what a client draws, and any other ICreature is sent without one.
+        if (creature is Creature { DisplayId: not 0 } drawn)
+        {
+            state.DisplayId = drawn.DisplayId;
+        }
+
         return state;
     }
 

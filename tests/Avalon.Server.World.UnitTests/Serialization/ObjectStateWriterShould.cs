@@ -95,6 +95,9 @@ public class ObjectStateWriterShould
 
             // Characters and projectiles never carry a rarity, and the scenario creature is Normal (#709).
             Assert.Null(parsed.Rarity);
+
+            // Characters and projectiles never carry a display id, and the scenario creature has none (#1022).
+            Assert.Null(parsed.DisplayId);
         }
     }
 
@@ -257,11 +260,12 @@ public class ObjectStateWriterShould
     }
 
     /// <summary>
-    /// Only the World-side Creature carries the value, so any other ICreature (a mod's, in principle) is sent
-    /// as Normal, whatever its metadata says: no mod can change the rarity a creature advertises.
+    /// Only the World-side Creature carries the values, so any other ICreature (a mod's, in principle) is sent
+    /// as Normal and without a model, whatever its metadata says: no mod can change the rarity a creature
+    /// advertises or the model a client draws it with (#1022).
     /// </summary>
     [Fact]
-    public void Never_send_a_rarity_for_a_creature_that_is_not_the_world_side_Creature()
+    public void Never_send_a_rarity_or_display_id_for_a_creature_that_is_not_the_world_side_Creature()
     {
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 6));
@@ -269,9 +273,13 @@ public class ObjectStateWriterShould
         {
             Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3),
             Rarity = WorldRarity.Boss,
+            DisplayId = 7,
         });
 
-        Assert.Null(ObjectStateWriter.From(creature, GameEntityFields.All).Rarity);
+        ObjectState state = ObjectStateWriter.From(creature, GameEntityFields.All);
+
+        Assert.Null(state.Rarity);
+        Assert.Null(state.DisplayId);
     }
 
     [Fact]
@@ -310,6 +318,32 @@ public class ObjectStateWriterShould
         Serializer.Serialize(stream, new ObjectState { Rarity = WireRarity.Boss });
 
         Assert.Equal(new byte[] { 0xB0, 0x01, 0x03 }, stream.ToArray());
+    }
+
+    /// <summary>
+    /// #1022: a creature with a display id carries it on every state, whatever is marked changed, so a client
+    /// that first sees it on an update still draws its model; one without (0) leaves it out and pays nothing,
+    /// since absent means none.
+    /// </summary>
+    [Theory]
+    [InlineData(3u, GameEntityFields.All)]
+    [InlineData(3u, GameEntityFields.CreatureUpdate)]
+    [InlineData(300u, GameEntityFields.None)]
+    [InlineData(0u, GameEntityFields.All)]
+    [InlineData(0u, GameEntityFields.CreatureUpdate)]
+    public void Send_a_creatures_display_id_on_every_state_only_when_it_has_one(uint displayId, GameEntityFields fields)
+    {
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 5),
+            Name = "Innkeeper",
+            Metadata = new Avalon.Domain.World.CreatureTemplate { Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3) },
+            DisplayId = displayId,
+        };
+
+        ObjectState state = RoundTrip(ObjectStateWriter.From(creature, fields));
+
+        Assert.Equal(displayId == 0 ? null : displayId, state.DisplayId);
     }
 
     private static ICreature Monster(WorldRarity rarity) => new Creature
@@ -382,7 +416,7 @@ public class ObjectStateWriterShould
                 projectile.Power, projectile.CurrentPower, projectile.Level, projectile.IsDead,
                 projectile.Experience, projectile.RequiredExperience, projectile.CreatureMetadataId,
                 projectile.Name, projectile.PortalRadius, projectile.PortalTargetMapId, projectile.PortalRole,
-                projectile.CanInteract, projectile.Rarity,
+                projectile.CanInteract, projectile.Rarity, projectile.DisplayId,
             },
             Assert.Null);
     }

@@ -140,4 +140,17 @@ public class ObjectState
     ///     Carried and fixed exactly like <see cref="Class" />.
     /// </remarks>
     [ProtoMember(24)] public CharacterGender? Gender { get; set; }
+
+    /// <summary>
+    ///     Which model a client draws this creature with (#1022), so creatures that look alike share one
+    ///     and a new creature type needs no client release to get one.
+    /// </summary>
+    /// <remarks>
+    ///     Only a creature with a display id carries it, and every creature state of one carries it, whatever
+    ///     else changed, like <see cref="CreatureMetadataId" />, so a client that first sees the creature on an
+    ///     update still learns it. A creature without one leaves it out, so absent on a creature state means 0,
+    ///     none: the client draws its default. Characters, portals and spells never carry it. It is fixed when
+    ///     the creature spawns, from its template.
+    /// </remarks>
+    [ProtoMember(25)] public uint? DisplayId { get; set; }
 }
