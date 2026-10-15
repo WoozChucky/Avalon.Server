@@ -84,6 +84,12 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         public static partial void UndecodablePayload(ILogger logger, Guid connectionId, long? accountId,
             string remoteEndPoint, int packetsReceived, NetworkPacketType packetType);
 
+        // A frame started and not completed in time (#938): the same once per connection, as it ends the stream.
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint} after {PacketsReceived} packets: a frame it started did not complete within {TimeoutSeconds} s (Hosting:InboundFrameTimeoutSeconds)")]
+        public static partial void FrameTimedOut(ILogger logger, Guid connectionId, long? accountId,
+            string remoteEndPoint, int packetsReceived, double timeoutSeconds);
+
         // A packet the server does not serve leaves the connection open, so a peer can send them at any rate: the
         // first on a connection is a Warning, the rest Trace. Not Debug: the auth server ships with Debug as its
         // minimum level, and would write one for every frame.
@@ -120,6 +126,9 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         public const string SealNotAuthentic = "seal_not_authentic";
         public const string UndecodablePayload = "undecodable_payload";
 
+        /// <summary>A frame the peer started did not complete within <c>Hosting:InboundFrameTimeoutSeconds</c> (#938).</summary>
+        public const string FrameTimeout = "frame_timeout";
+
         /// <summary>A world's admission refused the client's public key: the right length, and not a P-256 point.</summary>
         public const string BadPublicKey = "bad_public_key";
     }
@@ -127,6 +136,7 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     protected readonly ILogger _logger;
     private readonly IPacketReader _packetReader;
     private readonly int _maxInboundFrameSize;
+    private readonly TimeSpan _inboundFrameTimeout;
 
     // KeyExchange's session's Decrypt as a delegate, created once. Passing the method group made a new delegate per
     // packet, and the Release JIT did not keep it off the heap (PacketReaderDecryptGcBenchmarks, #854).
@@ -178,6 +188,10 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
         // A substitute server in tests has none.
         int maxInboundFrameSize = server.MaxInboundFrameSize;
         _maxInboundFrameSize = maxInboundFrameSize > 0 ? maxInboundFrameSize : HostingConfiguration.DefaultMaxInboundFrameSize;
+        TimeSpan inboundFrameTimeout = server.InboundFrameTimeout;
+        _inboundFrameTimeout = inboundFrameTimeout > TimeSpan.Zero
+            ? inboundFrameTimeout
+            : TimeSpan.FromSeconds(HostingConfiguration.DefaultInboundFrameTimeoutSeconds);
 
         KeyExchange = keyExchange;
         _decrypt = keyExchange is null ? s_noSessionKey : keyExchange.Session.Decrypt;
@@ -343,7 +357,8 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
 
     /// <summary>
     /// The read loop ended on a frame the peer got wrong (not a packet, sealed while the connection had no session key,
-    /// sealed and not authentic, or a payload that is not its packet), and the connection is about to close: a server
+    /// sealed and not authentic, a payload that is not its packet, or a frame not completed in time), and the
+    /// connection is about to close: a server
     /// counts it in its telemetry here, once per connection, under <paramref name="reason" />, one of
     /// <see cref="ProtocolViolation" />'s constants.
     /// </summary>
@@ -418,6 +433,12 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     protected abstract long GetServerTime();
 
     /// <summary>
+    /// The clock the read loop times a started frame by (<c>Hosting:InboundFrameTimeoutSeconds</c>, #938): a server
+    /// whose container has a clock hands it over here, so tests can drive the deadline.
+    /// </summary>
+    protected virtual TimeProvider ReadClock => TimeProvider.System;
+
+    /// <summary>
     /// A trusted proxy prefixes the connection with a PROXY v2 header naming the real client; it is
     /// read here, before <see cref="GetStream" /> starts TLS, and replaces <see cref="RemoteEndPoint" />.
     /// Other peers are direct clients and are never asked for one, so only a trusted proxy can assert
@@ -485,7 +506,7 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
             try
             {
                 await foreach (ReadOnlyMemory<byte> raw in _stream!.EnumerateRawFramesAsync(_packetReader.BufferSize,
-                                   _maxInboundFrameSize, stoppingToken))
+                                   _maxInboundFrameSize, _inboundFrameTimeout, ReadClock, stoppingToken))
                 {
                     // Closing (#927): the socket stays up until the outbox has flushed, and the peer may go on sending
                     // until then. Its frames are still read, so the close ends the stream with nothing unread behind
@@ -540,6 +561,17 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
                     else
                         ReadLog.FrameTooLong(_logger, Id, RemoteEndPoint, _stream.RefusedFrameLength, _maxInboundFrameSize);
                     OnFrameRefused();
+                }
+                // The stream stopped at a frame the peer started and did not complete in time (#938): a protocol
+                // violation as the catches below are, with their one Warning and one count, and the same close. Not
+                // when the connection was already closing: its close was decided for another reason (the receive
+                // queue's cap, the admission timeout), which has its own line and count, and the deadline expired
+                // only while the socket waited for the outbox to flush.
+                else if (_stream.FrameTimedOut && !IsClosing)
+                {
+                    ReadLog.FrameTimedOut(_logger, Id, AccountIdForLog, RemoteEndPoint,
+                        Volatile.Read(ref PacketReceivedCount), _inboundFrameTimeout.TotalSeconds);
+                    OnProtocolViolation(ProtocolViolation.FrameTimeout);
                 }
             }
             // A frame the peer got wrong is a protocol violation, not a server error (#897): one Warning without

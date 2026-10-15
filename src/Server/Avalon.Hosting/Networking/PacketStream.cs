@@ -44,6 +44,23 @@ public class PacketStream(Stream stream) : Stream
     public long RefusedFrameLength { get; private set; }
 
     /// <summary>
+    /// Whether the enumeration ended on a frame the peer started and did not complete within the deadline it was given
+    /// (<c>Hosting:InboundFrameTimeoutSeconds</c>, #938). The stream is at no frame boundary any more and cannot be read
+    /// further. A frame that completes as the deadline expires may end it too: it is the deadline's edge.
+    /// </summary>
+    public bool FrameTimedOut { get; private set; }
+
+    /// <summary>
+    /// Yields raw payload slices (varint length-prefix stripped), with no deadline for a frame to complete: for reading
+    /// a stream whose writer is trusted, what a server wrote in tests and tools. A server's read loop uses the overload
+    /// with a deadline, since a peer that starts a frame and stops would otherwise hold its connection for as long as
+    /// it likes.
+    /// </summary>
+    public IAsyncEnumerable<ReadOnlyMemory<byte>> EnumerateRawFramesAsync(int initialBufferSize, int maxFrameLength,
+        CancellationToken token = default) =>
+        EnumerateRawFramesAsync(initialBufferSize, maxFrameLength, Timeout.InfiniteTimeSpan, TimeProvider.System, token);
+
+    /// <summary>
     /// Yields raw payload slices (varint length-prefix stripped). Slice memory is
     /// valid only until the next iteration — consumers must materialize before advancing.
     /// Public for testability of the buffered read loop independent of frame parsing.
@@ -54,15 +71,25 @@ public class PacketStream(Stream stream) : Stream
     /// not a length, ends the enumeration before anything is rented or read for it (<see cref="FrameRefused" />):
     /// the prefix is the peer's word, and a buffer of that size was otherwise rented on it alone.
     /// </param>
+    /// <param name="frameDeadline">
+    /// How long a frame has to complete once its first byte has arrived, or <see cref="Timeout.InfiniteTimeSpan" /> for
+    /// no limit. A frame still incomplete after it ends the enumeration (<see cref="FrameTimedOut" />). Nothing times the
+    /// wait between frames.
+    /// </param>
+    /// <param name="timeProvider">The clock the deadline runs on.</param>
     /// <param name="token">Ends the enumeration.</param>
     public async IAsyncEnumerable<ReadOnlyMemory<byte>> EnumerateRawFramesAsync(int initialBufferSize,
-        int maxFrameLength, [EnumeratorCancellation] CancellationToken token = default)
+        int maxFrameLength, TimeSpan frameDeadline, TimeProvider timeProvider,
+        [EnumeratorCancellation] CancellationToken token = default)
     {
         // Whatever the caller asks, a frame and its prefix fit one array.
         long maxDeclared = Math.Min(maxFrameLength, Array.MaxLength - MaxLengthPrefixBytes);
         byte[] buffer = ArrayPool<byte>.Shared.Rent(initialBufferSize);
         int dataStart = 0;   // first unread byte
         int dataEnd = 0;     // first empty byte
+        FrameDeadline? deadline = frameDeadline == Timeout.InfiniteTimeSpan
+            ? null
+            : new FrameDeadline(frameDeadline, timeProvider, token);
         try
         {
             while (true)
@@ -72,9 +99,13 @@ public class PacketStream(Stream stream) : Stream
                 if (varintBytes == 0)
                 {
                     // Need more bytes for the varint. Refill or yield break on EOF/error.
-                    dataEnd = await RefillAsync(buffer, dataEnd, token).ConfigureAwait(false);
+                    deadline?.BeforeRead(dataEnd - dataStart);
+                    dataEnd = await RefillAsync(buffer, dataEnd, deadline?.ReadToken ?? token).ConfigureAwait(false);
                     if (dataEnd < 0)
+                    {
+                        FrameTimedOut = deadline?.Expired == true;
                         yield break;
+                    }
 
                     // Compact if we filled the tail.
                     if (dataEnd == buffer.Length && dataStart > 0)
@@ -113,9 +144,13 @@ public class PacketStream(Stream stream) : Stream
                 // 3) Read until we have the full frame in the buffer.
                 while (dataEnd - dataStart < frameTotal)
                 {
-                    dataEnd = await RefillAsync(buffer, dataEnd, token).ConfigureAwait(false);
+                    deadline?.BeforeRead(dataEnd - dataStart);
+                    dataEnd = await RefillAsync(buffer, dataEnd, deadline?.ReadToken ?? token).ConfigureAwait(false);
                     if (dataEnd < 0)
+                    {
+                        FrameTimedOut = deadline?.Expired == true;
                         yield break;
+                    }
 
                     if (dataEnd == buffer.Length && dataStart > 0)
                     {
@@ -124,6 +159,10 @@ public class PacketStream(Stream stream) : Stream
                         dataStart = 0;
                     }
                 }
+
+                // The frame is whole: its clock stops here, before the consumer has it, so what the consumer does with
+                // it is never counted against the peer.
+                deadline?.FrameCompleted();
 
                 // 4) Yield the payload slice (skip the varint header).
                 yield return new ReadOnlyMemory<byte>(buffer, dataStart + varintBytes, payloadLen);
@@ -139,7 +178,74 @@ public class PacketStream(Stream stream) : Stream
         }
         finally
         {
+            deadline?.Dispose();
             ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// One enumeration's deadline for completing a started frame (#938). The clock starts at the read that waits with
+    /// bytes of a frame in hand, so at the read after the one that brought the frame's first byte, and stops when the
+    /// frame is whole; a read between frames is not timed. The clock is one cancellation source per connection, made
+    /// the first time a frame arrives in pieces, and the reads take its token from then on: the stop token cancels it,
+    /// so a read still ends with the server's stop. A frame that does not complete in time has its read cancelled, which
+    /// ends the enumeration as any ended read does.
+    /// <para>
+    /// What it costs: a frame that arrives whole in a read is never timed, so it costs a comparison before the next read
+    /// and a flag test after the frame. A frame that arrives in pieces moves the source's one timer twice, to its
+    /// deadline and back, and allocates nothing. This object is allocated once per connection, and the source, its timer
+    /// and the stop registration once more, by the connection's first frame that arrives in pieces. A frame trickled a
+    /// byte at a time does not move the timer again: the clock runs from its first byte.
+    /// </para>
+    /// </summary>
+    private sealed class FrameDeadline(TimeSpan limit, TimeProvider timeProvider, CancellationToken stopping)
+        : IDisposable
+    {
+        private CancellationTokenSource? _expiry;
+        private CancellationTokenRegistration _stopRegistration;
+        private bool _armed;
+
+        /// <summary>The token a read waits with: the deadline's once a frame has arrived in pieces, the stop's until then.</summary>
+        public CancellationToken ReadToken => _expiry?.Token ?? stopping;
+
+        /// <summary>The deadline fired, and the server is not stopping.</summary>
+        public bool Expired => _expiry is { IsCancellationRequested: true } && !stopping.IsCancellationRequested;
+
+        /// <summary>A read is about to wait with <paramref name="buffered" /> bytes of a frame in hand.</summary>
+        public void BeforeRead(int buffered)
+        {
+            if (buffered == 0 || _armed)
+                return;
+
+            if (_expiry is null)
+            {
+                // Made with the clock, so its timer is the clock's; a disarmed one, until the line below.
+                _expiry = new CancellationTokenSource(Timeout.InfiniteTimeSpan, timeProvider);
+#pragma warning disable MA0045 // a token callback is synchronous: the stop cancels the read here as it did directly
+                _stopRegistration = stopping.UnsafeRegister(static source => ((CancellationTokenSource)source!).Cancel(),
+                    _expiry);
+#pragma warning restore MA0045
+            }
+
+            _expiry.CancelAfter(limit);
+            _armed = true;
+        }
+
+        /// <summary>The frame in hand is whole.</summary>
+        public void FrameCompleted()
+        {
+            if (!_armed)
+                return;
+
+            _expiry!.CancelAfter(Timeout.InfiniteTimeSpan);
+            _armed = false;
+        }
+
+        public void Dispose()
+        {
+            // The registration first: once it returns, the stop cannot reach the source it is about to dispose.
+            _stopRegistration.Dispose();
+            _expiry?.Dispose();
         }
     }
 

@@ -3,7 +3,7 @@ using Avalon.Network.Packets.Abstractions;
 namespace Avalon.Hosting.Networking;
 
 /// <summary>
-/// Inbound-only frame produced by <see cref="PacketStream.EnumerateRawFramesAsync"/>.
+/// Inbound-only frame produced by <see cref="PacketStream.EnumerateRawFramesAsync(int, int, TimeSpan, TimeProvider, CancellationToken)"/>.
 /// <para><b>Lifetime:</b> <see cref="Payload"/> is a zero-copy slice of the stream's
 /// rented buffer. It is only valid until the enumerator advances to the next packet —
 /// consume it within the same loop iteration and do not store it.</para>

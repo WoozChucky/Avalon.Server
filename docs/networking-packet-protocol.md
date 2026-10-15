@@ -83,6 +83,43 @@ So the default leaves a factor of about 28 over the largest frame a client sends
 still admits it. No client-to-server message has a repeated field. The auth server puts no length rule of its own on the
 password it is sent: for that field the frame limit is the bound.
 
+## The inbound frame deadline
+
+**A frame a peer has started must be complete within `Hosting:InboundFrameTimeoutSeconds` (10 s by default) of its first
+byte, on the auth server and on a world server alike (#938).** One that is not has its read cancelled, which ends the
+stream, and the connection is closed without a notice, as it is when a peer goes away. That covers a peer that starts a
+frame and stops, and one that sends it a byte at a time: the clock runs from the frame's first byte and is not reset by
+the bytes after it. Until #938 the read loop waited for the rest of a frame with only the server's stopping token, so
+such a peer held its connection and its read buffer for as long as it liked. Like the length limit, it holds before
+admission or login as after.
+
+Only a started frame is timed. The wait between frames is not, and nothing else here closes a connection that is
+connected and silent. On a world, before admission the admission timeout bounds it (15 s); after admission a silent
+connection is held for as long as its admission lease lasts (#1034). TCP keepalive (`Hosting:TcpKeepAlive*`) closes no
+idle connection: the peer's operating system answers its probes whatever the client does, so it only removes a peer
+that has gone away without closing (a half-open connection). The first byte is the first byte the read loop receives,
+inside TLS: a TLS record that never completes delivers none, and is not timed by this deadline.
+
+The close writes one Warning (the connection, its account once it has one, its address, how many packets it had
+delivered, and the deadline), never an exception or anything the peer sent, and counts one in
+`network.in.protocol_kicks` with `reason` `frame_timeout` ([instrumentation](instrumentation.md#protocol-violations)),
+as the read loop's other refusals do (#897, [packet handlers](packet-handlers.md)). A connection that was already
+closing when the deadline expired gets neither: its close was decided for another reason (the receive queue's cap, the
+admission timeout), which has its own line and count, and its socket was only waiting for the outbox to flush. A frame
+that completes just as the deadline expires may be closed too: that is the deadline's edge.
+
+The largest frame a client sends is under a kilobyte ([above](#the-inbound-frame-length-limit)), so 10 s is far more
+than an honest client needs even on a poor link; there is no setting that turns the deadline off. The clock is the
+connection's (on a world, the container's `TimeProvider`), so tests drive it (`PacketStreamShould`,
+`InboundFrameDeadlineShould`).
+
+**What it costs** (`PacketStream.EnumerateRawFramesAsync`). A frame that arrives whole in one read, the common case, is
+never timed: it costs a comparison before the next read and a flag test after the frame, and nothing is allocated. A
+frame that arrives in pieces moves one timer to its deadline and back, and allocates nothing. The timer belongs to one
+cancellation source per connection, which the reads wait with once it exists; the server's stop cancels it, so a read
+still ends with the stop. The source, its timer and the stop's registration are allocated once per connection, by its
+first frame that arrives in pieces.
+
 ## Sending a packet
 
 A server packet's `Create` (`S*Packet.Create`) returns an `OutboundPacket`: its header, and its message encoded, plain,
@@ -304,6 +341,9 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
   [instrumentation](instrumentation.md#failed-handshakes)). The auth server's handshake has no timeout (#938).
 - A frame that declares more than `Hosting:MaxInboundFrameSize` bytes, or a malformed length prefix, on either server →
   nothing is buffered for it and the connection is closed without a notice ([above](#the-inbound-frame-length-limit)).
+- A frame started and not complete within `Hosting:InboundFrameTimeoutSeconds` of its first byte, on either server →
+  the connection is closed without a notice, with one Warning and one count in `network.in.protocol_kicks`, `reason`
+  `frame_timeout` (#938, [above](#the-inbound-frame-deadline)).
 - A frame that is not a `NetworkPacket`, a payload flagged `Encrypted` that arrives before the session has its keys or
   does not open under them, or a payload that is not an encoding of its opcode's packet (one that nests more than 32
   messages or groups deep included), on either server → the
