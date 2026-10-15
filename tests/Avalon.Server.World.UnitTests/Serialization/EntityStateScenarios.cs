@@ -119,7 +119,6 @@ internal static class EntityStateScenarios
         CharacterUpdateSeenByItsOwnPlayer(),
         CharacterUpdateWithoutAPowerType(),
         CharacterUpdateWithoutThePowerTypeSelected(),
-        CharacterUpdateWithoutExperienceSelected(),
         DeadCharacterWithALongName(),
         CreatureAdd(),
         CreatureUpdate(),
@@ -212,13 +211,14 @@ internal static class EntityStateScenarios
         Guid = s_characterGuid,
         IsAdd = true,
         Entity = NewCharacter(),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, s_characterGuid, OtherPlayer),
-        Expected = CharacterBase(),
+        Fields = MapInstance.MaskForRecipient(GameEntityFields.All, s_characterGuid, OtherPlayer),
+        Expected = SeenByAnotherPlayer(CharacterBase()),
     };
 
     /// <summary>
     /// A player's own character. Its position travels on a different packet, so the broadcast
-    /// strips the three placement fields and sends the rest.
+    /// strips the three placement fields and sends the rest, its experience included: only its
+    /// own player is sent that (#993).
     /// </summary>
     private static EntityStateScenario CharacterSeenByItsOwnPlayer() => new()
     {
@@ -226,7 +226,7 @@ internal static class EntityStateScenarios
         Guid = s_characterGuid,
         IsAdd = true,
         Entity = NewCharacter(),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, s_characterGuid, s_characterGuid),
+        Fields = MapInstance.MaskForRecipient(GameEntityFields.All, s_characterGuid, s_characterGuid),
         Expected = CharacterBase() with { Position = null, Velocity = null, Orientation = null },
     };
 
@@ -236,8 +236,8 @@ internal static class EntityStateScenarios
         Guid = s_characterGuid,
         IsAdd = false,
         Entity = NewCharacter(),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, s_characterGuid, OtherPlayer),
-        Expected = CharacterBase(),
+        Fields = MapInstance.MaskForRecipient(GameEntityFields.CharacterUpdate, s_characterGuid, OtherPlayer),
+        Expected = SeenByAnotherPlayer(CharacterBase()),
     };
 
     private static EntityStateScenario CharacterUpdateSeenByItsOwnPlayer() => new()
@@ -246,7 +246,7 @@ internal static class EntityStateScenarios
         Guid = s_characterGuid,
         IsAdd = false,
         Entity = NewCharacter(),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, s_characterGuid, s_characterGuid),
+        Fields = MapInstance.MaskForRecipient(GameEntityFields.CharacterUpdate, s_characterGuid, s_characterGuid),
         Expected = CharacterBase() with { Position = null, Velocity = null, Orientation = null },
     };
 
@@ -260,8 +260,8 @@ internal static class EntityStateScenarios
         Guid = s_characterGuid,
         IsAdd = false,
         Entity = NewCharacter(PowerType.None),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.CharacterUpdate, s_characterGuid, OtherPlayer),
-        Expected = CharacterBase() with
+        Fields = MapInstance.MaskForRecipient(GameEntityFields.CharacterUpdate, s_characterGuid, OtherPlayer),
+        Expected = SeenByAnotherPlayer(CharacterBase()) with
         {
             PowerType = PowerType.None,
             Power = null,
@@ -286,35 +286,24 @@ internal static class EntityStateScenarios
         },
     };
 
-    /// <summary>
-    /// A character asked for without either experience member, as on a routine movement delta.
-    /// </summary>
-    private static EntityStateScenario CharacterUpdateWithoutExperienceSelected() => new()
-    {
-        Name = "character-update-without-experience-selected",
-        Guid = s_characterGuid,
-        IsAdd = false,
-        Entity = NewCharacter(),
-        Fields = GameEntityFields.CharacterUpdate
-                 & ~(GameEntityFields.Experience | GameEntityFields.RequiredExperience),
-        Expected = CharacterBase() with
-        {
-            Experience = null,
-            RequiredExperience = null,
-        },
-    };
-
     private static EntityStateScenario DeadCharacterWithALongName() => new()
     {
         Name = "character-add-dead-with-a-long-name",
         Guid = s_characterGuid,
         IsAdd = true,
         Entity = NewCharacter(isDead: true, name: s_longName),
-        Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, s_characterGuid, OtherPlayer),
+        Fields = MapInstance.MaskForRecipient(GameEntityFields.All, s_characterGuid, OtherPlayer),
         // A corpse is at rest: dying zeroes the velocity it was built with (#424), and a zero
         // velocity is still sent, as a present all-zero vector rather than an absent one.
-        Expected = CharacterBase(isDead: true, name: s_longName) with { Velocity = Vector3.zero },
+        Expected = SeenByAnotherPlayer(CharacterBase(isDead: true, name: s_longName)) with { Velocity = Vector3.zero },
     };
+
+    /// <summary>
+    /// A character as any player but its own is sent it: without its experience or the experience its next level
+    /// needs, which only its own player is sent (#993).
+    /// </summary>
+    private static EntitySnapshot SeenByAnotherPlayer(EntitySnapshot character) =>
+        character with { Experience = null, RequiredExperience = null };
 
     private static EntitySnapshot CreatureBase() => new()
     {

@@ -144,8 +144,6 @@ public class CharacterDeltaReplicationShould
         character.Revive();
         character.Health = 150;
         character.Level = 2;
-        character.Experience = 0;
-        character.RequiredExperience = 250;
         character.Data!.PvpEnabled = true;
         character.MarkPvpChanged();
         Broadcast(instance);
@@ -156,8 +154,6 @@ public class CharacterDeltaReplicationShould
             Assert.Equal(100u, revived.CurrentHealth);
             Assert.Equal(150u, revived.Health);
             Assert.Equal((ushort)2, revived.Level);
-            Assert.Equal(0ul, revived.Experience);
-            Assert.Equal(250ul, revived.RequiredExperience);
             Assert.True(revived.PvpEnabled);
             Assert.Equal(character.Name, revived.Name);
             Assert.Equal(character.Class, revived.Class);
@@ -176,10 +172,73 @@ public class CharacterDeltaReplicationShould
         Assert.NotNull(added.Velocity);
         Assert.Equal(150u, added.Health);
         Assert.Equal(100u, added.CurrentHealth);
-        Assert.Equal(250ul, added.RequiredExperience);
         ClearPackets(player);
         ClearPackets(watcher);
         ClearPackets(newcomer);
+    }
+
+    /// <summary>
+    /// #993: a character's experience and the experience its next level needs go to its own client alone, on its add and
+    /// on every update that changes them, and never to anyone who sees it. Two watchers, so the entry they share is
+    /// encoded for the first and copied for the second (#980). Experience alone leaves a watcher nothing, so it is sent no
+    /// update at all; a level-up still tells it the level.
+    /// </summary>
+    [Theory]
+    [InlineData("add")]
+    [InlineData("experience")]
+    [InlineData("level-up")]
+    public void Send_a_characters_experience_to_its_own_client_alone(string change)
+    {
+        using MapInstance instance = TestMapInstances.Build(NewWorld());
+        MapInstanceClient player = Join(instance, 910_131);
+        MapInstanceClient[] watchers = [Join(instance, 910_132), Join(instance, 910_133)];
+        CharacterEntity character = player.Character;
+        character.Level = 3;
+        character.Experience = 120;
+        character.RequiredExperience = 400;
+        if (change != "add")
+        {
+            Broadcast(instance);
+            ClearPackets(player);
+            foreach (MapInstanceClient watcher in watchers)
+                ClearPackets(watcher);
+        }
+
+        if (change == "experience")
+        {
+            character.Experience = 180;
+        }
+        else if (change == "level-up")
+        {
+            character.Level = 4;
+            character.Experience = 30;
+            character.RequiredExperience = 900;
+        }
+
+        Broadcast(instance);
+        ulong raw = character.Guid.RawValue;
+        Func<MapInstanceClient, List<ObjectState>> sent = change == "add" ? c => c.Added() : c => c.StateUpdates();
+        ObjectState own = Assert.Single(sent(player), s => s.Guid == raw);
+        Assert.Equal(character.Experience, own.Experience);
+        // Experience alone leaves the requirement unchanged, so unmarked and not sent.
+        Assert.Equal(change == "experience" ? (ulong?)null : character.RequiredExperience, own.RequiredExperience);
+        foreach (MapInstanceClient watcher in watchers)
+        {
+            if (change == "experience")
+            {
+                Assert.Empty(watcher.Read<SInstanceStateUpdatePacket>(NetworkPacketType.SMSG_WORLD_STATE_UPDATE));
+                continue;
+            }
+
+            ObjectState seen = Assert.Single(sent(watcher), s => s.Guid == raw);
+            Assert.Equal((ushort?)character.Level, seen.Level);
+            Assert.Null(seen.Experience);
+            Assert.Null(seen.RequiredExperience);
+        }
+
+        ClearPackets(player);
+        foreach (MapInstanceClient watcher in watchers)
+            ClearPackets(watcher);
     }
 
     private static void ClearPackets(MapInstanceClient client)

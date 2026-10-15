@@ -1810,7 +1810,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>
     /// Appends one entity's update to the recipient's packet (#980): the entry every recipient shares, encoded by the
     /// first that is sent it this broadcast, or, for the recipient's own character, the one entry that depends on who
-    /// receives it (<see cref="MaskSelfSuppression" />), described and encoded for it alone. Byte for byte the packet
+    /// receives it (<see cref="MaskForRecipient" />), described and encoded for it alone. Byte for byte the packet
     /// <see cref="SInstanceStateUpdatePacket.Create" /> wrote from the recipient's described list.
     /// </summary>
     private void AppendUpdate((ObjectGuid Guid, GameEntityFields Fields) updated, ObjectGuid recipientGuid)
@@ -1836,7 +1836,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <summary>
     /// Appends one entity's add to the recipient's packet (#980): the entry every recipient shares, encoded by the first
     /// that is sent it this tick, or, for the recipient's own character, the one entry that depends on who receives it
-    /// (<see cref="MaskSelfSuppression" />), described and encoded for it alone. An add describes the entity in full, so
+    /// (<see cref="MaskForRecipient" />), described and encoded for it alone. An add describes the entity in full, so
     /// its entry is kept as one of <see cref="GameEntityFields.All" />. Byte for byte the packet
     /// <see cref="SInstanceStateAddPacket.Create" /> wrote from the recipient's described list.
     /// </summary>
@@ -1968,7 +1968,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     return null;
                 return ObjectStateWriter.From(
                     addedCharacter,
-                    MaskSelfSuppression(GameEntityFields.All, guid, recipientGuid),
+                    MaskForRecipient(GameEntityFields.All, guid, recipientGuid),
                     _statePool);
 
             case ObjectType.Creature:
@@ -1999,9 +1999,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             case ObjectType.Character:
                 if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
                     return null;
-                GameEntityFields fields = MaskSelfSuppression(updatedObject.Fields, updatedObject.Guid, recipientGuid);
+                GameEntityFields fields = MaskForRecipient(updatedObject.Fields, updatedObject.Guid, recipientGuid);
                 // None is a sentinel bit, not zero. Motion alone has nothing left for its owner, whose ACK
-                // carries it; gameplay changes (including PvP turning off) must still produce a state.
+                // carries it, and experience alone nothing for anyone else (#993): no entry, and a packet
+                // left with no entry is not sent. Gameplay changes (including PvP turning off) must still
+                // produce a state.
                 if ((fields & ~GameEntityFields.None) == 0)
                     return null;
                 return ObjectStateWriter.From(updatedCharacter, fields, _statePool);
@@ -2569,13 +2571,25 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Strips position/velocity/orientation from the field bitmap when the broadcast recipient
-    /// is the same entity as the subject. Self-position flows via SPlayerStateAckPacket only;
-    /// state fields (HP, Power, etc.) still ride this broadcast.
+    /// A character's motion, which its own client is never sent on the state broadcast: its input ACK
+    /// (<c>SPlayerStateAckPacket</c>) carries it.
     /// </summary>
-    public static GameEntityFields MaskSelfSuppression(GameEntityFields fields, ObjectGuid subjectGuid, ObjectGuid recipientGuid)
-    {
-        if (subjectGuid != recipientGuid) return fields;
-        return fields & ~(GameEntityFields.Position | GameEntityFields.Velocity | GameEntityFields.Orientation);
-    }
+    private const GameEntityFields SelfSuppressedFields =
+        GameEntityFields.Position | GameEntityFields.Velocity | GameEntityFields.Orientation;
+
+    /// <summary>
+    /// A character's experience and the experience its next level needs, which only its own client is sent (#993): the
+    /// client reads them for its own experience bar alone, and nobody else is shown another character's progress.
+    /// </summary>
+    private const GameEntityFields OwnerOnlyFields = GameEntityFields.Experience | GameEntityFields.RequiredExperience;
+
+    /// <summary>
+    /// The fields a character's add or update is described with for one recipient. To the character's own client, its
+    /// motion is left out (<see cref="SelfSuppressedFields" />) and the rest, its experience included, rides the
+    /// broadcast. To every other client, its experience is left out (<see cref="OwnerOnlyFields" />, #993). So a
+    /// character's entry is the same for every recipient but itself, which is what lets the broadcast share it (#980),
+    /// and its own entry, described for its client alone, is the only one that carries its experience.
+    /// </summary>
+    public static GameEntityFields MaskForRecipient(GameEntityFields fields, ObjectGuid subjectGuid, ObjectGuid recipientGuid) =>
+        subjectGuid == recipientGuid ? fields & ~SelfSuppressedFields : fields & ~OwnerOnlyFields;
 }
