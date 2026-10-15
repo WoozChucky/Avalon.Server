@@ -205,7 +205,11 @@ public class CreatureCombatScript : AiScript, IReturningHome
     private object _state = CombatState.None;
     private bool _idle = true;
 
-    public override object State
+    /// <summary>
+    /// The combat state, a <see cref="CombatState" />. Sealed (#982): its setter keeps <see cref="IsIdle" />, which a
+    /// creature's due search reads, so no subclass may store the state elsewhere.
+    /// </summary>
+    public sealed override object State
     {
         get => _state;
         set
@@ -216,9 +220,8 @@ public class CreatureCombatScript : AiScript, IReturningHome
     }
 
     /// <summary>
-    /// Whether <see cref="State" /> is <see cref="CombatState.None" />, kept by its setter so a creature's due search
-    /// reads a field rather than a boxed state (#982). This type's own: a subclass that overrides <see cref="State" />
-    /// no longer keeps it, and is never asked (only a built-in waiting for its search is).
+    /// Whether <see cref="State" /> is <see cref="CombatState.None" />, kept by its sealed setter so a creature's due
+    /// search reads a field rather than a boxed state (#982).
     /// </summary>
     internal bool IsIdle => _idle;
 
