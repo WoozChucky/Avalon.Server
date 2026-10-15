@@ -14,6 +14,8 @@ namespace Avalon.Api.Identity.Controllers;
 [ApiController]
 [Authorize(Policy = AvalonRoles.Player)]
 [Route("pat")]
+// A minted token is shown once, in its response: no cache may keep it (Cache-Control: no-store, Pragma: no-cache).
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class PersonalAccessTokenController : BaseController
 {
     private readonly IPersonalAccessTokenService _service;

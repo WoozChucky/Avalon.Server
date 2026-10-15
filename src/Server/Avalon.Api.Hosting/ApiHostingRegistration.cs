@@ -55,6 +55,8 @@ public static class ApiHostingRegistration
         // Built here so a bad entry stops startup, naming the setting.
         services.AddSingleton(ForwardedHeadersSetup.BuildOptions(forwardedHeaders));
         services.AddSingleton<UntrustedForwardedHeaderLog>();
+        // The Strict-Transport-Security policy the pipeline sends outside Development.
+        services.AddAvalonHsts();
         // Request rate limiting under Application:RateLimiting (#561), per account or per source.
         services.AddApiRateLimiting();
 

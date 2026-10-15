@@ -97,6 +97,9 @@ public class ClientDistributionController : BaseController
     /// </summary>
     [HttpGet("channels/{channel}/manifest", Name = "GetClientManifest")]
     [Authorize(Policy = AvalonRoles.Player)]
+    // The presigned URLs are bearer credentials for the caller's channels: no cache may keep them
+    // (Cache-Control: no-store, Pragma: no-cache).
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     [ProducesResponseType(typeof(ManifestResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]

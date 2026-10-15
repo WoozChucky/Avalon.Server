@@ -18,6 +18,9 @@ namespace Avalon.Api.Identity.Controllers;
 [Authorize]
 [ApiController]
 [Route("mfa")]
+// The setup's secret, the recovery codes, the login hash and verify's access token: no cache may keep them
+// (Cache-Control: no-store, Pragma: no-cache).
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class MFAController : BaseController
 {
     private readonly IMFAService _mfaService;

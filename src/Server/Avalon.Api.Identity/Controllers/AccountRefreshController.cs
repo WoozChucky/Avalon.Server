@@ -19,6 +19,8 @@ namespace Avalon.Api.Identity.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("account/refresh")]
+// A new access token and refresh cookie: no cache may keep them (Cache-Control: no-store, Pragma: no-cache).
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public sealed class AccountRefreshController : BaseController
 {
     private readonly IRefreshTokenService _refresh;

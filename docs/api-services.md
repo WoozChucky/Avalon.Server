@@ -87,7 +87,12 @@ Only the host brings the four together.
 ### The pipeline
 
 Every process runs one pipeline (`ApiPipeline.Use`, pinned by `PipelineOrderShould`), in this order: the developer
-exception page (Development only), the exception handler, request logging, forwarded headers, routing, CORS, the
+exception page (Development only), the security headers (`SecurityHeaders`: `X-Content-Type-Options: nosniff` on
+every response), the exception handler, request logging, forwarded headers, the refusal of a request a trusted proxy
+forwarded over plaintext (`ForwardedPlaintextRefusal`, 403 `HTTPS_REQUIRED`; on by default outside Development,
+`Application:ForwardedHeaders:RefusePlaintext`, see [Configuration Reference](configuration-reference.md#rest-api-forwarded-headers)),
+HSTS (ASP.NET's, outside Development: `Strict-Transport-Security: max-age=31536000` on a request that is https once
+the forwarded headers are applied, so never on cluster http; `AddAvalonHsts`), routing, CORS, the
 services' hooks before authentication (identity: the game workload routes kept to their listener, then the Steam
 OpenID callback), authentication, the services' hooks after authentication (identity: the game workload
 authentication), the rate limiter, the world routes (`WorldRouteMiddleware`, only when a running service declares

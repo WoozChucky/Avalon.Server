@@ -18,4 +18,11 @@ public class ForwardedHeadersConfig
 
     /// <summary>How many proxy hops of <c>X-Forwarded-For</c> are read, from the right. At least 1.</summary>
     public int ForwardLimit { get; set; } = 1;
+
+    /// <summary>
+    /// Whether a request a trusted proxy forwarded with an <c>X-Forwarded-Proto</c> that is not https is refused before
+    /// any endpoint runs (<see cref="Middlewares.ForwardedPlaintextRefusal"/>). Unset, it is on everywhere but
+    /// Development (<see cref="Middlewares.ForwardedHeadersSetup.RefusesPlaintext"/>).
+    /// </summary>
+    public bool? RefusePlaintext { get; set; }
 }

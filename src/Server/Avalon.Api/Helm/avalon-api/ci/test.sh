@@ -34,6 +34,11 @@ grep -A1 "ASPNETCORE_ENVIRONMENT" <<<"$out" | grep -q 'Production'    || { echo 
 pw=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicWorldId=2)
 grep -A1 "name: Application__PublicWorldId" <<<"$pw" | grep -q 'value: "2"' || { echo "publicWorldId must render as Application__PublicWorldId"; exit 1; }
 
+# The plaintext refusal's kill switch: only when set, so the API's default (on outside Development) applies otherwise.
+! grep -q "Application__ForwardedHeaders__RefusePlaintext" <<<"$out"   || { echo "forwardedHeaders.refusePlaintext must not render unset"; exit 1; }
+rp=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}" --set forwardedHeaders.refusePlaintext=false)
+grep -A1 "name: Application__ForwardedHeaders__RefusePlaintext" <<<"$rp" | grep -q 'value: "false"' || { echo "forwardedHeaders.refusePlaintext=false must render"; exit 1; }
+
 # The link previews' public site URL: only when set, so previews leave og:url out otherwise.
 ! grep -q "Application__PublicSiteUrl" <<<"$out"                       || { echo "publicSiteUrl must not render unset"; exit 1; }
 ps=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicSiteUrl=https://avalon.example)
