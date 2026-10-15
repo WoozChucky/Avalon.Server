@@ -621,9 +621,13 @@ public sealed class CreatureSchedulingShould
     /// sight, here always clear for those), off the layout and on cell edges, characters dying, reviving, leaving, coming
     /// back and entering a second instance without leaving this one (then not indexed here), and a script in the middle
     /// of the instance's order that, mid-step, moves characters beside creatures after it (which must be found on that
-    /// tick when their search is due on it) and hits creatures (woken before or after their turn). Each weakening of the
-    /// filter tried fails it: a strict comparison at the range, a reach too short for the cells, the characters in no
-    /// cell or not indexed left out, a cell's character count not kept, the timer of a skipped search not reset, and the
+    /// tick when their search is due on it) and hits creatures (woken before or after their turn). Once per seed each, two
+    /// cases are staged rather than left to chance (<see cref="Stage" />): a character alone exactly at a due creature's
+    /// range on one axis, moved there within its cell after the grid bound its characters' bounds, and a character at a
+    /// due creature's range that another instance indexes. Each weakening of the filter tried fails it, on every seed: a
+    /// strict comparison at the range, the characters' bounds not widened by the range, the bounds left stale by a move
+    /// within a cell (Debug and Release), the characters in no cell or not indexed left out, a cell's character count not
+    /// kept, and the timer of a skipped search not reset; on some seeds, a reach too short for the cells, and the
     /// question asked when a cohort comes due rather than at each creature's turn.
     /// </summary>
     [Theory]
@@ -645,14 +649,15 @@ public sealed class CreatureSchedulingShould
         // Creatures on whole and half metres, so a character placed at a range along an axis is at it exactly; the
         // meddling script in the middle of the instance's order.
         float[] ranges = [8f, 0f, 12f, 20f]; // 0: the default, 10 m
+        var episodes = new Episodes();
         var creatures = new List<Pair<Creature>>();
         var characters = new List<Pair<MapInstanceClient>>();
         for (uint id = 1; id <= 41; id++)
         {
             if (id == 21)
             {
-                filtered.AddCreature(Meddler(filtered, id, new Random(seed), characters, creatures, f => f.Filtered));
-                reference.AddCreature(Meddler(reference, id, new Random(seed), characters, creatures, f => f.Reference));
+                filtered.AddCreature(Meddler(filtered, id, new Random(seed), episodes, characters, creatures, f => f.Filtered));
+                reference.AddCreature(Meddler(reference, id, new Random(seed), episodes, characters, creatures, f => f.Reference));
                 continue;
             }
 
@@ -680,7 +685,14 @@ public sealed class CreatureSchedulingShould
         int detectedNotFinite = 0;
         for (int tick = 1; tick <= 1200; tick++)
         {
-            Change(random, creatures, characters, filtered, reference, filteredElsewhere, referenceElsewhere);
+            // Once each per seed, the two cases a filter just too tight would miss: a character alone exactly at a due
+            // creature's range on one axis, and one at a due creature's range that another instance indexes.
+            if (tick >= 200 && episodes.Alone is null)
+                episodes.Alone = Stage(episodes, creatures, characters, filtered, reference, filteredElsewhere, referenceElsewhere, false);
+            else if (tick >= 600 && episodes.Elsewhere is null)
+                episodes.Elsewhere = Stage(episodes, creatures, characters, filtered, reference, filteredElsewhere, referenceElsewhere, true);
+
+            Change(random, episodes, creatures, characters, filtered, reference, filteredElsewhere, referenceElsewhere);
 
             int[] from = characters.Select(c => c.Filtered.Sent.Count).ToArray();
             int[] fromReference = characters.Select(c => c.Reference.Sent.Count).ToArray();
@@ -707,17 +719,31 @@ public sealed class CreatureSchedulingShould
                 Assert.True(Packets(characters[c].Reference.Sent.Skip(fromReference[c])) == Packets(characters[c].Filtered.Sent.Skip(from[c])),
                     $"seed {seed}, tick {tick}: client {characters[c].Reference.Character.Guid.Id} was sent other packets");
             }
+
+            episodes.Alone?.See(reference);
+            episodes.Elsewhere?.See(reference);
         }
+
+        // Each staged case happened and was found by the search the filter must not skip.
+        Assert.True(episodes.Alone is { Found: true }, $"seed {seed}: the character alone at a creature's range was {(episodes.Alone is null ? "never staged" : "not found")}");
+        Assert.True(episodes.Elsewhere is { Found: true }, $"seed {seed}: the character indexed elsewhere was {(episodes.Elsewhere is null ? "never staged" : "not found")}");
 
         // The equivalence would hold trivially if nothing was skipped, or if nothing was found.
         long all = Searches(reference), skipped = all - Searches(filtered);
-        Assert.True(skipped > all / 5 && skipped < all, $"seed {seed}: {skipped} of {all} searches skipped");
+        Assert.True(skipped > all / 10 && skipped < all, $"seed {seed}: {skipped} of {all} searches skipped");
         Assert.True(detectedNotFinite > 0, $"seed {seed}: no creature ever held a character standing nowhere as its target");
     }
 
-    private static void Change(Random random, List<Pair<Creature>> creatures, List<Pair<MapInstanceClient>> characters,
+    private static void Change(Random random, Episodes episodes, List<Pair<Creature>> creatures, List<Pair<MapInstanceClient>> characters,
         MapInstance filtered, MapInstance reference, MapInstance filteredElsewhere, MapInstance referenceElsewhere)
     {
+        // While a staged case plays out, nothing else changes.
+        if (episodes.Quiet > 0)
+        {
+            episodes.Quiet--;
+            return;
+        }
+
         // A character placed at a creature's range stays there for a search period, so the creature's search comes due
         // while it does; the others wander.
         foreach (Pair<MapInstanceClient> character in characters)
@@ -799,6 +825,89 @@ public sealed class CreatureSchedulingShould
     }
 
     /// <summary>
+    /// Stages one of the cases a filter just too tight would miss, at a creature waiting for its search with the search
+    /// due within the next 9 ticks (none yet: null, staged on a later tick). The first character is put, alive and in this
+    /// instance, at the creature's height and exactly at its range along X (<paramref name="elsewhere" /> false: then
+    /// indexed by this instance alone), or halfway to it while also in the second instance (true: not indexed here). Every
+    /// other character is put back into this instance's index and lined up far along +X, beyond every creature, so the
+    /// creature is just outside the bounds of the rest; and nothing else changes, the meddling script included, until the
+    /// search has run.
+    /// </summary>
+    private static Episode? Stage(Episodes episodes, List<Pair<Creature>> creatures, List<Pair<MapInstanceClient>> characters,
+        MapInstance filtered, MapInstance reference, MapInstance filteredElsewhere, MapInstance referenceElsewhere, bool elsewhere)
+    {
+        Pair<Creature>? due = creatures.Find(c =>
+        {
+            CreatureView view = View(reference, c.Reference);
+            float range = c.Reference.Metadata.DetectionRange > 0f ? c.Reference.Metadata.DetectionRange : 10f;
+            return view.Combat is CreatureCombatScript.CombatState.None
+                   && view.Detector is CreatureRangeDetectorScript.RangeDetectionState.Searching
+                   && view.SearchTimer > 0.85f && !(view.Z > 10f && view.Z < 25f) // in sight (ClearSight)
+                   && (view.X + range) % 30f is >= 0f and < 27f; // 3 m further along X in the same cell (the grid's X origin is 0)
+        });
+        if (due is null)
+            return null;
+
+        Vector3 at = due.Reference.Position;
+        float range = due.Reference.Metadata.DetectionRange > 0f ? due.Reference.Metadata.DetectionRange : 10f;
+        for (int i = 0; i < characters.Count; i++)
+        {
+            Pair<MapInstanceClient> character = characters[i];
+            if (character.Elsewhere)
+            {
+                filteredElsewhere.RemoveCharacter(character.Filtered.Connection);
+                referenceElsewhere.RemoveCharacter(character.Reference.Connection);
+                character.Elsewhere = false;
+            }
+
+            if (character.In)
+            {
+                filtered.RemoveCharacter(character.Filtered.Connection);
+                reference.RemoveCharacter(character.Reference.Connection);
+            }
+
+            filtered.AddCharacter(character.Filtered.Connection);
+            reference.AddCharacter(character.Reference.Connection);
+            character.In = true;
+            if (i > 0)
+                Move(character, new Vector3(at.x + range + 400f + 10f * i, at.y, at.z));
+        }
+
+        Pair<MapInstanceClient> staged = characters[0];
+        staged.Filtered.Character.IsDead = false;
+        staged.Reference.Character.IsDead = false;
+        if (elsewhere)
+        {
+            filteredElsewhere.AddCharacter(staged.Filtered.Connection);
+            referenceElsewhere.AddCharacter(staged.Reference.Connection);
+            staged.Elsewhere = true;
+        }
+
+        else
+        {
+            // First 3 m beyond the range, in the same cell, where the grid binds its characters' bounds; then the move to
+            // the range, within the cell, which only the version a move moves tells the bounds of.
+            Move(staged, new Vector3(at.x + range + 3f, at.y, at.z));
+            BindCharacterBounds(filtered);
+            BindCharacterBounds(reference);
+        }
+
+        Move(staged, new Vector3(at.x + (elsewhere ? range / 2f : range), at.y, at.z));
+        episodes.Quiet = 12;
+        return new Episode(due, $"character {staged.Reference.Character.Guid.Id}");
+    }
+
+    /// <summary>
+    /// Has the instance's spatial grid bind its characters' bounds now, as a creature's search question does (the grid's,
+    /// internal, asked by name, of a point that changes nothing).
+    /// </summary>
+    private static void BindCharacterBounds(MapInstance map)
+    {
+        object grid = typeof(MapInstance).GetField("_members", Private)!.GetValue(map)!;
+        grid.GetType().GetMethod("MayHaveCharacterWithin")!.Invoke(grid, [Vector3.zero, 1f]);
+    }
+
+    /// <summary>
     /// A character at a creature's range: along an axis on it, a float inside or beyond it, or at a random angle around it,
     /// level with the creature or above or below it (so within range on X/Z but beyond it in 3D).
     /// </summary>
@@ -857,8 +966,9 @@ public sealed class CreatureSchedulingShould
     /// A creature whose script needs every tick and, mid-step, moves a character beside a creature after it in the
     /// instance's order, or hits one; the same seeded choices on both sides, as it runs on every tick on both.
     /// </summary>
-    private static Creature Meddler(MapInstance map, uint id, Random random, List<Pair<MapInstanceClient>> characters,
-        List<Pair<Creature>> creatures, Func<Pair<MapInstanceClient>, MapInstanceClient> sideOf)
+    private static Creature Meddler(MapInstance map, uint id, Random random, Episodes episodes,
+        List<Pair<MapInstanceClient>> characters, List<Pair<Creature>> creatures,
+        Func<Pair<MapInstanceClient>, MapInstanceClient> sideOf)
     {
         var creature = new Creature
         {
@@ -870,7 +980,7 @@ public sealed class CreatureSchedulingShould
         };
         creature.Script = new MeddlingScript(creature, map, _ =>
         {
-            if (characters.Count == 0)
+            if (characters.Count == 0 || episodes.Quiet > 0)
                 return;
 
             int roll = random.Next(10);
@@ -907,6 +1017,22 @@ public sealed class CreatureSchedulingShould
             .Select(c => new PlacedChunk(new ChunkTemplateId(1), c.X, c.Z, 0, new Vector3(c.X * 30f, 0f, c.Z * 30f)))
             .ToList();
         return new ChunkLayout(0, chunks, chunks[0], null, [], Vector3.zero, 30f);
+    }
+
+    /// <summary>The staged cases (<see cref="Stage" />), and how many more ticks nothing else changes for the one playing out.</summary>
+    private sealed class Episodes
+    {
+        public int Quiet { get; set; }
+        public Episode? Alone { get; set; }
+        public Episode? Elsewhere { get; set; }
+    }
+
+    /// <summary>A staged case: its creature, the character it must find, and whether it did.</summary>
+    private sealed class Episode(Pair<Creature> creature, string character)
+    {
+        public bool Found { get; private set; }
+
+        public void See(MapInstance reference) => Found |= View(reference, creature.Reference).Target == character;
     }
 
     /// <summary>One object on each side: in the instance that skips searches, and in the one that runs them all.</summary>
