@@ -113,7 +113,7 @@ public sealed class MaintenanceCommandShould
             Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
             Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
         var dispatcher = new CommandDispatcher([new MaintenanceCommand(new WorldId(1), repository, control, coordinator)],
-            NullLogger<CommandDispatcher>.Instance);
+            NullLogger<CommandDispatcher>.Instance, TimeProvider.System);
 
         Assert.True(dispatcher.Dispatch(connection, new CChatMessagePacket { Message = "/maintenance on", DateTime = DateTime.UtcNow }));
 
@@ -146,7 +146,7 @@ public sealed class MaintenanceCommandShould
             Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
             _dispatcher = new CommandDispatcher(
                 [new MaintenanceCommand(new WorldId(1), Repository, Control, Coordinator)],
-                NullLogger<CommandDispatcher>.Instance);
+                NullLogger<CommandDispatcher>.Instance, TimeProvider.System);
         }
 
         // The connection runs each continuation inline, as the tick would a tick later.

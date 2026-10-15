@@ -202,7 +202,7 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
                     // The one string the line makes: its text, stripped and trimmed (#944), a slice of the message
                     // until now (#973).
                     line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, ChatText.Clean(text),
-                        ctx.Packet.DateTime, PacketEncoder.Shared, ChatChannel.Party, characterClass: sender.Class);
+                        ctx.Now, PacketEncoder.Shared, ChatChannel.Party, characterClass: sender.Class);
                 }
 
                 target.Send(line.Share());

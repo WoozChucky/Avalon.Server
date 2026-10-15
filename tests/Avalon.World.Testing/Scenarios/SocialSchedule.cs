@@ -83,7 +83,8 @@ public sealed class SocialSchedule
     private const string WhisperText = "Meet me by the town gate.";
     private const string CommandLine = "/ignorelist";
 
-    // The client's own clock on a chat message, which the server only copies back: fixed, so every run sends the same.
+    // The client's own clock on a chat message, which the server never reads (it stamps every line with its own, #944):
+    // fixed, so every run sends the same.
     private static readonly DateTime s_clientTime = new(2026, 10, 14, 12, 0, 0, DateTimeKind.Utc);
 
     private readonly ScenarioWorld _world;
@@ -149,12 +150,12 @@ public sealed class SocialSchedule
         _ignoreList = new CountingCommand(new IgnoreListCommand(options));
         var dispatcher = new CommandDispatcher(
             [new PartyChatCommand(_parties, limiter), new WhisperCommand(_parties.Online, limiter), _ignoreList],
-            new Logger<CommandDispatcher>(world.Logs));
+            new Logger<CommandDispatcher>(world.Logs), world.Clock);
 
         _leave = new PartyLeaveHandler(_parties, new Logger<PartyLeaveHandler>(world.Logs));
         _invite = new PartyInviteHandler(_parties, new Logger<PartyInviteHandler>(world.Logs));
         _respond = new PartyInviteResponseHandler(_parties, new Logger<PartyInviteResponseHandler>(world.Logs));
-        _chat = new ChatMessageHandler(world.Host, dispatcher, limiter);
+        _chat = new ChatMessageHandler(world.Host, dispatcher, limiter, world.Clock);
     }
 
     /// <summary>

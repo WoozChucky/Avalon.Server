@@ -66,15 +66,16 @@ public sealed class WhisperCommand(OnlineCharacters online, ChatRateLimiter rate
         // The one string the whisper makes: its text, stripped and trimmed (#944).
         string message = ChatText.Clean(text);
         ulong accountId = ctx.Connection.AccountId is { } account ? (ulong)account.Value : 0UL;
+        DateTime now = ctx.Now;
         // A recipient ignoring the sender never gets the line (#723); the sender is not told, so the echo below and the
         // rate limit are exactly as for a delivered whisper.
         if (!Ignoring.Hides(target, sender.Guid.Id))
         {
-            target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
+            target.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, now,
                 PacketEncoder.Shared, ChatChannel.Whisper, characterClass: sender.Class));
         }
 
-        ctx.Connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, ctx.Packet.DateTime,
+        ctx.Connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, now,
             PacketEncoder.Shared, ChatChannel.Whisper, targetName: recipient.Name,
             characterClass: sender.Class));
         rateLimiter.Record(sender.Guid.Id);

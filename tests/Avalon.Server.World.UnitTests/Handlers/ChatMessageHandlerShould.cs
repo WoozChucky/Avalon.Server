@@ -17,6 +17,7 @@ using Avalon.World.Parties;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using ProtoBuf;
 
@@ -36,7 +37,7 @@ public class ChatMessageHandlerShould
         _senderConnection.AccountId.Returns(new AccountId(1));
         _senderConnection.InGame.Returns(true);
 
-        _handler = new ChatMessageHandler(_world, _commandDispatcher, ChatLimits.Off());
+        _handler = new ChatMessageHandler(_world, _commandDispatcher, ChatLimits.Off(), TimeProvider.System);
     }
 
     private CChatMessagePacket MakePacket(string message) =>
@@ -129,7 +130,7 @@ public class ChatMessageHandlerShould
         string unit = codePoint > 0xFFFF ? char.ConvertFromUtf32(codePoint) : ((char)codePoint).ToString();
         string message = string.Concat(Enumerable.Repeat(unit, times)) + new string('z', letters);
         var limiter = new ChatRateLimiter(Options.Create(new GameConfiguration { ChatMessagesPerMinute = 1 }), TimeProvider.System);
-        var handler = new ChatMessageHandler(_world, _commandDispatcher, limiter);
+        var handler = new ChatMessageHandler(_world, _commandDispatcher, limiter, TimeProvider.System);
         MapInstance here = TestMapInstances.Build(_world);
         _world.InstanceRegistry.GetInstanceById(here.InstanceId).Returns(here);
         MapInstanceClient sender = MapInstanceClients.Join(here, 1);
@@ -187,7 +188,7 @@ public class ChatMessageHandlerShould
         Assert.Equal(PartyResult.Ok, parties.Respond(2, accept: true));
         var handler = new ChatMessageHandler(_world, new CommandDispatcher(
             [new WhisperCommand(parties.Online, ChatLimits.Off()), new PartyChatCommand(parties, ChatLimits.Off())],
-            NullLogger<CommandDispatcher>.Instance), ChatLimits.Off());
+            NullLogger<CommandDispatcher>.Instance, TimeProvider.System), ChatLimits.Off(), TimeProvider.System);
         kaela.Sent.Clear();
 
         handler.Execute(aren.Connection, MakePacket(text));
@@ -202,6 +203,37 @@ public class ChatMessageHandlerShould
     }
 
     /// <summary>
+    /// #944: every line is stamped with the server's clock in UTC, read when the line is sent, and never with the time
+    /// the client put on its message: a said line, a whisper and its echo, a command's reply and the handler's own.
+    /// </summary>
+    [Fact]
+    public void Stamp_every_line_with_the_servers_clock_never_the_senders()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 15, 12, 30, 0, TimeSpan.Zero));
+        var online = new PartyTestWorld();
+        var handler = new ChatMessageHandler(_world,
+            new CommandDispatcher([new WhisperCommand(online.Parties.Online, ChatLimits.Off())],
+                NullLogger<CommandDispatcher>.Instance, clock),
+            ChatLimits.Off(), clock);
+        PartyClient aren = online.Online(1, "Aren");
+        PartyClient kaela = online.Online(2, "Kaela");
+        aren.Connection.AccessLevel.Returns(AccessLevels.Player);
+        var clientsClock = new DateTime(1999, 12, 31, 23, 59, 59, DateTimeKind.Utc);
+
+        foreach (string message in new[] { "Hello", "/w Kaela hi", "/w", "/nope" })
+        {
+            clock.Advance(TimeSpan.FromMinutes(1));
+            handler.Execute(aren.Connection, new CChatMessagePacket { Message = message, DateTime = clientsClock });
+        }
+
+        DateTime first = new(2026, 10, 15, 12, 31, 0, DateTimeKind.Utc);
+        Assert.Equal([first, first.AddMinutes(1), first.AddMinutes(2), first.AddMinutes(3)],
+            aren.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE).Select(m => m.DateTime));
+        Assert.Equal(first.AddMinutes(1),
+            Assert.Single(kaela.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).DateTime);
+    }
+
+    /// <summary>
     /// The rule is on the message as sent (#936), so a command is held to it: an over-long whisper reaches neither the
     /// command nor its target.
     /// </summary>
@@ -211,8 +243,9 @@ public class ChatMessageHandlerShould
         const string Prefix = "/w Kaela ";
         var online = new PartyTestWorld();
         var handler = new ChatMessageHandler(_world,
-            new CommandDispatcher([new WhisperCommand(online.Parties.Online, ChatLimits.Off())], NullLogger<CommandDispatcher>.Instance),
-            ChatLimits.Off());
+            new CommandDispatcher([new WhisperCommand(online.Parties.Online, ChatLimits.Off())], NullLogger<CommandDispatcher>.Instance,
+                TimeProvider.System),
+            ChatLimits.Off(), TimeProvider.System);
         PartyClient aren = online.Online(1, "Aren");
         PartyClient kaela = online.Online(2, "Kaela");
         aren.Connection.AccessLevel.Returns(AccessLevels.Player);

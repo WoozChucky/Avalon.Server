@@ -85,8 +85,8 @@ public class SocialEventBenchmarks
         var limiter = new ChatRateLimiter(options, _world.Clock);
         var dispatcher = new CommandDispatcher(
             [new PartyChatCommand(_parties, limiter), new WhisperCommand(_parties.Online, limiter)],
-            NullLogger<CommandDispatcher>.Instance);
-        _chat = new ChatMessageHandler(_world.Host, dispatcher, limiter);
+            NullLogger<CommandDispatcher>.Instance, _world.Clock);
+        _chat = new ChatMessageHandler(_world.Host, dispatcher, limiter, _world.Clock);
         _leave = new PartyLeaveHandler(_parties, NullLogger<PartyLeaveHandler>.Instance);
         _invite = new PartyInviteHandler(_parties, NullLogger<PartyInviteHandler>.Instance);
         _respond = new PartyInviteResponseHandler(_parties, NullLogger<PartyInviteResponseHandler>.Instance);

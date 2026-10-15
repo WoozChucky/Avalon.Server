@@ -77,7 +77,8 @@ public class GameplayRequestAllocationShould
         limiter.Record(_character.Guid.Id);
         var counted = new Counted();
         var handler = new ChatMessageHandler(new QuietWorld(null!),
-            new CommandDispatcher([counted, new StaffOnly()], NullLogger<CommandDispatcher>.Instance), limiter);
+            new CommandDispatcher([counted, new StaffOnly()], NullLogger<CommandDispatcher>.Instance, TimeProvider.System),
+            limiter, TimeProvider.System);
 
         DateTime now = DateTime.UtcNow;
         var overTheLimit = new CChatMessagePacket { Message = "one more thing", DateTime = now };

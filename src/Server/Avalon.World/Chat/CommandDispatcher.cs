@@ -18,9 +18,11 @@ public sealed class CommandDispatcher : ICommandDispatcher
     private readonly Dictionary<string, ICommand>.AlternateLookup<ReadOnlySpan<char>> _commands;
     private readonly ILogger<CommandDispatcher> _logger;
 
-    public CommandDispatcher(IEnumerable<ICommand> commands, ILogger<CommandDispatcher> logger)
+    /// <param name="time">The clock every line a command sends is stamped with (#944).</param>
+    public CommandDispatcher(IEnumerable<ICommand> commands, ILogger<CommandDispatcher> logger, TimeProvider time)
     {
         _logger = logger;
+        Time = time;
         var byName = new Dictionary<string, ICommand>(StringComparer.OrdinalIgnoreCase);
 
         foreach (ICommand command in commands)
@@ -35,6 +37,9 @@ public sealed class CommandDispatcher : ICommandDispatcher
 
         _commands = byName.GetAlternateLookup<ReadOnlySpan<char>>();
     }
+
+    /// <summary>The clock a command's lines are stamped with: <see cref="CommandContext.Now" />.</summary>
+    internal TimeProvider Time { get; }
 
     /// <summary>
     /// Runs the command the message names, with the words after it as its arguments. The message is read as it always
@@ -120,7 +125,7 @@ public sealed class CommandDispatcher : ICommandDispatcher
         {
             // Type name only — the message and stack stay in the log.
             connection.Send(SChatMessagePacket.System($"Command /{command.Name} failed: {ex.GetType().Name}.",
-                packet.DateTime, PacketEncoder.Shared));
+                Time.GetUtcNow().UtcDateTime, PacketEncoder.Shared));
         }
     }
 }

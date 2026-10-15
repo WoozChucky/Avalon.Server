@@ -98,7 +98,7 @@ public class GodModeCommandShould
                 .Do(call => _sent.Add(call.Arg<OutboundPacket>()));
             _dispatcher = new CommandDispatcher(
                 [new GodModeCommand(NullLogger<GodModeCommand>.Instance)],
-                NullLogger<CommandDispatcher>.Instance);
+                NullLogger<CommandDispatcher>.Instance, TimeProvider.System);
         }
 
         public CharacterEntity Character { get; }

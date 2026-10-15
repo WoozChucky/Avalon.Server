@@ -52,7 +52,7 @@ public class ChatRateLimitShould
             new LeaveCommand(_w.Parties),
         };
         _handler = new ChatMessageHandler(MapInstanceClients.NewWorld(),
-            new CommandDispatcher(commands, NullLogger<CommandDispatcher>.Instance), _limiter);
+            new CommandDispatcher(commands, NullLogger<CommandDispatcher>.Instance, _time), _limiter, _time);
     }
 
     private void Send(PartyClient from, string message)
@@ -286,7 +286,7 @@ public class ChatRateLimitShould
         IWorld world = MapInstanceClients.NewWorld();
         MapInstance here = TestMapInstances.Build(world);
         world.InstanceRegistry.GetInstanceById(here.InstanceId).Returns(here);
-        var handler = new ChatMessageHandler(world, Substitute.For<ICommandDispatcher>(), _limiter);
+        var handler = new ChatMessageHandler(world, Substitute.For<ICommandDispatcher>(), _limiter, _time);
         MapInstanceClient sender = MapInstanceClients.Join(here, 1);
         MapInstanceClient neighbour = MapInstanceClients.Join(here, 2);
 
