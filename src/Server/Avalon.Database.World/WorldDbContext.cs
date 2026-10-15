@@ -1048,6 +1048,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.Boar,
             Type = CreatureType.Beast,
+            DisplayId = 8,
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
@@ -1081,6 +1082,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.Wolf,
             Type = CreatureType.Beast,
+            DisplayId = 10,
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
@@ -1114,6 +1116,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Critter,
+            DisplayId = 12,
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
@@ -1147,6 +1150,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Undead,
+            DisplayId = 13,
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
@@ -1180,6 +1184,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Elite,
             Family = CreatureFamily.Wolf,
             Type = CreatureType.Beast,
+            DisplayId = 11,
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
@@ -1213,6 +1218,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Rare,
             Family = CreatureFamily.Boar,
             Type = CreatureType.Beast,
+            DisplayId = 9,
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
@@ -1246,6 +1252,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Boss,
             Family = CreatureFamily.None,
             Type = CreatureType.Elemental,
+            DisplayId = 14,
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
