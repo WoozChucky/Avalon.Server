@@ -1,12 +1,16 @@
 name: Publish the server
-description: Publish the servers, push their images and charts.
+description: >-
+  Publish the four servers and push their images. Nothing deploys an image until push-charts pushes the charts
+  that name it, so a run may call this before its tests finish (dotnet-ci.yml) as long as the charts wait for them.
 inputs:
-  version: { description: "Chart version and primary image tag", required: true }
+  version: { description: "Primary image tag", required: true }
   extra-tags: { description: "More image tags, one per line", required: false, default: "" }
   token: { description: "A token that can push packages", required: true }
 runs:
   using: composite
   steps:
+    # Needs the four servers restored, nothing built (dotnet-ci.yml builds nothing else): each publish compiles its
+    # server and whatever of its references the ones before it did not, so every project compiles once.
     - name: Publish the servers
       shell: bash
       run: |
@@ -15,10 +19,14 @@ runs:
         # SourceRevisionId becomes the +<sha> of the assembly's informational version, so it only takes effect on
         # a publish that builds. The balance service reads it as the commit its exports branch from (without it
         # exports answer 503), hence no --no-build for it.
-        dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -p:SourceRevisionId="$(git rev-parse HEAD)" -o src/Server/Avalon.Server.World/out
-        dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-build -o src/Server/Avalon.Server.Auth/out
-        dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-build -o src/Server/Avalon.Api/out
-        dotnet publish src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj -c Release --no-restore -p:SourceRevisionId="$(git rev-parse HEAD)" -o src/Server/Avalon.Balance.Service/out
+        # All four pass it, so the libraries they share are built once with the same properties: a build without it
+        # takes the stamp from source control, which for vendor/DotRecast (a submodule) is the submodule's commit,
+        # and every assembly above DotRecast would then compile a second time, differing in its identity bytes only.
+        revision="$(git rev-parse HEAD)"
+        dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -p:SourceRevisionId="$revision" -o src/Server/Avalon.Server.World/out
+        dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore -p:SourceRevisionId="$revision" -o src/Server/Avalon.Server.Auth/out
+        dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore -p:SourceRevisionId="$revision" -o src/Server/Avalon.Api/out
+        dotnet publish src/Server/Avalon.Balance.Service/Avalon.Balance.Service.csproj -c Release --no-restore -p:SourceRevisionId="$revision" -o src/Server/Avalon.Balance.Service/out
     - uses: docker/login-action@v4.6.0
       with: { registry: ghcr.io, username: "${{ github.actor }}", password: "${{ inputs.token }}" }
     - name: Build and push the images
@@ -30,29 +38,25 @@ runs:
         # what it still lacks, so three tries a few seconds apart ride that out.
         retry() { local n; for n in 1 2 3; do "$@" && return 0; [[ $n -lt 3 ]] && { echo "::warning::'$*' failed (attempt $n of 3); retrying"; sleep $((n * 10)); }; done; return 1; }
         revision="$(git rev-parse HEAD)"
-        for c in world:Avalon.Server.World auth:Avalon.Server.Auth api:Avalon.Api balance:Avalon.Balance.Service; do
-          name="${c%%:*}"; project="${c#*:}"
-          image="ghcr.io/woozchucky/avalon-server/$name"
-          tags=(-t "$image:$VERSION")
+        image_push() {
+          local name="$1" project="$2" image="ghcr.io/woozchucky/avalon-server/$1" t
+          local tags=(-t "$image:$VERSION")
           while IFS= read -r t; do [[ -n "$t" ]] && tags+=(-t "$image:$t"); done <<< "$EXTRA"
           docker build "src/Server/$project/" -f "src/Server/$project/Dockerfile" "${tags[@]}" \
-            --label "org.opencontainers.image.revision=$revision" --label "org.opencontainers.image.version=$VERSION"
-          retry docker push --all-tags "$image"
+            --label "org.opencontainers.image.revision=$revision" --label "org.opencontainers.image.version=$VERSION" || return 1
+          retry docker push --all-tags "$image" || return 1
+        }
+        # The four images build and push at once, each into its own log, printed in order once all are done.
+        logs="$(mktemp -d)"
+        jobs=()
+        for c in world:Avalon.Server.World auth:Avalon.Server.Auth api:Avalon.Api balance:Avalon.Balance.Service; do
+          image_push "${c%%:*}" "${c#*:}" > "$logs/${c%%:*}.log" 2>&1 &
+          jobs+=("${c%%:*}:$!")
         done
-    - uses: azure/setup-helm@v5
-    - name: Package and push the charts
-      shell: bash
-      env: { VERSION: "${{ inputs.version }}", TOKEN: "${{ inputs.token }}" }
-      run: |
-        set -euo pipefail
-        retry() { local n; for n in 1 2 3; do "$@" && return 0; [[ $n -lt 3 ]] && { echo "::warning::'$*' failed (attempt $n of 3); retrying"; sleep $((n * 10)); }; done; return 1; }
-        echo "$TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
-        mkdir -p dist/charts
-        # avalon-world last: its tag is what the nightly skip and Flux look for.
-        for chart in src/Server/Avalon.Api/Helm/avalon-api src/Server/Avalon.Server.Auth/Helm/avalon-auth \
-                     src/Server/Avalon.Balance.Service/Helm/avalon-balance \
-                     src/Server/Avalon.Server.World/Helm/avalon-world; do
-          bash "$chart/ci/test.sh"
-          helm package "$chart" --version "$VERSION" --app-version "$VERSION" -d dist/charts
-          retry helm push "dist/charts/$(basename "$chart")-$VERSION.tgz" oci://ghcr.io/woozchucky/charts
+        failed=()
+        for j in "${jobs[@]}"; do
+          name="${j%%:*}"
+          wait "${j#*:}" || failed+=("$name")
+          echo "::group::$name image"; cat "$logs/$name.log"; echo "::endgroup::"
         done
+        if [[ ${#failed[@]} -gt 0 ]]; then echo "::error::images not pushed: ${failed[*]}"; exit 1; fi
