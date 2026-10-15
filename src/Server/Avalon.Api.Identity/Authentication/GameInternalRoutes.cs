@@ -13,6 +13,15 @@ public static class GameInternalRoutes
     public const string Prefix = "/internal";
 
     /// <summary>
+    /// The lease heartbeat, every 15 seconds per player: a success is logged at Debug (#1051), its failures and every
+    /// other internal route at Information.
+    /// </summary>
+    public const string HeartbeatPath = "/internal/game/sessions/heartbeat";
+
+    /// <summary>Whether <paramref name="path"/> is the lease heartbeat's, without regard to case.</summary>
+    public static bool IsHeartbeat(PathString path) => path.Equals(HeartbeatPath, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Answers 404 to every request for <see cref="Prefix"/> or a path under it, without regard to case, that arrived on
     /// any port but <paramref name="port"/>.
     /// </summary>

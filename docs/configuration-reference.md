@@ -886,7 +886,14 @@ one pair of authentications and one authorization per lease heartbeat (63,000 li
 players): the workload scheme's handler logs under its own type (`Avalon.Api.Identity.Authentication.GameServerAuthHandler`)
 and the authorization under `Microsoft.AspNetCore.Authorization.DefaultAuthorizationService`, which the
 `Microsoft.AspNetCore.Authentication` override below never matched (`ApiLogLevelShould`). Each request still writes
-its one `RequestLoggingMiddleware` line at Information, a lease heartbeat's included. The environment brings the Debug
+its one `RequestLoggingMiddleware` line at Information, except a successful lease heartbeat
+(`POST /internal/game/sessions/heartbeat` answered 2xx), which identity names in `RequestLoggingOptions.QuietOnSuccess`
+and which is written at Debug: one per player every 15 seconds, about 87 lines a second with 1,300 players, whose
+count and latency the `http.server.request.duration` metric already carries. A heartbeat that fails, and every other
+`/internal/game` route, stays at Information (`WorkloadRequestLogShould`). Game authentication's own line
+(`Game authentication {Operation} responded {StatusCode} with {ErrorCode}`) is not written for a context refresh
+answered 200 with no error, which only repeats the request line; every other answer, and every other operation's, is.
+The environment brings the Debug
 lines back (`Serilog__MinimumLevel__Default=Debug`); the API chart has no value for it, unlike the world chart's
 `logging.minimumLevel`.
 

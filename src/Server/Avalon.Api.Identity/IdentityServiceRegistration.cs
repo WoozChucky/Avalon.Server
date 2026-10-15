@@ -152,6 +152,8 @@ public static class IdentityServiceRegistration
             .AddAuthenticationSchemes(GameServerAuthHandler.Scheme).RequireAuthenticatedUser()
             .RequireClaim(GameServerAuthHandler.ServerIdClaim)));
         services.AddSingleton<IRateLimitWorkloads, GameServerRateLimitWorkloads>();
+        // A successful lease heartbeat's request line is Debug (#1051): one per player every 15 seconds.
+        services.Configure<RequestLoggingOptions>(options => options.QuietOnSuccess.Add(GameInternalRoutes.IsHeartbeat));
 
         services.AddScoped<IAuthorizationHandler, Authorization.AccountReadHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.AccountWriteHandler>();
