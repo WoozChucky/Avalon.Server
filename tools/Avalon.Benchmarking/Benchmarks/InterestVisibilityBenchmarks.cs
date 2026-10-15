@@ -10,11 +10,14 @@ using BenchmarkDotNet.Attributes;
 
 namespace Avalon.Benchmarking.Benchmarks;
 
-/// <summary>Real interest radii: nearby objects, mostly out-of-range objects, and tracked objects in the margin.</summary>
+/// <summary>
+/// Real interest radii: nearby objects, mostly out-of-range objects, tracked objects in the margin, and every object
+/// out of range (the cost of a check that finds nothing, what most of a forest's checks are).
+/// </summary>
 [MemoryDiagnoser]
 public class InterestVisibilityBenchmarks
 {
-    [Params("dense", "sparse", "margin")]
+    [Params("dense", "sparse", "margin", "far")]
     public string Layout { get; set; } = "dense";
 
     private CharacterCharacterGameState _state = null!;
@@ -34,7 +37,12 @@ public class InterestVisibilityBenchmarks
         int i = 0;
         foreach (ICreature creature in _creatures.Values)
         {
-            creature.Position = Layout == "sparse" ? new Vector3(i * 5f, 0, i * 5f) : new Vector3(i % 10, 0, i / 10);
+            creature.Position = Layout switch
+            {
+                "sparse" => new Vector3(i * 5f, 0, i * 5f),
+                "far" => new Vector3(100f + i, 0, 0),
+                _ => new Vector3(i % 10, 0, i / 10)
+            };
             if (i < 20)
                 _dirty.Add(creature.Guid, GameEntityFields.Position);
             i++;
@@ -46,8 +54,11 @@ public class InterestVisibilityBenchmarks
                 creature.Position = new Vector3(65f, 0, 0);
         }
         Update();
-        if (_state.NewObjects.Count != 0 || _state.RemovedObjects.Count != 0 || _state.UpdatedObjects.Count == 0)
-            throw new InvalidOperationException("Expected stable visibility with dirty updates.");
+        if (_state.NewObjects.Count != 0 || _state.RemovedObjects.Count != 0
+            || (_state.UpdatedObjects.Count == 0) != (Layout == "far"))
+        {
+            throw new InvalidOperationException("Expected stable visibility with dirty updates (none when far).");
+        }
     }
 
     [Benchmark]

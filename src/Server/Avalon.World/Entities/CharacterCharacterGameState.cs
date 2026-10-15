@@ -196,10 +196,16 @@ public class CharacterCharacterGameState
     /// </summary>
     public bool Knows(ObjectGuid guid) => _characterTrackingSystem.IsTracked(guid) || _creatureTrackingSystem.IsTracked(guid);
 
-    // "Already tracked" is the object's own tracking system's set, so a tracked object keeps its margin.
+    // "Already tracked" is the object's own tracking system's set, so a tracked object keeps its margin. The set is
+    // asked only for an object in the margin (#982): within the radius or beyond the margin it cannot change the answer.
     private static bool InView(IWorldObject obj, EntityTrackingSystem tracking, ObjectGuid watcher,
         Vector3 watcherPosition, InterestRange range) =>
-        Interest.IsVisible(watcher, watcherPosition, obj.Guid, obj.Position, tracking.IsTracked(obj.Guid), range);
+        Interest.IsVisible(watcher, watcherPosition, obj.Guid, obj.Position, range, new TrackedBy(tracking));
+
+    private readonly struct TrackedBy(EntityTrackingSystem tracking) : Interest.ITrackedSet
+    {
+        public bool Contains(ObjectGuid obj) => tracking.IsTracked(obj);
+    }
 
     private void OnEntityRemoved(ObjectGuid guid) => _removedObjects.Add(guid);
     private void OnEntityUpdated(ObjectGuid guid, GameEntityFields fields) => _updatedObjects.Add((guid, fields));

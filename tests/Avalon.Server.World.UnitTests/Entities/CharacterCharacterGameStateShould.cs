@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
+using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -225,6 +226,91 @@ public class CharacterCharacterGameStateShould
         character.Position = new Vector3(75, 0, 0);
         Watch(state, [], characters, [], EmptyDirty());
         Assert.Equal([character.Guid], state.RemovedObjects);
+    }
+
+    /// <summary>
+    /// #982: the view asks an object's tracking set only when the object is in the margin, and decides every object as
+    /// <see cref="Interest.IsVisible" /> does, tracked or not: around the radius and radius + margin (just inside,
+    /// exactly, just beyond, on X and diagonally), from a watcher away from the origin, at non-finite positions (the
+    /// object's or the watcher's), for the watcher's own character, and for a character with no data, which reads
+    /// as at the origin whatever it is told.
+    /// </summary>
+    [Theory]
+    [InlineData("creature")]
+    [InlineData("character")]
+    [InlineData("projectile")]
+    [InlineData("character with no data")]
+    public void Decide_each_object_as_the_interest_rule_does(string kind)
+    {
+        float[] offsets = [0f, 59.99f, 60f, 60.01f, 65f, 69.99f, 70f, 70.01f, 1000f, float.NaN, float.PositiveInfinity,
+            float.NegativeInfinity];
+        float diagonal = 60f / MathF.Sqrt(2f);
+        var placements = new List<(Vector3 Watcher, Vector3 Object)>();
+        foreach (float watcherX in new[] { 0f, 1000f, float.NaN, float.PositiveInfinity })
+        {
+            var watcherAt = new Vector3(watcherX, 0f, 0f);
+            foreach (float offset in offsets)
+            {
+                placements.Add((watcherAt, new Vector3(watcherX + offset, 0f, 0f)));
+                placements.Add((watcherAt, new Vector3(watcherX, 0f, offset)));
+                placements.Add((watcherAt, new Vector3(watcherX, offset, 0f)));
+            }
+
+            placements.Add((watcherAt, new Vector3(watcherX + diagonal, 0f, diagonal)));
+            placements.Add((watcherAt, new Vector3(watcherX + diagonal + 0.01f, 0f, diagonal)));
+        }
+
+        var mismatches = new List<string>();
+        foreach (bool self in kind == "character" ? new[] { false, true } : [false])
+        {
+            foreach (bool tracked in new[] { false, true })
+            {
+                foreach ((Vector3 watcherAt, Vector3 objectAt) in placements)
+                {
+                    IWorldObject obj = kind switch
+                    {
+                        "creature" => MakeRealCreature(1u),
+                        "projectile" => new PlainWorldObject(1u, Vector3.zero),
+                        "character with no data" => new CharacterEntity { Guid = new ObjectGuid(ObjectType.Character, 1u) },
+                        _ => MakeRealCharacter(1u)
+                    };
+                    ObjectGuid watcher = self ? obj.Guid : s_viewer;
+                    var state = new CharacterCharacterGameState();
+                    if (tracked)
+                    {
+                        WatchOnly(state, obj, watcher, Vector3.zero);
+                        Assert.Equal([obj.Guid], state.NewObjects);
+                    }
+
+                    obj.Position = objectAt;
+                    WatchOnly(state, obj, watcher, watcherAt);
+                    bool inView = tracked ? !state.RemovedObjects.Contains(obj.Guid) : state.NewObjects.Contains(obj.Guid);
+                    if (inView != Interest.IsVisible(watcher, watcherAt, obj.Guid, obj.Position, tracked, s_range))
+                    {
+                        mismatches.Add($"self {self}, tracked {tracked}, watcher at {watcherAt}, object at {obj.Position}");
+                    }
+                }
+            }
+        }
+
+        Assert.Empty(mismatches);
+    }
+
+    /// <summary>Updates the view of a watcher at <paramref name="at" /> with <paramref name="obj" /> alone.</summary>
+    private static void WatchOnly(CharacterCharacterGameState state, IWorldObject obj, ObjectGuid watcher, Vector3 at)
+    {
+        switch (obj)
+        {
+            case ICreature creature:
+                Watch(state, new() { [obj.Guid] = creature }, [], [], EmptyDirty(), at, watcher);
+                break;
+            case ICharacter character:
+                Watch(state, [], new() { [obj.Guid] = character }, [], EmptyDirty(), at, watcher);
+                break;
+            default:
+                Watch(state, [], [], [obj], EmptyDirty(), at, watcher);
+                break;
+        }
     }
 
     /// <summary>A world object with no call recording, so reading it allocates nothing (a substitute does).</summary>

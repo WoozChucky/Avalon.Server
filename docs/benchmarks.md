@@ -4208,6 +4208,54 @@ and the fighters find their creatures in the instance, not through what their cl
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*TickPhaseBenchmarks*' '*InterestVisibilityBenchmarks*' --inProcess --job short --warmupCount 10 --iterationCount 8
 ```
 
+### Results — the distance before the tracked set (#982, 2026-10-15)
+
+A view's check asked the object's tracking set whether it was already tracked (a dictionary probe) before measuring
+the distance, so every candidate paid the probe, and most of a forest's candidates are far. Since #982 the check
+measures first (`Interest.IsVisible` with an `Interest.ITrackedSet`, see [world simulation](world-simulation.md)): an
+object within the radius (60 m) is in view and one beyond radius + margin (70 m) is not, whatever the client was told,
+so only one between the two asks the set. The answer is the old rule's for every input; `CharacterCharacterGameStateShould`
+compares the view with `Interest.IsVisible` around both edges, at non-finite positions and for the watcher itself.
+
+**`InterestVisibilityBenchmarks`** (one `CharacterCharacterGameState.Update` over 200 creatures; short job, five
+warmups, eight iterations, `--affinity 4`; three runs each, before on the commit that adds `far`, the layout where all
+200 are beyond 70 m and nothing is in view):
+
+| Layout | Before | After | Allocated |
+|---|---:|---:|---:|
+| dense (all in view) | 2.55–2.67 µs | 2.30–2.34 µs | 0 B |
+| sparse (9 in view) | 0.87–0.93 µs | 0.65–0.67 µs | 0 B |
+| far (none in view) | 0.77–0.78 µs | 0.57–0.60 µs | 0 B |
+| margin (all tracked at 65 m) | 2.52–2.77 µs | 2.51–2.61 µs | 0 B |
+
+A check that finds nothing cost 3.9 ns and costs 2.8–3.0 ns: the probe was 0.9–1.1 ns, about a quarter of a check
+with everything in cache; dense saves 1.0–1.8 ns per object, and margin, where every object still asks, is unchanged.
+In production a check costs 43 ns in a forest and 55 ns in a town (#1001, section 4), nearly all of it loading the
+entity (`get_Guid` and `get_Position` are top frames there); the probe reads the guid the self test already loaded and
+a set of at most about a hundred entries that the watcher's own pass keeps warm, so it should cost there about what it
+costs here, 1–1.5 ns, 2–3% of a check (inferred, not traced). At 1,300 players that is roughly 0.01–0.02 ms per tick.
+What a check costs is the entity it reads, which fewer candidates (#982's grid) remove and this does not.
+
+**`TickPhaseBenchmarks`** (42 ticks per operation; `--inProcess`, short job, ten warmups, eight iterations; two runs
+each, interleaved after, before, after, before, the before build run from its own binaries; other builds were running
+on the machine):
+
+| Players | Layout | Before | After | Allocated, both |
+|---:|---|---:|---:|---:|
+| 300 | forest-3 | 482–501 µs | 509–517 µs | 0 B |
+| 300 | town-1 | 837–1,600 µs | 752–769 µs | 120,684–120,702 B |
+| 600 | forest-3 | 1,106–1,441 µs | 989–1,343 µs | 20–28 B |
+| 600 | town-1 | 3,260–3,943 µs | 2,771–3,040 µs | 2,583,453–2,583,480 B |
+
+The ranges overlap: a nanosecond on each of the 10,000 to 20,000 checks a tick is below what these runs resolve. Allocation is
+the same. **The allocation gate does not move**: `forest-combat` 14,138 B and `town-social` 728 B, the others 0 B, in
+Release and Debug.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*TickPhaseBenchmarks*' --inProcess --job short --warmupCount 10 --iterationCount 8
+```
+
 ### Results — shared state and aura encoding (#980, 2026-10-14)
 
 On a broadcast every recipient got its own state update, and every entity it sees was encoded into it again: in a
