@@ -92,6 +92,14 @@ public interface IWorldServer
     /// for the tick, and the count of the connections closed at it. A connection reads it when it is created.
     /// </summary>
     ReceiveQueueLimit ReceiveQueueLimit { get; }
+
+    /// <summary>
+    /// The world's mean tick time in microseconds (#1016), which every time-sync ping carries
+    /// (<c>SPingPacket.TickMicros</c>): the mean busy time of the whole ticks (start to end, without the wait for the
+    /// next) that ended in the last completed window of about one second. 0 until the first window completes. Written
+    /// by the tick once per window; read on the tick, as the ping is queued.
+    /// </summary>
+    uint MeanTickMicros { get; }
 }
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
@@ -183,7 +191,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
-    private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly IWorld _world;
     private readonly ICharacterSaver _characterSaver;
     private readonly IWorldEntryGate? _entryGate;
@@ -201,28 +208,32 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly NetworkSendScheduler _sendScheduler;
     private readonly ReceiveQueueLimit _receiveQueueLimit;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
-    private long _lastTpsCalculationMs;
-    private long _tickCount;
 
     // 60Hz × 10s = 600 ticks. Spread pings across ticks so all connections don't fire
     // in the same tick — each connection gets its own offset based on its index.
     private const int TimeSyncTicksPeriod = 600;
 
     // Monotonic tick counter used solely to derive the time-sync ping phase.
-    // We can't reuse _tickCount because that one resets every ~1s for the TPS calculation.
     private long _pingTickCounter;
+
+    // The ticks in windows of about a second (#1016): the mean tick time the pings carry, and world.tick.rate. Written
+    // on the tick only; the rate gauge reads the last closed window's figure from the meter's thread.
+    private TickWindow _tickWindow = new(Stopwatch.Frequency);
+
     private long _completedTicks;
     private volatile bool _isListening;
 
     public bool IsListening => _isListening;
     public long CompletedTicks => Interlocked.Read(ref _completedTicks);
 
+    /// <inheritdoc />
+    public uint MeanTickMicros => _tickWindow.MeanMicros;
+
     private Histogram<double> _tickDuration;
     private Histogram<double> _deadlineOvershoot;
     private Histogram<double> _worldUpdateDuration;
     private Histogram<double> _sessionUpdateDuration;
     private Histogram<double> _postUpdateDuration;
-    private double _ticksPerSecond;
 
     // The stages after the world update (#875), one tag each, cached so timing a stage allocates nothing.
     private static readonly KeyValuePair<string, object?> s_questsStage = new("stage", "quests");
@@ -314,7 +325,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         // The meter holds the gauge; nothing here needs it again.
         DiagnosticsConfig.World.Meter.CreateObservableGauge(
-            "world.tick.rate", () => _ticksPerSecond, "tps", "World tick rate per second");
+            "world.tick.rate", () => _tickWindow.TicksPerSecond, "tps", "World tick rate per second");
 
         Meter meter = DiagnosticsConfig.World.Meter;
         _tickDuration = WorldHistograms.Microseconds(meter, "world.tick.duration",
@@ -603,17 +614,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
                     Update(deltaTime, tickStart);
 
+                    // The tick rate (world.tick.rate) comes from the tick's own window (UpdateCore), with no clock read.
                     Interlocked.Increment(ref _completedTicks);
-
-                    _tickCount++;
-                    double elapsedSeconds =
-                        (_stopwatch.ElapsedMilliseconds - _lastTpsCalculationMs) / 1000.0;
-                    if (elapsedSeconds >= 1.0)
-                    {
-                        _ticksPerSecond = _tickCount / elapsedSeconds;
-                        _tickCount = 0;
-                        _lastTpsCalculationMs = _stopwatch.ElapsedMilliseconds;
-                    }
                 }
                 catch (Exception e)
                 {
@@ -835,7 +837,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
-        // Phase MUST come from a monotonic counter — _tickCount above resets every ~1s.
+        // Phase MUST come from a monotonic counter that moves once per tick.
         // Each ping is stamped by its send thread as it is written (#875), so where the tick queues
         // it does not move the round trip.
         long phase = _pingTickCounter++ % TimeSyncTicksPeriod;
@@ -861,6 +863,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         double tickUs = TicksToUs(tickEnd - tickStart);
         _tickDurationHist.Record((long)tickUs);
         _tickDuration.Record(tickUs);
+        // From the two timestamps the tick's duration was just measured with (#1016): no clock read of its own. A tick
+        // that threw is in no window, as it is in no tick histogram.
+        _tickWindow.Add(tickStart, tickEnd);
     }
 
     /// <summary>Records the stage that began at <paramref name="start" /> under its tag; returns now, the next stage's start.</summary>

@@ -619,6 +619,7 @@ public class ArrivalBenchmarks
         public NetworkSendScheduler SendScheduler => throw new NotSupportedException();
         public bool PacketEncryption => throw new NotSupportedException();
         public ReceiveQueueLimit ReceiveQueueLimit => throw new NotSupportedException();
+        public uint MeanTickMicros => throw new NotSupportedException();
     }
 
     private sealed class InlineWork : IWorldDatabaseWork

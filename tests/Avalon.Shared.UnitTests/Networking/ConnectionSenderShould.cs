@@ -70,7 +70,7 @@ public sealed class ConnectionSenderShould
 
         for (long stamp = 1; stamp <= 3; stamp++)
             sender.Enqueue(Numbered(stamp));
-        sender.EnqueuePing(clientTicks: 7, roundTrip: 8, offset: 9); // a ping queued before the close is not written after the notice
+        sender.EnqueuePing(clientTicks: 7, roundTrip: 8, offset: 9, tickMicros: 0); // a ping queued before the close is not written after the notice
         sender.Enqueue(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown, _encoder));
         await CloseAsync(scheduler, sender);
 
@@ -477,7 +477,7 @@ public sealed class ConnectionSenderShould
         var wire = new MemoryStream();
         ConnectionSender sender = Open(scheduler, wire);
 
-        sender.EnqueuePing(clientTicks: 1, roundTrip: 2, offset: 3);
+        sender.EnqueuePing(clientTicks: 1, roundTrip: 2, offset: 3, tickMicros: 0);
         while (sender.Enqueue(Payload(4_096))) { }
         scheduler.RunPass(sender.OwnerThread);
 
@@ -502,10 +502,10 @@ public sealed class ConnectionSenderShould
         var wire = new MemoryStream();
         ConnectionSender sender = Open(scheduler, wire);
 
-        sender.EnqueuePing(clientTicks: 1, roundTrip: 2, offset: 3);
+        sender.EnqueuePing(clientTicks: 1, roundTrip: 2, offset: 3, tickMicros: 0);
         sender.Enqueue(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown, _encoder));
         scheduler.RunPass(sender.OwnerThread);
-        sender.EnqueuePing(clientTicks: 4, roundTrip: 5, offset: 6);
+        sender.EnqueuePing(clientTicks: 4, roundTrip: 5, offset: 6, tickMicros: 0);
         scheduler.RunPass(sender.OwnerThread);
 
         (NetworkPacketHeader header, byte[] _) = Assert.Single(await Frames(wire.ToArray()));
@@ -663,7 +663,7 @@ public sealed class ConnectionSenderShould
     }
 
     /// <summary>A plain packet that carries a number: an SPing's client timestamp.</summary>
-    private OutboundPacket Numbered(long stamp) => SPingPacket.Create(0, stamp, 0, 0, _encoder);
+    private OutboundPacket Numbered(long stamp) => SPingPacket.Create(0, stamp, 0, 0, 0, _encoder);
 
     private OutboundPacket Payload(int length) =>
         new(new NetworkPacketHeader { Type = NetworkPacketType.SMSG_WORLD_STATE_UPDATE, Protocol = NetworkProtocol.Tcp },

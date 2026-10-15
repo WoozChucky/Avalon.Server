@@ -11,6 +11,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Generic;
 using Avalon.World;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
@@ -37,7 +38,7 @@ namespace Avalon.Server.World.UnitTests.Characters;
 /// The barrier only bounds anything because the tick sweeps it. A policy nothing calls releases
 /// nobody, and every login is on that path until a client sends CMSG_CHARACTER_LOADED. The same
 /// holds for the per-tick inventory update: the flusher only reaches a client because the tick
-/// calls it.
+/// calls it, and for the tick time the ping carries, which only the tick measures.
 /// </summary>
 public class WorldServerBarrierTickShould : IDisposable
 {
@@ -337,6 +338,41 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     /// <summary>
+    /// The time-sync ping carries the world's mean tick time (#1016), measured on every tick from the tick's own start
+    /// and end, as the client reads it off the wire. The first tick's ping is queued before any window of about a second
+    /// has closed, so it reads 0, "not reported". That tick began a second ago and so closes the first window, one tick
+    /// long; the next ping carries its mean.
+    /// </summary>
+    [Fact]
+    public async Task Send_the_worlds_mean_tick_time_with_the_ping_and_0_before_a_window_closed()
+    {
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build();
+        var wire = new MemoryStream();
+        connection.InitOutboxForTest(new PacketStream(wire));
+
+        // Each tick's ping is written by the send thread before the next tick: two pings still queued go out as one.
+        server.Tick(tickStart: System.Diagnostics.Stopwatch.GetTimestamp() - System.Diagnostics.Stopwatch.Frequency);
+        server.SendScheduler.RunAllPasses();
+        connection.RequestInitialTimeSyncPing(); // the first tick pinged on the connection's phase; this one by request
+        server.Tick(tickStart: System.Diagnostics.Stopwatch.GetTimestamp());
+        server.SendScheduler.RunAllPasses();
+
+        var pings = new List<uint>();
+        using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire.ToArray()))
+            .EnumerateRawFramesAsync(256, int.MaxValue, guard.Token))
+        {
+            var frame = InboundPacketFrame.ParseFrame(raw);
+            if (frame.Header.Type == NetworkPacketType.SMSG_PING)
+                pings.Add(ProtoBuf.Serializer.Deserialize<SPingPacket>(frame.Payload).TickMicros);
+        }
+
+        Assert.Equal(2, pings.Count);
+        Assert.Equal(0u, pings[0]);
+        Assert.InRange(pings[1], 1_000_000u, 10_000_000u); // the one tick of the window: a second, and its own work
+    }
+
+    /// <summary>
     /// #639: presence is captured by the tick, after the world update, from the registry it ticked; the Redis writer
     /// only takes what the tick handed over. A second tick within the second captures nothing new.
     /// </summary>
@@ -499,7 +535,7 @@ public class WorldServerBarrierTickShould : IDisposable
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
 
-        public void Tick() => Update(TimeSpan.FromMilliseconds(16), 0);
+        public void Tick(long tickStart = 0) => Update(TimeSpan.FromMilliseconds(16), tickStart);
     }
 
     /// <summary>

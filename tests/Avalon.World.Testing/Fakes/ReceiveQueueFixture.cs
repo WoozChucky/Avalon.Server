@@ -186,6 +186,8 @@ public sealed class ReceiveQueueFixture : IDisposable
         public PacketDispatchTelemetry PacketTelemetry => PacketDispatchTelemetry.Disabled;
         public bool PacketEncryption { get; }
         public ReceiveQueueLimit ReceiveQueueLimit { get; }
+        // One full frame at 60 Hz, so every ping this fixture writes (the time-sync benchmarks') encodes the field (#1016).
+        public uint MeanTickMicros => 16_667;
         public ImmutableArray<IWorldConnection> Connections => throw new NotSupportedException();
         public IWorld World => throw new NotSupportedException();
         public NetworkSendScheduler SendScheduler => _scheduler ?? throw new NotSupportedException();

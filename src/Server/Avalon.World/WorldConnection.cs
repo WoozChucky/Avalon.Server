@@ -262,7 +262,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         return true;
     }
 
-    public void SendTimeSyncPing() => _sender?.EnqueuePing(_lastClientTicks, RoundTripTime, TimeSyncOffset);
+    public void SendTimeSyncPing() =>
+        _sender?.EnqueuePing(_lastClientTicks, RoundTripTime, TimeSyncOffset, _server.MeanTickMicros);
 
     /// <inheritdoc />
     public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp,
