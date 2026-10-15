@@ -24,7 +24,7 @@ public sealed class CharacterConsolidationShould
             {
                 Id = new CharacterId(id),
                 AccountId = id <= 8 ? _source : _target,
-                Name = "Transfer" + id,
+                Name = "Transfer" + (char)('a' + id),
                 CreationDate = _clock.GetUtcNow().UtcDateTime,
                 Money = id
             });

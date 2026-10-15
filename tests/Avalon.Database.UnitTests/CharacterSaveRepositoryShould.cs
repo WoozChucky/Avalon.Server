@@ -238,7 +238,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         {
             Id = new CharacterId(id),
             AccountId = new AccountId(1),
-            Name = $"Saver{id}",
+            Name = "Saver" + (char)('a' + id),
             CreationDate = DateTime.UtcNow,
         };
         await using CharacterDbContext context = _database.CreateDbContext();

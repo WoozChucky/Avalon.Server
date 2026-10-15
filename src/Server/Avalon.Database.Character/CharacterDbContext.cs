@@ -139,6 +139,14 @@ public partial class CharacterDbContext : DbContext
         builder.ToTable(t => t.HasCheckConstraint(NameKeyConstraint,
             postgres ? NameKeyCheckSqlPostgres : "\"NameKey\" = upper(\"Name\")"));
 
+        // The name itself follows the rule every writer applies (#944): 3 to 12 ASCII letters, CharacterName.Pattern.
+        // Whisper, invite and ignore by name refuse anything else (#936), so a row outside it could never be named.
+        // Postgres matches the pattern under COLLATE "C", so the letter ranges are ASCII whatever the database's
+        // locale, and its $ matches only at the very end (no trailing newline). SQLite has no regular expressions of
+        // its own, so it checks the length and that no character falls outside A-Z and a-z (GLOB is case-sensitive).
+        builder.ToTable(t => t.HasCheckConstraint(NameRuleConstraint,
+            postgres ? NameRuleCheckSqlPostgres : NameRuleCheckSqlSqlite));
+
         // A name is written on insert and by a rename only (CharacterRepository.TryRenameAsync, a conditional UPDATE
         // while the character is offline). Every tracked update (the world's saves, the select-time write, the API's
         // admin patch) leaves both columns out, so a world holding an older name in memory can never write it back
@@ -157,6 +165,15 @@ public partial class CharacterDbContext : DbContext
 
     /// <summary>The check constraint's expression on Postgres, and the migration's fill.</summary>
     public const string NameKeyCheckSqlPostgres = "\"NameKey\" = upper(\"Name\" COLLATE \"C\")";
+
+    /// <summary>The check constraint that holds <c>Characters.Name</c> to the name rule, <see cref="CharacterName" /> (#944).</summary>
+    public const string NameRuleConstraint = "CK_Characters_NameRule";
+
+    /// <summary>The name rule's check on Postgres: <see cref="CharacterName.Pattern" /> under the "C" collation.</summary>
+    public const string NameRuleCheckSqlPostgres = "\"Name\" COLLATE \"C\" ~ '" + CharacterName.Pattern + "'";
+
+    /// <summary>The name rule's check on SQLite (the tests): the length, and ASCII letters only.</summary>
+    public const string NameRuleCheckSqlSqlite = "length(\"Name\") BETWEEN 3 AND 12 AND \"Name\" NOT GLOB '*[^A-Za-z]*'";
 
     private static void Configure(EntityTypeBuilder<CharacterStats> builder)
     {

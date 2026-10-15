@@ -122,7 +122,7 @@ public sealed class GameplayFenceShould
     private static CharacterSaveBatch Batch(CharacterRow row, GameplayWriteAuthority authority) => new(row, [], [], [], []) { Authority = authority };
     private static async Task<CharacterRow> Seed(SqliteDatabase<CharacterDbContext> database, AccountId account, uint id)
     {
-        var row = new CharacterRow { Id = new CharacterId(id), AccountId = account, Name = "Fence" + id, CreationDate = DateTime.UtcNow };
+        var row = new CharacterRow { Id = new CharacterId(id), AccountId = account, Name = "Fence" + (char)('a' + id), CreationDate = DateTime.UtcNow };
         await using CharacterDbContext db = database.CreateDbContext();
         db.Characters.Add(row); await db.SaveChangesAsync();
         return row;

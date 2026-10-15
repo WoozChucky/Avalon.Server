@@ -168,6 +168,8 @@ namespace Avalon.Database.Character.Migrations
                     b.ToTable("Characters", t =>
                         {
                             t.HasCheckConstraint("CK_Characters_NameKey", "\"NameKey\" = upper(\"Name\" COLLATE \"C\")");
+
+                            t.HasCheckConstraint("CK_Characters_NameRule", "\"Name\" COLLATE \"C\" ~ '^[A-Za-z]{3,12}$'");
                         });
                 });
 

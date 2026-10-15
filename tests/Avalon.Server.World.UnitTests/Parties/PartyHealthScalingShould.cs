@@ -53,7 +53,7 @@ public class PartyHealthScalingShould
         instance.Update(s_tick);
 
         Assert.Equal(100u, boar.Health);
-        Assert.Equal(["Tester2 has left. Creatures now have 100% health (1 player)."], SystemLines(a));
+        Assert.Equal([$"{Inventory.TestCharacters.NameFor(2)} has left. Creatures now have 100% health (1 player)."], SystemLines(a));
     }
 
     [Fact]

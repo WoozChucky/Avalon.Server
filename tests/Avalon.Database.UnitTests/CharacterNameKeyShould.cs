@@ -59,6 +59,37 @@ public class CharacterNameKeyShould
         Assert.Contains(CharacterDbContext.NameKeyConstraint, refused.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The database holds every writer to the name rule (#944), the insert and the rename alike: the rename writes its
+    /// name as given, so a caller that skipped <see cref="Avalon.Domain.Characters.CharacterName" /> would otherwise
+    /// store a name no whisper, invite or ignore can reach.
+    /// </summary>
+    [Theory]
+    [InlineData("golfinho2")]
+    [InlineData("Al")]
+    [InlineData("Abcdefghijklm")]
+    [InlineData("")]
+    [InlineData("Bo b")]
+    [InlineData("Bıll")]
+    [InlineData("Kaela\n")]
+    public async Task Refuse_a_name_that_breaks_the_rule_on_insert_and_on_rename(string name)
+    {
+        using var database = SqliteDatabase.Characters();
+
+        DbUpdateException inserted = await Assert.ThrowsAsync<DbUpdateException>(() => StoreAsync(database, Row(1, name)));
+        Assert.Contains($"CHECK constraint failed: {CharacterDbContext.NameRuleConstraint}", inserted.InnerException?.Message,
+            StringComparison.Ordinal);
+
+        await StoreAsync(database, Row(2, "Kaela"));
+        SqliteException renamed = await Assert.ThrowsAsync<SqliteException>(() =>
+            new CharacterRepository(database).TryRenameAsync(2u, name));
+        Assert.Contains($"CHECK constraint failed: {CharacterDbContext.NameRuleConstraint}", renamed.Message,
+            StringComparison.Ordinal);
+
+        await using CharacterDbContext read = database.CreateDbContext();
+        Assert.Equal("Kaela", (await read.Characters.AsNoTracking().SingleAsync()).Name);
+    }
+
     [Theory]
     [InlineData("Kaela")]
     [InlineData("kaela")]

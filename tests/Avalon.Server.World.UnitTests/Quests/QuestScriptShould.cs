@@ -65,7 +65,7 @@ public class QuestScriptShould
         w.Quests.Interacted(c.Character, w.Place(TalkTarget));
 
         Assert.Equal(["OnAccepted", "OnStageStarted:0", "OnCreatureKilled", "OnInteract"], r.Calls.Where(n => n != "CanAccept"));
-        Assert.Equal((c.Id, "Tester1", (ushort)1, CharacterClass.Warrior),
+        Assert.Equal((c.Id, Inventory.TestCharacters.NameFor(1), (ushort)1, CharacterClass.Warrior),
             (r.LastCharacter!.CharacterId, r.LastCharacter.Name, r.LastCharacter.Level, r.LastCharacter.Class));
         Assert.Equal((new CreatureTemplateId(TalkTarget), "Marta", false), (r.LastCreature!.TemplateId, r.LastCreature.Name, r.LastCreature.IsDead));
     }

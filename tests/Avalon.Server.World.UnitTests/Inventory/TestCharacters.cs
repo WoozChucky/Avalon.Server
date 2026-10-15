@@ -36,13 +36,20 @@ internal static class TestCharacters
         {
             Id = new CharacterId(id),
             AccountId = new AccountId(1),
-            Name = $"Tester{id}",
+            Name = NameFor(id),
             Class = CharacterClass.Warrior,
             Money = money,
             CreationDate = (time ?? TimeProvider.System).GetUtcNow().UtcDateTime,
         };
         return new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration(), time) { Data = row };
     }
+
+    /// <summary>
+    /// The name <see cref="New" /> gives character <paramref name="id" />: "Tester" and the id's digits as letters
+    /// (7 is "Testerh"), so it follows the name rule the database holds every row to (#944).
+    /// </summary>
+    public static string NameFor(uint id) =>
+        "Tester" + string.Concat(id.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(d => (char)(d - '0' + 'a')));
 
     public static InventoryItem Item(byte slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0) =>
         new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, charges);

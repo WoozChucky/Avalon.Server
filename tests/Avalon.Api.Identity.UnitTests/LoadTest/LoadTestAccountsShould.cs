@@ -338,7 +338,8 @@ public sealed class LoadTestAccountsShould : IDisposable
                 {
                     Id = id,
                     AccountId = owner.Id,
-                    Name = $"C{world}{owner.Username}",
+                    // Letters only, as the name rule's check constraint requires (#944): the id's digits as letters.
+                    Name = "Bot" + string.Concat(id.Value.ToString(System.Globalization.CultureInfo.InvariantCulture).Select(d => (char)(d - '0' + 'a'))),
                     CreationDate = now,
                 });
                 db.ItemInstances.Add(new ItemInstance
