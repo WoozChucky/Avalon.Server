@@ -19,22 +19,35 @@ namespace Avalon.Api.Hosting.UnitTests.Middlewares;
 /// </summary>
 public sealed class TransportSecurityShould
 {
+    private const string PodNetwork = "10.42.0.0/16";
+    private const string Ingress = "10.42.1.5";
+    private const string ClientAndEdge = "203.0.113.9, 10.0.0.1";
+
     [Theory]
     // A world server, a probe or the balance proxy calling the pod over cluster http: no forwarded scheme.
-    [InlineData(null, null, null, true, false)]
-    [InlineData(null, "https", null, true, true)]
-    [InlineData(null, "http", null, false, false)]
+    [InlineData(null, null, null, null, null, null, true, false)]
+    [InlineData(null, null, "https", null, null, null, true, true)]
+    [InlineData(null, null, "http", null, null, null, false, false)]
     // A peer that is not a trusted proxy names no scheme, as it names no address.
-    [InlineData("203.0.113.9", "http", null, true, false)]
+    [InlineData("203.0.113.9", null, "http", null, null, null, true, false)]
     // Application:ForwardedHeaders:RefusePlaintext turns the refusal off.
-    [InlineData(null, "http", "false", true, false)]
+    [InlineData(null, null, "http", null, null, "false", true, false)]
+    // As production runs: the ingress in the pod network, two hops of X-Forwarded-For, the edge's one scheme.
+    [InlineData(Ingress, ClientAndEdge, "https", PodNetwork, "2", null, true, true)]
+    [InlineData(Ingress, ClientAndEdge, "http", PodNetwork, "2", null, false, false)]
+    // With one hop read, the rightmost scheme, the trusted proxy's own, is the one that counts.
+    [InlineData(Ingress, ClientAndEdge, "http, https", PodNetwork, "1", null, true, true)]
     public async Task Refuse_a_login_forwarded_over_plaintext_and_serve_the_rest_with_the_transport_headers(
-        string? peer, string? forwardedProto, string? refusePlaintext, bool served, bool hsts)
+        string? peer, string? forwardedFor, string? forwardedProto, string? knownNetwork, string? forwardLimit,
+        string? refusePlaintext, bool served, bool hsts)
     {
         await using ApiTestHost host = await StartAsync(ApiServices.All, new ApiTestHostOptions
         {
+            // A null value leaves the setting out.
             Settings = new Dictionary<string, string?>(StringComparer.Ordinal)
             {
+                ["Application:ForwardedHeaders:KnownNetworks:0"] = knownNetwork,
+                ["Application:ForwardedHeaders:ForwardLimit"] = forwardLimit,
                 ["Application:ForwardedHeaders:RefusePlaintext"] = refusePlaintext,
             },
         });
@@ -47,6 +60,7 @@ public sealed class TransportSecurityShould
             Content = JsonContent.Create(new { username = "caller", password = TestPasswords.Valid }),
         };
         if (peer is not null) request.Headers.Add(PeerHeader, peer);
+        if (forwardedFor is not null) request.Headers.Add("X-Forwarded-For", forwardedFor);
         if (forwardedProto is not null) request.Headers.Add("X-Forwarded-Proto", forwardedProto);
         using HttpResponseMessage response = await host.Client.SendAsync(request);
 

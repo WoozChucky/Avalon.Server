@@ -157,6 +157,11 @@ forwardedHeaders:
   knownNetworks: []
   # Proxy hops read from X-Forwarded-For, from the right; at least 1.
   forwardLimit: 1
+  # Application:ForwardedHeaders:RefusePlaintext: whether a request a trusted proxy forwarded with an
+  # X-Forwarded-Proto that is not https is answered 403 HTTPS_REQUIRED before any endpoint runs. Left
+  # unset, the API's default applies: on outside Development, so on in every release. Set false only
+  # as a kill switch, should the proxies stop passing the edge's scheme and every request be refused.
+  refusePlaintext:
 
 # Request rate limiting (Application:RateLimiting, #561): a sliding window of one minute, per account
 # for a signed-in caller and per source address (IPv4, or IPv6 /64) for anyone else; /health and

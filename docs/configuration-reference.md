@@ -592,8 +592,11 @@ Application__ForwardedHeaders__RefusePlaintext=true
 
 The Helm chart passes `forwardedHeaders.knownProxies`, `forwardedHeaders.knownNetworks` and
 `forwardedHeaders.forwardLimit` (empty lists and 1 by default). The chart has no ingress of its own, so fill
-them in for whatever ingress fronts the service. It has no value for `RefusePlaintext`, so every release, which runs
-as Production, refuses requests forwarded over plaintext.
+them in for whatever ingress fronts the service. `forwardedHeaders.refusePlaintext` renders
+`Application__ForwardedHeaders__RefusePlaintext` only when set, so a release left without it (every release runs as
+Production) refuses requests forwarded over plaintext. It is the kill switch: should the proxies stop passing the
+edge's `X-Forwarded-Proto: https` and the API refuse every request, `--set forwardedHeaders.refusePlaintext=false`
+turns the refusal off without a new image.
 
 A caller with no peer address at all is refused with 400 on the endpoints that spend a login source budget
 (login, registration, MFA verify, password change, starting an email change, MFA setup, token minting).

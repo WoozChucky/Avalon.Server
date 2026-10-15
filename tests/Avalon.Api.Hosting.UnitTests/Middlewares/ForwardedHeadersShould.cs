@@ -115,9 +115,14 @@ public sealed class ForwardedHeadersShould
         Assert.Empty(host.Logs.Warnings);
     }
 
+    /// <summary>
+    /// The last row is a network written in IPv4-mapped form: the forwarded-headers middleware believes a peer in it,
+    /// so the untrusted-header log must not call it untrusted (it tested only the peer's IPv4 form).
+    /// </summary>
     [Theory]
     [InlineData("10.1.0.0/16", "10.1.4.5", "198.51.100.7")]
     [InlineData("fd00:1::/48", "fd00:1::5", "2001:db8:aa::7")]
+    [InlineData("::ffff:10.1.0.0/112", "::ffff:10.1.4.5", "198.51.100.7")]
     public async Task Take_the_source_from_a_proxy_on_a_trusted_network(string network, string peer, string client)
     {
         await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownNetworks = [network] });
@@ -168,17 +173,21 @@ public sealed class ForwardedHeadersShould
 
     /// <summary>
     /// #478 re-review: a request with no peer address that carried X-Forwarded-For got the address
-    /// it named, so it chose its own source and escaped the 400 an address-less caller gets. The
-    /// header is dropped for it, and logged.
+    /// it named, so it chose its own source and escaped the 400 an address-less caller gets; one that
+    /// carried only X-Forwarded-Proto got the scheme it named, https. Its forwarded headers are dropped,
+    /// whichever it carries, and logged.
     /// </summary>
-    [Fact]
-    public async Task Drop_forwarded_for_from_a_caller_with_no_peer_address()
+    [Theory]
+    [InlineData("198.51.100.7", null)]
+    [InlineData(null, "https")]
+    public async Task Drop_the_forwarded_headers_of_a_caller_with_no_peer_address(string? forwardedFor, string? forwardedProto)
     {
         await using Host host = await Host.StartAsync(new ForwardedHeadersConfig { KnownProxies = ["10.0.0.2"] });
 
-        string source = await host.SourceAsync(peer: null, forwardedFor: "198.51.100.7");
+        (string source, string scheme) = await host.RequestAsync(peer: null, forwardedFor, forwardedProto);
 
         Assert.Equal(NoAddress, source);
+        Assert.Equal("http", scheme);
         Assert.Contains(host.Logs.Warnings, m => m.Contains("no peer address", StringComparison.Ordinal));
     }
 
@@ -221,19 +230,26 @@ public sealed class ForwardedHeadersShould
             });
             host._app.UseAvalonForwardedHeaders(refusePlaintext: false);
             host._app.MapGet("/source", (HttpContext context) =>
-                context.Connection.RemoteIpAddress is { } address ? LoginSource.FromAddress(address).Key : NoAddress);
+                (context.Connection.RemoteIpAddress is { } address ? LoginSource.FromAddress(address).Key : NoAddress) +
+                "|" + context.Request.Scheme);
             await host._app.StartAsync();
             host._client = host._app.GetTestClient();
             return host;
         }
 
-        public async Task<string> SourceAsync(string? peer, string? forwardedFor)
+        public async Task<string> SourceAsync(string? peer, string? forwardedFor) =>
+            (await RequestAsync(peer, forwardedFor, forwardedProto: null)).Source;
+
+        /// <summary>The caller's source and the request's scheme, as the endpoint sees them.</summary>
+        public async Task<(string Source, string Scheme)> RequestAsync(string? peer, string? forwardedFor, string? forwardedProto)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, "/source");
             if (peer != null) request.Headers.Add(PeerHeader, peer);
             if (forwardedFor != null) request.Headers.Add("X-Forwarded-For", forwardedFor);
+            if (forwardedProto != null) request.Headers.Add("X-Forwarded-Proto", forwardedProto);
             using HttpResponseMessage response = await _client.SendAsync(request);
-            return await response.Content.ReadAsStringAsync();
+            string[] parts = (await response.Content.ReadAsStringAsync()).Split('|');
+            return (parts[0], parts[1]);
         }
 
         public async ValueTask DisposeAsync()

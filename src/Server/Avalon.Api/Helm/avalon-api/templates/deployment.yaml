@@ -323,6 +323,11 @@ spec:
             {{- end }}
             - name: Application__ForwardedHeaders__ForwardLimit
               value: {{ .Values.forwardedHeaders.forwardLimit | quote }}
+            {{- /* Only when set, so the API's own default applies otherwise; false is a set value. */}}
+            {{- if not (kindIs "invalid" .Values.forwardedHeaders.refusePlaintext) }}
+            - name: Application__ForwardedHeaders__RefusePlaintext
+              value: {{ .Values.forwardedHeaders.refusePlaintext | quote }}
+            {{- end }}
             {{- /* Each only when set, so the API's own default applies otherwise; false and 0 are set values (#561). */}}
             {{- $rateLimiting := .Values.rateLimiting | default dict }}
             {{- if not (kindIs "invalid" $rateLimiting.enabled) }}

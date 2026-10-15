@@ -74,19 +74,35 @@ public static class ForwardedHeadersSetup
         return options;
     }
 
-    /// <summary>Whether any proxy beyond loopback is trusted.</summary>
     /// <summary>
     /// Whether <paramref name="peer"/> is a proxy <paramref name="options"/> believes: loopback or a
     /// configured proxy or network. After the forwarded-headers middleware, a caller whose address
-    /// is still such a peer is the proxy itself, forwarding no client (#495 final review).
+    /// is still such a peer is the proxy itself, forwarding no client (#495 final review). The same
+    /// test the forwarded-headers middleware makes, so the two never disagree about a peer: an
+    /// IPv4-mapped IPv6 address is trusted when its IPv4 form is, and otherwise as written, each form
+    /// against the trusted proxies and then the trusted networks.
     /// </summary>
-    public static bool IsTrustedProxy(ForwardedHeadersOptions options, System.Net.IPAddress peer)
+    public static bool IsTrustedProxy(ForwardedHeadersOptions options, IPAddress peer)
     {
-        if (peer.IsIPv4MappedToIPv6)
-            peer = peer.MapToIPv4();
-        return options.KnownProxies.Contains(peer) || options.KnownIPNetworks.Any(n => n.Contains(peer));
+        if (peer.IsIPv4MappedToIPv6 && IsKnown(options, peer.MapToIPv4()))
+            return true;
+        return IsKnown(options, peer);
     }
 
+    private static bool IsKnown(ForwardedHeadersOptions options, IPAddress address)
+    {
+        if (options.KnownProxies.Contains(address))
+            return true;
+        foreach (System.Net.IPNetwork network in options.KnownIPNetworks)
+        {
+            if (network.Contains(address))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether any proxy beyond loopback is trusted.</summary>
     public static bool TrustsAnyProxy(ForwardedHeadersConfig? config) =>
         config is not null && (config.KnownProxies.Length > 0 || config.KnownNetworks.Length > 0);
 
@@ -161,27 +177,30 @@ public sealed class UntrustedForwardedHeaderLog
 
     /// <summary>
     /// Runs before <c>UseForwardedHeaders</c>. A request with no peer address has its
-    /// <c>X-Forwarded-*</c> headers removed (#478 re-review): the forwarded-headers middleware would
+    /// <c>X-Forwarded-*</c> headers removed, whichever of them it carries (#478 re-review): the
+    /// forwarded-headers middleware believes the first hop of a peer-less request, so it would
     /// otherwise take the address the caller named, letting it choose its own source and escape the
-    /// 400 an address-less caller gets. A header from a peer that is not trusted is left for that
-    /// middleware to ignore. Both are logged, rate-limited.
+    /// 400 an address-less caller gets, or the scheme it named, making it https. A header from a peer
+    /// that is not trusted is left for that middleware to ignore. Both are logged, rate-limited.
     /// </summary>
     public void Observe(HttpContext context)
     {
         IHeaderDictionary headers = context.Request.Headers;
-        if (!headers.ContainsKey(ForwardedHeadersDefaults.XForwardedForHeaderName))
-            return;
-
         IPAddress? peer = context.Connection.RemoteIpAddress;
         if (peer is null)
         {
-            headers.Remove(ForwardedHeadersDefaults.XForwardedForHeaderName);
-            headers.Remove(ForwardedHeadersDefaults.XForwardedProtoHeaderName);
-            headers.Remove(ForwardedHeadersDefaults.XForwardedHostHeaderName);
-            headers.Remove(ForwardedHeadersDefaults.XForwardedPrefixHeaderName);
-            Warn("Dropped X-Forwarded-* from a request with no peer address ({Section}); {Suppressed} more since the last warning");
+            // Non-short-circuiting: every one of them goes.
+            bool dropped = headers.Remove(ForwardedHeadersDefaults.XForwardedForHeaderName)
+                | headers.Remove(ForwardedHeadersDefaults.XForwardedProtoHeaderName)
+                | headers.Remove(ForwardedHeadersDefaults.XForwardedHostHeaderName)
+                | headers.Remove(ForwardedHeadersDefaults.XForwardedPrefixHeaderName);
+            if (dropped)
+                Warn("Dropped X-Forwarded-* from a request with no peer address ({Section}); {Suppressed} more since the last warning");
             return;
         }
+
+        if (!headers.ContainsKey(ForwardedHeadersDefaults.XForwardedForHeaderName))
+            return;
 
         if (IsTrusted(peer))
             return;
