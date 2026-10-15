@@ -2,7 +2,8 @@ using System.Net;
 using System.Net.Sockets;
 using Avalon.Hosting.Networking;
 using Avalon.World;
-using Microsoft.Extensions.Logging.Abstractions;
+using Avalon.World.Persistence;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
@@ -24,9 +25,11 @@ public sealed class ProcessContinuationsShould : IDisposable
         _connection = new Avalon.World.WorldConnection(
             server,
             clientSide,
-            NullLoggerFactory.Instance,
+            _log,
             Substitute.For<IPacketReader>());
     }
+
+    private readonly TestLog _log = new();
 
     public void Dispose()
     {
@@ -50,17 +53,26 @@ public sealed class ProcessContinuationsShould : IDisposable
         return (clientSide, serverSide);
     }
 
-    [Fact]
-    public void Should_Not_Invoke_Callback_When_Task_Is_Faulted()
+    /// <summary>
+    /// A faulted task's callback does not run. A work queue's refusal is expected under load (a reconnect storm's selects,
+    /// #1050) and was an Error with a stack per continuation: it is now no Error and carries no stack, which would name
+    /// another caller's frames anyway (the refusal's exception is shared).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Should_Not_Invoke_Callback_When_Task_Is_Faulted(bool refusedByAWorkQueue)
     {
         var tcs = new TaskCompletionSource();
-        tcs.SetException(new InvalidOperationException("simulated DB fault"));
+        tcs.SetException(refusedByAWorkQueue ? new WorldWorkUnavailableException() : new InvalidOperationException("simulated DB fault"));
         bool callbackInvoked = false;
 
         _connection.EnqueueContinuation(tcs.Task, () => callbackInvoked = true);
         _connection.FlushContinuations();
 
         Assert.False(callbackInvoked);
+        if (refusedByAWorkQueue)
+            Assert.DoesNotContain(_log.Entries, entry => entry.Level >= LogLevel.Error || entry.Exception is not null);
     }
 
     [Fact]

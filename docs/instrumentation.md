@@ -218,6 +218,13 @@ and the client got no answer: its connection was closed by the 15-second admissi
 no longer holds back live players' lease heartbeats either: they have their own lane
 ([game server admission](steam-authentication-workloads.md)).
 
+The same storm fills the database work queue behind character selects (`WorldDatabaseWork.ThreadPool`, 256
+outstanding). A tick continuation whose work a full queue refused does not run its callback, as before, and is now one
+Warning, "Dropped a continuation: a full work queue refused its work", without the exception (the refusal's exception
+is shared by every refusal, so its stack names another caller), at most once per 10 s for the world with the count
+held back; any other faulted continuation stays an Error with its exception ("Continuation faulted"), under the same
+bound. Each was an Error with a stack per continuation. Neither is counted yet.
+
 Not counted: an admission the identity service answered, whatever it answered (its own "try later" included), and
 one refused before its ticket was spent (`InvalidRequest`).
 

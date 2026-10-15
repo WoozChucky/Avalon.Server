@@ -1,12 +1,12 @@
-namespace Avalon.World.GameAuth;
+namespace Avalon.World;
 
 /// <summary>
-/// Lets one admission failure of a kind through to the log at most once per <see cref="Interval" />, and counts the
-/// ones it holds back (#1050): a reconnect storm that overflows the admission work queue refuses hundreds of
-/// admissions a second, each of which was an Error with its stack. Timed on the monotonic clock, so a wall clock set
-/// back cannot mute a line for as long as the step. Thread-safe: admissions fail on the receive path and the thread pool.
+/// Lets one failure of a kind through to the log at most once per <see cref="Interval" />, and counts the ones it holds
+/// back (#1050): a reconnect storm that overflows a work queue refuses hundreds of admissions or selects a second, each
+/// of which was an Error with its stack. Timed on the monotonic clock, so a wall clock set back cannot mute a line for
+/// as long as the step. Thread-safe: failures are seen on the receive path, the thread pool and the tick.
 /// </summary>
-internal sealed class AdmissionFailureLog
+internal sealed class FailureLogThrottle
 {
     /// <summary>The least time between two lines of one kind, the world entry check's.</summary>
     public static readonly TimeSpan Interval = TimeSpan.FromSeconds(10);

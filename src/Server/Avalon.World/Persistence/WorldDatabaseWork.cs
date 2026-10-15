@@ -5,6 +5,11 @@ public interface IWorldDatabaseWork
 {
     Task<T> Run<T>(Func<Task<T>> operation);
 }
+/// <summary>
+/// A work queue refused an operation: it was full. One instance is shared by every refusal of every queue (#1050), and
+/// every caller that awaits a refusal rethrows it, so its stack trace carries no information: it names whichever caller
+/// rethrew it last, possibly at the same moment as another. Never log it with its stack; its type is the whole message.
+/// </summary>
 public sealed class WorldWorkUnavailableException : Exception;
 public sealed class WorldDatabaseWork : IWorldDatabaseWork
 {

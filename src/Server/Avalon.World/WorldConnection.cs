@@ -673,14 +673,14 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>Publishing an admitted connection, or sending its reply, failed: the server's fault, logged with its exception.</summary>
     public void ReportAdmissionFailed(Exception error) => ReceiveLog.AdmissionFailed(_logger, error, Id);
 
-    private static readonly AdmissionFailureLog s_overloadedAdmissions = new();
-    private static readonly AdmissionFailureLog s_failedAdmissions = new();
+    private static readonly FailureLogThrottle s_overloadedAdmissions = new();
+    private static readonly FailureLogThrottle s_failedAdmissions = new();
 
     /// <summary>
     /// The admission work queue refused to redeem this connection's join ticket (#1050), which the admission answers
     /// <c>ServiceUnavailable</c> and closes at once, on the receive path that delivered it, never on the tick. Counted
     /// under <c>world.admission.unavailable</c>, <c>overloaded</c>. Expected under a reconnect storm: a Warning, without
-    /// an exception, at most once per <see cref="AdmissionFailureLog.Interval" /> for the whole world.
+    /// an exception, at most once per <see cref="FailureLogThrottle.Interval" /> for the whole world.
     /// </summary>
     public void ReportAdmissionOverloaded()
     {
@@ -693,7 +693,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// The redemption of this connection's join ticket faulted, or was cancelled, once started (#1050): the admission is
     /// answered <c>ServiceUnavailable</c> and closed by its continuation. Counted under <c>world.admission.unavailable</c>,
     /// <c>failed</c> (<c>overloaded</c> for a work queue refusal that arrives this way). A defect: an Error with its
-    /// exception, at most once per <see cref="AdmissionFailureLog.Interval" /> for the whole world, so a storm of them
+    /// exception, at most once per <see cref="FailureLogThrottle.Interval" /> for the whole world, so a storm of them
     /// cannot flood the log. Called on the thread pool, where the redemption ended, never on the tick, so a connection
     /// gone before its continuation ran is counted too.
     /// </summary>
@@ -712,6 +712,13 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private static partial class ReceiveLog
     {
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Dropped a continuation: a full work queue refused its work; {Suppressed} more were refused since the last line")]
+        public static partial void ContinuationRefused(ILogger logger, int suppressed);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "Continuation faulted; {Suppressed} more faulted since the last line")]
+        public static partial void ContinuationFaulted(ILogger logger, Exception? error, int suppressed);
+
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Answered an admission ServiceUnavailable: the world's admission work queue is full ({Outstanding} outstanding); {Suppressed} more were refused since the last line")]
         public static partial void AdmissionOverloaded(ILogger logger, int outstanding, int suppressed);
@@ -920,9 +927,33 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             }
             else
             {
-                _logger.LogError(item.Error, "Continuation faulted");
+                ReportFaultedContinuation(item.Error);
             }
         }
+    }
+
+    private static readonly FailureLogThrottle s_refusedContinuations = new();
+    private static readonly FailureLogThrottle s_faultedContinuations = new();
+
+    /// <summary>
+    /// A continuation whose task did not succeed, so its callback does not run (#1050). A work queue's refusal
+    /// (<see cref="WorldWorkUnavailableException" />) is expected under load, a reconnect storm's character selects
+    /// above all: a Warning without the exception, whose stack is not the caller's. Any other fault is logged with its
+    /// exception, at Error, as before. Each at most once per <see cref="FailureLogThrottle.Interval" /> for the whole
+    /// world, with how many were held back, where every one was a line with a stack. On the tick, faulted tasks only.
+    /// </summary>
+    private void ReportFaultedContinuation(Exception? error)
+    {
+        int suppressed;
+        if (((error as AggregateException)?.InnerException ?? error) is WorldWorkUnavailableException)
+        {
+            if (s_refusedContinuations.TryTake(_time, out suppressed))
+                ReceiveLog.ContinuationRefused(_logger, suppressed);
+            return;
+        }
+
+        if (s_faultedContinuations.TryTake(_time, out suppressed))
+            ReceiveLog.ContinuationFaulted(_logger, error, suppressed);
     }
 
     #endregion

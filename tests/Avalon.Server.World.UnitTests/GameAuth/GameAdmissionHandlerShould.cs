@@ -169,22 +169,22 @@ public sealed class GameAdmissionHandlerShould
         meter.SetMeasurementEventCallback<long>((_, _, tags, _) => reasons.Enqueue((string?)tags[0].Value));
         meter.Start();
 
-        // Overloaded: the admission lane held full, as a reconnect storm holds it, until the end of the test.
+        // Overloaded: the admission lane held full, as a reconnect storm holds it, until the end of the test, by work
+        // whose end only this test decides. Filled up to its first refusal right before the admission, with nothing
+        // in between to await: what an earlier admission left running can free a slot only before that refusal.
         var held = new TaskCompletionSource<WorldAdmissionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         var holding = new List<Task<WorldAdmissionResult>>();
-        while (redemption == Redemption.Overloaded)
-        {
-            Task<WorldAdmissionResult> work = WorldDatabaseWork.Admission.Run(() => held.Task);
-            if (WorldDatabaseWork.IsRefusal(work)) break;
-            holding.Add(work);
-        }
+        var handler = new GameAdmissionHandler(api);
+        var packet = new CGameAdmissionPacket { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() };
         try
         {
-            await new GameAdmissionHandler(api).ExecuteAsync(new()
+            while (redemption == Redemption.Overloaded)
             {
-                Connection = connection,
-                Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
-            });
+                Task<WorldAdmissionResult> work = WorldDatabaseWork.Admission.Run(() => held.Task);
+                if (WorldDatabaseWork.IsRefusal(work)) break;
+                holding.Add(work);
+            }
+            await handler.ExecuteAsync(new() { Connection = connection, Packet = packet });
             if (redemption == Redemption.Overloaded)
             {
                 // Answered at once, with nothing left for the tick, and a live player's heartbeat still runs.
