@@ -36,7 +36,7 @@ public class ChannelOutboxShould
 
         outbox.Connect(stream);
 
-        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
+        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, 0u, PacketEncoder.Shared));
         await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
 
         Assert.True(sink.BytesWritten > 0, "Expected the queued packet to reach the stream before the outbox closed");
@@ -56,7 +56,7 @@ public class ChannelOutboxShould
 
         outbox.Connect(stream);
 
-        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
+        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, 0u, PacketEncoder.Shared));
         await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
 
         // The fault continuation runs after the loop ends. Wait on the error itself rather than
@@ -83,7 +83,7 @@ public class ChannelOutboxShould
         try
         {
             outbox.Connect(stream);
-            outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
+            outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, 0u, PacketEncoder.Shared));
 
             // The write the close has to abandon must actually be under way first, or the close
             // has nothing to give up on and the test passes for the wrong reason.
@@ -122,7 +122,7 @@ public class ChannelOutboxShould
             flushTimeout: TimeSpan.FromMilliseconds(50), cancelGrace: TimeSpan.FromSeconds(10));
 
         outbox.Connect(stream);
-        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
+        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, 0u, PacketEncoder.Shared));
 
         // The write is in flight and holding the buffer before disposal starts.
         await sink.WriteStarted.WaitAsync(s_deadlockGuard);
@@ -149,7 +149,7 @@ public class ChannelOutboxShould
         try
         {
             outbox.Connect(stream);
-            outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, PacketEncoder.Shared));
+            outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, 0u, PacketEncoder.Shared));
 
             await sink.WriteStarted.WaitAsync(s_deadlockGuard);
             await outbox.DisposeAsync().AsTask().WaitAsync(s_deadlockGuard);
@@ -188,7 +188,7 @@ public class ChannelOutboxShould
             flushTimeout: TimeSpan.FromSeconds(30), onFault: () => faulted.TrySetResult());
 
         // Queued before the drain starts, so both are framed into one burst.
-        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, encoder));
+        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L, 0u, encoder));
         outbox.Enqueue(SPlayerStateAckPacket.Create(1, 2f, 3f, 4f, 0f, 0f, 90, encoder));
         outbox.Connect(new PacketStream(sink));
 

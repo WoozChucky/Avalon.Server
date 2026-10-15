@@ -36,13 +36,25 @@ public class SPingPacket : Packet
     /// </summary>
     [ProtoMember(4)] public long Offset { get; set; }
 
-    public static OutboundPacket Create(long serverTicks, long clientTicks, long rtt, long offset, PacketEncoder encoder)
+    /// <summary>
+    /// The world's mean tick time, in microseconds (#1016): the mean of the busy time of the world's whole ticks (from a
+    /// tick's start to its end, every instance and every connection in it, without the wait for the next tick; what
+    /// <c>world.tick.duration</c> times) that ended in the last completed window of about one second. The same figure for
+    /// every connection of the world, measured always, not only under tracing, and a window old at most when the ping is
+    /// queued. One frame at 60 Hz is 16,667. 0 means not reported: no window has completed yet, or a server that does
+    /// not send it; a measured mean is never 0.
+    /// </summary>
+    [ProtoMember(5)] public uint TickMicros { get; set; }
+
+    public static OutboundPacket Create(long serverTicks, long clientTicks, long rtt, long offset, uint tickMicros,
+        PacketEncoder encoder)
     {
         SPingPacket message = PacketEncoder.Scratch<SPingPacket>();
         message.ServerTimestamp = serverTicks;
         message.ClientTimestamp = clientTicks;
         message.Rtt = rtt;
         message.Offset = offset;
+        message.TickMicros = tickMicros;
         return encoder.Encode(message, PacketType, NetworkPacketFlags.None, Protocol);
     }
 }

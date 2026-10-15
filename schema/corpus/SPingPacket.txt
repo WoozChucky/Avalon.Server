@@ -20,6 +20,7 @@ variant absent
   field 2 ClientTimestamp : long = 0
   field 3 Rtt : long = 0
   field 4 Offset : long = 0
+  field 5 TickMicros : uint = 0
   bytes 0
 
 variant empty
@@ -27,6 +28,7 @@ variant empty
   field 2 ClientTimestamp : long = 0
   field 3 Rtt : long = 0
   field 4 Offset : long = 0
+  field 5 TickMicros : uint = 0
   bytes 0
 
 variant populated
@@ -34,25 +36,29 @@ variant populated
   field 2 ClientTimestamp : long = -9
   field 3 Rtt : long = 5000000000
   field 4 Offset : long = -262144
-  bytes 30
+  field 5 TickMicros : uint = 4000000000
+  bytes 36
     08 13 10 f7 ff ff ff ff ff ff ff ff 01 18 80 e4
-    97 d0 12 20 80 80 f0 ff ff ff ff ff ff 01
+    97 d0 12 20 80 80 f0 ff ff ff ff ff ff 01 28 80
+    d0 ac f3 0e
 
 variant maxima
   field 1 ServerTimestamp : long = 9223372036854775807
   field 2 ClientTimestamp : long = 9223372036854775807
   field 3 Rtt : long = 9223372036854775807
   field 4 Offset : long = 9223372036854775807
-  bytes 40
+  field 5 TickMicros : uint = 4294967295
+  bytes 46
     08 ff ff ff ff ff ff ff ff 7f 10 ff ff ff ff ff
     ff ff ff 7f 18 ff ff ff ff ff ff ff ff 7f 20 ff
-    ff ff ff ff ff ff ff 7f
+    ff ff ff ff ff ff ff 7f 28 ff ff ff ff 0f
 
 variant minima
   field 1 ServerTimestamp : long = -9223372036854775808
   field 2 ClientTimestamp : long = -9223372036854775808
   field 3 Rtt : long = -9223372036854775808
   field 4 Offset : long = -9223372036854775808
+  field 5 TickMicros : uint = 0
   bytes 44
     08 80 80 80 80 80 80 80 80 80 01 10 80 80 80 80
     80 80 80 80 80 01 18 80 80 80 80 80 80 80 80 80
@@ -63,6 +69,7 @@ variant varint-edges
   field 2 ClientTimestamp : long = 127
   field 3 Rtt : long = 16383
   field 4 Offset : long = 34359738368
-  bytes 18
+  field 5 TickMicros : uint = 2097151
+  bytes 22
     08 ff ff ff ff 7f 10 7f 18 ff 7f 20 80 80 80 80
-    80 01
+    80 01 28 ff ff 7f

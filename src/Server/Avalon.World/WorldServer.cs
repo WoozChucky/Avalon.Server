@@ -92,6 +92,14 @@ public interface IWorldServer
     /// for the tick, and the count of the connections closed at it. A connection reads it when it is created.
     /// </summary>
     ReceiveQueueLimit ReceiveQueueLimit { get; }
+
+    /// <summary>
+    /// The world's mean tick time in microseconds (#1016), which every time-sync ping carries
+    /// (<c>SPingPacket.TickMicros</c>): the mean busy time of the whole ticks (start to end, without the wait for the
+    /// next) that ended in the last completed window of about one second. 0 until the first window completes. Written
+    /// by the tick once per window; read on the tick, as the ping is queued.
+    /// </summary>
+    uint MeanTickMicros { get; }
 }
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
@@ -210,11 +218,23 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     // Monotonic tick counter used solely to derive the time-sync ping phase.
     // We can't reuse _tickCount because that one resets every ~1s for the TPS calculation.
     private long _pingTickCounter;
+
+    // The mean tick time the pings carry (#1016), tick thread only: the busy time and the count of the ticks that ended
+    // in the open window, which began at the start of its first tick, and the mean of the last window that closed.
+    private static readonly long s_tickWindowLength = Stopwatch.Frequency; // one second
+    private long _tickWindowStart;
+    private long _tickWindowBusy;
+    private int _tickWindowTicks;
+    private uint _meanTickMicros;
+
     private long _completedTicks;
     private volatile bool _isListening;
 
     public bool IsListening => _isListening;
     public long CompletedTicks => Interlocked.Read(ref _completedTicks);
+
+    /// <inheritdoc />
+    public uint MeanTickMicros => _meanTickMicros;
 
     private Histogram<double> _tickDuration;
     private Histogram<double> _deadlineOvershoot;
@@ -853,6 +873,30 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         double tickUs = TicksToUs(tickEnd - tickStart);
         _tickDurationHist.Record((long)tickUs);
         _tickDuration.Record(tickUs);
+        MeasureTick(tickStart, tickEnd);
+    }
+
+    /// <summary>
+    /// Adds one whole tick to the window the pings' mean is taken over (#1016), from the two timestamps the tick's own
+    /// duration was already measured with: no clock read, no allocation, and the division once a window. A window opens
+    /// at the start of the first tick after the last one closed, and closes at the end of the first tick that ends a
+    /// second or more after that. A tick that threw is in no window, as it is in no tick histogram.
+    /// </summary>
+    private void MeasureTick(long tickStart, long tickEnd)
+    {
+        if (_tickWindowTicks == 0)
+            _tickWindowStart = tickStart;
+
+        _tickWindowBusy += tickEnd - tickStart;
+        _tickWindowTicks++;
+        if (tickEnd - _tickWindowStart < s_tickWindowLength)
+            return;
+
+        // Never 0, which the ping keeps for "not reported", and no more than the field holds.
+        double meanUs = TicksToUs(_tickWindowBusy) / _tickWindowTicks;
+        _meanTickMicros = (uint)Math.Clamp(Math.Round(meanUs), 1, uint.MaxValue);
+        _tickWindowBusy = 0;
+        _tickWindowTicks = 0;
     }
 
     /// <summary>Records the stage that began at <paramref name="start" /> under its tag; returns now, the next stage's start.</summary>

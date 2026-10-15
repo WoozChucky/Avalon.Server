@@ -1079,6 +1079,7 @@ message SPingPacket {
    int64 ClientTimestamp = 2;
    int64 Rtt = 3;
    int64 Offset = 4;
+   uint32 TickMicros = 5;
 }
 message SPlayerStateAckPacket {
    uint32 Seq = 1;

@@ -186,6 +186,7 @@ public sealed class ScenarioConnection : IWorldConnection, IDisposable
         public bool PacketEncryption { get; } = packetEncryption;
         public ReceiveQueueLimit ReceiveQueueLimit => ReceiveQueueLimit.Default;
         public PacketDispatchTelemetry PacketTelemetry => PacketDispatchTelemetry.Disabled;
+        public uint MeanTickMicros => throw new NotSupportedException();
         public ImmutableArray<IWorldConnection> Connections => throw new NotSupportedException();
         public IWorld World => throw new NotSupportedException();
         public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers => throw new NotSupportedException();

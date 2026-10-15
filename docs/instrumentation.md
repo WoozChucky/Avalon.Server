@@ -31,6 +31,8 @@ Every tick histogram is in microseconds (`us`). The SDK's default buckets end at
 | `world.post_update.duration` | `world_post_update_duration_microseconds_bucket` | One stage after the world update, tagged `stage` (below) |
 | `world.tick.deadline_overshoot` | `world_tick_deadline_overshoot_microseconds_bucket` | How far past its deadline the tick loop woke; signed, an early wake is negative |
 
+The client sees the same measurement as `world.tick.duration` (#1016): every time-sync ping carries `TickMicros`, the mean of that duration over the ticks that ended in the last completed window of about one second, for the whole world (`WorldServer.MeanTickMicros`; 0 until the first window closes). It adds no clock read and no allocation to the tick, only a sum and a count, with one division a window ([the time sync](networking-packet-protocol.md#time-sync-smsg_ping-and-cmsg_pong)).
+
 The world update is followed by work no other histogram covers, about two thirds of a median tick in the first capacity ramp (#875). `world.post_update.duration` times each stage of it, in tick order, under its `stage` tag:
 
 | `stage` | What it times |

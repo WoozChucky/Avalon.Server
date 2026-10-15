@@ -200,6 +200,7 @@ time is in UTC ticks (100 ns, counted from year 1).
 | | `ClientTimestamp` (2) | The `ClientReceivedTimestamp` of the last pong the server accepted |
 | | `Rtt` (3) | The last round trip the server measured |
 | | `Offset` (4) | Server time minus client time, from that same exchange |
+| | `TickMicros` (5) | The world's mean tick time in microseconds; 0, not reported (below) |
 | `CPongPacket` | `LastServerTimestamp` (1) | The `ServerTimestamp` of the ping it answers, echoed exactly |
 | | `ClientReceivedTimestamp` (2) | When the client received the ping, on its own clock |
 | | `ClientSentTimestamp` (3) | When the client sent the pong. Still on the wire; the server does not read it |
@@ -225,6 +226,19 @@ receive and send times, so a client could report any round trip it liked, zero a
   is the client's own clock by nature, and a false value moves only that client's own idea of server time.
 - The next ping carries `Rtt`, `Offset` and `ClientTimestamp` from the last accepted pong. All three are 0, as are
   `Latency` and `RoundTripTime`, until the first one.
+
+**The world's tick time (#1016).** `TickMicros` is for a client's performance overlay, so a player can tell a slow
+server from a slow connection. It is the mean busy time of the world's whole ticks, from a tick's start to its end
+without the wait for the next one (what `world.tick.duration` times, [instrumentation](instrumentation.md#tick-and-instance-time)),
+over the ticks that ended in the last completed window of about one second, rounded to whole microseconds. It is one
+figure for the whole world, the same in every connection's ping, not the character's instance: instances tick one
+after another inside the world's tick, so a quiet instance in a busy world still waits for the whole tick, and the
+whole tick is what the 60 Hz budget (16,667 µs, a constant on both ends) holds. It is measured on every tick from the
+two timestamps the tick already takes for its own histogram, not only under tracing; the tick queues the ping with the
+figure it holds, which is at most one window old. **0 means not reported**: no window has closed yet (the ping queued
+on a world's first second, the handshake ping of a world that just started), or a server from before this field; a
+measured mean is never 0. A client keeps its dash for 0. The field costs 2 to 4 bytes per ping (2,000 µs is 3 bytes,
+16,667 µs is 4), and nothing when 0.
 
 **What a client must do.** Echo `ServerTimestamp` unchanged, answer each ping once, and send no other pong: a pong
 that echoes anything else uses up that ping's one answer, and the true echo sent after it is dropped. Answer as it

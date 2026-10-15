@@ -186,6 +186,7 @@ public sealed class ReceiveQueueFixture : IDisposable
         public PacketDispatchTelemetry PacketTelemetry => PacketDispatchTelemetry.Disabled;
         public bool PacketEncryption { get; }
         public ReceiveQueueLimit ReceiveQueueLimit { get; }
+        public uint MeanTickMicros => 0;
         public ImmutableArray<IWorldConnection> Connections => throw new NotSupportedException();
         public IWorld World => throw new NotSupportedException();
         public NetworkSendScheduler SendScheduler => _scheduler ?? throw new NotSupportedException();

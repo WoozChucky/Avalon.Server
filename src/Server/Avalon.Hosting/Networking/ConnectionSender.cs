@@ -145,6 +145,7 @@ public sealed class ConnectionSender : IOutbox
     private long _pingClientTicks;
     private long _pingRoundTrip;
     private long _pingOffset;
+    private uint _pingTickMicros;
     private long _burstWatchStarted; // owner thread only: when the watch over a grown burst buffer began
     private PingRecord _pings; // the stamps and the pong credits: see the remarks for who writes each and where it lies
     private int _pingStampNext; // owner thread only: the place the next stamp goes, the oldest
@@ -260,18 +261,20 @@ public sealed class ConnectionSender : IOutbox
     /// values. A ping still queued when the connection closes, or found too slow, is dropped unstamped, and none follows
     /// a disconnect notice.
     /// </summary>
-    public void EnqueuePing(long clientTicks, long roundTrip, long offset)
+    /// <param name="tickMicros">The world's mean tick time in microseconds (#1016); 0, not reported.</param>
+    public void EnqueuePing(long clientTicks, long roundTrip, long offset, uint tickMicros)
     {
-        // Three writes, not one publish, so the three can be torn: the owner may stamp a ping between them and send
-        // one value of this call with two of the call before it. That is harmless only because nothing on the server
-        // reads them back. They are told to the client, which is told the right ones with the next ping, and the round
-        // trip the server keeps is measured from its own stamps (TryTakePingStamp), never from these. If the server
-        // ever reads them, or a client must be able to rely on the three belonging together, they have to be
+        // Four writes, not one publish, so the four can be torn: the owner may stamp a ping between them and send
+        // one value of this call with the others of the call before it. That is harmless only because nothing on the
+        // server reads them back. They are told to the client, which is told the right ones with the next ping, and the
+        // round trip the server keeps is measured from its own stamps (TryTakePingStamp), never from these. If the server
+        // ever reads them, or a client must be able to rely on them belonging together, they have to be
         // published as one: under a version the owner re-reads until it is unchanged and even, or as one immutable
         // object swapped in, which costs an allocation per ping. Neither is cheaper than this, so neither is done.
         Volatile.Write(ref _pingClientTicks, clientTicks);
         Volatile.Write(ref _pingRoundTrip, roundTrip);
         Volatile.Write(ref _pingOffset, offset);
+        Volatile.Write(ref _pingTickMicros, tickMicros);
         Enqueue(s_pingMarker);
     }
 
@@ -503,7 +506,8 @@ public sealed class ConnectionSender : IOutbox
         {
             long serverTicks = _time.GetUtcNow().UtcTicks;
             OutboundPacket stamped = SPingPacket.Create(serverTicks, Volatile.Read(ref _pingClientTicks),
-                Volatile.Read(ref _pingRoundTrip), Volatile.Read(ref _pingOffset), _encoder);
+                Volatile.Read(ref _pingRoundTrip), Volatile.Read(ref _pingOffset), Volatile.Read(ref _pingTickMicros),
+                _encoder);
             int size = stamped.Size; // read before the release gives the payload back
             try
             {
