@@ -30,6 +30,9 @@ public static class DetectionCountsHarness
 
     public static void Run(string[] args)
     {
+        // The counts are kept only with this switch on, read once, before any search or grid is touched (#982).
+        AppContext.SetSwitch("Avalon.World.CountSearchWork", true);
+
         int warmup = args.Length > 0 ? int.Parse(args[0], CultureInfo.InvariantCulture) : ForestCombatScenario.WarmupTicks;
         int measured = args.Length > 1 ? int.Parse(args[1], CultureInfo.InvariantCulture) : ForestCombatScenario.MeasuredTicks;
         double seconds = measured * ScenarioWorld.Dt.TotalSeconds;

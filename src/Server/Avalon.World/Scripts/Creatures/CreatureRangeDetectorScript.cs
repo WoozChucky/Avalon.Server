@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Creatures;
 using Avalon.World.Instances;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -111,7 +112,8 @@ public class CreatureRangeDetectorScript : AiScript
 
     /// <summary>
     /// The searches this detector ran (walks of the characters), and the distances they measured (one for each living
-    /// character walked). For tests and the <c>detection-counts</c> harness (#982); nothing reads them on the tick.
+    /// character walked), counted only when <see cref="SearchWork.Counted" />: for tests and the <c>detection-counts</c>
+    /// harness (#982).
     /// </summary>
     internal long Searches { get; private set; }
 
@@ -125,7 +127,8 @@ public class CreatureRangeDetectorScript : AiScript
             return;
 
         _searchTimer = 0.0f;
-        Searches++;
+        if (SearchWork.Counted)
+            Searches++;
 
         // An instance's own dictionary is walked with its struct enumerator: through the interface, every creature's
         // search boxed one (#880). Any other dictionary (a test's) is walked as before.
@@ -155,7 +158,8 @@ public class CreatureRangeDetectorScript : AiScript
         // input/attack packets. Aggroing would just queue a kill on a corpse.
         if (character.IsDead) return false;
 
-        DistanceChecks++;
+        if (SearchWork.Counted)
+            DistanceChecks++;
         Vector3 characterPosition = character.Position;
         float distance = Vector3.Distance(Creature.Position, characterPosition);
         if (distance > _aggroRange) return false;

@@ -929,6 +929,10 @@ was not measured either. The scenario allocation gate reads as before in Debug a
 per instance allocated with its cells, and its packed list of character slots grows only when a character joins and
 finds it full (eight to start).
 
+The counts are kept only under the AppContext switch `Avalon.World.CountSearchWork` (`SearchWork.Counted`, a
+`static readonly` read once), which the harness and the World test project set; a server never sets it and pays nothing
+for them.
+
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- detection-counts
 ```

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Creatures;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Units;
@@ -399,7 +400,8 @@ internal sealed class SpatialGrid
     /// </remarks>
     public bool MayHaveCharacterWithin(Vector3 centre, float range)
     {
-        ProbesRun++;
+        if (SearchWork.Counted)
+            ProbesRun++;
         if (_characterCounts[_unplaced] > 0 || _unindexedCharacters.Count > 0)
             return true;
 
@@ -413,14 +415,16 @@ internal sealed class SpatialGrid
         if (_boundMinX - centre.x > range || centre.x - _boundMaxX > range
             || _boundMinZ - centre.z > range || centre.z - _boundMaxZ > range)
         {
-            BoundSkips++;
+            if (SearchWork.Counted)
+                BoundSkips++;
             return false;
         }
 
         if (ProbeCells(centre, range))
             return true;
 
-        CellSkips++;
+        if (SearchWork.Counted)
+            CellSkips++;
         return false;
     }
 
@@ -447,7 +451,8 @@ internal sealed class SpatialGrid
         _boundMinZ = minZ;
         _boundMaxZ = maxZ;
         _boundVersion = _characterVersion;
-        Bounds++;
+        if (SearchWork.Counted)
+            Bounds++;
     }
 
     /// <summary>
@@ -484,7 +489,8 @@ internal sealed class SpatialGrid
 
             for (int cell = first; cell <= last; cell++)
             {
-                ProbedCells++;
+                if (SearchWork.Counted)
+                    ProbedCells++;
                 if (_characterCounts[cell] == 0)
                     continue;
 
@@ -492,7 +498,8 @@ internal sealed class SpatialGrid
                 {
                     ref Entry entry = ref entries[slot];
                     AssertCurrent(ref entry);
-                    ProbedEntries++;
+                    if (SearchWork.Counted)
+                        ProbedEntries++;
                     if (entry.Kind == SpatialKind.Character && WithinOnXZ(centre, entry.X, entry.Z, range))
                         return true;
                 }
@@ -514,7 +521,7 @@ internal sealed class SpatialGrid
     /// <summary>
     /// Work counts of <see cref="MayHaveCharacterWithin" />: probes run, the bounds bound again, the probes the box answered
     /// no and those the cells did, cells looked at, entries walked (in cells with a character),
-    /// for tests and the <c>detection-counts</c> harness; nothing reads them on the tick.
+    /// counted only when <see cref="SearchWork.Counted" />, for tests and the <c>detection-counts</c> harness.
     /// </summary>
     internal long ProbesRun { get; private set; }
 
