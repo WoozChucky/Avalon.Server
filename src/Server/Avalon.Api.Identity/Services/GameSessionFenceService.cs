@@ -6,7 +6,9 @@ using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Domain.Characters;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.Extensions.Options;
 
@@ -52,10 +54,33 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
             return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
         }
 
-        if (!await worlds.GameplayFences(new WorldId(head.WorldId)).EndAsync(new(accountId, sessionId, fence), cancellationToken))
+        var authority = new GameplayWriteAuthority(accountId, sessionId, fence);
+        IGameplayFenceRepository guard = worlds.GameplayFences(new WorldId(head.WorldId));
+        if (await guard.EndAsync(authority, cancellationToken))
+        {
+            return await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken)
+                ? new() { State = "ended" } : GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
+        }
+
+        if (!await NeverReachedItsGuardAsync(guard, head, cancellationToken))
             return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
-        return await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken)
-            ? new() { State = "ended" } : GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
+        if (!await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken))
+            return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
+        // An activation still in flight may have reached the guard since: block it now, so it cannot activate there.
+        await guard.EndAsync(authority, cancellationToken);
+        return new() { State = "ended" };
+    }
+
+    /// <summary>
+    /// Whether a pending session's activation failed before its target barrier (#1013): the guard still holds an older
+    /// session's token, or none, so it grants this session nothing and there is nothing to block. An active session's
+    /// guard always holds its token, since activation advances the guard before the session activates.
+    /// </summary>
+    private static async Task<bool> NeverReachedItsGuardAsync(IGameplayFenceRepository guard, GameSession head, CancellationToken cancellationToken)
+    {
+        if (head.State != GameSessionState.Pending) return false;
+        AccountGameplayFence? held = await guard.FindAsync(head.AccountId, cancellationToken);
+        return held is null || held.FencingToken < head.FencingToken;
     }
     public async Task<GameSessionLeaseReply> ActivateAsync(string serverId, AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken)
     {

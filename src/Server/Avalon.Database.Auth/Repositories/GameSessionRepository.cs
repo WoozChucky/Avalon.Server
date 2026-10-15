@@ -131,12 +131,17 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
         return changed == 1;
     }
 
+    /// <summary>
+    /// Ends the session at <paramref name="now" />. A session that never became active was never the writer, so it stays
+    /// pending with its reservation run out (#1013): the next reservation keeps the last active ancestor for its save
+    /// barrier, as it does after a pending reservation that ran out by itself.
+    /// </summary>
     public async Task<bool> TryEndAsync(AccountId accountId, Guid sessionId, long fence, DateTime now,
         CancellationToken cancellationToken = default)
     {
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId && x.FencingToken == fence)
-            .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, GameSessionState.Ended)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, x => x.State == GameSessionState.Pending ? GameSessionState.Pending : GameSessionState.Ended)
                 .SetProperty(x => x.LeaseUntil, now), cancellationToken) == 1;
     }
 

@@ -24,8 +24,15 @@ public sealed class GameSessionReservationShould
         Assert.Null(await repo.TryReserveAsync(request with { GameContextId = Guid.NewGuid() }, s_now));
         Assert.Null(await repo.TryReserveAsync(request with { WorldId = 2 }, s_now));
     }
-    [Fact]
-    public async Task Replace_expired_pending_reservations_without_forgetting_the_prior_active_world()
+    /// <summary>
+    /// A pending reservation that runs out, or that its world ends after a failed admission (#1013), never became the
+    /// writer: the next reservation replaces it without a takeover and keeps the last active session as its ancestor,
+    /// whose world's save barrier it must advance.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Replace_expired_or_ended_pending_reservations_without_forgetting_the_prior_active_world(bool ended)
     {
         using var db = SqliteDatabase.Auth();
         Account account = await new AccountRepository(db).CreateAsync(StoreAuthenticationModelShould.Account("PENDING"));
@@ -34,7 +41,13 @@ public sealed class GameSessionReservationShould
         Assert.True(await repo.TryActivateAsync(account.Id, active!.GameSessionId, 1, s_now, s_now.AddSeconds(45)));
         GameSession? pending = await repo.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 1) with { Takeover = true, WorldId = 2, ServerId = "world-2" }, s_now);
         Assert.NotNull(pending);
-        GameSession? replacement = await repo.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 2) with { WorldId = 3, ServerId = "world-3" }, s_now.AddSeconds(46));
+        DateTime next = s_now.AddSeconds(46);
+        if (ended)
+        {
+            Assert.True(await repo.TryEndAsync(account.Id, pending!.GameSessionId, 2, s_now.AddSeconds(1)));
+            next = s_now.AddSeconds(2);
+        }
+        GameSession? replacement = await repo.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 2) with { WorldId = 3, ServerId = "world-3" }, next);
         Assert.NotNull(replacement);
         Assert.Equal(3, replacement!.FencingToken);
         Assert.Equal(active.GameSessionId, replacement.PreviousGameSessionId);

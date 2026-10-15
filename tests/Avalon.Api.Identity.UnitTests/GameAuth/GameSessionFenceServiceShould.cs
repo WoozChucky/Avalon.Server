@@ -259,6 +259,63 @@ public sealed class GameSessionFenceServiceShould
         await _h.Sessions.DidNotReceive().TryEndAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
         Assert.Equal(GameSessionState.Pending, _head.State);
     }
+    /// <summary>
+    /// #1013: a world whose admission failed after the redemption ends the pending session it reserved, so the player's
+    /// next join is not refused for its lease. The activation may have failed before the target guard (which then holds
+    /// no row, or the previous session's) or after advancing it: the session ends either way, the previous session's
+    /// guard is left as it was, and a guard this session reached is blocked, even by an activation still in flight that
+    /// reached it while the end ran ("raced"). Only this world's workload can end it.
+    /// </summary>
+    [Theory]
+    [InlineData("none")]
+    [InlineData("previous")]
+    [InlineData("advanced")]
+    [InlineData("raced")]
+    public async Task End_a_pending_session_whose_activation_failed_wherever_it_stopped(string guardReached)
+    {
+        await Arrange();
+        using var characters = new SqliteWorlds(1);
+        var fences = new GameplayFenceRepository(characters.ForCharacters(new WorldId(1)), _h.Clock);
+        _worlds.GameplayFences(new WorldId(1)).Returns(fences);
+        DateTime until = _head.LeaseUntil;
+        var previous = new GameplayWriteAuthority(_head.AccountId, _head.PreviousGameSessionId!.Value, 1);
+        if (guardReached == "previous")
+        {
+            Assert.NotNull(await fences.AdvanceAsync(previous, false, until, CancellationToken.None));
+            Assert.NotNull(await fences.ActivateAsync(previous, until, CancellationToken.None));
+        }
+        else if (guardReached == "advanced")
+        {
+            Assert.NotNull(await fences.AdvanceAsync(new(_head.AccountId, _head.GameSessionId, 2), false, until, CancellationToken.None));
+        }
+        _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(async _ =>
+        {
+            if (guardReached != "raced") return true;
+            var self = new GameplayWriteAuthority(_head.AccountId, _head.GameSessionId, 2);
+            Assert.NotNull(await fences.AdvanceAsync(self, false, until, CancellationToken.None));
+            Assert.NotNull(await fences.ActivateAsync(self, until, CancellationToken.None));
+            return true;
+        });
+
+        Assert.NotNull((await _service.EndAsync("world-3", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None)).Error);
+        await _h.Sessions.DidNotReceive().TryEndAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+
+        Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None)).State);
+        await _h.Sessions.Received(1).TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        AccountGameplayFence? guard = await fences.FindAsync(_head.AccountId, CancellationToken.None);
+        switch (guardReached)
+        {
+            case "previous":
+                Assert.Equal((1L, GameplayFenceMode.Active), (guard!.FencingToken, guard.Mode));
+                break;
+            case "advanced" or "raced":
+                Assert.Equal((2L, GameplayFenceMode.Blocked), (guard!.FencingToken, guard.Mode));
+                break;
+            default:
+                Assert.True(guard is null || guard.FencingToken == 0);
+                break;
+        }
+    }
     [Fact]
     public async Task Apply_a_single_target_barrier_for_same_world_takeover()
     {
