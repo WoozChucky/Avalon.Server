@@ -924,6 +924,11 @@ public class WorldDbContext : DbContext
             .HasForeignKey(b => b.LootTableId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        // Display ids (#1022) name the game client's models (its CreatureModels.h), numbered from 1 and shared by every
+        // template that looks alike; 0 is none, the client's default. The town NPCs have one model each, 1-7: Uriel 1,
+        // Borin 2, the Innkeeper 3, Marta 4, Garrick 5, Hilde 6, Tobin 7. The killable creatures (4-10) stay 0 until
+        // the client has their models.
+        //
         // Templates 1-3 are the town NPCs, placed on map 1 by the MapCreatureSpawns rows above.
         // They are Invulnerable — a town NPC is never killable — and run TownNpcScript, which
         // stands still and never aggros. Experience is 0 because a creature that cannot die cannot
@@ -944,6 +949,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
+            DisplayId = 1,
             Experience = 0,
             LootTableId = null,
             MinGold = 0,
@@ -976,6 +982,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
+            DisplayId = 2,
             Experience = 0,
             LootTableId = null,
             MinGold = 0,
@@ -1008,6 +1015,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
+            DisplayId = 3,
             Experience = 0,
             LootTableId = null,
             MinGold = 0,
@@ -1276,6 +1284,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
+            DisplayId = 4,
             Experience = 0,
             LootTableId = null,
             MinGold = 0,
@@ -1300,17 +1309,18 @@ public class WorldDbContext : DbContext
         // TownNpcScript, no loot, experience 0. Each one's dialogue offers OpenShop, which is what
         // makes it a vendor (NpcInteraction.IsVendor); its stock is in VendorStocks.
         builder.HasData(
-            TownNpc(12, "Garrick Emberforge", "Weapons Dealer"),
-            TownNpc(13, "Hilde Brassbuckle", "Armourer"),
-            TownNpc(14, "Tobin Marrowfield", "Trade Goods"));
+            TownNpc(12, "Garrick Emberforge", "Weapons Dealer", displayId: 5),
+            TownNpc(13, "Hilde Brassbuckle", "Armourer", displayId: 6),
+            TownNpc(14, "Tobin Marrowfield", "Trade Goods", displayId: 7));
     }
 
     /// <summary>A town NPC exactly like Marta (template 11): level 1, unkillable, standing still, dropping nothing.</summary>
-    private static CreatureTemplate TownNpc(ulong id, string name, string subName) => new()
+    private static CreatureTemplate TownNpc(ulong id, string name, string subName, uint displayId) => new()
     {
         Id = id,
         Name = name,
         SubName = subName,
+        DisplayId = displayId,
         IconName = string.Empty,
         MinLevel = 1,
         MaxLevel = 1,

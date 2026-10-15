@@ -3060,6 +3060,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("DetectionRange")
                         .HasColumnType("real");
 
+                    b.Property<long>("DisplayId")
+                        .HasColumnType("bigint");
+
                     b.Property<short>("DmgSchool")
                         .HasColumnType("smallint");
 
@@ -3161,6 +3164,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
+                            DisplayId = 1L,
                             DmgSchool = (short)0,
                             Experience = 0L,
                             ExperienceModifier = 1f,
@@ -3195,6 +3199,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
+                            DisplayId = 2L,
                             DmgSchool = (short)0,
                             Experience = 0L,
                             ExperienceModifier = 1f,
@@ -3229,6 +3234,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
+                            DisplayId = 3L,
                             DmgSchool = (short)0,
                             Experience = 0L,
                             ExperienceModifier = 1f,
@@ -3263,6 +3269,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 12f,
+                            DisplayId = 0L,
                             DmgSchool = (short)0,
                             ExperienceModifier = 1f,
                             Family = 5,
@@ -3297,6 +3304,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1.1f,
                             DetectionRange = 18f,
+                            DisplayId = 0L,
                             DmgSchool = (short)0,
                             ExperienceModifier = 1f,
                             Family = 1,
@@ -3331,6 +3339,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 0.7f,
                             DetectionRange = 8f,
+                            DisplayId = 0L,
                             DmgSchool = (short)0,
                             ExperienceModifier = 1f,
                             Family = 0,
@@ -3365,6 +3374,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 14f,
+                            DisplayId = 0L,
                             DmgSchool = (short)0,
                             ExperienceModifier = 1f,
                             Family = 0,
@@ -3399,6 +3409,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1.1f,
                             DetectionRange = 22f,
+                            DisplayId = 0L,
                             DmgSchool = (short)0,
                             ExperienceModifier = 1f,
                             Family = 1,
@@ -3433,6 +3444,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1.1f,
                             DetectionRange = 20f,
+                            DisplayId = 0L,
                             DmgSchool = (short)0,
                             ExperienceModifier = 1f,
                             Family = 5,
@@ -3467,6 +3479,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 26f,
+                            DisplayId = 0L,
                             DmgSchool = (short)0,
                             ExperienceModifier = 1f,
                             Family = 0,
@@ -3501,6 +3514,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
+                            DisplayId = 4L,
                             DmgSchool = (short)0,
                             Experience = 0L,
                             ExperienceModifier = 1f,
@@ -3535,6 +3549,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
+                            DisplayId = 5L,
                             DmgSchool = (short)0,
                             Experience = 0L,
                             ExperienceModifier = 1f,
@@ -3569,6 +3584,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
+                            DisplayId = 6L,
                             DmgSchool = (short)0,
                             Experience = 0L,
                             ExperienceModifier = 1f,
@@ -3603,6 +3619,7 @@ namespace Avalon.Database.World.Migrations
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
+                            DisplayId = 7L,
                             DmgSchool = (short)0,
                             Experience = 0L,
                             ExperienceModifier = 1f,

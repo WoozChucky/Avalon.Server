@@ -67,6 +67,18 @@ public class Creature : ICreature
     /// </remarks>
     public Avalon.World.Public.Enums.CreatureRarity Rarity { get; init; }
 
+    /// <summary>
+    /// Which model a client draws this creature with, fixed by <see cref="CreatureSpawner"/> from its template's
+    /// <c>DisplayId</c> and replicated as <c>ObjectState.DisplayId</c> (#1022). 0 is none: the client keeps its
+    /// default.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not on <see cref="ICreature"/>, for the reason <see cref="Rarity"/> is not: a mod must not be
+    /// able to change what a client sees. Init-only, because it is decided once at spawn: a
+    /// <c>/reload creatures</c> reaches only creatures spawned after it.
+    /// </remarks>
+    public uint DisplayId { get; init; }
+
     /// <summary>Metres. Copied from <c>CreatureTemplate.BodyRadius</c> by <see cref="CreatureSpawner"/>.</summary>
     public float BodyRadius { get; init; } = UnitBody.DefaultCreatureRadius;
 

@@ -678,6 +678,7 @@ message ObjectState {
    optional CreatureRarity Rarity = 22;
    optional CharacterClass Class = 23;
    optional CharacterGender Gender = 24;
+   optional uint32 DisplayId = 25;
 }
 enum PartyExperienceMode {
    PartyExperienceMode_Unknown = 0;

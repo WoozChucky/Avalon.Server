@@ -99,5 +99,6 @@ public sealed class ObjectStatePool
         state.Rarity = null;
         state.Class = null;
         state.Gender = null;
+        state.DisplayId = null;
     }
 }

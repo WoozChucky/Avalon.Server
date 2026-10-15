@@ -80,6 +80,8 @@ A creature's killing blow is sent like any other hit, before the death: `SUnitDa
 
 **A creature's rarity (#709).** `ObjectState.Rarity` (field 22, enum `CreatureRarity`: Normal 0, Elite 1, Rare 2, Boss 3) is on every state of a creature that is not Normal, the add and every update alike, whatever else changed, so a client can colour the nameplate from whichever message it sees first. Absent on a creature state means Normal. Characters, portals and projectiles never carry it. It is fixed when the creature spawns; a server-side template change reaches only creatures spawned after it.
 
+**A creature's model (#1022).** `ObjectState.DisplayId` (field 25, `uint32`) names the model a client draws a creature with: a model, not a template, numbered from 1 in the client's model list (`CreatureModels.h`) and shared by every creature type that looks alike. The town NPCs are 1-7; the killable creatures are 0 until the client has their models. It is on every state of a creature that has one, the add and every update alike, whatever else changed. Absent on a creature state means 0, none: the client draws its default. Characters, portals and projectiles never carry it. It is fixed when the creature spawns; a server-side template change reaches only creatures spawned after it.
+
 ### `SUnitRevivePacket` (`SMSG_UNIT_REVIVE = 0x3108`, encrypted, TCP)
 
 Server → all clients in the instance. Triggers revive animation, snaps position, and resets HP.

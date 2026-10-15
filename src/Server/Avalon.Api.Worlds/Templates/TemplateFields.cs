@@ -63,6 +63,7 @@ internal static class TemplateFields
         C("rarity", e => e.Rarity, (e, r) => e.Rarity = Conv(r.Rarity, e.Rarity)),
         C("family", e => e.Family, (e, r) => e.Family = Conv(r.Family, e.Family)),
         C("type", e => e.Type, (e, r) => e.Type = Conv(r.Type, e.Type)),
+        C("displayId", e => e.DisplayId, (e, r) => e.DisplayId = r.DisplayId),
         C("lootTableId", e => e.LootTableId?.Value, (e, r) => e.LootTableId = r.LootTableId is { } id ? new LootTableId(id) : null),
         C("minGold", e => e.MinGold, (e, r) => e.MinGold = r.MinGold),
         C("maxGold", e => e.MaxGold, (e, r) => e.MaxGold = r.MaxGold),

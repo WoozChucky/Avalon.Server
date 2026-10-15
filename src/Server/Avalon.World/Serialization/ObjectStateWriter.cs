@@ -62,26 +62,34 @@ public static class ObjectStateWriter
         state.CreatureMetadataId = creature.Metadata.Id.Value;
         state.Name = creature.Name;
 
-        // Also whatever is marked changed, for the same reason: it is fixed at spawn, and a client
-        // that first sees this creature on an update still needs it to offer a prompt. Sent only
-        // as true; a creature that cannot be interacted with leaves the member out, which a client
-        // reads as false. The value lives on the World-side Creature, not on ICreature, so no mod
-        // can make a creature advertise an interaction the server would refuse. Any ICreature other
-        // than Creature therefore never advertises the flag, and that is deliberate: it fails safe,
-        // costing at most a prompt the client does not offer, and InteractHandler stays the
-        // authority on whether an interact is accepted.
-        if (creature is Creature { CanInteract: true })
+        // The three below live on the World-side Creature, not on ICreature, so no mod can change what a
+        // creature advertises. Any ICreature other than Creature therefore sends none of them, and that is
+        // deliberate: it fails safe, costing at most a prompt the client does not offer, a Normal nameplate or
+        // the default model, and InteractHandler stays the authority on whether an interact is accepted.
+        if (creature is Creature spawned)
         {
-            state.CanInteract = true;
-        }
+            // Also whatever is marked changed, for the same reason: it is fixed at spawn, and a client that first
+            // sees this creature on an update still needs it to offer a prompt. Sent only as true; a creature that
+            // cannot be interacted with leaves the member out, which a client reads as false.
+            if (spawned.CanInteract)
+            {
+                state.CanInteract = true;
+            }
 
-        // Whatever is marked changed too, and only when not Normal (#709): the rarity is fixed at spawn, a
-        // client that first sees the creature on an update still needs it for the nameplate, and a Normal
-        // creature, most of them, pays nothing, since absent means Normal. World-side value, like CanInteract,
-        // so no mod can change what a creature advertises, and any other ICreature is sent as Normal.
-        if (creature is Creature { Rarity: not WorldRarity.Normal } spawned)
-        {
-            state.Rarity = ToWire(spawned.Rarity);
+            // Whatever is marked changed too, and only when not Normal (#709): the rarity is fixed at spawn, a
+            // client that first sees the creature on an update still needs it for the nameplate, and a Normal
+            // creature, most of them, pays nothing, since absent means Normal.
+            if (spawned.Rarity != WorldRarity.Normal)
+            {
+                state.Rarity = ToWire(spawned.Rarity);
+            }
+
+            // The model the client draws (#1022), on the same terms as the rarity: whatever is marked changed, and
+            // only when not 0, since absent means none and a creature without one pays nothing.
+            if (spawned.DisplayId != 0)
+            {
+                state.DisplayId = spawned.DisplayId;
+            }
         }
 
         return state;
