@@ -55,16 +55,19 @@ public static class Interest
     }
 
     /// <summary>
-    /// False only when an object at (<paramref name="x" />, <paramref name="z" />) is out of the view of a watcher at
-    /// <paramref name="watcherPosition" /> whether tracked or not, by the distance <see cref="IsVisible{TTracked}" />
-    /// measures (#982): beyond both the radius and radius + margin, or not comparable (a coordinate that is not a
-    /// number). A spatial index's candidate is turned away on this without its entity being read; true decides nothing,
-    /// and the watcher's own character is never asked.
+    /// Whether the distance alone decides <see cref="IsVisible{TTracked}" /> for an object at (<paramref name="x" />,
+    /// <paramref name="z" />) that is not the watcher, both positions finite (#982): true, with the answer in
+    /// <paramref name="inView" />, unless the object is in the margin, where whether the client already holds it
+    /// decides. The same measure on the same floats as <see cref="IsVisible{TTracked}" />, so a spatial index's
+    /// candidate is decided on the index's copy of its X/Z without its entity being read. The caller answers the two
+    /// rules before the distance itself: the watcher's own character, and a position that is not finite.
     /// </summary>
-    internal static bool MayBeInView(Vector3 watcherPosition, float x, float z, InterestRange range)
+    internal static bool DecidedByDistance(Vector3 watcherPosition, float x, float z, InterestRange range,
+        out bool inView)
     {
         Measure(watcherPosition, x, z, range, out bool withinAdd, out bool withinKeep);
-        return withinAdd || withinKeep;
+        inView = withinAdd;
+        return withinAdd == withinKeep;
     }
 
     /// <summary>

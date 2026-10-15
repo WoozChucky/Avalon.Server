@@ -24,8 +24,16 @@ internal struct SpatialHandle
 internal interface ISpatialVisitor
 {
     /// <summary>
-    /// One entry: its kind, its guid's raw value and X/Z as of its last position write (an entity not indexed is read
-    /// live), and the entity itself, which the visitor need not read when the values decide.
+    /// An entry of a cell: its kind, its guid's raw value, its X/Z as of its last position write, and the entity itself,
+    /// which the visitor need not read when the values decide. Every component of that position (X, Y and Z) is finite,
+    /// and the values are the entity's own: every position write reaches the grid (checked as the walk goes, in a Debug
+    /// build).
+    /// </summary>
+    void VisitPlaced(SpatialKind kind, ulong rawGuid, float x, float z, IWorldObject obj);
+
+    /// <summary>
+    /// An entry in no cell (a component of its position is not finite) or not indexed (its X/Z read live), for the
+    /// visitor to decide on the entity.
     /// </summary>
     void Visit(SpatialKind kind, ulong rawGuid, float x, float z, IWorldObject obj);
 }
@@ -220,7 +228,7 @@ internal sealed class SpatialGrid
                 VisitAllCells(ref visitor);
         }
 
-        VisitList(_heads[_unplaced], ref visitor);
+        VisitUnplaced(ref visitor);
         VisitUnindexed(_unindexedCreatures, SpatialKind.Creature, ref visitor);
         VisitUnindexed(_unindexedCharacters, SpatialKind.Character, ref visitor);
     }
@@ -243,19 +251,31 @@ internal sealed class SpatialGrid
             int rowStart = row * _columns;
             int lastColumn = Column(x + halfWidth);
             for (int column = Column(x - halfWidth); column <= lastColumn; column++)
-                VisitList(_heads[rowStart + column], ref visitor);
+                VisitCell(_heads[rowStart + column], ref visitor);
         }
     }
 
     private void VisitAllCells<TVisitor>(ref TVisitor visitor) where TVisitor : struct, ISpatialVisitor
     {
         for (int cell = 0; cell < _unplaced; cell++)
-            VisitList(_heads[cell], ref visitor);
+            VisitCell(_heads[cell], ref visitor);
     }
 
-    private void VisitList<TVisitor>(int slot, ref TVisitor visitor) where TVisitor : struct, ISpatialVisitor
+    private void VisitCell<TVisitor>(int slot, ref TVisitor visitor) where TVisitor : struct, ISpatialVisitor
     {
         Entry[] entries = _entries;
+        while (slot != Unlinked)
+        {
+            ref Entry entry = ref entries[slot];
+            visitor.VisitPlaced(entry.Kind, entry.RawGuid, entry.X, entry.Z, entry.Object!);
+            slot = entry.Next;
+        }
+    }
+
+    private void VisitUnplaced<TVisitor>(ref TVisitor visitor) where TVisitor : struct, ISpatialVisitor
+    {
+        Entry[] entries = _entries;
+        int slot = _heads[_unplaced];
         while (slot != Unlinked)
         {
             ref Entry entry = ref entries[slot];

@@ -119,7 +119,8 @@ public class CharacterCharacterGameState
     /// over the instance's spatial index (#982): the candidates are the characters and creatures of the cells within
     /// reach of the watcher (<see cref="Interest.Reach" />, radius + margin), the watcher's own character wherever it
     /// stands, and every world object; each is then decided by <see cref="Interest.IsVisible{TTracked}" /> as the full
-    /// scan decides it, a far one turned away on the index's own copy of its X/Z without reading it. The same objects come
+    /// scan decides it, a character or creature on the index's own copy of its guid and X/Z, without reading it, unless
+    /// it is in the margin (<see cref="ViewCandidates" />). The same objects come
     /// into, stay in and leave the view; within a kind, they are listed in the cells' order rather than the
     /// dictionaries'. <paramref name="watcherPosition" /> is the watcher's own position, as the index holds it.
     /// </summary>
@@ -259,8 +260,12 @@ public class CharacterCharacterGameState
     }
 
     /// <summary>
-    /// The spatial index's candidates for one view (#982): each that can be in view by its indexed X/Z, or is the watcher
-    /// itself, is decided by the rule on the entity, as the full scan decides it, and listed with its kind.
+    /// The spatial index's candidates for one view (#982), each decided as <see cref="Interest.IsVisible{TTracked}" />
+    /// decides it on the entity, and listed with its kind. An entry of a cell is decided on the index's copy of its guid
+    /// and X/Z, without reading the entity (a character's position is on its row, a second object): the watcher's own
+    /// character is in view; with a watcher whose position is not finite, nothing else is; otherwise the distance
+    /// decides, the same measure on the same floats, unless the entry is in the margin, which asks the entity's
+    /// tracking. An entry in no cell or not indexed is decided on the entity, as the full scan decides it.
     /// </summary>
     private struct ViewCandidates : ISpatialVisitor
     {
@@ -268,6 +273,7 @@ public class CharacterCharacterGameState
         private readonly ObjectGuid _watcher;
         private readonly ulong _watcherRaw;
         private readonly Vector3 _watcherPosition;
+        private readonly bool _watcherFinite;
         private readonly InterestRange _range;
 
         public int Visited;
@@ -279,24 +285,56 @@ public class CharacterCharacterGameState
             _watcher = watcher;
             _watcherRaw = watcher.RawValue;
             _watcherPosition = watcherPosition;
+            _watcherFinite = EffectAudience.IsFinite(watcherPosition);
             _range = range;
+        }
+
+        // A cell's entry: every component of its position is finite and its X/Z are the entity's (SpatialGrid), so the
+        // rule's own steps are taken on the copy, in its order: self, a watcher not finite, then the distance.
+        public void VisitPlaced(SpatialKind kind, ulong rawGuid, float x, float z, IWorldObject obj)
+        {
+            Visited++;
+            if (rawGuid == _watcherRaw)
+            {
+                Listed(kind, obj);
+                return;
+            }
+
+            if (!_watcherFinite)
+                return;
+
+            if (Interest.DecidedByDistance(_watcherPosition, x, z, _range, out bool inView))
+            {
+                if (inView)
+                    Listed(kind, obj);
+                return;
+            }
+
+            Decide(kind, obj);
         }
 
         public void Visit(SpatialKind kind, ulong rawGuid, float x, float z, IWorldObject obj)
         {
             Visited++;
-            if (rawGuid != _watcherRaw && !Interest.MayBeInView(_watcherPosition, x, z, _range))
-                return;
+            Decide(kind, obj);
+        }
 
+        // On the entity, as the full scan decides it.
+        private readonly void Decide(SpatialKind kind, IWorldObject obj)
+        {
+            EntityTrackingSystem tracking = kind == SpatialKind.Creature
+                ? _state._creatureTrackingSystem
+                : _state._characterTrackingSystem;
+            if (InView(obj, tracking, _watcher, _watcherPosition, _range))
+                Listed(kind, obj);
+        }
+
+        private readonly void Listed(SpatialKind kind, IWorldObject obj)
+        {
             if (kind == SpatialKind.Creature)
-            {
-                if (InView(obj, _state._creatureTrackingSystem, _watcher, _watcherPosition, _range))
-                    _state._visibleCreatures.Add(obj);
-            }
-            else if (InView(obj, _state._characterTrackingSystem, _watcher, _watcherPosition, _range))
-            {
+                _state._visibleCreatures.Add(obj);
+            else
                 _state._visibleCharacters.Add(obj);
-            }
         }
     }
 
