@@ -89,6 +89,12 @@ public class AggroDefendScript : AiScript, IReturningHome, IAwaitsSearch
 
     void IAwaitsSearch.ResumeSearchWait(float elapsed) => _detector.SearchTimer = elapsed;
 
+    // Update below with the search due: the shortcut does not return (AdvanceWhileWaiting answers false, as the timer
+    // reaches the interval), the detector stays Searching, and of the chain only the detector runs (the combat script runs
+    // only in Combat or Returning): its Update is the search alone. Combat begins only from what the search finds.
+    CreatureRangeDetectorScript? IAwaitsSearch.SearchAlone(TimeSpan deltaTime) =>
+        ((IAwaitsSearch)this).AwaitsSearch(out _) && _detector.SearchDueAfter(deltaTime) ? _detector : null;
+
     bool IReturningHome.IsReturningHome => _combat is IReturningHome { IsReturningHome: true };
 
     private void OnCharacterEnteredRange(ICharacter character) => _combat.OnEnteredRange(character);

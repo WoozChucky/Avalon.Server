@@ -2,7 +2,9 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Avalon.Common;
 using Avalon.World.Entities;
+using Avalon.World.Instances;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Scripts.Creatures;
 
@@ -40,12 +42,27 @@ namespace Avalon.World.Creatures;
 /// on that tick as they did when every creature was visited. Creatures placed together, or searching on the same
 /// tick, share a cohort, so a step costs a few float additions however many creatures wait.
 /// </para>
+/// <para>
+/// <b>The search filter (#982).</b> A creature whose cohort came due is marked; at its turn on that step, if its Update
+/// would be its search alone (<see cref="IAwaitsSearch.SearchAlone" />) and the instance's spatial grid says no character
+/// can be within its range (<see cref="SpatialGrid.MayHaveCharacterWithin" />), the search is skipped: its detector is
+/// left as a search that found no one leaves it, timer at zero, and it waits again exactly as after that Update. The
+/// question is asked at its turn, when its search would run, not when the cohort came due: a script earlier in the step
+/// can move or kill a character, or wake this creature, and the answer must be the one the search would have met. The
+/// grid's answer is conservative, so a skipped search is one that would have found no one; which character a search finds
+/// stays the search's own.
+/// </para>
 /// </remarks>
 internal sealed class CreatureScheduler
 {
     private const int CohortCapacity = 16;
 
     private readonly Dictionary<ObjectGuid, ICreature> _creatures;
+
+    // The instance, and its spatial grid: a due search no character can satisfy is skipped (#982).
+    private readonly ISimulationContext _instance;
+    private readonly SpatialGrid _members;
+    private bool _filterSearches = true;
 
     // The instance's creatures in dictionary order, a null where one has left since the roster was read.
     private ICreature?[] _roster = [];
@@ -73,10 +90,18 @@ internal sealed class CreatureScheduler
     private Creature?[] _timed = new Creature?[CohortCapacity];
     private int _timedCount;
 
-    public CreatureScheduler(Dictionary<ObjectGuid, ICreature> creatures)
+    public CreatureScheduler(Dictionary<ObjectGuid, ICreature> creatures, ISimulationContext instance, SpatialGrid members)
     {
         _creatures = creatures;
+        _instance = instance;
+        _members = members;
     }
+
+    /// <summary>
+    /// Runs every due search, as before #982, rather than skipping the ones no character can satisfy: the reference the
+    /// filter is compared against. For tests only.
+    /// </summary>
+    internal void SearchEveryDueCreature() => _filterSearches = false;
 
     /// <summary>
     /// A creature joined the instance: it runs on the next step, whatever its script declares, and the roster is read
@@ -233,6 +258,13 @@ internal sealed class CreatureScheduler
         if (script is null)
             return;
 
+        if (scheduled.Schedule.SearchDue)
+        {
+            scheduled.Schedule.SearchDue = false;
+            if (SkipsSearch(scheduled, deltaTime))
+                return;
+        }
+
         script.Update(deltaTime);
 
         if (scheduled.Schedule.Search is null)
@@ -251,6 +283,23 @@ internal sealed class CreatureScheduler
 
         if (StillOwns(scheduled, script))
             ParkForSearch(scheduled);
+    }
+
+    /// <summary>
+    /// A creature whose cohort came due, at its turn (#982): when its Update would be its search alone and no character can
+    /// be within its range, the search is skipped and the creature waits again as Run leaves it after a search that found
+    /// no one (its detector's timer at zero, then <see cref="ParkForSearch" />, which nothing in between could have
+    /// changed: the script still owns its creature, which is active).
+    /// </summary>
+    private bool SkipsSearch(Creature creature, TimeSpan deltaTime)
+    {
+        CreatureRangeDetectorScript? detector = creature.Schedule.Search?.SearchAlone(deltaTime);
+        if (detector is null || !_filterSearches || detector.CouldDetect(_instance, _members))
+            return false;
+
+        detector.SkipSearch();
+        ParkForSearch(creature);
+        return true;
     }
 
     /// <summary>
@@ -308,6 +357,7 @@ internal sealed class CreatureScheduler
     {
         AiScript? script = creature.Script;
         creature.Schedule.Search = null;
+        creature.Schedule.SearchDue = false;
         if (script is null)
         {
             creature.Schedule.Wait = CreatureWait.None;
@@ -375,6 +425,7 @@ internal sealed class CreatureScheduler
             {
                 Creature? following = member.Schedule.Next;
                 member.Schedule.Search!.ResumeSearchWait(elapsed);
+                member.Schedule.SearchDue = true;
                 member.Schedule.Cohort = -1;
                 member.Schedule.Previous = null;
                 member.Schedule.Next = null;
@@ -674,4 +725,10 @@ internal struct CreatureSchedule
     /// <summary>The creatures before and after it in its cohort, while it waits for its search.</summary>
     public Creature? Previous;
     public Creature? Next;
+
+    /// <summary>
+    /// Its cohort came due on this step and it has yet to run: its search may be skipped at its turn (#982). Only a scope:
+    /// whether the search may be skipped is decided afresh then.
+    /// </summary>
+    public bool SearchDue;
 }

@@ -5,12 +5,14 @@ using Avalon.Common.ValueObjects;
 using Avalon.World.Parties;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
+using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts.Creatures;
@@ -605,6 +607,335 @@ public sealed class CreatureSchedulingShould
         map.RemoveCreature(creature);
         creature.Script = script(creature);
         map.AddCreature(creature);
+    }
+
+    // ---- The search filter (#982) -------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A due search that no character can satisfy is skipped (#982), and that changes nothing: two instances are driven
+    /// side by side through the same seeded changes, one skipping and one running every due search
+    /// (<c>MapInstance.SearchEveryDueCreature</c>), and after every tick each creature must stand, detect, target and wait
+    /// alike, and each client must have been sent the same packets. The changes are the ones the filter can get wrong:
+    /// characters placed at a creature's range on X/Z to the float (on it, a float inside, a float beyond) and above or
+    /// below it, positions with a component not finite (which the search's NaN distance lets through to its line of
+    /// sight, here always clear for those), off the layout and on cell edges, characters dying, reviving, leaving, coming
+    /// back and entering a second instance without leaving this one (then not indexed here), and a script in the middle
+    /// of the instance's order that, mid-step, moves characters beside creatures after it (which must be found on that
+    /// tick when their search is due on it) and hits creatures (woken before or after their turn). Each weakening of the
+    /// filter tried fails it: a strict comparison at the range, a reach too short for the cells, the characters in no
+    /// cell or not indexed left out, a cell's character count not kept, the timer of a skipped search not reset, and the
+    /// question asked when a cohort comes due rather than at each creature's turn.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void Detect_alike_whether_or_not_searches_no_character_can_satisfy_are_skipped(int seed)
+    {
+        var random = new Random(seed);
+        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026, 10, 15, 12, 0, 0, TimeSpan.Zero));
+        ChunkLayout layout = FilterLayout();
+        using MapInstance filtered = TestMapInstances.Build(MapInstanceClients.NewWorld(), navigator: new ClearSight(), time: clock, layout: layout);
+        using MapInstance reference = TestMapInstances.Build(MapInstanceClients.NewWorld(), navigator: new ClearSight(), time: clock, layout: layout);
+        typeof(MapInstance).GetMethod("SearchEveryDueCreature", Private)!.Invoke(reference, null);
+        using MapInstance filteredElsewhere = TestMapInstances.Build(MapInstanceClients.NewWorld(), time: clock, layout: layout);
+        using MapInstance referenceElsewhere = TestMapInstances.Build(MapInstanceClients.NewWorld(), time: clock, layout: layout);
+
+        // Creatures on whole and half metres, so a character placed at a range along an axis is at it exactly; the
+        // meddling script in the middle of the instance's order.
+        float[] ranges = [8f, 0f, 12f, 20f]; // 0: the default, 10 m
+        var creatures = new List<Pair<Creature>>();
+        var characters = new List<Pair<MapInstanceClient>>();
+        for (uint id = 1; id <= 41; id++)
+        {
+            if (id == 21)
+            {
+                filtered.AddCreature(Meddler(filtered, id, new Random(seed), characters, creatures, f => f.Filtered));
+                reference.AddCreature(Meddler(reference, id, new Random(seed), characters, creatures, f => f.Reference));
+                continue;
+            }
+
+            var template = new CreatureTemplate
+            {
+                Id = new CreatureTemplateId(id),
+                DetectionRange = ranges[id % ranges.Length],
+                // Fast, so a creature that gave up a chase is home and searching again within a few seconds.
+                SpeedWalk = 10f,
+                SpeedRun = 20f,
+            };
+            var at = new Vector3(random.Next(-60, 480) / 2f, 0.5f * random.Next(0, 3), random.Next(-200, 260) / 2f);
+            creatures.Add(new Pair<Creature>(
+                Place(filtered, id, template, at, c => new AggroDefendScript(NullLoggerFactory.Instance, c, filtered, clock)),
+                Place(reference, id, template, at, c => new AggroDefendScript(NullLoggerFactory.Instance, c, reference, clock))));
+        }
+
+        for (uint id = 982_201; id <= 982_206; id++)
+        {
+            var pair = new Pair<MapInstanceClient>(MapInstanceClients.Join(filtered, id), MapInstanceClients.Join(reference, id)) { In = true };
+            characters.Add(pair);
+            Move(pair, Somewhere(random));
+        }
+
+        int detectedNotFinite = 0;
+        for (int tick = 1; tick <= 1200; tick++)
+        {
+            Change(random, creatures, characters, filtered, reference, filteredElsewhere, referenceElsewhere);
+
+            int[] from = characters.Select(c => c.Filtered.Sent.Count).ToArray();
+            int[] fromReference = characters.Select(c => c.Reference.Sent.Count).ToArray();
+            filtered.Update(ScenarioWorld.Dt);
+            reference.Update(ScenarioWorld.Dt);
+            clock.Advance(ScenarioWorld.Dt);
+
+            CreatureView[] expected = Views(reference), actual = Views(filtered);
+            Assert.Equal(expected.Length, actual.Length);
+            for (int i = 0; i < expected.Length; i++)
+            {
+                if (!expected[i].Equals(actual[i]))
+                    Assert.Fail($"seed {seed}, tick {tick}, creature {i}:\n every search {expected[i]}\n filtered     {actual[i]}");
+                if (expected[i].Target is { } target && target.StartsWith("character", StringComparison.Ordinal)
+                    && characters.Find(c => $"character {c.Reference.Character.Guid.Id}" == target) is { } aggroed
+                    && !IsFinite(aggroed.Reference.Character.Position))
+                {
+                    detectedNotFinite++;
+                }
+            }
+
+            for (int c = 0; c < characters.Count; c++)
+            {
+                Assert.True(Packets(characters[c].Reference.Sent.Skip(fromReference[c])) == Packets(characters[c].Filtered.Sent.Skip(from[c])),
+                    $"seed {seed}, tick {tick}: client {characters[c].Reference.Character.Guid.Id} was sent other packets");
+            }
+        }
+
+        // The equivalence would hold trivially if nothing was skipped, or if nothing was found.
+        long all = Searches(reference), skipped = all - Searches(filtered);
+        Assert.True(skipped > all / 5 && skipped < all, $"seed {seed}: {skipped} of {all} searches skipped");
+        Assert.True(detectedNotFinite > 0, $"seed {seed}: no creature ever held a character standing nowhere as its target");
+    }
+
+    private static void Change(Random random, List<Pair<Creature>> creatures, List<Pair<MapInstanceClient>> characters,
+        MapInstance filtered, MapInstance reference, MapInstance filteredElsewhere, MapInstance referenceElsewhere)
+    {
+        // A character placed at a creature's range stays there for a search period, so the creature's search comes due
+        // while it does; the others wander.
+        foreach (Pair<MapInstanceClient> character in characters)
+        {
+            if (character.Pinned > 0)
+                character.Pinned--;
+            else if (random.NextDouble() < 0.2)
+                Move(character, Step(character.Reference.Character.Position, random));
+        }
+
+        if (random.Next(6) == 0)
+        {
+            Creature near = creatures[random.Next(creatures.Count)].Reference;
+            Pair<MapInstanceClient> character = characters[random.Next(characters.Count)];
+            Move(character, AtRange(near, random));
+            character.Pinned = 70;
+        }
+
+        if (random.Next(20) == 0)
+            Move(characters[random.Next(characters.Count)], NotFinite(random));
+
+        // Now and then a character enters a second instance without leaving this one, which then no longer indexes it, at
+        // a creature's range, where only its position read live finds it; it comes back about a search period later and
+        // through this instance again, which then indexes it again. Until then no search is skipped here.
+        if (random.Next(150) == 0 && characters[random.Next(characters.Count)] is { Elsewhere: false } leaving)
+        {
+            filteredElsewhere.AddCharacter(leaving.Filtered.Connection);
+            referenceElsewhere.AddCharacter(leaving.Reference.Connection);
+            leaving.Elsewhere = true;
+            Move(leaving, AtRange(creatures[random.Next(creatures.Count)].Reference, random));
+            leaving.Pinned = 70;
+        }
+
+        foreach (Pair<MapInstanceClient> character in characters)
+        {
+            if (character.Elsewhere && random.Next(60) == 0)
+            {
+                filteredElsewhere.RemoveCharacter(character.Filtered.Connection);
+                referenceElsewhere.RemoveCharacter(character.Reference.Connection);
+                character.Elsewhere = false;
+                if (character.In)
+                {
+                    filtered.RemoveCharacter(character.Filtered.Connection);
+                    reference.RemoveCharacter(character.Reference.Connection);
+                    filtered.AddCharacter(character.Filtered.Connection);
+                    reference.AddCharacter(character.Reference.Connection);
+                }
+            }
+        }
+
+        switch (random.Next(80))
+        {
+            case 0 or 2 or 3 or 4:
+            {
+                Pair<MapInstanceClient> character = characters[random.Next(characters.Count)];
+                bool dead = !character.Reference.Character.IsDead;
+                character.Filtered.Character.IsDead = dead;
+                character.Reference.Character.IsDead = dead;
+                break;
+            }
+            case 1:
+            {
+                Pair<MapInstanceClient> character = characters[random.Next(characters.Count)];
+                if (character.In)
+                {
+                    filtered.RemoveCharacter(character.Filtered.Connection);
+                    reference.RemoveCharacter(character.Reference.Connection);
+                }
+                else
+                {
+                    filtered.AddCharacter(character.Filtered.Connection);
+                    reference.AddCharacter(character.Reference.Connection);
+                }
+
+                character.In = !character.In;
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A character at a creature's range: along an axis on it, a float inside or beyond it, or at a random angle around it,
+    /// level with the creature or above or below it (so within range on X/Z but beyond it in 3D).
+    /// </summary>
+    private static Vector3 AtRange(Creature creature, Random random)
+    {
+        float range = creature.Metadata.DetectionRange > 0f ? creature.Metadata.DetectionRange : 10f;
+        float distance = random.Next(5) switch
+        {
+            0 => range,
+            1 => MathF.BitDecrement(range),
+            2 => MathF.BitIncrement(range),
+            _ => range * (float)(0.5 + random.NextDouble() * 0.7),
+        };
+        float y = random.Next(3) switch { 0 => 0f, 1 => (float)(random.NextDouble() * 6 - 3), _ => range * 0.75f };
+        Vector3 at = creature.Position;
+        return random.Next(3) switch
+        {
+            0 => new Vector3(at.x + distance, at.y + y, at.z),
+            1 => new Vector3(at.x, at.y + y, at.z - distance),
+            _ => new Vector3(at.x + distance * MathF.Cos(random.Next(360)), at.y + y, at.z + distance * MathF.Sin(random.Next(360))),
+        };
+    }
+
+    private static Vector3 Somewhere(Random random) => random.Next(6) switch
+    {
+        0 => new Vector3(-400f + random.Next(100), 0f, 50f),                 // off the layout, the clamped edge cells
+        1 => new Vector3(30f * random.Next(-1, 9), 1f, 30f * random.Next(-3, 6)), // on a cell edge
+        _ => new Vector3((float)(random.NextDouble() * 290 - 40), (float)(random.NextDouble() * 2), (float)(random.NextDouble() * 220 - 100)),
+    };
+
+    private static Vector3 Step(Vector3 from, Random random) =>
+        IsFinite(from) && Math.Abs(from.x) < 1e4f
+            ? new Vector3(from.x + (float)(random.NextDouble() * 6 - 3), from.y, from.z + (float)(random.NextDouble() * 6 - 3))
+            : Somewhere(random);
+
+    private static Vector3 NotFinite(Random random)
+    {
+        float bad = random.Next(4) switch { 0 or 1 => float.NaN, 2 => float.PositiveInfinity, _ => float.NegativeInfinity };
+        return random.Next(3) switch
+        {
+            0 => new Vector3(bad, 0f, 10f),
+            1 => new Vector3(10f, bad, 10f),
+            _ => new Vector3(10f, 0f, bad),
+        };
+    }
+
+    private static bool IsFinite(Vector3 v) => float.IsFinite(v.x) && float.IsFinite(v.y) && float.IsFinite(v.z);
+
+    private static void Move(Pair<MapInstanceClient> character, Vector3 position)
+    {
+        character.Filtered.Character.Position = position;
+        character.Reference.Character.Position = position;
+    }
+
+    /// <summary>
+    /// A creature whose script needs every tick and, mid-step, moves a character beside a creature after it in the
+    /// instance's order, or hits one; the same seeded choices on both sides, as it runs on every tick on both.
+    /// </summary>
+    private static Creature Meddler(MapInstance map, uint id, Random random, List<Pair<MapInstanceClient>> characters,
+        List<Pair<Creature>> creatures, Func<Pair<MapInstanceClient>, MapInstanceClient> sideOf)
+    {
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, id),
+            Metadata = new CreatureTemplate { Id = new CreatureTemplateId(id) },
+            Position = new Vector3(-300f, 0f, -300f),
+            Health = 100,
+            CurrentHealth = 100,
+        };
+        creature.Script = new MeddlingScript(creature, map, _ =>
+        {
+            if (characters.Count == 0)
+                return;
+
+            int roll = random.Next(10);
+            if (roll < 3)
+            {
+                // A creature after this one in the order (the creatures list holds the first 20 before it).
+                Creature beside = creatures[20 + random.Next(creatures.Count - 20)].Reference;
+                Vector3 position = beside.Position + new Vector3(2f, 0f, 1f);
+                sideOf(characters[random.Next(characters.Count)]).Character.Position = position;
+            }
+            else if (roll == 3)
+            {
+                int target = random.Next(creatures.Count);
+                ICreature hit = map.Creatures[creatures[target].Reference.Guid];
+                map.CombatService.ApplyDamage(creature, hit, 1);
+            }
+        });
+        return creature;
+    }
+
+    private static string Packets(IEnumerable<Avalon.Network.Packets.Abstractions.OutboundPacket> packets) =>
+        string.Join("\n", packets.Select(p => $"{p.Header.Type} {Convert.ToBase64String(p.PayloadMemory.Span)}"));
+
+    /// <summary>The searches the instance's creatures' range detectors ran (their counts, internal, read by name).</summary>
+    private static long Searches(MapInstance map) => map.Creatures.Values
+        .Select(c => c.Script is AggroDefendScript script ? (AiScript)Field(script, "_detector")! : null)
+        .Sum(d => d is null ? 0L : (long)typeof(CreatureRangeDetectorScript).GetProperty("Searches", Private)!.GetValue(d)!);
+
+    // A path of 30 m chunks with a branch, so the grid has many cells, most of them off the layout.
+    private static ChunkLayout FilterLayout()
+    {
+        (short X, short Z)[] cells = [(0, 0), (1, 0), (2, 0), (2, 1), (3, 1), (4, 1), (4, 2), (4, 3), (5, 3), (6, 3), (1, -1), (1, -2)];
+        var chunks = cells
+            .Select(c => new PlacedChunk(new ChunkTemplateId(1), c.X, c.Z, 0, new Vector3(c.X * 30f, 0f, c.Z * 30f)))
+            .ToList();
+        return new ChunkLayout(0, chunks, chunks[0], null, [], Vector3.zero, 30f);
+    }
+
+    /// <summary>One object on each side: in the instance that skips searches, and in the one that runs them all.</summary>
+    private sealed class Pair<T>(T filtered, T reference)
+    {
+        public T Filtered { get; } = filtered;
+        public T Reference { get; } = reference;
+        public bool In { get; set; }
+        public bool Elsewhere { get; set; }
+        public int Pinned { get; set; }
+    }
+
+    /// <summary>
+    /// A navigator over no navmesh: a path is a straight line to its end, every ray reaches it, the ground is where it was
+    /// asked, and the line of sight is clear but across a band of Z (from 10 to 25 m), so a character in range can be out
+    /// of sight. A position with a component that is not finite is in sight (no comparison holds for NaN): the search's
+    /// own arithmetic then takes such a character, which the filter must never skip.
+    /// </summary>
+    private sealed class ClearSight : IMapNavigator
+    {
+        public List<Vector3> FindPath(Vector3 start, Vector3 end) => IsFinite(end) ? [end] : [];
+
+        public bool HasVisibility(Vector3 start, Vector3 end) => !(end.z > 10f && end.z < 25f);
+
+        public Vector3 RaycastWalkable(Vector3 from, Vector3 to) => to;
+
+        public float SampleGroundHeight(float x, float y, float z) => y;
+
+        public object? Mesh => null;
     }
 
     // ---- Reading the creatures -----------------------------------------------------------------------------------

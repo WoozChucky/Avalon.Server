@@ -68,6 +68,11 @@ internal interface ISpatialVisitor
 /// kept in a list every query visits, its position read live; so is one indexed by another instance's grid as well (a
 /// character added to an instance while still in another), which that other grid indexes from then on.
 /// </para>
+/// <para>
+/// <b>Creature searches.</b> Each cell also counts its characters, so a creature whose range search comes due asks
+/// <see cref="MayHaveCharacterWithin" /> and walks only the cells around it that hold a character; the instance's creature
+/// scheduler skips the search when the answer is no (#982).
+/// </para>
 /// </remarks>
 internal sealed class SpatialGrid
 {
@@ -87,6 +92,10 @@ internal sealed class SpatialGrid
     // Each cell's first slot, then, at _unplaced, the first slot of the entries in no cell (a non-finite position).
     private readonly int[] _heads;
     private readonly int _unplaced;
+
+    // How many characters each cell's list holds, the entries in no cell at _unplaced: a creature's search probe skips a
+    // cell without one without walking its creatures (#982).
+    private readonly int[] _characterCounts;
 
     private Entry[] _entries = new Entry[InitialCapacity];
     private int _used;
@@ -110,6 +119,7 @@ internal sealed class SpatialGrid
         _unplaced = columns * rows;
         _heads = new int[_unplaced + 1];
         Array.Fill(_heads, Unlinked);
+        _characterCounts = new int[_unplaced + 1];
     }
 
     /// <summary>
@@ -291,23 +301,123 @@ internal sealed class SpatialGrid
         where TVisitor : struct, ISpatialVisitor
     {
         int lastRow = Row(z + reach);
-        float reachSquared = reach * reach;
         for (int row = Row(z - reach); row <= lastRow; row++)
         {
-            // How far the row's band is from the centre on Z; the edge rows reach on outwards, as their cells are clamped.
-            float bandLow = row == 0 ? float.NegativeInfinity : _originZ + row * _cellSize;
-            float bandHigh = row == _rows - 1 ? float.PositiveInfinity : _originZ + (row + 1) * _cellSize;
-            float dz = z < bandLow ? bandLow - z : z > bandHigh ? z - bandHigh : 0f;
-            if (dz > reach)
+            if (!RowSpan(row, x, z, reach, out int first, out int last))
                 continue;
 
-            float halfWidth = MathF.Sqrt(reachSquared - dz * dz);
-            int rowStart = row * _columns;
-            int lastColumn = Column(x + halfWidth);
-            for (int column = Column(x - halfWidth); column <= lastColumn; column++)
-                VisitCell(_heads[rowStart + column], ref visitor);
+            for (int cell = first; cell <= last; cell++)
+                VisitCell(_heads[cell], ref visitor);
         }
     }
+
+    /// <summary>
+    /// The cells of <paramref name="row" /> that a circle of <paramref name="reach" /> around (x, z) overlaps, from
+    /// <paramref name="first" /> to <paramref name="last" /> (cell indexes); false when it overlaps none of them. The one
+    /// walk every circle query takes: views (<see cref="Visit{TVisitor}" />) and a creature's search probe
+    /// (<see cref="MayHaveCharacterWithin" />).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private bool RowSpan(int row, float x, float z, float reach, out int first, out int last)
+    {
+        // How far the row's band is from the centre on Z; the edge rows reach on outwards, as their cells are clamped.
+        float bandLow = row == 0 ? float.NegativeInfinity : _originZ + row * _cellSize;
+        float bandHigh = row == _rows - 1 ? float.PositiveInfinity : _originZ + (row + 1) * _cellSize;
+        float dz = z < bandLow ? bandLow - z : z > bandHigh ? z - bandHigh : 0f;
+        if (dz > reach)
+        {
+            first = 0;
+            last = -1;
+            return false;
+        }
+
+        float halfWidth = MathF.Sqrt(reach * reach - dz * dz);
+        int rowStart = row * _columns;
+        first = rowStart + Column(x - halfWidth);
+        last = rowStart + Column(x + halfWidth);
+        return true;
+    }
+
+    /// <summary>
+    /// Whether a creature's range detector at <paramref name="centre" /> could find a character within
+    /// <paramref name="range" /> (#982): false only when its search would find none, so a due search may be skipped. It
+    /// may answer true for a search that then finds nothing; never false for one that would find someone.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The search (<c>CreatureRangeDetectorScript</c>) takes a character whose 3D <c>Vector3.Distance</c> from the creature
+    /// is not above its range, in line of sight. That distance is computed as the float differences, their squares summed
+    /// in double in X, Y, Z order, the square root rounded to float. This measures X/Z alone the same way: the same float
+    /// differences and squares, the Y square left out. Each step rounds monotonically and the Y square is never negative, so
+    /// with every component finite the 3D distance is never below this one, overflow to infinity included: a character
+    /// this finds beyond the range is beyond it for the search too. Its cells are found with the reach widened as a view's
+    /// are (<see cref="Visit{TVisitor}" />), so every character within the range on X/Z is in one of them.
+    /// </para>
+    /// <para>
+    /// Everything else is answered true, as the search's own arithmetic could find it: a centre or range not finite (a
+    /// NaN distance is not above any range, nor is any distance above an infinite one), any character in no cell (a
+    /// component of its position not finite) and any character not indexed (its position read live). A dead character
+    /// counts as any other (the search passes it over; counting it only lets a search run). The dictionary order in
+    /// which the search takes the first match is the search's: this decides only whether it runs.
+    /// </para>
+    /// </remarks>
+    public bool MayHaveCharacterWithin(Vector3 centre, float range)
+    {
+        ProbesRun++;
+        if (_characterCounts[_unplaced] > 0 || _unindexedCharacters.Count > 0)
+            return true;
+
+        if (!float.IsFinite(centre.x) || !float.IsFinite(centre.y) || !float.IsFinite(centre.z) || !float.IsFinite(range))
+            return true;
+
+        float reach = MathF.Abs(range) * (1f + 1f / 1024f) + 0.25f;
+        Entry[] entries = _entries;
+        int lastRow = Row(centre.z + reach);
+        for (int row = Row(centre.z - reach); row <= lastRow; row++)
+        {
+            if (!RowSpan(row, centre.x, centre.z, reach, out int first, out int last))
+                continue;
+
+            for (int cell = first; cell <= last; cell++)
+            {
+                ProbedCells++;
+                if (_characterCounts[cell] == 0)
+                    continue;
+
+                for (int slot = _heads[cell]; slot != Unlinked; slot = entries[slot].Next)
+                {
+                    ref Entry entry = ref entries[slot];
+                    AssertCurrent(ref entry);
+                    ProbedEntries++;
+                    if (entry.Kind == SpatialKind.Character && WithinOnXZ(centre, entry.X, entry.Z, range))
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    // Vector3.Distance(centre, (x, y, z)) without the Y term: the same float differences, double squares and sum order.
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool WithinOnXZ(Vector3 centre, float x, float z, float range)
+    {
+        float dx = centre.x - x;
+        float dz = centre.z - z;
+        return (float)Math.Sqrt((double)dx * (double)dx + (double)dz * (double)dz) <= range;
+    }
+
+    /// <summary>
+    /// Work counts of <see cref="MayHaveCharacterWithin" />: probes run, cells looked at, entries walked (in cells with a
+    /// character). For tests and the <c>detection-counts</c> harness; nothing reads them on the tick.
+    /// </summary>
+    internal long ProbesRun { get; private set; }
+
+    /// <inheritdoc cref="ProbesRun" />
+    internal long ProbedCells { get; private set; }
+
+    /// <inheritdoc cref="ProbesRun" />
+    internal long ProbedEntries { get; private set; }
 
     private void VisitAllCells<TVisitor>(ref TVisitor visitor) where TVisitor : struct, ISpatialVisitor
     {
@@ -408,11 +518,16 @@ internal sealed class SpatialGrid
         if (head != Unlinked)
             _entries[head].Prev = slot;
         _heads[cell] = slot;
+        if (entry.Kind == SpatialKind.Character)
+            _characterCounts[cell]++;
     }
 
     private void Unlink(int slot)
     {
         ref Entry entry = ref _entries[slot];
+        if (entry.Kind == SpatialKind.Character)
+            _characterCounts[entry.Cell]--;
+
         if (entry.Prev != Unlinked)
             _entries[entry.Prev].Next = entry.Next;
         else

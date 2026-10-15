@@ -162,7 +162,7 @@ it gets "not found" rather than a script that fails to construct.
 | `ThornbackBoarScript`, `GreyFenWolfScript`, `BlightflySwarmlingScript`, `HuskOfTheWoldScript`, `BramblemawAlphaScript`, `OldTuskrootScript`, `MotherBrambleScript` | Yes | The forest creatures, templates 4-10 (#163), in `Scripts/Creatures/Forest`. Each is an `AggroDefendScript` with its own combat script, which declares its ability kit and overrides `ChooseAbility` (see Abilities). |
 | `<Creature>Combat`, nested in each forest script | No, `[ChainedScript]` | That creature's combat script: its kit and rotation. |
 | `TownNpcScript` | Yes | Does nothing. Town NPCs run it. |
-| `CreatureRangeDetectorScript` | No, `[ChainedScript]` | Checks once a second for a living character within range and in line of sight. |
+| `CreatureRangeDetectorScript` | No, `[ChainedScript]` | Checks once a second for a living character within range and in line of sight (skipped when no character can be within range, #982). |
 
 ### Hooks
 
@@ -186,6 +186,15 @@ a creature's own script, and `TownNpcScript`, wait too. Each built-in answers fo
 subclass that does not answer `NextUpdateIn` itself is called on every tick. A script that needs every tick
 answers zero. The contract and its wake rules are under [World simulation](world-simulation.md) and on
 `AiScript.NextUpdateIn` itself.
+
+Since #982 a due search runs only when a character can be within the creature's range. At the creature's
+turn, when its update would be the search and nothing else, the scheduler asks the instance's spatial grid
+(`SpatialGrid.MayHaveCharacterWithin`); when no character can be within range on X/Z, the search is skipped
+and the creature waits again exactly as after a search that found no one (its timer back at zero). The answer
+is conservative, so the same creature aggroes the same character on the same tick: the range is measured as
+the search measures it with the height left out, and a character at a position that is not finite, or not
+indexed by the grid, always lets the search run. In the `forest-combat` scenario this leaves 2 searches a
+second of 768 (see [benchmarks](benchmarks.md)).
 
 `AiScript` has these hooks. By default each one forwards to the chained scripts.
 

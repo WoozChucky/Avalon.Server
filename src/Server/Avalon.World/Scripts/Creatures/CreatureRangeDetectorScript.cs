@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Instances;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
@@ -74,6 +75,37 @@ public class CreatureRangeDetectorScript : AiScript
         set => _searchTimer = value;
     }
 
+    /// <summary>
+    /// Whether an Update of <paramref name="deltaTime" /> now would search: the detector is searching and the tick brings
+    /// its timer to the interval, the same float sum Update makes.
+    /// </summary>
+    internal bool SearchDueAfter(TimeSpan deltaTime) =>
+        State is RangeDetectionState.Searching && !(_searchTimer + (float)deltaTime.TotalSeconds < SearchInterval);
+
+    /// <summary>
+    /// Whether this detector's search could find anyone (#982), asked by <paramref name="instance" />'s creature scheduler
+    /// of its spatial grid, <paramref name="characters" />: false only when no character of that instance can be within
+    /// range (<see cref="SpatialGrid.MayHaveCharacterWithin" />). A detector that searches another context's characters
+    /// than that instance's is always answered true.
+    /// </summary>
+    internal bool CouldDetect(ISimulationContext instance, SpatialGrid characters) =>
+        !ReferenceEquals(Context, instance) || characters.MayHaveCharacterWithin(Creature.Position, _aggroRange);
+
+    /// <summary>
+    /// A due search ended without walking the characters, where it could find no one (#982): left as Update leaves a
+    /// search that found no one, its timer started again from zero and still searching.
+    /// </summary>
+    internal void SkipSearch() => _searchTimer = 0.0f;
+
+    /// <summary>
+    /// The searches this detector ran (walks of the characters), and the distances they measured (one for each living
+    /// character walked). For tests and the <c>detection-counts</c> harness (#982); nothing reads them on the tick.
+    /// </summary>
+    internal long Searches { get; private set; }
+
+    /// <inheritdoc cref="Searches" />
+    internal long DistanceChecks { get; private set; }
+
     public override void Update(TimeSpan deltaTime)
     {
         _searchTimer += (float)deltaTime.TotalSeconds;
@@ -81,6 +113,7 @@ public class CreatureRangeDetectorScript : AiScript
             return;
 
         _searchTimer = 0.0f;
+        Searches++;
 
         // An instance's own dictionary is walked with its struct enumerator: through the interface, every creature's
         // search boxed one (#880). Any other dictionary (a test's) is walked as before.
@@ -110,6 +143,7 @@ public class CreatureRangeDetectorScript : AiScript
         // input/attack packets. Aggroing would just queue a kill on a corpse.
         if (character.IsDead) return false;
 
+        DistanceChecks++;
         Vector3 characterPosition = character.Position;
         float distance = Vector3.Distance(Creature.Position, characterPosition);
         if (distance > _aggroRange) return false;
