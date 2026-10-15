@@ -28,6 +28,11 @@ public static class GameAuthErrors
     public const string FinalizationPending = "FINALIZATION_PENDING";
     public const string HttpsRequired = "HTTPS_REQUIRED";
     public const string IdempotencyConflict = "IDEMPOTENCY_CONFLICT";
+    /// <summary>
+    /// The request has no usable <c>Idempotency-Key</c> header: missing, empty, not a GUID, all zeros, or sent more than
+    /// once. Answered 400 before anything else is read.
+    /// </summary>
+    public const string IdempotencyKeyRequired = "IDEMPOTENCY_KEY_REQUIRED";
     public const string IdentityConflict = "IDENTITY_CONFLICT";
     public const string InvalidAdmission = "INVALID_ADMISSION";
     public const string InvalidAttempt = "INVALID_ATTEMPT";

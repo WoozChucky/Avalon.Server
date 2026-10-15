@@ -31,7 +31,9 @@ public sealed class AccountLinksController(PendingLinkStore links, AccountLinkRe
         await links.InfoAsync(pendingLinkId, auth.Account!.Id, cancellationToken));
 
     [HttpPost("confirm", Name = "ConfirmAccountStoreLink")]
+    [IdempotencyKeyRequired(typeof(LinkBrowserReply))]
     [ProducesResponseType(typeof(LinkBrowserReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(LinkBrowserReply), StatusCodes.Status400BadRequest)]
     public Task<IActionResult> Confirm(AccountLinkConfirmRequest request,
         [FromHeader(Name = "Idempotency-Key")] Guid requestId, CancellationToken cancellationToken) => Execute(async () =>
     {
