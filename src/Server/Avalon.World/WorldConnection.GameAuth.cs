@@ -18,6 +18,13 @@ public partial class WorldConnection
     public void RequestGameplayRevalidation() => Interlocked.Exchange(ref _revalidateGameplayLease, 1);
     private long _transportReadyTicks;
     private Task? _gameplayDrain;
+
+    // Whether identity may hold the session past the lease held here (#1051, RenewalLedger): then its end is sent even
+    // after this lease ran out. Written on the tick.
+    private int _renewals;
+
+    /// <summary>Whether identity may hold the session past <see cref="GameSessionLease" /> (#1051, <see cref="RenewalLedger" />).</summary>
+    internal bool RenewalUnaccounted => RenewalLedger.MayOutlastLease(ref _renewals);
     public bool IsTlsAuthenticated => _tlsAuthenticated;
     public GameSessionLease? GameSessionLease => Volatile.Read(ref _gameSessionLease);
     public bool IsGameplayAuthorized => _tlsAuthenticated && _protocolAccepted && !_maintenanceBlocked &&
@@ -87,11 +94,15 @@ public partial class WorldConnection
         if (_heartbeat is { IsCompleted: true } heartbeat)
         {
             _heartbeat = null;
-            if (heartbeat.IsCompletedSuccessfully)
+            if (heartbeat.IsCompletedSuccessfully && heartbeat.Result.Error is null && lease.TryRenew(heartbeat.Result))
             {
-                SessionLeaseResponse reply = heartbeat.Result;
-                if (reply.Error is null) { if (!lease.TryRenew(reply)) lease.Revoke(); }
-                else if (reply.Error is not (GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending))
+                RenewalLedger.Applied(ref _renewals);
+            }
+            else
+            {
+                RenewalLedger.Unresolved(ref _renewals);
+                if (heartbeat.IsCompletedSuccessfully &&
+                    heartbeat.Result.Error is not (GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending))
                 {
                     lease.Revoke();
                 }
@@ -120,6 +131,7 @@ public partial class WorldConnection
     private void StartGameplayHeartbeat(GameSessionLease lease, long timestamp)
     {
         _lastHeartbeatTicks = timestamp;
+        RenewalLedger.Started(ref _renewals);
         _heartbeat = WorldDatabaseWork.Heartbeat.Run(() => ((WorldServer)Server).AdmissionClient.HeartbeatAsync(lease, CancellationToken.None));
     }
 

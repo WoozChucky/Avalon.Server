@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Avalon.Configuration;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 
@@ -34,9 +35,34 @@ public static class GameWorkloadHosting
                 // The pinned leaf is the deployment trust anchor, including for a private/self-signed leaf.
                 // TLS verifies possession of its private key; each HTTP request repeats expiry/EKU/pin checks.
                 listener.HttpsOptions.ClientCertificateValidation = (certificate, _, _) =>
-                    GameServerAuthHandler.IsClientCertificate(certificate, DateTime.UtcNow) &&
-                    configuration.Servers.Any(s => string.Equals(s.ClientCertificateSha256,
-                        Convert.ToHexString(SHA256.HashData(certificate.RawData)), StringComparison.OrdinalIgnoreCase));
+                {
+                    IServiceProvider? services = options.ApplicationServices;
+                    DateTime now = (services?.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+                    string pin = Convert.ToHexString(SHA256.HashData(certificate.RawData));
+                    string? refusal = RefusalOf(certificate, pin, now, configuration);
+                    // Kestrel logs a refused handshake at Debug only (#1051): say why, rate-limited, with the pin alone.
+                    if (refusal is not null)
+                        services?.GetService<RefusedWorkloadCertificateLog>()?.Refused(refusal, pin, IsAssigned(pin, configuration));
+                    return refusal is null;
+                };
             }));
     }
+
+    /// <summary>
+    /// Why the workload listener refuses <paramref name="certificate"/>, whose SHA-256 is <paramref name="pin"/>, at
+    /// <paramref name="now"/>: outside its validity period, without the client authentication usage, or assigned to no
+    /// game server. Null when it accepts it.
+    /// </summary>
+    public static string? RefusalOf(X509Certificate2 certificate, string pin, DateTime now, GameWorkloadConfiguration configuration)
+    {
+        if (certificate.NotBefore.ToUniversalTime() > now || certificate.NotAfter.ToUniversalTime() <= now)
+            return "outside its validity period";
+        if (!GameServerAuthHandler.IsClientCertificate(certificate, now))
+            return "without the client authentication usage";
+        return IsAssigned(pin, configuration) ? null : "assigned to no game server";
+    }
+
+    /// <summary>Whether a configured game server holds <paramref name="pin"/> as its client certificate's SHA-256.</summary>
+    private static bool IsAssigned(string pin, GameWorkloadConfiguration configuration) =>
+        configuration.Servers.Any(s => string.Equals(s.ClientCertificateSha256, pin, StringComparison.OrdinalIgnoreCase));
 }

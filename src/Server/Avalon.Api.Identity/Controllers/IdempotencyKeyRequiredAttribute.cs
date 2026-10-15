@@ -49,7 +49,8 @@ public sealed partial class IdempotencyKeyRequiredAttribute : Attribute, IResour
         headers.CacheControl = "no-store,no-cache";
         headers.Pragma = "no-cache";
 
-        // Game authentication logs every answer it gives (GameAuthController.LogResult); a refusal here is one too.
+        // Game authentication logs every answer it gives but a successful refresh (GameAuthController.LogResult); a
+        // refusal here is one too.
         if (_gameAuthentication &&
             context.HttpContext.RequestServices.GetService<ILogger<GameAuthController>>() is { } logger)
         {

@@ -2,7 +2,13 @@ using Avalon.Common.Telemetry;
 
 namespace Avalon.World.Persistence;
 
-/// <summary>Starts bounded work outside the simulation tick. Saturation refuses admission rather than growing a backlog.</summary>
+/// <summary>
+/// Starts bounded work outside the simulation tick: a lane with a number at once and a number waiting. What a full lane
+/// does is the lane's own policy: <see cref="WorldDatabaseWork.Admission" />, <see cref="WorldDatabaseWork.Heartbeat" />,
+/// the character select's lane and <see cref="WorldDatabaseWork.ThreadPool" /> (the database lane) refuse past their
+/// backlog (<see cref="WorldWorkUnavailableException" />, counted on <c>world.work.refusals</c>) rather than grow it;
+/// <see cref="WorldDatabaseWork.SessionEnds" /> queues without limit and refuses nothing.
+/// </summary>
 public interface IWorldDatabaseWork
 {
     Task<T> Run<T>(Func<Task<T>> operation);
@@ -33,6 +39,14 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
     /// </summary>
     public const int HeartbeatOutstandingLimit = 8192;
 
+    /// <summary>
+    /// How many session ends (<c>POST /internal/game/sessions/end</c>) a world sends identity at once (#1051). A stop
+    /// ends every session together: 1,300 at once each cost identity a TLS connection and a wait for the database, took
+    /// 3.6 s apiece and ran it out of memory. At this bound they pass in well under a second at identity's usual few
+    /// milliseconds an end.
+    /// </summary>
+    public const int SessionEndConcurrency = 16;
+
     public static readonly IWorldDatabaseWork ThreadPool = new WorldDatabaseWork(lane: "database");
     public static readonly IWorldDatabaseWork Admission = new WorldDatabaseWork(AdmissionConcurrency, AdmissionOutstandingLimit, "admission");
 
@@ -42,6 +56,15 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
     /// there waits 15 s for its next try, so three refusals in a row ended a lease the player still held.
     /// </summary>
     public static readonly IWorldDatabaseWork Heartbeat = new WorldDatabaseWork(HeartbeatConcurrency, HeartbeatOutstandingLimit, "heartbeat");
+
+    /// <summary>
+    /// The session ends a drain sends (#1051): <see cref="SessionEndConcurrency" /> at once, the rest queued, never
+    /// refused, since an end refused here would leave the session holding the account until its lease runs out. Its
+    /// lane on <c>world.work.refusals</c>, <c>session_ends</c>, therefore never counts. An end decides at the front of
+    /// the lane whether it is still worth sending (<c>WorldServer.EndOrSkipAsync</c>: not past the stop's deadline, nor
+    /// for a lease long run out).
+    /// </summary>
+    public static readonly IWorldDatabaseWork SessionEnds = new WorldDatabaseWork(SessionEndConcurrency, int.MaxValue, "session_ends");
 
     private static readonly WorldWorkUnavailableException s_unavailable = new();
     private readonly SemaphoreSlim _slots;

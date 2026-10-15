@@ -135,7 +135,12 @@ by the close.
    tick no longer writes to sockets (#875): each connection's send thread writes what is queued, the notice last, and
    each close waits up to 500 ms (`ConnectionSender.CloseBudget`) for it. A peer that stopped reading cannot hold the
    close open past that budget and its 100 ms grace.
-5. The despawns the closes queued, run on this thread, which write the characters back.
+5. The despawns the closes queued, run on this thread, which write the characters back, and then end each session
+   with identity: at most 16 ends at once (`WorldDatabaseWork.SessionEnds`, #1051), the rest waiting their turn, so a
+   full world's stop does not send identity every end together. Ends still waiting once the host's stop timeout has
+   passed are not sent (the one in flight is cancelled), and the end of a lease that ran out more than 5 s ago is
+   skipped
+   ([game server admission](steam-authentication-workloads.md#session-activation-and-durable-save-authority)).
 6. The wait for character saves still in flight (`SaveDrainLimit`, 20 s, and the host's stop timeout).
 7. The send threads stop last: they outlive the tick and the closes, so each close's notice goes out (or its budget
    runs out) while its owner still runs, and no close is left waiting on a stopped owner. A send after the closes, a

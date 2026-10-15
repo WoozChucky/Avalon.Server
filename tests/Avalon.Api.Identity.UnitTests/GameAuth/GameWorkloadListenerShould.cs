@@ -28,6 +28,9 @@ public sealed class GameWorkloadListenerShould
         string clientPin = Pin(workload);
         WebApplicationBuilder builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Production" });
         builder.Logging.ClearProviders();
+        var warnings = new WarningCapture();
+        builder.Logging.AddProvider(warnings);
+        builder.Services.AddSingleton<RefusedWorkloadCertificateLog>();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Kestrel:Endpoints:GameInternal:Url"] = "https://127.0.0.1:0",
@@ -65,8 +68,68 @@ public sealed class GameWorkloadListenerShould
                 try { Assert.False((await refused.PostAsync(address + "/internal/test", new StringContent(""))).IsSuccessStatusCode); }
                 catch (HttpRequestException) { /* The TLS handshake may refuse before HTTP authorization. */ }
             }
+
+            // The refused leaf is named by its pin and reason (#1051), never by the certificate itself.
+            string warning = Assert.Single(warnings.Lines);
+            Assert.Contains(Pin(wrong), warning, StringComparison.Ordinal);
+            Assert.Contains("assigned to no game server", warning, StringComparison.Ordinal);
+            Assert.DoesNotContain(Convert.ToBase64String(wrong.RawData), warning, StringComparison.Ordinal);
         }
         finally { await app.StopAsync(); }
+    }
+
+    [Theory]
+    [InlineData("expired", "outside its validity period")]
+    [InlineData("server-usage", "without the client authentication usage")]
+    [InlineData("unassigned", "assigned to no game server")]
+    [InlineData("assigned", null)]
+    public void Name_why_it_refuses_a_client_certificate(string kind, string? refusal)
+    {
+        using X509Certificate2 certificate = Certificate(client: kind != "server-usage",
+            notAfter: kind == "expired" ? DateTimeOffset.UtcNow.AddMinutes(-1) : DateTimeOffset.UtcNow.AddDays(1));
+        var configuration = new GameWorkloadConfiguration();
+        configuration.Servers.Add(new GameServerDefinition
+        {
+            ServerId = "world-1",
+            WorldId = 1,
+            ClientCertificateSha256 = kind == "unassigned" ? new string('0', 64) : Pin(certificate),
+        });
+
+        Assert.Equal(refusal, GameWorkloadHosting.RefusalOf(certificate, Pin(certificate), DateTime.UtcNow, configuration));
+    }
+
+    /// <summary>
+    /// Unknown certificates share one line a minute; a configured server's pin has its own, so junk handshakes cannot
+    /// hide a real world's refusal (#1051).
+    /// </summary>
+    [Fact]
+    public void Log_a_configured_servers_refusal_even_after_unknown_ones_took_the_shared_line()
+    {
+        var warnings = new WarningCapture();
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.AddProvider(warnings));
+        var log = new RefusedWorkloadCertificateLog(factory.CreateLogger<RefusedWorkloadCertificateLog>(), TimeProvider.System);
+        string world = new('A', 64);
+
+        log.Refused("assigned to no game server", new string('1', 64), configured: false);
+        log.Refused("assigned to no game server", new string('2', 64), configured: false);
+        log.Refused("outside its validity period", world, configured: true);
+        log.Refused("outside its validity period", world, configured: true);
+
+        Assert.Equal(2, warnings.Lines.Count);
+        Assert.Contains(world, warnings.Lines[1], StringComparison.Ordinal);
+    }
+
+    private sealed class WarningCapture : ILoggerProvider, ILogger
+    {
+        public List<string> Lines { get; } = [];
+        public ILogger CreateLogger(string categoryName) => categoryName == typeof(RefusedWorkloadCertificateLog).FullName ? this : Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+        public void Dispose() { }
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning) lock (Lines) Lines.Add(formatter(state, exception));
+        }
     }
     private static HttpClient Client(X509Certificate2? certificate, string serverPin)
     {
@@ -79,7 +142,7 @@ public sealed class GameWorkloadListenerShould
         return new(handler) { Timeout = TimeSpan.FromSeconds(30) };
     }
     private static string Pin(X509Certificate2 certificate) => Convert.ToHexString(SHA256.HashData(certificate.RawData));
-    private static X509Certificate2 Certificate(bool client)
+    private static X509Certificate2 Certificate(bool client, DateTimeOffset? notAfter = null)
     {
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
@@ -88,7 +151,7 @@ public sealed class GameWorkloadListenerShould
         names.AddDnsName("localhost");
         names.AddIpAddress(IPAddress.Loopback);
         request.CertificateExtensions.Add(names.Build());
-        using X509Certificate2 generated = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow.AddDays(1));
+        using X509Certificate2 generated = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddHours(-1), notAfter ?? DateTimeOffset.UtcNow.AddDays(1));
         // Windows Schannel cannot use the generator's ephemeral key. A default PFX import owns a
         // temporary key container that is deleted on disposal; no trust store or user is created.
         return X509CertificateLoader.LoadPkcs12(generated.Export(X509ContentType.Pfx), null, X509KeyStorageFlags.DefaultKeySet);

@@ -134,8 +134,12 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
 
     private ObjectResult LogResult(ObjectResult result, string operation)
     {
+        string? error = (result.Value as GameAuthReply)?.Error;
+        // A refresh answered 200 with no error only repeats the request line (#1051): a running client refreshes its
+        // context every few minutes. Its refusals and failures are still logged.
+        if (operation == nameof(Refresh) && result.StatusCode == StatusCodes.Status200OK && error is null) return result;
         authLogger?.LogInformation("Game authentication {Operation} responded {StatusCode} with {ErrorCode}",
-            operation, result.StatusCode, (result.Value as GameAuthReply)?.Error ?? "none");
+            operation, result.StatusCode, error ?? "none");
         return result;
     }
 }

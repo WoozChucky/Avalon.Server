@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
+using Avalon.Common.GameAuth;
+using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Character.Repositories;
 using Avalon.Hosting.Networking;
@@ -7,7 +10,9 @@ using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World.Configuration;
+using Avalon.World.GameAuth;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -15,9 +20,11 @@ using Avalon.World.Pvp;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using ProtoBuf;
 
@@ -198,6 +205,223 @@ public class WorldServerShutdownShould : IDisposable
         Assert.Equal(DisconnectReason.ServerShutdown, notice?.ReasonCode);
     }
 
+    /// <summary>
+    /// A stop ends every session with identity a bounded number at once (#1051): about 1,300 ends sent together took
+    /// identity 3.6 s each and ran it out of memory. The ends past the bound wait their turn, none is refused, and the
+    /// stop waits for all of them.
+    /// </summary>
+    [Fact]
+    public async Task End_every_session_at_shutdown_a_bounded_number_at_once()
+    {
+        const int Sessions = 5;
+        const int Bound = 2;
+        var limit = TimeSpan.FromSeconds(30);
+        var boundReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int inFlight = 0, mostInFlight = 0, ended = 0;
+        IGameAdmissionClient admission = Substitute.For<IGameAdmissionClient>();
+        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(async _ =>
+        {
+            int now = Interlocked.Increment(ref inFlight);
+            InterlockedMax(ref mostInFlight, now);
+            if (now == Bound) boundReached.TrySetResult();
+            await release.Task;
+            Interlocked.Decrement(ref inFlight);
+            Interlocked.Increment(ref ended);
+            return new SessionLeaseResponse { State = "ended" };
+        });
+        var work = new CountingWork(new WorldDatabaseWork(Bound, int.MaxValue), Sessions);
+        var server = new TestWorldServer(Substitute.For<IWorld>(), admission: admission) { SessionEnds = work };
+        var pairs = new List<(TcpClient, TcpClient)>();
+        try
+        {
+            AdmitSessions(server, Sessions, TimeProvider.System, pairs);
+
+            Task stopping = server.Stop();
+
+            // Every drain has handed its end over, and the bound's worth are with identity: the rest wait.
+            await work.AllSubmitted.WaitAsync(limit);
+            await boundReached.Task.WaitAsync(limit);
+            Assert.Equal(Bound, Volatile.Read(ref inFlight));
+            Assert.False(stopping.IsCompleted, "Shutdown returned while session ends were still waiting");
+
+            release.SetResult();
+            await stopping.WaitAsync(limit);
+
+            Assert.Equal(Sessions, Volatile.Read(ref ended));
+            Assert.Equal(Bound, Volatile.Read(ref mostInFlight));
+        }
+        finally
+        {
+            release.TrySetResult();
+            Dispose(pairs);
+        }
+    }
+
+    /// <summary>
+    /// A hung identity must not hold the stop past the pod's grace period (#1051): once the host's stop timeout has
+    /// passed, the end in flight is cancelled and the ends still waiting for their turn are not sent.
+    /// </summary>
+    [Fact]
+    public async Task Drop_the_session_ends_still_waiting_once_the_hosts_stop_timeout_passes()
+    {
+        const int Sessions = 3;
+        var limit = TimeSpan.FromSeconds(30);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int calls = 0;
+        IGameAdmissionClient admission = Substitute.For<IGameAdmissionClient>();
+        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            Interlocked.Increment(ref calls);
+            entered.TrySetResult();
+            // An identity that never answers: the request ends only when its token does, as the client's would.
+            try { await Task.Delay(Timeout.Infinite, call.Arg<CancellationToken>()); }
+            catch (OperationCanceledException) { }
+            return new SessionLeaseResponse { Error = GameAuthErrors.ServiceUnavailable };
+        });
+        var work = new CountingWork(new WorldDatabaseWork(1, int.MaxValue), Sessions);
+        var server = new TestWorldServer(Substitute.For<IWorld>(), admission: admission) { SessionEnds = work };
+        var pairs = new List<(TcpClient, TcpClient)>();
+        using var hostGivesUp = new CancellationTokenSource();
+        try
+        {
+            AdmitSessions(server, Sessions, TimeProvider.System, pairs);
+
+            Task stopping = server.Stop(hostGivesUp.Token);
+            await work.AllSubmitted.WaitAsync(limit);
+            await entered.Task.WaitAsync(limit);
+            await hostGivesUp.CancelAsync();
+
+            await stopping.WaitAsync(limit);
+            Assert.Equal(1, Volatile.Read(ref calls));
+        }
+        finally { Dispose(pairs); }
+    }
+
+    /// <summary>
+    /// A session whose lease ran out more than the clocks' skew ago holds nothing identity's end would release (#1051),
+    /// so its end is not sent. One whose heartbeat once ended without its renewal applied (here answered
+    /// <c>SERVICE_UNAVAILABLE</c>) is ended even after a later heartbeat was applied: identity may still hold the earlier
+    /// request and renew the session past the lease held here. The heartbeats run through the tick's lease check.
+    /// </summary>
+    [Fact]
+    public async Task Skip_the_end_of_a_lease_long_run_out_unless_a_heartbeats_outcome_was_unknown()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 15, 20, 0, 0, TimeSpan.Zero));
+        var ended = new List<long>();
+        int unavailableLeft = 1;
+        IGameAdmissionClient admission = Substitute.For<IGameAdmissionClient>();
+        admission.HeartbeatAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            GameSessionLease lease = call.Arg<GameSessionLease>();
+            // Account 2's first heartbeat: identity's answer is an outage, so what it did with the request is unknown.
+            if (lease.Authority.AccountId.Value == 2 && Interlocked.Exchange(ref unavailableLeft, 0) == 1)
+                return Task.FromResult(new SessionLeaseResponse { Error = GameAuthErrors.ServiceUnavailable });
+            return Task.FromResult(Renewal(lease, clock));
+        });
+        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            lock (ended) ended.Add(call.Arg<GameSessionLease>().Authority.AccountId.Value);
+            return Task.FromResult(new SessionLeaseResponse { State = "ended" });
+        });
+        var server = new TestWorldServer(Substitute.For<IWorld>(), admission: admission);
+        var pairs = new List<(TcpClient, TcpClient)>();
+        try
+        {
+            List<Avalon.World.WorldConnection> connections = AdmitSessions(server, 2, clock, pairs);
+            await HeartbeatAsync(connections[0], clock);   // applied
+            await HeartbeatAsync(connections[1], clock);   // SERVICE_UNAVAILABLE
+            await HeartbeatAsync(connections[1], clock);   // applied
+            Assert.Equal(clock.GetUtcNow().UtcDateTime.AddSeconds(45), connections[1].GameSessionLease!.LeaseUntil);
+
+            clock.Advance(TimeSpan.FromSeconds(45) + Avalon.World.WorldServer.SessionEndSkew);
+            await server.Stop().WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.Equal(new[] { 2L }, ended);
+        }
+        finally { Dispose(pairs); }
+    }
+
+    /// <summary>One heartbeat through the tick's lease check: asked for, answered off the tick, applied by the next check.</summary>
+    private static async Task HeartbeatAsync(Avalon.World.WorldConnection connection, TimeProvider clock)
+    {
+        connection.RequestGameplayRevalidation();
+        connection.AdvanceGameplayLease(TickTime.Read(clock));
+        var heartbeat = (Task)typeof(Avalon.World.WorldConnection)
+            .GetField("_heartbeat", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(connection)!;
+        await heartbeat.WaitAsync(TimeSpan.FromSeconds(30));
+        connection.AdvanceGameplayLease(TickTime.Read(clock));
+    }
+
+    /// <summary>Identity's renewal of <paramref name="lease"/>: 45 seconds from now, on the test's clock.</summary>
+    private static SessionLeaseResponse Renewal(GameSessionLease lease, TimeProvider clock) => new()
+    {
+        State = "active",
+        AccountId = lease.Authority.AccountId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        GameSessionId = lease.Authority.GameSessionId.ToString("D"),
+        GameContextId = lease.GameContextId.ToString("D"),
+        FencingToken = lease.Authority.FencingToken.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ServerId = lease.ServerId,
+        WorldId = lease.WorldId,
+        AccessLevel = (ushort)lease.AccessLevel,
+        CredentialsVersion = 0,
+        SessionEpoch = "0",
+        LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(45),
+        AuthorizationUntil = clock.GetUtcNow().UtcDateTime.AddMinutes(5),
+    };
+
+    private static List<Avalon.World.WorldConnection> AdmitSessions(TestWorldServer server, int count, TimeProvider clock,
+        List<(TcpClient, TcpClient)> pairs)
+    {
+        var connections = new List<Avalon.World.WorldConnection>();
+        for (int i = 0; i < count; i++)
+        {
+            (TcpClient client, TcpClient serverSide) = CreateLoopbackPair();
+            pairs.Add((client, serverSide));
+            var connection = new Avalon.World.WorldConnection(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
+            server.Add(connection);
+            GameplayTestAdmission.Admit(connection, new AccountId(i + 1), clock);
+            connections.Add(connection);
+        }
+
+        return connections;
+    }
+
+    private static void Dispose(List<(TcpClient, TcpClient)> pairs)
+    {
+        foreach ((TcpClient client, TcpClient serverSide) in pairs)
+        {
+            client.Dispose();
+            serverSide.Dispose();
+        }
+    }
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int seen = Volatile.Read(ref target);
+        while (value > seen)
+        {
+            int previous = Interlocked.CompareExchange(ref target, value, seen);
+            if (previous == seen) return;
+            seen = previous;
+        }
+    }
+
+    /// <summary>The bound the drain is given, counting the ends handed to it.</summary>
+    private sealed class CountingWork(IWorldDatabaseWork inner, int expected) : IWorldDatabaseWork
+    {
+        private readonly TaskCompletionSource _all = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _submitted;
+
+        public Task AllSubmitted => _all.Task;
+
+        public Task<T> Run<T>(Func<Task<T>> operation)
+        {
+            if (Interlocked.Increment(ref _submitted) == expected) _all.TrySetResult();
+            return inner.Run(operation);
+        }
+    }
+
     private Avalon.World.WorldConnection Connect(TestWorldServer server)
     {
         var connection = new Avalon.World.WorldConnection(
@@ -221,10 +445,10 @@ public class WorldServerShutdownShould : IDisposable
     /// <summary>Reaches the two members the shutdown path needs: the connection set, and the stop itself.</summary>
     private sealed class TestWorldServer : WorldServer
     {
-        public TestWorldServer(IWorld world, ICharacterSaver? saver = null) : base(
+        public TestWorldServer(IWorld world, ICharacterSaver? saver = null, IGameAdmissionClient? admission = null) : base(
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
-            new AnyServiceProvider(),
+            new AnyServiceProvider(admission),
             Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 }),
             world,
             Substitute.For<IScriptManager>(),
@@ -244,7 +468,7 @@ public class WorldServerShutdownShould : IDisposable
     /// so standing it up needs a container that answers for all of their dependencies rather than a
     /// list of the ones this test cares about.
     /// </summary>
-    private sealed class AnyServiceProvider : IServiceProvider
+    private sealed class AnyServiceProvider(IGameAdmissionClient? admission = null) : IServiceProvider
     {
         private QuestService? _quests;
         private Avalon.World.Items.ItemUseService? _itemUses;
@@ -252,6 +476,9 @@ public class WorldServerShutdownShould : IDisposable
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
+
+            // The one admission client the drain ends sessions through, when a test watches it.
+            if (serviceType == typeof(IGameAdmissionClient) && admission is not null) return admission;
 
             // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
             if (serviceType == typeof(PvpToggle))
