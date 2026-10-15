@@ -115,41 +115,52 @@ public static class TickThreadPlacement
             return false;
         }
 
-        // Twice: a thread the runtime was starting during the first pass may have read the main thread's CPUs before
-        // they changed and applied them after the pass had moved it.
+        // The tick is pinned from here: a failure below leaves it pinned, and says so.
         var bound = new HashSet<int>();
         int moved = 0;
         int failed = 0;
-        for (int pass = 0; pass < 2; pass++)
+        try
         {
-            foreach (int thread in os.ThreadIds())
+            // Twice: a thread the runtime was starting during the first pass may have read the main thread's CPUs
+            // before they changed and applied them after the pass had moved it.
+            for (int pass = 0; pass < 2; pass++)
             {
-                if (thread == tick || thread == main)
-                    continue;
-
-                IReadOnlySet<int>? cpus = os.GetAffinity(thread);
-                if (cpus is null || !cpus.Overlaps(reserved))
-                    continue;
-
-                var rest = new SortedSet<int>(cpus);
-                rest.ExceptWith(reserved);
-                if (rest.Count == 0)
+                foreach (int thread in os.ThreadIds())
                 {
-                    bound.Add(thread);
-                    continue;
-                }
+                    if (thread == tick || thread == main)
+                        continue;
 
-                error = os.SetAffinity(thread, rest);
-                if (error == 0)
-                    moved++;
-                else if (error != NoSuchThread)
-                    failed++;
+                    IReadOnlySet<int>? cpus = os.GetAffinity(thread);
+                    if (cpus is null || !cpus.Overlaps(reserved))
+                        continue;
+
+                    var rest = new SortedSet<int>(cpus);
+                    rest.ExceptWith(reserved);
+                    if (rest.Count == 0)
+                    {
+                        bound.Add(thread);
+                        continue;
+                    }
+
+                    error = os.SetAffinity(thread, rest);
+                    if (error == 0)
+                        moved++;
+                    else if (error != NoSuchThread)
+                        failed++;
+                }
             }
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e,
+                "The tick thread is pinned to CPU {Cpu}, but the world's other threads were not all moved off CPUs {Reserved}",
+                target, CpuList.Format(reserved));
+            return true;
         }
 
         logger.LogInformation(
             "The tick thread is pinned to CPU {Cpu} (Game:TickThreadCpu) and runs on CPU {Running}; the world's other threads run on CPUs {Others}, off {Reserved}, {Moved} of them moved",
-            target, os.CurrentCpu(), CpuList.Format(others), CpuList.Format(reserved), moved);
+            target, RunningCpu(os), CpuList.Format(others), CpuList.Format(reserved), moved);
         if (bound.Count > 0)
         {
             logger.LogWarning(
@@ -161,6 +172,19 @@ public static class TickThreadPlacement
             logger.LogWarning("{Count} threads could not be moved off CPUs {Reserved}", failed, CpuList.Format(reserved));
 
         return true;
+    }
+
+    /// <summary>The CPU the calling thread runs on, or -1 when it cannot be read: only the log line reads it.</summary>
+    private static int RunningCpu(ICpuAffinity os)
+    {
+        try
+        {
+            return os.CurrentCpu();
+        }
+        catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return -1;
+        }
     }
 
     /// <summary>

@@ -105,6 +105,27 @@ public class TickThreadPlacementShould
         Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Warning);
     }
 
+    /// <summary>
+    /// Once the tick is on its CPU it stays pinned, whatever happens to the rest, and what could not be done is one
+    /// warning: the threads could not be listed.
+    /// </summary>
+    [Theory]
+    [InlineData("thread list fails", 1)]
+    public void Keep_the_tick_pinned_and_warn_when_the_rest_is_incomplete(string situation, int warnings)
+    {
+        var os = new FakeCpus("8,20") { ListFails = situation == "thread list fails" };
+        os.Masks[Main] = Cpus("0-23");
+        os.Masks[Tick] = Cpus("0-23");
+        os.Masks[Pool] = Cpus("0-23");
+        var logger = new RecordingLogger();
+
+        bool pinned = TickThreadPlacement.PinCurrentThread(8, os, logger);
+
+        Assert.True(pinned);
+        Assert.True(os.Masks[Tick].SetEquals([8]));
+        Assert.Equal(warnings, logger.Entries.Count(entry => entry.Level == LogLevel.Warning));
+    }
+
     /// <summary>A world node: 24 CPUs, the main thread, the tick, a pool thread, three GC heap threads, one thread already off.</summary>
     private static Dictionary<int, IReadOnlySet<int>> Machine(FakeCpus os)
     {
@@ -136,11 +157,15 @@ public class TickThreadPlacementShould
 
         public int Refuses { get; init; }
 
+        /// <summary>Listing the threads throws, as reading <c>/proc/self/task</c> can.</summary>
+        public bool ListFails { get; init; }
+
         public int ProcessId => Main;
 
         public int CurrentThreadId() => Tick;
 
-        public IReadOnlyList<int> ThreadIds() => Masks.Keys.ToList();
+        public IReadOnlyList<int> ThreadIds() =>
+            ListFails ? throw new IOException("/proc/self/task could not be read") : Masks.Keys.ToList();
 
         public IReadOnlySet<int>? GetAffinity(int threadId) => Masks.GetValueOrDefault(threadId);
 
