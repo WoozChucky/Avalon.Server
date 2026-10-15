@@ -42,6 +42,9 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 3
 # Not BenchmarkDotNet: the units a hit query reads over the spatial index against a full scan, in forest-combat (#982)
 dotnet run -c Release --project tools/Avalon.Benchmarking -- hit-candidates
 
+# Not BenchmarkDotNet: work counts of the creatures' range searches in forest-combat, filtered and not (#982)
+dotnet run -c Release --project tools/Avalon.Benchmarking -- detection-counts
+
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
 
@@ -879,6 +882,42 @@ them were such a script.
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EveryTickScriptBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
+```
+
+#### Results — searches only where a character can be (#982, 2026-10-15) — `DetectionCounts/DetectionCountsHarness.cs`
+
+A due range search now runs only when the instance's spatial grid says a character can be within the creature's range
+(`SpatialGrid.MayHaveCharacterWithin`, asked by the scheduler at the creature's turn); otherwise it is skipped and the
+creature waits again as after a search that found no one. **Not timed:** the machine was shared with a team building
+all the time, and the owner ruled out BenchmarkDotNet runs and timings for this change. These are exact work counts,
+which load does not change: the `forest-combat` scenario (four forests, about 200 creatures each, a party of three
+fighting in each), its 600 warm-up ticks, then its 3,600 measured ticks (60 s of simulation), once with every due search
+run (`MapInstance.SearchEveryDueCreature`, the code before this change) and once filtered. A search walks its instance's
+characters (three here) and measures the distance of each living one, stopping at the first it detects. The filter's own
+work is a probe per due search: the cells of the rows its widened range crosses (a square root per row), each cell's
+character count, and the entries (creatures and characters) of the cells that hold a character.
+
+| Measured minute | Every due search | Filtered |
+|---|---:|---:|
+| Searches (character walks) | 46,063 (767.7 a second) | 124 (2.1 a second) |
+| Distances measured by them | 134,474 (2,241 a second, 2.9 a search) | 297 (5.0 a second) |
+| Grid probes | 0 | 46,038 (767 a second) |
+| Cells looked at by the probes | 0 | 140,477 (3.05 a probe) |
+| Entries walked by the probes | 0 | 21,514 (0.47 a probe) |
+| Fight, whole run | 105 kills, 2 deaths, 198 pickups | the same, outcome for outcome |
+
+So 99.7% of the searches find no character within range on X/Z and are skipped. What replaces them is not free: a probe
+per due search, about three cell counts and half an entry from the grid's compact arrays where a search read three
+characters (each a second object for its position) and computed three double-precision distances. Whether that is
+cheaper per tick, and by how much, was not measured; the design study's estimate was 0.03 to 0.1 ms a tick at about
+1,300 players, and the owner's condition for this PR (cohort searches worth about 0.05 ms a tick) was not measured
+either. With more characters per instance (a party of five, or players passing through) the searches it skips get
+dearer and the probe does not. The scenario allocation gate reads as before in Debug and Release (`forest-combat`
+14,138 B, `town-social` 728 B, the others 0): the probe allocates nothing, and the grid's character counts are an
+array per instance allocated with its cells.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- detection-counts
 ```
 
 ### Aura scans — `Benchmarks/AuraScanBenchmarks.cs` (#898)
