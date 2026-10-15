@@ -1,8 +1,10 @@
 using Avalon.Common;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
@@ -38,6 +40,41 @@ public sealed class GameplayFenceShould
         Assert.Equal(2, (await read.AccountGameplayFences.AsNoTracking().SingleAsync()).FencingToken);
         Assert.Empty(await read.ItemInstances.AsNoTracking().ToListAsync());
         Assert.Empty(await read.CharacterInventory.AsNoTracking().ToListAsync());
+    }
+    /// <summary>
+    /// #1013: a confirmed takeover replaces a pending session, as it does an active one. The replaced admission, its
+    /// first activation having reached the guard and its answer lost, can neither activate in the Auth database nor
+    /// advance, activate or write through the guard once the takeover advanced it. A reconnect never replaces it.
+    /// </summary>
+    [Fact]
+    public async Task Fence_out_a_pending_admission_that_a_confirmed_takeover_replaced()
+    {
+        using var auth = SqliteDatabase.Auth();
+        using var database = SqliteDatabase.Characters();
+        Account account = await new AccountRepository(auth).CreateAsync(StoreAuthenticationModelShould.Account("TAKEOVER"));
+        var sessions = new GameSessionRepository(auth, _clock);
+        var fences = new GameplayFenceRepository(database, _clock);
+        var saves = new CharacterSaveRepository(new DbTransactionRunner<CharacterDbContext>(database), _clock);
+        CharacterRow row = await Seed(database, account.Id, 1);
+        DateTime now = _clock.GetUtcNow().UtcDateTime, until = now.AddSeconds(45);
+        GameSession pending = (await sessions.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 0), now))!;
+        var replaced = new GameplayWriteAuthority(account.Id, pending.GameSessionId, pending.FencingToken);
+        Assert.NotNull(await fences.AdvanceAsync(replaced, false, until, CancellationToken.None));
+
+        Assert.Null(await sessions.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 1), now));
+        Assert.Null(await sessions.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 1) with { Takeover = true, Reconnect = true }, now));
+        GameSession? takeover = await sessions.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 1) with { Takeover = true }, now);
+        Assert.NotNull(takeover);
+        Assert.Equal(2, takeover!.FencingToken);
+        Assert.False(await sessions.TryActivateAsync(account.Id, pending.GameSessionId, pending.FencingToken, now, until));
+        Assert.NotNull(await fences.AdvanceAsync(new(account.Id, takeover.GameSessionId, takeover.FencingToken), false, until, CancellationToken.None));
+
+        Assert.Null(await fences.AdvanceAsync(replaced, false, until, CancellationToken.None));
+        Assert.Null(await fences.ActivateAsync(replaced, until, CancellationToken.None));
+        row.Money = 999;
+        await Assert.ThrowsAsync<GameplayWriteRejectedException>(() => saves.WriteAsync([Batch(row, replaced)]));
+        await using CharacterDbContext read = database.CreateDbContext();
+        Assert.Equal(0UL, (await read.Characters.AsNoTracking().SingleAsync()).Money);
     }
     [Fact]
     public async Task Refuse_pending_expired_missing_or_mismatched_authority_and_never_regress_a_barrier()

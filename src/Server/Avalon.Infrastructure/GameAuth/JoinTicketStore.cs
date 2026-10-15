@@ -38,8 +38,10 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         if (destination is null) return new(GameAuthErrors.WorldUnavailable);
         GameSession? head = await sessions.FindAsync(new AccountId(accountId), cancellationToken);
         if (reconnect && (head is null || head.GameContextId != context.Id || head.WorldId != worldId)) return new(GameAuthErrors.ReconnectUnavailable);
+        // A confirmed takeover (a join) replaces a live session, pending or active (#1013); a reconnect only an active
+        // one, whatever it says about a takeover.
         if (head?.LeaseUntil > Now && head.State != GameSessionState.Ended &&
-            (head.State == GameSessionState.Pending || (!confirmTakeover && !reconnect)))
+            (head.State == GameSessionState.Pending ? reconnect || !confirmTakeover : !confirmTakeover && !reconnect))
         {
             return new(GameAuthErrors.ActiveGameSession);
         }
@@ -65,6 +67,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             Environment = options.Value.Environment,
             ExpectedFence = head?.FencingToken ?? 0,
             Takeover = confirmTakeover || reconnect,
+            Reconnect = reconnect,
             ExpiresAt = expires,
             AuthorizationUntil = until,
         };
@@ -123,7 +126,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             if (!await store.CompareExchangeAsync([new(key, raw, claimedRaw, grant.ExpiresAt.Add(GameAuthPolicy.JoinReceiptRetention))], cancellationToken)) continue;
             var reservation = new GameSessionReservation(new AccountId(grant.AccountId), grant.ExpectedFence, grant.GameSessionId,
                 serverId, grant.WorldId, grant.Environment, grant.CredentialsVersion, grant.SessionEpoch, grant.AuthorizationUntil, grant.Takeover)
-            { GameContextId = grant.ContextId, AdmissionExpiresAt = grant.ExpiresAt };
+            { GameContextId = grant.ContextId, AdmissionExpiresAt = grant.ExpiresAt, Reconnect = grant.Reconnect };
             GameSession? head = await sessions.TryReserveAsync(reservation, Now, cancellationToken);
             JoinRedemptionReceipt reply = head is null ? JoinRedemptionReceipt.Failure(GameAuthErrors.SessionConflict) :
                 grant.ExpiresAt <= Now ? JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired) : new JoinRedemptionReceipt

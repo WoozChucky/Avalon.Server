@@ -62,7 +62,9 @@ their guarantees:
   its digest, bound to the game context, the world, the character and the world server, valid for at most 30 seconds
   and redeemed once, by the world server it names, over that server's mutually authenticated workload connection.
 - **One session per account.** Redeeming a ticket reserves the account's game session with a fencing token; a live
-  session elsewhere refuses a new ticket (`ActiveGameSession`) unless the client confirms the takeover, and every
+  session elsewhere, active or still pending, refuses a new ticket (`ActiveGameSession`) unless a join confirms the
+  takeover; a reconnect replaces only its own context's active session, never a pending one (a world whose admission
+  failed ends the pending session it reserved, #1013), and every
   character save checks the fence, so a replaced session can no longer write.
 - **Current access.** Issue and redemption both re-read the account (Active, not being consolidated, at the context's
   credentials version), the world's access level and maintenance cutoff, and the world's readiness. A password lock is

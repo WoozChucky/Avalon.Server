@@ -40,6 +40,8 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
             return new(null, GameAuthErrors.InvalidAdmission);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(GameAuthPolicy.AdmissionTimeout);
+        // The session the redemption reserved, once its receipt checks out: ended again if no lease comes of it.
+        JoinRedemptionReceipt? reserved = null;
         try
         {
             JoinRedemptionReceipt? receipt = null;
@@ -59,6 +61,7 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
                 return new(null, GameAuthErrors.InvalidAdmission);
             }
 
+            reserved = receipt;
             SessionLeaseResponse? response = null;
             for (int attempt = 0; attempt < GameAuthPolicy.MutationAttempts; attempt++)
             {
@@ -66,30 +69,57 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
                 if (response?.Error is not (GameAuthErrors.BarrierPending or GameAuthErrors.ServiceUnavailable)) break;
                 await Task.Delay(GameAuthPolicy.RetryDelay, deadline.Token);
             }
-            if (response is null || response.Error is not null) return new(null, SafeError(response?.Error));
+            if (response is null || response.Error is not null) return await AbandonAsync(receipt, SafeError(response?.Error));
             if (response.AccountId != receipt.AccountId || response.GameSessionId != receipt.GameSessionId || response.GameContextId != receipt.GameContextId ||
                 response.FencingToken != receipt.FencingToken || response.SessionEpoch != receipt.SessionEpoch || response.CredentialsVersion != receipt.CredentialsVersion)
             {
-                return new(null, GameAuthErrors.InvalidAdmission);
+                return await AbandonAsync(receipt, GameAuthErrors.InvalidAdmission);
             }
 
             var lease = GameSessionLease.TryCreate(response, options.ServerId, options.WorldId, clock);
-            return new(lease, lease is null ? GameAuthErrors.InvalidAdmission : null);
+            return lease is null ? await AbandonAsync(receipt, GameAuthErrors.InvalidAdmission) : new(lease, null);
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException or IOException)
-        { return new(null, GameAuthErrors.ServiceUnavailable); }
+        { return await AbandonAsync(reserved, GameAuthErrors.ServiceUnavailable); }
+    }
+
+    /// <summary>
+    /// How long a failed admission waits to end the session its redemption reserved, before the world replies. The
+    /// end is one internal request; past this the reply goes out, and the session runs out with its lease.
+    /// </summary>
+    private static readonly TimeSpan s_abandonTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// A failed admission after the redemption (#1013): ends the session the receipt reserved, best-effort and bounded,
+    /// so the player's next join is not refused while that session's lease runs out. The API ends only the session
+    /// that still holds this receipt's id and fencing token on this world's workload identity; a pending one simply
+    /// runs out, and an active one (its activation answered, but the answer was lost or refused here) ends as at a
+    /// logout. On its own timer, not the admission's: a deadline that ran out must not cancel the cleanup.
+    /// </summary>
+    private async Task<WorldAdmissionResult> AbandonAsync(JoinRedemptionReceipt? receipt, string error)
+    {
+        if (receipt is not null && Guid.TryParseExact(receipt.GameSessionId, "D", out Guid session))
+        {
+            using var bound = new CancellationTokenSource(s_abandonTimeout, clock);
+            await SessionControlAsync("end", receipt.AccountId!, session, receipt.FencingToken!, bound.Token);
+        }
+        return new(null, error);
     }
     public Task<SessionLeaseResponse> HeartbeatAsync(GameSessionLease lease, CancellationToken cancellationToken) => ControlAsync("heartbeat", lease, cancellationToken);
     public Task<SessionLeaseResponse> EndAsync(GameSessionLease lease, CancellationToken cancellationToken) => ControlAsync("end", lease, cancellationToken);
-    private async Task<SessionLeaseResponse> ControlAsync(string action, GameSessionLease lease, CancellationToken cancellationToken)
+    private Task<SessionLeaseResponse> ControlAsync(string action, GameSessionLease lease, CancellationToken cancellationToken) =>
+        SessionControlAsync(action, lease.Authority.AccountId.Value.ToString(CultureInfo.InvariantCulture), lease.Authority.GameSessionId,
+            lease.Authority.FencingToken.ToString(CultureInfo.InvariantCulture), cancellationToken);
+    private async Task<SessionLeaseResponse> SessionControlAsync(string action, string accountId, Guid gameSessionId, string fencingToken,
+        CancellationToken cancellationToken)
     {
         try
         {
             return await PostAsync<SessionLeaseResponse>("sessions/" + action, new
             {
-                AccountId = lease.Authority.AccountId.Value.ToString(CultureInfo.InvariantCulture),
-                lease.Authority.GameSessionId,
-                FencingToken = lease.Authority.FencingToken.ToString(CultureInfo.InvariantCulture)
+                AccountId = accountId,
+                GameSessionId = gameSessionId,
+                FencingToken = fencingToken
             }, cancellationToken) ?? new() { Error = GameAuthErrors.ServiceUnavailable };
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException or IOException)

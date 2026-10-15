@@ -78,7 +78,6 @@ public class StoreAuthenticationModelShould
         Assert.Equal(2, takeover!.FencingToken);
         Assert.Equal(first.GameSessionId, takeover.PreviousGameSessionId);
         Assert.False(await sessions.TryActivateAsync(account.Id, first.GameSessionId, 1, s_now, s_now.AddSeconds(45)));
-        Assert.Null(await sessions.TryReserveAsync(Reservation(account.Id, 2) with { Takeover = true }, s_now));
     }
 
     [Fact]

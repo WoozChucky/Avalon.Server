@@ -110,11 +110,20 @@ public sealed class JoinTicketStoreShould
         await _h.Sessions.DidNotReceive().TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
-    [Fact]
-    public async Task Require_explicit_takeover_and_allow_reconnect_only_for_the_original_context()
+    /// <summary>
+    /// A live session refuses a new ticket unless the player confirms the takeover; a pending one too (#1013), which a
+    /// failed admission may leave behind: the confirmed takeover replaces it rather than waiting out its lease. A
+    /// reconnect, only from the session's own context, returns to an active session and never replaces a pending one,
+    /// even when it also asks for a takeover.
+    /// </summary>
+    [Theory]
+    [InlineData(GameSessionState.Active)]
+    [InlineData(GameSessionState.Pending)]
+    public async Task Require_explicit_takeover_and_allow_reconnect_only_for_the_original_context(GameSessionState state)
     {
         GameAuthReply auth = await _h.Authenticate();
-        var active = new GameSession
+        GameContextRecord context = (await _h.Authorization.GetContextAsync(auth.GameContextCredential!, true, CancellationToken.None))!;
+        var live = new GameSession
         {
             AccountId = _h.Account.Id,
             GameSessionId = Guid.NewGuid(),
@@ -123,15 +132,27 @@ public sealed class JoinTicketStoreShould
             ServerId = "world-1",
             WorldId = 1,
             Environment = "production",
-            State = GameSessionState.Active,
+            State = state,
             CreatedAt = _h.Clock.GetUtcNow().UtcDateTime,
             LeaseUntil = _h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45),
             LicenseUntil = _h.Clock.GetUtcNow().UtcDateTime.AddMinutes(5),
         };
-        _h.Sessions.FindAsync(_h.Account.Id, Arg.Any<CancellationToken>()).Returns(active);
+        _h.Sessions.FindAsync(_h.Account.Id, Arg.Any<CancellationToken>()).Returns(live);
         Assert.Equal("ACTIVE_GAME_SESSION", (await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), false, false, CancellationToken.None)).Error);
-        Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), false, true, CancellationToken.None)).Error);
+        Assert.Equal("RECONNECT_UNAVAILABLE", (await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), false, true, CancellationToken.None)).Error);
         Assert.Null((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), true, false, CancellationToken.None)).Error);
+
+        live.GameContextId = context.Id;
+        foreach (bool confirmTakeover in new[] { false, true })
+        {
+            GameJoinReply reconnect = await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), confirmTakeover, true, CancellationToken.None);
+            Assert.Equal(state == GameSessionState.Pending ? "ACTIVE_GAME_SESSION" : null, reconnect.Error);
+        }
+        if (state != GameSessionState.Active) return;
+        // The reservation knows a reconnect from a confirmed takeover, so it too refuses to let one replace a pending head.
+        GameJoinReply ticket = await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), true, true, CancellationToken.None);
+        Assert.Null((await _h.Tickets.RedeemAsync(ticket.JoinTicket!, "world-1", Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None)).Error);
+        await _h.Sessions.Received(1).TryReserveAsync(Arg.Is<GameSessionReservation>(r => r.Takeover && r.Reconnect), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -12,6 +12,8 @@ public sealed record GameSessionReservation(AccountId AccountId, long ExpectedFe
 {
     public Guid GameContextId { get; init; }
     public DateTime AdmissionExpiresAt { get; init; } = DateTime.MaxValue;
+    /// <summary>A reconnect: its <see cref="Takeover" /> replaces an active head, never a pending one (#1013).</summary>
+    public bool Reconnect { get; init; }
 }
 
 public interface IGameSessionRepository
@@ -24,6 +26,7 @@ public interface IGameSessionRepository
         int credentialsVersion, long sessionEpoch, DateTime now, DateTime leaseUntil, DateTime licenseUntil,
         CancellationToken cancellationToken = default);
     Task<bool> TryEndAsync(AccountId accountId, Guid sessionId, long fence, DateTime now, CancellationToken cancellationToken = default);
+    Task<bool> TryExpirePendingAsync(AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken = default);
 }
 
 public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContext> factory, TimeProvider? clock = null) : IGameSessionRepository
@@ -70,8 +73,11 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
             return head;
         }
 
+        // A confirmed takeover replaces a live pending head as it does an active one (#1013), a reconnect only an active
+        // one: the fencing token keeps the replaced admission from activating or writing, and a pending head keeps its
+        // last active ancestor below.
         if ((head?.FencingToken ?? 0) != reservation.ExpectedFence ||
-            (head?.State == GameSessionState.Pending && head.LeaseUntil > now) ||
+            (head?.State == GameSessionState.Pending && head.LeaseUntil > now && (!reservation.Takeover || reservation.Reconnect)) ||
             (head?.State == GameSessionState.Active && head.LeaseUntil > now && !reservation.Takeover))
         {
             return null;
@@ -131,13 +137,38 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
         return changed == 1;
     }
 
+    /// <summary>
+    /// The lease end of a pending session that was ended (#1013): a fixed point every clock has passed, so no API replica,
+    /// however far its clock lags, can still activate it (activation requires a lease end after its own time).
+    /// </summary>
+    private static readonly DateTime s_endedPending = DateTime.UnixEpoch;
+
+    /// <summary>
+    /// Ends the session: an active one at <paramref name="now" />. A session that never became active was never the
+    /// writer, so it stays pending with its reservation run out (#1013, see <see cref="TryExpirePendingAsync" />).
+    /// </summary>
     public async Task<bool> TryEndAsync(AccountId accountId, Guid sessionId, long fence, DateTime now,
         CancellationToken cancellationToken = default)
     {
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId && x.FencingToken == fence)
-            .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, GameSessionState.Ended)
-                .SetProperty(x => x.LeaseUntil, now), cancellationToken) == 1;
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, x => x.State == GameSessionState.Pending ? GameSessionState.Pending : GameSessionState.Ended)
+                .SetProperty(x => x.LeaseUntil, x => x.State == GameSessionState.Pending ? s_endedPending : now), cancellationToken) == 1;
+    }
+
+    /// <summary>
+    /// Ends the session only while it is still pending (#1013): its reservation runs out and it stays pending, so the
+    /// next reservation keeps the last active ancestor for its save barrier, as after a pending reservation that ran out
+    /// by itself. False when the head is no longer this pending session, for instance an activation in flight made it
+    /// active: that one ends as an active session, its guard blocked first.
+    /// </summary>
+    public async Task<bool> TryExpirePendingAsync(AccountId accountId, Guid sessionId, long fence,
+        CancellationToken cancellationToken = default)
+    {
+        await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        return await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId && x.FencingToken == fence &&
+                x.State == GameSessionState.Pending)
+            .ExecuteUpdateAsync(u => u.SetProperty(x => x.LeaseUntil, s_endedPending), cancellationToken) == 1;
     }
 
     private static DateTime Earlier(DateTime first, DateTime second) => first < second ? first : second;
