@@ -102,6 +102,14 @@ public sealed class PlaytestWorldAdmissionShould
         GameJoinReply denied = await h.Tickets.IssueAsync(main.GameContextCredential!, 3, null, Guid.NewGuid(), false, false, default);
         Assert.Equal(GameAuthErrors.WorldUnavailable, denied.Error);
         Assert.Equal(AccountAccessLevel.Player, h.Account.AccessLevel);
+
+        // A ticket issued while the application was allowed on the world, and redeemed once it no longer is, is refused
+        // for good, never as the "try later" the world answers WORLD_UNAVAILABLE with (#1050).
+        GameJoinReply issued = await h.Tickets.IssueAsync(playtest.GameContextCredential!, 3, null, Guid.NewGuid(), false, false, default);
+        Assert.Null(issued.Error);
+        h.Configuration.SteamPlaytest.AllowedWorldIds = [4];
+        Assert.Equal(GameAuthErrors.WorldNotAllowed,
+            (await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", Guid.NewGuid(), Guid.NewGuid(), default)).Error);
     }
 
     [Theory]

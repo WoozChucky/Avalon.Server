@@ -71,6 +71,13 @@ public static class GameAuthErrors
     public const string WorldUnavailable = "WORLD_UNAVAILABLE";
 
     /// <summary>
+    /// The game context's application is not allowed on the world (#1050): a refusal no retry changes, unlike
+    /// <see cref="WorldUnavailable" />, which a world answers its client as "try later". Only the redemption of a join
+    /// ticket answers it, to the world server; the REST join-ticket issue answers <see cref="WorldUnavailable" /> as before.
+    /// </summary>
+    public const string WorldNotAllowed = "WORLD_NOT_ALLOWED";
+
+    /// <summary>
     /// Whether <paramref name="error"/> names the account's standing (banned, deactivated, consolidating), answered
     /// 403: the caller proved who they are and the account is refused.
     /// </summary>

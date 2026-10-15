@@ -16,6 +16,7 @@ using Avalon.World.Filters;
 using Avalon.World.GameAuth;
 using Avalon.World.Handlers;
 using Avalon.World.Maintenance;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -672,8 +673,59 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>Publishing an admitted connection, or sending its reply, failed: the server's fault, logged with its exception.</summary>
     public void ReportAdmissionFailed(Exception error) => ReceiveLog.AdmissionFailed(_logger, error, Id);
 
+    private static readonly FailureLogThrottle s_overloadedAdmissions = new();
+    private static readonly FailureLogThrottle s_failedAdmissions = new();
+
+    /// <summary>
+    /// The admission work queue refused to redeem this connection's join ticket (#1050), which the admission answers
+    /// <c>ServiceUnavailable</c> and closes at once, on the receive path that delivered it, never on the tick. The queue
+    /// counted it as it refused it (<c>world.work.refusals</c>, lane <c>admission</c>). Expected under a reconnect storm:
+    /// a Warning, without an exception, at most once per <see cref="FailureLogThrottle.Interval" /> for the whole world.
+    /// </summary>
+    public void ReportAdmissionOverloaded()
+    {
+        if (s_overloadedAdmissions.TryTake(_time, out int held))
+            ReceiveLog.AdmissionOverloaded(_logger, WorldDatabaseWork.AdmissionOutstandingLimit, held);
+    }
+
+    /// <summary>
+    /// The redemption of this connection's join ticket faulted, or was cancelled, once started (#1050): the admission is
+    /// answered <c>ServiceUnavailable</c> and closed by its continuation. Counted under <c>world.admission.failures</c>
+    /// (a work queue refusal that arrives this way is logged as one, and was counted by its queue). A defect: an Error with its
+    /// exception, at most once per <see cref="FailureLogThrottle.Interval" /> for the whole world, so a storm of them
+    /// cannot flood the log. Called on the thread pool, where the redemption ended, never on the tick, so a connection
+    /// gone before its continuation ran is counted too.
+    /// </summary>
+    public void ReportRedemptionFailed(Exception error)
+    {
+        if (error is WorldWorkUnavailableException)
+        {
+            ReportAdmissionOverloaded();
+            return;
+        }
+
+        DiagnosticsConfig.World.AdmissionFailures.Add(1);
+        if (s_failedAdmissions.TryTake(_time, out int suppressed))
+            ReceiveLog.RedemptionFailed(_logger, error, error.GetType().Name, suppressed);
+    }
+
     private static partial class ReceiveLog
     {
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Dropped a continuation: a full work queue refused its work; {Suppressed} more were refused since the last line")]
+        public static partial void ContinuationRefused(ILogger logger, int suppressed);
+
+        [LoggerMessage(Level = LogLevel.Error, Message = "Continuation faulted; {Suppressed} more faulted since the last line")]
+        public static partial void ContinuationFaulted(ILogger logger, Exception? error, int suppressed);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Answered an admission ServiceUnavailable: the world's admission work queue is full ({Outstanding} outstanding); {Suppressed} more were refused since the last line")]
+        public static partial void AdmissionOverloaded(ILogger logger, int outstanding, int suppressed);
+
+        [LoggerMessage(Level = LogLevel.Error,
+            Message = "Answered an admission ServiceUnavailable: its redemption threw {ExceptionType}; {Suppressed} more failed since the last line")]
+        public static partial void RedemptionFailed(ILogger logger, Exception error, string exceptionType, int suppressed);
+
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint}: its admission's public key is not a P-256 point")]
         public static partial void BadPublicKey(ILogger logger, Guid connectionId, long accountId, string remoteEndPoint);
@@ -874,9 +926,33 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             }
             else
             {
-                _logger.LogError(item.Error, "Continuation faulted");
+                ReportFaultedContinuation(item.Error);
             }
         }
+    }
+
+    private static readonly FailureLogThrottle s_refusedContinuations = new();
+    private static readonly FailureLogThrottle s_faultedContinuations = new();
+
+    /// <summary>
+    /// A continuation whose task did not succeed, so its callback does not run (#1050). A work queue's refusal
+    /// (<see cref="WorldWorkUnavailableException" />) is expected under load, a reconnect storm's character selects
+    /// above all: a Warning without the exception, whose stack is not the caller's. Any other fault is logged with its
+    /// exception, at Error, as before. Each at most once per <see cref="FailureLogThrottle.Interval" /> for the whole
+    /// world, with how many were held back, where every one was a line with a stack. On the tick, faulted tasks only.
+    /// </summary>
+    private void ReportFaultedContinuation(Exception? error)
+    {
+        int suppressed;
+        if (((error as AggregateException)?.InnerException ?? error) is WorldWorkUnavailableException)
+        {
+            if (s_refusedContinuations.TryTake(_time, out suppressed))
+                ReceiveLog.ContinuationRefused(_logger, suppressed);
+            return;
+        }
+
+        if (s_faultedContinuations.TryTake(_time, out suppressed))
+            ReceiveLog.ContinuationFaulted(_logger, error, suppressed);
     }
 
     #endregion

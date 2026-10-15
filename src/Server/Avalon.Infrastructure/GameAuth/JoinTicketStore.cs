@@ -104,7 +104,8 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
                 return JoinRedemptionReceipt.Failure(GameAuthErrors.ContextRevoked);
             }
 
-            if (!applications.AllowsWorld(context.ApplicationKey, grant.WorldId)) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldUnavailable);
+            // Permanent for this context, so not WorldUnavailable, which the world answers its client as "try later" (#1050).
+            if (!applications.AllowsWorld(context.ApplicationKey, grant.WorldId)) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldNotAllowed);
             if (grant.Receipt is not null)
             {
                 if (grant.ReceiptExpiresAt <= Now) return JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired);

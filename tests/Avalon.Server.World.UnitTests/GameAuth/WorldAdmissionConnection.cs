@@ -5,6 +5,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.GameAuth;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Packet = Avalon.Network.Packets.Packet;
@@ -16,8 +17,8 @@ namespace Avalon.Server.World.UnitTests.GameAuth;
 internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
 {
     private readonly TcpClient _peer;
-    private WorldAdmissionConnection(IWorldServer server, TcpClient client, TcpClient peer, TimeProvider? clock)
-        : base(server, client, NullLoggerFactory.Instance, Substitute.For<IPacketReader>(), clock) { _peer = peer; }
+    private WorldAdmissionConnection(IWorldServer server, TcpClient client, TcpClient peer, TimeProvider? clock, ILoggerFactory? logs)
+        : base(server, client, logs ?? NullLoggerFactory.Instance, Substitute.For<IPacketReader>(), clock) { _peer = peer; }
     public List<OutboundPacket> Sent { get; } = [];
     public List<string> Violations { get; } = [];
     protected override void OnProtocolViolation(string reason) { Violations.Add(reason); base.OnProtocolViolation(reason); }
@@ -25,13 +26,14 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
     protected override Task OnClose(bool expected = true) => Task.CompletedTask;
     public void Deliver(NetworkPacketType type, Packet payload, NetworkPacketFlags flags = NetworkPacketFlags.None) =>
         OnReceive(new() { Type = type, Flags = flags }, payload).GetAwaiter().GetResult();
-    public static WorldAdmissionConnection Create(IWorldServer? server = null, bool tls = true, TimeProvider? clock = null)
+    public static WorldAdmissionConnection Create(IWorldServer? server = null, bool tls = true, TimeProvider? clock = null,
+        ILoggerFactory? logs = null)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         var client = new TcpClient(); client.Connect((IPEndPoint)listener.LocalEndpoint);
         TcpClient peer = listener.AcceptTcpClient();
         server ??= Substitute.For<IWorldServer, IServerBase>();
-        var result = new WorldAdmissionConnection(server, client, peer, clock);
+        var result = new WorldAdmissionConnection(server, client, peer, clock, logs);
         typeof(Avalon.World.WorldConnection).GetField("_tlsAuthenticated", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(result, tls);
         return result;
     }

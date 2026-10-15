@@ -196,7 +196,9 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
     gameplay packet it sends; false, TLS alone, the public key is empty and the client sends plain, keying nothing
     (client 0.3.0 reads the mode before it asks for a key). The client seals exactly as told. Otherwise `InvalidRequest`,
     `AuthorizationRequired` or `ServiceUnavailable` (`UnsupportedClient` is declared beside them; this server refuses
-    an old client at step 15 instead), `PacketEncryption` false, and the connection is closed.
+    an old client at step 15 instead), `PacketEncryption` false, and the connection is closed
+    ([when each](character-login-flow.md#sgameadmissionpacket-refusals); a world whose admission queue is full answers
+    `ServiceUnavailable`, #1050).
 15. `CWorldHandshakePacket(Version)` / `SWorldHandshakePacket` — sealed only when the world seals; the client's version
     must be at least 0.3.0 and the world's `MinVersion`. A client below either, or whose version does not parse, is
     answered `Verified` false with `Refusal` `ClientVersionTooOld` and the `MinVersion` it needs, then closed; any

@@ -15,6 +15,12 @@ public interface IWorldEntryGate
 
 public readonly record struct WorldEntryDecision(bool Allowed, DateTime ValidUntilUtc)
 {
+    /// <summary>
+    /// The check was never run: its work queue was full (#1050). Not a maintenance verdict, so the entry is refused as
+    /// the world being busy (<c>SelectTimeout</c>, "try again"), not as maintenance. Never allowed.
+    /// </summary>
+    public bool Busy { get; init; }
+
     public bool IsValidAt(DateTime nowUtc) => Allowed && nowUtc < ValidUntilUtc;
 }
 
@@ -22,13 +28,15 @@ public static class WorldEntryGateExtensions
 {
     private static readonly TimeSpan s_checkTimeout = TimeSpan.FromSeconds(5);
     private static readonly EntryCheckFailureLog s_failures = new(TimeProvider.System);
+    private static readonly Task<WorldEntryDecision> s_busy = Task.FromResult(new WorldEntryDecision { Busy = true });
 
     /// <summary>
     /// Asks <paramref name="gate" /> on <paramref name="work" /> (the shared database work queue when null), as
     /// character select and the final spawn do: a repository call must never begin on the simulation tick. The task
-    /// never faults, so the continuation that waits on it always runs: a check the work queue refuses (saturated),
-    /// one that throws and one that takes more than 5 s are each a refusal, logged by exception type at most once per
-    /// <see cref="EntryCheckFailureLog.Interval" />.
+    /// never faults, so the continuation that waits on it always runs. A check the work queue refuses (full) is
+    /// answered at once with a <see cref="WorldEntryDecision.Busy" /> decision, nothing thrown or logged here (the
+    /// queue counted it, and the caller closes the entry as busy, #1050); one that throws and one that takes more than
+    /// 5 s are each a refusal, logged by exception type at most once per <see cref="EntryCheckFailureLog.Interval" />.
     /// </summary>
     public static Task<WorldEntryDecision> CheckOffTick(this IWorldEntryGate gate, AccountId accountId, ILogger logger,
         IWorldDatabaseWork? work = null)
@@ -44,6 +52,8 @@ public static class WorldEntryGateExtensions
             check = Task.FromException<WorldEntryDecision>(e);
         }
 
+        if (WorldDatabaseWork.IsRefusal(check))
+            return s_busy;
         return check.IsCompletedSuccessfully ? check : RefusedOnFailure(check, logger);
     }
 

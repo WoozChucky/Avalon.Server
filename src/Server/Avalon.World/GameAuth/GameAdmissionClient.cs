@@ -82,6 +82,16 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException or IOException)
         { return await AbandonAsync(reserved, GameAuthErrors.ServiceUnavailable); }
+        catch (Exception) when (reserved is not null)
+        {
+            // A defect after the redemption reserved a session (#1050): a faulted admission hands back no lease, so the
+            // world could never end the session itself. End it, then let the fault through, which the admission
+            // reports and answers ServiceUnavailable. A second fault in that end is dropped: the first is the one to
+            // report, and the session still runs out with its lease.
+            try { await AbandonAsync(reserved, GameAuthErrors.ServiceUnavailable); }
+            catch (Exception) { }
+            throw;
+        }
     }
 
     /// <summary>
@@ -157,7 +167,7 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
     private static bool Positive(string? text) => long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out long value) && value > 0 && value.ToString(CultureInfo.InvariantCulture) == text;
     private static string SafeError(string? error) => error switch
     {
-        GameAuthErrors.SessionRevoked or GameAuthErrors.SessionConflict or GameAuthErrors.SessionReplaced or GameAuthErrors.InvalidTicket or GameAuthErrors.WorldUnavailable or GameAuthErrors.BarrierPending => error,
+        GameAuthErrors.SessionRevoked or GameAuthErrors.SessionConflict or GameAuthErrors.SessionReplaced or GameAuthErrors.InvalidTicket or GameAuthErrors.WorldUnavailable or GameAuthErrors.WorldNotAllowed or GameAuthErrors.BarrierPending => error,
         _ => GameAuthErrors.ServiceUnavailable
     };
 }

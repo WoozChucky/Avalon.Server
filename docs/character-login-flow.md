@@ -95,6 +95,52 @@ Game Client              World Server                  Databases / API
 
 ---
 
+## `SGameAdmissionPacket` refusals
+
+The world's answer to `CGameAdmissionPacket` (`GameAdmissionHandler`) when it admits no one. Every refusal is followed
+by the close of the connection, and binds nothing: no account, no lease, no character.
+
+| `Result` | When |
+|---|---|
+| `InvalidRequest` (1) | Refused before the ticket is spent: no TLS, a ticket that is not one, a public key of the wrong length on a world that seals, a second admission on the connection. Also a key of the right length that is not a P-256 point, found after the redemption (its lease is revoked, `bad_public_key`) |
+| `ServiceUnavailable` (3) | Try later. The identity service answered so (unreachable or overloaded, a session barrier still pending, or the world in maintenance or without a fresh heartbeat, `WORLD_UNAVAILABLE`), or the world could not redeem the ticket itself: its admission work queue was full, or the redemption threw (#1050) |
+| `AuthorizationRequired` (2) | Every other answer: a ticket expired, spent or for another world, a session revoked, replaced or in conflict, the game context's application not allowed on this world (`WORLD_NOT_ALLOWED`), or an answer from the identity service the world could not trust (`INVALID_ADMISSION`) |
+
+**An admission the world cannot redeem is answered, not dropped (#1050).** The world has at most 128 redemptions
+outstanding, 32 of them running (`WorldDatabaseWork.Admission`); a reconnect storm past that is refused as it arrives,
+never queued without bound. Such an admission is answered `ServiceUnavailable` and closed at once, on the receive path
+that delivered it, as the refusals before a ticket is spent are; one whose redemption throws is answered the same way
+on the tick, as one the identity service answered "try later" is. The full queue is counted under
+`world.work.refusals` (lane `admission`) and the throw under `world.admission.failures`
+([instrumentation](instrumentation.md#work-queue-refusals-and-unserved-admissions)): a full queue with one Warning at
+most every 10 s, a throw with one Error at most every 10 s. Before, its tick continuation faulted: the client got no answer until the
+15-second admission timeout closed it, and the world logged an Error with a stack for each. Nothing is left live: a
+full queue never reached the identity service, and an admission client that throws after the redemption reserved a
+session ends that session before it lets the fault through (a second fault in that end is dropped, and the session
+runs out with its lease). A redemption that did return a lease the connection never published is still ended by the
+connection's drain, which reads the redemption the connection tracks (`WorldConnection.TrackAdmission`). A full
+admission queue holds back no live player: lease heartbeats run on a lane of their own
+([game server admission](steam-authentication-workloads.md)).
+
+Before #1050 a redemption answered `WORLD_UNAVAILABLE` was refused `AuthorizationRequired`. It covered a refusal no
+retry changes too, the context's application not allowed on the world, which the redemption now answers
+`WORLD_NOT_ALLOWED` (the REST join-ticket issue still answers `WORLD_UNAVAILABLE` for it). No value was added to the wire.
+
+**A character select the world cannot load is closed at once (#1050, owner decision).** Every read and the one write of
+the select chain, the town lookup for a character saved outside a town included, and the world entry check before it,
+run on the select's own work queue (the one the container registers, with the database lane's capacity: 256
+outstanding). A step or an entry check it refuses because it is full cancels the select and closes the connection as
+busy, with `SelectTimeout` and "The world is busy; try again", the answer the stalled-select sweep gives a select that
+cannot finish, which such a select got 15 s later before; the client logs in and selects again. The final spawn's entry
+check (on `WorldDatabaseWork.ThreadPool`) is answered the same way. The refusal is counted under
+`world.work.refusals` (lane `select`, or `database` for the final spawn). It is safe at any step: nothing before the
+pending spawn is live. The one write, the selected character's row (still offline), writes back the row as the select
+read it, with the town it was moved to if it was elsewhere, and the next select reads and writes it again; the entity
+is in no instance and held by nothing but the chain. An entry check that ran and failed (it threw, or took more than
+5 s) still closes with `Maintenance` (#821): only a full queue, which never ran it, is the busy answer.
+
+---
+
 ## `SWorldHandshakePacket`
 
 The world's answer to `CWorldHandshakePacket(Version)`, the first packet after admission (`WorldHandshakeHandler`).

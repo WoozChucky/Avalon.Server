@@ -36,6 +36,13 @@ public static class CharacterReadinessBarrier
             if (!connection.IsConnected || connection.IsClosing || !ReferenceEquals(connection.PendingSpawn, pending))
                 return;
 
+            if (decision.Busy)
+            {
+                // A full work queue never ran the check (#1050): the world is busy, not in maintenance.
+                BusyEntry.Close(connection, logger, clock ?? TimeProvider.System);
+                return;
+            }
+
             if (maintenance is null && !decision.IsValidAt((clock ?? TimeProvider.System).GetUtcNow().UtcDateTime))
             {
 #pragma warning disable MA0045 // tick continuation cannot await; the close finishes on its own

@@ -115,11 +115,12 @@ public partial class WorldConnection
         }
     }
 
-    // Capture only when a heartbeat is due, not on every tick that checks the lease.
+    // Capture only when a heartbeat is due, not on every tick that checks the lease. On the heartbeats' own lane (#1050):
+    // a full admission lane, which a reconnect storm or a flood of tickets makes, never refuses one.
     private void StartGameplayHeartbeat(GameSessionLease lease, long timestamp)
     {
         _lastHeartbeatTicks = timestamp;
-        _heartbeat = WorldDatabaseWork.Admission.Run(() => ((WorldServer)Server).AdmissionClient.HeartbeatAsync(lease, CancellationToken.None));
+        _heartbeat = WorldDatabaseWork.Heartbeat.Run(() => ((WorldServer)Server).AdmissionClient.HeartbeatAsync(lease, CancellationToken.None));
     }
 
     internal Task DrainGameplayAsync()

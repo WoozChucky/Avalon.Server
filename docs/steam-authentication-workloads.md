@@ -146,7 +146,29 @@ against the tick's time: the container's clock read once for every connection (`
 two due times set when it is granted or renewed, the deadline less the five seconds on the wall clock and the
 time granted less the five seconds on the monotonic one, and the check ends gameplay on the first tick at or past
 either (`GameSessionLease.DrainDueAt`), so a wall clock set back cannot stretch a lease. The heartbeat is due 15
-seconds after the last one by the same time. The dispatch check that follows in the same tick (each pass, each
+seconds after the last one by the same time. Heartbeats run on a work lane of their own (`WorldDatabaseWork.Heartbeat`,
+#1050): 128 at once and 8,192 outstanding, beside the admissions' 32 and 128. A connection has at most one heartbeat in
+flight and only an admitted one has any, so the outstanding bound is above any player count a world carries, and 128 at
+once keep up with 5,000 players (about 333 heartbeats a second) while one takes up to about 380 ms. A heartbeat the
+lane refuses is not retried before the next 15 seconds, so three refusals in a row end the lease: on the shared lane a
+reconnect storm, or a flood of well-formed tickets, that filled it could drain players already in the world.
+
+**Calls to identity per world, and the latency a world can carry (#1050, owner decision).** At its peak a world has
+admissions 32 + heartbeats 128 requests in flight to identity's workload listener (+ session ends, see that lane in
+`WorldDatabaseWork`), 160 without the session ends. The workload handler (`WorkloadHttpHandler`) does not cap
+connections per server, so each can be its own mTLS connection: a cap would queue requests inside the handler, where
+they would spend the five-second transport timeout waiting rather than running. Size identity for that peak per world.
+What heartbeats can carry follows from the lane: 128 at once, one per player every 15 s.
+
+| Identity's time per heartbeat, `L` | 5,000 players |
+|---|---|
+| up to `128 × 15 / players` s (about 384 ms) | every lease renewed on time, every 15 s |
+| up to `128 × 40 / players` s (about 1.0 s) | renewals fall behind, each player's every `players × L / 128` s, still inside the lease's 40 s (45 s less the five-second drain) |
+| above that | renewals arrive after the drain point: players are drained, a few at a time, until the rest fit |
+
+So at 5,000 players a world keeps its leases while identity answers a heartbeat in about a second; at 2,500, in about
+two. A heartbeat that times out (five seconds) keeps the lease as it is and holds its slot for the whole timeout, which
+at 5,000 players is past the limit. The dispatch check that follows in the same tick (each pass, each
 packet) judges the lease at the time that check was made, not by reading the clock again: a lease the check found
 not due is only asked whether it has been revoked since (`GameSessionLease.IsRevoked`, no lock), so a revocation
 still takes effect at the next packet. The check has already ended a lease within five seconds of its end, so this
