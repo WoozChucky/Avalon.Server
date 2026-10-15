@@ -16,7 +16,9 @@ namespace Avalon.LoadTest.Bots;
 /// several loops, each on its own thread with its own 60 Hz schedule; each bot is driven by one loop for its whole life
 /// (<see cref="LoopAssigner"/>). Each loop plans its steps on a <see cref="Stopwatch"/> schedule from the driver's start,
 /// its phase a fraction of a step after the loop before it, and records each step late by how far it began after its
-/// planned time; the lateness of every loop goes into one window (<see cref="LatenessP95Ms"/>).
+/// planned time; the lateness of every loop goes into one window (<see cref="Lateness"/>). A loop that fails stops
+/// every loop: the driver's task faults, and its lateness reads NaN from then on, so no window passes as judged while
+/// some bots go without input.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -64,9 +66,13 @@ public sealed class InputDriver
     private readonly LoopAssigner _assigner;
     private readonly Lock _windowLock = new();
     private readonly List<double> _lateness = new(MaxSamples);
+
+    /// <summary>The loop each of <see cref="_lateness"/>'s samples came from, at the same place.</summary>
+    private readonly List<int> _latenessLoop = new(MaxSamples);
     private readonly long[] _busyTicks;
     private readonly long[] _busySteps;
     private long _samplesSeen;
+    private volatile bool _failed;
 
     /// <param name="inWorld">The bots to drive; those not <see cref="BotState.InWorld"/> are passed over. Called by every loop.</param>
     /// <param name="loops">How many loops share the bots, 1 to <see cref="MaxLoops"/> (<see cref="DefaultLoops"/>).</param>
@@ -92,12 +98,14 @@ public sealed class InputDriver
     public int Loops => _assigner.Loops;
 
     /// <summary>
-    /// Runs every loop on its own thread until <paramref name="ct"/> is cancelled; the task then completes, faulted if a
-    /// loop failed.
+    /// Runs every loop on its own thread until <paramref name="ct"/> is cancelled; the task then completes. A loop that
+    /// throws stops every loop within a step, and the task faults with what it threw: a loop that died alone would leave
+    /// its bots without input, and the bots given to it after, while the other loops' lateness looked fine.
     /// </summary>
     public Task RunAsync(CancellationToken ct)
     {
         long start = Stopwatch.GetTimestamp();
+        var stop = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var loops = new Task[Loops];
         for (int index = 0; index < loops.Length; index++)
         {
@@ -107,12 +115,15 @@ public sealed class InputDriver
             {
                 try
                 {
-                    loop.Run(ct);
+                    loop.Run(stop.Token);
                     done.TrySetResult();
                 }
                 catch (Exception error)
                 {
+                    // Failed first, so the window reads NaN before any other loop stops; then every loop is stopped.
+                    _failed = true;
                     done.TrySetException(error);
+                    stop.Cancel();
                 }
             })
             {
@@ -124,32 +135,66 @@ public sealed class InputDriver
             loops[index] = done.Task;
         }
 
-        return Task.WhenAll(loops);
+        var all = Task.WhenAll(loops);
+        _ = all.ContinueWith(_ => stop.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        return all;
     }
 
     /// <summary>
-    /// The 95th percentile of step lateness in this window over the steps of every loop together, in milliseconds; NaN
-    /// before the first step.
+    /// The 95th percentile of step lateness in this window over the steps of every loop together, in milliseconds (what
+    /// <c>gen-lag</c> judges); NaN before the first step, and for good once a loop failed.
     /// </summary>
-    public double LatenessP95Ms()
-    {
-        double[] sorted;
-        lock (_windowLock)
-            sorted = [.. _lateness];
-        if (sorted.Length == 0) return double.NaN;
+    public double LatenessP95Ms() => Lateness().P95Ms;
 
-        Array.Sort(sorted);
-        return sorted[Math.Clamp((int)Math.Ceiling(0.95 * sorted.Length) - 1, 0, sorted.Length - 1)];
+    /// <summary>
+    /// This window's step lateness: the 95th percentile over the steps of every loop together, and the highest of the
+    /// loops' own, so a single loop out of step time shows even where the others' steps outnumber its own; NaN before
+    /// the first step, and for good once a loop failed.
+    /// </summary>
+    public DriverLateness Lateness()
+    {
+        double[] samples;
+        int[] loops;
+        lock (_windowLock)
+        {
+            samples = [.. _lateness];
+            loops = [.. _latenessLoop];
+        }
+
+        if (_failed || samples.Length == 0) return new DriverLateness(double.NaN, double.NaN, Loops);
+
+        double worst = double.NaN;
+        for (int loop = 0; loop < Loops; loop++)
+        {
+            int index = loop;
+            double[] own = [.. samples.Where((_, i) => loops[i] == index)];
+            if (own.Length == 0) continue;
+
+            double p95 = P95(own);
+            if (!(worst >= p95)) worst = p95;
+        }
+
+        return new DriverLateness(P95(samples), worst, Loops);
+    }
+
+    /// <summary>The nearest-rank 95th percentile; sorts <paramref name="samples"/>, which are not empty.</summary>
+    private static double P95(double[] samples)
+    {
+        Array.Sort(samples);
+        return samples[Math.Clamp((int)Math.Ceiling(0.95 * samples.Length) - 1, 0, samples.Length - 1)];
     }
 
     /// <summary>
     /// How busy the loops were in this window: the mean time a loop spent per step deciding its bots' inputs and firing
     /// their sends (not waiting for sends in flight), as a share of a step (16.7 ms), averaged over the loops and for the
     /// busiest one. Near 1, a loop runs out of step time and its steps start late; low with lateness high, the lateness is
-    /// not the loops' own work. Null before a loop's first step.
+    /// not the loops' own work. Null before a loop's first step, and once a loop failed.
     /// </summary>
     public DriverBusy? Busy()
     {
+        if (_failed) return null;
+
         double sum = 0;
         double busiest = 0;
         int counted = 0;
@@ -175,6 +220,7 @@ public sealed class InputDriver
         lock (_windowLock)
         {
             _lateness.Clear();
+            _latenessLoop.Clear();
             _samplesSeen = 0;
             Array.Clear(_busyTicks);
             Array.Clear(_busySteps);
@@ -200,11 +246,16 @@ public sealed class InputDriver
             if (seen < MaxSamples)
             {
                 _lateness.Add(ms);
+                _latenessLoop.Add(loop);
                 return;
             }
 
             long slot = rng.NextInt64(seen + 1);
-            if (slot < MaxSamples) _lateness[(int)slot] = ms;
+            if (slot < MaxSamples)
+            {
+                _lateness[(int)slot] = ms;
+                _latenessLoop[(int)slot] = loop;
+            }
         }
     }
 
@@ -212,10 +263,19 @@ public sealed class InputDriver
     /// One of the driver's loops: its own thread, schedule, <see cref="Random"/> and sends in flight, and the bots
     /// <see cref="LoopAssigner"/> gave it. Everything here is touched by the loop's thread only.
     /// </summary>
+    /// <remarks>
+    /// A loop walks only its own bots and those no loop has yet (every loop holds those), not every bot: another loop's
+    /// bot's lane is written by that loop every step, and reading it from here would cost a cache miss per bot per loop.
+    /// The two lists are rebuilt from the bots only when the collection given changes (the ramp hands out the same one
+    /// until a bot signs in); a bot no loop had is claimed once it is in the world, or dropped once another loop has it.
+    /// </remarks>
     private sealed class Loop(InputDriver driver, int index, long start)
     {
         private readonly List<Task> _inFlight = [];
         private readonly Random _rng = new();
+        private readonly List<Bot> _mine = [];
+        private readonly List<Bot> _unclaimed = [];
+        private IReadOnlyCollection<Bot>? _seen;
 
         /// <summary>Where this loop's steps fall in the driver's: <c>index / loops</c> of a step after the first loop's.</summary>
         private readonly long _phase = (long)(index * s_ticksPerStep / driver.Loops);
@@ -248,20 +308,62 @@ public sealed class InputDriver
             }
         }
 
+        /// <summary>
+        /// Rebuilds the loop's own bots and the unclaimed ones when the collection given is a new one; allocates only
+        /// then.
+        /// </summary>
+        private void Refresh()
+        {
+            IReadOnlyCollection<Bot> bots = driver._inWorld();
+            if (ReferenceEquals(bots, _seen)) return;
+
+            _seen = bots;
+            _mine.Clear();
+            _unclaimed.Clear();
+            foreach (Bot bot in bots)
+            {
+                int owner = Volatile.Read(ref bot.Lane.Loop);
+                if (owner == index) _mine.Add(bot);
+                else if (owner == LoopAssigner.Unassigned) _unclaimed.Add(bot);
+            }
+        }
+
+        /// <summary>
+        /// Gives each unclaimed bot now in the world its loop, once, by whichever loop sees it first, and keeps it here if
+        /// it is this loop's; a bot another loop has is dropped from the list, one not yet in the world kept.
+        /// </summary>
+        private void Claim()
+        {
+            for (int i = _unclaimed.Count - 1; i >= 0; i--)
+            {
+                Bot bot = _unclaimed[i];
+                InputLane lane = bot.Lane;
+                int owner = Volatile.Read(ref lane.Loop);
+                if (owner == LoopAssigner.Unassigned)
+                {
+                    if (bot.State != BotState.InWorld) continue;
+
+                    owner = driver._assigner.LoopOf(ref lane.Loop, bot.Behaviour);
+                }
+
+                if (owner == index) _mine.Add(bot);
+                _unclaimed[i] = _unclaimed[^1];
+                _unclaimed.RemoveAt(_unclaimed.Count - 1);
+            }
+        }
+
         /// <summary>Builds and fires one input for every bot of this loop in the world whose previous send has completed.</summary>
         private void Step(long now, CancellationToken ct)
         {
-            LoopAssigner assigner = driver._assigner;
-            foreach (Bot bot in driver._inWorld())
-            {
-                InputLane lane = bot.Lane;
-                // Another loop's bot: one read, before anything else of the bot is looked at.
-                int owner = Volatile.Read(ref lane.Loop);
-                if (owner != LoopAssigner.Unassigned && owner != index) continue;
-                if (bot.State != BotState.InWorld) continue;
-                // A bot seen in the world for the first time is given its loop, once, by whichever loop sees it first.
-                if (owner == LoopAssigner.Unassigned && assigner.LoopOf(ref lane.Loop, bot.Behaviour) != index) continue;
+            Refresh();
+            if (_unclaimed.Count > 0) Claim();
 
+            for (int i = 0; i < _mine.Count; i++)
+            {
+                Bot bot = _mine[i];
+                if (bot.State != BotState.InWorld) continue;
+
+                InputLane lane = bot.Lane;
                 if (lane.Pending is { } pending)
                 {
                     if (!pending.IsCompleted) continue;
@@ -466,6 +568,13 @@ public sealed class InputDriver
         private static extern uint WaitForSingleObject(SafeWaitHandle handle, uint milliseconds);
     }
 }
+
+/// <summary>
+/// The input driver's step lateness over a window (<see cref="InputDriver.Lateness"/>), in milliseconds: the 95th
+/// percentile over the steps of every loop together (<c>gen-lag</c>), and the highest of the loops' own 95th
+/// percentiles; NaN with no step, or once a loop failed. <paramref name="Loops"/> is how many loops the driver runs.
+/// </summary>
+public readonly record struct DriverLateness(double P95Ms, double WorstLoopP95Ms, int Loops);
 
 /// <summary>
 /// How busy the input driver's loops were over a window (<see cref="InputDriver.Busy"/>): the mean time a loop spent per

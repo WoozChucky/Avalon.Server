@@ -132,7 +132,7 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Slow kicks | Receive backlog | Send threads busy: cores (busiest thread) | Pending bytes p99 | Working set | GC stall | GC pause | Gen2 / min (not judged) | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 | Driver busy: mean (busiest loop) | Verdict |");
+        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Slow kicks | Receive backlog | Send threads busy: cores (busiest thread) | Pending bytes p99 | Working set | GC stall | GC pause | Gen2 / min (not judged) | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 (worst loop) | Driver busy: mean (busiest loop) | Verdict |");
         md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
@@ -172,7 +172,9 @@ public static class ReportWriter
                 signIns,
                 c.Disconnects.ToString(CultureInfo.InvariantCulture),
                 Percent(step.GeneratorCpu),
-                Ms(step.GeneratorLagP95Ms, "0.0"),
+                double.IsFinite(step.GeneratorLagP95Ms)
+                    ? $"{Ms(step.GeneratorLagP95Ms, "0.0")} ({Ms(step.DriverWorstLoopLagP95Ms, "0.0")})"
+                    : "n/a",
                 step.DriverBusy is { } busy ? $"{Percent(busy.MeanShare)} ({Percent(busy.BusiestShare)})" : "n/a",
                 RampRunner.Verdict(step, options.Limits) + " |"));
         }

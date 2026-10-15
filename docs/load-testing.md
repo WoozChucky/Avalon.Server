@@ -138,10 +138,10 @@ dotnet run -c Release --project tools/Avalon.LoadTest -- check --behaviour fight
 ticket, TLS, admission, handshake, character list, create on the first entry, select, load report, spawn, first
 answered input), sends input at 60 Hz for 10 seconds through the same input driver the ramp uses, then leaves and
 signs out. It prints each step's duration, the input-to-ack latency (p50, p95 and p99), the driver's lateness p95
-over its loops, the packet encryption the admission replies named (#875: `encryption on (sealed inside TLS, ...)`,
-`encryption off (TLS alone)`, or `mixed` with the counts, as the [report](#the-report) says it), and for a walker how
-far it walked from the spawn point. Run it before the first ramp of a run, and after anything changed on the server or the
-network: it is the quickest way to see that the whole chain works.
+over its loops and the worst loop's own, the packet encryption the admission replies named (#875: `encryption on
+(sealed inside TLS, ...)`, `encryption off (TLS alone)`, or `mixed` with the counts, as the [report](#the-report) says
+it), and for a walker how far it walked from the spawn point. Run it before the first ramp of a run, and after
+anything changed on the server or the network: it is the quickest way to see that the whole chain works.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -151,7 +151,7 @@ network: it is the quickest way to see that the whole chain works.
 | `--behaviour idle\|walker\|fighter` | `idle` | What the bot does: idle or walk for 10 seconds, or make forest trips until one completes (3 at most) |
 | `--forest-time T` | `5m` | A fighter's time in the forest: `90s`, `5m` or plain seconds, above 0, at most 1 h |
 | `--party-size N` | `1` | Fighters only, 1 to 6: N bots from `--bot` on check together as one party |
-| `--driver-loops N` | 8, or the bot PC's logical cores when fewer | The [input driver](#the-input-driver)'s loops, 1 to 64, as for `ramp` |
+| `--driver-loops N` | 8, or the bot PC's logical cores when fewer | The [input driver](#the-input-driver)'s loops, 1 to 64, as for `ramp`, capped at the bots checked (one, or the party's size): a loop with no bot would only dilute the lateness |
 
 **A fighter's check** (`--behaviour fighter`) drives [forest trips](#fighters) instead of the 10 seconds, at once
 (no first-trip wait): to the town's portal, into the forest, fighting for `--forest-time` (or until no live creature
@@ -211,12 +211,13 @@ This is the capacity run, described under [The ramp](#the-ramp).
 | `--driver-loops N` | 8, or the bot PC's logical cores when fewer | The [input driver](#the-input-driver)'s loops, 1 to 64, each on its own thread, sharing the in-world bots out |
 
 The console first prints the ramp's settings in one line (the run, the world, start, step, max, hold, `--dial` and the
-input driver's loops), then one line per step, then the result and the report's path. A step with fighters adds their
-count, the forest instances the world ticked per tick and the trips completed:
+input driver's loops), then one line per step, then the result and the report's path. A step's line gives the
+driver's lateness p95 over every loop's steps (`gen-lag`) and the worst loop's own in brackets. A step with fighters
+adds their count, the forest instances the world ticked per tick and the trips completed:
 
 ```text
-step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  → pass
-step 4  bots 200  tick p99 9.8 ms  ack p95 35 ms  ws 31%  fighters 60  forest 41.2  trips 18  → pass
+step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  lag 0.4 ms (worst loop 0.9)  → pass
+step 4  bots 200  tick p99 9.8 ms  ack p95 35 ms  ws 31%  lag 0.5 ms (worst loop 1.1)  fighters 60  forest 41.2  trips 18  → pass
 ```
 
 ### cleanup
@@ -358,7 +359,9 @@ default 8, or the bot PC's logical cores when fewer), each on its own thread wit
   of the bot. Each bot goes to the loop holding the fewest bots of its behaviour, then the fewest bots, so every
   behaviour is shared out evenly over the loops, the bots that join in later steps too. Not by bot index modulo the
   loop count: a loop count sharing a factor with the mix's rotation would put a behaviour on a few loops only (with 5
-  loops and the default mix, every churner on one).
+  loops and the default mix, every churner on one). A loop walks only its own bots and those no loop has yet, never
+  another loop's (whose state that loop writes every step); it rebuilds the two lists only when the bots signed in
+  change.
 - **Phases.** Loop k of N steps k/N of a step after the first, so the loops' steps are spread over the 16.7 ms as real
   clients' are: the world does not get every bot's input in one burst, and the threads do not all wake at one
   instant.
@@ -368,7 +371,14 @@ default 8, or the bot PC's logical cores when fewer), each on its own thread wit
   gone. Per bot and step a loop allocates the packet and nothing else unless the send has to wait. A loop that falls
   more than three steps behind drops the missed steps rather than sending them in a burst, and its lateness shows it.
 - **Lateness** is how far each step of each loop began after its planned time. All the loops' steps go into one
-  window, and `gen-lag` is the 95th percentile over all of them together, not an average of the loops' own.
+  window, and `gen-lag` is the 95th percentile over all of them together, not an average of the loops' own. Each loop
+  steps 60 times a second whatever its bots, so the shared figure weighs loops, not bots: with many loops, one loop out
+  of step time can sink below the 95th percentile. The console and the report therefore give the worst loop's own
+  95th percentile beside it, for reading only.
+- **A failed loop stops them all.** A loop that throws stops every loop within a step: the driver's lateness reads
+  unknown from then on, and the ramp ends at once as stopped with an error (`error: the input driver failed: ...`);
+  `check` fails at its driving step (`<step>:driver`). A loop that died alone would leave its bots without input while
+  the others kept `gen-lag` low.
 - **Busy time**, for reading only: the time a loop spent per step deciding its bots' inputs and firing their sends (not
   waiting for sends in flight), as a share of the 16.7 ms step. Near 100 %, a loop runs out of step time and more
   loops are needed; low while the lateness is high, the lateness is not the loops' own work but the bot PC's
@@ -764,7 +774,9 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
     the window), `busyCores`, `busiestThread` (a fraction of one core) and `pendingBytesP99` (bytes), null unless read;
   - admission as bots that never got in ÷ bots that tried; entry attempts and failed attempts, and failures by kind;
     leave failures by kind and sign-in failures by kind (both apart from admission); disconnects;
-  - the bot PC's CPU, the driver's lateness p95 (every loop's steps together), and the driver's
+  - the bot PC's CPU, the driver's lateness p95 (every loop's steps together, judged as `gen-lag`) with the worst
+    loop's own p95 in brackets (`1.2 ms (3.4 ms)`, for reading only; `driverWorstLoopLagP95Ms` in the JSON), and the
+    driver's
     [busy time](#the-input-driver) for reading only: the loops' mean share of a step spent deciding and firing sends,
     with the busiest loop's in brackets (`23 % (31 %)`); `driverBusy` in the JSON, with `meanShare` and `busiestShare`
     as fractions, null when no loop stepped;
