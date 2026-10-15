@@ -122,6 +122,12 @@ spec:
             {{- end }}
             {{- with .Values.server.tickThread.gcHeapAffinitizeRanges }}
             {{- if not (regexMatch "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$" (toString .)) }}{{ fail (printf "server.tickThread.gcHeapAffinitizeRanges must be a CPU list such as 0-7,9-19,21-23, got %q" (toString .)) }}{{ end }}
+            {{- if ne $tickCpu "" }}
+            {{- range splitList "," (toString .) }}
+            {{- $bounds := splitList "-" . }}
+            {{- if and (le (atoi (first $bounds)) (atoi $tickCpu)) (le (atoi $tickCpu) (atoi (last $bounds))) }}{{ fail (printf "server.tickThread.gcHeapAffinitizeRanges must leave out server.tickThread.cpu %s (and its hyperthread siblings), got %q" $tickCpu (toString $.Values.server.tickThread.gcHeapAffinitizeRanges)) }}{{ end }}
+            {{- end }}
+            {{- end }}
             - name: DOTNET_GCHeapAffinitizeRanges
               value: {{ . | quote }}
             {{- end }}

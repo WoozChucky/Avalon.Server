@@ -58,7 +58,8 @@ server:
     # that takes no network interrupts (/proc/interrupts).
     cpu: ""
     # DOTNET_GCHeapAffinitizeRanges: the CPUs server GC binds its heap threads to, as a CPU list (0-7,9-19,21-23).
-    # Unset, it binds one to every CPU, the tick's and its siblings' included: list every CPU but those.
+    # Unset, it binds one to every CPU, the tick's and its siblings' included: list every CPU but those. A list that
+    # holds cpu fails the render (the siblings are not known here).
     gcHeapAffinitizeRanges: ""
 
 replicaCount: 1

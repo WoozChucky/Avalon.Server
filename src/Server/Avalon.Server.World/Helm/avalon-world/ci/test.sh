@@ -101,7 +101,13 @@ for n in 0 11; do
   tj=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-json "server.tickThread.cpu=$n")
   grep -A1 "name: Game__TickThreadCpu" <<<"$tj" | grep -q "\"$n\""                              || { echo "tick thread CPU $n must render as digits"; exit 1; }
 done
-for bad in "server.tickThread.cpu=-1" "server.tickThread.cpu=1.5" "server.tickThread.cpu=eight" "server.tickThread.gcHeapAffinitizeRanges=0-7;9" "server.tickThread.gcHeapAffinitizeRanges=all"; do
+# A GC CPU list that includes the tick's CPU fails, as a range or on its own.
+for ranges in '0-23' '0-7\,8\,9-23' '8'; do
+  if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.tickThread.cpu=8 --set-string "server.tickThread.gcHeapAffinitizeRanges=$ranges" >/dev/null 2>&1; then
+    echo "GC heap ranges $ranges holding the tick's CPU must fail"; exit 1
+  fi
+done
+for bad in "server.tickThread.cpu=-1""server.tickThread.cpu=1.5" "server.tickThread.cpu=eight" "server.tickThread.gcHeapAffinitizeRanges=0-7;9" "server.tickThread.gcHeapAffinitizeRanges=all"; do
   if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set "$bad" >/dev/null 2>&1; then
     echo "rendering with $bad must fail"; exit 1
   fi
