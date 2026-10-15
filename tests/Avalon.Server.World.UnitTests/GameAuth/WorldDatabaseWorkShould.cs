@@ -4,6 +4,12 @@ namespace Avalon.Server.World.UnitTests.GameAuth;
 
 public sealed class WorldDatabaseWorkShould
 {
+    /// <summary>
+    /// A limit on a hang only: the work runs on the thread pool, which a loaded test run can hold for seconds (#960), so
+    /// no wait here is for an amount of time (#1019).
+    /// </summary>
+    private static readonly TimeSpan s_hang = TimeSpan.FromSeconds(30);
+
     [Fact]
     public async Task Bound_concurrency_and_backlog_and_release_capacity_after_a_failed_operation()
     {
@@ -11,15 +17,15 @@ public sealed class WorldDatabaseWorkShould
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Task<int> first = workers.Run(async () => { entered.SetResult(); await release.Task; if (release.Task.IsCompleted) throw new InvalidOperationException("fixture"); return 0; });
-        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await entered.Task.WaitAsync(s_hang);
         int secondStarted = 0;
         Task<int> second = workers.Run(() => { Interlocked.Increment(ref secondStarted); return Task.FromResult(2); });
         await Assert.ThrowsAsync<WorldWorkUnavailableException>(() => workers.Run(() => Task.FromResult(3)));
         Assert.Equal(0, secondStarted);
         release.SetResult();
         await Assert.ThrowsAsync<InvalidOperationException>(() => first);
-        Assert.Equal(2, await second.WaitAsync(TimeSpan.FromSeconds(5)));
-        Assert.Equal(4, await workers.Run(() => Task.FromResult(4)).WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Equal(2, await second.WaitAsync(s_hang));
+        Assert.Equal(4, await workers.Run(() => Task.FromResult(4)).WaitAsync(s_hang));
     }
 
     [Fact]
@@ -35,7 +41,7 @@ public sealed class WorldDatabaseWorkShould
             returned.SetResult(WorldDatabaseWork.ThreadPool.Run(() =>
             {
                 entered.SetResult(Environment.CurrentManagedThreadId);
-                release.Wait(TimeSpan.FromSeconds(10));
+                release.Wait(); // until the test lets it go: its finally always does
                 return Task.FromResult(42);
             }));
         })
@@ -43,12 +49,11 @@ public sealed class WorldDatabaseWorkShould
         tick.Start();
         try
         {
-            Task<int> work = await returned.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.True(tick.Join(TimeSpan.FromSeconds(5)));
-            Assert.NotEqual(tickThread, await entered.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+            Task<int> work = await returned.Task.WaitAsync(s_hang);
+            Assert.NotEqual(tickThread, await entered.Task.WaitAsync(s_hang));
             Assert.False(work.IsCompleted);
             release.Set();
-            Assert.Equal(42, await work.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal(42, await work.WaitAsync(s_hang));
         }
         finally { release.Set(); }
     }

@@ -29,6 +29,7 @@ using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
@@ -98,12 +99,7 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!connection.IsClosing && DateTime.UtcNow < deadline)
-        {
-            server.Tick();
-            await Task.Delay(10);
-        }
+        await TickUntil(server, () => connection.IsClosing || connection.PendingSpawn is null);
 
         Assert.True(connection.IsClosing);
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
@@ -122,45 +118,55 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance,
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (connection.PendingSpawn is not null && DateTime.UtcNow < deadline)
-        {
-            server.Tick();
-            await Task.Delay(10);
-        }
+        await TickUntil(server, () => connection.IsClosing || connection.PendingSpawn is null);
 
         Assert.Null(connection.PendingSpawn);
         world.Received(1).SpawnInInstance(connection, instance);
         await gate.Received(1).CheckAsync(new AccountId(42), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// An entry decision taken before a cutoff is judged again as the spawn runs (<c>RunIfEntryAllowed</c>). A
+    /// maintenance cutoff closes a non-Admin's connection itself, on the tick, before the decision reaches it, so the
+    /// cutoff here is the restart drain's (#768): at its deadline it blocks the connection and leaves the close to the
+    /// stop, and only the check at the spawn keeps the character out. The decision allowed entry, and ended before the
+    /// deadline came.
+    /// </summary>
     [Fact]
     public async Task Do_not_spawn_when_the_deadline_applies_after_a_completed_entry_check()
     {
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         IWorldEntryGate gate = Substitute.For<IWorldEntryGate>();
         var check = new TaskCompletionSource<WorldEntryDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
-        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(check.Task);
+        var asked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        gate.CheckAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(_ =>
+        {
+            asked.TrySetResult();
+            return check.Task;
+        });
+        var drainTime = TimeSpan.FromSeconds(30);
         var coordinator = new WorldMaintenanceCoordinator(new WorldId(1),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<ICharacterSaver>(),
-            TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
-            Microsoft.Extensions.Options.Options.Create(new Avalon.World.Configuration.WorldShutdownConfiguration()));
+            clock, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Microsoft.Extensions.Options.Options.Create(
+                new Avalon.World.Configuration.WorldShutdownConfiguration { DrainTime = drainTime }));
         coordinator.ApplyCommitted(new WorldMaintenanceState(false, 1, null));
-        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) = Build(gate: gate, coordinator: coordinator);
+        (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) =
+            Build(gate: gate, coordinator: coordinator, clock: clock);
         connection.AccountId = new AccountId(42);
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
-            DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
+            clock.GetUtcNow().UtcTicks - TimeSpan.FromSeconds(16).Ticks);
+        Task drain = coordinator.DrainForRestartAsync(CancellationToken.None);
 
-        server.Tick();
-        Assert.True(SpinWait.SpinUntil(() => gate.ReceivedCalls().Any(c =>
-            c.GetMethodInfo().Name == nameof(IWorldEntryGate.CheckAsync)), TimeSpan.FromSeconds(5)));
+        server.Tick(); // takes the drain, and asks the check
+        await asked.Task.WaitAsync(s_hang);
         check.SetResult(new WorldEntryDecision(true, DateTime.MaxValue));
-        await Task.Delay(100);
-        coordinator.ApplyCommitted(new WorldMaintenanceState(true, 2, DateTime.UtcNow));
-
-        server.Tick();
+        clock.Advance(drainTime);
+        await TickUntil(server, () => connection.IsClosing || connection.PendingSpawn is null);
 
         Assert.True(connection.IsClosing);
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+        await drain.WaitAsync(s_hang); // the tick ended the drain at its deadline
     }
 
     [Fact]
@@ -180,12 +186,7 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), instance,
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        DateTime timeout = DateTime.UtcNow.AddSeconds(5);
-        while (connection.PendingSpawn is not null && DateTime.UtcNow < timeout)
-        {
-            server.Tick();
-            await Task.Delay(10);
-        }
+        await TickUntil(server, () => connection.IsClosing || connection.PendingSpawn is null);
 
         Assert.Null(connection.PendingSpawn);
         Assert.False(connection.IsClosing);
@@ -247,12 +248,7 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SetPendingSpawn(PendingSpawnConnection.Character(), Substitute.For<IMapInstance>(),
             DateTime.UtcNow.Ticks - TimeSpan.FromSeconds(16).Ticks);
 
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!connection.IsClosing && DateTime.UtcNow < deadline)
-        {
-            server.Tick();
-            await Task.Delay(10);
-        }
+        await TickUntil(server, () => connection.IsClosing || connection.PendingSpawn is null);
 
         Assert.True(connection.IsClosing);
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
@@ -492,6 +488,24 @@ public class WorldServerBarrierTickShould : IDisposable
                 _now += by;
             else
                 _timestamp += by.Ticks;
+        }
+    }
+
+    /// <summary>A limit on a hang only: what the tests here wait for needs a thread-pool worker, not time (#960).</summary>
+    private static readonly TimeSpan s_hang = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Ticks until <paramref name="settled" /> holds. A release asks the entry check on the thread pool, off the tick,
+    /// and takes its decision on the first tick after it ends, whenever a worker gets to it: a test run can hold every
+    /// worker for seconds (#960). So this waits for the outcome itself, never for an amount of time (#1019).
+    /// </summary>
+    private static async Task TickUntil(TestWorldServer server, Func<bool> settled)
+    {
+        using var hang = new CancellationTokenSource(s_hang);
+        while (!settled())
+        {
+            server.Tick();
+            await Task.Delay(10, hang.Token);
         }
     }
 

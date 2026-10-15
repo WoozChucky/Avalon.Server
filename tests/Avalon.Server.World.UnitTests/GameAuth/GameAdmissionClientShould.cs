@@ -123,7 +123,10 @@ public sealed class GameAdmissionClientShould
     public async Task End_the_reserved_session_when_admission_fails_after_the_redemption(string failure)
     {
         var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); JoinRedemptionReceipt receipt = Receipt(connection, redemption);
-        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        // Every bound of the client runs on this clock, which moves only when the test moves it (#1019). A refused
+        // activation is retried after a delay on the same clock, so that case runs on the system's.
+        var fake = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        TimeProvider clock = failure == "refused" ? TimeProvider.System : fake;
         var ending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var handler = new RecordingHandler(async (call, request, cancellationToken) =>
         {
@@ -146,12 +149,14 @@ public sealed class GameAdmissionClientShould
         Task<WorldAdmissionResult> admitted = new GameAdmissionClient(http, Options(), clock).AdmitAsync(GameAuthCryptography.NewToken(), connection, redemption, CancellationToken.None);
         if (failure == "transport")
         {
-            await ending.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await ending.Task.WaitAsync(TimeSpan.FromSeconds(30));
             Assert.False(admitted.IsCompleted);
-            clock.Advance(TimeSpan.FromSeconds(2));
+            // Well inside the five-second transport timeout: the end's own bound, not that, lets the reply go. Neither
+            // the transport timeout nor the admission's runs out on this clock, so a reply that waited for one never comes.
+            fake.Advance(TimeSpan.FromSeconds(2));
         }
-        // Well inside the five-second transport timeout: the end's own bound, not that, lets the reply go.
-        WorldAdmissionResult result = await admitted.WaitAsync(TimeSpan.FromSeconds(failure == "transport" ? 3 : 10));
+        // A limit on a hang only: the reply waits for no wall-clock time but the refused case's two retry delays.
+        WorldAdmissionResult result = await admitted.WaitAsync(TimeSpan.FromSeconds(30));
 
         Assert.Null(result.Lease);
         Assert.Equal(failure switch { "refused" => "BARRIER_PENDING", "transport" => "SERVICE_UNAVAILABLE", _ => "INVALID_ADMISSION" }, result.Error);
