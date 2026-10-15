@@ -219,13 +219,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     // We can't reuse _tickCount because that one resets every ~1s for the TPS calculation.
     private long _pingTickCounter;
 
-    // The mean tick time the pings carry (#1016), tick thread only: the busy time and the count of the ticks that ended
-    // in the open window, which began at the start of its first tick, and the mean of the last window that closed.
-    private static readonly long s_tickWindowLength = Stopwatch.Frequency; // one second
-    private long _tickWindowStart;
-    private long _tickWindowBusy;
-    private int _tickWindowTicks;
-    private uint _meanTickMicros;
+    // The ticks in windows of about a second (#1016): the mean tick time the pings carry. Tick thread only.
+    private TickWindow _tickWindow = new(Stopwatch.Frequency);
 
     private long _completedTicks;
     private volatile bool _isListening;
@@ -234,7 +229,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     public long CompletedTicks => Interlocked.Read(ref _completedTicks);
 
     /// <inheritdoc />
-    public uint MeanTickMicros => _meanTickMicros;
+    public uint MeanTickMicros => _tickWindow.MeanMicros;
 
     private Histogram<double> _tickDuration;
     private Histogram<double> _deadlineOvershoot;
@@ -873,30 +868,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         double tickUs = TicksToUs(tickEnd - tickStart);
         _tickDurationHist.Record((long)tickUs);
         _tickDuration.Record(tickUs);
-        MeasureTick(tickStart, tickEnd);
-    }
-
-    /// <summary>
-    /// Adds one whole tick to the window the pings' mean is taken over (#1016), from the two timestamps the tick's own
-    /// duration was already measured with: no clock read, no allocation, and the division once a window. A window opens
-    /// at the start of the first tick after the last one closed, and closes at the end of the first tick that ends a
-    /// second or more after that. A tick that threw is in no window, as it is in no tick histogram.
-    /// </summary>
-    private void MeasureTick(long tickStart, long tickEnd)
-    {
-        if (_tickWindowTicks == 0)
-            _tickWindowStart = tickStart;
-
-        _tickWindowBusy += tickEnd - tickStart;
-        _tickWindowTicks++;
-        if (tickEnd - _tickWindowStart < s_tickWindowLength)
-            return;
-
-        // Never 0, which the ping keeps for "not reported", and no more than the field holds.
-        double meanUs = TicksToUs(_tickWindowBusy) / _tickWindowTicks;
-        _meanTickMicros = (uint)Math.Clamp(Math.Round(meanUs), 1, uint.MaxValue);
-        _tickWindowBusy = 0;
-        _tickWindowTicks = 0;
+        // From the two timestamps the tick's duration was just measured with (#1016): no clock read of its own. A tick
+        // that threw is in no window, as it is in no tick histogram.
+        _tickWindow.Add(tickStart, tickEnd);
     }
 
     /// <summary>Records the stage that began at <paramref name="start" /> under its tag; returns now, the next stage's start.</summary>
