@@ -341,11 +341,31 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
             connection.Send(SChatMessagePacket.System(text, time.GetUtcNow().UtcDateTime, PacketEncoder.Shared));
     }
 
+    /// <summary>
+    /// The line to every online member: the same line for each, so it is encoded once, for the first, and shared by the
+    /// others, and the clock is read once (#973, as a said line is shared since #875).
+    /// </summary>
     public void SendLine(Party party, string text)
     {
         IReadOnlyList<PartyMember> members = party.Members;
-        for (int i = 0; i < members.Count; i++)
-            SendLine(members[i].Id.Value, text);
+        OutboundPacket line = default;
+        try
+        {
+            for (int i = 0; i < members.Count; i++)
+            {
+                if (OnlineConnection(members[i].Id.Value) is not { } connection)
+                    continue;
+
+                if (line.Payload is null)
+                    line = SChatMessagePacket.System(text, time.GetUtcNow().UtcDateTime, PacketEncoder.Shared);
+
+                connection.Send(line.Share());
+            }
+        }
+        finally
+        {
+            line.Release();
+        }
     }
 
     public bool InCountdown(uint characterId) => _countdowns.ContainsKey(characterId);

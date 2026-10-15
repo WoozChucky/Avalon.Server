@@ -27,7 +27,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// handlers over the real <see cref="PartyService" />), and what they send framed and sealed by the send pass, as a tick
 /// ends. <see cref="SaidLine" />: a line said to the town, heard by all 30. <see cref="Whisper" />: <c>/w</c> of seven
 /// words to a player in another party, and its echo. <see cref="PartyLine" />: <c>/p</c> of nine words to the three
-/// members. <see cref="LeaveInviteAccept" />: a party's leader leaves (the leadership passes, the party keeps two), the
+/// members. <see cref="SystemLineToParty" />: a system line to those three, as <see cref="PartyService.SendLine(Party, string)" />
+/// sends a join, a leave or a handover. <see cref="LeaveInviteAccept" />: a party's leader leaves (the leadership passes, the party keeps two), the
 /// new leader invites it back by name and it accepts: three events, the rosters and lines they send. The chat rate limit
 /// is off (<c>Game:ChatMessagesPerMinute</c> 0), so every line is delivered however often it runs.
 /// </summary>
@@ -97,6 +98,7 @@ public class SocialEventBenchmarks
         Require(SaidLine, Players, "a said line reaches the town");
         Require(Whisper, 2, "a whisper reaches its target and echoes back");
         Require(PartyLine, PartySize, "a party line reaches the three members");
+        Require(SystemLineToParty, PartySize, "a system line reaches the three members");
         LeaveInviteAccept();
         if (_parties.PartyOf(1)?.Members.Count != PartySize)
             throw new InvalidOperationException("The party is not whole again after its leader left and came back.");
@@ -110,6 +112,23 @@ public class SocialEventBenchmarks
 
     [Benchmark]
     public void PartyLine() => Run(_chat, _connections[0], _partyPacket);
+
+    /// <summary>A system line to party 0's three members, as a join, a leave or a handover sends one.</summary>
+    [Benchmark]
+    public void SystemLineToParty()
+    {
+        NetworkSendScheduler.DeferSignalsOnCurrentThread();
+        try
+        {
+            _parties.SendLine(_parties.PartyOf(1)!, "Socialaa is now the party leader.");
+            _world.Scheduler.SignalAll();
+            _world.Scheduler.RunAllPasses();
+        }
+        finally
+        {
+            NetworkSendScheduler.ResumeSignalsOnCurrentThread();
+        }
+    }
 
     /// <summary>Party 0's turn: its leader leaves, the new leader invites it back and it accepts, joining last.</summary>
     [Benchmark]

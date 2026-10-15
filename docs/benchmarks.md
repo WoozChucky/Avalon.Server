@@ -1264,8 +1264,9 @@ the loop's own work between packets into each duration.
 ### Social events — `Benchmarks/SocialEventBenchmarks.cs` (#973)
 
 One of each of `town-social`'s events through the real handlers, with the send pass after each: a line said to a town
-of 30 (`SaidLine`), a `/w` whisper (`Whisper`), a `/p` party line (`PartyLine`), and a party's turn: its leader leaves,
-is invited back by name and accepts (`LeaveInviteAccept`). The chat rate limit is off, so every line is delivered;
+of 30 (`SaidLine`), a `/w` whisper (`Whisper`), a `/p` party line (`PartyLine`), a system line to a party of three
+(`SystemLineToParty`, as a join, a leave or a handover sends one), and a party's turn: its leader leaves, is invited back
+by name and accepts (`LeaveInviteAccept`). The chat rate limit is off, so every line is delivered;
 setup checks what each event sent. Results: [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15).
 
 ```bash
@@ -3944,6 +3945,20 @@ A fourth run after the change, taken while other builds ran, read all four highe
 is left out of the ranges, with the same bytes. A said line is the sends' cost, 30 packets sealed and framed, and does
 not move; a whisper and a party line are 0.15 to 0.2 µs (10 to 13%) faster, and a party turn about 1.5 µs (13%), for
 the strings, lists and entries they no longer make.
+
+**A system line to a party, encoded once** (#973, in the same code). `PartyService.SendLine(Party, text)` sent each
+online member the line through the per-character `SendLine`, so the same line was encoded once per member, into a
+payload of its own, and the clock read once per member. It now reads the clock once and encodes the line for the first
+online member, and every other member is sent the same payload (`OutboundPacket.Share`), as a said line is since #875;
+each connection's send pass frames and seals it as for any shared packet. The line is the same for every member: the
+same text, the same time. A join, a leave and a handover each send one, so a party's turn sends three. Allocations do
+not change (the payloads are pooled, 0 B before and after); the time does. Three runs each, before and after
+alternating, the machine shared as above:
+
+| Benchmark | Before | After |
+|---|---|---|
+| `SystemLineToParty` (three members) | 1.69–1.78 µs | 1.41–1.70 µs (two at 1.41, one noisy run at 1.70, median 1.62) |
+| `LeaveInviteAccept` | 9.46–9.77 µs | 8.84–9.24 µs |
 
 ### The forest-combat scenario
 
