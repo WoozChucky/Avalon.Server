@@ -186,6 +186,38 @@ public class ChatRateLimitShould
         Assert.Equal(Budget, Heard(b, ChatChannel.Party).Count);
     }
 
+    /// <summary>
+    /// #944: a message that says nothing once stripped and trimmed is no message. Said, it is dropped and nobody is
+    /// told; /p and /w answer their usage, as for no text at all; and none of them uses any of the budget.
+    /// </summary>
+    [Fact]
+    public void Drop_a_message_that_says_nothing_once_stripped_and_trimmed_without_spending_budget()
+    {
+        PartyClient a = _w.Online(1, "Aren");
+        PartyClient b = _w.Online(2, "Kaela");
+        _w.Form(a, b);
+
+        for (int i = 0; i < 2 * Budget; i++)
+        {
+            Send(a, "   ");
+            Send(a, "\u200B\u202E \u2028");
+            Send(a, "/p \uFEFF ");
+            Send(a, "/w Kaela \u0007\u200D");
+        }
+
+        Assert.Equal(Enumerable.Range(0, 2 * Budget).SelectMany(_ => new[] { "Usage: /p <message>", WhisperCommand.Usage }),
+            a.Lines());
+        Assert.Empty(Heard(a, ChatChannel.Say));
+        Assert.Empty(b.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));
+
+        a.Clear();
+        for (int i = 0; i < Budget; i++)
+            Send(a, "hello");
+
+        Assert.Empty(a.Lines());
+        Assert.Equal(Budget, Heard(a, ChatChannel.Say).Count);
+    }
+
     [Fact]
     public void Tell_a_sender_over_the_limit_nothing_about_who_is_online()
     {

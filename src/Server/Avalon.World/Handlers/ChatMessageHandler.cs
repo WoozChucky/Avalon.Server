@@ -12,7 +12,8 @@ namespace Avalon.World.Handlers;
 /// A slash command runs on the tick; anything else is said aloud, to everyone in the sender's instance,
 /// the sender included (spec 2026-09-30 section 5), except a listener that ignores the sender (#723). Before either,
 /// a message over <see cref="ChatMessageLimit.MaxBytes" /> is refused (#936). This is the only handler of the opcode
-/// and the only caller of the command dispatcher, so the rule holds for every command as for plain chat.
+/// and the only caller of the command dispatcher, so the rule holds for every command as for plain chat. A said line
+/// goes out stripped and trimmed (<see cref="ChatText" />, #944), and one that says nothing then is dropped.
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_CHAT_MESSAGE)]
 public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatcher,
@@ -51,6 +52,13 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
             return;
         }
 
+        // A message that says nothing once stripped and trimmed (#944) is dropped: nobody hears it, nobody is told, and
+        // it uses none of the rate limit.
+        if (ChatText.SaysNothing(message))
+        {
+            return;
+        }
+
         // Before anything is looked up or sent: an over-limit message is not said, and only the sender is told.
         if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
         {
@@ -59,12 +67,14 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
             return;
         }
 
+        // What is said: the message without the characters a line may not carry (#944), the message itself when clean.
+        string said = ChatText.Clean(message);
         ulong accountId = connection.AccountId is { } account ? (ulong)account.Value : 0UL;
 
         if (world.InstanceRegistry.GetInstanceById(sender.InstanceId) is not MapInstance instance)
         {
             // Nowhere to say it: the sender still sees its own line.
-            connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
+            connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, said, packet.DateTime,
                 PacketEncoder.Shared, characterClass: sender.Class));
             rateLimiter.Record(sender.Guid.Id);
             return;
@@ -81,7 +91,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
 
             if (line.Payload is null)
             {
-                line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
+                line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, said, packet.DateTime,
                     PacketEncoder.Shared, characterClass: sender.Class);
             }
 

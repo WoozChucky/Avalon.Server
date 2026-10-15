@@ -168,7 +168,8 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
             return;
 
         ReadOnlySpan<char> text = CommandText.AfterCommandWord(ctx.Packet.Message);
-        if (text.IsEmpty)
+        // Text that says nothing once stripped and trimmed (#944) is no message, as none is.
+        if (ChatText.SaysNothing(text))
         {
             ctx.Reply("Usage: /p <message>");
             return;
@@ -198,8 +199,9 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
             {
                 if (line.Payload is null)
                 {
-                    // The one string the line makes: its text, a slice of the message until now (#973).
-                    line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, text.ToString(),
+                    // The one string the line makes: its text, stripped and trimmed (#944), a slice of the message
+                    // until now (#973).
+                    line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, ChatText.Clean(text),
                         ctx.Packet.DateTime, PacketEncoder.Shared, ChatChannel.Party, characterClass: sender.Class);
                 }
 
