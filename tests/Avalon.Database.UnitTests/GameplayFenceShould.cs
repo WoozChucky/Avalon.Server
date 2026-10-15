@@ -44,7 +44,7 @@ public sealed class GameplayFenceShould
     /// <summary>
     /// #1013: a confirmed takeover replaces a pending session, as it does an active one. The replaced admission, its
     /// first activation having reached the guard and its answer lost, can neither activate in the Auth database nor
-    /// advance, activate or write through the guard once the takeover advanced it.
+    /// advance, activate or write through the guard once the takeover advanced it. A reconnect never replaces it.
     /// </summary>
     [Fact]
     public async Task Fence_out_a_pending_admission_that_a_confirmed_takeover_replaced()
@@ -62,6 +62,7 @@ public sealed class GameplayFenceShould
         Assert.NotNull(await fences.AdvanceAsync(replaced, false, until, CancellationToken.None));
 
         Assert.Null(await sessions.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 1), now));
+        Assert.Null(await sessions.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 1) with { Takeover = true, Reconnect = true }, now));
         GameSession? takeover = await sessions.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 1) with { Takeover = true }, now);
         Assert.NotNull(takeover);
         Assert.Equal(2, takeover!.FencingToken);

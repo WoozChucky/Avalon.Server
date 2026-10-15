@@ -31,6 +31,8 @@ internal sealed record JoinTicketGrant
     public required string Environment { get; init; }
     public long ExpectedFence { get; init; }
     public bool Takeover { get; init; }
+    /// <summary>A reconnect ticket: it may replace an active session, never a pending one (#1013).</summary>
+    public bool Reconnect { get; init; }
     public DateTime ExpiresAt { get; init; }
     public DateTime AuthorizationUntil { get; init; }
     public string? Binding { get; init; }

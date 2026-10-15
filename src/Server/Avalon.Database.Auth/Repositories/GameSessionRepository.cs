@@ -12,6 +12,8 @@ public sealed record GameSessionReservation(AccountId AccountId, long ExpectedFe
 {
     public Guid GameContextId { get; init; }
     public DateTime AdmissionExpiresAt { get; init; } = DateTime.MaxValue;
+    /// <summary>A reconnect: its <see cref="Takeover" /> replaces an active head, never a pending one (#1013).</summary>
+    public bool Reconnect { get; init; }
 }
 
 public interface IGameSessionRepository
@@ -70,10 +72,12 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
             return head;
         }
 
-        // A confirmed takeover replaces a live pending head as it does an active one (#1013): the fencing token keeps
-        // the replaced admission from activating or writing, and a pending head keeps its last active ancestor below.
+        // A confirmed takeover replaces a live pending head as it does an active one (#1013), a reconnect only an active
+        // one: the fencing token keeps the replaced admission from activating or writing, and a pending head keeps its
+        // last active ancestor below.
         if ((head?.FencingToken ?? 0) != reservation.ExpectedFence ||
-            (head?.State is GameSessionState.Pending or GameSessionState.Active && head.LeaseUntil > now && !reservation.Takeover))
+            (head?.State == GameSessionState.Pending && head.LeaseUntil > now && (!reservation.Takeover || reservation.Reconnect)) ||
+            (head?.State == GameSessionState.Active && head.LeaseUntil > now && !reservation.Takeover))
         {
             return null;
         }
