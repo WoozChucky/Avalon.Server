@@ -209,7 +209,7 @@ public class InstanceTransferReplicationShould
         return creature;
     }
 
-    /// <summary>The handlers' continuations run as soon as they are queued; every task here is already complete.</summary>
+    /// <summary>The handlers' continuations run as soon as their tasks complete, in the call that queued them.</summary>
     private static void RunContinuationsInline(IWorldConnection connection, Avalon.World.World world)
     {
         // A build is published on the tick (#639): publish first, as the tick would before the continuation runs.
@@ -222,8 +222,13 @@ public class InstanceTransferReplicationShould
             });
         connection.When(c => c.EnqueueContinuation(Arg.Any<Task<MapTemplateId>>(), Arg.Any<Action<MapTemplateId>>()))
             .Do(call => call.Arg<Action<MapTemplateId>>()(call.Arg<Task<MapTemplateId>>().GetAwaiter().GetResult()));
+        // The town return's lookup runs on the database work queue (#1050): wait for it as the tick would, then run.
         connection.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
-            .Do(call => call.Arg<Action>()());
+            .Do(call =>
+            {
+                Assert.True(call.Arg<Task>().Wait(TimeSpan.FromSeconds(30)), "a continuation's task hung");
+                call.Arg<Action>()();
+            });
     }
 
     /// <summary>
