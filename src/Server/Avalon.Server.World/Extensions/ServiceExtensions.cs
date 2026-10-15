@@ -151,7 +151,9 @@ public static class ServiceExtensions
         services.AddSingleton<ILootAllocator, PartyLootAllocator>();
         services.AddSingleton<ICharacterSaver, CharacterSaver>();
         services.AddSingleton<ICharacterSaveScheduler, CharacterSaveScheduler>();
-        services.AddSingleton<IWorldDatabaseWork, WorldDatabaseWork>();
+        // The character select's own queue, with the database lane's capacity, beside the static one character create
+        // and delete use; counted as lane "select" on world.work.refusals (#1050).
+        services.AddSingleton<IWorldDatabaseWork>(new WorldDatabaseWork(lane: "select"));
         services.AddSingleton<PredefinedChunkLayoutSource>();
         services.AddSingleton<ProceduralChunkLayoutSource>();
         services.AddSingleton<IChunkLayoutSourceResolver, ChunkLayoutSourceResolver>();

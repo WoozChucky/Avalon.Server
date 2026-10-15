@@ -127,14 +127,17 @@ retry changes too, the context's application not allowed on the world, which the
 `WORLD_NOT_ALLOWED` (the REST join-ticket issue still answers `WORLD_UNAVAILABLE` for it). No value was added to the wire.
 
 **A character select the world cannot load is closed at once (#1050, owner decision).** Every read and the one write of
-the select chain run on the database work queue (`WorldDatabaseWork.ThreadPool`, 256 outstanding). A step it refuses
-because it is full cancels the select and closes the connection with `SelectTimeout`, the answer the stalled-select
-sweep gives a select that cannot finish, which such a select got 15 s later before; the client logs in and selects
-again. The refusal is counted under `world.work.refusals` (lane `database`). It is safe at any step: nothing before the
+the select chain, the town lookup for a character saved outside a town included, and the world entry check before it,
+run on the select's own work queue (the one the container registers, with the database lane's capacity: 256
+outstanding). A step or an entry check it refuses because it is full cancels the select and closes the connection as
+busy, with `SelectTimeout` and "The world is busy; try again", the answer the stalled-select sweep gives a select that
+cannot finish, which such a select got 15 s later before; the client logs in and selects again. The final spawn's entry
+check (on `WorldDatabaseWork.ThreadPool`) is answered the same way. The refusal is counted under
+`world.work.refusals` (lane `select`, or `database` for the final spawn). It is safe at any step: nothing before the
 pending spawn is live. The one write, the selected character's row (still offline), writes back the row as the select
 read it, with the town it was moved to if it was elsewhere, and the next select reads and writes it again; the entity
-is in no instance and held by nothing but the chain. A refused entry check before the select closes with
-`Maintenance`, as before (#821).
+is in no instance and held by nothing but the chain. An entry check that ran and failed (it threw, or took more than
+5 s) still closes with `Maintenance` (#821): only a full queue, which never ran it, is the busy answer.
 
 ---
 

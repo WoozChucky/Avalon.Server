@@ -170,6 +170,13 @@ public class CharacterSelectHandler(
         {
             _entryCheckInFlight.Remove(connection);
             if (!connection.IsConnected || connection.IsClosing) return;
+            if (decision.Busy)
+            {
+                // A full work queue never ran the check (#1050): the world is busy, not in maintenance.
+                BusyEntry.Close(connection, logger, Clock);
+                return;
+            }
+
             if (!decision.IsValidAt(Clock.GetUtcNow().UtcDateTime))
             {
 #pragma warning disable MA0045 // tick continuation cannot await; the close finishes on its own
@@ -213,6 +220,10 @@ public class CharacterSelectHandler(
 
                 OnCharacterReceived(connection, select, found.Character);
             });
+
+        // A first step the full work queue refused has closed the connection (#1050): nothing more to read for it.
+        if (!connection.SelectInProgress || connection.IsClosing)
+            return;
 
         // Locale for dialogue text. Independent of the select chain: the default is enUS, so a slow
         // or failed read costs English text rather than correctness. TODO-029 wants the world's
@@ -354,16 +365,12 @@ public class CharacterSelectHandler(
         });
     }
 
-    private static readonly FailureLogThrottle s_refusedSelects = new();
-
     /// <summary>
-    /// A step the full database work queue refused (#1050, owner decision): the select is cancelled and the connection
-    /// closed at once with <see cref="DisconnectReason.SelectTimeout" />, the answer the stalled-select sweep gives a select
-    /// that cannot finish, which it got 15 s later before. The queue counted the refusal (<c>world.work.refusals</c>,
-    /// lane <c>database</c>); a Warning, without an exception, at most once per
-    /// <see cref="FailureLogThrottle.Interval" /> for the world. Safe at any step: nothing before the pending spawn is
-    /// live. The one write, the selected character's row (still offline), writes back what the select read, and the next
-    /// select reads and writes it again; the entity is in no instance and held by nothing but this chain. On the tick.
+    /// A step the full work queue refused (#1050, owner decision): the select is cancelled and the connection closed at
+    /// once as busy (<see cref="BusyEntry" />), which the stalled-select sweep did 15 s later before. Safe at any step:
+    /// nothing before the pending spawn is live. The one write, the selected character's row (still offline), writes
+    /// back what the select read, and the next select reads and writes it again; the entity is in no instance and held
+    /// by nothing but this chain. On the tick.
     /// </summary>
     private void RefuseSelect(IWorldConnection connection, long select)
     {
@@ -371,17 +378,7 @@ public class CharacterSelectHandler(
             return;
 
         connection.CancelSelect();
-        if (s_refusedSelects.TryTake(Clock, out int suppressed))
-        {
-            logger.LogWarning(
-                "Closed a character select for account {AccountId}: the database work queue is full; {Suppressed} more were refused since the last line",
-                connection.AccountId, suppressed);
-        }
-
-#pragma warning disable MA0045 // a tick-thread handler; the close finishes on its own
-        GracefulShutdownHelper.NotifyAndClose(connection, "The world is busy; try again", DisconnectReason.SelectTimeout,
-            logger);
-#pragma warning restore MA0045
+        BusyEntry.Close(connection, logger, Clock);
     }
 
     /// <summary>
@@ -517,8 +514,9 @@ public class CharacterSelectHandler(
             logger.LogWarning(
                 "Character {CharacterId} ({Name}) persisted in non-town map {MapId}; redirecting to nearest town",
                 character.Id, character.Name, character.Map);
+            // On the work queue, as every other read of the select: the resolver opens a scope and queries.
             Step(connection, select,
-                respawnTargetResolver.ResolveTownAsync(loadedTemplate.Id, CancellationToken.None),
+                _databaseWork.Run(() => respawnTargetResolver.ResolveTownAsync(loadedTemplate.Id, CancellationToken.None)),
                 townMapId =>
                 {
                     MapTemplate? townTpl = world.MapTemplates.FindById(townMapId);
