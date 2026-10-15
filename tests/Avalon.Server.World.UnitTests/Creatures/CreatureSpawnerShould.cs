@@ -157,15 +157,17 @@ public class CreatureSpawnerShould
     }
 
     /// <summary>
-    /// #709: <c>/reload creatures</c> is forward-only for the advertised rarity too: a creature already
-    /// standing keeps the rarity it spawned with, and only the next spawn of that template is sent the new one.
+    /// #709, #1022: <c>/reload creatures</c> is forward-only for the advertised rarity and display id too: a
+    /// creature already standing keeps the values it spawned with, and only the next spawn of that template is
+    /// sent the new ones.
     /// </summary>
     [Fact]
-    public async Task Fix_The_Rarity_At_Spawn_So_A_Creature_Reload_Reaches_Only_Later_Spawns()
+    public async Task Fix_The_Rarity_And_Display_Id_At_Spawn_So_A_Creature_Reload_Reaches_Only_Later_Spawns()
     {
         CreatureTemplate template = PlainTemplate(64, "Promoted Wolf");
         template.MinLevel = 1;
         template.MaxLevel = 1;
+        template.DisplayId = 2;
 
         (CreatureSpawner spawner, StaticData data, MutableRepos repos) = ReloadableSpawnerOver(template);
 
@@ -178,6 +180,7 @@ public class CreatureSpawnerShould
             MinLevel = 1,
             MaxLevel = 1,
             Rarity = CreatureRarity.Boss,
+            DisplayId = 5,
             HealthModifier = 1f,
             DamageModifier = 1f,
             ExperienceModifier = 1f
@@ -186,9 +189,12 @@ public class CreatureSpawnerShould
 
         ICreature after = spawner.Spawn(template.Id);
 
-        Assert.Null(ObjectStateWriter.From(before, GameEntityFields.CreatureUpdate).Rarity);
-        Assert.Equal(Avalon.Network.Packets.State.CreatureRarity.Boss,
-            ObjectStateWriter.From(after, GameEntityFields.CreatureUpdate).Rarity);
+        Avalon.Network.Packets.State.ObjectState sentBefore = ObjectStateWriter.From(before, GameEntityFields.CreatureUpdate);
+        Avalon.Network.Packets.State.ObjectState sentAfter = ObjectStateWriter.From(after, GameEntityFields.CreatureUpdate);
+        Assert.Null(sentBefore.Rarity);
+        Assert.Equal(Avalon.Network.Packets.State.CreatureRarity.Boss, sentAfter.Rarity);
+        Assert.Equal(2u, sentBefore.DisplayId);
+        Assert.Equal(5u, sentAfter.DisplayId);
     }
 
     /// <summary>Forest content pass: a procedural map's depth band picks the level; the template keeps its identity and kit.</summary>
