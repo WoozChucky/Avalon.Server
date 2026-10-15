@@ -100,8 +100,10 @@ TLS record that never completes delivers none, and is not timed by this deadline
 The close writes one Warning (the connection, its account once it has one, its address, how many packets it had
 delivered, and the deadline), never an exception or anything the peer sent, and counts one in
 `network.in.protocol_kicks` with `reason` `frame_timeout` ([instrumentation](instrumentation.md#protocol-violations)),
-as the read loop's other refusals do (#897, [packet handlers](packet-handlers.md)). A frame that completes just as the
-deadline expires may be closed too: that is the deadline's edge.
+as the read loop's other refusals do (#897, [packet handlers](packet-handlers.md)). A connection that was already
+closing when the deadline expired gets neither: its close was decided for another reason (the receive queue's cap, the
+admission timeout), which has its own line and count, and its socket was only waiting for the outbox to flush. A frame
+that completes just as the deadline expires may be closed too: that is the deadline's edge.
 
 The largest frame a client sends is under a kilobyte ([above](#the-inbound-frame-length-limit)), so 10 s is far more
 than an honest client needs even on a poor link; there is no setting that turns the deadline off. The clock is the

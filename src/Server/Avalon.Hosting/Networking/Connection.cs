@@ -563,8 +563,11 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
                     OnFrameRefused();
                 }
                 // The stream stopped at a frame the peer started and did not complete in time (#938): a protocol
-                // violation as the catches below are, with their one Warning and one count, and the same close.
-                else if (_stream.FrameTimedOut)
+                // violation as the catches below are, with their one Warning and one count, and the same close. Not
+                // when the connection was already closing: its close was decided for another reason (the receive
+                // queue's cap, the admission timeout), which has its own line and count, and the deadline expired
+                // only while the socket waited for the outbox to flush.
+                else if (_stream.FrameTimedOut && !IsClosing)
                 {
                     ReadLog.FrameTimedOut(_logger, Id, AccountIdForLog, RemoteEndPoint,
                         Volatile.Read(ref PacketReceivedCount), _inboundFrameTimeout.TotalSeconds);

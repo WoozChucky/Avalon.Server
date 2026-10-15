@@ -15,7 +15,8 @@ namespace Avalon.Server.World.UnitTests.WorldConnection;
 /// <summary>
 /// A world connection whose peer starts a frame and does not finish it is closed once the frame has had
 /// <c>Hosting:InboundFrameTimeoutSeconds</c> (#938), on the world's clock, and counted as a protocol violation, through
-/// the connection's real read loop over loopback.
+/// the connection's real read loop over loopback. One already closing for another reason when the deadline expires is
+/// not counted again: its socket stays up while its outbox flushes, and its close was decided before.
 /// </summary>
 public sealed class InboundFrameDeadlineShould
 {
@@ -36,10 +37,13 @@ public sealed class InboundFrameDeadlineShould
         public readonly ConcurrentQueue<string> Violations = new();
         public readonly SemaphoreSlim ReadStarted = new(0);
 
+        /// <summary>Holds a close at its outbox's flush, with the socket still up, until it is set.</summary>
+        public readonly TaskCompletionSource Flushed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         protected override Task<PacketStream> GetStream(TcpClient client) =>
             Task.FromResult(new PacketStream(new ReadCountingStream(new NetworkStream(client.Client), ReadStarted)));
 
-        protected override IOutbox OnCreateOutbox() => new NoOutbox();
+        protected override IOutbox OnCreateOutbox() => new NoOutbox(Flushed.Task);
 
         protected override void OnProtocolViolation(string reason)
         {
@@ -56,7 +60,7 @@ public sealed class InboundFrameDeadlineShould
         public async Task ReadAsync() => Assert.True(await ReadStarted.WaitAsync(s_guard), "the read loop did not read");
     }
 
-    private sealed class NoOutbox : IOutbox
+    private sealed class NoOutbox(Task flushed) : IOutbox
     {
         public bool Seals => false;
         public void Connect(PacketStream stream) { }
@@ -67,7 +71,7 @@ public sealed class InboundFrameDeadlineShould
             return false;
         }
 
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync() => new(flushed);
     }
 
     /// <summary>Signals each read it is asked for, before it waits on the socket.</summary>
@@ -98,8 +102,10 @@ public sealed class InboundFrameDeadlineShould
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    [Fact]
-    public async Task Close_a_connection_whose_started_frame_does_not_complete_within_the_deadline()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Close_a_connection_whose_started_frame_does_not_complete_within_the_deadline(bool alreadyClosing)
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         ((IServerBase)server).ProxyProtocol.Returns(ProxyProtocolPolicy.Disabled);
@@ -128,9 +134,17 @@ public sealed class InboundFrameDeadlineShould
         await connection.ReadAsync();
         Assert.False(connection.IsClosing);
 
-        time.Advance(TimeSpan.FromTicks(1));
-        await connection.Closed.Task.WaitAsync(s_guard);
+        // A close the server decided for another reason, held at its flush, so the read is still waiting.
+        if (alreadyClosing)
+            connection.Close(false);
+        else
+            connection.Flushed.SetResult();
 
-        Assert.Equal(["frame_timeout"], connection.Violations);
+        time.Advance(TimeSpan.FromTicks(1));
+        await connection.ExecuteTask!.WaitAsync(s_guard);
+
+        Assert.Equal(alreadyClosing ? [] : ["frame_timeout"], connection.Violations);
+        connection.Flushed.TrySetResult();
+        await connection.Closed.Task.WaitAsync(s_guard);
     }
 }
