@@ -23,4 +23,10 @@ public enum PartyResult : byte
 
     /// <summary>The server failed while handling the request; nothing is known to have changed.</summary>
     Error = 15,
+
+    /// <summary>
+    /// Too many invites too quickly (#944): the inviter's budget (<c>Game:PartyInvitesPerMinute</c>, in any 60 s) is
+    /// spent. Nothing was looked up and nothing was sent.
+    /// </summary>
+    TooFast = 16,
 }

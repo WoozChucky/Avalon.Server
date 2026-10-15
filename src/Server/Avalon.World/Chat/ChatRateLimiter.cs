@@ -5,9 +5,10 @@ namespace Avalon.World.Chat;
 
 /// <summary>
 /// One budget per sending character for every player chat message (#722): plain chat, party chat (/p) and whispers
-/// (/w), and /ignore (#723), which may query the database. Other commands are not counted. A sliding window over <see cref="Window" />, measured on the injected
-/// <see cref="TimeProvider" />, with no timers: a queue of send times per character, pruned on each call. The size of
-/// the budget is <c>Game:ChatMessagesPerMinute</c>, read on every call; 0 or below turns the limit off.
+/// (/w), and /ignore (#723), which may query the database. Other commands are not counted. A sliding window over
+/// <see cref="Window" />, measured on the injected <see cref="TimeProvider" /> (<see cref="CharacterRateBudget" />, the
+/// mechanism the party invite budget shares, #944). The size of the budget is <c>Game:ChatMessagesPerMinute</c>, read
+/// on every call; 0 or below turns the limit off.
 /// </summary>
 /// <remarks>
 /// Only a delivered message uses budget, so a caller asks <see cref="Check" /> before it looks anything up or sends
@@ -21,14 +22,10 @@ namespace Avalon.World.Chat;
 /// </remarks>
 public sealed class ChatRateLimiter(IOptions<GameConfiguration> options, TimeProvider time)
 {
-    /// <summary>
-    /// The length of the window. A constant, not a setting: the setting is a count "per minute", and a window that
-    /// could be changed would make its name wrong.
-    /// </summary>
-    public static readonly TimeSpan Window = TimeSpan.FromSeconds(60);
+    /// <summary>The length of the window (<see cref="CharacterRateBudget.Window" />).</summary>
+    public static readonly TimeSpan Window = CharacterRateBudget.Window;
 
-    private readonly object _gate = new();
-    private readonly Dictionary<uint, Queue<long>> _sent = [];
+    private readonly CharacterRateBudget _budget = new(() => options.Value.ChatMessagesPerMinute, time);
 
     // The refusal for each whole second of the window, written once: the sender over its limit is the client that
     // sends the most, and a line built per refusal was a string per message (#883). Never changed once built.
@@ -55,71 +52,14 @@ public sealed class ChatRateLimiter(IOptions<GameConfiguration> options, TimePro
     /// Whether the character may send a message now. When not, <paramref name="retryAfter" /> is the time until the
     /// oldest counted message leaves the window. Records nothing.
     /// </summary>
-    public bool Check(uint characterId, out TimeSpan retryAfter)
-    {
-        retryAfter = TimeSpan.Zero;
-        int limit = options.Value.ChatMessagesPerMinute;
-        if (limit <= 0)
-            return true;
-
-        lock (_gate)
-        {
-            if (!_sent.TryGetValue(characterId, out Queue<long>? queue))
-                return true;
-
-            long now = time.GetTimestamp();
-            Prune(queue, now);
-            if (queue.Count == 0)
-                _sent.Remove(characterId);
-
-            if (queue.Count < limit)
-                return true;
-
-            retryAfter = Window - time.GetElapsedTime(queue.Peek(), now);
-            return false;
-        }
-    }
+    public bool Check(uint characterId, out TimeSpan retryAfter) => _budget.Check(characterId, out retryAfter);
 
     /// <summary>A message from the character was delivered: it uses one place in the window.</summary>
-    public void Record(uint characterId)
-    {
-        if (options.Value.ChatMessagesPerMinute <= 0)
-            return;
-
-        lock (_gate)
-        {
-            long now = time.GetTimestamp();
-            if (!_sent.TryGetValue(characterId, out Queue<long>? queue))
-            {
-                queue = new Queue<long>();
-                _sent[characterId] = queue;
-            }
-
-            Prune(queue, now);
-            queue.Enqueue(now);
-        }
-    }
+    public void Record(uint characterId) => _budget.Record(characterId);
 
     /// <summary>The character left the world: its window is dropped, so nothing is held for a character that is gone.</summary>
-    public void Forget(uint characterId)
-    {
-        lock (_gate)
-            _sent.Remove(characterId);
-    }
+    public void Forget(uint characterId) => _budget.Forget(characterId);
 
     /// <summary>How many characters hold a window right now (one with nothing counted holds none).</summary>
-    public int TrackedCharacters
-    {
-        get
-        {
-            lock (_gate)
-                return _sent.Count;
-        }
-    }
-
-    private void Prune(Queue<long> queue, long now)
-    {
-        while (queue.Count > 0 && time.GetElapsedTime(queue.Peek(), now) >= Window)
-            queue.Dequeue();
-    }
+    public int TrackedCharacters => _budget.TrackedCharacters;
 }

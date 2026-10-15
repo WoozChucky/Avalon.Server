@@ -67,7 +67,7 @@ public class HandlerGuardsShould
                 break;
             case NetworkPacketType.CMSG_CHAT_MESSAGE:
                 new ChatMessageHandler(world, Substitute.For<ICommandDispatcher>(),
-                        new ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System))
+                        new ChatRateLimiter(Options.Create(new GameConfiguration()), TimeProvider.System), TimeProvider.System)
                     .Execute(connection, new CChatMessagePacket { Message = "Hello", DateTime = DateTime.UtcNow });
                 break;
             case NetworkPacketType.CMSG_DIALOGUE_CHOOSE:

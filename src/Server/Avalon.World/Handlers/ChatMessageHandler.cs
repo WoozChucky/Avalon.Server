@@ -12,11 +12,13 @@ namespace Avalon.World.Handlers;
 /// A slash command runs on the tick; anything else is said aloud, to everyone in the sender's instance,
 /// the sender included (spec 2026-09-30 section 5), except a listener that ignores the sender (#723). Before either,
 /// a message over <see cref="ChatMessageLimit.MaxBytes" /> is refused (#936). This is the only handler of the opcode
-/// and the only caller of the command dispatcher, so the rule holds for every command as for plain chat.
+/// and the only caller of the command dispatcher, so the rule holds for every command as for plain chat. A said line
+/// goes out stripped and trimmed (<see cref="ChatText" />, #944), and one that says nothing then is dropped. Every line
+/// is stamped with the container's clock in UTC, never with the time the client put on its message (#944).
 /// </summary>
 [PacketHandler(NetworkPacketType.CMSG_CHAT_MESSAGE)]
 public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatcher,
-    ChatRateLimiter rateLimiter)
+    ChatRateLimiter rateLimiter, TimeProvider time)
     : WorldPacketHandler<CChatMessagePacket>
 {
     public override void Execute(IWorldConnection connection, CChatMessagePacket packet)
@@ -31,7 +33,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         // parser, no lookup and no listener, uses none of the rate limit, and only the sender is told.
         if (ChatMessageLimit.Exceeds(message))
         {
-            connection.Send(SChatMessagePacket.System(ChatMessageLimit.TooLong, packet.DateTime, PacketEncoder.Shared));
+            connection.Send(SChatMessagePacket.System(ChatMessageLimit.TooLong, Now(), PacketEncoder.Shared));
             return;
         }
 
@@ -39,7 +41,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
         {
             if (!commandDispatcher.Dispatch(connection, packet))
             {
-                connection.Send(SChatMessagePacket.System("Unknown command.", packet.DateTime,
+                connection.Send(SChatMessagePacket.System("Unknown command.", Now(),
                     PacketEncoder.Shared));
             }
 
@@ -51,20 +53,30 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
             return;
         }
 
+        // A message that says nothing once stripped and trimmed (#944) is dropped: nobody hears it, nobody is told, and
+        // it uses none of the rate limit.
+        if (ChatText.SaysNothing(message))
+        {
+            return;
+        }
+
         // Before anything is looked up or sent: an over-limit message is not said, and only the sender is told.
         if (!rateLimiter.Check(sender.Guid.Id, out TimeSpan retryAfter))
         {
-            connection.Send(SChatMessagePacket.System(ChatRateLimiter.TooFast(retryAfter), packet.DateTime,
+            connection.Send(SChatMessagePacket.System(ChatRateLimiter.TooFast(retryAfter), Now(),
                 PacketEncoder.Shared));
             return;
         }
 
+        // What is said: the message without the characters a line may not carry (#944), the message itself when clean.
+        string said = ChatText.Clean(message);
+        DateTime now = Now();
         ulong accountId = connection.AccountId is { } account ? (ulong)account.Value : 0UL;
 
         if (world.InstanceRegistry.GetInstanceById(sender.InstanceId) is not MapInstance instance)
         {
             // Nowhere to say it: the sender still sees its own line.
-            connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
+            connection.Send(SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, said, now,
                 PacketEncoder.Shared, characterClass: sender.Class));
             rateLimiter.Record(sender.Guid.Id);
             return;
@@ -81,7 +93,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
 
             if (line.Payload is null)
             {
-                line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, message, packet.DateTime,
+                line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, said, now,
                     PacketEncoder.Shared, characterClass: sender.Class);
             }
 
@@ -90,4 +102,7 @@ public class ChatMessageHandler(IWorld world, ICommandDispatcher commandDispatch
 
         line.Release();
     }
+
+    // A line's stamp (#944): the server's clock, in UTC.
+    private DateTime Now() => time.GetUtcNow().UtcDateTime;
 }

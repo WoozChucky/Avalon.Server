@@ -372,7 +372,15 @@ comparison against `DateTime.Now`, a format without an offset — shifts it sile
 offset. Nothing raises.
 
 Affected today: the two chat timestamps, `SChatMessagePacket.DateTime` and its client
-counterpart. A client cannot recover the zone either and has to be told out of band.
+counterpart. A client cannot recover the zone either and has to be told out of band, so here it is
+(#944): **`SChatMessagePacket.DateTime` is UTC**, the moment the server sent the line, read from the
+container's `TimeProvider` (`GetUtcNow().UtcDateTime`) on every line: said, party and whispered
+lines, command answers and every line the server speaks. It is never the sender's time.
+`CChatMessagePacket.DateTime` is read by nothing: the server ignores what a client puts there, so a
+client's clock cannot be shown to other players, and the field stays in the schema only so the
+wire does not change. The game client sends its own clock there (with `kind` set to UTC, which the
+server's reader would honour) and does not read the field on a received line, so nothing on either
+end needed a schema change.
 
 Either end of a fix is viable and both are protocol changes. Populating the field is the smaller
 one, and it needs no reader work at all: `RuntimeTypeModel.Default.IncludeDateTimeKind = true`,

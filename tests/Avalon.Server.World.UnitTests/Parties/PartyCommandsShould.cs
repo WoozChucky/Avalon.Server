@@ -4,7 +4,9 @@ using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Chat;
 using Avalon.World.Chat;
+using Avalon.World.Handlers;
 using Avalon.World.Parties;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Server.World.UnitTests.Parties;
 
@@ -44,6 +46,51 @@ public class PartyCommandsShould
         Assert.Equal(PartyResult.NotFound, Assert.Single(a.Results()).Result);
         Assert.Equal(["Could not find Tester2."], a.Lines());
         Assert.Empty(b.Invites());
+    }
+
+    /// <summary>
+    /// #944: the invite packet and /invite share one budget per inviter, <c>Game:PartyInvitesPerMinute</c> in any 60 s.
+    /// Every invite that looks its target up spends one, whatever it finds; one that names no character does not. Past
+    /// it an invite is answered TooFast with the name as typed (and a line, on /invite): nothing is looked up and nobody
+    /// is invited, until the oldest leaves the window. Refused before the lookup, /invite names the target as typed.
+    /// </summary>
+    [Fact]
+    public void Refuse_invites_past_the_budget_the_packet_and_the_command_share_looking_nothing_up()
+    {
+        var w = new PartyTestWorld(c => c.PartyInvitesPerMinute = 3);
+        PartyClient aren = w.Online(1, "Aren");
+        PartyClient kaela = w.Online(2, "Kaela");
+        var packet = new PartyInviteHandler(w.Parties, NullLogger<PartyInviteHandler>.Instance);
+        var command = new InviteCommand(w.Parties);
+
+        packet.Execute(aren.Connection, new CPartyInvitePacket { TargetName = "Nobody" });   // NotFound: spends one
+        packet.Execute(aren.Connection, new CPartyInvitePacket { TargetName = "Tester9" });  // not a name: spends none
+        Run(command, aren, "/invite Aren");                                                // Self: spends one
+        w.Clock.Advance(TimeSpan.FromSeconds(10));
+        Run(command, aren, "/invite Nobody");                                              // NotFound: spends the last
+        aren.Clear();
+
+        packet.Execute(aren.Connection, new CPartyInvitePacket { TargetName = "Kaela" });
+        Run(command, aren, "/invite kaela");
+
+        Assert.Equal([(PartyResult.TooFast, "Kaela"), (PartyResult.TooFast, "kaela")],
+            aren.Results().Select(r => (r.Result, r.Name)));
+        Assert.Equal(["You're sending party invites too fast. Try again in a moment."], aren.Lines());
+        Assert.Empty(kaela.Invites());
+
+        // The first two leave the window: the next invite is looked up and sent.
+        w.Clock.Advance(TimeSpan.FromSeconds(50));
+        aren.Clear();
+        Run(command, aren, "/invite kaela");
+        Assert.Equal((PartyResult.Ok, "Kaela"), (Assert.Single(aren.Results()).Result, aren.Results()[0].Name));
+        Assert.Single(kaela.Invites());
+
+        // Refused before the lookup, a member who does not lead is answered with the name as typed, never as spelled.
+        PartyClient tom = w.Online(3, "Tom");
+        Assert.Equal(PartyResult.Ok, w.Parties.Respond(kaela.Id, accept: true));
+        Run(command, kaela, "/invite tom");
+        Assert.Equal((PartyResult.NotLeader, "tom"), (Assert.Single(kaela.Results()).Result, kaela.Results()[0].Name));
+        Assert.Empty(tom.Invites());
     }
 
     [Fact]

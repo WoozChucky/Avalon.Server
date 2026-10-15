@@ -60,6 +60,7 @@ public static class PartyReplies
         PartyResult.InviteExpired => $"The party invite with {name ?? "that player"} expired.",
         PartyResult.InviteDeclined => $"{name ?? "That player"} declined the party invite.",
         PartyResult.Error => "That party request failed. Please try again.",
+        PartyResult.TooFast => "You're sending party invites too fast. Try again in a moment.",
         _ => "That party request was not understood.",
     };
 }

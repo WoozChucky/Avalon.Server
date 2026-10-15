@@ -73,7 +73,7 @@ public class WhisperCommandShould
 
     [Theory]
     [InlineData("/w Kaela wait   for  me ", "wait   for  me")]
-    [InlineData("/w Kaela \t two\tparts", "two\tparts")]
+    [InlineData("/w Kaela \t two\tparts", "twoparts")] // a tab still parts name and text; in the text it is stripped (#944)
     public void Keep_the_message_as_typed(string message, string expected)
     {
         PartyClient a = _w.Online(1, "Aren");

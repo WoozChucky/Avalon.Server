@@ -90,7 +90,7 @@ public class IgnoreChatShould
         sender.Connection.AccountId.Returns(new AccountId(1));
         ignoring.Character.Ignores.Add(1, "Tester1", s_now);
 
-        new ChatMessageHandler(world, Substitute.For<ICommandDispatcher>(), ChatLimits.Off())
+        new ChatMessageHandler(world, Substitute.For<ICommandDispatcher>(), ChatLimits.Off(), TimeProvider.System)
             .Execute(sender.Connection, new CChatMessagePacket { Message = "Hello", DateTime = s_now });
 
         Assert.Empty(ignoring.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE));

@@ -129,7 +129,7 @@ public class CommandDispatcherShould
         var failure = new InvalidOperationException("x");
         var connection = new CommandConnection(AccountAccessLevel.Player);
 
-        new CommandDispatcher([new Then(Task.FromException<int>(failure))], logger)
+        new CommandDispatcher([new Then(Task.FromException<int>(failure))], logger, TimeProvider.System)
             .Dispatch(connection.Connection, new CChatMessagePacket { Message = "/then", DateTime = DateTime.UtcNow });
 
         Assert.Same(failure, Assert.Single(logger.Errors));
@@ -138,7 +138,7 @@ public class CommandDispatcherShould
     private static bool Dispatch(ICommand command, string message, AccountAccessLevel level, out CommandConnection connection)
     {
         connection = new CommandConnection(level);
-        return new CommandDispatcher([command], new CapturingLogger())
+        return new CommandDispatcher([command], new CapturingLogger(), TimeProvider.System)
             .Dispatch(connection.Connection, new CChatMessagePacket { Message = message, DateTime = DateTime.UtcNow });
     }
 

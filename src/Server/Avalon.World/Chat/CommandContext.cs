@@ -8,7 +8,8 @@ namespace Avalon.World.Chat;
 /// What a chat command runs with (spec 2026-09-30 section 5). A command runs on the tick, to completion;
 /// work it cannot finish there goes through <see cref="Then{T}" />, whose callback runs on a later tick.
 /// A faulted or cancelled task and a callback that throws are all reported through the dispatcher,
-/// exactly as a command that throws: logged at Error, and told to GameMaster and Admin only.
+/// exactly as a command that throws: logged at Error, and told to GameMaster and Admin only. Every line it sends is
+/// stamped with the server's clock (<see cref="Now" />, #944), never with the time the client put on its message.
 /// </summary>
 public sealed class CommandContext
 {
@@ -17,6 +18,7 @@ public sealed class CommandContext
     private readonly CommandDispatcher? _dispatcher;
     private readonly ICommand? _command;
 
+    /// <summary>A context of its own, outside the dispatcher: its lines are stamped with the system clock.</summary>
     public CommandContext(IWorldConnection connection, CChatMessagePacket packet, Action<Exception> onFailure)
     {
         Connection = connection;
@@ -40,9 +42,19 @@ public sealed class CommandContext
 
     public CChatMessagePacket Packet { get; }
 
+    /// <summary>
+    /// The stamp of a line sent now (#944): the container's clock (the dispatcher's), in UTC. The time on
+    /// <see cref="Packet" /> is the client's, and nothing reads it.
+    /// </summary>
+    /// <remarks>
+    /// Read through the dispatcher rather than held: every command that runs makes a context, and a field more would be
+    /// eight bytes more on each.
+    /// </remarks>
+    public DateTime Now => (_dispatcher?.Time ?? TimeProvider.System).GetUtcNow().UtcDateTime;
+
     /// <summary>A system line to the caller.</summary>
     public void Reply(string message) =>
-        Connection.Send(SChatMessagePacket.System(message, Packet.DateTime, PacketEncoder.Shared));
+        Connection.Send(SChatMessagePacket.System(message, Now, PacketEncoder.Shared));
 
     /// <summary>Runs <paramref name="callback" /> on the tick once <paramref name="task" /> has succeeded.</summary>
     public void Then<T>(Task<T> task, Action<T> callback) =>

@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.Social;
 using Avalon.Server.World.UnitTests.Chat;
 using Avalon.Server.World.UnitTests.Instances;
@@ -12,9 +13,11 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Parties;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using ProtoBuf;
 
@@ -34,7 +37,7 @@ public class ChatMessageHandlerShould
         _senderConnection.AccountId.Returns(new AccountId(1));
         _senderConnection.InGame.Returns(true);
 
-        _handler = new ChatMessageHandler(_world, _commandDispatcher, ChatLimits.Off());
+        _handler = new ChatMessageHandler(_world, _commandDispatcher, ChatLimits.Off(), TimeProvider.System);
     }
 
     private CChatMessagePacket MakePacket(string message) =>
@@ -127,7 +130,7 @@ public class ChatMessageHandlerShould
         string unit = codePoint > 0xFFFF ? char.ConvertFromUtf32(codePoint) : ((char)codePoint).ToString();
         string message = string.Concat(Enumerable.Repeat(unit, times)) + new string('z', letters);
         var limiter = new ChatRateLimiter(Options.Create(new GameConfiguration { ChatMessagesPerMinute = 1 }), TimeProvider.System);
-        var handler = new ChatMessageHandler(_world, _commandDispatcher, limiter);
+        var handler = new ChatMessageHandler(_world, _commandDispatcher, limiter, TimeProvider.System);
         MapInstance here = TestMapInstances.Build(_world);
         _world.InstanceRegistry.GetInstanceById(here.InstanceId).Returns(here);
         MapInstanceClient sender = MapInstanceClients.Join(here, 1);
@@ -151,6 +154,86 @@ public class ChatMessageHandlerShould
     }
 
     /// <summary>
+    /// #944: a said, party or whispered line goes out without the code points of the Unicode categories Control,
+    /// Format, LineSeparator and ParagraphSeparator, then trimmed. Everything else goes out as sent, emoji included, and
+    /// a surrogate pair is never split. One stripping for the three, so each case is sent all three ways.
+    /// </summary>
+    [Theory]
+    [InlineData("Hello there", "Hello there")]
+    [InlineData("a\u0000b\u0007c\u001Bd\u007Fe", "abcde")]                         // C0 controls and DEL
+    [InlineData("tab\there\r\nnext", "tabherenext")]                              // tab and line breaks are controls too
+    [InlineData("a\u0085b\u009Bc", "abc")]                                       // C1 controls
+    [InlineData("left\u202Eright\u2066iso\u2069\u200F", "leftrightiso")]         // bidi overrides, isolates and marks
+    [InlineData("zero\u200Bwidth\u200C\u2060joined", "zerowidthjoined")]         // zero-width characters
+    [InlineData("line\u2028para\u2029end", "lineparaend")]                       // line and paragraph separators
+    [InlineData("\uFEFFbom", "bom")]                                             // byte order mark
+    [InlineData("\u200B  trimmed after \u2028", "trimmed after")]                // trimmed once stripped
+    [InlineData("smile \U0001F600 \u2764\uFE0F", "smile \U0001F600 \u2764\uFE0F")] // emoji, and the selector they carry
+    [InlineData("\U0001F468\u200D\U0001F469", "\U0001F468\U0001F469")]             // the joiner goes, both pairs stay whole
+    [InlineData("flag\U000E0067\U000E0062", "flag")]                              // format characters past the first plane
+    public void Strip_what_a_line_may_not_carry_from_said_party_and_whispered_lines(string text, string sent)
+    {
+        MapInstance here = TestMapInstances.Build(_world);
+        _world.InstanceRegistry.GetInstanceById(here.InstanceId).Returns(here);
+        MapInstanceClient aren = MapInstanceClients.Join(here, 1);
+        MapInstanceClient kaela = MapInstanceClients.Join(here, 2);
+        aren.Character.Name = "Aren";
+        kaela.Character.Name = "Kaela";
+        aren.Connection.AccessLevel.Returns(AccessLevels.Player);
+        var parties = new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
+            NullLogger<PartyService>.Instance);
+        parties.CharacterOnline(aren.Connection);
+        parties.CharacterOnline(kaela.Connection);
+        Assert.Equal(PartyResult.Ok, parties.Invite(1, "Kaela"));
+        Assert.Equal(PartyResult.Ok, parties.Respond(2, accept: true));
+        var handler = new ChatMessageHandler(_world, new CommandDispatcher(
+            [new WhisperCommand(parties.Online, ChatLimits.Off()), new PartyChatCommand(parties, ChatLimits.Off())],
+            NullLogger<CommandDispatcher>.Instance, TimeProvider.System), ChatLimits.Off(), TimeProvider.System);
+        kaela.Sent.Clear();
+
+        handler.Execute(aren.Connection, MakePacket(text));
+        handler.Execute(aren.Connection, MakePacket("/p " + text));
+        handler.Execute(aren.Connection, MakePacket("/w Kaela " + text));
+
+        // Each message compared on its own, ordinally: a comparison through a tuple is culture-aware and would not see
+        // the zero-width and format characters this is about.
+        List<SChatMessagePacket> heard = kaela.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE);
+        Assert.Equal([ChatChannel.Say, ChatChannel.Party, ChatChannel.Whisper], heard.Select(m => m.Channel));
+        Assert.All(heard, m => Assert.Equal(sent, m.Message, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// #944: every line is stamped with the server's clock in UTC, read when the line is sent, and never with the time
+    /// the client put on its message: a said line, a whisper and its echo, a command's reply and the handler's own.
+    /// </summary>
+    [Fact]
+    public void Stamp_every_line_with_the_servers_clock_never_the_senders()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 15, 12, 30, 0, TimeSpan.Zero));
+        var online = new PartyTestWorld();
+        var handler = new ChatMessageHandler(_world,
+            new CommandDispatcher([new WhisperCommand(online.Parties.Online, ChatLimits.Off())],
+                NullLogger<CommandDispatcher>.Instance, clock),
+            ChatLimits.Off(), clock);
+        PartyClient aren = online.Online(1, "Aren");
+        PartyClient kaela = online.Online(2, "Kaela");
+        aren.Connection.AccessLevel.Returns(AccessLevels.Player);
+        var clientsClock = new DateTime(1999, 12, 31, 23, 59, 59, DateTimeKind.Utc);
+
+        foreach (string message in new[] { "Hello", "/w Kaela hi", "/w", "/nope" })
+        {
+            clock.Advance(TimeSpan.FromMinutes(1));
+            handler.Execute(aren.Connection, new CChatMessagePacket { Message = message, DateTime = clientsClock });
+        }
+
+        DateTime first = new(2026, 10, 15, 12, 31, 0, DateTimeKind.Utc);
+        Assert.Equal([first, first.AddMinutes(1), first.AddMinutes(2), first.AddMinutes(3)],
+            aren.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE).Select(m => m.DateTime));
+        Assert.Equal(first.AddMinutes(1),
+            Assert.Single(kaela.Read<SChatMessagePacket>(NetworkPacketType.SMSG_CHAT_MESSAGE)).DateTime);
+    }
+
+    /// <summary>
     /// The rule is on the message as sent (#936), so a command is held to it: an over-long whisper reaches neither the
     /// command nor its target.
     /// </summary>
@@ -160,8 +243,9 @@ public class ChatMessageHandlerShould
         const string Prefix = "/w Kaela ";
         var online = new PartyTestWorld();
         var handler = new ChatMessageHandler(_world,
-            new CommandDispatcher([new WhisperCommand(online.Parties.Online, ChatLimits.Off())], NullLogger<CommandDispatcher>.Instance),
-            ChatLimits.Off());
+            new CommandDispatcher([new WhisperCommand(online.Parties.Online, ChatLimits.Off())], NullLogger<CommandDispatcher>.Instance,
+                TimeProvider.System),
+            ChatLimits.Off(), TimeProvider.System);
         PartyClient aren = online.Online(1, "Aren");
         PartyClient kaela = online.Online(2, "Kaela");
         aren.Connection.AccessLevel.Returns(AccessLevels.Player);

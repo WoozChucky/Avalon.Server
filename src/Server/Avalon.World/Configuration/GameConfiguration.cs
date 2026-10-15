@@ -174,6 +174,15 @@ public class GameConfiguration
     [Range(1, 3600)]
     public int PartyInviteTimeoutSeconds { get; set; } = 60;
 
+    /// <summary>
+    /// How many party invites one character may send in any 60 seconds (#944): the invite packet and <c>/invite</c>
+    /// share the one budget, which limits invite spam. Every invite that looks its target up counts, whatever it finds;
+    /// one past the budget is answered <c>TooFast</c> and looks nothing up. 0 or below turns the limit off. The default
+    /// is in <c>appsettings.json</c>.
+    /// </summary>
+    [Range(int.MinValue, 10_000)]
+    public int PartyInvitesPerMinute { get; set; }
+
     /// <summary>Seconds a character who is no longer a member may stay in the party's instance before being moved to town.</summary>
     [Range(1, 3600)]
     public int PartyLeaveGraceSeconds { get; set; } = 60;

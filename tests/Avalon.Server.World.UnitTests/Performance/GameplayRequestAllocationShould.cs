@@ -38,8 +38,10 @@ public class GameplayRequestAllocationShould
     [Fact]
     public void Answer_a_party_request_allocating_nothing()
     {
-        var parties = new PartyService(Options.Create(new GameConfiguration()), TimeProvider.System,
-            NullLogger<PartyService>.Instance);
+        // Online, with an invite budget of one already spent (#944): an invite past it is a refusal a client can repeat.
+        var parties = new PartyService(Options.Create(new GameConfiguration { PartyInvitesPerMinute = 1 }),
+            new FakeTimeProvider(), NullLogger<PartyService>.Instance);
+        parties.CharacterOnline(_connection);
         var invite = new PartyInviteHandler(parties, NullLogger<PartyInviteHandler>.Instance);
         var respond = new PartyInviteResponseHandler(parties, NullLogger<PartyInviteResponseHandler>.Instance);
         var kick = new PartyKickHandler(parties, NullLogger<PartyKickHandler>.Instance);
@@ -47,8 +49,11 @@ public class GameplayRequestAllocationShould
         var leave = new PartyLeaveHandler(parties, NullLogger<PartyLeaveHandler>.Instance);
         var mode = new PartyExperienceModeHandler(parties, NullLogger<PartyExperienceModeHandler>.Instance);
 
-        // Each is refused (a name that is none, no invite, no party), which is what a client can repeat for ever.
+        // Each is refused (a name that is none, an invite past the budget, no invite, no party), which is what a client
+        // can repeat for ever.
         var nobody = new CPartyInvitePacket { TargetName = "no such name" };
+        var tooFast = new CPartyInvitePacket { TargetName = "Kaela" };
+        invite.Execute(_connection, tooFast);
         var yes = new CPartyInviteResponsePacket { Accept = true };
         var out9 = new CPartyKickPacket { CharacterId = 9 };
         var up9 = new CPartyPromotePacket { CharacterId = 9 };
@@ -58,6 +63,7 @@ public class GameplayRequestAllocationShould
         long bytes = ThreadAllocations.FewestOfThreeWindows(Rounds, () =>
         {
             invite.Execute(_connection, nobody);
+            invite.Execute(_connection, tooFast);
             respond.Execute(_connection, yes);
             kick.Execute(_connection, out9);
             promote.Execute(_connection, up9);
@@ -66,7 +72,7 @@ public class GameplayRequestAllocationShould
         });
 
         Assert.Equal(0, bytes);
-        Assert.Equal(6 * 4 * Rounds, _connection.Sent);
+        Assert.Equal(1 + 7 * 4 * Rounds, _connection.Sent);
     }
 
     [Fact]
@@ -77,7 +83,8 @@ public class GameplayRequestAllocationShould
         limiter.Record(_character.Guid.Id);
         var counted = new Counted();
         var handler = new ChatMessageHandler(new QuietWorld(null!),
-            new CommandDispatcher([counted, new StaffOnly()], NullLogger<CommandDispatcher>.Instance), limiter);
+            new CommandDispatcher([counted, new StaffOnly()], NullLogger<CommandDispatcher>.Instance, TimeProvider.System),
+            limiter, TimeProvider.System);
 
         DateTime now = DateTime.UtcNow;
         var overTheLimit = new CChatMessagePacket { Message = "one more thing", DateTime = now };

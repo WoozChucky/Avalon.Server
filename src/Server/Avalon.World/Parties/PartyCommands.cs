@@ -63,7 +63,11 @@ public sealed class InviteCommand(PartyService parties) : ICommand
         }
 
         PartyResult result = parties.Invite(id, args[0]);
-        string name = parties.OnlineConnectionByName(args[0])?.Character?.Name ?? args[0];
+        // The name as its character spells it, but only when the invite looked the target up (#944): past the budget, or
+        // refused before the lookup (not the leader), the reply names what was typed, and nothing is looked up for it.
+        string name = result is PartyResult.TooFast or PartyResult.NotLeader
+            ? args[0]
+            : parties.OnlineConnectionByName(args[0])?.Character?.Name ?? args[0];
         PartyCommandReply.Send(ctx, result, name);
         if (result == PartyResult.Ok)
             ctx.Reply($"You invited {name} to the party.");
@@ -168,7 +172,8 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
             return;
 
         ReadOnlySpan<char> text = CommandText.AfterCommandWord(ctx.Packet.Message);
-        if (text.IsEmpty)
+        // Text that says nothing once stripped and trimmed (#944) is no message, as none is.
+        if (ChatText.SaysNothing(text))
         {
             ctx.Reply("Usage: /p <message>");
             return;
@@ -198,9 +203,10 @@ public sealed class PartyChatCommand(PartyService parties, ChatRateLimiter rateL
             {
                 if (line.Payload is null)
                 {
-                    // The one string the line makes: its text, a slice of the message until now (#973).
-                    line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, text.ToString(),
-                        ctx.Packet.DateTime, PacketEncoder.Shared, ChatChannel.Party, characterClass: sender.Class);
+                    // The one string the line makes: its text, stripped and trimmed (#944), a slice of the message
+                    // until now (#973).
+                    line = SChatMessagePacket.Create(accountId, sender.Guid.Id, sender.Name, ChatText.Clean(text),
+                        ctx.Now, PacketEncoder.Shared, ChatChannel.Party, characterClass: sender.Class);
                 }
 
                 target.Send(line.Share());
