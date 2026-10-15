@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
@@ -26,8 +28,8 @@ internal interface ISpatialVisitor
     /// <summary>
     /// An entry of a cell: its kind, its guid's raw value, its X/Z as of its last position write, and the entity itself,
     /// which the visitor need not read when the values decide. Every component of that position (X, Y and Z) is finite,
-    /// and the values are the entity's own: every position write reaches the grid (checked as the walk goes, in a Debug
-    /// build).
+    /// and the values are the entity's own, since every position write reaches the grid through the concrete setters (a
+    /// Debug build checks each entry as the walk reaches it).
     /// </summary>
     void VisitPlaced(SpatialKind kind, ulong rawGuid, float x, float z, IWorldObject obj);
 
@@ -267,6 +269,7 @@ internal sealed class SpatialGrid
         while (slot != Unlinked)
         {
             ref Entry entry = ref entries[slot];
+            AssertCurrent(ref entry);
             visitor.VisitPlaced(entry.Kind, entry.RawGuid, entry.X, entry.Z, entry.Object!);
             slot = entry.Next;
         }
@@ -279,9 +282,35 @@ internal sealed class SpatialGrid
         while (slot != Unlinked)
         {
             ref Entry entry = ref entries[slot];
+            AssertCurrent(ref entry);
             visitor.Visit(entry.Kind, entry.RawGuid, entry.X, entry.Z, entry.Object!);
             slot = entry.Next;
         }
+    }
+
+    /// <summary>
+    /// Debug builds only, so nothing in Release: throws when an entry no longer matches its entity, its X/Z, its cell
+    /// (which also says whether every component of the position is finite) or its guid. A position written past the
+    /// concrete setter, to a character's row say (<c>Data.X = ...</c>) while it is in an instance, leaves the grid
+    /// behind, and a view decided on the entry's values would be decided wrong; this makes every test that decides a view
+    /// fail instead. It throws rather than calling <c>Debug.Assert</c>, which would end a test host instead of failing a
+    /// test (as <c>TickThreadGuard</c> does).
+    /// </summary>
+    [Conditional("DEBUG")]
+    private void AssertCurrent(ref Entry entry)
+    {
+        IWorldObject obj = entry.Object!;
+        Vector3 position = obj.Position;
+        if (entry.X.Equals(position.x) && entry.Z.Equals(position.z) && entry.Cell == CellOf(position)
+            && entry.RawGuid == obj.Guid.RawValue)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException(
+            $"The spatial grid holds {new ObjectGuid(entry.RawGuid)} at ({entry.X}, {entry.Z}) in cell {entry.Cell}, but " +
+            $"it is {obj.Guid} at {position}: a position written past its Position setter while it is in an instance " +
+            "leaves the grid behind (#982).");
     }
 
     private static void VisitUnindexed<TVisitor>(List<IWorldObject> unindexed, SpatialKind kind, ref TVisitor visitor)
