@@ -38,8 +38,9 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
     {
         if (!options.IsValid() || !GameAuthCryptography.IsToken(ticket) || connectionId == Guid.Empty || redemptionId == Guid.Empty)
             return new(null, GameAuthErrors.InvalidAdmission);
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(GameAuthPolicy.AdmissionTimeout);
+        // Every bound here runs on the injected clock, the abandon's too, so each is measured against the others on one.
+        using var admissionTimeout = new CancellationTokenSource(GameAuthPolicy.AdmissionTimeout, clock);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, admissionTimeout.Token);
         // The session the redemption reserved, once its receipt checks out: ended again if no lease comes of it.
         JoinRedemptionReceipt? reserved = null;
         try
@@ -49,7 +50,7 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
             {
                 receipt = await PostAsync<JoinRedemptionReceipt>("join-tickets/redeem", new { JoinTicket = ticket, ConnectionId = connectionId, RedemptionId = redemptionId }, deadline.Token);
                 if (receipt?.Error is not (GameAuthErrors.InProgress or GameAuthErrors.ServiceUnavailable)) break;
-                await Task.Delay(GameAuthPolicy.RetryDelay, deadline.Token);
+                await Task.Delay(GameAuthPolicy.RetryDelay, clock, deadline.Token);
             }
             if (receipt is null || receipt.Error is not null) return new(null, SafeError(receipt?.Error));
             if (receipt.State != GameAuthStates.Pending || receipt.ServerId != options.ServerId || receipt.WorldId != options.WorldId ||
@@ -67,7 +68,7 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
             {
                 response = await PostAsync<SessionLeaseResponse>("sessions/activate", new { receipt.AccountId, GameSessionId = session, receipt.FencingToken }, deadline.Token);
                 if (response?.Error is not (GameAuthErrors.BarrierPending or GameAuthErrors.ServiceUnavailable)) break;
-                await Task.Delay(GameAuthPolicy.RetryDelay, deadline.Token);
+                await Task.Delay(GameAuthPolicy.RetryDelay, clock, deadline.Token);
             }
             if (response is null || response.Error is not null) return await AbandonAsync(receipt, SafeError(response?.Error));
             if (response.AccountId != receipt.AccountId || response.GameSessionId != receipt.GameSessionId || response.GameContextId != receipt.GameContextId ||
@@ -127,8 +128,8 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
     }
     private async Task<T?> PostAsync<T>(string path, object body, CancellationToken cancellationToken)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(GameAuthPolicy.TransportTimeout);
+        using var transportTimeout = new CancellationTokenSource(GameAuthPolicy.TransportTimeout, clock);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, transportTimeout.Token);
         using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint(path)) { Content = JsonContent.Create(body) };
         using HttpResponseMessage response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
         if (response.StatusCode is System.Net.HttpStatusCode.Redirect or System.Net.HttpStatusCode.MovedPermanently or System.Net.HttpStatusCode.TemporaryRedirect or System.Net.HttpStatusCode.PermanentRedirect)
