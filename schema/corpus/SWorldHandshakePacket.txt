@@ -18,34 +18,65 @@ message SWorldHandshakePacket
 variant absent
   field 1 AccountId : long? = null
   field 2 Verified : bool = false
+  field 3 Refusal : WorldHandshakeRefusal = None (0)
+  field 4 MinVersion : string = null
   bytes 0
 
 variant empty
   field 1 AccountId : long? = 0
   field 2 Verified : bool = false
-  bytes 2
-    08 00
+  field 3 Refusal : WorldHandshakeRefusal = None (0)
+  field 4 MinVersion : string = "" (0 chars, 0 bytes utf-8)
+  bytes 4
+    08 00 22 00
 
 variant populated
   field 1 AccountId : long? = -262144
   field 2 Verified : bool = true
-  bytes 13
-    08 80 80 f0 ff ff ff ff ff ff 01 10 01
+  field 3 Refusal : WorldHandshakeRefusal = ClientVersionTooOld (1)
+  field 4 MinVersion : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+  bytes 30
+    08 80 80 f0 ff ff ff ff ff ff 01 10 01 18 01 22
+    0d 68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64
 
 variant maxima
   field 1 AccountId : long? = 9223372036854775807
   field 2 Verified : bool = true
-  bytes 12
-    08 ff ff ff ff ff ff ff ff 7f 10 01
+  field 3 Refusal : WorldHandshakeRefusal = ClientVersionTooOld (1)
+  field 4 MinVersion : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 149
+    08 ff ff ff ff ff ff ff ff 7f 10 01 18 01 22 84
+    01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78
 
 variant minima
   field 1 AccountId : long? = -9223372036854775808
   field 2 Verified : bool = false
-  bytes 11
-    08 80 80 80 80 80 80 80 80 80 01
+  field 3 Refusal : WorldHandshakeRefusal = None (0)
+  field 4 MinVersion : string = " " (1 chars, 1 bytes utf-8)
+  bytes 14
+    08 80 80 80 80 80 80 80 80 80 01 22 01 20
 
 variant varint-edges
   field 1 AccountId : long? = -1
   field 2 Verified : bool = true
-  bytes 13
-    08 ff ff ff ff ff ff ff ff ff 01 10 01
+  field 3 Refusal : WorldHandshakeRefusal = <not a declared member> (2)
+  field 4 MinVersion : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+  bytes 147
+    08 ff ff ff ff ff ff ff ff ff 01 10 01 18 02 22
+    81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
+    c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a

@@ -1192,6 +1192,8 @@ message SVendorResultPacket {
 message SWorldHandshakePacket {
    optional int64 AccountId = 1;
    bool Verified = 2;
+   WorldHandshakeRefusal Refusal = 3;
+   optional string MinVersion = 4;
 }
 message SWorldListPacket {
    repeated WorldInfo Worlds = 1;
@@ -1244,6 +1246,10 @@ enum VendorResult {
    VendorResult_MoneyCapReached = 10;
    VendorResult_Dead = 11;
    VendorResult_Damaged = 12;
+}
+enum WorldHandshakeRefusal {
+   WorldHandshakeRefusal_None = 0;
+   WorldHandshakeRefusal_ClientVersionTooOld = 1;
 }
 message WorldInfo {
    uint32 Id = 1;
