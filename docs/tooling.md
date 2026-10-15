@@ -6,7 +6,7 @@
 | project | what it does |
 | --- | --- |
 | `Avalon.Balance` | the balance simulator's command line ([balance](balance.md)) |
-| `Avalon.Benchmarking` | BenchmarkDotNet harnesses, and the `crowd-budget` and `outbox-flush` steady-state harnesses ([benchmarks](benchmarks.md)) |
+| `Avalon.Benchmarking` | BenchmarkDotNet harnesses, the `crowd-budget` and `outbox-flush` steady-state harnesses, and the `navmesh-bake` and `candidate-ratio` (#982: a spatial index's view candidates along generated forests) measurements ([benchmarks](benchmarks.md)) |
 | `Avalon.ChunkGen` | generates the forest pieces and the town squares into the chunk catalog ([map generation](map-generation.md)) |
 | `Avalon.LoadTest` | load testing ([load testing](load-testing.md)): `provision` creates a run of bot accounts as an admin and keeps it in a local run file; `check` takes one bot (or one fighters' party) end to end into the run's world; `ramp` adds headless bots in steps (idle, walking, changing character, or fighting through the forest, alone or in parties), judges each step against the limits (Prometheus, the bots, the bot PC) and writes a report with the capacity and what failed first; `cleanup` deletes the run |
 | `Avalon.LocalDev` | local runs ([development setup](development-setup.md#from-clone-to-client-in-world)): `setup` makes the world's three local TLS certificates and writes the API's and the world server's user-secrets for them; `login` signs in over the REST API and hands the game client its game ticket; `check` walks the client's REST chain up to a join ticket |

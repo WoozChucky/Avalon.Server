@@ -6,6 +6,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Auras;
 using Avalon.World.Creatures;
+using Avalon.World.Instances;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -253,6 +254,14 @@ public class Creature : ICreature
 
     private CreatureSchedule _schedule;
 
+    /// <summary>
+    /// Where the instance this creature is in indexes it (#982): set while it is a member and cleared when it leaves, so
+    /// <see cref="Position" /> keeps that index current. The grid's alone; World-side, never on ICreature.
+    /// </summary>
+    internal ref SpatialHandle Spatial => ref _spatial;
+
+    private SpatialHandle _spatial;
+
     public IUnit? TauntedBy { get; set; }
     public DateTime TauntExpiresAt { get; set; } = DateTime.MinValue;
 
@@ -265,7 +274,13 @@ public class Creature : ICreature
     public Vector3 Position
     {
         get => _position;
-        set { _position = value; _dirtyFields |= GameEntityFields.Position; }
+        set
+        {
+            _position = value;
+            _dirtyFields |= GameEntityFields.Position;
+            if (_spatial.Grid is { } grid)
+                grid.Moved(_spatial.Slot, value);
+        }
     }
 
     public Vector3 Orientation

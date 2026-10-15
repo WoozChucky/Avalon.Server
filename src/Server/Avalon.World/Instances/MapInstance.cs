@@ -61,6 +61,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly ICorpseRemover _corpseRemover;
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
 
+    // The characters and creatures above by where they stand (#982): who can be in a client's view is looked for in the
+    // cells around it. Holds exactly the dictionaries' entities: every change to either changes it too.
+    private readonly SpatialGrid _members;
+
+    // Off only for a test that compares the views over the index against the full scan (DecideViewsByFullScan).
+    private bool _viewsOverIndex = true;
+
     // Which creatures run their script on a tick (#979): the active ones, and the waiting ones when due or woken. Off
     // only for a test that compares it against every creature on every tick (UpdateEveryCreatureEveryTick).
     private readonly CreatureScheduler _scheduler;
@@ -234,6 +241,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         AllowedCharacters = ownerCharacterId.HasValue ? new[] { ownerCharacterId.Value } : Array.Empty<uint>();
         Layout = layout;
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
+        _members = SpatialGrid.For(layout);
 
         // The layout's packet entries (#883), here rather than at the first arrival: an instance is built off the
         // tick, and the first character to arrive should cost the tick what every other one does. The chunk library
@@ -584,11 +592,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (_aurasPaused)
             ResumeAuras();
 
-        _characters[connection.Character!.Guid] = connection.Character;
-        _auras.Roster.Join(connection.Character);
-        _connections[connection.Character.Guid] = connection;
-        _lootSnapshotOwed.Add(connection.Character.Guid);
-        _pvpStateOwed.Add(connection.Character.Guid);
+        ICharacter joining = connection.Character!;
+        if (_characters.TryGetValue(joining.Guid, out ICharacter? replaced) && !ReferenceEquals(replaced, joining))
+            _members.Remove(replaced);
+        _characters[joining.Guid] = joining;
+        _members.Add(joining, SpatialKind.Character);
+        _auras.Roster.Join(joining);
+        _connections[joining.Guid] = connection;
+        _lootSnapshotOwed.Add(joining.Guid);
+        _pvpStateOwed.Add(joining.Guid);
         LastEmptyAt = null;
         HasBeenEntered = true;
 
@@ -597,7 +609,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (connection.Character is CharacterEntity entered)
             entered.Auras.ResumeHeld(entered.Clock.GetUtcNow());
 
-        NotePresenceChange(connection.Character, "entered");
+        NotePresenceChange(joining, "entered");
     }
 
     /// <summary>
@@ -658,7 +670,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Membership next. These cannot throw, and once they are gone the tick no longer updates,
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
         // hook that threw ahead of them used to leave a despawned character live in the instance.
-        _characters.Remove(guid);
+        if (_characters.Remove(guid, out ICharacter? removed))
+            _members.Remove(removed);
         _auras.Roster.Leave(character);
         _connections.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
@@ -714,7 +727,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public void AddCreature(ICreature creature)
     {
+        if (_creatures.TryGetValue(creature.Guid, out ICreature? replaced) && !ReferenceEquals(replaced, creature))
+            _members.Remove(replaced);
         _creatures[creature.Guid] = creature;
+        _members.Add(creature, SpatialKind.Creature);
         if (_scheduleCreatures)
             _scheduler.Joined(creature);
         _auras.Roster.Join(creature);
@@ -766,7 +782,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public void RemoveCreature(ICreature creature)
     {
-        _creatures.Remove(creature.Guid);
+        if (_creatures.Remove(creature.Guid, out ICreature? removed))
+            _members.Remove(removed);
         _scheduler.Left(creature);
         _auras.Roster.Leave(creature);
 
@@ -1581,14 +1598,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             CharacterCharacterGameState view = entity.CharacterGameState;
             if (decideAll || view.ScanOwed)
-            {
-                view.UpdateProfiled(entity.Guid, entity.Position, _interest, _creatures, _characters, objectAbilities,
-                    _frameDirtyFields, ref _tickProfile);
-            }
+                DecideView(entity, objectAbilities);
             else
-            {
                 view.Hold();
-            }
         }
 
         _viewsOwed = false;
@@ -1596,6 +1608,33 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (_departedCharacters.Count > 0)
             TellCharactersLeft();
     }
+
+    /// <summary>
+    /// Decides one client's view now (#981): its candidates come from the spatial index (#982), the cells within reach of
+    /// its character, rather than from every member of the instance. Bound by name by <c>InterestVisibilityBenchmarks</c>
+    /// and <c>SpatialIndexBenchmarks</c>, which measure it alone.
+    /// </summary>
+    private void DecideView(CharacterEntity entity, List<IWorldObject> objectAbilities)
+    {
+        CharacterCharacterGameState view = entity.CharacterGameState;
+        if (_viewsOverIndex)
+        {
+            view.UpdateProfiled(entity.Guid, entity.Position, _interest, _members, objectAbilities, _frameDirtyFields,
+                ref _tickProfile);
+        }
+        else
+        {
+            view.UpdateProfiled(entity.Guid, entity.Position, _interest, _creatures, _characters, objectAbilities,
+                _frameDirtyFields, ref _tickProfile);
+        }
+    }
+
+    /// <summary>
+    /// Decides every view by scanning every member of the instance, as before #982, rather than over the spatial index:
+    /// the reference the index is compared against. For tests and benchmarks only; World-side and internal, so reached by
+    /// name.
+    /// </summary>
+    internal void DecideViewsByFullScan() => _viewsOverIndex = false;
 
     /// <summary>
     /// Every character that left since the last pass is removed from every client here that still held it (#981), on the

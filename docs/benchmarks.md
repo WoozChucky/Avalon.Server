@@ -34,6 +34,10 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Inventor
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*ArrivalBenchmarks*" --job short
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*AuraScanBenchmarks*" --inProcess --warmupCount 5 --iterationCount 8
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SocialEventBenchmarks*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" "*SpatialIndexBenchmarks*" --job short
+
+# Not BenchmarkDotNet: the spatial index's candidates against the creatures in view, along generated forests (#982)
+dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
 
 # Process-wide allocations and retained memory across the navmesh tile workers
 dotnet run -c Release --project tools/Avalon.Benchmarking -- navmesh-bake 24
@@ -4253,6 +4257,115 @@ Release and Debug.
 
 ```bash
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*TickPhaseBenchmarks*' --inProcess --job short --warmupCount 10 --iterationCount 8
+```
+
+### Results — views over a spatial grid (#982, 2026-10-15)
+
+Every view decision checked every creature, character and projectile of its instance, and a check is mostly loading the
+entity (#1001, section 4). Since #982 each instance keeps its characters and creatures in a uniform X/Z grid of 30 m
+cells over its layout (see [world simulation](world-simulation.md)), and a view's candidates are the entries of the
+cells within radius + margin (70 m) of the watcher, each decided on the grid's own copy of its guid and X/Z without its
+entity being read, unless it is in the 60 to 70 m margin, where whether the client holds it decides; the projectiles
+are all checked, as before. The views are the full scan's (`SpatialVisibilityShould`).
+
+**How many candidates** (`candidate-ratio`, a harness, not BenchmarkDotNet): 300 generated forests (seeds 1 to 300, 199
+distinct layouts; some seeds generate the same forest), each built as production builds it, with one client standing every
+5 m along the main path from the entry chunk's centre to the boss chunk's, 28,986 views in all, each decided afresh (the
+60 m radius decides):
+
+| Per view | Creatures |
+|---|---:|
+| In the forest (what a full scan checks) | 217.2 |
+| Visited by the grid (candidates) | 100.2 (46%) |
+| In view | 62.4 |
+
+Candidates per creature in view: 1.61 pooled; per view 1.28 (p10), 1.58 (median), 2.03 (p90); per seed 1.39 to 1.85.
+The study's 2 to 2.5 was an estimate from geometry; a forest's creatures stand along its path, so the cells a view
+covers hold mostly creatures it sees, and a view along the path still sees a large part of the forest.
+
+**`InterestVisibilityBenchmarks`** (200 creatures; `Update` scans them all, `Indexed` decides the same view in an
+instance over its grid, the watcher itself included; out of process, short job, five warmups, eight iterations,
+`--affinity 4`; three runs of the branch interleaved with three of main, whose `Update` is the same code; the second
+pair ran while another process loaded the machine (dense rows of 2.7 to 4.5 µs, errors up to a fifth of the mean) and
+is left out, as is a row of the other runs whose error was larger than a tenth of its mean; 0 B in every row):
+
+| Layout | `Update` (full scan), main | `Indexed` (grid), branch |
+|---|---:|---:|
+| dense (all 200 within 20 m) | 2.30–2.31 µs | 1.92–1.93 µs |
+| sparse (9 in view, the rest along a diagonal) | 0.67 µs | 0.16–0.17 µs |
+| far (none in view, all beyond 100 m) | 0.57 µs | 0.04 µs |
+| margin (all tracked at 65 m) | 2.64–2.74 µs | 2.70 µs |
+
+The branch's own `Update` read 2.23–2.26 µs dense, 0.67 sparse and 2.46–2.47 margin in the same runs (its far rows were
+too noisy to keep).
+
+A cell's entry is decided on the grid's copy, so where every creature is near (dense, what a town is) the grid is now
+16% to 17% cheaper than the scan, not 8% dearer as when every entry within reach read its entity (2.33–2.34 µs
+before). Only margin entries read the entity and ask the tracked set; with all 200 there, the grid's walk and the
+watcher come on top of the scan's work (about +9% against the branch's own scan), a layout no real view has.
+
+**`SpatialIndexBenchmarks`** (seed 1's forest, about 200 creatures; out of process, as above; four runs of the views,
+two of the writes; runs whose error was larger than their mean, which another process's load made, are left out;
+measured before a cell's entries were decided on the grid's copy, so the views over the grid are now somewhat cheaper
+than these rows, not measured again):
+
+| Row | Mean | Allocated |
+|---|---:|---:|
+| A creature's position written, in no instance (the setter alone) | 0.58–0.60 ns | 0 B |
+| ... a member's, within its cell | 2.67–2.70 ns | 0 B |
+| ... a member's, to another cell | 3.74–3.78 ns | 0 B |
+| A character's position written, within its cell | 2.93–2.95 ns | 0 B |
+| ... to another cell | 4.02–4.10 ns | 0 B |
+| One view decided at the entry, over the grid | 332–338 ns | 0 B |
+| ... by a full scan | 796–874 ns | 0 B |
+| One view decided mid-forest, over the grid | 970–1,251 ns | 0 B |
+| ... by a full scan | 1,193–1,494 ns | 0 B |
+
+Keeping the grid current costs a write 2 to 3.5 ns; at a few thousand position writes a tick world-wide (every player's
+input, every walking creature), that is about 0.01 ms a tick (estimated). A view at the entry, where few creatures stand, costs 40%
+of the scan; mid-forest, with many more creatures in view, 80%: there the tracking pass, which the grid does not
+change, is most of the decision.
+
+**`ForestTickBenchmarks`** (one forest, three players at its entry, per tick; in process, five warmups, eight iterations,
+three runs each, interleaved after, before, the before build from its own binaries; measured before a cell's entries
+were decided on the grid's copy): 6.51–7.49 µs after, 8.52–8.82 µs before, 0 B both.
+
+**`TickPhaseBenchmarks`** (42 ticks per operation; in process, short job, ten warmups, eight iterations; three pairs, each
+a run of the branch then one of main, from their own binaries; other agents' builds ran on the machine; the change per
+pair is branch over main):
+
+| Players | Layout | Main | Branch | Per pair | Allocated (both) |
+|---:|---|---:|---:|---|---:|
+| 300 | forest-3 | 370–444 µs | 286–357 µs | −36%, −10%, −17% | 0 B |
+| 300 | town-1 | 674–789 µs | 578–709 µs | −14%, −19%, −10% | 120,684–120,690 B |
+| 300 | town-20 | 99–103 µs | 100–104 µs | +3%, +1%, +2% | 2 B |
+| 600 | forest-3 | 855–1,242 µs | 666–925 µs | −16%, −22%, −26% | 6–18 B |
+| 600 | town-1 | 2,680–2,877 µs | 2,429–2,949 µs | −6%, −10%, +3% (that branch run's error ±270 µs) | 2,583,453–2,583,458 B |
+| 600 | town-20 | 304–422 µs | 269–365 µs | −12%, −3%, −13% | 3–6 B |
+
+The forests' ticks are 10% to 36% cheaper. A town's grid prunes nothing (a 60 m town is four cells, every member a
+candidate, one code path everywhere as the owner decided), so a town gains only from deciding its entries on the
+grid's copy instead of reading each entity (a character's position is on its row, a second object): one crowded town
+is 10% to 19% cheaper at 300 players, and at 600 6% to 10% in two pairs of three and 3% dearer in the third, whose
+branch run was noisy. Twenty towns of 15 players each are 3% to 13% cheaper at 600 players, but **1% to 3% dearer than
+main at 300**, in all three pairs of this session, although the review's earlier pairs measured a build with the same
+logic 2% and 4% cheaper than main on that row (104.0 against 105.8 µs, 102.3 against 106.2 µs), so the sign is not
+stable across sessions. The likely cause: there a view is 15 members, so its decision costs little either way, and what
+the grid adds on every input, keeping the moved character's entry current (about 3 ns a write, `SpatialIndexBenchmarks`;
+some 300 writes a tick, about 1 µs of the tick's 100 µs), is not paid back (inferred, not measured apart). Before a
+cell's entries were decided on the grid's copy, the towns were 2% to 17% dearer than main (the review's interleaved pairs: town-1 300 +3%
+to +16%, town-1 600 +7% to +11%, town-20 300 +2% to +6%, town-20 600 +5% to +17%). The in-process view benchmarks
+were bimodal on this machine (a run reading eight times another), so the view rows above are out of process.
+
+**The allocation gate does not move**: `forest-combat` 14,138 B and `town-social` 728 B, the others 0 B, in Release and
+Debug, and `ForestCombatScenarioShould`'s fight is the same (105 kills, 2 deaths, 18 heals, 93 quest credits, 198
+pickups, 106 destroys). Windows figures (i9-12900K, Windows 11, .NET 10.0.13, BenchmarkDotNet 0.15.8).
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 300
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" "*SpatialIndexBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*ForestTickBenchmarks*' --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*TickPhaseBenchmarks*' --inProcess --job short --warmupCount 10 --iterationCount 8
 ```
 

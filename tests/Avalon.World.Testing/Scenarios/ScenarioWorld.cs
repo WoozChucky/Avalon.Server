@@ -352,9 +352,11 @@ public sealed class ScenarioWorld : IDisposable
     /// <summary>
     /// Builds an instance of the town's layout over the shared town navmesh and publishes it through the registry, as a
     /// finished build is published on the tick. A town is requested as one more town of its map (every existing one
-    /// counted full), any other map type as a new owner's instance, so each call adds one.
+    /// counted full), any other map type as a new owner's instance, so each call adds one. Given
+    /// <paramref name="layout" />, the instance has that layout instead of the town's, over the same navmesh: for a
+    /// measurement of what depends on the layout's extent alone (its spatial index, #982).
     /// </summary>
-    public MapInstance AddInstance(MapType mapType = MapType.Town, ushort templateId = 1)
+    public MapInstance AddInstance(MapType mapType = MapType.Town, ushort templateId = 1, ChunkLayout? layout = null)
     {
         var id = new MapTemplateId(templateId);
         if (!_templates.Exists(t => t.Id == id))
@@ -364,7 +366,7 @@ public sealed class ScenarioWorld : IDisposable
 
         var navigator = new MapNavigator(NullLoggerFactory.Instance);
         navigator.LoadFromNavMesh(TownNavmesh.Shared);
-        var instance = new MapInstance(NullLoggerFactory.Instance, _services, _world, id, owner, TownNavmesh.Layout(),
+        var instance = new MapInstance(NullLoggerFactory.Instance, _services, _world, id, owner, layout ?? TownNavmesh.Layout(),
             navigator, seed: 0, mapType: mapType);
 
         // maxPlayers 0 counts every town of the map full, so the registry starts a build rather than handing back one.

@@ -6,7 +6,9 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Party;
+using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
+using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
@@ -17,6 +19,7 @@ using Avalon.World.Instances;
 using Avalon.World.Parties;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
@@ -150,6 +153,41 @@ public class EnterMapHandlerShould
 
         entry.World.Received(2).TransferPlayer(entry.Connection, entry.Target);
         Assert.Equal(MapTransitionResult.Success, entry.Results()[^1]);
+    }
+
+    /// <summary>
+    /// The character arrives at the target's entry spawn, at the far end of its layout from where it stood, and the
+    /// target's spatial index has it there (#982): its own client lists it on its first tick there, and so does a client
+    /// standing at the spawn. A position written to the character's row alone moves the character without its index entry,
+    /// which stays where it stood, out of reach of every view around the spawn, its own included.
+    /// </summary>
+    [Fact]
+    public void Arrive_where_the_target_s_spatial_index_has_the_character()
+    {
+        PlacedChunk[] chunks = Enumerable.Range(0, 10)
+            .Select(x => new PlacedChunk(new ChunkTemplateId(1), (short)x, 0, 0, new Vector3(x * 30f, 0f, 0f)))
+            .ToArray();
+        var spawn = new Vector3(285f, 0f, 15f);
+        var layout = new ChunkLayout(0, chunks, chunks[0], null, [], spawn, 30f);
+        using MapInstance target = TestMapInstances.Build(MapInstanceClients.NewWorld(), layout: layout);
+        var entry = new Entry(target: target);
+        entry.Character.Spells.Load(Array.Empty<IAbility>());   // the tick updates abilities; an unloaded list throws
+        entry.World.When(w => w.TransferPlayer(entry.Connection, target)).Do(_ =>
+        {
+            entry.Character.InstanceId = target.InstanceId;
+            target.AddCharacter(entry.Connection);
+        });
+        MapInstanceClient there = MapInstanceClients.Join(target, New(8));
+        there.Character.Position = spawn;
+
+        entry.Request();
+        entry.Flush();
+        target.Update(TimeSpan.FromSeconds(1d / 60d));
+
+        Assert.Equal(MapTransitionResult.Success, entry.Results()[^1]);
+        Assert.Equal(spawn, entry.Character.Position);
+        Assert.Contains(entry.Character.Guid.RawValue, entry.Added());
+        Assert.Contains(entry.Character.Guid.RawValue, there.Added().Select(s => s.Guid));
     }
 
     public enum Ending
@@ -404,11 +442,15 @@ public class EnterMapHandlerShould
         private readonly EnterMapHandler _handler;
         private readonly MapInstance _source = Source();
 
-        public Entry(ILogger<EnterMapHandler>? log = null, PartyTestWorld? parties = null)
+        /// <param name="target">The instance the portal leads to; a substitute when omitted.</param>
+        public Entry(ILogger<EnterMapHandler>? log = null, PartyTestWorld? parties = null, MapInstance? target = null)
         {
             StandOnThePortal();
 
-            Target.InstanceId.Returns(Guid.NewGuid());
+            if (target is null)
+                Target.InstanceId.Returns(Guid.NewGuid());
+            else
+                Target = target;
             Registry.GetInstanceById(_source.InstanceId).Returns(_source);
             Registry.GetInstanceById(Target.InstanceId).Returns(Target);
             Registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(Task.FromResult(Target));
@@ -455,6 +497,12 @@ public class EnterMapHandlerShould
         public MapTemplate Template { get; } =
             new() { Id = new MapTemplateId(TargetMap), MapType = MapType.Town, Name = "target", Description = "" };
         public IMapInstance Target { get; } = Substitute.For<IMapInstance>();
+
+        /// <summary>The guid of every object the connection was told is in view, in order.</summary>
+        public List<ulong> Added() => TestTown.Read<SInstanceStateAddPacket>(_sent, NetworkPacketType.SMSG_WORLD_STATE_ADD)
+            .SelectMany(p => p.Adds ?? [])
+            .Select(s => s.Guid)
+            .ToList();
         public IInstanceRegistry Registry { get; } = Substitute.For<IInstanceRegistry>();
         public IWorld World { get; } = Substitute.For<IWorld>();
         public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection, ISettledContinuations>();

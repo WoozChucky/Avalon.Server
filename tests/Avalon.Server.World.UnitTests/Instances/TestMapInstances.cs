@@ -80,12 +80,13 @@ internal static class TestMapInstances
     /// <param name="lootAllocator">Who a drop is reserved for; none when omitted, so no kill drops anything.</param>
     /// <param name="auraScripts">Runs the auras' scripts; none runs when omitted.</param>
     /// <param name="encoder">What the instance encodes its world-state and aura packets with; the process's own when omitted.</param>
+    /// <param name="layout">The instance's layout; one 30 m chunk at the origin when omitted.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
         MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
         PartyId? ownerPartyId = null, MapTemplateId? templateId = null, PartyService? parties = null,
         QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null,
-        AuraScripts? auraScripts = null, PacketEncoder? encoder = null)
+        AuraScripts? auraScripts = null, PacketEncoder? encoder = null, ChunkLayout? layout = null)
     {
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -129,7 +130,7 @@ internal static class TestMapInstances
         }
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
-        var layout = new ChunkLayout(
+        layout ??= new ChunkLayout(
             Seed: 0,
             Chunks: [entryChunk],
             EntryChunk: entryChunk,

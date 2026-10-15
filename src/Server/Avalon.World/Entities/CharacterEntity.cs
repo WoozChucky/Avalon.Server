@@ -9,6 +9,7 @@ using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Combat;
 using Avalon.World.Configuration;
+using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Items;
 using Avalon.World.Parties;
@@ -517,8 +518,18 @@ public partial class CharacterEntity : ICharacter
             Data.Y = value.y;
             Data.Z = value.z;
             _dirtyFields |= GameEntityFields.Position;
+            if (_spatial.Grid is { } grid)
+                grid.Moved(_spatial.Slot, value);
         }
     }
+
+    /// <summary>
+    /// Where the instance this character is in indexes it (#982): set while it is a member and cleared when it leaves, so
+    /// <see cref="Position" /> keeps that index current. The grid's alone; World-side, never on ICharacter.
+    /// </summary>
+    internal ref SpatialHandle Spatial => ref _spatial;
+
+    private SpatialHandle _spatial;
 
     public Vector3 Velocity
     {

@@ -242,13 +242,13 @@ Convert duration ticks with `milliseconds = ticks * 1000 / frequency`. These are
 | combatTicks | Abilities, combat, threat and aura simulation |
 | creatureTicks | Creature scripts and locomotion |
 | dirtyTicks | Dirty-field snapshot pass |
-| visibilityTicks | Clearing recipient state lists and scanning characters, creatures and projectiles for visibility; since #981 only on the ticks that decide views (the broadcast tick, and an arriving client's first tick) |
+| visibilityTicks | Clearing recipient state lists and checking the candidates (since #982 the characters and creatures the spatial index finds near the recipient, and every projectile) for visibility; since #981 only on the ticks that decide views (the broadcast tick, and an arriving client's first tick) |
 | trackingTicks | Reconciling visible entities with recipient tracking state |
 | statePreparationTicks | Describing the entities a recipient is added or updated: since #980 each entity's entry is described once per broadcast, by the first recipient sent it, and a character's own entry for itself alone |
 | stateEncodingTicks | Encoding each entity's add and update entry once per broadcast, copying the entries into each recipient's add and update packet, and creating those and the remove packets (#980) |
 | auraTicks | Aura replication, including its packet creation and enqueue |
 | enqueueTicks | Passing state add/update/remove packets to the connection |
-| candidateChecks | Entity candidates visited by visibility scans, summed across recipients |
+| candidateChecks | Entity candidates visited by visibility decisions, summed across recipients: since #982 the entries the spatial index visits (the recipient's own character included) plus the projectiles |
 | visiblePairs | Visible recipient/entity pairs, including the watcher itself |
 | dirtyEntities | Entities in the instance dirty snapshot |
 | added / updated / removed | Recipient tracking deltas; these are pairs, not unique entities |
