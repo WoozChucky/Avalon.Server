@@ -4349,8 +4349,10 @@ candidate, one code path everywhere as the owner decided), so a town gains only 
 grid's copy instead of reading each entity (a character's position is on its row, a second object): one crowded town
 is 10% to 19% cheaper at 300 players, and at 600 6% to 10% in two pairs of three and 3% dearer in the third, whose
 branch run was noisy. Twenty towns of 15 players each are 3% to 13% cheaper at 600 players, but **1% to 3% dearer than
-main at 300**, in all three pairs: there a view is 15 members, so its decision costs little either way, and what the
-grid adds on every input, keeping the moved character's entry current (about 3 ns a write, `SpatialIndexBenchmarks`;
+main at 300**, in all three pairs of this session, although the review's earlier pairs measured a build with the same
+logic 2% and 4% cheaper than main on that row (104.0 against 105.8 µs, 102.3 against 106.2 µs), so the sign is not
+stable across sessions. The likely cause: there a view is 15 members, so its decision costs little either way, and what
+the grid adds on every input, keeping the moved character's entry current (about 3 ns a write, `SpatialIndexBenchmarks`;
 some 300 writes a tick, about 1 µs of the tick's 100 µs), is not paid back (inferred, not measured apart). Before a
 cell's entries were decided on the grid's copy, the towns were 2% to 17% dearer than main (the review's interleaved pairs: town-1 300 +3%
 to +16%, town-1 600 +7% to +11%, town-20 300 +2% to +6%, town-20 600 +5% to +17%). The in-process view benchmarks
