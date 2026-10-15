@@ -387,9 +387,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Every connection whose character is in this instance. World-side, not on IMapInstance: the modding API
-    /// must not reach other players' connections. Tick thread only.
+    /// must not reach other players' connections. Tick thread only. The dictionary's own view, read-only, so a
+    /// foreach over it takes the struct enumerator rather than boxing one (#973).
     /// </summary>
-    public IEnumerable<IWorldConnection> Connections => _connections.Values;
+    public Dictionary<ObjectGuid, IWorldConnection>.ValueCollection Connections => _connections.Values;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
 
