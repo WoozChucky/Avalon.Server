@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
@@ -156,8 +157,12 @@ public sealed class WorldConnection : IAsyncDisposable
     /// leaf, not by a chain: an untrusted issuer is tolerated, a wrong name, an expired certificate or a wrong usage is
     /// not, as the game client checks it.
     /// </summary>
+    /// <param name="proxyHeader">
+    /// Write a PROXY v2 header (<see cref="ProxyHeaderV2"/>) as the stream's first bytes, before TLS, naming this socket's
+    /// own end as the client: for a world dialled directly, past the edge proxy that otherwise writes it.
+    /// </param>
     public static async Task<WorldConnection> ConnectAsync(WorldDestination destination, string? dialHost,
-        CancellationToken ct)
+        bool proxyHeader, CancellationToken ct)
     {
         byte[] pin = Pin(destination.TlsCertificateSha256);
         string? refusal = null;
@@ -165,9 +170,16 @@ public sealed class WorldConnection : IAsyncDisposable
         try
         {
             await socket.ConnectAsync(dialHost ?? destination.Host, destination.Port, ct);
-            var stream = new SslStream(new NetworkStream(socket, ownsSocket: true), leaveInnerStreamOpen: false);
+            var network = new NetworkStream(socket, ownsSocket: true);
+            var stream = new SslStream(network, leaveInnerStreamOpen: false);
             try
             {
+                if (proxyHeader)
+                {
+                    await network.WriteAsync(
+                        ProxyHeaderV2.Build((IPEndPoint)socket.LocalEndPoint!, (IPEndPoint)socket.RemoteEndPoint!), ct);
+                }
+
                 await stream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
                 {
                     TargetHost = destination.TlsServerName,

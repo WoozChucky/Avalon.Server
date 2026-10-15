@@ -56,13 +56,14 @@ public static class CommandLine
     }
 
     /// <summary>
-    /// <c>check [--run ABC] [--dial HOST] [--bot N] [--behaviour idle|walker|fighter] [--forest-time 5m] [--party-size 1]
-    /// [--driver-loops N]</c>; a party size above 1 only with <c>--behaviour fighter</c>.
+    /// <c>check [--run ABC] [--dial HOST [--proxy-header]] [--bot N] [--behaviour idle|walker|fighter] [--forest-time 5m]
+    /// [--party-size 1] [--driver-loops N]</c>; a party size above 1 only with <c>--behaviour fighter</c>.
     /// </summary>
     public static CheckOptions ParseCheck(string[] args)
     {
         string? runId = null;
         string? dial = null;
+        bool proxyHeader = false;
         int bot = 0;
         BehaviourKind behaviour = BehaviourKind.Idle;
         TimeSpan forestTime = Fighter.DefaultForestTime;
@@ -74,6 +75,7 @@ public static class CommandLine
             {
                 case "--run": runId = ParseRunId(value); break;
                 case "--dial": dial = ParseDial(value); break;
+                case ProxyHeaderFlag: proxyHeader = true; break;
                 case "--bot":
                     bot = int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out int n) && n < MaxBots
                         ? n
@@ -98,7 +100,8 @@ public static class CommandLine
         if (partySize > 1 && behaviour != BehaviourKind.Fighter)
             throw new CommandLineException("--party-size above 1 needs --behaviour fighter: parties are fighters'.");
 
-        return new CheckOptions(runId, dial, bot, behaviour, forestTime, partySize, driverLoops);
+        RefuseProxyHeaderWithoutDial(proxyHeader, dial);
+        return new CheckOptions(runId, dial, proxyHeader, bot, behaviour, forestTime, partySize, driverLoops);
     }
 
     /// <summary>The homelab Prometheus.</summary>
@@ -109,7 +112,7 @@ public static class CommandLine
 
     /// <summary>
     /// <c>ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
-    /// [--limit name=value]... [--dial HOST] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
+    /// [--limit name=value]... [--dial HOST [--proxy-header]] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
     /// [--forest-time 5m] [--party-size 1] [--driver-loops N]</c>.
     /// </summary>
     public static RampArguments ParseRamp(string[] args)
@@ -122,6 +125,7 @@ public static class CommandLine
         int? max = null;
         List<string> limits = [];
         string? dial = null;
+        bool proxyHeader = false;
         Uri prometheus = new(DefaultPrometheus);
         string pod = DefaultPod;
         int signIns = 8;
@@ -143,6 +147,7 @@ public static class CommandLine
                 case "--max": max = ParseCount(option, value, MaxBots); break;
                 case "--limit": limits.Add(value); break;
                 case "--dial": dial = ParseDial(value); break;
+                case ProxyHeaderFlag: proxyHeader = true; break;
                 case "--prometheus":
                     prometheus = Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
                         ? uri
@@ -162,8 +167,9 @@ public static class CommandLine
             }
         }
 
-        return new RampArguments(runId, mix, start, step, hold, max, Limits.WithOverrides(limits), dial, prometheus, pod, signIns,
-            forestTime, partySize, driverLoops);
+        RefuseProxyHeaderWithoutDial(proxyHeader, dial);
+        return new RampArguments(runId, mix, start, step, hold, max, Limits.WithOverrides(limits), dial, proxyHeader, prometheus,
+            pod, signIns, forestTime, partySize, driverLoops);
     }
 
     /// <summary>A hold: <c>90s</c>, <c>2m</c> or plain seconds; at least the settle and a 20 s judged window.</summary>
@@ -197,11 +203,34 @@ public static class CommandLine
             ? n
             : throw new CommandLineException($"{option} takes a whole number, 1 to {max}.");
 
-    /// <summary>A host name or address to dial instead of the join reply's host; TLS still names the reply's server.</summary>
+    /// <summary>
+    /// A host name or address to dial instead of the join reply's host; TLS still names the reply's server. Never one
+    /// starting with '-': that is the next option, the host left out (<c>--dial --proxy-header</c>).
+    /// </summary>
     public static string ParseDial(string value) =>
-        Uri.CheckHostName(value) != UriHostNameType.Unknown
+        !value.StartsWith('-') && Uri.CheckHostName(value) != UriHostNameType.Unknown
             ? value
             : throw new CommandLineException("--dial takes a host name or an IP address.");
+
+    /// <summary>
+    /// The one option without a value: each world connection starts with a PROXY v2 header naming the bot PC, as the
+    /// edge proxy's does. Only with <c>--dial</c>, past the edge proxy: through it, the world would read the bot's header
+    /// as the first bytes after the proxy's own and refuse the connection.
+    /// </summary>
+    public const string ProxyHeaderFlag = "--proxy-header";
+
+    private static void RefuseProxyHeaderWithoutDial(bool proxyHeader, string? dial)
+    {
+        if (proxyHeader && dial is null)
+        {
+            throw new CommandLineException(
+                "--proxy-header needs --dial: the header is for a world dialled directly, past the edge proxy, which writes its own.");
+        }
+    }
+
+    /// <summary>Where the bots' world connections go, for a header line: null for the join reply's host.</summary>
+    public static string? DiallingText(string? dial, bool proxyHeader) =>
+        dial is null ? null : proxyHeader ? $"dialling {dial} directly with a PROXY v2 header" : $"dialling {dial}";
 
     /// <summary>An https API origin, given its trailing slash: the game routes refuse plain http.</summary>
     public static Uri ParseApi(string value)
@@ -225,13 +254,25 @@ public static class CommandLine
             ? value.ToUpperInvariant()
             : throw new CommandLineException("--run takes a run id, three letters.");
 
-    /// <summary>The arguments as option and value pairs; an option without a value is refused.</summary>
+    /// <summary>
+    /// The arguments as option and value pairs; an option without a value is refused, but for <see cref="ProxyHeaderFlag"/>,
+    /// which takes none (its value is empty).
+    /// </summary>
     private static IEnumerable<(string Option, string Value)> Pairs(string[] args)
     {
-        for (int i = 0; i < args.Length; i += 2)
+        int i = 0;
+        while (i < args.Length)
         {
+            if (args[i] == ProxyHeaderFlag)
+            {
+                yield return (args[i], "");
+                i++;
+                continue;
+            }
+
             if (i + 1 == args.Length) throw new CommandLineException($"{args[i]} needs a value.");
             yield return (args[i], args[i + 1]);
+            i += 2;
         }
     }
 }
@@ -247,23 +288,25 @@ public sealed record CleanupOptions(string? RunId);
 /// <summary>The options of <c>check</c>.</summary>
 /// <param name="RunId">The run, or null for the only one kept.</param>
 /// <param name="Dial">The host to dial instead of the join reply's, or null.</param>
+/// <param name="ProxyHeader">Each world connection starts with a PROXY v2 header (<c>--proxy-header</c>); only with <paramref name="Dial"/>.</param>
 /// <param name="Bot">The bot's index in the run.</param>
 /// <param name="Behaviour">What the bot does in the world for the check: idle, walker or fighter.</param>
 /// <param name="ForestTime">How long a fighter's trip stays in the forest.</param>
 /// <param name="PartySize">Fighters only: this many bots from <paramref name="Bot"/> on form one party and each complete a trip; 1 is one bot, solo.</param>
 /// <param name="DriverLoops">The input driver's loops (<c>--driver-loops</c>), as for <c>ramp</c>.</param>
 public sealed record CheckOptions(
-    string? RunId, string? Dial, int Bot, BehaviourKind Behaviour, TimeSpan ForestTime, int PartySize, int DriverLoops);
+    string? RunId, string? Dial, bool ProxyHeader, int Bot, BehaviourKind Behaviour, TimeSpan ForestTime, int PartySize, int DriverLoops);
 
 /// <summary>The options of <c>ramp</c> as given, before the run is known.</summary>
 /// <param name="RunId">The run, or null for the only one kept.</param>
 /// <param name="Max">The most bots, or null for the run's size.</param>
+/// <param name="ProxyHeader">Each world connection starts with a PROXY v2 header (<c>--proxy-header</c>); only with <paramref name="Dial"/>.</param>
 /// <param name="ForestTime">How long a fighter's trip stays in the forest.</param>
 /// <param name="PartySize">The fighters' party size, 1 (solo) to <see cref="BotParty.MaxSize"/>.</param>
 /// <param name="DriverLoops">The input driver's loops, 1 to <see cref="InputDriver.MaxLoops"/>.</param>
 public sealed record RampArguments(
     string? RunId, string Mix, int Start, int Step, TimeSpan Hold, int? Max, IReadOnlyList<Limit> Limits, string? Dial,
-    Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops)
+    bool ProxyHeader, Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops)
 {
     /// <summary>
     /// The options against <paramref name="run"/>, loaded for its bots (<see cref="RunFile.Load"/>, so it lists at
@@ -275,8 +318,8 @@ public sealed record RampArguments(
         if (max > run.Bots.Count)
             throw new CommandLineException($"Run {run.RunId} has {run.Bots.Count} bots: --max takes at most that.");
 
-        return new RampOptions(Mix, Math.Min(Start, max), Step, Hold, max, Limits, Dial, Prometheus, Pod, SignInConcurrency,
-            ForestTime, PartySize, DriverLoops);
+        return new RampOptions(Mix, Math.Min(Start, max), Step, Hold, max, Limits, Dial, ProxyHeader, Prometheus, Pod,
+            SignInConcurrency, ForestTime, PartySize, DriverLoops);
     }
 }
 
