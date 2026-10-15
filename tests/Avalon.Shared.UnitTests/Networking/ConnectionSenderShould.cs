@@ -138,7 +138,7 @@ public sealed class ConnectionSenderShould
         scheduler.RunPass(owner);     // framed ahead in its turn, into the buffer the first write used
         stalled.Complete();
         PassUntil(scheduler, owner, () => stalled.Writes == 3);
-        stalled.Complete();
+        Inline(stalled.Complete); // ended here, so the close finds no write in flight: its budget never runs out (#1019)
 
         Assert.Equal([1L, 2, 3, 4, 5, 6], (await Frames(stalled.ReadAtCompletion.ToArray()))
             .Select(frame => Serializer.Deserialize<SPingPacket>(frame.Payload.AsSpan()).ClientTimestamp));
@@ -332,10 +332,11 @@ public sealed class ConnectionSenderShould
         Assert.Equal(inFlight, sender.PendingBytes);
         Assert.False(sender.Enqueue(Numbered(4)));
 
+        // Ended here, so the close finds no write in flight: its budget never runs out on this clock (#1019).
         if (pendingWriteFails)
-            stalled.Fail(new IOException("the socket closed under the write"));
+            Inline(() => stalled.Fail(new IOException("the socket closed under the write")));
         else
-            stalled.Complete();
+            Inline(stalled.Complete);
         PassUntil(scheduler, owner, () => sender.PendingBytes == 0);
         await CloseAsync(scheduler, sender);
 
@@ -365,11 +366,9 @@ public sealed class ConnectionSenderShould
         await WaitUntil(() => Volatile.Read(ref closes) == 1, s_guard);
 
         Assert.False(sender.Enqueue(Numbered(3)));
+        // The close budget runs on the connection's clock, which never moves here: a close that waited it out would
+        // never end, and the close's guard would fail it, however long the thread pool takes to run it (#1019).
         await CloseAsync(scheduler, sender);
-        // A close that waited out its budget cancels the write in flight as it gives up (DisposeAsync); one that finished
-        // at once never does. Read from the token, not a stopwatch: the close's continuations wait for the thread pool,
-        // which a loaded test run can hold for longer than the budget (#1019).
-        Assert.False(failing.WriteCancellation.IsCancellationRequested, "the close waited out its budget");
         Assert.Equal(1, failing.Writes);
         Assert.Equal(1, Volatile.Read(ref closes));
         Assert.Equal(0, sender.PendingBytes);
@@ -542,7 +541,9 @@ public sealed class ConnectionSenderShould
         Assert.True(sender.IsDoomed);
         Assert.Equal(1, stalled.Writes);         // no notice behind a write the peer is not reading
 
-        stalled.Fail(new IOException("the socket closed under the write"));
+        // Ended inside Fail, so the close's passes find no write in flight: the close budget runs on a clock that
+        // never moves here, so a close left waiting for the write would never end (#1019).
+        Inline(() => stalled.Fail(new IOException("the socket closed under the write")));
         await CloseAsync(scheduler, sender);
         Assert.Equal(0, _pool.Outstanding);
     }
@@ -564,12 +565,31 @@ public sealed class ConnectionSenderShould
         while (sender.Enqueue(Payload(4_096))) { }               // the queue grows past the cap: doomed
 
         Assert.False(sender.Enqueue(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown, _encoder)));
-        var watch = System.Diagnostics.Stopwatch.StartNew();
-        await sender.DisposeAsync().AsTask().WaitAsync(s_guard);
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), $"the close took {watch.Elapsed}");
-        Assert.Equal(100, sender.PendingBytes);   // the burst stays counted until its write ends; the queue was discarded
+        // The budget and the grace run on the connection's clock, which moves only here (#1019): the close is still
+        // open a tick before the budget runs out, and ends once the budget and then the grace have.
+        Task closing = sender.DisposeAsync().AsTask();
+        // Longer than the budget and the grace on the wall clock: a close timed on it would have ended. On the
+        // connection's clock, which has not moved, it cannot, so this never fails however slow the run.
+        await Task.WhenAny(closing,
+            Task.Delay(ConnectionSender.CloseBudget + ConnectionSender.CancelGrace + TimeSpan.FromMilliseconds(400)));
+        Assert.False(closing.IsCompleted);
+        Inline(() => _time.Advance(ConnectionSender.CloseBudget - TimeSpan.FromTicks(1)));
+        Assert.False(closing.IsCompleted);
+        using (var hang = new CancellationTokenSource(s_guard))
+        {
+            while (!closing.IsCompleted)
+            {
+                Inline(() => _time.Advance(ConnectionSender.CancelGrace)); // the budget, the cancel, then the grace
+                await Task.Delay(1, hang.Token);
+            }
+        }
 
+        await closing;
+        // The owner, on its send thread, discards the queue of a connection found too slow; the burst stays counted
+        // until its write ends, which it never does.
+        await WaitUntil(() => sender.PendingBytes == 100, s_guard);
         Assert.True(scheduler.Stop(TimeSpan.FromSeconds(5)));
+        Assert.Equal(100, sender.PendingBytes);
         Assert.Equal(1, stalled.Writes);
         await WaitUntil(() => _pool.Outstanding == 0, s_guard);
     }
@@ -737,6 +757,25 @@ public sealed class ConnectionSenderShould
     }
 
     /// <summary>
+    /// Runs <paramref name="action" /> outside the test's synchronization context, so the continuations it completes
+    /// (a write's end, a close's budget) run inside it, as they do on a socket's I/O thread or a timer's, and not later
+    /// on the thread pool, where a loaded test run can leave them waiting for seconds (#960).
+    /// </summary>
+    private static void Inline(Action action)
+    {
+        SynchronizationContext? context = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        try
+        {
+            action();
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+        }
+    }
+
+    /// <summary>
     /// A stream whose every <c>k</c>-th write ends asynchronously, on a completion thread of its own as a socket's ends on
     /// an I/O thread; the others end inline. Not on the thread pool: the rest of the test run can hold its workers for
     /// seconds (#960), and this case waits for some hundreds of these ends within its guard (#1019).
@@ -806,9 +845,6 @@ public sealed class ConnectionSenderShould
 
         public int Writes { get; private set; }
 
-        /// <summary>The token the last write was handed: the sender cancels it to abandon a write still in flight.</summary>
-        public CancellationToken WriteCancellation { get; private set; }
-
         private ReadOnlyMemory<byte> _pending;
 
         /// <summary>The bytes of each write as it was handed them, as a socket copies them.</summary>
@@ -833,7 +869,6 @@ public sealed class ConnectionSenderShould
         {
             Written.Write(buffer.Span);
             _pending = buffer;
-            WriteCancellation = cancellationToken;
             Writes++;
             _write = new TaskCompletionSource();
             return new ValueTask(_write.Task);

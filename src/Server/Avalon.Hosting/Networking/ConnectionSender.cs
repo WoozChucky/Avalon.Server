@@ -836,13 +836,14 @@ public sealed class ConnectionSender : IOutbox
         }
     }
 
-    private static async Task<bool> WithinAsync(Task task, TimeSpan budget)
+    private async Task<bool> WithinAsync(Task task, TimeSpan budget)
     {
         if (task.IsCompleted)
             return true;
 
-        // A shutdown-timeout Delay: it bounds the close, so a peer that stopped reading cannot hold it open.
-        await Task.WhenAny(task, Task.Delay(budget, CancellationToken.None)).ConfigureAwait(false);
+        // A shutdown-timeout Delay: it bounds the close, so a peer that stopped reading cannot hold it open. On the
+        // connection's clock, as its stall clock is.
+        await Task.WhenAny(task, Task.Delay(budget, _time, CancellationToken.None)).ConfigureAwait(false);
         return task.IsCompleted;
     }
 
