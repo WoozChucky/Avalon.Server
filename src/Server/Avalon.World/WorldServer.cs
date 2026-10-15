@@ -135,7 +135,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     /// timeout), nor for a lease that ran out more than <see cref="SessionEndSkew" /> ago with no renewal outstanding:
     /// identity's session and the characters database's guard ran out with it, and an expired session holds nothing
     /// an end would release (a join, a reconnect, a takeover, a consolidation and a save all read its lease end). A
-    /// renewal asked for and not applied here may have moved identity's end past this lease's, so such an end is sent.
+    /// session whose renewals the world cannot account for (<see cref="RenewalLedger" />) may be held by identity past
+    /// this lease, so its end is always sent.
     /// </summary>
     private async Task<SessionLeaseResponse> EndOrSkipAsync(SessionEnd end)
     {

@@ -318,8 +318,8 @@ public class WorldServerShutdownShould : IDisposable
         {
             // Accounts 1 and 2 are admitted with 44-second leases; account 2 has a heartbeat outstanding.
             List<Avalon.World.WorldConnection> connections = AdmitSessions(server, 2, clock, pairs);
-            typeof(Avalon.World.WorldConnection).GetField("_renewalUnaccounted", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .SetValue(connections[1], 1);
+            typeof(Avalon.World.WorldConnection).GetField("_renewals", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .SetValue(connections[1], RenewalLedger.InFlight);
             clock.Advance(TimeSpan.FromSeconds(44) + Avalon.World.WorldServer.SessionEndSkew);
 
             await server.Stop().WaitAsync(TimeSpan.FromSeconds(30));

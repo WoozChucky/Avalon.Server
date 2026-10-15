@@ -98,6 +98,27 @@ public sealed class GameWorkloadListenerShould
         Assert.Equal(refusal, GameWorkloadHosting.RefusalOf(certificate, Pin(certificate), DateTime.UtcNow, configuration));
     }
 
+    /// <summary>
+    /// Unknown certificates share one line a minute; a configured server's pin has its own, so junk handshakes cannot
+    /// hide a real world's refusal (#1051).
+    /// </summary>
+    [Fact]
+    public void Log_a_configured_servers_refusal_even_after_unknown_ones_took_the_shared_line()
+    {
+        var warnings = new WarningCapture();
+        using ILoggerFactory factory = LoggerFactory.Create(b => b.AddProvider(warnings));
+        var log = new RefusedWorkloadCertificateLog(factory.CreateLogger<RefusedWorkloadCertificateLog>(), TimeProvider.System);
+        string world = new('A', 64);
+
+        log.Refused("assigned to no game server", new string('1', 64), configured: false);
+        log.Refused("assigned to no game server", new string('2', 64), configured: false);
+        log.Refused("outside its validity period", world, configured: true);
+        log.Refused("outside its validity period", world, configured: true);
+
+        Assert.Equal(2, warnings.Lines.Count);
+        Assert.Contains(world, warnings.Lines[1], StringComparison.Ordinal);
+    }
+
     private sealed class WarningCapture : ILoggerProvider, ILogger
     {
         public List<string> Lines { get; } = [];

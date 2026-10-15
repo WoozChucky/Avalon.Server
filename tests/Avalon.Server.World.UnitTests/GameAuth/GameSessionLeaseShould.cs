@@ -67,6 +67,34 @@ public sealed class GameSessionLeaseShould
         Assert.False(lease.TryRenew(reply));
     }
 
+    /// <summary>
+    /// A lease counts as run out for skipping its session's end (#1051) only when both its clocks say so: a wall clock
+    /// set forward must not drop the end of a session identity still holds.
+    /// </summary>
+    [Fact]
+    public void Count_as_run_out_only_when_the_wall_and_the_monotonic_clock_agree()
+    {
+        var clock = new SplitClock(_clock.GetUtcNow());
+        GameSessionLease lease = Assert.IsType<GameSessionLease>(GameSessionLease.TryCreate(Reply(), "world-one", 1, clock));
+        var margin = TimeSpan.FromSeconds(5);
+
+        clock.Wall += TimeSpan.FromMinutes(5);
+        Assert.False(lease.HasRunOutBy(margin));
+
+        clock.Elapsed += TimeSpan.FromSeconds(50);
+        Assert.True(lease.HasRunOutBy(margin));
+    }
+
+    /// <summary>A clock whose wall time and monotonic time move apart.</summary>
+    private sealed class SplitClock(DateTimeOffset start) : TimeProvider
+    {
+        public DateTimeOffset Wall { get; set; } = start;
+        public TimeSpan Elapsed { get; set; }
+        public override DateTimeOffset GetUtcNow() => Wall;
+        public override long GetTimestamp() => Elapsed.Ticks;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+    }
+
     [Fact]
     public void Accept_the_initial_zero_epoch_of_an_existing_account_when_the_backend_grants_it()
     {

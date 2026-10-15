@@ -66,13 +66,19 @@ public sealed class GameSessionLease
     public DateTime LeaseUntil { get { lock (_gate) return _until; } }
 
     /// <summary>
-    /// Whether this lease's end lies more than <paramref name="margin" /> in the past by its clock (#1051): its session's
-    /// end is not sent to identity then, unless a renewal may have moved identity's end past it.
+    /// Whether this lease ran out more than <paramref name="margin" /> ago on both its clocks (#1051), as
+    /// <see cref="DrainDueAt" /> judges its end: its <see cref="LeaseUntil" /> on the wall clock, and the time granted,
+    /// counted from the grant on the monotonic one. A wall clock set forward cannot end it early. Its session's end is
+    /// not sent to identity then, unless a renewal may have moved identity's end past it. The margin stands for the
+    /// skew between this world's clock and identity's: a world clock ahead of identity's by more, or a characters
+    /// database whose clock lags identity's by more (the lease is the earlier of identity's session end and the guard's),
+    /// leaves identity's session live for the rest of that skew, which only holds a join without a takeover back as long.
     /// </summary>
     public bool HasRunOutBy(TimeSpan margin)
     {
         DateTime now = _clock.GetUtcNow().UtcDateTime;
-        lock (_gate) return now >= _until + margin;
+        long timestamp = _clock.GetTimestamp();
+        lock (_gate) return now >= _until + margin && _clock.GetElapsedTime(_started, timestamp) >= _duration + margin;
     }
 
     /// <summary>

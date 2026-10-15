@@ -84,7 +84,7 @@ Any count is worth a look: a client sending faster than the tick takes (150 pack
 
 | Metric | Prometheus | Measures |
 |---|---|---|
-| `world.session_ends.skipped` | `world_session_ends_skipped_total` | Game session ends a drain did not send to identity (#1051), decided as each reached the front of its lane (`WorldDatabaseWork.SessionEnds`), tagged `reason`: `expired` (the lease had run out more than `WorldServer.SessionEndSkew`, 5 s, ago with no renewal outstanding, so the session holds nothing an end would release) or `stopping` (the host's stop timeout had passed; a stop that leaves any writes one Warning with the count). Each such session runs out with its lease ([game server admission](steam-authentication-workloads.md#session-activation-and-durable-save-authority)) |
+| `world.session_ends.skipped` | `world_session_ends_skipped_total` | Game session ends a drain did not send to identity (#1051), decided as each reached the front of its lane (`WorldDatabaseWork.SessionEnds`), tagged `reason`: `expired` (the lease had run out more than `WorldServer.SessionEndSkew`, 5 s, ago on both the wall and the monotonic clock, and every renewal asked for was applied, so the session holds nothing an end would release) or `stopping` (the host's stop timeout had passed; a stop that leaves any writes one Warning with the count). Each such session runs out with its lease ([game server admission](steam-authentication-workloads.md#session-activation-and-durable-save-authority)) |
 
 `expired` counts rise when identity answers ends slower than sessions end; `stopping` means a stop gave up on identity.
 

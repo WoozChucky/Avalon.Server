@@ -41,7 +41,8 @@ public static class GameWorkloadHosting
                     string pin = Convert.ToHexString(SHA256.HashData(certificate.RawData));
                     string? refusal = RefusalOf(certificate, pin, now, configuration);
                     // Kestrel logs a refused handshake at Debug only (#1051): say why, rate-limited, with the pin alone.
-                    if (refusal is not null) services?.GetService<RefusedWorkloadCertificateLog>()?.Refused(refusal, pin);
+                    if (refusal is not null)
+                        services?.GetService<RefusedWorkloadCertificateLog>()?.Refused(refusal, pin, IsAssigned(pin, configuration));
                     return refusal is null;
                 };
             }));
@@ -58,8 +59,10 @@ public static class GameWorkloadHosting
             return "outside its validity period";
         if (!GameServerAuthHandler.IsClientCertificate(certificate, now))
             return "without the client authentication usage";
-        return configuration.Servers.Any(s => string.Equals(s.ClientCertificateSha256, pin, StringComparison.OrdinalIgnoreCase))
-            ? null
-            : "assigned to no game server";
+        return IsAssigned(pin, configuration) ? null : "assigned to no game server";
     }
+
+    /// <summary>Whether a configured game server holds <paramref name="pin"/> as its client certificate's SHA-256.</summary>
+    private static bool IsAssigned(string pin, GameWorkloadConfiguration configuration) =>
+        configuration.Servers.Any(s => string.Equals(s.ClientCertificateSha256, pin, StringComparison.OrdinalIgnoreCase));
 }

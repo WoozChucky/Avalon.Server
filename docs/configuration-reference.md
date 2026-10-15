@@ -890,7 +890,9 @@ its one `RequestLoggingMiddleware` line at Information, except a successful leas
 (`POST /internal/game/sessions/heartbeat` answered 2xx), which identity names in `RequestLoggingOptions.QuietOnSuccess`
 and which is written at Debug: one per player every 15 seconds, about 87 lines a second with 1,300 players, whose
 count and latency the `http.server.request.duration` metric already carries. A heartbeat that fails, and every other
-`/internal/game` route, stays at Information (`WorkloadRequestLogShould`). Game authentication's own line
+`/internal/game` route, stays at Information (`WorkloadRequestLogShould`), as does a request an exception escaped from:
+the exception handler runs outside the request log, so its status still reads 200 there, and it is written as
+`HTTP {Method} {Path}{Query} failed with an exception in {Elapsed} ms` instead. Game authentication's own line
 (`Game authentication {Operation} responded {StatusCode} with {ErrorCode}`) is not written for a context refresh
 answered 200 with no error, which only repeats the request line; every other answer, and every other operation's, is.
 The environment brings the Debug
