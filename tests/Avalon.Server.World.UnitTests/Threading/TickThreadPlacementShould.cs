@@ -19,6 +19,7 @@ public class TickThreadPlacementShould
     private const int GcOnSibling = 104;
     private const int GcElsewhere = 105;
     private const int AlreadyOff = 106;
+    private const int Late = 107;
 
     [Theory]
     [InlineData("0-23", "8,20", 8, null)]
@@ -107,16 +108,29 @@ public class TickThreadPlacementShould
 
     /// <summary>
     /// Once the tick is on its CPU it stays pinned, whatever happens to the rest, and what could not be done is one
-    /// warning: the threads could not be listed.
+    /// warning: the threads could not be listed; a thread that took the main thread's old CPUs back after being moved,
+    /// twice (moved again until a pass moves nothing) or every time (the passes give up, with a warning).
     /// </summary>
     [Theory]
     [InlineData("thread list fails", 1)]
+    [InlineData("late thread reverts twice", 0)]
+    [InlineData("late thread always reverts", 1)]
     public void Keep_the_tick_pinned_and_warn_when_the_rest_is_incomplete(string situation, int warnings)
     {
-        var os = new FakeCpus("8,20") { ListFails = situation == "thread list fails" };
+        var os = new FakeCpus("8,20")
+        {
+            ListFails = situation == "thread list fails",
+            LateReverts = situation switch
+            {
+                "late thread reverts twice" => 2,
+                "late thread always reverts" => int.MaxValue,
+                _ => 0,
+            },
+        };
         os.Masks[Main] = Cpus("0-23");
         os.Masks[Tick] = Cpus("0-23");
         os.Masks[Pool] = Cpus("0-23");
+        os.Masks[Late] = Cpus("0-23");
         var logger = new RecordingLogger();
 
         bool pinned = TickThreadPlacement.PinCurrentThread(8, os, logger);
@@ -124,6 +138,8 @@ public class TickThreadPlacementShould
         Assert.True(pinned);
         Assert.True(os.Masks[Tick].SetEquals([8]));
         Assert.Equal(warnings, logger.Entries.Count(entry => entry.Level == LogLevel.Warning));
+        if (situation == "late thread reverts twice")
+            Assert.False(os.Masks[Late].Overlaps([8, 20]));
     }
 
     /// <summary>A world node: 24 CPUs, the main thread, the tick, a pool thread, three GC heap threads, one thread already off.</summary>
@@ -160,6 +176,12 @@ public class TickThreadPlacementShould
         /// <summary>Listing the threads throws, as reading <c>/proc/self/task</c> can.</summary>
         public bool ListFails { get; init; }
 
+        /// <summary>
+        /// How many times thread <see cref="Late" /> takes its old CPUs back after being moved: a thread the runtime was
+        /// starting, that read the main thread's CPUs before they changed and applied them after the move.
+        /// </summary>
+        public int LateReverts { get; set; }
+
         public int ProcessId => Main;
 
         public int CurrentThreadId() => Tick;
@@ -173,6 +195,12 @@ public class TickThreadPlacementShould
         {
             if (threadId == Refuses)
                 return 1;
+
+            if (threadId == Late && LateReverts > 0)
+            {
+                LateReverts--;
+                return 0;
+            }
 
             Sets.Add(threadId);
             Masks[threadId] = new SortedSet<int>(cpus);

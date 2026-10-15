@@ -28,6 +28,9 @@ public static class TickThreadPlacement
 
     private const int NoSuchThread = 3; // ESRCH: the thread ended between the listing and the call.
 
+    /// <summary>The most passes over the threads: each after the first only finds a thread that started meanwhile.</summary>
+    private const int MaxPasses = 5;
+
     /// <summary>
     /// Why <paramref name="cpu" /> cannot be the tick's CPU on this machine, or null when it can, or when this system
     /// cannot place threads (the tick then runs unpinned, with a warning, rather than the start failing).
@@ -119,12 +122,14 @@ public static class TickThreadPlacement
         var bound = new HashSet<int>();
         int moved = 0;
         int failed = 0;
+        bool settled = false;
         try
         {
-            // Twice: a thread the runtime was starting during the first pass may have read the main thread's CPUs
-            // before they changed and applied them after the pass had moved it.
-            for (int pass = 0; pass < 2; pass++)
+            // Until a pass moves nothing: a thread the runtime was starting during a pass may have read the main
+            // thread's CPUs before they changed and applied them after the pass had moved it.
+            for (int pass = 0; pass < MaxPasses && !settled; pass++)
             {
+                int movedBefore = moved;
                 foreach (int thread in os.ThreadIds())
                 {
                     if (thread == tick || thread == main)
@@ -148,6 +153,8 @@ public static class TickThreadPlacement
                     else if (error != NoSuchThread)
                         failed++;
                 }
+
+                settled = moved == movedBefore;
             }
         }
         catch (Exception e)
@@ -170,6 +177,13 @@ public static class TickThreadPlacement
 
         if (failed > 0)
             logger.LogWarning("{Count} threads could not be moved off CPUs {Reserved}", failed, CpuList.Format(reserved));
+
+        if (!settled)
+        {
+            logger.LogWarning(
+                "Threads were still being moved off CPUs {Reserved} after {Passes} passes; some may still run there",
+                CpuList.Format(reserved), MaxPasses);
+        }
 
         return true;
     }
