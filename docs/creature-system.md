@@ -67,8 +67,8 @@ value above 0), `CanInteract`, fixed at spawn from the dialogue catalog, and `Ra
 which the client is sent as `ObjectState.Rarity` for a coloured nameplate (#709), and `DisplayId`, the
 template's, which the client is sent as `ObjectState.DisplayId` to pick the creature's model (#1022). A
 display id names a client model, numbered from 1 in the client's `CreatureModels.h`, and is shared by every
-template that looks alike; 0 is none (the client's default model) and is not sent. The town NPCs carry 1-7;
-the killable creatures are 0 until the client has their models. A creature's casts are
+template that looks alike; 0 is none (the client's default model) and is not sent. The town NPCs carry 1-7,
+the dungeon creatures 8-14 (#1038). A creature's casts are
 free (#163), so it has no pool and `Power` is 0. Its abilities are not set here: its script loads them
 when it attaches (see Abilities under Combat).
 
