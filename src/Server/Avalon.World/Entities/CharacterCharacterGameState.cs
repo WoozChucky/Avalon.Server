@@ -95,35 +95,86 @@ public class CharacterCharacterGameState
         IReadOnlyDictionary<ObjectGuid, GameEntityFields> frameDirtyFields, ref InstanceTickProfile profile)
     {
         long profileStart = profile.Timestamp();
-        _newObjects.Clear();
-        _updatedObjects.Clear();
-        _removedObjects.Clear();
+        BeginDecision();
 
-        _visibleCreatures.Clear();
         foreach (ICreature creature in creatures.Values)
         {
             if (InView(creature, _creatureTrackingSystem, watcher, watcherPosition, range))
                 _visibleCreatures.Add(creature);
         }
 
-        _visibleCharacters.Clear();
         foreach (ICharacter character in characters.Values)
         {
             if (InView(character, _characterTrackingSystem, watcher, watcherPosition, range))
                 _visibleCharacters.Add(character);
         }
 
+        AddVisibleWorldObjects(watcher, watcherPosition, range, worldObjects);
+        CompleteDecision((long)creatures.Count + characters.Count + worldObjects.Count, frameDirtyFields, profileStart,
+            ref profile);
+    }
+
+    /// <summary>
+    /// <see cref="UpdateProfiled(ObjectGuid, Vector3, InterestRange, Dictionary{ObjectGuid, ICreature}, Dictionary{ObjectGuid, ICharacter}, List{IWorldObject}, IReadOnlyDictionary{ObjectGuid, GameEntityFields}, ref InstanceTickProfile)" />
+    /// over the instance's spatial index (#982): the candidates are the characters and creatures of the cells within
+    /// reach of the watcher (<see cref="Interest.Reach" />, radius + margin), the watcher's own character wherever it
+    /// stands, and every world object; each is then decided by <see cref="Interest.IsVisible{TTracked}" /> as the full
+    /// scan decides it, a far one turned away on the index's own copy of its X/Z without reading it. The same objects come
+    /// into, stay in and leave the view; within a kind, they are listed in the cells' order rather than the
+    /// dictionaries'. <paramref name="watcherPosition" /> is the watcher's own position, as the index holds it.
+    /// </summary>
+    internal void UpdateProfiled(
+        ObjectGuid watcher,
+        Vector3 watcherPosition,
+        InterestRange range,
+        SpatialGrid members,
+        List<IWorldObject> worldObjects,
+        IReadOnlyDictionary<ObjectGuid, GameEntityFields> frameDirtyFields, ref InstanceTickProfile profile)
+    {
+        long profileStart = profile.Timestamp();
+        BeginDecision();
+
+        var candidates = new ViewCandidates(this, watcher, watcherPosition, range);
+        members.Visit(watcherPosition.x, watcherPosition.z, Interest.Reach(range), ref candidates);
+        LastCandidates = candidates.Visited;
+
+        AddVisibleWorldObjects(watcher, watcherPosition, range, worldObjects);
+        CompleteDecision((long)candidates.Visited + worldObjects.Count, frameDirtyFields, profileStart, ref profile);
+    }
+
+    /// <summary>
+    /// How many characters and creatures the last decision over the spatial index visited, the watcher's own character
+    /// included (#982): what the index left of the instance's members to check. For measuring it alone.
+    /// </summary>
+    internal int LastCandidates { get; private set; }
+
+    private void BeginDecision()
+    {
+        _newObjects.Clear();
+        _updatedObjects.Clear();
+        _removedObjects.Clear();
+        _visibleCreatures.Clear();
+        _visibleCharacters.Clear();
         _visibleWorldObjects.Clear();
+    }
+
+    private void AddVisibleWorldObjects(ObjectGuid watcher, Vector3 watcherPosition, InterestRange range,
+        List<IWorldObject> worldObjects)
+    {
         foreach (IWorldObject worldObject in worldObjects)
         {
             if (InView(worldObject, _worldObjectTrackingSystem, watcher, watcherPosition, range))
                 _visibleWorldObjects.Add(worldObject);
         }
+    }
 
+    private void CompleteDecision(long candidateChecks, IReadOnlyDictionary<ObjectGuid, GameEntityFields> frameDirtyFields,
+        long profileStart, ref InstanceTickProfile profile)
+    {
         profile.VisibilityTicks += profile.Elapsed(profileStart);
         if (profile.Enabled)
         {
-            profile.CandidateChecks += (long)creatures.Count + characters.Count + worldObjects.Count;
+            profile.CandidateChecks += candidateChecks;
             profile.VisiblePairs += (long)_visibleCreatures.Count + _visibleCharacters.Count + _visibleWorldObjects.Count;
         }
         profileStart = profile.Timestamp();
@@ -205,6 +256,48 @@ public class CharacterCharacterGameState
     private readonly struct TrackedBy(EntityTrackingSystem tracking) : Interest.ITrackedSet
     {
         public bool Contains(ObjectGuid obj) => tracking.IsTracked(obj);
+    }
+
+    /// <summary>
+    /// The spatial index's candidates for one view (#982): each that can be in view by its indexed X/Z, or is the watcher
+    /// itself, is decided by the rule on the entity, as the full scan decides it, and listed with its kind.
+    /// </summary>
+    private struct ViewCandidates : ISpatialVisitor
+    {
+        private readonly CharacterCharacterGameState _state;
+        private readonly ObjectGuid _watcher;
+        private readonly ulong _watcherRaw;
+        private readonly Vector3 _watcherPosition;
+        private readonly InterestRange _range;
+
+        public int Visited;
+
+        public ViewCandidates(CharacterCharacterGameState state, ObjectGuid watcher, Vector3 watcherPosition,
+            InterestRange range)
+        {
+            _state = state;
+            _watcher = watcher;
+            _watcherRaw = watcher.RawValue;
+            _watcherPosition = watcherPosition;
+            _range = range;
+        }
+
+        public void Visit(SpatialKind kind, ulong rawGuid, float x, float z, IWorldObject obj)
+        {
+            Visited++;
+            if (rawGuid != _watcherRaw && !Interest.MayBeInView(_watcherPosition, x, z, _range))
+                return;
+
+            if (kind == SpatialKind.Creature)
+            {
+                if (InView(obj, _state._creatureTrackingSystem, _watcher, _watcherPosition, _range))
+                    _state._visibleCreatures.Add(obj);
+            }
+            else if (InView(obj, _state._characterTrackingSystem, _watcher, _watcherPosition, _range))
+            {
+                _state._visibleCharacters.Add(obj);
+            }
+        }
     }
 
     private void OnEntityRemoved(ObjectGuid guid) => _removedObjects.Add(guid);
