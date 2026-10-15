@@ -40,6 +40,14 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     public CreatureType Type { get; set; }
 
     /// <summary>
+    /// Which model a client draws this creature with (#1022). It names a model, not a template: the models are
+    /// numbered from 1 in the game client's model list (its <c>CreatureModels.h</c>), and every template that
+    /// looks alike carries the same one. 0 is none: the client draws its default. Fixed on the creature at spawn
+    /// and sent as <c>ObjectState.DisplayId</c>.
+    /// </summary>
+    public uint DisplayId { get; set; }
+
+    /// <summary>
     /// What this creature drops when it dies. Null drops no items; gold still comes from
     /// <see cref="MinGold"/> and <see cref="MaxGold"/>.
     /// </summary>
