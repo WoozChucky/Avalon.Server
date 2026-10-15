@@ -191,6 +191,12 @@ helm install ... --set-file authentication.signingKey=./jwt-es256.pem --set-file
 
 `docker-compose.yml` runs only Redis and Postgres, so it needs no key. EF design-time commands (`dotnet ef migrations ...` with `--startup-project src/Server/Avalon.Api`) need no key either: they build each context through its `IDesignTimeDbContextFactory` and never run the API host's registrations. Tests never read one: `ApiTestHost` (`tests/Avalon.Api.Testing`) and the other API tests make their own keys in code.
 
+## CI and dev builds
+
+- **A pull request** (`dotnet-pr.yml`) builds the solution, checks formatting, runs the tests and publishes the four servers as a check (World without ReadyToRun); `charts` runs every chart's `ci/test.sh`. Nothing is pushed.
+- **A push to `main`** (`dotnet-ci.yml`) is a dev build, `X.Y.(Z+1)-dev.<run>` (`tools/release/channel-version.sh`). Two jobs start together (#1018): `build` builds the solution and runs the tests; `publish` restores and publishes only the four servers, each project compiled once (World with ReadyToRun; all four with the same `SourceRevisionId`, which the balance service needs and which keeps the libraries they share from compiling twice), and pushes their images (`.github/actions/publish-server`, the four at once, each push retried). `charts` needs both: it refuses unless the tests ran on the commit the images were built from, then runs each chart's `ci/test.sh` and pushes the four charts, `avalon-world` last (`.github/actions/push-charts`), one run at a time (concurrency group `server-dev`). The charts are what Flux deploys, so a run whose tests fail pushes no chart and deploys nothing; its dev-tagged images are named by no chart, and the weekly registry cleanup (`registry-cleanup.yml`) deletes them once they are 14 days old and outside the newest ten. `changelog` writes the dev entry after the charts.
+- **Nightly** (`dotnet-nightly.yml`) promotes the newest dev chart and its images to PTR (`-nightly.<run>`) without rebuilding. **A release** (`dotnet-release.yml`) checks that its commit is a PTR build's, then in one job builds, tests, publishes and pushes the images, and only then the charts (the same two actions), and finally starts a dev build of `main`.
+
 ## From clone to client in world
 
 The one path from a fresh clone to a character in the world on this machine. Nothing in it is a production setting: every key and certificate it makes is a throwaway, and the license it grants exists only in Development.

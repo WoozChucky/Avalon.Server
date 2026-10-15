@@ -1,0 +1,27 @@
+name: Push the charts
+description: >-
+  Test, package and push the four charts. A pushed chart is what deploys (Flux), so a caller pushes them only after
+  its tests passed and the images they name were pushed (publish-server).
+inputs:
+  version: { description: "Chart version and app version", required: true }
+  token: { description: "A token that can push packages", required: true }
+runs:
+  using: composite
+  steps:
+    - uses: azure/setup-helm@v5
+    - name: Package and push the charts
+      shell: bash
+      env: { VERSION: "${{ inputs.version }}", TOKEN: "${{ inputs.token }}" }
+      run: |
+        set -euo pipefail
+        retry() { local n; for n in 1 2 3; do "$@" && return 0; [[ $n -lt 3 ]] && { echo "::warning::'$*' failed (attempt $n of 3); retrying"; sleep $((n * 10)); }; done; return 1; }
+        echo "$TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+        mkdir -p dist/charts
+        # avalon-world last: its tag is what the nightly skip and Flux look for.
+        for chart in src/Server/Avalon.Api/Helm/avalon-api src/Server/Avalon.Server.Auth/Helm/avalon-auth \
+                     src/Server/Avalon.Balance.Service/Helm/avalon-balance \
+                     src/Server/Avalon.Server.World/Helm/avalon-world; do
+          bash "$chart/ci/test.sh"
+          helm package "$chart" --version "$VERSION" --app-version "$VERSION" -d dist/charts
+          retry helm push "dist/charts/$(basename "$chart")-$VERSION.tgz" oci://ghcr.io/woozchucky/charts
+        done
