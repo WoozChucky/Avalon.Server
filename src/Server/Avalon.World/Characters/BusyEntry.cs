@@ -21,7 +21,7 @@ internal static class BusyEntry
         if (s_refusals.TryTake(clock, out int suppressed))
         {
             logger.LogWarning(
-                "Closed a character select for account {AccountId}: a full work queue refused it; {Suppressed} more were refused since the last line",
+                "Closed the connection of account {AccountId} as busy: a full work queue refused its character select or its spawn; {Suppressed} more were refused since the last line",
                 connection.AccountId, suppressed);
         }
 

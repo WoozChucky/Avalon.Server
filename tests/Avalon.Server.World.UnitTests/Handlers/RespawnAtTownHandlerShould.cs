@@ -27,6 +27,10 @@ public class RespawnAtTownHandlerShould
 
         IWorldConnection conn = Substitute.For<IWorldConnection>();
         conn.Character.Returns(ch);
+        // The town lookup runs on the database work queue (#1050): a continuation is queued only once its work is
+        // done here, as the tick would find it on a later tick. The task waited on never faults.
+        conn.When(c => c.EnqueueContinuation(Arg.Any<Task>(), Arg.Any<Action>()))
+            .Do(call => call.Arg<Task>().Wait(TimeSpan.FromSeconds(30)));
         conn.AccountId.Returns(new AccountId(42L));
 
         IRespawnTargetResolver resolver = Substitute.For<IRespawnTargetResolver>();

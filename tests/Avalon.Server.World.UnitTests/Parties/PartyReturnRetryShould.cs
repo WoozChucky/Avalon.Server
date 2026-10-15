@@ -70,7 +70,7 @@ public class PartyReturnRetryShould
                 : Task.FromResult(s_townMap);
         });
 
-        _town = new TownReturn(_log, _world, _resolver);
+        _town = new TownReturn(_log, _world, _resolver, Avalon.Server.World.UnitTests.GameAuth.InlineDatabaseWork.Instance);
     }
 
     /// <summary>What World.Update does each tick: the party tick, then the returns it hands over.</summary>

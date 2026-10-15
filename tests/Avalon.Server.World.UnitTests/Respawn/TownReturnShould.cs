@@ -1,12 +1,15 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using NSubstitute.ClearExtensions;
 
@@ -54,7 +57,7 @@ public class TownReturnShould
         _resolver.ResolveTownAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
             .Returns(new MapTemplateId(1));
 
-        _town = new TownReturn(_log, _world, _resolver);
+        _town = new TownReturn(_log, _world, _resolver, InlineDatabaseWork.Instance);
         _connection.RespawnInFlight = true;
     }
 
@@ -166,6 +169,24 @@ public class TownReturnShould
 
         Assert.True(_connection.RespawnInFlight);
         Assert.Contains(_log.Errors, e => e.Exception is InvalidOperationException);
+    }
+
+    /// <summary>
+    /// The town lookup runs on the database work queue (#1050). A full queue fails the return at once: the flag is
+    /// cleared so the player can ask again, nothing is moved, and it is a Warning without a stack, not an Error.
+    /// </summary>
+    [Fact]
+    public void Fail_a_return_the_full_work_queue_refused_without_an_error()
+    {
+        var full = new WorldDatabaseWork(1, 1);
+        _ = full.Run(() => new TaskCompletionSource<int>().Task); // never ends: the one slot stays taken
+
+        new TownReturn(_log, _world, _resolver, full).Start(_connection, revive: true, dropEncounter: false);
+
+        Assert.False(_connection.RespawnInFlight);
+        _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
+        Assert.Empty(_log.Errors);
+        Assert.Contains(_log.Entries, e => e.Level == LogLevel.Warning && e.Exception is null);
     }
 
     /// <summary>#700: a caller that retries takes the failure itself, after the flag is cleared; nothing is logged at Error here.</summary>

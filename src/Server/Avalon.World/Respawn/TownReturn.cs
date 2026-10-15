@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Maps;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -15,10 +16,15 @@ namespace Avalon.World.Respawn;
 /// countdown (2026-09-30) moves a living character and drops it from its encounter first. Tick thread; clears
 /// RespawnInFlight when it arrives, and when it fails (a town lookup or an instance build that faults, or a step
 /// that throws), which is logged at Error, or, when the caller passes <c>failed</c>, handed to it instead (the party
-/// leave countdown retries a failed return, #700).
+/// leave countdown retries a failed return, #700). The town lookup opens a scope and queries, so it runs on the
+/// database work queue, never on the tick; a full queue fails the return at once (#1050), logged at Warning without a
+/// stack, or handed to <c>failed</c> as a <see cref="WorldWorkUnavailableException" /> of its own.
 /// </summary>
-public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResolver resolver)
+/// <param name="work">The queue the town lookup runs on: <see cref="WorldDatabaseWork.ThreadPool" /> unless a test hands another.</param>
+public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResolver resolver, IWorldDatabaseWork? work = null)
 {
+    private readonly IWorldDatabaseWork _work = work ?? WorldDatabaseWork.ThreadPool;
+
     /// <param name="failed">
     /// Called on the tick, once, with the failure, after RespawnInFlight is cleared; it then owns the logging. Never
     /// called for a return that arrived or that was dropped because the character left the connection.
@@ -33,11 +39,19 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
         Task<MapTemplateId> town;
         try
         {
-            town = resolver.ResolveTownAsync(new MapTemplateId(ch.Map.Value), CancellationToken.None);
+            var from = new MapTemplateId(ch.Map.Value);
+            town = _work.Run(() => resolver.ResolveTownAsync(from, CancellationToken.None));
         }
         catch (Exception e)
         {
             Failed(connection, ch, e, failed);
+            return;
+        }
+
+        if (WorldDatabaseWork.IsRefusal(town))
+        {
+            // Never the queue's shared exception, whose stack names another caller: one of its own, never thrown.
+            Failed(connection, ch, new WorldWorkUnavailableException(), failed);
             return;
         }
 
@@ -94,7 +108,10 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
 
         if (failed is null)
         {
-            logger.LogError(e, "Return to town of {Name} failed", ch.Name);
+            if (e is WorldWorkUnavailableException)
+                logger.LogWarning("Return to town of {Name} failed: the database work queue is full", ch.Name);
+            else
+                logger.LogError(e, "Return to town of {Name} failed", ch.Name);
             return;
         }
 

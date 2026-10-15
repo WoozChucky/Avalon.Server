@@ -210,7 +210,7 @@ public class MapArrivalShould
             case Arrival.ReturnToTown:
                 IRespawnTargetResolver resolver = Substitute.For<IRespawnTargetResolver>();
                 resolver.ResolveTownAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>()).Returns(_townTemplate.Id);
-                new TownReturn(NullLogger.Instance, _world, resolver)
+                new TownReturn(NullLogger.Instance, _world, resolver, Avalon.Server.World.UnitTests.GameAuth.InlineDatabaseWork.Instance)
                     .Start(client.Connection, revive: false, dropEncounter: false);
                 break;
 
