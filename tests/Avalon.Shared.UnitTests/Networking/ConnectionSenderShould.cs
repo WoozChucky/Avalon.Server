@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Avalon.Common;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
@@ -364,9 +365,11 @@ public sealed class ConnectionSenderShould
         await WaitUntil(() => Volatile.Read(ref closes) == 1, s_guard);
 
         Assert.False(sender.Enqueue(Numbered(3)));
-        var watch = System.Diagnostics.Stopwatch.StartNew();
         await CloseAsync(scheduler, sender);
-        Assert.True(watch.Elapsed < ConnectionSender.CloseBudget, $"the close took {watch.Elapsed}");
+        // A close that waited out its budget cancels the write in flight as it gives up (DisposeAsync); one that finished
+        // at once never does. Read from the token, not a stopwatch: the close's continuations wait for the thread pool,
+        // which a loaded test run can hold for longer than the budget (#1019).
+        Assert.False(failing.WriteCancellation.IsCancellationRequested, "the close waited out its budget");
         Assert.Equal(1, failing.Writes);
         Assert.Equal(1, Volatile.Read(ref closes));
         Assert.Equal(0, sender.PendingBytes);
@@ -387,10 +390,10 @@ public sealed class ConnectionSenderShould
         const int Rounds = 200;
         const int PerRound = 25;
         NetworkSendScheduler scheduler = Scheduler(threads: 2);
+        SometimesPendingStream[] wires = [new(3), new(3)];
         scheduler.Start();
         try
         {
-            SometimesPendingStream[] wires = [new(3), new(3)];
             ConnectionSender[] senders = [Open(scheduler, wires[0]), Open(scheduler, wires[1])];
             using var stop = new CancellationTokenSource();
             using var round = new Barrier(4);
@@ -438,6 +441,8 @@ public sealed class ConnectionSenderShould
         finally
         {
             Assert.True(scheduler.Stop(TimeSpan.FromSeconds(5)));
+            foreach (SometimesPendingStream wire in wires)
+                wire.Dispose();
         }
     }
 
@@ -731,30 +736,55 @@ public sealed class ConnectionSenderShould
             await Task.Delay(10, timeout.Token);
     }
 
-    /// <summary>A stream whose every <c>k</c>-th write ends asynchronously, on the thread pool; the others end inline.</summary>
-    private sealed class SometimesPendingStream(int k) : Stream
+    /// <summary>
+    /// A stream whose every <c>k</c>-th write ends asynchronously, on a completion thread of its own as a socket's ends on
+    /// an I/O thread; the others end inline. Not on the thread pool: the rest of the test run can hold its workers for
+    /// seconds (#960), and this case waits for some hundreds of these ends within its guard (#1019).
+    /// </summary>
+    private sealed class SometimesPendingStream : Stream
     {
+        private readonly int _k;
         private readonly MemoryStream _written = new();
+        private readonly BlockingCollection<(ReadOnlyMemory<byte> Buffer, TaskCompletionSource Done)> _pending = new();
         private int _writes;
+
+        public SometimesPendingStream(int k)
+        {
+            _k = k;
+            new Thread(CompleteWrites) { IsBackground = true, Name = "Test.WriteCompletion" }.Start();
+        }
 
         public byte[] ToArray() => _written.ToArray();
 
         public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
             // One write in flight at a time (the sender's rule), so the count and the buffer need no lock.
-            if (++_writes % k != 0)
+            if (++_writes % _k != 0)
             {
                 _written.Write(buffer.Span);
                 return ValueTask.CompletedTask;
             }
 
-            return WriteLaterAsync(buffer);
+            // Ended on the completion thread, which runs the sender's continuation there, as an I/O completion does.
+            var done = new TaskCompletionSource();
+            _pending.Add((buffer, done), CancellationToken.None);
+            return new ValueTask(done.Task);
         }
 
-        private async ValueTask WriteLaterAsync(ReadOnlyMemory<byte> buffer)
+        private void CompleteWrites()
         {
-            await Task.Yield();
-            _written.Write(buffer.Span);
+            foreach ((ReadOnlyMemory<byte> buffer, TaskCompletionSource done) in _pending.GetConsumingEnumerable())
+            {
+                _written.Write(buffer.Span);
+                done.SetResult();
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _pending.CompleteAdding();
+            base.Dispose(disposing);
         }
 
         public override bool CanRead => false;
@@ -775,6 +805,9 @@ public sealed class ConnectionSenderShould
         private TaskCompletionSource _write = new();
 
         public int Writes { get; private set; }
+
+        /// <summary>The token the last write was handed: the sender cancels it to abandon a write still in flight.</summary>
+        public CancellationToken WriteCancellation { get; private set; }
 
         private ReadOnlyMemory<byte> _pending;
 
@@ -800,6 +833,7 @@ public sealed class ConnectionSenderShould
         {
             Written.Write(buffer.Span);
             _pending = buffer;
+            WriteCancellation = cancellationToken;
             Writes++;
             _write = new TaskCompletionSource();
             return new ValueTask(_write.Task);
