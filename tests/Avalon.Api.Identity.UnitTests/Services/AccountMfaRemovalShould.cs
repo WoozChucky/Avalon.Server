@@ -229,7 +229,7 @@ public class AccountMfaRemovalShould : IDisposable
 
     private async Task<Account> CreateAccountAsync(string username)
     {
-        string salt = BCrypt.Net.BCrypt.GenerateSalt();
+        string salt = BCrypt.Net.BCrypt.GenerateSalt(4);
         return await new AccountRepository(_database).CreateAsync(new Account
         {
             Username = username,
