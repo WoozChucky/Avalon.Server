@@ -45,7 +45,7 @@ public sealed class OfflineWriteRaceShould : IDisposable
             Username = "RACEUSER",
             Email = "race@example.com",
             Salt = new byte[16],
-            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid)),
+            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid, BCrypt.Net.BCrypt.GenerateSalt(4))),
             JoinDate = DateTime.UtcNow,
             LastLogin = DateTime.UtcNow.AddMinutes(-10),
             TotalTime = 100,

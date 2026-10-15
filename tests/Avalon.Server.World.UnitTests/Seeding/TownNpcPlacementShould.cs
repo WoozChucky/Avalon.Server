@@ -322,7 +322,7 @@ public class TownNpcPlacementShould
 
     /// <summary>Every solid of the town (a non-walkable piece standing below 2 m), with its distance to a world point.</summary>
     private static IEnumerable<(TownSquare Square, TownPiece Piece, float Distance)> Solids(float x, float z) =>
-        TownPieces.Squares().SelectMany(s => s.Pieces
+        s_squares.SelectMany(s => s.Pieces
             .Where(p => !p.Walkable && p.Y0 < TownRules.SolidBelow)
             .Select(p => (s, p, p.DistanceTo(x - s.Origin.X, z - s.Origin.Z))));
 
@@ -363,10 +363,13 @@ public class TownNpcPlacementShould
     private const float HeadHeight = 1.8f;
     private const float SightStep = 0.05f;
 
+    /// <summary>The town's squares, built once: <see cref="SolidAt" /> is asked about every step of every sight line.</summary>
+    private static readonly IReadOnlyList<TownSquare> s_squares = TownPieces.Squares();
+
     /// <summary>Whether a world point lies inside a solid piece or a wall of the town.</summary>
     private static string? SolidAt(float x, float y, float z)
     {
-        foreach (TownSquare square in TownPieces.Squares())
+        foreach (TownSquare square in s_squares)
         {
             float lx = x - square.Origin.X, lz = z - square.Origin.Z;
             if (lx < 0f || lx > TownSquare.CellSize || lz < 0f || lz > TownSquare.CellSize)
@@ -428,8 +431,9 @@ public class TownNpcPlacementShould
                         {
                             float f = t / length;
                             string? hit = SolidAt(head.x + line.x * f, head.y + line.y * f, head.z + line.z * f);
-                            Assert.True(hit is null,
-                                $"creature {spawn.CreatureTemplateId.Value} at ({x}, {z}) is hidden by {hit} from a player at ({x + dx}, {z + dz}), zoom {distance}");
+                            // The message is built only for a hit: formatted on every step, it cost more than the walk.
+                            if (hit is not null)
+                                Assert.Fail($"creature {spawn.CreatureTemplateId.Value} at ({x}, {z}) is hidden by {hit} from a player at ({x + dx}, {z + dz}), zoom {distance}");
                         }
                     }
                 }

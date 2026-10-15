@@ -43,14 +43,21 @@ public partial class CAuthHandlerShould
         _handler = CreateHandler();
     }
 
+    /// <summary>
+    /// The stored hash of <see cref="TestPasswords.Valid" />, hashed once at the lowest work factor: the verify runs the
+    /// real BCrypt check, where the registration work factor would cost every test a hash and a verify of about a tenth
+    /// of a second each.
+    /// </summary>
+    private static readonly string s_validPasswordHash =
+        BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid, BCrypt.Net.BCrypt.GenerateSalt(4));
+
     private static Account MakeAccount(string username = "TESTUSER", bool locked = false, bool online = false, int failedLogins = 0)
     {
-        string password = BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid);
         return new Account
         {
             Username = username,
             Salt = new byte[16],
-            Verifier = Encoding.UTF8.GetBytes(password),
+            Verifier = Encoding.UTF8.GetBytes(s_validPasswordHash),
             Email = "test@test.com",
             JoinDate = DateTime.UtcNow,
             Locked = locked,

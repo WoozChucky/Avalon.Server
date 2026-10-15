@@ -192,7 +192,7 @@ public sealed class MfaSetupRowShould : IDisposable
         Username = "MFAUSER",
         Email = "mfauser@example.com",
         Salt = new byte[16],
-        Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid)),
+        Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid, BCrypt.Net.BCrypt.GenerateSalt(4))),
         SessionKey = [],
         LastIp = "127.0.0.1",
         LastAttemptIp = string.Empty,
