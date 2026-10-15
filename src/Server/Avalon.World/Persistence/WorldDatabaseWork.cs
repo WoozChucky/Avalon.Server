@@ -33,6 +33,14 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
     /// </summary>
     public const int HeartbeatOutstandingLimit = 8192;
 
+    /// <summary>
+    /// How many session ends (<c>POST /internal/game/sessions/end</c>) a world sends identity at once (#1051). A stop
+    /// ends every session together: 1,300 at once each cost identity a TLS connection and a wait for the database, took
+    /// 3.6 s apiece and ran it out of memory. At this bound they pass in well under a second at identity's usual few
+    /// milliseconds an end.
+    /// </summary>
+    public const int SessionEndConcurrency = 16;
+
     public static readonly IWorldDatabaseWork ThreadPool = new WorldDatabaseWork(lane: "database");
     public static readonly IWorldDatabaseWork Admission = new WorldDatabaseWork(AdmissionConcurrency, AdmissionOutstandingLimit, "admission");
 
@@ -42,6 +50,13 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
     /// there waits 15 s for its next try, so three refusals in a row ended a lease the player still held.
     /// </summary>
     public static readonly IWorldDatabaseWork Heartbeat = new WorldDatabaseWork(HeartbeatConcurrency, HeartbeatOutstandingLimit, "heartbeat");
+
+    /// <summary>
+    /// The session ends a drain sends (#1051): <see cref="SessionEndConcurrency" /> at once, the rest queued, never
+    /// refused, since an end refused here would leave the session holding the account until its lease runs out. Its
+    /// lane on <c>world.work.refusals</c>, <c>session_ends</c>, therefore never counts.
+    /// </summary>
+    public static readonly IWorldDatabaseWork SessionEnds = new WorldDatabaseWork(SessionEndConcurrency, int.MaxValue, "session_ends");
 
     private static readonly WorldWorkUnavailableException s_unavailable = new();
     private readonly SemaphoreSlim _slots;

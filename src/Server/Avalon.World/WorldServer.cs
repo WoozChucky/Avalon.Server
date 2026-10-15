@@ -116,9 +116,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (pendingAdmission is not null)
             try { await pendingAdmission.ConfigureAwait(false); } catch (Exception) { }
         GameSessionLease? lease = connection.GameSessionLease ?? (pendingAdmission is { IsCompletedSuccessfully: true } ? pendingAdmission.Result.Lease : null);
+        // Bounded (#1051): a stop drains every connection at once, and identity must not receive every end together.
         if (lease is not null)
-            await Task.Run(() => AdmissionClient.EndAsync(lease, CancellationToken.None), CancellationToken.None).ConfigureAwait(false);
+            await SessionEnds.Run(() => AdmissionClient.EndAsync(lease, CancellationToken.None)).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Where <see cref="DrainGameplayAsync" /> sends each session's end: <see cref="WorldDatabaseWork.SessionEnds" />, a
+    /// bounded number at once (#1051). Settable for a test.
+    /// </summary>
+    public IWorldDatabaseWork SessionEnds { get; init; } = WorldDatabaseWork.SessionEnds;
     #region Scheduling (Move to HighRes Timer class)
 
     [SupportedOSPlatform("windows")]
