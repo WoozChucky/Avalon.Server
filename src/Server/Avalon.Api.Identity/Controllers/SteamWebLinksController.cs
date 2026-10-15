@@ -37,7 +37,9 @@ public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLink
     private string Cookie(Guid id) => Request.Cookies[SteamWebLinkRegistration.CookieName(id)] ?? string.Empty;
 
     [HttpPost("start", Name = "StartWebsiteSteamLink")]
+    [IdempotencyKeyRequired(typeof(SteamWebLinkReply))]
     [ProducesResponseType(typeof(SteamWebLinkReply), 200)]
+    [ProducesResponseType(typeof(SteamWebLinkReply), 400)]
     public Task<IActionResult> Start([FromHeader(Name = "Idempotency-Key")] Guid requestId, CancellationToken ct) => Execute(async () =>
     {
         SteamWebLinkStart? start = await links.StartAsync(requestId, auth.Account!, BrowserSession, ct);
@@ -82,7 +84,9 @@ public sealed class SteamWebLinksController(SteamWebLinkStore links, AccountLink
     });
 
     [HttpPost("confirm", Name = "ConfirmWebsiteSteamLink")]
+    [IdempotencyKeyRequired(typeof(SteamWebLinkReply))]
     [ProducesResponseType(typeof(SteamWebLinkReply), 200)]
+    [ProducesResponseType(typeof(SteamWebLinkReply), 400)]
     public Task<IActionResult> Confirm(SteamWebLinkConfirmation request,
         [FromHeader(Name = "Idempotency-Key")] Guid requestId, CancellationToken ct) => Execute(async () =>
     {

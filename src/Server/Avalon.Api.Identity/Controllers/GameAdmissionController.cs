@@ -49,13 +49,17 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
     }
 
     [HttpPost("join-tickets", Name = "CreateGameJoinTicket")]
+    [IdempotencyKeyRequired(typeof(GameJoinReply))]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Join(GameJoinRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Issue(request, requestId, false, cancellationToken);
 
     [HttpPost("reconnect-tickets", Name = "CreateGameReconnectTicket")]
+    [IdempotencyKeyRequired(typeof(GameJoinReply))]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Reconnect(GameJoinRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Issue(request, requestId, true, cancellationToken);

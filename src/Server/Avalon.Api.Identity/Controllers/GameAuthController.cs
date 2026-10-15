@@ -39,21 +39,27 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
     }
 
     [HttpPost("store/proof", Name = "AuthenticateProviderGame")]
+    [IdempotencyKeyRequired(typeof(GameAuthReply))]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> ProviderProof(GameProviderProofRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(() => authorization.AuthenticateProviderAsync(request.Provider,
             request.AttemptCredential, request.Proof, requestId, cancellationToken, HttpContext.Connection.RemoteIpAddress?.ToString()));
 
     [HttpPost("handoffs/redeem", Name = "RedeemGameAuthHandoff")]
+    [IdempotencyKeyRequired(typeof(GameAuthReply))]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Handoff(GameHandoffRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(() => authorization.RedeemHandoffAsync(
             request.AttemptCredential, request.HandoffTicket, requestId, cancellationToken));
 
     [HttpPost("game-context/refresh", Name = "RefreshGameAuthContext")]
+    [IdempotencyKeyRequired(typeof(GameAuthReply))]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> Refresh(GameContextRefreshRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Execute(() => authorization.RefreshAsync(request.GameContextRefreshToken, requestId, cancellationToken));
@@ -90,7 +96,9 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
     }
 
     [HttpPost("links/complete", Name = "CompleteGameAccountLink")]
+    [IdempotencyKeyRequired(typeof(GameAuthReply))]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameAuthReply), StatusCodes.Status403Forbidden)]
     public Task<IActionResult> CompleteLink(GameLinkCompleteRequest request, [FromServices] PendingLinkStore links,
         [FromServices] ILogger<GameAuthController> logger, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
