@@ -164,6 +164,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private static readonly long s_spinThresholdTicks = Stopwatch.Frequency / 1000; // 1ms
 
     private Thread? _tickThread;
+    private int? _tickThreadCpu;
     private volatile bool _tickRunning;
     private IntPtr _waitableTimer; // Windows high-res timer handle
     private readonly TaskCompletionSource _tickExited =
@@ -418,6 +419,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             _logger.LogInformation("The tick-thread assertion is on (Game:TickThreadGuard)");
         }
 
+        // Game:TickThreadCpu (#1002), applied by the tick thread itself before its first tick.
+        _tickThreadCpu = _world.Configuration.TickThreadCpu;
+
         // The send threads before the tick that wakes them (#875).
         _sendScheduler.Start();
         _logger.LogInformation("Packet encryption: {Mode}",
@@ -567,6 +571,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     private void TickLoop()
     {
+        // On its own CPU, with every other thread of the world kept off that core (#1002); unset, nothing happens. Once,
+        // before the first tick.
+        TickThreadPlacement.PinCurrentThread(_tickThreadCpu, LinuxCpuAffinity.Instance, _logger);
+
         // The tick's sends wake their send threads once, at the tick's end (the outbox stage), not once per packet (#875).
         NetworkSendScheduler.DeferSignalsOnCurrentThread();
         // From here until the loop ends, World-side state that only the tick may change refuses any other thread

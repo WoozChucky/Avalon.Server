@@ -79,6 +79,8 @@ public static class ServiceExtensions
             })
             .ValidateDataAnnotations()
             .ValidateOnStart();
+        // #1002: a tick CPU this machine cannot give the tick stops the start.
+        services.AddSingleton<IValidateOptions<GameConfiguration>>(new TickThreadCpuValidation(LinuxCpuAffinity.Instance));
 
         // The send threads and the session layer (#875): Network:SendThreads, MaxPendingBytes, MaxWriteStall,
         // PacketEncryption. And the receive queue's depth cap (#927): MaxReceiveQueueDepth.
