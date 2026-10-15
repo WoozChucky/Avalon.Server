@@ -90,12 +90,15 @@ byte, on the auth server and on a world server alike (#938).** One that is not h
 stream, and the connection is closed without a notice, as it is when a peer goes away. That covers a peer that starts a
 frame and stops, and one that sends it a byte at a time: the clock runs from the frame's first byte and is not reset by
 the bytes after it. Until #938 the read loop waited for the rest of a frame with only the server's stopping token, so
-such a peer held its connection and its read buffer for as long as it liked; TCP keepalive does not end a connection
-that keeps trickling. Like the length limit, it holds before admission or login as after.
+such a peer held its connection and its read buffer for as long as it liked. Like the length limit, it holds before
+admission or login as after.
 
-Only a started frame is timed. The wait between frames is not, so an idle connection keeps what it had: keepalive, and on
-a world the admission timeout before admission. The first byte is the first byte the read loop receives, inside TLS: a
-TLS record that never completes delivers none, and is not timed by this deadline.
+Only a started frame is timed. The wait between frames is not, and nothing else here closes a connection that is
+connected and silent. On a world, before admission the admission timeout bounds it (15 s); after admission a silent
+connection is held for as long as its admission lease lasts (#1034). TCP keepalive (`Hosting:TcpKeepAlive*`) closes no
+idle connection: the peer's operating system answers its probes whatever the client does, so it only removes a peer
+that has gone away without closing (a half-open connection). The first byte is the first byte the read loop receives,
+inside TLS: a TLS record that never completes delivers none, and is not timed by this deadline.
 
 The close writes one Warning (the connection, its account once it has one, its address, how many packets it had
 delivered, and the deadline), never an exception or anything the peer sent, and counts one in
