@@ -3618,7 +3618,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
 - **Improvement notice** (test output, not a failure) when it is more than 1% and more than 256 B under.
 - **Detection floor.** `town-idle`, `town-walk` and `many-instances` read 0 since `75a16697` (#875: none of them
   allocates on the tick thread since server packets are built in per-thread messages; the file was regenerated at
-  `2ca42aff` for `town-social`'s first entry, #972, and at `490f1785` for #973's chat and party fixes, and
+  `2ca42aff` for `town-social`'s first entry, #972, and at `ae2ed357` for #973's chat and party fixes, and
   `forest-combat`'s figure lowered by #980 and #973 between), so the 256 B floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails every steady scenario (the smallest, 24 B, is 1,440 B
@@ -3924,7 +3924,7 @@ the heap, are gone. Whispers and party lines no longer grow with their number of
 `forest-combat` at **14,138 B**, from 14,176 B (Debug 14,206 B, from 14,244 B): the forest's one level-up in the
 measured minute, a whole party at one tick (tick 3,422 of 3,600), sends the roster of three once per member, and each
 no longer builds three lists and nine entries (3 × 760 B = 2,280 B over 60 windows, 38 B a window). `town-idle`,
-`town-walk` and `many-instances` stay at 0. The runner's Release run at `490f1785` wrote the file (developer machine,
+`town-walk` and `many-instances` stay at 0. The runner's Release run at `ae2ed357` wrote the file (developer machine,
 i9-12900K, Windows 11, .NET 10.0.13, other agents building and testing beside it); the Release runner at `main`
 (`c83cbd59`) read `forest-combat` 14,176 B on the same machine, the committed figure, so the 38 B are this change's.
 **Stability.** The runner, two runs in Release: 728 B and 14,138 B both times. The gate alone, three runs in Release: 728 B and 14,138 B every time; three in Debug: 728 B and 14,206 B every time (+0.48%, +68 B, within). A spread of 0 B within each build.
