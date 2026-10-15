@@ -876,8 +876,22 @@ Application__Authentication__SigningKey=<from-vault>
 
 Every host builds its Serilog logger in `AddCustomLogging` at a minimum of Debug, then reads
 `Serilog` from configuration. `AddSerilog` passes every level through to Serilog, so Serilog's
-minimum decides what is written, whatever `Logging:LogLevel` says. The API and the auth server
-keep the Debug minimum, without the lines that only repeat:
+minimum decides what is written, whatever `Logging:LogLevel` says (the API's `Logging:LogLevel`, Information with
+`Microsoft.AspNetCore` at Warning, reaches only the OpenTelemetry log exporter).
+
+The API runs at **Information** outside Development (#1051): its `appsettings.json` sets
+`Serilog:MinimumLevel:Default` to `Information`, and its `appsettings.Development.json` sets it back to `Debug` for a
+local run. Before, production identity kept the Debug minimum and wrote three Debug lines for every game-server request,
+one pair of authentications and one authorization per lease heartbeat (63,000 lines in four minutes with about 1,300
+players): the workload scheme's handler logs under its own type (`Avalon.Api.Identity.Authentication.GameServerAuthHandler`)
+and the authorization under `Microsoft.AspNetCore.Authorization.DefaultAuthorizationService`, which the
+`Microsoft.AspNetCore.Authentication` override below never matched (`ApiLogLevelShould`). Each request still writes
+its one `RequestLoggingMiddleware` line at Information, a lease heartbeat's included. The environment brings the Debug
+lines back (`Serilog__MinimumLevel__Default=Debug`); the API chart has no value for it, unlike the world chart's
+`logging.minimumLevel`.
+
+The auth server keeps the Debug minimum. Both the API (in Development) and the auth server leave out the lines that
+only repeat:
 
 - The API's `appsettings.json` raises to Warning `Microsoft.Extensions.Http` and `System.Net.Http.HttpClient` (the
   `HttpClient` factory's handler cleanup, a pair every ten seconds once a named client's handler has expired, and the
