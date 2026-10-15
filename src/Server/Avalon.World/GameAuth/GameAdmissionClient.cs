@@ -82,6 +82,14 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException or IOException)
         { return await AbandonAsync(reserved, GameAuthErrors.ServiceUnavailable); }
+        catch (Exception) when (reserved is not null)
+        {
+            // A defect after the redemption reserved a session (#1050): a faulted admission hands back no lease, so the
+            // world could never end the session itself. End it, then let the fault through, which the admission
+            // reports and answers ServiceUnavailable.
+            await AbandonAsync(reserved, GameAuthErrors.ServiceUnavailable);
+            throw;
+        }
     }
 
     /// <summary>

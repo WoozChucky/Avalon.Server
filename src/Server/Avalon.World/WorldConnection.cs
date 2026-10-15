@@ -16,6 +16,7 @@ using Avalon.World.Filters;
 using Avalon.World.GameAuth;
 using Avalon.World.Handlers;
 using Avalon.World.Maintenance;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -672,8 +673,43 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>Publishing an admitted connection, or sending its reply, failed: the server's fault, logged with its exception.</summary>
     public void ReportAdmissionFailed(Exception error) => ReceiveLog.AdmissionFailed(_logger, error, Id);
 
+    private static readonly AdmissionFailureLog s_overloadedAdmissions = new();
+    private static readonly AdmissionFailureLog s_failedAdmissions = new();
+
+    /// <summary>
+    /// The redemption of this connection's join ticket ended without an answer (#1050): the admission work queue
+    /// refused it (<see cref="WorldWorkUnavailableException" />), or it threw. The admission is answered
+    /// <c>ServiceUnavailable</c> and closed by its continuation. Counted under <c>world.admission.unavailable</c>, tagged
+    /// <c>overloaded</c> or <c>failed</c>. A full queue is expected under a reconnect storm: a Warning, without the
+    /// exception, at most once per <see cref="AdmissionFailureLog.Interval" /> for the whole world. Any other throw is a
+    /// defect: an Error with its exception, under the same bound, so a storm of them cannot flood the log either.
+    /// Called off the tick, where the redemption ended, so a connection gone before its continuation ran is counted too.
+    /// </summary>
+    public void ReportRedemptionFailed(Exception error)
+    {
+        if (error is WorldWorkUnavailableException)
+        {
+            DiagnosticsConfig.World.AdmissionsUnavailable.Add(1, new KeyValuePair<string, object?>("reason", "overloaded"));
+            if (s_overloadedAdmissions.TryTake(_time, out int held))
+                ReceiveLog.AdmissionOverloaded(_logger, WorldDatabaseWork.AdmissionOutstandingLimit, held);
+            return;
+        }
+
+        DiagnosticsConfig.World.AdmissionsUnavailable.Add(1, new KeyValuePair<string, object?>("reason", "failed"));
+        if (s_failedAdmissions.TryTake(_time, out int suppressed))
+            ReceiveLog.RedemptionFailed(_logger, error, error.GetType().Name, suppressed);
+    }
+
     private static partial class ReceiveLog
     {
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Answered an admission ServiceUnavailable: the world's admission work queue is full ({Outstanding} outstanding); {Suppressed} more were refused since the last line")]
+        public static partial void AdmissionOverloaded(ILogger logger, int outstanding, int suppressed);
+
+        [LoggerMessage(Level = LogLevel.Error,
+            Message = "Answered an admission ServiceUnavailable: its redemption threw {ExceptionType}; {Suppressed} more failed since the last line")]
+        public static partial void RedemptionFailed(ILogger logger, Exception error, string exceptionType, int suppressed);
+
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Closing connection {ConnectionId} of account {AccountId} from {RemoteEndPoint}: its admission's public key is not a P-256 point")]
         public static partial void BadPublicKey(ILogger logger, Guid connectionId, long accountId, string remoteEndPoint);

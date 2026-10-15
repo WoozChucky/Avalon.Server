@@ -95,6 +95,34 @@ Game Client              World Server                  Databases / API
 
 ---
 
+## `SGameAdmissionPacket` refusals
+
+The world's answer to `CGameAdmissionPacket` (`GameAdmissionHandler`) when it admits no one. Every refusal is followed
+by the close of the connection, and binds nothing: no account, no lease, no character.
+
+| `Result` | When |
+|---|---|
+| `InvalidRequest` (1) | Refused before the ticket is spent: no TLS, a ticket that is not one, a public key of the wrong length on a world that seals, a second admission on the connection. Also a key of the right length that is not a P-256 point, found after the redemption (its lease is revoked, `bad_public_key`) |
+| `ServiceUnavailable` (3) | Try later. The identity service answered so (unreachable or overloaded, a session barrier still pending, or the world in maintenance or without a fresh heartbeat, `WORLD_UNAVAILABLE`), or the world could not redeem the ticket itself: its admission work queue was full, or the redemption threw (#1050) |
+| `AuthorizationRequired` (2) | Every other answer: a ticket expired, spent or for another world, a session revoked, replaced or in conflict, or an answer from the identity service the world could not trust (`INVALID_ADMISSION`) |
+
+**An admission the world cannot redeem is answered, not dropped (#1050).** The world redeems at most 32 tickets at
+once and lets 128 wait (`WorldDatabaseWork.Admission`); a reconnect storm past that is refused as it arrives, never
+queued without bound. Such an admission, and one whose redemption throws, is answered `ServiceUnavailable` and closed
+on the tick, as one the identity service answered "try later" is, and counted under `world.admission.unavailable`
+([instrumentation](instrumentation.md#unserved-admissions)): a full queue with one Warning at most every 10 s, a throw
+with one Error at most every 10 s. Before, its tick continuation faulted: the client got no answer until the
+15-second admission timeout closed it, and the world logged an Error with a stack for each. Nothing is left live: a
+full queue never reached the identity service, and an admission client that throws after the redemption reserved a
+session ends that session before it lets the fault through. A redemption that did return a lease the connection never
+published is still ended by the connection's drain, which reads the redemption the connection tracks
+(`WorldConnection.TrackAdmission`).
+
+Before #1050 a redemption answered `WORLD_UNAVAILABLE` was refused `AuthorizationRequired`; no value was added to the
+wire for it.
+
+---
+
 ## `SWorldHandshakePacket`
 
 The world's answer to `CWorldHandshakePacket(Version)`, the first packet after admission (`WorldHandshakeHandler`).

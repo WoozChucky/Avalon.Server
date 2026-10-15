@@ -53,6 +53,15 @@ public static class DiagnosticsConfig
         public static readonly Counter<long> PortalEntryRefusals = Meter.CreateCounter<long>(
             "world.portal_entry.refusals", "{requests}", "Portal entries the world refused, by reason");
 
+        /// <summary>
+        /// Admissions the world answered <c>ServiceUnavailable</c> because it could not redeem their join ticket itself
+        /// (#1050), tagged <c>reason</c>: <c>overloaded</c> (the admission work queue was full) or <c>failed</c> (the
+        /// redemption threw). docs/instrumentation.md.
+        /// </summary>
+        public static readonly Counter<long> AdmissionsUnavailable = Meter.CreateCounter<long>(
+            "world.admission.unavailable", "{admissions}",
+            "Admissions answered ServiceUnavailable because the world could not redeem their ticket, by reason");
+
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
         public static ActivitySource Source = new(ServiceName);

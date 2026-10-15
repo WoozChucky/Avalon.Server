@@ -114,12 +114,14 @@ public sealed class GameAdmissionClientShould
     /// #1013: an admission that fails after the redemption ends the session the receipt reserved before the world
     /// replies, so the player's next join is not refused while that session's lease runs out: whether the activation
     /// was refused, its transport failed (and the end's hangs too: the reply waits only a bounded time for it), or its
-    /// answer could not be trusted. The end names exactly the receipt's account, session and fencing token.
+    /// answer could not be trusted. The end names exactly the receipt's account, session and fencing token. A defect that
+    /// throws after the redemption ends the session too, then faults the admission, which hands back no lease (#1050).
     /// </summary>
     [Theory]
     [InlineData("refused")]
     [InlineData("transport")]
     [InlineData("untrusted")]
+    [InlineData("defect")]
     public async Task End_the_reserved_session_when_admission_fails_after_the_redemption(string failure)
     {
         var connection = Guid.NewGuid(); var redemption = Guid.NewGuid(); JoinRedemptionReceipt receipt = Receipt(connection, redemption);
@@ -141,6 +143,7 @@ public sealed class GameAdmissionClientShould
             {
                 "refused" => Json(new SessionLeaseResponse { Error = "BARRIER_PENDING" }, HttpStatusCode.ServiceUnavailable),
                 "transport" => throw new HttpRequestException("connection reset"),
+                "defect" => throw new InvalidOperationException("a defect"),
                 _ => Json(Active(receipt) with { FencingToken = "8" })
             };
         });
@@ -156,10 +159,16 @@ public sealed class GameAdmissionClientShould
             fake.Advance(TimeSpan.FromSeconds(2));
         }
         // A limit on a hang only: the reply waits for no wall-clock time but the refused case's two retry delays.
-        WorldAdmissionResult result = await admitted.WaitAsync(TimeSpan.FromSeconds(30));
-
-        Assert.Null(result.Lease);
-        Assert.Equal(failure switch { "refused" => "BARRIER_PENDING", "transport" => "SERVICE_UNAVAILABLE", _ => "INVALID_ADMISSION" }, result.Error);
+        if (failure == "defect")
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => admitted.WaitAsync(TimeSpan.FromSeconds(30)));
+        }
+        else
+        {
+            WorldAdmissionResult result = await admitted.WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.Null(result.Lease);
+            Assert.Equal(failure switch { "refused" => "BARRIER_PENDING", "transport" => "SERVICE_UNAVAILABLE", _ => "INVALID_ADMISSION" }, result.Error);
+        }
         Assert.Equal("/internal/game/sessions/end", handler.Paths[^1]);
         Assert.Single(handler.Paths, path => path.EndsWith("/end", StringComparison.Ordinal));
         using var end = System.Text.Json.JsonDocument.Parse(handler.Bodies[^1]);

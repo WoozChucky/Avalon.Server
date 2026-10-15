@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using Avalon.Common.Cryptography;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure.GameAuth;
@@ -5,6 +7,8 @@ using Avalon.Network.Packets.Auth;
 using Avalon.Server.World.Handlers;
 using Avalon.World;
 using Avalon.World.GameAuth;
+using Avalon.World.Persistence;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using ProtoBuf;
 
@@ -117,18 +121,56 @@ public sealed class GameAdmissionHandlerShould
             Assert.False(lease.IsActive);
         }
     }
-    [Fact]
-    public async Task Never_bind_or_load_a_character_when_backend_redemption_fails()
+    public enum Redemption { Overloaded, Faulted, WorldUnavailable, InvalidTicket }
+
+    /// <summary>
+    /// A redemption that admits no one is answered and closed, and nothing is bound. One that never got an answer, because
+    /// the admission work queue was full (a reconnect storm) or it threw, is answered <c>ServiceUnavailable</c> like the
+    /// identity service's own "try later", and counted (#1050); before, its continuation faulted, so the client got no
+    /// reply and the world an Error with a stack per connection. Overload is expected, so it writes nothing at Error and
+    /// no stack. A world in maintenance is "try later" too; a ticket refused is <c>AuthorizationRequired</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(Redemption.Overloaded, GameAdmissionResult.ServiceUnavailable, "overloaded")]
+    [InlineData(Redemption.Faulted, GameAdmissionResult.ServiceUnavailable, "failed")]
+    [InlineData(Redemption.WorldUnavailable, GameAdmissionResult.ServiceUnavailable, null)]
+    [InlineData(Redemption.InvalidTicket, GameAdmissionResult.AuthorizationRequired, null)]
+    public async Task Answer_and_close_a_redemption_that_admits_no_one(Redemption redemption, GameAdmissionResult expected,
+        string? counted)
     {
-        using var connection = WorldAdmissionConnection.Create(); IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
-        api.AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new WorldAdmissionResult(null, "INVALID_TICKET"));
+        var log = new TestLog();
+        using var connection = WorldAdmissionConnection.Create(logs: log);
+        IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
+        api.AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(redemption switch
+        {
+            Redemption.Overloaded => Task.FromException<WorldAdmissionResult>(new WorldWorkUnavailableException()),
+            Redemption.Faulted => Task.FromException<WorldAdmissionResult>(new InvalidOperationException("a defect")),
+            Redemption.WorldUnavailable => Task.FromResult(new WorldAdmissionResult(null, "WORLD_UNAVAILABLE")),
+            _ => Task.FromResult(new WorldAdmissionResult(null, "INVALID_TICKET")),
+        });
+        var reasons = new ConcurrentQueue<string?>();
+        using var meter = new MeterListener();
+        meter.InstrumentPublished = (instrument, listener) =>
+        {
+            if (instrument.Meter.Name == "world-server" && instrument.Name == "world.admission.unavailable")
+                listener.EnableMeasurementEvents(instrument);
+        };
+        meter.SetMeasurementEventCallback<long>((_, _, tags, _) => reasons.Enqueue((string?)tags[0].Value));
+        meter.Start();
+
         await new GameAdmissionHandler(api).ExecuteAsync(new()
         {
             Connection = connection,
             Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
         });
         await FlushUntil(connection, () => connection.IsClosing);
-        Assert.True(connection.IsClosing); Assert.Null(connection.AccountId); Assert.Null(connection.GameplayAuthority); Assert.Null(connection.Character);
+
+        Assert.Equal(expected, Serializer.Deserialize<SGameAdmissionPacket>(Assert.Single(connection.Sent).PayloadMemory).Result);
+        Assert.Null(connection.AccountId); Assert.Null(connection.GameplayAuthority); Assert.Null(connection.GameSessionLease);
+        Assert.Null(connection.Character);
+        Assert.Equal(counted is null ? [] : [counted], reasons);
+        if (redemption == Redemption.Overloaded)
+            Assert.DoesNotContain(log.Entries, entry => entry.Level >= LogLevel.Error || entry.Exception is not null);
     }
 
     /// <summary>Runs the connection's tick continuations until <paramref name="settled" /> holds after one.</summary>

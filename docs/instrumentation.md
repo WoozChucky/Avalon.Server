@@ -196,6 +196,27 @@ Not counted: a portal entry whose instance could not be built (no reply; logged 
 the connection before it arrived, and the refusals of the other moves: an item's teleport (`MapTeleport`) answers
 through its own code, and a return to town refuses nothing by a reply.
 
+### Unserved admissions
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `world.admission.unavailable` | `world_admission_unavailable_total` | Admissions (`CMSG_GAME_ADMISSION`) the world answered `ServiceUnavailable` and closed because it could not redeem their join ticket itself (#1050), tagged `reason`. On the world's meter (`world-server`) |
+
+| `reason` | Why | Logged (`Avalon.World.WorldConnection`) |
+|---|---|---|
+| `overloaded` | The admission work queue (`WorldDatabaseWork.Admission`: 32 redemptions running, 128 outstanding) was full, so the redemption was never started and never reached the identity service | One Warning, without an exception, at most once per 10 s for the whole world, with how many more were refused since the last |
+| `failed` | The redemption threw. The admission client turns every transport, timeout and parsing failure into an answer of its own, so this is a defect | One Error with the exception, under the same bound |
+
+`overloaded` is expected when many clients reconnect at once (a world restart, an identity service restart): each
+such client is told to try later. A rate that lasts outside such a storm is a world
+whose redemptions are slow (the identity service, or the path to it). Each count is one connection; it is counted
+where the redemption ended, off the tick, so a client that went away before its answer is counted too. Before #1050
+each of these was an Error with its stack ("Continuation faulted"), 3,231 in a minute on the load-test world, and the
+client got no answer: its connection was closed by the 15-second admission timeout.
+
+Not counted: an admission the identity service answered, whatever it answered (its own "try later" included), and
+one refused before its ticket was spent (`InvalidRequest`).
+
 ### Packet handlers
 
 Every handler run records `avalon.packet.handler.duration` (ms, tagged `avalon.packet.type` only, whether the handler succeeded or threw) and, when it throws, `avalon.packet.handler.errors` (tagged `avalon.packet.type`), which is how failures are counted; the span, where there is one, carries `avalon.outcome` (`ok` or `error`). A packet of a high-rate type (`Hosting:Telemetry:NoSpanPacketTypes`, default `CMSG_PLAYER_INPUT` and `CMSG_PONG`) opens no span and no log scope (#875): at 60 inputs a second per player those cost the tick several objects per packet (248 B with a scope-reading provider). The default types' handlers write `{ConnectionId}` and `{PacketType}` into their own lines (`HighRatePacketLog`); a type added to the list loses its handlers' log scope with nothing in its place. Every other packet opens its span and a log scope with `PacketType`, `ConnectionId`, `AccountId` and `CharacterId`.
