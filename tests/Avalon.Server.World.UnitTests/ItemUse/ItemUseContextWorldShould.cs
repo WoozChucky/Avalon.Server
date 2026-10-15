@@ -7,6 +7,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.State;
 using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Parties;
@@ -36,7 +37,7 @@ public class ItemUseContextWorldShould
         IItemUseHost host, Avalon.World.Quests.QuestService? quests = null) => new(
         connection, character, host, TestCharacters.Item(0, TestCharacters.Potion), TestCharacters.Potion,
         new ItemUseTools(world, new CharacterEconomy(world, new ItemIdAllocator()),
-            new TownReturn(NullLogger.Instance, world, Substitute.For<IRespawnTargetResolver>()),
+            new TownReturn(NullLogger.Instance, world, Substitute.For<IRespawnTargetResolver>(), InlineDatabaseWork.Instance),
             new MapTeleport(NullLogger<MapTeleport>.Instance, world, Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
             Substitute.For<ICreaturePlacementService>(), new FakeTimeProvider(), NullLogger<ItemUseTools>.Instance,
             quests: quests));

@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Inventory;
@@ -20,7 +21,7 @@ internal static class InertItemUseService
     {
         IWorld world = Substitute.For<IWorld>();
         var tools = new ItemUseTools(world, Substitute.For<ICharacterEconomy>(),
-            new TownReturn(NullLogger.Instance, world, Substitute.For<IRespawnTargetResolver>()),
+            new TownReturn(NullLogger.Instance, world, Substitute.For<IRespawnTargetResolver>(), InlineDatabaseWork.Instance),
             new MapTeleport(NullLogger<MapTeleport>.Instance, world,
                 Substitute.For<ICharacterSaver>()),
             Substitute.For<ICreaturePlacementService>(), TimeProvider.System, NullLogger<ItemUseTools>.Instance);

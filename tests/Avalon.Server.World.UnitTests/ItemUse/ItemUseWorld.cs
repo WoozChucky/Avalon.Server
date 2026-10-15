@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Social;
+using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
@@ -104,7 +105,7 @@ internal sealed class ItemUseWorld : IDisposable
         var economy = new CharacterEconomy(World, new ItemIdAllocator());
         Inventory = economy.InventoryOf(character);
         var tools = new ItemUseTools(World, economy,
-            new TownReturn(NullLogger.Instance, World, Substitute.For<IRespawnTargetResolver>()),
+            new TownReturn(NullLogger.Instance, World, Substitute.For<IRespawnTargetResolver>(), InlineDatabaseWork.Instance),
             new MapTeleport(NullLogger<MapTeleport>.Instance, World, Substitute.For<Avalon.World.Persistence.ICharacterSaver>()),
             Substitute.For<ICreaturePlacementService>(), Time, NullLogger<ItemUseTools>.Instance);
         Service = new ItemUseService(tools, scripts, Substitute.For<IServiceProvider>(), NullLogger<ItemUseService>.Instance);
