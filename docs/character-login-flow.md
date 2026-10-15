@@ -110,9 +110,10 @@ by the close of the connection, and binds nothing: no account, no lease, no char
 outstanding, 32 of them running (`WorldDatabaseWork.Admission`); a reconnect storm past that is refused as it arrives,
 never queued without bound. Such an admission is answered `ServiceUnavailable` and closed at once, on the receive path
 that delivered it, as the refusals before a ticket is spent are; one whose redemption throws is answered the same way
-on the tick, as one the identity service answered "try later" is. Both are counted under `world.admission.unavailable`
-([instrumentation](instrumentation.md#unserved-admissions)): a full queue with one Warning at most every 10 s, a throw
-with one Error at most every 10 s. Before, its tick continuation faulted: the client got no answer until the
+on the tick, as one the identity service answered "try later" is. The full queue is counted under
+`world.work.refusals` (lane `admission`) and the throw under `world.admission.failures`
+([instrumentation](instrumentation.md#work-queue-refusals-and-unserved-admissions)): a full queue with one Warning at
+most every 10 s, a throw with one Error at most every 10 s. Before, its tick continuation faulted: the client got no answer until the
 15-second admission timeout closed it, and the world logged an Error with a stack for each. Nothing is left live: a
 full queue never reached the identity service, and an admission client that throws after the redemption reserved a
 session ends that session before it lets the fault through (a second fault in that end is dropped, and the session
@@ -124,6 +125,16 @@ admission queue holds back no live player: lease heartbeats run on a lane of the
 Before #1050 a redemption answered `WORLD_UNAVAILABLE` was refused `AuthorizationRequired`. It covered a refusal no
 retry changes too, the context's application not allowed on the world, which the redemption now answers
 `WORLD_NOT_ALLOWED` (the REST join-ticket issue still answers `WORLD_UNAVAILABLE` for it). No value was added to the wire.
+
+**A character select the world cannot load is closed at once (#1050, owner decision).** Every read and the one write of
+the select chain run on the database work queue (`WorldDatabaseWork.ThreadPool`, 256 outstanding). A step it refuses
+because it is full cancels the select and closes the connection with `SelectTimeout`, the answer the stalled-select
+sweep gives a select that cannot finish, which such a select got 15 s later before; the client logs in and selects
+again. The refusal is counted under `world.work.refusals` (lane `database`). It is safe at any step: nothing before the
+pending spawn is live. The one write, the selected character's row (still offline), writes back the row as the select
+read it, with the town it was moved to if it was elsewhere, and the next select reads and writes it again; the entity
+is in no instance and held by nothing but the chain. A refused entry check before the select closes with
+`Maintenance`, as before (#821).
 
 ---
 

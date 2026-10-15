@@ -340,12 +340,48 @@ public class CharacterSelectHandler(
     /// </summary>
     private void Step<T>(IWorldConnection connection, long select, Task<T> task, Action<T> next)
     {
+        if (WorldDatabaseWork.IsRefusal(task))
+        {
+            RefuseSelect(connection, select);
+            return;
+        }
+
         _selectStepInFlight.AddOrUpdate(connection, task);
         connection.EnqueueContinuation(task, result =>
         {
             if (OwnsSelect(connection, select))
                 next(result);
         });
+    }
+
+    private static readonly FailureLogThrottle s_refusedSelects = new();
+
+    /// <summary>
+    /// A step the full database work queue refused (#1050, owner decision): the select is cancelled and the connection
+    /// closed at once with <see cref="DisconnectReason.SelectTimeout" />, the answer the stalled-select sweep gives a select
+    /// that cannot finish, which it got 15 s later before. The queue counted the refusal (<c>world.work.refusals</c>,
+    /// lane <c>database</c>); a Warning, without an exception, at most once per
+    /// <see cref="FailureLogThrottle.Interval" /> for the world. Safe at any step: nothing before the pending spawn is
+    /// live. The one write, the selected character's row (still offline), writes back what the select read, and the next
+    /// select reads and writes it again; the entity is in no instance and held by nothing but this chain. On the tick.
+    /// </summary>
+    private void RefuseSelect(IWorldConnection connection, long select)
+    {
+        if (!OwnsSelect(connection, select))
+            return;
+
+        connection.CancelSelect();
+        if (s_refusedSelects.TryTake(Clock, out int suppressed))
+        {
+            logger.LogWarning(
+                "Closed a character select for account {AccountId}: the database work queue is full; {Suppressed} more were refused since the last line",
+                connection.AccountId, suppressed);
+        }
+
+#pragma warning disable MA0045 // a tick-thread handler; the close finishes on its own
+        GracefulShutdownHelper.NotifyAndClose(connection, "The world is busy; try again", DisconnectReason.SelectTimeout,
+            logger);
+#pragma warning restore MA0045
     }
 
     /// <summary>

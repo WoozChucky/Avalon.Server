@@ -54,13 +54,19 @@ public static class DiagnosticsConfig
             "world.portal_entry.refusals", "{requests}", "Portal entries the world refused, by reason");
 
         /// <summary>
-        /// Admissions the world answered <c>ServiceUnavailable</c> because it could not redeem their join ticket itself
-        /// (#1050), tagged <c>reason</c>: <c>overloaded</c> (the admission work queue was full) or <c>failed</c> (the
-        /// redemption threw). docs/instrumentation.md.
+        /// Operations a full work queue (<c>WorldDatabaseWork</c>) refused (#1050), counted where they are refused,
+        /// tagged <c>lane</c> from a fixed set: <c>admission</c>, <c>heartbeat</c>, <c>database</c> (and any lane added
+        /// since). docs/instrumentation.md.
         /// </summary>
-        public static readonly Counter<long> AdmissionsUnavailable = Meter.CreateCounter<long>(
-            "world.admission.unavailable", "{admissions}",
-            "Admissions answered ServiceUnavailable because the world could not redeem their ticket, by reason");
+        public static readonly Counter<long> WorkRefusals = Meter.CreateCounter<long>(
+            "world.work.refusals", "{operations}", "Operations a full work queue refused, by lane");
+
+        /// <summary>
+        /// Admissions whose redemption threw, or was cancelled, once started (#1050): answered
+        /// <c>ServiceUnavailable</c>. A full admission queue is counted under <see cref="WorkRefusals" />.
+        /// </summary>
+        public static readonly Counter<long> AdmissionFailures = Meter.CreateCounter<long>(
+            "world.admission.failures", "{admissions}", "Admissions whose redemption threw, answered ServiceUnavailable");
 
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 

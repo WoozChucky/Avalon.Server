@@ -141,8 +141,8 @@ public sealed class GameAdmissionHandlerShould
     /// <c>AuthorizationRequired</c>.
     /// </summary>
     [Theory]
-    [InlineData(Redemption.Overloaded, GameAdmissionResult.ServiceUnavailable, "overloaded")]
-    [InlineData(Redemption.Faulted, GameAdmissionResult.ServiceUnavailable, "failed")]
+    [InlineData(Redemption.Overloaded, GameAdmissionResult.ServiceUnavailable, "world.work.refusals lane=admission")]
+    [InlineData(Redemption.Faulted, GameAdmissionResult.ServiceUnavailable, "world.admission.failures")]
     [InlineData(Redemption.WorldUnavailable, GameAdmissionResult.ServiceUnavailable, null)]
     [InlineData(Redemption.WorldNotAllowed, GameAdmissionResult.AuthorizationRequired, null)]
     [InlineData(Redemption.InvalidTicket, GameAdmissionResult.AuthorizationRequired, null)]
@@ -159,14 +159,15 @@ public sealed class GameAdmissionHandlerShould
             Redemption.WorldNotAllowed => Task.FromResult(new WorldAdmissionResult(null, "WORLD_NOT_ALLOWED")),
             _ => Task.FromResult(new WorldAdmissionResult(null, "INVALID_TICKET")),
         });
-        var reasons = new ConcurrentQueue<string?>();
+        var counts = new ConcurrentQueue<string>();
         using var meter = new MeterListener();
         meter.InstrumentPublished = (instrument, listener) =>
         {
-            if (instrument.Meter.Name == "world-server" && instrument.Name == "world.admission.unavailable")
+            if (instrument.Meter.Name == "world-server" && instrument.Name is "world.work.refusals" or "world.admission.failures")
                 listener.EnableMeasurementEvents(instrument);
         };
-        meter.SetMeasurementEventCallback<long>((_, _, tags, _) => reasons.Enqueue((string?)tags[0].Value));
+        meter.SetMeasurementEventCallback<long>((instrument, _, tags, _) =>
+            counts.Enqueue(tags.Length == 0 ? instrument.Name : $"{instrument.Name} {tags[0].Key}={tags[0].Value}"));
         meter.Start();
 
         // Overloaded: the admission lane held full, as a reconnect storm holds it, until the end of the test, by work
@@ -184,6 +185,7 @@ public sealed class GameAdmissionHandlerShould
                 if (WorldDatabaseWork.IsRefusal(work)) break;
                 holding.Add(work);
             }
+            counts.Clear(); // the fill's own last try was refused and counted: only the admission's count is asserted
             await handler.ExecuteAsync(new() { Connection = connection, Packet = packet });
             if (redemption == Redemption.Overloaded)
             {
@@ -202,7 +204,7 @@ public sealed class GameAdmissionHandlerShould
         Assert.Equal(expected, Serializer.Deserialize<SGameAdmissionPacket>(Assert.Single(connection.Sent).PayloadMemory).Result);
         Assert.Null(connection.AccountId); Assert.Null(connection.GameplayAuthority); Assert.Null(connection.GameSessionLease);
         Assert.Null(connection.Character);
-        Assert.Equal(counted is null ? [] : [counted], reasons);
+        Assert.Equal(counted is null ? [] : [counted], counts);
         await api.Received(redemption == Redemption.Overloaded ? 0 : 1)
             .AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         if (redemption == Redemption.Overloaded)

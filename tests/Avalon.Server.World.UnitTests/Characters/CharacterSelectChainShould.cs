@@ -514,10 +514,50 @@ public class CharacterSelectChainShould : IDisposable
         await gate.DidNotReceiveWithAnyArgs().CheckAsync(default!, default);
     }
 
-    /// <summary>The handler's work queue with every slot taken: it refuses each operation, as <see cref="WorldDatabaseWork" /> does.</summary>
-    private sealed class SaturatedDatabaseWork : IWorldDatabaseWork
+    /// <summary>
+    /// A select step the full database work queue refuses (#1050) cancels the select and closes at once, with the
+    /// stalled-select sweep's <c>SelectTimeout</c>, where it waited for that sweep, 15 s, before: at the first step, and
+    /// after the selected character's row was written (the third operation, after the read and the account lookup),
+    /// where nothing is live yet: no pending spawn, no character, and the row as the select read it.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    public void Close_a_select_at_once_when_the_work_queue_refuses_a_step(int accepted)
     {
-        public Task<T> Run<T>(Func<Task<T>> operation) => Task.FromException<T>(new WorldWorkUnavailableException());
+        CharacterSelectHandler select = BuildSelectHandler(databaseWork: new SaturatedDatabaseWork(accepted));
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = s_theCharacter });
+        for (int step = 0; step < 4 && !_connection.IsClosing; step++)
+            Step();
+
+        Assert.True(_connection.IsClosing);
+        Assert.False(_connection.SelectInProgress);
+        Assert.Null(_connection.PendingSpawn);
+        Assert.Null(_connection.Character);
+        _characters.Received(accepted == 0 ? 0 : 1).UpdateForGameplayAsync(Arg.Any<GameplayWriteAuthority>(),
+            Arg.Any<Character>(), Arg.Any<CancellationToken>());
+        _inventory.DidNotReceiveWithAnyArgs().GetByCharacterIdAsync(default!, default);
+    }
+
+    /// <summary>
+    /// The handler's work queue with every slot taken once it has accepted <paramref name="accepted" /> operations (run
+    /// inline): it hands back the refusal a full <see cref="WorldDatabaseWork" /> does, its one faulted task.
+    /// </summary>
+    private sealed class SaturatedDatabaseWork(int accepted = 0) : IWorldDatabaseWork
+    {
+        private readonly WorldDatabaseWork _full = Full();
+        private int _accepted = accepted;
+
+        private static WorldDatabaseWork Full()
+        {
+            var work = new WorldDatabaseWork(1, 1);
+            _ = work.Run(() => new TaskCompletionSource<int>().Task); // never ends: the one slot stays taken
+            return work;
+        }
+
+        public Task<T> Run<T>(Func<Task<T>> operation) =>
+            _accepted-- > 0 ? InlineDatabaseWork.Instance.Run(operation) : _full.Run(operation);
     }
 
     /// <summary>

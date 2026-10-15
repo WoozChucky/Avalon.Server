@@ -196,34 +196,36 @@ Not counted: a portal entry whose instance could not be built (no reply; logged 
 the connection before it arrived, and the refusals of the other moves: an item's teleport (`MapTeleport`) answers
 through its own code, and a return to town refuses nothing by a reply.
 
-### Unserved admissions
+### Work queue refusals and unserved admissions
 
 | Metric | Prometheus | Measures |
 |---|---|---|
-| `world.admission.unavailable` | `world_admission_unavailable_total` | Admissions (`CMSG_GAME_ADMISSION`) the world answered `ServiceUnavailable` and closed because it could not redeem their join ticket itself (#1050), tagged `reason`. On the world's meter (`world-server`) |
+| `world.work.refusals` | `world_work_refusals_total` | Operations a full work queue (`WorldDatabaseWork`) refused (#1050), counted in the queue as it refuses them, tagged `lane`. On the world's meter (`world-server`) |
+| `world.admission.failures` | `world_admission_failures_total` | Admissions (`CMSG_GAME_ADMISSION`) whose redemption threw, or was cancelled, once started, answered `ServiceUnavailable` and closed (#1050). No tags. On the world's meter |
 
-| `reason` | Why | Logged (`Avalon.World.WorldConnection`) |
-|---|---|---|
-| `overloaded` | The admission work queue (`WorldDatabaseWork.Admission`: 128 redemptions outstanding, 32 of them running) was full, so the redemption was never started and never reached the identity service. Answered at once, on the receive path that delivered the admission, as the refusals before a ticket is spent are: nothing reaches the tick | One Warning, without an exception, at most once per 10 s for the whole world, with how many more were refused since the last |
-| `failed` | The redemption threw, or was cancelled. The admission client turns every transport, timeout and parsing failure into an answer of its own, so this is a defect. Counted on the thread pool, where the redemption ended; the answer goes out on the tick | One Error with the exception, under the same bound |
+`lane` takes a fixed set of values, each a queue of its own, nothing a client sends:
 
-`overloaded` is expected when many clients reconnect at once (a world restart, an identity service restart): each
-such client is told to try later. A rate that lasts outside such a storm is a world
-whose redemptions are slow (the identity service, or the path to it). Each count is one connection, counted where the
-refusal or the fault is seen, never on the tick, so a client that went away before its answer is counted too. The
-10 s bound is timed on the monotonic clock, so a wall clock set back cannot mute a line. A refusal costs no exception
-and no task of its own: the queue hands back one faulted task, made once (`WorldDatabaseWork.IsRefusal`). Before
-#1050 each of these was an Error with its stack ("Continuation faulted"), 3,231 in a minute on the load-test world,
-and the client got no answer: its connection was closed by the 15-second admission timeout. A full admission queue
-no longer holds back live players' lease heartbeats either: they have their own lane
-([game server admission](steam-authentication-workloads.md)).
+| `lane` | The queue | A refusal means | The world answers | Logged |
+|---|---|---|---|---|
+| `admission` | `WorldDatabaseWork.Admission`: 128 redemptions outstanding, 32 of them running | An admission never started, so it never reached the identity service | `ServiceUnavailable` and the close, at once, on the receive path that delivered the admission, as the refusals before a ticket is spent are: nothing reaches the tick | One Warning (`Avalon.World.WorldConnection`), without an exception, at most once per 10 s for the world, with how many more were refused since the last |
+| `heartbeat` | `WorldDatabaseWork.Heartbeat`: 8,192 outstanding, 128 running | A live player's lease heartbeat not sent; the next is tried 15 s later, and three in a row end the lease ([game server admission](steam-authentication-workloads.md)) | Nothing | Nothing. Any count is worth a look: the lane is sized above any player count a world carries |
+| `database` | `WorldDatabaseWork.ThreadPool`: 256 outstanding, 64 running: character select, create and delete, the world entry check | A step of a character select: the select is cancelled and the connection closed at once with `SelectTimeout`, the stalled-select sweep's answer, which it got 15 s later before. The entry check before a select: the select closes with `Maintenance` (#821). A create, a delete or the account's locale lookup: its continuation is dropped | One Warning per kind (`Avalon.World.Handlers.CharacterSelectHandler` for a select, `Avalon.World.WorldConnection` for a dropped continuation), without an exception, under the same bound; the entry check's own Error by exception type, as before |
 
-The same storm fills the database work queue behind character selects (`WorldDatabaseWork.ThreadPool`, 256
-outstanding). A tick continuation whose work a full queue refused does not run its callback, as before, and is now one
-Warning, "Dropped a continuation: a full work queue refused its work", without the exception (the refusal's exception
-is shared by every refusal, so its stack names another caller), at most once per 10 s for the world with the count
-held back; any other faulted continuation stays an Error with its exception ("Continuation faulted"), under the same
-bound. Each was an Error with a stack per continuation. Neither is counted yet.
+`admission` refusals are expected when many clients reconnect at once (a world restart, an identity service restart):
+each such client is told to try later. A rate that lasts outside such a storm is a world whose redemptions are slow
+(the identity service, or the path to it). A refusal costs no exception and no task of its own: the queue hands back
+one faulted task, made once, which callers recognise by reference (`WorldDatabaseWork.IsRefusal`); its shared
+exception's stack names whichever caller rethrew it last, so nothing logs it. Before #1050 each refused admission, and
+each refused select step, was an Error with its stack ("Continuation faulted"), 3,231 in a minute on the load-test
+world; the admission's client got no answer until the 15-second admission timeout closed it, and the select's waited
+15 s for the sweep. The heartbeats shared the admission lane until then.
+
+`world.admission.failures` is a defect: the admission client turns every transport, timeout and parsing failure into
+an answer of its own. It is counted on the thread pool, where the redemption ended, so a client that went away before
+its answer is counted too; the answer goes out on the tick. Each also writes one Error with the exception, at most
+once per 10 s for the world. Any other tick continuation whose task faulted stays an Error with its exception
+("Continuation faulted"), under the same bound; a continuation whose work a full queue refused is a Warning without
+it, as above. Every 10 s bound is timed on the monotonic clock, so a wall clock set back cannot mute a line.
 
 Not counted: an admission the identity service answered, whatever it answered (its own "try later" included), and
 one refused before its ticket was spent (`InvalidRequest`).

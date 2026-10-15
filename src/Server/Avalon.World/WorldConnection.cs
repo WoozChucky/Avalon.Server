@@ -678,21 +678,20 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     /// <summary>
     /// The admission work queue refused to redeem this connection's join ticket (#1050), which the admission answers
-    /// <c>ServiceUnavailable</c> and closes at once, on the receive path that delivered it, never on the tick. Counted
-    /// under <c>world.admission.unavailable</c>, <c>overloaded</c>. Expected under a reconnect storm: a Warning, without
-    /// an exception, at most once per <see cref="FailureLogThrottle.Interval" /> for the whole world.
+    /// <c>ServiceUnavailable</c> and closes at once, on the receive path that delivered it, never on the tick. The queue
+    /// counted it as it refused it (<c>world.work.refusals</c>, lane <c>admission</c>). Expected under a reconnect storm:
+    /// a Warning, without an exception, at most once per <see cref="FailureLogThrottle.Interval" /> for the whole world.
     /// </summary>
     public void ReportAdmissionOverloaded()
     {
-        DiagnosticsConfig.World.AdmissionsUnavailable.Add(1, new KeyValuePair<string, object?>("reason", "overloaded"));
         if (s_overloadedAdmissions.TryTake(_time, out int held))
             ReceiveLog.AdmissionOverloaded(_logger, WorldDatabaseWork.AdmissionOutstandingLimit, held);
     }
 
     /// <summary>
     /// The redemption of this connection's join ticket faulted, or was cancelled, once started (#1050): the admission is
-    /// answered <c>ServiceUnavailable</c> and closed by its continuation. Counted under <c>world.admission.unavailable</c>,
-    /// <c>failed</c> (<c>overloaded</c> for a work queue refusal that arrives this way). A defect: an Error with its
+    /// answered <c>ServiceUnavailable</c> and closed by its continuation. Counted under <c>world.admission.failures</c>
+    /// (a work queue refusal that arrives this way is logged as one, and was counted by its queue). A defect: an Error with its
     /// exception, at most once per <see cref="FailureLogThrottle.Interval" /> for the whole world, so a storm of them
     /// cannot flood the log. Called on the thread pool, where the redemption ended, never on the tick, so a connection
     /// gone before its continuation ran is counted too.
@@ -705,7 +704,7 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             return;
         }
 
-        DiagnosticsConfig.World.AdmissionsUnavailable.Add(1, new KeyValuePair<string, object?>("reason", "failed"));
+        DiagnosticsConfig.World.AdmissionFailures.Add(1);
         if (s_failedAdmissions.TryTake(_time, out int suppressed))
             ReceiveLog.RedemptionFailed(_logger, error, error.GetType().Name, suppressed);
     }

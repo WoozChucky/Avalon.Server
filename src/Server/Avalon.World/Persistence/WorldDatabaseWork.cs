@@ -1,3 +1,5 @@
+using Avalon.Common.Telemetry;
+
 namespace Avalon.World.Persistence;
 
 /// <summary>Starts bounded work outside the simulation tick. Saturation refuses admission rather than growing a backlog.</summary>
@@ -31,26 +33,35 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
     /// </summary>
     public const int HeartbeatOutstandingLimit = 8192;
 
-    public static readonly IWorldDatabaseWork ThreadPool = new WorldDatabaseWork();
-    public static readonly IWorldDatabaseWork Admission = new WorldDatabaseWork(AdmissionConcurrency, AdmissionOutstandingLimit);
+    public static readonly IWorldDatabaseWork ThreadPool = new WorldDatabaseWork(lane: "database");
+    public static readonly IWorldDatabaseWork Admission = new WorldDatabaseWork(AdmissionConcurrency, AdmissionOutstandingLimit, "admission");
 
     /// <summary>
     /// Live players' lease heartbeats, in a lane of their own (#1050): admissions, which any client holding a
     /// well-formed ticket can send, can fill <see cref="Admission" /> (a reconnect storm does), and a heartbeat refused
     /// there waits 15 s for its next try, so three refusals in a row ended a lease the player still held.
     /// </summary>
-    public static readonly IWorldDatabaseWork Heartbeat = new WorldDatabaseWork(HeartbeatConcurrency, HeartbeatOutstandingLimit);
+    public static readonly IWorldDatabaseWork Heartbeat = new WorldDatabaseWork(HeartbeatConcurrency, HeartbeatOutstandingLimit, "heartbeat");
 
     private static readonly WorldWorkUnavailableException s_unavailable = new();
     private readonly SemaphoreSlim _slots;
     private readonly int _maximumOutstanding;
     private int _outstanding;
-    public WorldDatabaseWork(int maximumConcurrency = DatabaseConcurrency, int maximumOutstanding = DatabaseOutstandingLimit)
+
+    // The lane's tag on world.work.refusals, made once: a refusal allocates nothing.
+    private readonly KeyValuePair<string, object?> _laneTag;
+
+    /// <param name="lane">
+    /// The lane's name on <c>world.work.refusals</c> (#1050): one of a fixed set, never anything a client sends.
+    /// </param>
+    public WorldDatabaseWork(int maximumConcurrency = DatabaseConcurrency, int maximumOutstanding = DatabaseOutstandingLimit,
+        string lane = "database")
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumConcurrency);
         if (maximumOutstanding < maximumConcurrency) throw new ArgumentOutOfRangeException(nameof(maximumOutstanding));
         _slots = new SemaphoreSlim(maximumConcurrency, maximumConcurrency);
         _maximumOutstanding = maximumOutstanding;
+        _laneTag = new KeyValuePair<string, object?>("lane", lane);
     }
 
     /// <summary>
@@ -65,6 +76,8 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
         if (Interlocked.Increment(ref _outstanding) > _maximumOutstanding)
         {
             Interlocked.Decrement(ref _outstanding);
+            // Counted here, where it is refused, for every lane alike (#1050).
+            DiagnosticsConfig.World.WorkRefusals.Add(1, _laneTag);
             return Refused<T>.Task;
         }
         return Task.Run(async () =>
