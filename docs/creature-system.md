@@ -191,10 +191,11 @@ Since #982 a due search runs only when a character can be within the creature's 
 turn, when its update would be the search and nothing else, the scheduler asks the instance's spatial grid
 (`SpatialGrid.MayHaveCharacterWithin`); when no character can be within range on X/Z, the search is skipped
 and the creature waits again exactly as after a search that found no one (its timer back at zero). The answer
-is conservative, so the same creature aggroes the same character on the same tick: the range is measured as
-the search measures it with the height left out, and a character at a position that is not finite, or not
-indexed by the grid, always lets the search run. In the `forest-combat` scenario this leaves 2 searches a
-second of 768 (see [benchmarks](benchmarks.md)).
+is conservative, so the same creature aggroes the same character on the same tick: a creature outside the
+characters' X/Z bounds widened by its range is answered at once, one within them by the cells around it, the
+range measured as the search measures it with the height left out; a character at a position that is not
+finite, or not indexed by the grid, always lets the search run. In the `forest-combat` scenario this leaves 2
+searches a second of 768, nearly every skip decided by the bounds alone (see [benchmarks](benchmarks.md)).
 
 `AiScript` has these hooks. By default each one forwards to the chained scripts.
 

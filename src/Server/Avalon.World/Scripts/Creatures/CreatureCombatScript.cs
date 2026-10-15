@@ -202,7 +202,25 @@ public class CreatureCombatScript : AiScript, IReturningHome
     /// <summary>Where the creature goes back to. Every path into Combat sets <see cref="_home" /> first.</summary>
     private Vector3 Home => _home ?? Creature.Position;
 
-    public override object State { get; set; } = CombatState.None;
+    private object _state = CombatState.None;
+    private bool _idle = true;
+
+    public override object State
+    {
+        get => _state;
+        set
+        {
+            _state = value;
+            _idle = value is CombatState.None;
+        }
+    }
+
+    /// <summary>
+    /// Whether <see cref="State" /> is <see cref="CombatState.None" />, kept by its setter so a creature's due search
+    /// reads a field rather than a boxed state (#982). This type's own: a subclass that overrides <see cref="State" />
+    /// no longer keeps it, and is never asked (only a built-in waiting for its search is).
+    /// </summary>
+    internal bool IsIdle => _idle;
 
     /// <summary>
     /// Only after an event while it is idle with nothing to count down, since Update then does nothing: a hit, a dodge or

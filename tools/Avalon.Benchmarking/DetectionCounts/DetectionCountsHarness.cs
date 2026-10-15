@@ -12,16 +12,21 @@ namespace Avalon.Benchmarking.DetectionCounts;
 /// without it (<c>MapInstance.SearchEveryDueCreature</c>): counts, not timings, which a busy machine does not change. Each
 /// run builds the scenario's world, ticks its warm-up, then counts over its measured ticks the searches the range
 /// detectors ran (walks of an instance's characters) and the distances they measured, and the filter's own work in the
-/// spatial grids (probes, cells looked at, entries walked). The fight's outcome is printed for both, which must match.
+/// spatial grids: probes, the characters' bounds bound again, the probes the bounds answered no and those the cells did,
+/// cells looked at and entries walked. The fight's outcome is printed for both, which must match.
 /// </summary>
 /// <remarks>
 /// Every count is read by name (World-side, internal): <c>CreatureRangeDetectorScript.Searches</c> and
 /// <c>DistanceChecks</c> of each detector, gathered when the world is built (a killed creature loses its script, not its
-/// detector's counts), and <c>SpatialGrid.ProbesRun</c>, <c>ProbedCells</c> and <c>ProbedEntries</c> of each forest.
+/// detector's counts), and the <c>SpatialGrid</c> counts of each forest.
 /// </remarks>
 public static class DetectionCountsHarness
 {
     private const BindingFlags Internal = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+
+    private static readonly string[] s_detectorCounts = ["Searches", "DistanceChecks"];
+
+    private static readonly string[] s_gridCounts = ["ProbesRun", "Bounds", "BoundSkips", "CellSkips", "ProbedCells", "ProbedEntries"];
 
     public static void Run(string[] args)
     {
@@ -30,16 +35,16 @@ public static class DetectionCountsHarness
         double seconds = measured * ScenarioWorld.Dt.TotalSeconds;
 
         Console.WriteLine($"forest-combat: {warmup} warm-up ticks, then {measured} counted ({seconds:F0} s of simulation)");
-        Console.WriteLine("run,searches,searches_per_s,distance_checks,distance_checks_per_s,probes,cells_probed,entries_walked,outcome");
+        Console.WriteLine("run," + string.Join(",", s_detectorCounts.Concat(s_gridCounts)) + ",searches_per_s,outcome");
         foreach (bool filtered in new[] { false, true })
         {
-            Counts counts = Count(filtered, warmup, measured, out FightOutcome outcome);
+            long[] counts = Count(filtered, warmup, measured, out FightOutcome outcome);
             Console.WriteLine(string.Create(CultureInfo.InvariantCulture,
-                $"{(filtered ? "filtered" : "every search")},{counts.Searches},{counts.Searches / seconds:F1},{counts.DistanceChecks},{counts.DistanceChecks / seconds:F1},{counts.Probes},{counts.Cells},{counts.Entries},\"{outcome}\""));
+                $"{(filtered ? "filtered" : "every search")},{string.Join(",", counts)},{counts[0] / seconds:F1},\"{outcome}\""));
         }
     }
 
-    private static Counts Count(bool filtered, int warmup, int measured, out FightOutcome outcome)
+    private static long[] Count(bool filtered, int warmup, int measured, out FightOutcome outcome)
     {
         var scenario = new ForestCombatScenario();
         using ScenarioWorld world = scenario.Build();
@@ -59,52 +64,33 @@ public static class DetectionCountsHarness
 
         for (int tick = 0; tick < warmup; tick++)
             world.Tick();
-        Counts before = Read(detectors, grids);
+        long[] before = Read(detectors, grids);
         for (int tick = 0; tick < measured; tick++)
             world.Tick();
-        Counts after = Read(detectors, grids);
+        long[] after = Read(detectors, grids);
 
         outcome = scenario.Outcome(world);
-        return after - before;
+        return after.Zip(before, (a, b) => a - b).ToArray();
     }
 
-    private static Counts Read(List<CreatureRangeDetectorScript> detectors, List<object> grids)
+    private static long[] Read(List<CreatureRangeDetectorScript> detectors, List<object> grids)
     {
-        PropertyInfo searches = typeof(CreatureRangeDetectorScript).GetProperty("Searches", Internal)!;
-        PropertyInfo distances = typeof(CreatureRangeDetectorScript).GetProperty("DistanceChecks", Internal)!;
-        Type gridType = typeof(MapInstance).GetField("_members", Internal)!.FieldType;
-        PropertyInfo probes = gridType.GetProperty("ProbesRun", Internal)!;
-        PropertyInfo cells = gridType.GetProperty("ProbedCells", Internal)!;
-        PropertyInfo entries = gridType.GetProperty("ProbedEntries", Internal)!;
-
-        var counts = new Counts();
-        foreach (CreatureRangeDetectorScript detector in detectors)
+        long[] counts = new long[s_detectorCounts.Length + s_gridCounts.Length];
+        for (int c = 0; c < s_detectorCounts.Length; c++)
         {
-            counts.Searches += (long)searches.GetValue(detector)!;
-            counts.DistanceChecks += (long)distances.GetValue(detector)!;
+            PropertyInfo count = typeof(CreatureRangeDetectorScript).GetProperty(s_detectorCounts[c], Internal)!;
+            foreach (CreatureRangeDetectorScript detector in detectors)
+                counts[c] += (long)count.GetValue(detector)!;
         }
 
-        foreach (object grid in grids)
+        Type gridType = typeof(MapInstance).GetField("_members", Internal)!.FieldType;
+        for (int c = 0; c < s_gridCounts.Length; c++)
         {
-            counts.Probes += (long)probes.GetValue(grid)!;
-            counts.Cells += (long)cells.GetValue(grid)!;
-            counts.Entries += (long)entries.GetValue(grid)!;
+            PropertyInfo count = gridType.GetProperty(s_gridCounts[c], Internal)!;
+            foreach (object grid in grids)
+                counts[s_detectorCounts.Length + c] += (long)count.GetValue(grid)!;
         }
 
         return counts;
-    }
-
-    private struct Counts
-    {
-        public long Searches, DistanceChecks, Probes, Cells, Entries;
-
-        public static Counts operator -(Counts a, Counts b) => new()
-        {
-            Searches = a.Searches - b.Searches,
-            DistanceChecks = a.DistanceChecks - b.DistanceChecks,
-            Probes = a.Probes - b.Probes,
-            Cells = a.Cells - b.Cells,
-            Entries = a.Entries - b.Entries,
-        };
     }
 }

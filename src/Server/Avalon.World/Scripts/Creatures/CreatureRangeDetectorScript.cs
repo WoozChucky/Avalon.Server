@@ -36,7 +36,18 @@ public class CreatureRangeDetectorScript : AiScript
         _aggroRange = aggroRange;
     }
 
-    public override object State { get; set; } = RangeDetectionState.Searching;
+    private object _state = RangeDetectionState.Searching;
+    private bool _searching = true;
+
+    public override object State
+    {
+        get => _state;
+        set
+        {
+            _state = value;
+            _searching = value is RangeDetectionState.Searching;
+        }
+    }
 
     /// <summary>
     /// The next tick. Read only for a creature's own script, which this never is: its owner runs it, and keeps its timer
@@ -77,10 +88,11 @@ public class CreatureRangeDetectorScript : AiScript
 
     /// <summary>
     /// Whether an Update of <paramref name="deltaTime" /> now would search: the detector is searching and the tick brings
-    /// its timer to the interval, the same float sum Update makes.
+    /// its timer to the interval, the same float sum Update makes. The state is read from the field its setter keeps
+    /// (#982): an AggroDefendScript's detector is always this exact type, which no subclass overrides.
     /// </summary>
     internal bool SearchDueAfter(TimeSpan deltaTime) =>
-        State is RangeDetectionState.Searching && !(_searchTimer + (float)deltaTime.TotalSeconds < SearchInterval);
+        _searching && !(_searchTimer + (float)deltaTime.TotalSeconds < SearchInterval);
 
     /// <summary>
     /// Whether this detector's search could find anyone (#982), asked by <paramref name="instance" />'s creature scheduler

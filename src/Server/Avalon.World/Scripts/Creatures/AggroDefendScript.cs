@@ -25,7 +25,7 @@ public class AggroDefendScript : AiScript, IReturningHome, IAwaitsSearch
     private const float DefaultAggroRange = 10.0f;
 
     private readonly CreatureRangeDetectorScript _detector;
-    private readonly AiScript _combat;
+    private readonly CreatureCombatScript _combat;
     private readonly bool _idleTimerOnly;
 
     public AggroDefendScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
@@ -92,8 +92,14 @@ public class AggroDefendScript : AiScript, IReturningHome, IAwaitsSearch
     // Update below with the search due: the shortcut does not return (AdvanceWhileWaiting answers false, as the timer
     // reaches the interval), the detector stays Searching, and of the chain only the detector runs (the combat script runs
     // only in Combat or Returning): its Update is the search alone. Combat begins only from what the search finds.
+    // AwaitsSearch's own condition, written out here rather than called through the interface again, and read from the
+    // fields the two scripts' State setters keep rather than from boxed states: only a script that waits for its search
+    // (_idleTimerOnly) gets past the first test, and its combat script is the plain one or a sealed built-in's, neither
+    // overriding State. The detector's Searching state is SearchDueAfter's to check.
     CreatureRangeDetectorScript? IAwaitsSearch.SearchAlone(TimeSpan deltaTime) =>
-        ((IAwaitsSearch)this).AwaitsSearch(out _) && _detector.SearchDueAfter(deltaTime) ? _detector : null;
+        _idleTimerOnly && _combat.IsIdle && _detector.SearchDueAfter(deltaTime)
+            ? _detector
+            : null;
 
     bool IReturningHome.IsReturningHome => _combat is IReturningHome { IsReturningHome: true };
 
