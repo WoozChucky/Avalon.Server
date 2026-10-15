@@ -35,8 +35,16 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             ctx.Connection.Send(SGameAdmissionPacket.Create([], PacketEncoder.Shared, GameAdmissionResult.InvalidRequest));
             return ctx.Connection.CloseAsync(false);
         }
-        byte[] clientKey = connection.KeyExchange is null ? [] : ctx.Packet.PublicKey.ToArray();
         Task<WorldAdmissionResult> redeemed = WorldDatabaseWork.Admission.Run(() => admission.AdmitAsync(ctx.Packet.JoinTicket, connection.Id, Guid.NewGuid(), token));
+        if (WorldDatabaseWork.IsRefusal(redeemed))
+        {
+            // The admission work queue is full (#1050): nothing was started, so nothing can be live. Answered here, on
+            // the receive path, as the refusals above are: no exception read, nothing tracked, nothing for the tick.
+            connection.ReportAdmissionOverloaded();
+            connection.Send(SGameAdmissionPacket.Create([], PacketEncoder.Shared, GameAdmissionResult.ServiceUnavailable));
+            return connection.CloseAsync(false);
+        }
+        byte[] clientKey = connection.KeyExchange is null ? [] : ctx.Packet.PublicKey.ToArray();
         connection.TrackAdmission(redeemed);
         connection.EnqueueContinuation(KeyAsync(redeemed, connection, clientKey), outcome =>
         {
@@ -99,7 +107,8 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
     /// <summary>
     /// The refusal a redemption without an active lease is answered with. The identity service's answers that mean
     /// "try later" (unreachable or overloaded, a session barrier still pending, the world in maintenance or without a
-    /// fresh heartbeat) are <c>ServiceUnavailable</c>; every other is <c>AuthorizationRequired</c>.
+    /// fresh heartbeat) are <c>ServiceUnavailable</c>; every other is <c>AuthorizationRequired</c>, the context's
+    /// application not allowed on this world (<c>WORLD_NOT_ALLOWED</c>) among them.
     /// </summary>
     private static GameAdmissionResult Refusal(string? error) =>
         error is GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending or GameAuthErrors.WorldUnavailable
@@ -108,24 +117,21 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
 
     /// <summary>
     /// Keys the session, on a world that seals, once the ticket is redeemed for an active lease: off the tick, on the
-    /// thread the redemption finished on. Never faults: a redemption that faulted (the admission work queue full, or a
-    /// throw) is reported where it ended and taken for <see cref="s_unredeemed" />, and a keying that fails is handed
-    /// to the continuation. The redemption's own task, which the connection tracks so a drain can end a lease that was
-    /// never published, stays the one that says what was redeemed.
+    /// thread the redemption finished on. Never faults: a redemption that faulted or was cancelled once started is
+    /// reported where it ended, read without a throw, and taken for <see cref="s_unredeemed" />; a keying that fails is
+    /// handed to the continuation. The redemption's own task, which the connection tracks so a drain can end a lease
+    /// that was never published, stays the one that says what was redeemed.
     /// </summary>
     private static async Task<KeyedAdmission> KeyAsync(Task<WorldAdmissionResult> redeemed, WorldConnection connection,
         byte[] clientKey)
     {
-        WorldAdmissionResult reply;
-        try
+        await ((Task)redeemed).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        if (!redeemed.IsCompletedSuccessfully)
         {
-            reply = await redeemed.ConfigureAwait(false);
-        }
-        catch (Exception error)
-        {
-            connection.ReportRedemptionFailed(error);
+            connection.ReportRedemptionFailed(redeemed.Exception?.InnerException ?? new TaskCanceledException(redeemed));
             return new KeyedAdmission(s_unredeemed, Keying.Done, null);
         }
+        WorldAdmissionResult reply = redeemed.Result;
         ConnectionKeyExchange? keys = connection.KeyExchange;
         if (keys is null || reply.Lease is not { IsActive: true })
             return new KeyedAdmission(reply, Keying.Done, null);

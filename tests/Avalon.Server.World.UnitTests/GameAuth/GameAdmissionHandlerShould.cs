@@ -14,6 +14,14 @@ using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.GameAuth;
 
+/// <summary>
+/// The world's admission and heartbeat lanes are process-wide (<c>WorldDatabaseWork</c>): a test that fills one runs
+/// alone, so no other test's admission is refused by it.
+/// </summary>
+[CollectionDefinition(nameof(AdmissionLanes), DisableParallelization = true)]
+public sealed class AdmissionLanes;
+
+[Collection(nameof(AdmissionLanes))]
 public sealed class GameAdmissionHandlerShould
 {
     /// <summary>
@@ -121,19 +129,22 @@ public sealed class GameAdmissionHandlerShould
             Assert.False(lease.IsActive);
         }
     }
-    public enum Redemption { Overloaded, Faulted, WorldUnavailable, InvalidTicket }
+    public enum Redemption { Overloaded, Faulted, WorldUnavailable, WorldNotAllowed, InvalidTicket }
 
     /// <summary>
-    /// A redemption that admits no one is answered and closed, and nothing is bound. One that never got an answer, because
-    /// the admission work queue was full (a reconnect storm) or it threw, is answered <c>ServiceUnavailable</c> like the
-    /// identity service's own "try later", and counted (#1050); before, its continuation faulted, so the client got no
-    /// reply and the world an Error with a stack per connection. Overload is expected, so it writes nothing at Error and
-    /// no stack. A world in maintenance is "try later" too; a ticket refused is <c>AuthorizationRequired</c>.
+    /// A redemption that admits no one is answered and closed, and nothing is bound. One the world cannot redeem, because
+    /// the admission work queue is full (a reconnect storm) or the redemption threw, is answered <c>ServiceUnavailable</c>
+    /// like the identity service's own "try later", and counted (#1050); before, its continuation faulted, so the client
+    /// got no reply and the world an Error with a stack per connection. A full queue is answered at once, without a
+    /// redemption, writes nothing at Error and no stack, and leaves live players' heartbeats their own lane. A world in
+    /// maintenance is "try later" too; a ticket refused, or an application never allowed on the world, is
+    /// <c>AuthorizationRequired</c>.
     /// </summary>
     [Theory]
     [InlineData(Redemption.Overloaded, GameAdmissionResult.ServiceUnavailable, "overloaded")]
     [InlineData(Redemption.Faulted, GameAdmissionResult.ServiceUnavailable, "failed")]
     [InlineData(Redemption.WorldUnavailable, GameAdmissionResult.ServiceUnavailable, null)]
+    [InlineData(Redemption.WorldNotAllowed, GameAdmissionResult.AuthorizationRequired, null)]
     [InlineData(Redemption.InvalidTicket, GameAdmissionResult.AuthorizationRequired, null)]
     public async Task Answer_and_close_a_redemption_that_admits_no_one(Redemption redemption, GameAdmissionResult expected,
         string? counted)
@@ -143,9 +154,9 @@ public sealed class GameAdmissionHandlerShould
         IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
         api.AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(redemption switch
         {
-            Redemption.Overloaded => Task.FromException<WorldAdmissionResult>(new WorldWorkUnavailableException()),
             Redemption.Faulted => Task.FromException<WorldAdmissionResult>(new InvalidOperationException("a defect")),
             Redemption.WorldUnavailable => Task.FromResult(new WorldAdmissionResult(null, "WORLD_UNAVAILABLE")),
+            Redemption.WorldNotAllowed => Task.FromResult(new WorldAdmissionResult(null, "WORLD_NOT_ALLOWED")),
             _ => Task.FromResult(new WorldAdmissionResult(null, "INVALID_TICKET")),
         });
         var reasons = new ConcurrentQueue<string?>();
@@ -158,17 +169,42 @@ public sealed class GameAdmissionHandlerShould
         meter.SetMeasurementEventCallback<long>((_, _, tags, _) => reasons.Enqueue((string?)tags[0].Value));
         meter.Start();
 
-        await new GameAdmissionHandler(api).ExecuteAsync(new()
+        // Overloaded: the admission lane held full, as a reconnect storm holds it, until the end of the test.
+        var held = new TaskCompletionSource<WorldAdmissionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var holding = new List<Task<WorldAdmissionResult>>();
+        while (redemption == Redemption.Overloaded)
         {
-            Connection = connection,
-            Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
-        });
-        await FlushUntil(connection, () => connection.IsClosing);
+            Task<WorldAdmissionResult> work = WorldDatabaseWork.Admission.Run(() => held.Task);
+            if (WorldDatabaseWork.IsRefusal(work)) break;
+            holding.Add(work);
+        }
+        try
+        {
+            await new GameAdmissionHandler(api).ExecuteAsync(new()
+            {
+                Connection = connection,
+                Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
+            });
+            if (redemption == Redemption.Overloaded)
+            {
+                // Answered at once, with nothing left for the tick, and a live player's heartbeat still runs.
+                Assert.True(connection.IsClosing);
+                Assert.Equal(1, await WorldDatabaseWork.Heartbeat.Run(() => Task.FromResult(1)).WaitAsync(s_hang));
+            }
+            await FlushUntil(connection, () => connection.IsClosing);
+        }
+        finally
+        {
+            held.SetResult(new WorldAdmissionResult(null, "SERVICE_UNAVAILABLE"));
+            await Task.WhenAll(holding).WaitAsync(s_hang);
+        }
 
         Assert.Equal(expected, Serializer.Deserialize<SGameAdmissionPacket>(Assert.Single(connection.Sent).PayloadMemory).Result);
         Assert.Null(connection.AccountId); Assert.Null(connection.GameplayAuthority); Assert.Null(connection.GameSessionLease);
         Assert.Null(connection.Character);
         Assert.Equal(counted is null ? [] : [counted], reasons);
+        await api.Received(redemption == Redemption.Overloaded ? 0 : 1)
+            .AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         if (redemption == Redemption.Overloaded)
             Assert.DoesNotContain(log.Entries, entry => entry.Level >= LogLevel.Error || entry.Exception is not null);
     }

@@ -12,8 +12,31 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
     public const int DatabaseOutstandingLimit = 256;
     public const int AdmissionConcurrency = 32;
     public const int AdmissionOutstandingLimit = 128;
+
+    /// <summary>
+    /// Lease heartbeats sent at once (#1050). Each player sends one every 15 s
+    /// (<c>GameAuthPolicy.HeartbeatInterval</c>), so a world of 5,000 players sends about 333 a second, and 128 at once
+    /// keep up with that while one takes up to about 380 ms (128 / 333 s); the lease lasts 45 s, three tries.
+    /// </summary>
+    public const int HeartbeatConcurrency = 128;
+
+    /// <summary>
+    /// Heartbeats running or waiting (#1050). A connection has at most one in flight, and only an admitted one has any,
+    /// so this bounds nothing a client can grow: it is set above any player count a world carries.
+    /// </summary>
+    public const int HeartbeatOutstandingLimit = 8192;
+
     public static readonly IWorldDatabaseWork ThreadPool = new WorldDatabaseWork();
     public static readonly IWorldDatabaseWork Admission = new WorldDatabaseWork(AdmissionConcurrency, AdmissionOutstandingLimit);
+
+    /// <summary>
+    /// Live players' lease heartbeats, in a lane of their own (#1050): admissions, which any client holding a
+    /// well-formed ticket can send, can fill <see cref="Admission" /> (a reconnect storm does), and a heartbeat refused
+    /// there waits 15 s for its next try, so three refusals in a row ended a lease the player still held.
+    /// </summary>
+    public static readonly IWorldDatabaseWork Heartbeat = new WorldDatabaseWork(HeartbeatConcurrency, HeartbeatOutstandingLimit);
+
+    private static readonly WorldWorkUnavailableException s_unavailable = new();
     private readonly SemaphoreSlim _slots;
     private readonly int _maximumOutstanding;
     private int _outstanding;
@@ -24,12 +47,20 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
         _slots = new SemaphoreSlim(maximumConcurrency, maximumConcurrency);
         _maximumOutstanding = maximumOutstanding;
     }
+
+    /// <summary>
+    /// Whether <paramref name="task" /> is a refusal of <see cref="Run{T}" />: the one task, faulted with
+    /// <see cref="WorldWorkUnavailableException" />, every saturated queue hands back for a <typeparamref name="T" />.
+    /// A reference comparison: a caller that answers a refusal at once reads no exception for it.
+    /// </summary>
+    public static bool IsRefusal<T>(Task<T> task) => ReferenceEquals(task, Refused<T>.Task);
+
     public Task<T> Run<T>(Func<Task<T>> operation)
     {
         if (Interlocked.Increment(ref _outstanding) > _maximumOutstanding)
         {
             Interlocked.Decrement(ref _outstanding);
-            return Task.FromException<T>(new WorldWorkUnavailableException());
+            return Refused<T>.Task;
         }
         return Task.Run(async () =>
         {
@@ -37,5 +68,14 @@ public sealed class WorldDatabaseWork : IWorldDatabaseWork
             try { return await operation().ConfigureAwait(false); }
             finally { _slots.Release(); Interlocked.Decrement(ref _outstanding); }
         }, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// The refusal, made once per result type: a reconnect storm is refused hundreds of times a second, and each refusal
+    /// made its own exception and task.
+    /// </summary>
+    private static class Refused<T>
+    {
+        public static readonly Task<T> Task = System.Threading.Tasks.Task.FromException<T>(s_unavailable);
     }
 }

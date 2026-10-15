@@ -204,15 +204,19 @@ through its own code, and a return to town refuses nothing by a reply.
 
 | `reason` | Why | Logged (`Avalon.World.WorldConnection`) |
 |---|---|---|
-| `overloaded` | The admission work queue (`WorldDatabaseWork.Admission`: 32 redemptions running, 128 outstanding) was full, so the redemption was never started and never reached the identity service | One Warning, without an exception, at most once per 10 s for the whole world, with how many more were refused since the last |
-| `failed` | The redemption threw. The admission client turns every transport, timeout and parsing failure into an answer of its own, so this is a defect | One Error with the exception, under the same bound |
+| `overloaded` | The admission work queue (`WorldDatabaseWork.Admission`: 128 redemptions outstanding, 32 of them running) was full, so the redemption was never started and never reached the identity service. Answered at once, on the receive path that delivered the admission, as the refusals before a ticket is spent are: nothing reaches the tick | One Warning, without an exception, at most once per 10 s for the whole world, with how many more were refused since the last |
+| `failed` | The redemption threw, or was cancelled. The admission client turns every transport, timeout and parsing failure into an answer of its own, so this is a defect. Counted on the thread pool, where the redemption ended; the answer goes out on the tick | One Error with the exception, under the same bound |
 
 `overloaded` is expected when many clients reconnect at once (a world restart, an identity service restart): each
 such client is told to try later. A rate that lasts outside such a storm is a world
-whose redemptions are slow (the identity service, or the path to it). Each count is one connection; it is counted
-where the redemption ended, off the tick, so a client that went away before its answer is counted too. Before #1050
-each of these was an Error with its stack ("Continuation faulted"), 3,231 in a minute on the load-test world, and the
-client got no answer: its connection was closed by the 15-second admission timeout.
+whose redemptions are slow (the identity service, or the path to it). Each count is one connection, counted where the
+refusal or the fault is seen, never on the tick, so a client that went away before its answer is counted too. The
+10 s bound is timed on the monotonic clock, so a wall clock set back cannot mute a line. A refusal costs no exception
+and no task of its own: the queue hands back one faulted task, made once (`WorldDatabaseWork.IsRefusal`). Before
+#1050 each of these was an Error with its stack ("Continuation faulted"), 3,231 in a minute on the load-test world,
+and the client got no answer: its connection was closed by the 15-second admission timeout. A full admission queue
+no longer holds back live players' lease heartbeats either: they have their own lane
+([game server admission](steam-authentication-workloads.md)).
 
 Not counted: an admission the identity service answered, whatever it answered (its own "try later" included), and
 one refused before its ticket was spent (`InvalidRequest`).
