@@ -144,6 +144,27 @@ public sealed class GameSessionFenceServiceShould
             Assert.True(reply.LeaseUntil <= _h.Clock.GetUtcNow().UtcDateTime.Add(GameAuthPolicy.SessionLeaseLifetime));
         }
     }
+    /// <summary>
+    /// A retried activation whose target guard still pends but has run out (here the database's clock runs ahead of the
+    /// API's, so the guard ends before the pending session does) is refused before the session activates: an active
+    /// session with a guard that can never activate would hold the account until its lease ran out.
+    /// </summary>
+    [Fact]
+    public async Task Leave_the_session_pending_when_a_retry_finds_its_target_guard_run_out()
+    {
+        await Arrange();
+        using var characters = new SqliteWorlds(1);
+        var database = new OffsetClock(_h.Clock, TimeSpan.FromSeconds(2));
+        var fences = new GameplayFenceRepository(characters.ForCharacters(new WorldId(1)), database);
+        _worlds.GameplayFences(new WorldId(1)).Returns(fences);
+        // The first attempt's barrier landed, and its answer was lost.
+        Assert.NotNull(await fences.AdvanceAsync(new(_head.AccountId, _head.GameSessionId, 2), false, _head.LeaseUntil, CancellationToken.None));
+        _h.Clock.Advance(GameAuthPolicy.SessionLeaseLifetime - TimeSpan.FromSeconds(1));
+
+        Assert.Equal(GameAuthErrors.BarrierPending, (await Activate()).Error);
+        Assert.Equal(GameSessionState.Pending, _head.State);
+        await _h.Sessions.DidNotReceive().TryActivateAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
     /// <summary>A clock a fixed offset from another, as the characters database's runs beside the API's.</summary>
     private sealed class OffsetClock(TimeProvider clock, TimeSpan offset) : TimeProvider
     {

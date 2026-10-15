@@ -12,7 +12,8 @@ public sealed class GameplayWriteRejectedException() : DbUpdateException("The ga
 /// An account's durable save guard in one world's characters database. The database's clock decides how long a guard
 /// holds (#1009): the lease end a caller asks for is a cap, and the guard holds the earlier of it and
 /// <see cref="GameAuthPolicy.SessionLeaseLifetime" /> past the database's own time. Advance, activate and renew answer
-/// the end the guard holds, or null when refused, so a caller on another clock hands on that end, never a later one.
+/// the end the guard holds, or null when refused, so a caller on another clock hands on that end, never a later one
+/// (a blocked guard grants no writes: advancing one answers the capped end asked, which bounds nothing).
 /// </summary>
 public interface IGameplayFenceRepository
 {
@@ -41,9 +42,13 @@ public sealed class GameplayFenceRepository(IDbContextFactory<CharacterDbContext
         if (until <= now || guard.ConsolidationId is not null || guard.FencingToken > authority.FencingToken) return null;
         if (guard.FencingToken == authority.FencingToken)
         {
-            return guard.GameSessionId == authority.GameSessionId &&
-                (blocked ? guard.Mode == GameplayFenceMode.Blocked : guard.Mode is GameplayFenceMode.Pending or GameplayFenceMode.Active)
-                ? until : null;
+            if (guard.GameSessionId != authority.GameSessionId) return null;
+            // A retried barrier answers the end the guard already holds, so it never activates a session past it; a
+            // target guard whose end has passed refuses here, before the session activates (it cannot be renewed). A
+            // blocked guard grants no writes, so its end bounds nothing.
+            if (blocked) return guard.Mode == GameplayFenceMode.Blocked ? until : null;
+            return guard.Mode is GameplayFenceMode.Pending or GameplayFenceMode.Active && guard.LeaseUntil > now
+                ? (guard.LeaseUntil < until ? guard.LeaseUntil : until) : null;
         }
 
         guard.GameSessionId = authority.GameSessionId;
