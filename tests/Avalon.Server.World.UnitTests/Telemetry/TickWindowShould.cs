@@ -13,7 +13,8 @@ public class TickWindowShould
     // Open until a second has passed: nothing measured, so nothing reported.
     [InlineData(1_000, new long[] { 0, 10, 500, 510, 998, 999 }, new int[0], 0u, 0.0)]
     // Closed by the tick that ends a second after the first began: the mean of its three ticks, 10 ms, three a second.
-    [InlineData(1_000, new long[] { 0, 10, 500, 510, 990, 1_000 }, new[] { 2 }, 10_000u, 3.0)]
+    // The clock does not start at 0: the first window opens at the first tick, not at timestamp 0.
+    [InlineData(1_000, new long[] { 5_000, 5_010, 5_500, 5_510, 5_990, 6_000 }, new[] { 2 }, 10_000u, 3.0)]
     // The next window opens where the last closed and holds none of its ticks: 4 and 6 ms, a mean of 5, over the
     // 1.25 s from the last close to its own, 1.6 a second.
     [InlineData(1_000, new long[] { 0, 10, 990, 1_000, 1_500, 1_504, 2_244, 2_250 }, new[] { 1, 3 }, 5_000u, 1.6)]
