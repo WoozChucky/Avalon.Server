@@ -2,6 +2,7 @@ using Avalon.Api.Hosting.Worlds;
 using Avalon.Database.Character;
 using Avalon.Database.World;
 using Avalon.Domain.Auth;
+using Avalon.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,8 +24,9 @@ public sealed class SqliteWorlds : IWorldDbContextFactory, IDisposable
         {
             _world[id] = Open();
             _characters[id] = Open();
-            using (WorldDbContext world = CreateWorld(new WorldId(id))) world.Database.EnsureCreated();
-            using (CharacterDbContext characters = CreateCharacters(new WorldId(id))) characters.Database.EnsureCreated();
+            // Each a copy of the database EnsureCreated makes, seed and all (SqliteTemplates).
+            SqliteTemplates.CopyInto<WorldDbContext>(_world[id], options => new(options));
+            SqliteTemplates.CopyInto<CharacterDbContext>(_characters[id], options => new(options));
         }
     }
 

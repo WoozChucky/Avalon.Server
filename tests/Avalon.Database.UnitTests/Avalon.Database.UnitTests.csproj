@@ -33,4 +33,9 @@
     <ProjectReference Include="..\..\src\Server\Avalon.Database.World\Avalon.Database.World.csproj"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Every SQLite database starts as a copy of one EnsureCreated made. -->
+    <Compile Include="..\Avalon.World.Testing\SqliteTemplates.cs" Link="Shared\SqliteTemplates.cs"/>
+  </ItemGroup>
+
 </Project>

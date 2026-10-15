@@ -1,6 +1,7 @@
 using Avalon.Database.Auth;
 using Avalon.Database.Character;
 using Avalon.Database.World;
+using Avalon.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,6 +32,13 @@ public sealed class SqliteDatabase<TContext> : IDbContextFactory<TContext>, IDis
         DbContextOptionsBuilder<TContext> builder = new DbContextOptionsBuilder<TContext>().UseSqlite(_connection);
         configure?.Invoke(builder);
         _options = builder.Options;
+
+        // A copy of the database EnsureCreated makes (SqliteTemplates); options of its own create theirs as they say.
+        if (configure is null)
+        {
+            SqliteTemplates.CopyInto(_connection, create);
+            return;
+        }
 
         using TContext context = _create(_options);
         context.Database.EnsureCreated();

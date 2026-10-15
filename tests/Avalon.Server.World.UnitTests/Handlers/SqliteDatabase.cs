@@ -1,5 +1,6 @@
 using Avalon.Database.Character;
 using Avalon.Database.World;
+using Avalon.Testing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,6 +12,11 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 /// closes — and the repositories open a context per call, so every context gets this one
 /// connection and no context's own dispose takes the schema with it.
 /// </summary>
+/// <remarks>
+/// Every database starts as a page-for-page copy of one created by <c>EnsureCreated</c> once per context type in the
+/// process (<see cref="SqliteTemplates" />): the schema and the whole <c>HasData</c> seed, as <c>EnsureCreated</c> writes
+/// them, for a fraction of what writing the seed again costs each test.
+/// </remarks>
 public sealed class SqliteDatabase<TContext> : IDbContextFactory<TContext>, IDisposable
     where TContext : DbContext
 {
@@ -26,8 +32,7 @@ public sealed class SqliteDatabase<TContext> : IDbContextFactory<TContext>, IDis
 
         _options = new DbContextOptionsBuilder<TContext>().UseSqlite(_connection).Options;
 
-        using TContext context = CreateDbContext();
-        context.Database.EnsureCreated();
+        SqliteTemplates.CopyInto(_connection, create);
     }
 
     public TContext CreateDbContext() => _create(_options);
