@@ -106,18 +106,33 @@ public static class ForwardedHeadersSetup
     }
 
     /// <summary>
-    /// <c>UseForwardedHeaders</c> with the registered <see cref="ForwardedHeadersOptions"/>, after
-    /// a check that logs a header sent by a peer that is not trusted.
+    /// Whether a process in <paramref name="environment"/> refuses a request forwarded over plaintext
+    /// (<see cref="ForwardedPlaintextRefusal"/>): <see cref="ForwardedHeadersConfig.RefusePlaintext"/> when it is set,
+    /// otherwise everywhere but Development.
     /// </summary>
-    public static IApplicationBuilder UseAvalonForwardedHeaders(this IApplicationBuilder app)
+    public static bool RefusesPlaintext(ForwardedHeadersConfig? config, IHostEnvironment environment) =>
+        config?.RefusePlaintext ?? !environment.IsDevelopment();
+
+    /// <summary>
+    /// <c>UseForwardedHeaders</c> with the registered <see cref="ForwardedHeadersOptions"/>, after
+    /// a check that logs a header sent by a peer that is not trusted; with <paramref name="refusePlaintext"/>, followed
+    /// by <see cref="ForwardedPlaintextRefusal"/>, which answers a request a trusted proxy forwarded over plaintext.
+    /// </summary>
+    public static IApplicationBuilder UseAvalonForwardedHeaders(this IApplicationBuilder app, bool refusePlaintext)
     {
         UntrustedForwardedHeaderLog log = app.ApplicationServices.GetRequiredService<UntrustedForwardedHeaderLog>();
+        ForwardedHeadersOptions options = app.ApplicationServices.GetRequiredService<ForwardedHeadersOptions>();
         app.Use((context, next) =>
         {
             log.Observe(context);
+            if (refusePlaintext)
+                ForwardedPlaintextRefusal.Observe(context, options);
             return next(context);
         });
-        return app.UseForwardedHeaders(app.ApplicationServices.GetRequiredService<ForwardedHeadersOptions>());
+        app.UseForwardedHeaders(options);
+        if (refusePlaintext)
+            app.Use(ForwardedPlaintextRefusal.RefuseOrContinue);
+        return app;
     }
 }
 

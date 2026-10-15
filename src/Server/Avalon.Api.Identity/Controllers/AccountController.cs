@@ -18,6 +18,9 @@ namespace Avalon.Api.Identity.Controllers;
 [Authorize(Policy = AvalonRoles.Player)]
 [ApiController]
 [Route("account")]
+// Login and registration answer with an access token and set the refresh cookie, and the rest is the caller's own
+// account: no cache may keep any of it (Cache-Control: no-store, Pragma: no-cache).
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class AccountController : BaseController
 {
     private readonly IAccountService _accountService;

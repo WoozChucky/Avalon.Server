@@ -219,7 +219,7 @@ public sealed class ForwardedHeadersShould
                 context.Connection.RemoteIpAddress = peer.Length == 0 ? null : IPAddress.Parse(peer);
                 return next(context);
             });
-            host._app.UseAvalonForwardedHeaders();
+            host._app.UseAvalonForwardedHeaders(refusePlaintext: false);
             host._app.MapGet("/source", (HttpContext context) =>
                 context.Connection.RemoteIpAddress is { } address ? LoginSource.FromAddress(address).Key : NoAddress);
             await host._app.StartAsync();

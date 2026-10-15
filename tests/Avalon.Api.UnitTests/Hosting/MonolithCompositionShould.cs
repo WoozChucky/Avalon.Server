@@ -118,10 +118,13 @@ public sealed class MonolithCompositionShould : IAsyncDisposable
 
         Assert.Equal(
         [
+            "SecurityHeaders",
             "ExceptionHandlerMiddleware",
             "RequestLoggingMiddleware",
             "ForwardedHeadersSetup",
             "ForwardedHeadersMiddleware",
+            "ForwardedPlaintextRefusal",
+            "HstsMiddleware",
             "EndpointRoutingMiddleware",
             "CorsMiddleware",
             "GameInternalRoutes",

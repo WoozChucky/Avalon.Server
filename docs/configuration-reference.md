@@ -549,6 +549,7 @@ Section: `Application:ForwardedHeaders`, read by every API service (#478 review)
 | `KnownProxies`  | string[] | `[]`    | Addresses of proxies whose `X-Forwarded-For` is believed, such as `10.0.0.2` |
 | `KnownNetworks` | string[] | `[]`    | Networks of such proxies in CIDR form, such as a cluster's pod network `10.0.0.0/8` |
 | `ForwardLimit`  | int      | `1`     | Proxy hops read from `X-Forwarded-For`, from the right |
+| `RefusePlaintext` | bool   | unset: on everywhere but Development | Refuse, before any endpoint runs, a request a trusted proxy forwarded over plaintext (below) |
 
 Loopback is always trusted, and nothing else is by default, which fails safe: a caller cannot choose its own
 address. The address decides the caller's login source budget, so an ingress left out of these makes every
@@ -568,15 +569,31 @@ allows.
 - A request with no peer address has its `X-Forwarded-*` headers removed before they are read (and is
   logged the same way), so it keeps no address and still gets the 400 below.
 
+- **A request forwarded over plaintext is refused** (`RefusePlaintext`, `ForwardedPlaintextRefusal`): when the
+  request's own peer is a trusted proxy (loopback included) that sent `X-Forwarded-Proto`, and the scheme the
+  forwarded headers leave it with is not https, it is answered **403** ProblemDetails `Detail` `HTTPS_REQUIRED`,
+  whatever the method, before routing, authentication or any endpoint, and never redirected: the request already
+  crossed the network in plaintext, and the redirect to https is the edge proxy's job. A request with no
+  `X-Forwarded-Proto` (a world server, a probe or the balance proxy calling the pod over cluster http, a local run) is
+  served as before, and so is one from a peer that is not trusted, whose header is ignored as its `X-Forwarded-For`
+  is. Unset, the refusal is on outside Development and off in it; `true` or `false` overrides that. An in-cluster
+  caller that goes through the ingress over plain http is refused too: call the Service, or the ingress over https.
+- The API sends `Strict-Transport-Security: max-age=31536000` (no `includeSubDomains`, no `preload`; not
+  configurable) outside Development on a response to a request that arrived over https, a forwarded https request
+  included, and never on cluster http; and `X-Content-Type-Options: nosniff` on every response
+  ([API services](api-services.md#the-pipeline)).
+
 ```bash
 Application__ForwardedHeaders__KnownNetworks__0=10.0.0.0/8
 Application__ForwardedHeaders__KnownProxies__0=10.1.2.3
 Application__ForwardedHeaders__ForwardLimit=1
+Application__ForwardedHeaders__RefusePlaintext=true
 ```
 
 The Helm chart passes `forwardedHeaders.knownProxies`, `forwardedHeaders.knownNetworks` and
 `forwardedHeaders.forwardLimit` (empty lists and 1 by default). The chart has no ingress of its own, so fill
-them in for whatever ingress fronts the service.
+them in for whatever ingress fronts the service. It has no value for `RefusePlaintext`, so every release, which runs
+as Production, refuses requests forwarded over plaintext.
 
 A caller with no peer address at all is refused with 400 on the endpoints that spend a login source budget
 (login, registration, MFA verify, password change, starting an email change, MFA setup, token minting).

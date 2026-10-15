@@ -1,3 +1,4 @@
+using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Hosting.Worlds;
 
@@ -5,8 +6,9 @@ namespace Avalon.Api.Hosting;
 
 /// <summary>
 /// The one request pipeline of every API process (#794, design section 3.1). Its order is fixed here, and
-/// PipelineOrderShould pins it: the developer exception page (Development), exception handling, request logging,
-/// forwarded headers, routing, CORS, the services' hooks before authentication, authentication, the services' hooks
+/// PipelineOrderShould pins it: the developer exception page (Development), the security headers, exception handling,
+/// request logging, forwarded headers with the refusal of a request forwarded over plaintext (when on), HSTS (outside
+/// Development), routing, CORS, the services' hooks before authentication, authentication, the services' hooks
 /// after authentication, the rate limiter, the world routes (when a service declares them), authorization; and the
 /// endpoints: <c>/health</c>, <c>/alive</c>, the OpenAPI document and Scalar where they are served (<see cref="ApiDocs"/>),
 /// and the controllers.
@@ -44,16 +46,27 @@ public static class ApiPipeline
             app.UseDeveloperExceptionPage();
         }
 
-        // app.UseHsts();
+        // X-Content-Type-Options: nosniff, first, so every response carries it, a refusal or an exception's included.
+        app.UseAvalonSecurityHeaders();
         app.UseMiddleware<ExceptionHandlerMiddleware>();
         app.UseMiddleware<RequestLoggingMiddleware>();
 
+        IConfiguration configuration = app.ApplicationServices.GetRequiredService<IConfiguration>();
+
         // Loopback plus the proxies under Application:ForwardedHeaders (#478 review); a header from any
-        // other peer is ignored and logged, rate-limited.
-        app.UseAvalonForwardedHeaders();
+        // other peer is ignored and logged, rate-limited. Then, unless turned off (on by default outside Development),
+        // the refusal of a request such a proxy forwarded over plaintext, before anything acts on it.
+        app.UseAvalonForwardedHeaders(ForwardedHeadersSetup.RefusesPlaintext(
+            configuration.GetSection(ForwardedHeadersSetup.Section).Get<ForwardedHeadersConfig>(), environment));
+
+        // After the forwarded headers, so a request the proxy forwarded as https is https here; ASP.NET's HSTS writes
+        // the header on https requests only, so a call over cluster http gets none. Outside Development, as the
+        // developer's own https on localhost is no host to pin.
+        if (!environment.IsDevelopment())
+            app.UseHsts();
 
         // In Development, or where Application:ApiDocs:Enabled turns them on; never by default in production (#803).
-        if (ApiDocs.AreServed(environment, app.ApplicationServices.GetRequiredService<IConfiguration>()))
+        if (ApiDocs.AreServed(environment, configuration))
             ApiDocs.Map(endpoints);
 
         app.UseRouting();

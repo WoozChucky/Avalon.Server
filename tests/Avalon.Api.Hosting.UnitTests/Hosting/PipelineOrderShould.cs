@@ -24,10 +24,13 @@ public sealed class PipelineOrderShould
 
         Assert.Equal(
         [
+            "SecurityHeaders",
             "ExceptionHandlerMiddleware",
             "RequestLoggingMiddleware",
             "ForwardedHeadersSetup",
             "ForwardedHeadersMiddleware",
+            "ForwardedPlaintextRefusal",
+            "HstsMiddleware",
             "EndpointRoutingMiddleware",
             "CorsMiddleware",
             "first: before authentication",
@@ -54,14 +57,18 @@ public sealed class PipelineOrderShould
         Assert.Equal("RateLimitingMiddleware", names[^2]);
     }
 
+    /// <summary>
+    /// Development puts the developer exception page first and leaves out the two transport rules a developer's
+    /// localhost has no use for: HSTS, and by default the refusal of a request forwarded over plaintext.
+    /// </summary>
     [Fact]
-    public async Task Put_the_developer_exception_page_first_in_development_only()
+    public async Task Put_the_developer_exception_page_first_and_leave_the_transport_rules_out_in_development_only()
     {
         List<string> development = await MiddlewareRecorder.RecordAsync(Environments.Development, [new RecordingService("only", [])]);
         List<string> production = await MiddlewareRecorder.RecordAsync(Environments.Production, [new RecordingService("only", [])]);
 
         Assert.Equal("DeveloperExceptionPageMiddlewareImpl", development[0]);
-        Assert.Equal(development.Skip(1), production);
+        Assert.Equal(development.Skip(1), production.Where(name => name is not ("ForwardedPlaintextRefusal" or "HstsMiddleware")));
     }
 
     /// <summary>A service with no controllers and no needs, whose hooks write where they ran.</summary>
