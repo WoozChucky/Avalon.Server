@@ -12,6 +12,13 @@ namespace Avalon.Server.World.UnitTests.GameAuth;
 
 public sealed class GameAdmissionHandlerShould
 {
+    /// <summary>
+    /// A limit on a hang only: the ticket is redeemed and the session keyed on the thread pool, which a loaded test run
+    /// can hold for seconds, and the outcome is applied by the next flush, whenever this test's thread gets to it (#960).
+    /// So the tests flush until the outcome is there, never for an amount of time (#1019).
+    /// </summary>
+    private static readonly TimeSpan s_hang = TimeSpan.FromSeconds(30);
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -30,8 +37,7 @@ public sealed class GameAdmissionHandlerShould
             Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = clientKey }
         });
         Assert.Null(connection.AccountId); Assert.Null(connection.GameplayAuthority);
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (connection.AccountId is null && DateTime.UtcNow < deadline) { connection.FlushContinuations(); await Task.Yield(); }
+        await FlushUntil(connection, () => connection.AccountId is not null);
         Assert.Equal(lease.Authority.AccountId, connection.AccountId);
         Assert.Same(lease.Authority, connection.GameplayAuthority);
         Assert.False(connection.IsGameplayAuthorized); // The supported-version handshake still must finish.
@@ -97,12 +103,8 @@ public sealed class GameAdmissionHandlerShould
             Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = key == ClientKey.Empty ? [] : publicKey }
         });
         // The ticket is redeemed, and the session keyed, off the calling thread; the outcome is applied on the tick.
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (redeemed && connection.AccountId is null && !connection.IsClosing && DateTime.UtcNow < deadline)
-        {
-            connection.FlushContinuations();
-            await Task.Yield();
-        }
+        if (redeemed)
+            await FlushUntil(connection, () => connection.AccountId is not null || connection.IsClosing);
         await api.Received(redeemed ? 1 : 0).AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         bool admitted = redeemed && violation is null;
         Assert.Equal(!admitted, connection.IsClosing);
@@ -125,8 +127,20 @@ public sealed class GameAdmissionHandlerShould
             Connection = connection,
             Packet = new() { JoinTicket = GameAuthCryptography.NewToken(), PublicKey = new CryptoManager().GetPublicKey() }
         });
-        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
-        while (!connection.IsClosing && DateTime.UtcNow < deadline) { connection.FlushContinuations(); await Task.Yield(); }
+        await FlushUntil(connection, () => connection.IsClosing);
         Assert.True(connection.IsClosing); Assert.Null(connection.AccountId); Assert.Null(connection.GameplayAuthority); Assert.Null(connection.Character);
+    }
+
+    /// <summary>Runs the connection's tick continuations until <paramref name="settled" /> holds after one.</summary>
+    private static async Task FlushUntil(WorldAdmissionConnection connection, Func<bool> settled)
+    {
+        using var hang = new CancellationTokenSource(s_hang);
+        while (true)
+        {
+            connection.FlushContinuations();
+            if (settled())
+                return;
+            await Task.Delay(1, hang.Token);
+        }
     }
 }

@@ -29,7 +29,11 @@ namespace Avalon.Server.World.UnitTests.Persistence;
 /// </summary>
 public sealed class CharacterSaverShould : IDisposable
 {
-    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(5);
+    /// <summary>
+    /// Only keeps a broken save from hanging the run: every wait here ends on a signal. Generous, because a save runs on
+    /// the thread pool and SQLite, and a loaded runner can hold that work back for seconds.
+    /// </summary>
+    private static readonly TimeSpan s_limit = TimeSpan.FromSeconds(30);
 
     private readonly SqliteDatabase<CharacterDbContext> _db = SqliteDatabase.Characters();
     private readonly List<(Task<bool> Task, Action<bool> Callback)> _queued = [];
