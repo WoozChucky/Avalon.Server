@@ -63,12 +63,15 @@ what a payload without the field decodes as.
 | 13 | `InviteDeclined` | Your invite was declined (unasked, below). |
 | 14 | `Invalid` | The request could not be read: an experience mode of `Unknown`. |
 | 15 | `Error` | The server failed while handling the request; nothing is known to have changed. |
+| 16 | `TooFast` | Too many invites too quickly (#944): the inviter's budget, `Game:PartyInvitesPerMinute` (30) in any 60 s, is spent. Nothing was looked up or sent; try again later. A client built before it reads an unknown value. |
 
 `Name` carries the character involved where the server knows it: the name as sent on an invite, the member's
 name on a kick or promote, the other side on an unasked result. A `CMSG_PARTY_INVITE` whose `TargetName` is
 not a character name is answered `NotFound` with no `Name` (#936). The `/invite` command is different there:
-it puts what was typed in `Name` and in its "Could not find X." line, to the sender only, and the chat
-limit (section 5) bounds it.
+it puts what was typed in `Name` and in its "Could not find X." line, to the sender only. **Invite budget
+(#944):** both share one budget per inviter, every invite that looks its target up spending one; past it
+the answer is `TooFast` with the name as sent, and nothing is looked up. The budget limits invite spam;
+answers within it are unchanged.
 
 **Unasked results.** Some results arrive without a request:
 - `InviteDeclined` (with the target's name) to the inviter when the target declines.

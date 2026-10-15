@@ -63,7 +63,11 @@ public sealed class InviteCommand(PartyService parties) : ICommand
         }
 
         PartyResult result = parties.Invite(id, args[0]);
-        string name = parties.OnlineConnectionByName(args[0])?.Character?.Name ?? args[0];
+        // The name as its character spells it, but only when the invite looked the target up (#944): past the budget, or
+        // refused before the lookup (not the leader), the reply names what was typed, and nothing is looked up for it.
+        string name = result is PartyResult.TooFast or PartyResult.NotLeader
+            ? args[0]
+            : parties.OnlineConnectionByName(args[0])?.Character?.Name ?? args[0];
         PartyCommandReply.Send(ctx, result, name);
         if (result == PartyResult.Ok)
             ctx.Reply($"You invited {name} to the party.");

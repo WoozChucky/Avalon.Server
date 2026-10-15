@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.State;
 using Avalon.World.Characters;
+using Avalon.World.Chat;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -39,6 +40,10 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     private readonly Dictionary<uint, Party> _parties = [];
     private readonly Dictionary<uint, Party> _partyOf = [];
     private readonly Dictionary<uint, PartyInvite> _invites = [];   // by invitee
+
+    // The invite budget per inviter (#944), a limit on invite spam: every invite that looks its target up spends one.
+    // Forgotten when the inviter goes offline, as the chat rate limit is.
+    private readonly CharacterRateBudget _inviteBudget = new(() => options.Value.PartyInvitesPerMinute, time);
 
     // Invites to a character that ignores the inviter (#723), by (inviter, target): never sent to the target and never
     // answerable, but kept until they expire so the inviter sees exactly what a sent invite shows.
@@ -133,6 +138,7 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         if (!_onlineCharacters.Remove(connection, character))
             return;
 
+        _inviteBudget.Forget(id);
         _statusSent.Remove(id);
         _lastLevel[id] = character.Level;
 
@@ -158,6 +164,13 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
         Party? party = PartyOf(inviterId);
         if (party is not null && !party.IsLeader(inviterId))
             return PartyResult.NotLeader;
+
+        // The invite budget (#944), a limit on invite spam, checked before the target is looked up, so an invite past it
+        // costs no lookup. Every answer below stays as it is, and every invite that gets this far spends one, whatever
+        // the lookup finds.
+        if (!_inviteBudget.Check(inviterId, out _))
+            return PartyResult.TooFast;
+        _inviteBudget.Record(inviterId);
 
         if (!_onlineCharacters.TryIdByName(targetName, out uint targetId)
             || OnlineConnection(targetId) is not { Character: { } target } targetConnection)

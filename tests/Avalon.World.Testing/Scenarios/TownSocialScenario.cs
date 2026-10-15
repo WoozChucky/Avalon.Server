@@ -26,13 +26,17 @@ namespace Avalon.World.Testing.Scenarios;
 /// Measured as the other steady scenarios are, by the least of five windows: the schedule repeats every window, so every
 /// window holds one of each event, made by players in the same state (see <see cref="SocialSchedule" />). The world has
 /// the World server's reference data, for the party service and level 1 characters of a class (the classes cycle over
-/// all four), and the rate limit as production sets it (<c>Game:ChatMessagesPerMinute</c> 10). The characters are named
+/// all four), and the rate limits as production sets them (<c>Game:ChatMessagesPerMinute</c> 10 and, #944,
+/// <c>Game:PartyInvitesPerMinute</c> 30, which an inviter's one invite every 30 s stays inside). The characters are named
 /// "Socialaa" to "Socialbd": the invite and the whisper find a player by a name of letters only.
 /// </remarks>
 public sealed class TownSocialScenario : IScenario
 {
     /// <summary>The rate limit production's <c>appsettings.json</c> sets: 10 messages a minute per character.</summary>
     public const int ChatMessagesPerMinute = 10;
+
+    /// <summary>The invite budget production's <c>appsettings.json</c> sets: 30 invites a minute per character (#944).</summary>
+    public const int PartyInvitesPerMinute = 30;
 
     private static readonly CharacterClass[] s_classes =
         [CharacterClass.Warrior, CharacterClass.Wizard, CharacterClass.Hunter, CharacterClass.Healer];
@@ -52,13 +56,19 @@ public sealed class TownSocialScenario : IScenario
     /// three of them each second, so the queues are made in seconds 0 to 9 and grown in seconds 40 to 49 (88 B each,
     /// 264 B a second); none holds more than six lines after that, and from second 50 on every second reads the same.
     /// A minute puts the windows ten seconds past the last growth, after two whole turns of the parties (30 s each).
+    /// The invite budget (#944) keeps a queue the same way, per inviter: each invites once every 30 s, so every queue is
+    /// made in the first turn and never holds more than two, which its first four places take.
     /// </summary>
     public int SteadyWarmupTicks => (int)ChatRateLimiter.Window.TotalSeconds * ScenarioMeasurement.WindowTicks;
 
     public ScenarioWorld Build()
     {
         var world = ScenarioWorld.CreateWithReferenceData(
-            new GameConfiguration { ChatMessagesPerMinute = ChatMessagesPerMinute });
+            new GameConfiguration
+            {
+                ChatMessagesPerMinute = ChatMessagesPerMinute,
+                PartyInvitesPerMinute = PartyInvitesPerMinute,
+            });
         try
         {
             MapInstance town = world.AddInstance(MapType.Town);
