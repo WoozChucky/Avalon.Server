@@ -419,8 +419,8 @@ public class CharacterCreationShould : IDisposable
             _authority = new(new AccountId(1), Guid.NewGuid(), 1);
             var guards = new GameplayFenceRepository(_characters);
             DateTime until = DateTime.UtcNow.AddSeconds(44);
-            Assert.True(guards.AdvanceAsync(_authority, false, until, CancellationToken.None).GetAwaiter().GetResult());
-            Assert.True(guards.ActivateAsync(_authority, until, CancellationToken.None).GetAwaiter().GetResult());
+            Assert.NotNull(guards.AdvanceAsync(_authority, false, until, CancellationToken.None).GetAwaiter().GetResult());
+            Assert.NotNull(guards.ActivateAsync(_authority, until, CancellationToken.None).GetAwaiter().GetResult());
         }
         IWorldConnection connection = Substitute.For<IWorldConnection>();
         connection.AccountId.Returns(new AccountId(1));
