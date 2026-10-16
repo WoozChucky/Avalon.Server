@@ -82,14 +82,14 @@ public sealed class ConnectionSender : IOutbox
     public const string SlowConnectionMessage = "Your connection could not keep up with the server.";
 
     /// <summary>
-    /// How many written pings stay answerable (#892), and so how many pongs may be in at once. A connection is pinged
-    /// once per period (five seconds since #1034), and three times in the two seconds after its handshake (the start
-    /// burst), and a ping is answered within a round trip, so one is unanswered in ordinary play and three during the
-    /// burst, four with a periodic ping written before the handshake, whose pong arrived too early to be let in (the
-    /// burst takes the place of the periodic pings until it ends). Each ping written grants one pong credit, the
-    /// burst's too, so it needs no allowance of its own, and a pong with no ping to answer still finds none. Four keeps
-    /// a stamp for twenty seconds at the steady cadence, and eight or more for the burst's: the fourth ping written after
-    /// it takes its place, answered or not. A pong for it is then ignored, and the next ping measures again.
+    /// How many written pings stay answerable (#892), and so how many pongs may be in at once. A world connection is
+    /// first pinged by the start burst, three times in the two seconds after its handshake, and then once per period
+    /// (five seconds since #1034); a ping is answered within a round trip, so one is unanswered in ordinary play and
+    /// three at most during the burst, which takes the place of the periodic pings until it ends. The fourth place is a
+    /// spare, for a client slow to answer the burst. Each ping written grants one pong credit, the burst's too, so it
+    /// needs no allowance of its own, and a pong with no ping to answer still finds none. Four keeps a stamp for twenty
+    /// seconds at the steady cadence, and eight or more for the burst's: the fourth ping written after it takes its
+    /// place, answered or not. A pong for it is then ignored, and the next ping measures again.
     /// </summary>
     public const int PingStampCapacity = 4;
 

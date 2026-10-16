@@ -270,18 +270,22 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     // The world's ping tick on or after which the time-sync sweep next turns to this connection (#1034): the one field
     // the sweep reads of it each tick. It starts at the connection's slot, so a world past its first period turns to a
-    // new connection on its first tick, and then follows the slot, StartBurstDue once the handshake asks for the start
-    // burst, the burst's spacing while it lasts, and long.MaxValue once the liveness rule has closed it. Written by the
-    // tick, and once by the read loop (RequestInitialTimeSyncPing, an exchange); the tick writes it back only by a
-    // compare-exchange from the value it acted on, so a request that lands while the tick is acting is never lost.
+    // new connection on its first tick, and then follows the slot (turns that only check liveness until the
+    // handshake), StartBurstDue once the handshake asks for the start burst, the burst's spacing while it lasts, and
+    // long.MaxValue once the connection is closing. Written by the tick, and once by the read loop
+    // (RequestInitialTimeSyncPing, an exchange); the tick writes it back only by a compare-exchange from the value it
+    // acted on, so a request that lands while the tick is acting is never lost. One that lands on a closing connection
+    // is turned to once more, and put out (OnTimeSyncDue).
     private long _nextPingTick;
 
     // Spreads the connections' periodic pings over the period, one slot after another as connections are made, whatever
     // their place in the list, which shifts with every removal ahead of them. Process-wide: one world runs per process.
     private static int s_timeSyncSlots;
 
-    // The start burst's follow-up pings still to come (#1034). Tick only.
+    // The start burst's follow-up pings still to come, and whether the burst has begun, the handshake having asked for
+    // it: until then a turn sends no ping (#1034). Tick only.
     private int _burstPingsLeft;
+    private bool _timeSyncStarted;
 
     // The connection's monotonic clock as of its last pong that answered a ping, or as of its admission before the
     // first (#1034): what the liveness rule measures from. Meaningless until the connection is admitted. Tick only: the
@@ -312,27 +316,37 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     /// <summary>
     /// The time-sync sweep's turn for this connection, on a <paramref name="tick" /> at or after
-    /// <see cref="NextTimeSyncTick" /> (#1034). The liveness rule first (<see cref="CloseIfSilent" />): a connection it
-    /// closes is not pinged again. Otherwise one ping, and the next turn: the start burst's spacing while the burst
-    /// lasts, then the connection's slot in the period, at least a burst spacing on. Tick only; no clock read and no
-    /// allocation.
+    /// <see cref="NextTimeSyncTick" /> (#1034). A closing connection is turned to no more. Then the liveness rule
+    /// (<see cref="CloseIfSilent" />): a connection it closes is not pinged again. Before the handshake asked for the
+    /// start burst, that is all a turn does, and the next is on the connection's slot: a pong is not let in before the
+    /// handshake, so the first ping is the burst's. After it, one ping, and the next turn: the burst's spacing while
+    /// the burst lasts, then the slot, at least a burst spacing on. Tick only; no clock read and no allocation.
     /// </summary>
     public void OnTimeSyncDue(long tick, in TickTime now)
     {
         long acted = Volatile.Read(ref _nextPingTick);
-        if (CloseIfSilent(now))
+
+        // A closing connection, closed here or for any other reason, is turned to no more, nor pinged: a handshake
+        // that lands after the close and asks for the burst is put out here on the next tick.
+        if (IsClosing || CloseIfSilent(now))
         {
             Volatile.Write(ref _nextPingTick, long.MaxValue);
             return;
         }
 
-        SendTimeSyncPing();
-
         long next;
         if (acted == StartBurstDue)
         {
+            _timeSyncStarted = true;
             _burstPingsLeft = StartBurstFollowUps;
             next = tick + StartBurstSpacingTicks;
+        }
+        else if (!_timeSyncStarted)
+        {
+            // Before the handshake a turn is the liveness check alone: a pong could not be let in yet, so a ping would
+            // only spend a stamp. The first ping is the start burst's.
+            Interlocked.CompareExchange(ref _nextPingTick, NextSlotTick(tick + 1), acted);
+            return;
         }
         else if (_burstPingsLeft > 0)
         {
@@ -343,6 +357,8 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         {
             next = NextSlotTick(tick + 1);
         }
+
+        SendTimeSyncPing();
 
         // Fails only when the handshake asked for the burst since the read above: that request stays, due next tick.
         Interlocked.CompareExchange(ref _nextPingTick, next, acted);

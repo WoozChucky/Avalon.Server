@@ -781,8 +781,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             _ = disconnected.DrainGameplayAsync();
         }
 
-        // Cache once — both phases iterate the same set.
-        ImmutableArray<IWorldConnection> conns = Connections;
+        // Cache once — both phases iterate the same set: one snapshot of the typed list, and the interface view of the
+        // same array (an upcast, which holds whatever the list is built from).
+        ImmutableArray<WorldConnection> typedConns = TypedConnections;
+        var conns = ImmutableArray<IWorldConnection>.CastUp(typedConns);
 
         // The tick's time (#977): one read of the container's clock for every connection's lease check, and through it
         // every dispatch's authorization this tick, where each read the clock for itself.
@@ -917,16 +919,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Time-sync ping (#1034): each connection keeps the tick its next turn is due on, so the sweep reads one field
         // of each and does the rest only for the connections due. A turn is the liveness rule first (an admitted
         // connection that answered no ping for a minute is closed rather than pinged again), then a ping: every 300
-        // ticks on the connection's slot, one slot after another as connections are made, so 300 connections still
+        // ticks on the connection's slot once the handshake has started its time sync (a turn before it is the liveness
+        // rule alone), one slot after another as connections are made, so 300 connections still
         // produce about one ping a tick, whatever their place in the list, which shifts with every removal; and the
         // start burst after the handshake, on the next tick and twice more 60 ticks apart. The tick count MUST move
         // once per tick. Each ping is stamped by its send thread as it is written (#875), so where the tick queues it
-        // does not move the round trip. The connection list is the same set as conns, typed.
+        // does not move the round trip.
         long pingTick = _pingTickCounter++;
-        ImmutableArray<WorldConnection> timed = conns.CastArray<WorldConnection>();
-        for (int i = 0; i < timed.Length; i++)
+        for (int i = 0; i < typedConns.Length; i++)
         {
-            WorldConnection connection = timed[i];
+            WorldConnection connection = typedConns[i];
             if (pingTick >= connection.NextTimeSyncTick)
                 connection.OnTimeSyncDue(pingTick, now);
         }

@@ -369,11 +369,12 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     /// <summary>
-    /// The time-sync cadence (#1034): a connection is pinged every 300 ticks (five seconds at 60 Hz) on its own slot of
-    /// the period, and three times in the two seconds after its handshake, the start burst: on the next tick, then twice
-    /// more 60 ticks apart, so its client has a measured clock offset in about two seconds; the burst hands back to the
-    /// slot. Its turns follow the connection, not its place in the list: the two connections ahead of it are removed
-    /// along the way, which moved it from third to first, and it is still pinged on every tick it is due, and only then.
+    /// The time-sync cadence (#1034): a connection's first ping is the start burst, three in the two seconds after its
+    /// handshake (on the next tick, then twice more 60 ticks apart), so its client has a measured clock offset in about
+    /// two seconds; before it, its turn on its slot sends nothing, since no pong could be let in. The burst hands over to
+    /// the slot, where it is pinged every 300 ticks (five seconds at 60 Hz). Its turns follow the connection, not its
+    /// place in the list: the two connections ahead of it are removed along the way, which moved it from third to first,
+    /// and it is still pinged on every tick it is due, and only then.
     /// </summary>
     [Fact]
     public async Task Ping_every_five_seconds_on_its_slot_and_three_times_after_the_handshake_whoever_leaves_ahead()
@@ -415,7 +416,7 @@ public class WorldServerBarrierTickShould : IDisposable
             written = bytes.Length;
         }
 
-        Assert.Equal([slot, slot + 100, slot + 160, slot + 220, slot + 300, slot + 600], ticks);
+        Assert.Equal([slot + 100, slot + 160, slot + 220, slot + 300, slot + 600], ticks);
     }
 
     /// <summary>

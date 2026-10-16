@@ -227,18 +227,19 @@ by its header while its connection has a session; a world that does not seal has
 
 ## Time Sync: `SMSG_PING` and `CMSG_PONG`
 
-The world server's tick queues a ping for every connection in its list once every 300 ticks (five seconds;
-`WorldServer.TimeSyncTicksPeriod`, 600 before #1034), whether or not the connection has been admitted yet. Each
-connection pings on its own slot of the period (`WorldConnection.TimeSyncSlot`), one slot after another as connections
-are made, so the pings are spread over the period; until #1034 the slot was the connection's place in the list, which
-moved with every removal ahead of it and could skip a turn, or under steady churn every turn. Right after a
-connection's version handshake it also sends the **start burst** (#1034): one ping on the next tick, whatever the
-connection's slot, then two more 60 ticks (about a second) apart (`WorldConnection.StartBurstFollowUps`,
-`StartBurstSpacingTicks`), then back to its slot, so the client has a measured clock offset in about two seconds
-instead of up to a period later. Each connection keeps the tick of its next turn (`WorldConnection.NextTimeSyncTick`),
-the one field the tick reads of it for the time sync, and the rest is done only on a turn
-(`WorldConnection.OnTimeSyncDue`). None of this, nor the pong's handling, is on `IWorldConnection`, the future
-modding surface: a script can neither send a ping, start a burst nor answer for a client. The client answers each ping with one pong. From the exchange the
+A world connection's first ping is the **start burst** (#1034), right after its version handshake: one ping on the next
+tick, then two more 60 ticks (about a second) apart (`WorldConnection.StartBurstFollowUps`, `StartBurstSpacingTicks`),
+so the client has a measured clock offset in about two seconds. From then on the world server's tick queues it a ping
+once every 300 ticks (five seconds; `WorldServer.TimeSyncTicksPeriod`, 600 before #1034), on the connection's own slot
+of the period (`WorldConnection.TimeSyncSlot`), one slot after another as connections are made, so the pings are
+spread over the period; the burst hands over to the slot no sooner than 60 ticks after its last ping. Until #1034 the
+slot was the connection's place in the list, which moved with every removal ahead of it and could skip a turn, or under
+steady churn every turn, and a connection was pinged from its first tick, before its handshake, when no pong can be let
+in. Each connection keeps the tick of its next turn (`WorldConnection.NextTimeSyncTick`), the one field the tick reads
+of it for the time sync, and the rest is done only on a turn (`WorldConnection.OnTimeSyncDue`): before the handshake a
+turn, on the slot, is the liveness check alone, and a closing connection gets no more turns. None of this, nor the
+pong's handling, is on `IWorldConnection`, the future modding surface: a script can neither send a ping, start a burst
+nor answer for a client. The client answers each ping with one pong. From the exchange the
 server measures the connection's network round trip (`IWorldConnection.RoundTripTime` in ticks, `Latency` in whole
 milliseconds) and the offset between the two clocks, and tells the client both on the next ping. An admitted
 connection that answers no ping for a minute is closed (liveness, below). The
@@ -263,16 +264,15 @@ round trip it liked, zero and negative ones included. Now:
 
 - The send thread records the stamp of each ping as it writes it, before the ping can reach the client. It keeps the
   stamps of the last four pings it wrote (`ConnectionSender.PingStampCapacity`), each until a pong answers it. A
-  connection has one ping unanswered at a time in steady play, three during the start burst (which takes the place
-  of the periodic pings until it ends), and four with a periodic ping written before the handshake, whose pong came
-  too early to be let in. So a stamp stays answerable for twenty seconds at the steady cadence, and eight or more for
-  a ping of the burst.
+  connection has one ping unanswered at a time in steady play and three at most during the start burst (which takes
+  the place of the periodic pings until it ends); the fourth place is a spare for a client slow to answer the burst.
+  So a stamp stays answerable for twenty seconds at the steady cadence, and eight or more for a ping of the burst.
 - **One pong per ping.** Each ping written grants the connection one pong credit, never more than four at once. A pong
   takes a credit as the read loop receives it, whatever it echoes, and a pong that finds none is dropped there
   (`WorldConnection.OnReceive`), before it is queued for the tick. The start burst's pings each grant their own credit,
   so the burst needs no allowance of its own, and a pong no ping was written for still finds none. The check comes after
-  the admission check, so a pong sent before admission is dropped as it always was and spends nothing: the credits of
-  the pings written before admission are still there after it, up to the four.
+  the admission check, so a pong sent before admission is dropped as it always was and spends nothing. No ping is
+  written before the handshake (#1034), so a connection has no credit until its burst.
 - A pong that got in is accepted only when its `LastServerTimestamp` equals one of the recorded stamps. The stamp is
   then spent. The echo plays no other part.
 - The four times: t1, the ping's stamp; t2 and t3, the pong's `ClientReceivedTimestamp` and `ClientSentTimestamp`;
