@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Sockets;
 using Avalon.Api.Hosting.Config;
 using Avalon.Infrastructure.Login;
 using Microsoft.Extensions.Options;
@@ -41,16 +40,11 @@ public static class ExemptSourcesExtensions
 /// </summary>
 public sealed class ExemptSources : IExemptSources
 {
-    /// <summary>
-    /// The widest exempt network for IPv4, /24, and for IPv6, /64 (one host's usual allocation, and the source the
-    /// login budgets count): an exempt range is a hole in every per-source limit, so it stays the size of a few machines.
-    /// </summary>
-    public const int ShortestIPv4Prefix = 24;
+    /// <inheritdoc cref="ExemptNetwork.ShortestIPv4Prefix"/>
+    public const int ShortestIPv4Prefix = ExemptNetwork.ShortestIPv4Prefix;
 
-    /// <inheritdoc cref="ShortestIPv4Prefix"/>
-    public const int ShortestIPv6Prefix = 64;
-
-    private static readonly IPNetwork[] s_loopback = [new(IPAddress.Loopback, 8), new(IPAddress.IPv6Loopback, 128)];
+    /// <inheritdoc cref="ExemptNetwork.ShortestIPv6Prefix"/>
+    public const int ShortestIPv6Prefix = ExemptNetwork.ShortestIPv6Prefix;
 
     private readonly IPNetwork[] _networks;
 
@@ -87,19 +81,19 @@ public sealed class ExemptSources : IExemptSources
         if (!TryParse(entry, out IPNetwork network))
             return Invalid(entry);
 
-        int shortest = network.BaseAddress.AddressFamily == AddressFamily.InterNetworkV6 ? ShortestIPv6Prefix : ShortestIPv4Prefix;
-        if (network.PrefixLength < shortest)
+        if (ExemptNetwork.IsTooWide(network))
         {
+            int shortest = ExemptNetwork.ShortestPrefixOf(network);
             return $"{Setting} has \"{entry}\", wider than /{shortest}: an exempt network is a hole in every per-source " +
                    "limit, so list the load machines' own addresses or a network no wider than that.";
         }
 
-        if (s_loopback.Any(loopback => Overlap(network, loopback)))
+        if (ExemptNetwork.CoversLoopback(network))
             return $"{Setting} has \"{entry}\", which covers loopback, a trusted proxy: every caller it forwards would be exempt.";
 
         if (proxies is not null
             && (proxies.KnownProxies.Any(proxy => network.Contains(Unmap(proxy)))
-                || proxies.KnownIPNetworks.Any(trusted => Overlap(network, trusted))))
+                || proxies.KnownIPNetworks.Any(trusted => ExemptNetwork.Overlap(network, trusted))))
         {
             return $"{Setting} has \"{entry}\", which covers a proxy {ForwardedHeadersSetup.Section} trusts: every " +
                    "caller it forwards would be exempt.";
@@ -115,64 +109,14 @@ public sealed class ExemptSources : IExemptSources
 
     private static IPAddress Unmap(IPAddress address) => address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
 
-    /// <summary>Whether two networks share an address: one holds the other's base address. Unmapped first.</summary>
-    private static bool Overlap(IPNetwork exempt, IPNetwork other)
-    {
-        IPNetwork trusted = other.BaseAddress.IsIPv4MappedToIPv6 && other.PrefixLength >= 96
-            ? new IPNetwork(other.BaseAddress.MapToIPv4(), other.PrefixLength - 96)
-            : other;
-        return exempt.BaseAddress.AddressFamily == trusted.BaseAddress.AddressFamily
-               && (exempt.Contains(trusted.BaseAddress) || trusted.Contains(exempt.BaseAddress));
-    }
-
     /// <summary>The refusal for an entry <see cref="TryParse"/> refuses, naming it.</summary>
     public static string Invalid(string? entry) =>
         $"{ApiRateLimiting.Section}:{nameof(RateLimitingConfig.ExemptSources)} has \"{entry}\", which is not an IP " +
         "address or a network in CIDR form (address/prefix) as written: IPv4 in four plain decimal parts, and no " +
         "address bits past the prefix.";
 
-    /// <summary>
-    /// Parses one entry, refusing any the parser would read as a different address or network than written: an IPv4
-    /// address must be four plain decimal parts (<see cref="IPAddress.TryParse(string?, out IPAddress?)"/> reads "10.1"
-    /// as 10.0.0.1, "010.0.0.5" as 8.0.0.5 and accepts hex); a network's address must have no bits past its prefix
-    /// (<see cref="IPNetwork.TryParse(string?, out IPNetwork)"/> would quietly clear them, so "10.1.0.5/16" would exempt
-    /// all of 10.1.0.0/16). An IPv4-mapped address or network is stored as IPv4, the form callers are matched in; a
-    /// mapped network wider than /96 reaches beyond the IPv4 space and is refused.
-    /// </summary>
-    public static bool TryParse(string? entry, out IPNetwork network)
-    {
-        network = default;
-        if (string.IsNullOrWhiteSpace(entry))
-            return false;
-        int slash = entry.IndexOf('/', StringComparison.Ordinal);
-        string text = slash < 0 ? entry : entry[..slash];
-        if (!IPAddress.TryParse(text, out IPAddress? address))
-            return false;
-        if (address.AddressFamily == AddressFamily.InterNetwork
-            && !string.Equals(address.ToString(), text, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        int prefix = address.AddressFamily == AddressFamily.InterNetworkV6 ? 128 : 32;
-        if (slash >= 0)
-        {
-            if (!IPNetwork.TryParse(entry, out IPNetwork parsed) || !parsed.BaseAddress.Equals(address))
-                return false;
-            prefix = parsed.PrefixLength;
-        }
-
-        if (address.IsIPv4MappedToIPv6)
-        {
-            if (prefix < 96)
-                return false;
-            address = address.MapToIPv4();
-            prefix -= 96;
-        }
-
-        network = new IPNetwork(address, prefix);
-        return true;
-    }
+    /// <inheritdoc cref="ExemptNetwork.TryParse"/>
+    public static bool TryParse(string? entry, out IPNetwork network) => ExemptNetwork.TryParse(entry, out network);
 }
 
 /// <summary>

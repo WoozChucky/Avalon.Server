@@ -217,6 +217,15 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     public string ClientAddress { get; private set; } = "Unknown";
 
     /// <summary>
+    /// The client's address as <see cref="RemoteEndPoint" /> names it: the peer's own, or the one a trusted proxy's
+    /// PROXY v2 header names. Settled with it, once, before the first packet; null when the peer is not an IP endpoint.
+    /// What a per-source limit counts against (the world's admissions, #1052), without parsing a string per use.
+    /// </summary>
+    public IPAddress? ClientIPAddress => _clientIPAddress;
+
+    private IPAddress? _clientIPAddress;
+
+    /// <summary>
     /// The connection's key pair and session, or null on a connection that runs no key exchange: the one place either is
     /// held. The read loop opens with this session and the outbox seals with it, and each server reads its own view of
     /// the exchange from here, so what a connection opens with, seals with and tells its peer cannot disagree.
@@ -316,8 +325,10 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
     protected void Init(TcpClient client)
     {
         _client = client;
-        RemoteEndPoint = client.Client.RemoteEndPoint?.ToString() ?? "Unknown";
+        EndPoint? remote = client.Client.RemoteEndPoint;
+        RemoteEndPoint = remote?.ToString() ?? "Unknown";
         ClientAddress = PacketTags.AddressOf(RemoteEndPoint);
+        _clientIPAddress = (remote as IPEndPoint)?.Address;
     }
 
     protected virtual IOutbox OnCreateOutbox() =>
@@ -461,7 +472,10 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
             await using var raw = new NetworkStream(client.Client, ownsSocket: false);
             ProxyHeader header = await ProxyProtocolV2.ReadAsync(raw, timeout.Token).ConfigureAwait(false);
             if (header.Source is not null)
+            {
                 RemoteEndPoint = header.Source.ToString();
+                _clientIPAddress = header.Source.Address;
+            }
             ClientAddress = PacketTags.AddressOf(RemoteEndPoint);
             return true;
         }

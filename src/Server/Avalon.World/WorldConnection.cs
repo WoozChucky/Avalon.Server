@@ -675,6 +675,39 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private static readonly FailureLogThrottle s_overloadedAdmissions = new();
     private static readonly FailureLogThrottle s_failedAdmissions = new();
+    private static readonly FailureLogThrottle s_overBudgetAdmissions = new();
+
+    private static readonly KeyValuePair<string, object?> s_inFlightReason = new("reason", "in_flight");
+    private static readonly KeyValuePair<string, object?> s_rateReason = new("reason", "rate");
+
+    /// <summary>
+    /// This connection's source is over its admission budget (#1052, <see cref="AdmissionSourceBudget" />): it has
+    /// <paramref name="limit" /> admissions in flight, or its IPv6 /56 has, or it (or its /56) started that many in the
+    /// last minute.
+    /// The admission is answered <c>ServiceUnavailable</c> and closed at once, on the receive path that delivered it,
+    /// before its ticket is redeemed. Counted under <c>world.admission.source_refusals</c>, <c>reason</c>
+    /// <c>in_flight</c> (the source's cap or its /56's) or <c>rate</c>. A Warning naming the source as it is counted (an
+    /// IPv4 address, an IPv6 /64, or the /56 a block limit counts), and the limit, without an exception, at most once per
+    /// <see cref="FailureLogThrottle.Interval" /> for the whole world, with how many more were refused since: a flood
+    /// from one source writes one line every 10 s, not one per try.
+    /// </summary>
+    public void ReportAdmissionOverSourceBudget(AdmissionSourceRefusal refusal, int limit)
+    {
+        DiagnosticsConfig.World.AdmissionSourceRefusals.Add(1,
+            refusal is AdmissionSourceRefusal.Rate or AdmissionSourceRefusal.IPv6BlockRate ? s_rateReason : s_inFlightReason);
+        if (s_overBudgetAdmissions.TryTake(_time, out int suppressed))
+        {
+            string source = ClientIPAddress is { } address ? AdmissionSourceBudget.Describe(address, refusal) : ClientAddress;
+            string budget = refusal switch
+            {
+                AdmissionSourceRefusal.Rate => "admissions started in the last minute (World:Admission:MaxPerSourcePerMinute)",
+                AdmissionSourceRefusal.IPv6BlockRate => "admissions started from its /56 in the last minute (World:Admission:MaxPerIPv6BlockPerMinute)",
+                AdmissionSourceRefusal.IPv6BlockInFlight => "admissions in flight from its /56 (World:Admission:MaxInFlightPerIPv6Block)",
+                _ => "admissions in flight (World:Admission:MaxInFlightPerSource)",
+            };
+            ReceiveLog.AdmissionOverSourceBudget(_logger, source, limit, budget, suppressed);
+        }
+    }
 
     /// <summary>
     /// The admission work queue refused to redeem this connection's join ticket (#1050), which the admission answers
@@ -721,6 +754,10 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Answered an admission ServiceUnavailable: the world's admission work queue is full ({Outstanding} outstanding); {Suppressed} more were refused since the last line")]
         public static partial void AdmissionOverloaded(ILogger logger, int outstanding, int suppressed);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Answered an admission ServiceUnavailable: its source {ClientSource} already has {Limit} {Budget}; {Suppressed} more were refused since the last line")]
+        public static partial void AdmissionOverSourceBudget(ILogger logger, string clientSource, int limit, string budget, int suppressed);
 
         [LoggerMessage(Level = LogLevel.Error,
             Message = "Answered an admission ServiceUnavailable: its redemption threw {ExceptionType}; {Suppressed} more failed since the last line")]

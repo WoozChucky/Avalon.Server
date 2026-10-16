@@ -29,8 +29,11 @@ fi
 
 lb=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set service.type=LoadBalancer)
 grep -q "type: LoadBalancer" <<<"$lb"                                       || { echo "service.type ignored"; exit 1; }
+# A LoadBalancer allocates no NodePort (#1052): one would reach the pod from the trusted pod network past the source ranges.
+grep -q "allocateLoadBalancerNodePorts: false" <<<"$lb"                     || { echo "a LoadBalancer must not allocate a NodePort"; exit 1; }
+! grep -q "allocateLoadBalancerNodePorts" <<<"$out"                         || { echo "allocateLoadBalancerNodePorts rendered on a ClusterIP Service"; exit 1; }
 
-pp=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.proxyProtocol.enabled=true   --set 'server.proxyProtocol.trustedProxies[0]=10.42.0.0/16' --set 'service.loadBalancerSourceRanges[0]=10.10.1.17/32')
+pp=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set service.type=LoadBalancer --set server.proxyProtocol.enabled=true   --set 'server.proxyProtocol.trustedProxies[0]=10.42.0.0/16' --set 'service.loadBalancerSourceRanges[0]=10.10.1.17/32')
 grep -A1 "name: Hosting__ProxyProtocol__Enabled" <<<"$pp" | grep -q '"true"'            || { echo "proxy protocol not enabled"; exit 1; }
 grep -A1 "name: Hosting__ProxyProtocol__TrustedProxies__0" <<<"$pp" | grep -q "10.42.0.0/16" || { echo "trusted proxies missing"; exit 1; }
 grep -A1 "loadBalancerSourceRanges:" <<<"$pp" | grep -q "10.10.1.17/32"                 || { echo "source ranges missing"; exit 1; }
@@ -112,6 +115,50 @@ for bad in "server.tickThread.cpu=-1""server.tickThread.cpu=1.5" "server.tickThr
     echo "rendering with $bad must fail"; exit 1
   fi
 done
+
+# The per-source admission budget (#1052): no setting renders unset; each limit (a values-file float too) renders as
+# digits, each exempt source as given; a limit that is not a whole number of at least 1 fails.
+! grep -q "World__Admission__M" <<<"$off"                                                      || { echo "admission limits rendered when unset"; exit 1; }
+! grep -q "World__Admission__ExemptSources" <<<"$off"                                          || { echo "exempt sources rendered when unset"; exit 1; }
+ad=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-json server.admission.maxInFlightPerSource=32 --set-json server.admission.maxInFlightPerIPv6Block=64 --set server.admission.maxPerSourcePerMinute=240 --set server.admission.maxPerIPv6BlockPerMinute=960 --set 'server.admission.exemptSources[0]=10.10.1.21/32')
+grep -A1 "name: World__Admission__MaxInFlightPerSource" <<<"$ad" | grep -q '"32"'               || { echo "admission cap must render as digits"; exit 1; }
+grep -A1 "name: World__Admission__MaxInFlightPerIPv6Block" <<<"$ad" | grep -q '"64"'            || { echo "IPv6 block cap must render as digits"; exit 1; }
+grep -A1 "name: World__Admission__MaxPerSourcePerMinute" <<<"$ad" | grep -q '"240"'             || { echo "admission rate must render"; exit 1; }
+grep -A1 "name: World__Admission__MaxPerIPv6BlockPerMinute" <<<"$ad" | grep -q '"960"'          || { echo "IPv6 block rate must render"; exit 1; }
+grep -A1 "name: World__Admission__ExemptSources__0" <<<"$ad" | grep -q '"10.10.1.21/32"'        || { echo "exempt source must render"; exit 1; }
+for key in maxInFlightPerSource maxInFlightPerIPv6Block maxPerSourcePerMinute maxPerIPv6BlockPerMinute; do
+  for bad in 0 -1 1.5 many; do
+    if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set "server.admission.$key=$bad" >/dev/null 2>&1; then
+      echo "rendering with server.admission.$key=$bad must fail"; exit 1
+    fi
+  done
+done
+
+# PROXY v2 trusts whoever reaches the port (#1052): on a LoadBalancer it needs loadBalancerSourceRanges, on any other
+# type networkPolicy; each refusal names the settings, and a ClusterIP with the policy renders.
+PROXIED=(--set existingSecret=x --set server.proxyProtocol.enabled=true --set 'server.proxyProtocol.trustedProxies[0]=10.42.0.0/16')
+if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE "${PROXIED[@]}" --set service.type=LoadBalancer 2>&1); then
+  echo "proxy protocol on a LoadBalancer without loadBalancerSourceRanges must fail"; exit 1
+fi
+grep -Fq "server.proxyProtocol.enabled requires service.loadBalancerSourceRanges" <<<"$message" || { echo "the LoadBalancer refusal must name the settings"; exit 1; }
+if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE "${PROXIED[@]}" --set 'service.loadBalancerSourceRanges[0]=10.10.1.17/32' 2>&1); then
+  echo "proxy protocol on a ClusterIP without networkPolicy must fail"; exit 1
+fi
+grep -Fq "server.proxyProtocol.enabled with service.type ClusterIP requires networkPolicy.enabled" <<<"$message" || { echo "the ClusterIP refusal must name the settings"; exit 1; }
+helm template t . "${AUTHENTICATION[@]}" $CACHE "${PROXIED[@]}" --set networkPolicy.enabled=true --set networkPolicy.serviceLB=true >/dev/null \
+                                                                                                || { echo "proxy protocol on a ClusterIP with networkPolicy must render"; exit 1; }
+
+# The NetworkPolicy (#1052): off by default; serviceLB admits this Service's k3s ServiceLB pods on the game port, and
+# gamePort adds peers; enabled with neither fails.
+! grep -q "kind: NetworkPolicy" <<<"$off"                                                      || { echo "the NetworkPolicy must be off by default"; exit 1; }
+np=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set networkPolicy.enabled=true --set networkPolicy.serviceLB=true --set-json 'networkPolicy.gamePort=[{"podSelector":{"matchLabels":{"app":"edge"}}}]' --show-only templates/networkpolicy.yaml)
+grep -q 'svccontroller.k3s.cattle.io/svcname: "t-avalon-world"' <<<"$np"                       || { echo "serviceLB must select this Service's svclb pods"; exit 1; }
+grep -q 'kubernetes.io/metadata.name: kube-system' <<<"$np"                                     || { echo "serviceLB must look in kube-system"; exit 1; }
+grep -q 'app: edge' <<<"$np"                                                                    || { echo "gamePort peers must render"; exit 1; }
+grep -q 'port: 21001' <<<"$np"                                                                  || { echo "the policy must admit the game port"; exit 1; }
+if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set networkPolicy.enabled=true >/dev/null 2>&1; then
+  echo "a NetworkPolicy with no peer must fail"; exit 1
+fi
 
 # Packet encryption (#875): false unless set; true renders; anything but a boolean fails.
 grep -A1 "name: Network__PacketEncryption" <<<"$off" | grep -q '"false"'                       || { echo "packet encryption must default to false"; exit 1; }

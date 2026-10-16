@@ -83,6 +83,8 @@ public class ConnectionProxyProtocolShould
             Assert.Equal("203.0.113.7:51000", connection.RemoteEndPoint);
             // Worked out once per connection, not per packet, for the telemetry.
             Assert.Equal("203.0.113.7", connection.ClientAddress);
+            // What the world's per-source admission budget counts (#1052): the client, not the proxy.
+            Assert.Equal(IPAddress.Parse("203.0.113.7"), connection.ClientIPAddress);
             listener.Stop();
         }
     }
@@ -99,6 +101,7 @@ public class ConnectionProxyProtocolShould
 
             Assert.StartsWith("127.0.0.1:", connection.RemoteEndPoint);
             Assert.Equal("127.0.0.1", connection.ClientAddress);
+            Assert.Equal(IPAddress.Loopback, connection.ClientIPAddress);
             listener.Stop();
         }
     }

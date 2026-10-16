@@ -58,6 +58,10 @@ public class WorldHostGraphShould
             // depend back on ICreatureSpawner, so resolving this must not throw for a cycle.
             Assert.NotNull(host.Services.GetRequiredService<ICreatureSpawner>());
 
+            // The admission handler is built per packet (#1052), so without the per-source budget every admission would
+            // throw where it arrives, not at startup.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.GameAuth.AdmissionSourceBudget>());
+
             // WorldServer resolves this when it starts; a missing registration stops the world from starting.
             Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Reload.ReloadRequestHandler>());
 

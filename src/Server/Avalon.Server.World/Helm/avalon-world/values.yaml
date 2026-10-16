@@ -12,6 +12,11 @@ server:
   # PROXY protocol v2 from an L4 proxy in front (e.g. Caddy layer4): the real client address
   # instead of the proxy's, so per-source limits apply per player. Connections from
   # trustedProxies (CIDR) must start with the header; others are read as direct clients.
+  # Whoever can connect from a trusted address can name any client, so enabling it requires, with
+  # service.type LoadBalancer, service.loadBalancerSourceRanges (only the proxies may reach the node's
+  # port; the chart allocates no NodePort, which would bypass them), and with any other type
+  # networkPolicy below. A trusted pod network wants networkPolicy in both, so no other pod can dial
+  # the world pod directly.
   proxyProtocol:
     enabled: false
     trustedProxies: []
@@ -25,6 +30,23 @@ server:
     serverId: ""  # Must match the API workload assignment for game.worldId.
     apiCertificateSecret: ""  # Required Secret containing the exact API leaf SHA-256 pin.
     apiCertificateKey: api-tls-sha256
+    # The per-source budget at the world's door (#1052): one past any of these is answered ServiceUnavailable
+    # before its ticket is redeemed. Whole numbers; each renders only when set, and empty is the world's default.
+    # World:Admission:MaxInFlightPerSource: admissions one source (an IPv4 address, an IPv6 /64) may have in
+    # flight, 1 to 128; default 16.
+    maxInFlightPerSource: ""
+    # World:Admission:MaxInFlightPerIPv6Block: admissions one IPv6 /56 may have in flight, at least
+    # maxInFlightPerSource, at most 128; default 32.
+    maxInFlightPerIPv6Block: ""
+    # World:Admission:MaxPerSourcePerMinute: admissions one source may start a minute, 1 to 60000; default 120.
+    maxPerSourcePerMinute: ""
+    # World:Admission:MaxPerIPv6BlockPerMinute: admissions one IPv6 /56 may start a minute, at least
+    # maxPerSourcePerMinute, at most 240000; default 480.
+    maxPerIPv6BlockPerMinute: ""
+    # Sources that budget does not count (World:Admission:ExemptSources): load machines, as addresses or CIDR networks
+    # no wider than /24 or /64, none covering loopback or a trusted proxy. Rendered only when set; e.g. [10.10.1.21/32]
+    # for the load-test bot PC on the load-test world.
+    exemptSources: []
   cache:
     # Required: host:port of Redis.
     host: ""
@@ -63,6 +85,22 @@ server:
     gcHeapAffinitizeRanges: ""
 
 replicaCount: 1
+
+# NetworkPolicy for the world pod, off by default (#1052 hardening). On, the game port admits only
+# what forwards players to it: with serviceLB, this Service's k3s ServiceLB pods (kube-system, labelled
+# svccontroller.k3s.cattle.io/svcname), which masquerade every connection they forward, so the world
+# sees their pod-network address (what proxyProtocol.trustedProxies trusts on k3s); and the peers in
+# gamePort (podSelector, namespaceSelector, ipBlock), e.g. an in-cluster proxy. The chart refuses to
+# enable it with neither, since a rule with no peer would admit every source. Probes come from the
+# node: k3s's policy controller admits a pod's own node; add the node's ipBlock to gamePort where
+# yours does not. What it does not close: processes on the world's node and hostNetwork pods there
+# are always admitted, and arrive from an address the world may trust; a cluster with no policy
+# controller enforcing NetworkPolicy ignores it; and ServiceLB pods outside kube-system (k3s
+# --servicelb-namespace) do not match serviceLB, so every player is refused (it fails closed).
+networkPolicy:
+  enabled: false
+  serviceLB: false
+  gamePort: []
 
 # On SIGTERM (a rollout, node drain or eviction) the world warns its players and waits for them to leave
 # for up to drainSeconds, then closes everyone and saves (#768). 0 closes at once. saveMarginSeconds is

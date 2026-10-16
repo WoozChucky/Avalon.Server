@@ -26,8 +26,12 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
     protected override Task OnClose(bool expected = true) => Task.CompletedTask;
     public void Deliver(NetworkPacketType type, Packet payload, NetworkPacketFlags flags = NetworkPacketFlags.None) =>
         OnReceive(new() { Type = type, Flags = flags }, payload).GetAwaiter().GetResult();
+    /// <param name="source">
+    /// The client's address as the world resolves it (<see cref="Connection.ClientIPAddress" />); null leaves the
+    /// socket's own, loopback.
+    /// </param>
     public static WorldAdmissionConnection Create(IWorldServer? server = null, bool tls = true, TimeProvider? clock = null,
-        ILoggerFactory? logs = null)
+        ILoggerFactory? logs = null, IPAddress? source = null)
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start();
         var client = new TcpClient(); client.Connect((IPEndPoint)listener.LocalEndpoint);
@@ -35,6 +39,8 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
         server ??= Substitute.For<IWorldServer, IServerBase>();
         var result = new WorldAdmissionConnection(server, client, peer, clock, logs);
         typeof(Avalon.World.WorldConnection).GetField("_tlsAuthenticated", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(result, tls);
+        if (source is not null)
+            typeof(Connection).GetField("_clientIPAddress", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(result, source);
         return result;
     }
     public static GameSessionLease Lease(TimeProvider? clock = null)

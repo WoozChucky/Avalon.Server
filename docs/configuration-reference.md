@@ -25,6 +25,7 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | `HostingSecurity`           | `Avalon.Server.Auth.Configuration` | `Hosting:Security` | Auth | `ValidateOnStart` (`CertificatePath` required) |
 | `WorldHostingSecurity`      | `Avalon.World.GameAuth`            | `Hosting:Security` | World | `ValidateOnStart` (`CertificatePath` required: the world's TLS certificate, a current leaf with its private key, loaded before it listens) |
 | `GameAdmissionOptions`      | `Avalon.World.GameAuth`            | `World:Admission` (`ApiUrl`, `ServerId`, `ClientCertificatePath`, `ClientCertificatePassword`, `ApiCertificateSha256`; `WorldId` from `Game:WorldId`) | World | `ValidateOnStart`: a fixed HTTPS origin, a server id, the workload client certificate and the API leaf's SHA-256 pin. See [game server admission](steam-authentication-workloads.md#world-transport-and-coordinated-protocol-cutover) |
+| `AdmissionSourceOptions`    | `Avalon.World.GameAuth`            | `World:Admission` (`MaxInFlightPerSource`, `MaxInFlightPerIPv6Block`, `MaxPerSourcePerMinute`, `MaxPerIPv6BlockPerMinute`, `ExemptSources`), the per-source budget on admissions (#1052) | World | `ValidateOnStart`: the caps 1 to 128, the rates 1 to 60,000 and 240,000, each IPv6 block limit at least the source's; each exempt entry by `AdmissionSourceValidation`. See [World Admission Budget](#world-admission-budget) |
 | `AuthConfiguration`         | `Avalon.Server.Auth.Configuration` | `Application` | Auth | `ValidateOnStart` |
 | `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
 | `RegenConfiguration`        | `Avalon.World.Configuration`       | `Regen` | World | `ValidateOnStart` |
@@ -149,6 +150,78 @@ Section in `appsettings.json`: `"Network"` (world server). Read once at startup 
 | `PacketEncryption` | bool | `false` | Seal every gameplay payload with the session layer (AES-GCM) inside TLS. Off: TLS alone, and no key exchange: no key pair or session per connection, an empty public key in the admission reply, and a packet flagged `Encrypted` closes the connection (#878). Read at startup; each connection keeps the mode it was created and admitted under. Helm: `server.network.packetEncryption` |
 
 **Validation rules:** `SendThreads` 1 to 64; `MaxPendingBytes` 65536 to 67108864; `MaxWriteStall` 1 s to 5 min; `MaxReceiveQueueDepth` 64 to 65536 (it cannot be switched off). Checked at startup, which names the setting. Only `PacketEncryption` is a Helm value; the others are set through the environment (`Network__MaxReceiveQueueDepth`).
+
+---
+
+## World Admission Budget
+
+Section `World:Admission` (world server), beside the admission's own settings (`GameAdmissionOptions`), bound as
+`AdmissionSourceOptions` (#1052). Read once at startup. One admission (`CMSG_GAME_ADMISSION`) past any of these limits
+is answered `ServiceUnavailable` and closed at once, before its ticket is redeemed, and counted in
+`world.admission.source_refusals` ([character login flow](character-login-flow.md#sgameadmissionpacket-refusals)).
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `MaxInFlightPerSource` | int | `16` | Admissions one source may have in flight, from the moment the world takes one to redeem until its redemption has ended, whatever the end. A client has at most one admission in flight, so the default leaves a household behind one address room to spare. Counted `reason` `in_flight`. Helm: `server.admission.maxInFlightPerSource` |
+| `MaxInFlightPerIPv6Block` | int | `32` | Admissions one IPv6 /56 may have in flight, across all its /64 sources: a residential line is commonly given a /56, 256 /64s, and eight sources at the per-source cap would fill the 128-deep admission lane. Counted `reason` `in_flight`. IPv4 has no second level. Helm: `server.admission.maxInFlightPerIPv6Block` |
+| `MaxPerSourcePerMinute` | int | `120` | Admissions one source may start a minute, whatever becomes of them (one the in-flight caps refuse spends from it too), with a burst of the whole minute's worth: 120 at once, then one every half second. Counted `reason` `rate`. Helm: `server.admission.maxPerSourcePerMinute` |
+| `MaxPerIPv6BlockPerMinute` | int | `480` | Admissions one IPv6 /56 may start a minute, across all its /64 sources (four sources' worth): without it a /56 would get 256 sources' rate. Spent with the source's: when the /56 refuses, the source's spend is given back. Counted `reason` `rate`. IPv4 has no second level. Helm: `server.admission.maxPerIPv6BlockPerMinute` |
+| `ExemptSources` | string[] | `[]` | Sources none of these limits count, for load machines: IP addresses or networks in CIDR form. Helm: `server.admission.exemptSources` |
+
+A source is the client's address as the world resolves it: the peer's own, or the one a trusted proxy's PROXY v2
+header names (`Hosting:ProxyProtocol`), so players behind Caddy are counted each at their own address. It is counted
+as the login budgets count it: an IPv4 address, or an IPv6 /64, which one host is normally given whole. The source's
+count and its /56's are taken together, and given back together: when the /56 refuses, the source's is given back at
+once; so are their rates spent. A connection that closes before its redemption has ended keeps its slots until the redemption ends, since the
+redemption still runs and still costs the identity service; the admission client's own timeout bounds it. The
+in-flight caps count admissions in flight only: an admitted player holds no slot. Everything runs on the read loops
+and the thread pool, never on the tick. The rate keeps one timestamp per source and per IPv6 /56, dropped once its budget is whole
+again (swept once a minute); it holds at most 65,536 sources, and a source first seen while it is that full is not
+rate-limited (the in-flight caps still hold), so a flood of new addresses can neither grow it without bound nor lock
+new sources out.
+
+**A PROXY-asserted address is only as trustworthy as the trusted-proxy path.** Every per-source limit, and every
+exemption, believes the client address a trusted proxy's header names, and the world cannot tell a real proxy from
+anything else that connects from a trusted address. Whatever can do that can name any client: claim an exempt
+source, spend another source's budget, or rotate past the caps. On k3s, ServiceLB masquerades every forwarded
+connection into the pod network, so the world trusts the pod network (`10.42.0.0/16` on the homelab), and three paths
+must stay closed:
+- the node's port, to all but the proxies: `service.loadBalancerSourceRanges` in the world chart (the homelab lists
+  Caddy, and on world 4 the bot PC, which sends its own header). The chart refuses to render
+  `server.proxyProtocol.enabled` on a LoadBalancer Service without it, and on any other type without
+  `networkPolicy.enabled`;
+- the Service's NodePort: kube-proxy forwards every node's NodePort to the pod with the source rewritten into the pod
+  network, past `loadBalancerSourceRanges`, so any host that reaches a node could send its own header. The chart
+  renders `allocateLoadBalancerNodePorts: false` on a LoadBalancer Service (ServiceLB forwards to the Service's
+  cluster IP and port, and needs none). A node port already allocated is not freed by that: remove
+  `spec.ports[].nodePort` from each existing Service once. The auth server's chart allocates one the same way;
+- the world pod, to every other pod: the world chart's `networkPolicy` (off by default), with `serviceLB` admitting
+  only this Service's ServiceLB pods (in `kube-system`, labelled `svccontroller.k3s.cattle.io/svcname`). Those pods
+  run on the pod network and masquerade what they forward, so the world sees their pod address as the peer: the
+  address `trustedProxies` trusts. Other peers (an in-cluster proxy) go in `networkPolicy.gamePort`. Probes come
+  from the node: k3s's policy controller admits a pod's own node; add the node's `ipBlock` where yours does not.
+  What the policy does not close: processes on the world's node, and hostNetwork pods there, are always admitted and
+  arrive from an address the world may trust; a cluster with no policy controller enforcing NetworkPolicy ignores the
+  policy altogether; and ServiceLB pods outside `kube-system` (k3s `--servicelb-namespace`) do not match `serviceLB`,
+  so every player is refused (it fails closed).
+
+**Shared addresses share the budget.** Many players behind one IPv4 address (carrier-grade NAT, a LAN event, a
+university) are one source: together they may have 16 admissions in flight and start 120 a minute. A normal
+admission is over in well under a second, so this is reached only when many of them reconnect at once while
+redemptions are slow, after a world or identity restart above all. Watch `world.admission.source_refusals` after
+restarts: refusals from addresses that are not floods mean the defaults are too low for the players' networks, and
+should be raised (or the address exempted, if it is known and trusted).
+
+**Validation rules:** `MaxInFlightPerSource` 1 to 128, the admission lane's whole backlog
+(`WorldDatabaseWork.AdmissionOutstandingLimit`), past which no source can go anyway: the budget cannot be switched
+off. `MaxInFlightPerIPv6Block` 1 to 128, and at least `MaxInFlightPerSource` (startup names both). `MaxPerSourcePerMinute`
+1 to 60,000. `MaxPerIPv6BlockPerMinute` 1 to 240,000, and at least `MaxPerSourcePerMinute`. Each `ExemptSources` entry is read as the REST API's [exempt sources](#exempt-sources) are, by the same
+parser (`ExemptNetwork`), and startup refuses, naming the entry (`World:Admission:ExemptSources has ...`) and why, one
+that does not read exactly as written, one wider than /24 (IPv4) or /64 (IPv6), one covering loopback, and one
+overlapping a network `Hosting:ProxyProtocol:TrustedProxies` lists: a trusted proxy's connection that names no
+client (a PROXY v2 LOCAL header) keeps the proxy's own address, so exempting the proxy would exempt each of those.
+List each load machine on its own (`/32`): on the homelab, the load-test world exempts the bot PC, 10.10.1.21/32
+([load testing](load-testing.md#before-a-run)), which it sees at that address through Caddy and when dialled directly.
 
 ---
 

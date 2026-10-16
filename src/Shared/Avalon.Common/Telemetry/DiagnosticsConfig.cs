@@ -68,6 +68,15 @@ public static class DiagnosticsConfig
         public static readonly Counter<long> AdmissionFailures = Meter.CreateCounter<long>(
             "world.admission.failures", "{admissions}", "Admissions whose redemption threw, answered ServiceUnavailable");
 
+        /// <summary>
+        /// Admissions refused before their ticket was redeemed because their source was over its budget (#1052):
+        /// answered <c>ServiceUnavailable</c>. Tagged <c>reason</c>: <c>in_flight</c> (its cap, or its IPv6 /56's) or
+        /// <c>rate</c> (its own, or its IPv6 /56's). Nothing a client sends, and no address, becomes a tag.
+        /// </summary>
+        public static readonly Counter<long> AdmissionSourceRefusals = Meter.CreateCounter<long>(
+            "world.admission.source_refusals", "{admissions}",
+            "Admissions refused because their source was over its admission budget, by reason, answered ServiceUnavailable");
+
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
         public static ActivitySource Source = new(ServiceName);

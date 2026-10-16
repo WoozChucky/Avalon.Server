@@ -127,7 +127,7 @@ public sealed class AdmissionKeyExchangeShould
         GameSessionLease lease = WorldAdmissionConnection.Lease();
         api.AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new WorldAdmissionResult(lease, null));
-        var admission = new GameAdmissionHandler(api);
+        var admission = new GameAdmissionHandler(api, new AdmissionSourceBudget(new AdmissionSourceOptions()));
         // The server runs admission as it arrives, as ServerBase.CallListener does.
         ((IServerBase)server).CallListener(Arg.Any<IConnection>(), Arg.Any<NetworkPacketHeader>(), Arg.Any<Packet?>())
             .Returns(call => admission.ExecuteAsync(new WorldPacketContext<CGameAdmissionPacket>

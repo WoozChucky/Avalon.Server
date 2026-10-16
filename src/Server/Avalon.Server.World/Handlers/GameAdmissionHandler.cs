@@ -22,8 +22,20 @@ namespace Avalon.Server.World.Handlers;
 /// with the session until it reads Ready, which is written after both ciphers; the reply that carries the server's key,
 /// the only way a client can seal, goes out after the keying has finished; and a packet that arrives before the
 /// admission is published is dropped, since the connection has no lease yet.
+/// <para>
+/// One source may have at most <c>World:Admission:MaxInFlightPerSource</c> admissions in flight, its IPv6 /56 at most
+/// <c>MaxInFlightPerIPv6Block</c>, and it may start at most <c>MaxPerSourcePerMinute</c> a minute, its /56 at most
+/// <c>MaxPerIPv6BlockPerMinute</c> (#1052,
+/// <see cref="AdmissionSourceBudget" />): one past any of them is answered <c>ServiceUnavailable</c> and closed before
+/// its ticket is redeemed. Its slot is taken after the checks that cost nothing and given back exactly once: at once when the
+/// admission lane refuses the redemption, or else when the redemption has ended (<see cref="KeyAsync" />, which reads
+/// its end whatever it was: an answer, a fault, a cancellation). A connection that closes first gives it back no
+/// sooner: its redemption still runs, and still costs the identity service, until it ends, which the admission
+/// client's own timeout bounds.
+/// </para>
 /// </remarks>
-public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorldPacketHandler<CGameAdmissionPacket>
+public sealed class GameAdmissionHandler(IGameAdmissionClient admission, AdmissionSourceBudget sources)
+    : IWorldPacketHandler<CGameAdmissionPacket>
 {
     public Task ExecuteAsync(WorldPacketContext<CGameAdmissionPacket> ctx, CancellationToken token = default)
     {
@@ -35,9 +47,25 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             ctx.Connection.Send(SGameAdmissionPacket.Create([], PacketEncoder.Shared, GameAdmissionResult.InvalidRequest));
             return ctx.Connection.CloseAsync(false);
         }
+        if (sources.TryAcquire(connection.ClientIPAddress, out AdmissionSourceBudget.Slot slot) is var refusal and
+            not AdmissionSourceRefusal.None)
+        {
+            // Its source is over its budget (#1052): in flight, its IPv6 /56's in flight, or its rate. Answered as a full
+            // lane is, before the ticket is redeemed, on the receive path. No wire change: the client is told to try later.
+            connection.ReportAdmissionOverSourceBudget(refusal, refusal switch
+            {
+                AdmissionSourceRefusal.Rate => sources.MaxPerSourcePerMinute,
+                AdmissionSourceRefusal.IPv6BlockRate => sources.MaxPerIPv6BlockPerMinute,
+                AdmissionSourceRefusal.IPv6BlockInFlight => sources.MaxInFlightPerIPv6Block,
+                _ => sources.MaxInFlightPerSource,
+            });
+            connection.Send(SGameAdmissionPacket.Create([], PacketEncoder.Shared, GameAdmissionResult.ServiceUnavailable));
+            return connection.CloseAsync(false);
+        }
         Task<WorldAdmissionResult> redeemed = WorldDatabaseWork.Admission.Run(() => admission.AdmitAsync(ctx.Packet.JoinTicket, connection.Id, Guid.NewGuid(), token));
         if (WorldDatabaseWork.IsRefusal(redeemed))
         {
+            slot.Release();
             // The admission work queue is full (#1050): nothing was started, so nothing can be live. Answered here, on
             // the receive path, as the refusals above are: no exception read, nothing tracked, nothing for the tick.
             connection.ReportAdmissionOverloaded();
@@ -46,7 +74,7 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
         }
         byte[] clientKey = connection.KeyExchange is null ? [] : ctx.Packet.PublicKey.ToArray();
         connection.TrackAdmission(redeemed);
-        connection.EnqueueContinuation(KeyAsync(redeemed, connection, clientKey), outcome =>
+        connection.EnqueueContinuation(KeyAsync(redeemed, connection, clientKey, slot), outcome =>
         {
             WorldAdmissionResult reply = outcome.Reply;
             if (!connection.IsConnected || connection.IsClosing) return;
@@ -116,16 +144,18 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission) : IWorl
             : GameAdmissionResult.AuthorizationRequired;
 
     /// <summary>
-    /// Keys the session, on a world that seals, once the ticket is redeemed for an active lease: off the tick, on the
-    /// thread the redemption finished on. Never faults: a redemption that faulted or was cancelled once started is
+    /// Gives back the admission's source slot once the redemption has ended, whatever its end (#1052), then keys the
+    /// session, on a world that seals, once the ticket is redeemed for an active lease: off the tick, on the thread the
+    /// redemption finished on. Never faults: a redemption that faulted or was cancelled once started is
     /// reported where it ended, read without a throw, and taken for <see cref="s_unredeemed" />; a keying that fails is
     /// handed to the continuation. The redemption's own task, which the connection tracks so a drain can end a lease
     /// that was never published, stays the one that says what was redeemed.
     /// </summary>
     private static async Task<KeyedAdmission> KeyAsync(Task<WorldAdmissionResult> redeemed, WorldConnection connection,
-        byte[] clientKey)
+        byte[] clientKey, AdmissionSourceBudget.Slot slot)
     {
         await ((Task)redeemed).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        slot.Release();
         if (!redeemed.IsCompletedSuccessfully)
         {
             connection.ReportRedemptionFailed(redeemed.Exception?.InnerException ?? new TaskCanceledException(redeemed));
