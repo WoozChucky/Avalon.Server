@@ -407,7 +407,7 @@ of it; `appsettings.json` keeps every service's non-secret defaults.
 | `Application:Commerce:*` | | | yes | |
 | `Application:Distribution:*` | | | | yes |
 | `Application:ForwardedHeaders:*`, `Application:RateLimiting:{Enabled,AnonymousPermitsPerMinute,AuthenticatedPermitsPerMinute,ExemptSources}`, `Application:ApiDocs:Enabled` | yes | yes | yes | yes |
-| `Application:RateLimiting:{ClientAuthPermitsPerMinute,WorkloadPermitsPerMinute}`, `Application:LoadTest:*` | yes | | | |
+| `Application:RateLimiting:{ClientAuthPermitsPerMinute,WorkloadPermitsPerMinute}`, `Application:LoadTest:*`, `Application:WorldPlaces:*` | yes | | | |
 | `Application:Startup:AuthSchemaWaitSeconds` | | yes | yes | yes |
 
 Commerce binds `Application:StoreAuthentication` without identity's validator, since it reads only those two keys
@@ -815,6 +815,23 @@ the tools that sign in as a client (`tools/Avalon.LoadTest`, `tools/Avalon.Local
 
 The world server has no such setting: its version handshake compares against the world's own `MinVersion` (the auth
 `Worlds` row) alone ([character login flow](character-login-flow.md#sworldhandshakepacket)).
+
+---
+
+## REST API World Places
+
+Section: `Application:WorldPlaces`, read by identity (#967, [world player limit](world-player-limit.md)).
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `HeldPlaceSeconds` | int | `90` | How long a player whose connection dropped keeps their place on the world ([the held place](world-player-limit.md#the-held-place)), from 1 to 3600. A session that ended any other way releases its place at once |
+
+The section's other keys are read by the line of a full world, from part 4 of #967. Validated at startup: a value
+out of its range stops identity, naming the setting.
+
+```bash
+Application__WorldPlaces__HeldPlaceSeconds=90
+```
 
 ---
 

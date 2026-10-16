@@ -9,7 +9,7 @@ The feature ships in five parts. This page describes what is in place now and ma
 | Part | What it adds | State |
 |---|---|---|
 | 1 | The `PlayerLimit` column and its endpoint; the ledger, kept with every session; true counts in the world lists | in place |
-| 2 | The reason a world gives for a session's end; the held place after a drop | from PR 2 |
+| 2 | The reason a world gives for a session's end; the held place after a drop | in place |
 | 3 | Enforcement at the join (`WORLD_FULL`), the `Full` status, the world's backstop | from PR 3 |
 | 4 | The queue: the "queued" answer, the status and leave calls, their rate limit, the metrics | from PR 4 |
 | 5 | The goodbye opcode (`CMSG_LEAVE_WORLD`), so a quit frees its place at once | from PR 5 |
@@ -23,8 +23,8 @@ constraint `CK_Worlds_PlayerLimit`); null means no limit. Identity reads it from
 passes it to the ledger's script; it is never copied into Redis.
 
 What the limit counts is **places taken**: every account holding a place in the world, whether it is in the world, at
-character select, holding a join ticket it has not redeemed yet, or (from part 2) holding its place after a dropped
-connection. This is not the gauge `avalon.world.players.online`, which counts only the characters in the world: an
+character select, holding a join ticket it has not redeemed yet, or holding its place after a dropped connection
+([the held place](#the-held-place)). This is not the gauge `avalon.world.players.online`, which counts only the characters in the world: an
 account at character select holds a place but no character.
 
 Staff (accounts with the Admin flag, the flag that passes maintenance) are always given a place, so places taken can
@@ -61,7 +61,7 @@ A stale call can at most keep a place counted a little longer (see the last poin
 | The world redeems the ticket | the pending session owns the place, to its lease |
 | The session is activated | renewed to the lease; it spends its own ticket's hold (never another ticket's); the account's place in every other world is removed, since a session is one per account, but for a ticket's hold still running there |
 | Each heartbeat (every 15 s) | renewed to the lease's new end, or a ticket's later hold |
-| The session ends (identity answers `ended`) | removed (from part 2, held for the grace after a drop), unless a ticket's hold still runs: then it stays until that hold ends. Never shortened, and never re-created when it is already gone |
+| The session ends (identity answers `ended`) | removed, or held for the grace after a drop ([the held place](#the-held-place)), unless a ticket's hold still runs: then it stays until that hold ends. Never shortened, and never re-created when it is already gone |
 | The end or heartbeat of a session older than the owner, or of one that ended there (arriving late) | unchanged |
 | The session's end is refused as `SESSION_REPLACED` or `BARRIER_PENDING` | unchanged |
 | The world cannot report (a crash) | expires with the lease, within 45 s |
@@ -86,6 +86,48 @@ A stale call can at most keep a place counted a little longer (see the last poin
   tombstone". What remains: a replay that
   extends a place just before its ticket is redeemed and its session ends keeps that place counted until the
   replayed hold ends, at most 45 s after the replay. That only ever counts the account in for longer, never out.
+
+## The held place
+
+A player whose connection drops keeps their place for a grace, `Application:WorldPlaces:HeldPlaceSeconds` (identity,
+90 s by default): a join within it finds the place and goes straight in; after it the place expires and counts no
+more. A deliberate quit, a kick, a maintenance cutoff or a restart releases the place at once.
+
+The world says why each session ended: `sessions/end` carries an optional `reason`
+([game server admission](steam-authentication-workloads.md#session-activation-and-durable-save-authority)), and
+identity holds the place or removes it by it (`GameSessionEndReasons.HoldsPlace`). The world knows why a connection
+closed only when it closed it itself, which it always does through `GracefulShutdownHelper` with a `DisconnectReason`;
+the connection notes the first one (`IDisconnectReasonNote`), and the drain reads it once, as it builds the session's
+end (`SessionEndReasons.For`, `WorldConnection.SessionEndReason`), before the end waits in the `SessionEnds` lane.
+
+| The world closed the connection, or saw it close, because | `reason` | The place |
+|---|---|---|
+| The client said goodbye (`CMSG_LEAVE_WORLD`, from part 5) | `logout` | removed |
+| The peer closed it, or it was lost, with no goodbye | `drop` | held |
+| The liveness rule closed it: no pong for 60 s (#1061) | `drop` | held |
+| A slow connection (`SlowConnection`), the receive queue's cap, a failed character save (`CharacterSaveFailed`), a lease that ran out | `drop` | held |
+| A select the world could not finish (`SelectTimeout`: the stalled-select sweep, or a full work queue, #1050): the world failed the player, who is told to log in again | `drop` | held |
+| Another login took the session over (`DuplicateLogin`) | `drop` | unchanged: the old session's end is answered `SESSION_REPLACED` and changes nothing |
+| Kicked, banned or deactivated (`Kicked`, `Banned`, `Deactivated`; every account-wide session end, such as a password change, closes with `Kicked`) | `kicked` | removed |
+| A maintenance cutoff (`Maintenance`) | `maintenance` | removed |
+| The world stopped or restarted (`ServerShutdown`), the restart drain included | `shutdown` | removed |
+| The world's backstop refused the admission (from part 3) | `backstop` | removed |
+
+- **No reason is a drop.** A world from before part 2 sends none, and a failed admission's pending session, which the
+  world abandons (#1013), is ended without one: identity reads both as a drop and holds the place, so the client's next
+  join finds it. A reason identity does not know (a newer world's) is a drop too. `select_timeout` is in the
+  vocabulary and removes the place, but no world sends it: a `SelectTimeout` close is a drop.
+- **Identity is deployed first.** An identity from before part 2 refuses the unknown member (400, the body rejects
+  unknown members); the world then sends the end again without the reason, so the session ends anyway, as a drop.
+- **An end that is not sent holds nothing.** An end skipped in the `SessionEnds` lane (the stop's deadline passed, or
+  the lease ran out more than 5 s ago with no renewal outstanding, #1051, counted on `world.session_ends.skipped`)
+  never reaches identity, and the place runs out with the lease identity renewed last, within 45 s, never held for
+  the grace.
+- **Change Character keeps the connection and the session**, so the place is untouched.
+- **After a restart or a maintenance cutoff nobody holds a place**: everyone is equal and joins the line with
+  everybody else. A held place exists only for an account that was admitted, for the grace, and gives nothing a
+  player could not have by staying connected.
+- Until part 3 a held place only counts: it is enforced with the limit.
 
 ## Setting a limit
 
