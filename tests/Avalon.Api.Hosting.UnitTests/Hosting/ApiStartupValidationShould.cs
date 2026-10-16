@@ -164,6 +164,37 @@ public class ApiStartupValidationShould
         Assert.Contains(refusalNaming, refused.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// #949: the client version game sign-in requires is three whole numbers, and appsettings.json holds the default: a
+    /// value missing, or one the floor could not be compared with, stops identity, naming the setting.
+    /// </summary>
+    [Theory]
+    [InlineData("0.3.0", true)]
+    [InlineData("10.20.300", true)]
+    [InlineData(null, false)]
+    [InlineData("", false)]
+    [InlineData("0.3", false)]
+    [InlineData("0.3.0.1", false)]
+    [InlineData("v0.3.0", false)]
+    [InlineData(" 0.3.0", false)]
+    [InlineData("-1.0.0", false)]
+    [InlineData("256.0.0", false)]
+    [InlineData("0.0.65536", false)]
+    public void Validate_the_minimum_client_version_at_startup(string? value, bool accepted)
+    {
+        using ServiceProvider provider = Build("localhost:6379", ("Application:GameWorkloads:MinClientVersion", value));
+
+        if (accepted)
+        {
+            provider.GetRequiredService<IStartupValidator>().Validate();
+            return;
+        }
+
+        OptionsValidationException refused = Assert.Throws<OptionsValidationException>(
+            () => provider.GetRequiredService<IStartupValidator>().Validate());
+        Assert.Contains("Application:GameWorkloads:MinClientVersion must be", refused.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Refuse_to_start_with_a_load_test_account_cap_below_one()
     {
@@ -249,6 +280,7 @@ public class ApiStartupValidationShould
             ["Application:SteamWebLink:SiteUrl"] = "https://web.example.test",
             // appsettings.json's default; the options check refuses a host without one.
             ["Application:Templates:ReloadTimeout"] = "00:00:10",
+            ["Application:GameWorkloads:MinClientVersion"] = GameClientTestData.MinClientVersion,
             ["Database:Worlds:1:World:ConnectionString"] = Unreachable,
             ["Database:Worlds:1:Characters:ConnectionString"] = Unreachable,
         };

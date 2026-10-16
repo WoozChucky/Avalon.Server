@@ -4,11 +4,12 @@ namespace Avalon.Configuration;
 public sealed class GameWorkloadConfiguration
 {
     /// <summary>
-    /// The one client version game sign-in and world allocation accept, compared for equality: a client
-    /// and the services it signs in to are released together. From 0.3.0 a client follows the
-    /// packet-encryption mode a world states at admission and needs no world key when it is off.
+    /// <c>Application:GameWorkloads:MinClientVersion</c> (#949): the oldest client version game sign-in and world
+    /// allocation accept, as <c>major.minor.patch</c>; a client at or above it is accepted. Nothing here supplies one:
+    /// the API's <c>appsettings.json</c> holds the default, a deployment overrides it (Helm
+    /// <c>gameAdmission.minClientVersion</c>), and identity refuses to start without a usable value.
     /// </summary>
-    public const string ClientProtocolVersion = "0.3.0";
+    public string MinClientVersion { get; set; } = "";
     public List<GameServerDefinition> Servers { get; set; } = [];
     public void Validate()
     {

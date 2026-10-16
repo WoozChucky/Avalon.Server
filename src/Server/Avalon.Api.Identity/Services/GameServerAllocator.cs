@@ -27,7 +27,7 @@ public sealed class GameServerAllocator(IWorldRepository worlds, IAccountReposit
     }
     public async Task<GameWorldDestination?> FindAsync(GameContextRecord context, ushort worldId, uint? characterId, CancellationToken cancellationToken)
     {
-        if (!applications.AllowsWorld(context.ApplicationKey, worldId) || context.AccountId is not { } id || context.ProtocolVersion != GameWorkloadConfiguration.ClientProtocolVersion || characterId == 0) return null;
+        if (!applications.AllowsWorld(context.ApplicationKey, worldId) || context.AccountId is not { } id || !workloads.Value.Admits(context.ProtocolVersion) || characterId == 0) return null;
         GameServerDefinition? server = workloads.Value.Servers.SingleOrDefault(s => s.WorldId == worldId);
         if (server is null || !databases.IsAvailable(new WorldId(worldId))) return null;
         Account? root = await accounts.FindByIdAsync(new AccountId(id), false, cancellationToken);

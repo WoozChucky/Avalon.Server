@@ -200,7 +200,8 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
     ([when each](character-login-flow.md#sgameadmissionpacket-refusals); a world whose admission queue is full answers
     `ServiceUnavailable`, #1050).
 15. `CWorldHandshakePacket(Version)` / `SWorldHandshakePacket` — sealed only when the world seals; the client's version
-    must be at least 0.3.0 and the world's `MinVersion`. A client below either, or whose version does not parse, is
+    must be at least the world's `MinVersion` (the REST sign-in has already required the API's floor,
+    `Application:GameWorkloads:MinClientVersion`, #949). A client below it, or whose version does not parse, is
     answered `Verified` false with `Refusal` `ClientVersionTooOld` and the `MinVersion` it needs, then closed; any
     other refusal closes without a reply ([character login flow](character-login-flow.md#sworldhandshakepacket)).
 16. Subsequent packets (character list, selection, movement, chat) proceed under the admitted session. A connection
@@ -222,7 +223,7 @@ by its header while its connection has a session; a world that does not seal has
 |---|---|---|---|
 | 0.3.0 | flag off | plain; no key exchanged | plain |
 | 0.3.0 | flag on | sealed | sealed |
-| before 0.3.0 | either | refused at sign-in and at world allocation (#948); one that reached a world with the flag off would seal, and be closed | |
+| before 0.3.0 | either | refused at sign-in and at world allocation while `Application:GameWorkloads:MinClientVersion` is 0.3.0 or above (#948, #949); one that reached a world with the flag off would seal, and be closed | |
 
 ## Time Sync: `SMSG_PING` and `CMSG_PONG`
 
@@ -426,12 +427,13 @@ in it, so a fix will turn that test red rather than pass unnoticed.
 - **Version evolution:** there is no version per packet. `Header.Version` is always 0, and no handler is chosen by it.
   A client states its version once per connection, and a server refuses one that is too old:
   `CRequestServerInfoPacket.ClientVersion` against `Application:MinClientVersion` on the auth server (step 1 above),
-  `CWorldHandshakePacket.Version` against 0.3.0 and the world's `MinVersion` on a world (step 15). Each tells the
+  `CWorldHandshakePacket.Version` against the world's `MinVersion` on a world (step 15). Each tells the
   refused client so before it closes: `SServerInfoPacket` with `ClientVersionTooOld`, `SWorldHandshakePacket` with
   `Refusal` `ClientVersionTooOld` and the version required. Neither server
   looks at a version anywhere else. Before either, the REST game sign-in and world allocation require the client's
-  protocol version to equal `GameWorkloadConfiguration.ClientProtocolVersion` (0.3.0, #948), which is what refuses a
-  client from the other side of a wire change. What the
+  protocol version to be at least `Application:GameWorkloads:MinClientVersion` (#949; equal to one compiled-in version
+  before it, #948), which is what refuses a client from the other side of a wire change: a release that changes the
+  wire raises it ([configuration reference](configuration-reference.md#rest-api-game-client-version)). What the
   wire is at a given commit is the generated schema: `tools/Avalon.Exporter` writes `schema/avalon.proto`,
   `schema/opcodes.json` and `schema/corpus/` from the packet contracts (the corpus from its fixtures of them),
   `WireSchemaShould` and `WireCorpusShould` fail when they are stale, and the game client vendors them. A retired opcode is deleted, and its number may be

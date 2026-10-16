@@ -12,7 +12,7 @@ The launcher handoff selects its Avalon root; it does not establish Steam owners
 
 ## Authority and revocation
 
-Game contexts, join tickets and SQL session fences have separate authority. Worlds require TLS, the trusted server name and exact leaf certificate SHA-256, and authenticated workload redemption. Legacy game-ticket login/world keys cannot admit gameplay. The supported world protocol starts at **0.2.0**.
+Game contexts, join tickets and SQL session fences have separate authority. Worlds require TLS, the trusted server name and exact leaf certificate SHA-256, and authenticated workload redemption. Legacy game-ticket login/world keys cannot admit gameplay. The oldest supported client is `Application:GameWorkloads:MinClientVersion` (#949, [configuration reference](configuration-reference.md#rest-api-game-client-version)).
 
 The native runtime renews with fresh Steam Web API tickets and matching callback handles. Positive ownership grants at most five minutes; identity proof lasts at most thirty minutes. Timeout/429/5xx keep the original deadline. A definitive negative result persists a negative observation and invalidates every older dependent context; a later positive record cannot resurrect those contexts. Steam links are checked again at context/heartbeat admission.
 
@@ -32,7 +32,7 @@ Configure the workload client certificate, world TLS private key and API certifi
 
 ## User smoke checks (not yet performed)
 
-Use a controlled environment with the publisher key, workload certificates, matching 0.3.0 services/client and a real Steam license.
+Use a controlled environment with the publisher key, workload certificates, a client at or above the services' `Application:GameWorkloads:MinClientVersion` and a real Steam license.
 
 - Launch through Steam with an existing linked account; verify the expected Avalon root, world/character access and overlay.
 - Launch with an unknown licensed Steam account; verify exactly one automatically linked root and normal character creation.
@@ -47,7 +47,7 @@ These are external gates. Unit checks, disposable database/Redis acceptance test
 
 ## Coordinated cutover and rollback
 
-Stage the API/database migrations, world services/schema, client, launcher and dashboard together in the controlled environment. Configure private secrets before startup. Keep the schema/vendor manifest synchronized and require client protocol 0.2.0 at the world boundary. Run the smoke checks before production rollout; no deployment or PR is implied by this implementation.
+Stage the API/database migrations, world services/schema, client, launcher and dashboard together in the controlled environment. Configure private secrets before startup. Keep the schema/vendor manifest synchronized and set `Application:GameWorkloads:MinClientVersion` to the oldest client the services accept. Run the smoke checks before production rollout; no deployment or PR is implied by this implementation.
 
 Rollback must retain TLS, current ownership checks, short-lived admission and SQL fencing. Do not roll back to a client/world combination that accepts legacy game tickets or world keys. If a compatible enforced build is unavailable, leave admissions closed while correcting the release. Do not undo completed account consolidations or reset fencing tokens.
 

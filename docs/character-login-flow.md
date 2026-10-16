@@ -144,18 +144,21 @@ is in no instance and held by nothing but the chain. An entry check that ran and
 ## `SWorldHandshakePacket`
 
 The world's answer to `CWorldHandshakePacket(Version)`, the first packet after admission (`WorldHandshakeHandler`).
-The client's version must be at least 0.3.0, the oldest wire any world speaks, and at least the world's `MinVersion`
-(the auth `Worlds` row).
+The client's version must be at least the world's `MinVersion` (the auth `Worlds` row), the world's only floor. The
+oldest wire any client may speak is not the world's to judge (#949): the API's game sign-in and world allocation refuse a
+client below `Application:GameWorkloads:MinClientVersion` before it is given a join ticket
+([configuration reference](configuration-reference.md#rest-api-game-client-version)). Before #949 the world also held a
+compiled-in floor of its own, 0.3.0, and required the higher of the two.
 
 | Field | Type | Meaning |
 |---|---|---|
 | `AccountId` (1) | `int64`, optional | The admitted account, on an acceptance and on a refusal alike |
 | `Verified` (2) | `bool` | True: accepted; character selection follows, and the world's first time-sync ping |
 | `Refusal` (3) | `WorldHandshakeRefusal` | Why the handshake was refused: `None` (0) on an acceptance, `ClientVersionTooOld` (1) for a client older than the world accepts. Append-only: read a value the client does not name as a refusal it cannot explain |
-| `MinVersion` (4) | `string`, optional | On `ClientVersionTooOld`, the oldest client version the world accepts: the world's `MinVersion`, or 0.3.0 when that is higher, written as the plain `major.minor.patch` it was compared as (a configured ` 01.00.0` goes out as `1.0.0`); absent otherwise |
+| `MinVersion` (4) | `string`, optional | On `ClientVersionTooOld`, the oldest client version the world accepts: the world's `MinVersion`, written as the plain `major.minor.patch` it was compared as (a configured ` 01.00.0` goes out as `1.0.0`); absent otherwise |
 
-**A client too old is told so, then closed.** A version below either floor, and one that does not parse as
-`major.minor.patch` (a client that does not speak this versioning), gets `Verified` false, `ClientVersionTooOld` and
+**A client too old is told so, then closed.** A version below the world's `MinVersion`, and one that is missing or does
+not parse as `major.minor.patch` (a client that does not speak this versioning), gets `Verified` false, `ClientVersionTooOld` and
 the required version, and the world closes the connection after it. The close flushes the connection's outbox before
 it drops the socket (`Connection.CloseAsync`, [graceful shutdown](networking-graceful-shutdown.md#what-a-closing-connection-reads)),
 so the reply reaches the client first. The world logs the refusal once, at Information: the connection, the account,
@@ -165,7 +168,8 @@ the same build is refused again. Before this field a too-old client was closed w
 unreachable server.
 
 **Every other refusal closes with no reply**, as before: a handshake with no active admission, a second handshake on a
-connection already accepted (whatever version it states), and a world whose own `MinVersion` does not parse.
+connection already accepted (whatever version it states), and a world whose own `MinVersion` does not parse: a server
+misconfiguration, under which the world closes every handshake, since it has no version to tell the client.
 
 An acceptance is unchanged on the wire: `Refusal` at `None` and `MinVersion` null are not written, so its bytes are
 those of the two first fields alone (`schema/corpus/SWorldHandshakePacket.txt`, `WorldHandshakeHandlerShould`).

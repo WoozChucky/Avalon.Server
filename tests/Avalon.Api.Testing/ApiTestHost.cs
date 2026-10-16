@@ -111,6 +111,7 @@ public sealed class ApiTestHost : IAsyncDisposable
         // Sections identity registers as they are bound, as appsettings.json has them.
         ["Application:Environment:Name"] = "Development",
         ["Application:Notification:Subject"] = "https://avalon.monster",
+        ["Application:GameWorkloads:MinClientVersion"] = GameClientTestData.MinClientVersion,
     };
 
     /// <summary>

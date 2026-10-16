@@ -175,6 +175,13 @@ done
 must_fail "loadTest.maxAccounts=0 must fail"          --set existingSecret=x "${W1[@]}" --set loadTest.maxAccounts=0
 must_fail "a non-numeric loadTest.maxAccounts must fail" --set existingSecret=x "${W1[@]}" --set loadTest.maxAccounts=many
 must_fail "a fractional loadTest.maxAccounts must fail" --set existingSecret=x "${W1[@]}" --set loadTest.maxAccounts=2.5
+# The sign-in floor (#949): identity's alone, only when set, so the API's appsettings.json default applies otherwise.
+! grep -q "Application__GameWorkloads__MinClientVersion" <<<"$out"                                    || { echo "gameAdmission.minClientVersion must not render unset"; exit 1; }
+mcv=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json 'services=["identity"]' --set gameAdmission.minClientVersion=0.4.0)
+grep -A1 "name: Application__GameWorkloads__MinClientVersion" <<<"$mcv" | grep -q 'value: "0.4.0"'   || { echo "gameAdmission.minClientVersion must render as Application__GameWorkloads__MinClientVersion"; exit 1; }
+nomcv=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json 'services=["worlds"]' --set gameAdmission.minClientVersion=0.4.0)
+! grep -q "Application__GameWorkloads__MinClientVersion" <<<"$nomcv"                                  || { echo "gameAdmission.minClientVersion rendered for worlds, which does not sign in"; exit 1; }
+must_fail "a gameAdmission.minClientVersion that is not major.minor.patch must fail" --set existingSecret=x "${W1[@]}" --set gameAdmission.minClientVersion=0.4
 # Balance service (admin /balance proxy): the URL renders only when set; the secret is always a
 # secretKeyRef, optional, so an unset key leaves the admin endpoints answering 503.
 ! grep -q "Application__Balance__Url" <<<"$out"                                                || { echo "balance url rendered without a value"; exit 1; }

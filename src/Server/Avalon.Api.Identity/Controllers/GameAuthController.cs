@@ -3,12 +3,14 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Contract;
 using Avalon.Api.Identity.Authentication;
+using Avalon.Api.Identity.Services;
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace Avalon.Api.Identity.Controllers;
@@ -16,7 +18,8 @@ namespace Avalon.Api.Identity.Controllers;
 [ApiController, AllowAnonymous, Route("client/auth")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [RequestSizeLimit(GameAuthPolicy.MaximumBodyBytes), EnableRateLimiting(ClientAuthRateLimiting.Policy)]
-public sealed class GameAuthController(GameAuthorizationService authorization, ILogger<GameAuthController>? authLogger = null) : ControllerBase
+public sealed class GameAuthController(GameAuthorizationService authorization, IOptions<GameWorkloadConfiguration> workloads,
+    ILogger<GameAuthController>? authLogger = null) : ControllerBase
 {
     [HttpPost("provider-attempts", Name = "CreateProviderGameAuthAttempt")]
     [ProducesResponseType(typeof(ProviderAuthAttemptReply), StatusCodes.Status200OK)]
@@ -24,7 +27,8 @@ public sealed class GameAuthController(GameAuthorizationService authorization, I
     public async Task<IActionResult> ProviderAttempt(GameProviderAttemptRequest request, CancellationToken cancellationToken)
     {
         if (!Request.IsHttps) return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.HttpsRequired)), nameof(ProviderAttempt));
-        if (request.ProtocolVersion != GameWorkloadConfiguration.ClientProtocolVersion)
+        // A client at or above Application:GameWorkloads:MinClientVersion (#949); one that states no version it parses, refused.
+        if (!workloads.Value.Admits(request.ProtocolVersion))
             return LogResult(BadRequest(GameAuthReply.Failure(GameAuthErrors.UnsupportedProtocol)), nameof(ProviderAttempt));
         try
         {

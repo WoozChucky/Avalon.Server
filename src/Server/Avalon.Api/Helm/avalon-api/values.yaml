@@ -349,6 +349,12 @@ storeAuthentication:
 # Direct mTLS listener, separate from public ingress. Pins are read from the binding Secret,
 # using <serverId>-tls-sha256 and <serverId>-client-sha256 keys. Supply one entry per served world.
 gameAdmission:
+  # The oldest client version game sign-in and world allocation accept (Application:GameWorkloads:MinClientVersion,
+  # #949): major.minor.patch, e.g. "0.4.0"; a client at or above it signs in. Left empty, the API's default applies
+  # (appsettings.json). Rendered only where identity runs. A client release at or above it needs no services
+  # deploy; raising it is a deploy, and refuses every older client from then on: a context signed in before lists no
+  # world and gets no join ticket.
+  minClientVersion: ""
   port: 9443
   tlsExistingSecret: ""
   bindingsExistingSecret: ""

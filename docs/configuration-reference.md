@@ -36,6 +36,7 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | `EmailConfig`               | `Avalon.Api.Identity.Config`       | `Application:Email` | API (identity) | By hand in `AddEmail` |
 | `GameAuthConfig`            | `Avalon.Api.Identity.Config`       | `Application:GameAuth`: `HostKey` | API (identity) | Before the api serves (`IdentityStartupCheck`, `GameAuthHostKey`), see [REST API JWT Signing Key](#rest-api-jwt-signing-key) |
 | `RateLimitingConfig`        | `Avalon.Api.Hosting.Config`        | `Application:RateLimiting`, as `IOptions<RateLimitingConfig>` only | API (every service) | `ValidateOnStart` (each limit at least 1; each `ExemptSources` entry by `ExemptSourcesValidation`, see [Exempt sources](#exempt-sources)) |
+| `GameWorkloadConfiguration` | `Avalon.Configuration`             | `Application:GameWorkloads` (`Servers`, `MinClientVersion`), as `IOptions<GameWorkloadConfiguration>` | API (identity) | `Servers` while the host is built (`ConfigureGameWorkloadListener`) and on start; `MinClientVersion` `ValidateOnStart` (three whole numbers). See [REST API Game Client Version](#rest-api-game-client-version) and [game server admission](steam-authentication-workloads.md#deployment-bindings) |
 | `LoadTestOptions`           | `Avalon.Api.Identity.LoadTest`     | `Application:LoadTest`, as `IOptions<LoadTestOptions>` | API (identity) | `ValidateOnStart` (`MaxAccounts` at least 1). See [REST API Load-Test Accounts](#rest-api-load-test-accounts) |
 | `MapAssetConfig`            | `Avalon.Api.Worlds.Config`         | `Application:MapAssets`, as `IOptions<MapAssetConfig>` | API (worlds) | Not validated |
 | `NotificationConfig`        | `Avalon.Api.Identity.Config`       | `Application:Notification` | API (identity) | Not validated |
@@ -715,6 +716,35 @@ refuses to render.
 
 ---
 
+## REST API Game Client Version
+
+Section: `Application:GameWorkloads`, read by identity (#949)
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `MinClientVersion` | string | `appsettings.json`'s | The oldest client version game sign-in (`POST /client/auth/provider-attempts`) and world allocation (the world list and join tickets) accept, as `major.minor.patch`. A client stating a version at or above it is accepted; one below it, or whose version is not three whole numbers (digits and two dots, nothing else), is answered 400 `UNSUPPORTED_PROTOCOL` at sign-in, and a game context naming it lists no world and is refused a join ticket (`WORLD_UNAVAILABLE`, at issue and when the world redeems it) |
+
+The code supplies no value: the API's `appsettings.json` holds the default, so a local run needs nothing, and a
+deployment overrides it. Validated at startup: a value missing, or not three whole numbers with major and minor at most
+255 and patch at most 65535, stops identity, naming the setting.
+
+```bash
+Application__GameWorkloads__MinClientVersion=0.4.0
+```
+
+**A floor, not one version.** A client release at or above the floor needs no services deploy, so a client can ship
+before the services. Raising the floor is a deploy (Helm `gameAdmission.minClientVersion`, rendered into a release that
+runs identity and into no other, only when set; a value that is not `major.minor.patch` refuses to render). From then
+on an older client is refused at sign-in, and a context it signed in with before lists no world and gets no join ticket;
+a player already in a world stays there until the next join. The client's own version is what it is, compiled into it;
+the tools that sign in as a client (`tools/Avalon.LoadTest`, `tools/Avalon.LocalDev`) state the one in
+`tools/Shared/ToolClientVersion.cs`.
+
+The world server has no such setting: its version handshake compares against the world's own `MinVersion` (the auth
+`Worlds` row) alone ([character login flow](character-login-flow.md#sworldhandshakepacket)).
+
+---
+
 ## REST API Email
 
 Section: `Application:Email`, read by identity (#510)
@@ -1001,7 +1031,8 @@ The REST API's `Application:*` settings are bound directly, by the services that
 `IOptions<T>`, and do not use `ValidateOnStart`, except `Application:Cache`, bound as `IOptions<CacheConfiguration>` in
 a process whose services need Redis and validated at startup like the servers' `Cache`, `Application:RateLimiting`,
 bound only as `IOptions<RateLimitingConfig>` and validated the same way (see
-[REST API Rate Limiting](#rest-api-rate-limiting)), and identity's `Application:LoadTest`, the worlds service's
+[REST API Rate Limiting](#rest-api-rate-limiting)), and identity's `Application:LoadTest` and
+`Application:GameWorkloads:MinClientVersion`, the worlds service's
 `Application:Templates` and commerce's `Application:Commerce`, validated the same way. The rest are checked by hand while the host is built: in every
 process `Application:Services` (`ApiServiceSelection`), the token keys (`JwtKeys.Create` in
 `AvalonApiHost.CreateBuilder`, see [REST API JWT Signing Key](#rest-api-jwt-signing-key)) and the forwarded-headers entries

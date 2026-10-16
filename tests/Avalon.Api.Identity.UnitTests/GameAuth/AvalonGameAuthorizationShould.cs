@@ -2,6 +2,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Identity.Controllers;
 using Avalon.Api.Identity.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
@@ -379,7 +380,7 @@ public sealed class AvalonGameAuthorizationShould
             .Returns(_ => new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, Now, Now.AddMinutes(5)));
         GameAuthorizationService service = TestGameAuthorization.Create(_store, new(_store, _crypto, _options, _clock), _crypto,
             _accounts, _families, _identities, _observations, proof, ownership, _options, _clock, revocations: _revocations, gameLicenses: _licenses);
-        var auth = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        var auth = new GameAuthController(service, GameClientTestData.Workloads()) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         auth.Request.Scheme = "https";
         var policy = new GameApplicationAccessPolicy(_options);
         IGameServerAllocator allocator = Substitute.For<IGameServerAllocator>();
@@ -392,7 +393,7 @@ public sealed class AvalonGameAuthorizationShould
         admission.Request.Scheme = "https";
 
         // A context signed in before the change, for the routes that present one.
-        const string Protocol = GameWorkloadConfiguration.ClientProtocolVersion;
+        const string Protocol = GameClientTestData.ClientVersion;
         GameAuthReply? context = route is "refresh" or "attempt" or "worlds" or "join" or "steam-carried"
             ? (await Handoff(service, Protocol)).Reply : null;
         if (change == "banned-after-logout") await service.LogoutAsync(context!.GameContextCredential!, default);

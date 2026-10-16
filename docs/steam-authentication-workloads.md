@@ -136,12 +136,16 @@ under `/run/avalon-auth`. These are deployment credentials; only SOPS-encrypted 
 
 Updated clients use CGameAdmissionPacket/SGameAdmissionPacket (0x201E/0x301E) inside TLS, then the
 version handshake, sealed only on a world with `Network:PacketEncryption` on (a world with it off exchanges no key,
-#878). Minimum supported gameplay client version is 0.3.0. Retired
+#878). The oldest client version game sign-in and world allocation accept is
+`Application:GameWorkloads:MinClientVersion` (#949, [configuration reference](configuration-reference.md#rest-api-game-client-version));
+the world's handshake compares against the world's own `MinVersion` alone. Retired
 TCP handoff, world-select and world-key opcodes 0x200F, 0x201B/0x301B and 0x201C/0x301C are unassigned.
 The launcher handoff issuer and inherited-stdin contract remain; updated clients redeem the handoff
 through `/client/auth` for a restricted context and separately request licensed world admission.
-Roll out API, world, schema and supported client together; do not deploy this intermediate backend
-branch while clients still use the retired protocol.
+A client release no longer goes out in lockstep with the services: sign-in accepts any client at or above the floor,
+so a client can ship before the services as long as it is at or above it. Raising the floor is a services deploy (Helm
+`gameAdmission.minClientVersion`), and is what a wire change the older clients cannot speak needs: from then on an older
+client is refused at sign-in, and a context it signed in with lists no world and gets no join ticket.
 
 Provider calls, redemption, heartbeat and character persistence run outside the simulation tick.
 Connection identity, role, session and fence bind once from admission. Every queued gameplay packet
