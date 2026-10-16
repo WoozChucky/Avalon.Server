@@ -22,6 +22,10 @@ namespace Avalon.Benchmarking.Benchmarks;
 public class StateBroadcastEncodingBenchmarks
 {
     private const int Creatures = 15;
+
+    // A world up for some two and a half years at 60 Hz (#1066): the state packets' tick a 5-byte varint, as a long-running
+    // world sends it, not tick 0, which protobuf-net leaves off the wire.
+    private const long LongUptime = 5_000_000_000;
     private const GameEntityFields Moved = GameEntityFields.Position | GameEntityFields.Velocity | GameEntityFields.Orientation;
 
     private readonly PacketEncoder _encoder = new(new PayloadSegmentPool());
@@ -96,7 +100,7 @@ public class StateBroadcastEncodingBenchmarks
                     _list.Add(_moved[entity]);
             }
 
-            OutboundPacket packet = SInstanceStateUpdatePacket.Create(_list, 0, _encoder);
+            OutboundPacket packet = SInstanceStateUpdatePacket.Create(_list, LongUptime, _encoder);
             bytes += packet.PayloadLength;
             packet.Release();
         }
@@ -107,7 +111,7 @@ public class StateBroadcastEncodingBenchmarks
     private int UpdatesAssembled()
     {
         int bytes = 0;
-        _updates.BeginBroadcast(0);
+        _updates.BeginBroadcast(LongUptime);
         for (int recipient = 0; recipient < Players; recipient++)
         {
             _updates.BeginPacket();
@@ -134,7 +138,7 @@ public class StateBroadcastEncodingBenchmarks
             for (int entity = 0; entity < Entities; entity++)
                 _list.Add(entity == recipient ? _own[entity] : _full[entity]);
 
-            OutboundPacket packet = SInstanceStateAddPacket.Create(_list, 0, _encoder);
+            OutboundPacket packet = SInstanceStateAddPacket.Create(_list, LongUptime, _encoder);
             bytes += packet.PayloadLength;
             packet.Release();
         }
@@ -145,7 +149,7 @@ public class StateBroadcastEncodingBenchmarks
     private int AddsAssembled()
     {
         int bytes = 0;
-        _adds.BeginBroadcast(0);
+        _adds.BeginBroadcast(LongUptime);
         for (int recipient = 0; recipient < Players; recipient++)
         {
             _adds.BeginPacket();
