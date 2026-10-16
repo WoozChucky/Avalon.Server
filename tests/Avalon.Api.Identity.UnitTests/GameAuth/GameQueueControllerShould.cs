@@ -47,6 +47,23 @@ public sealed class GameQueueControllerShould
         Assert.Equal((state, position, after, (int?)null), (reply.State, reply.Position, reply.CheckInAfterSeconds, reply.EstimatedWaitSeconds));
     }
 
+    /// <summary>A signed-out context's credential, still within its 5 minutes, checks in no more.</summary>
+    [Fact]
+    public async Task Refuse_the_credential_of_a_revoked_context()
+    {
+        var h = new JoinHarness();
+        DateTime until = h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45);
+        await h.Places.RenewAsync(1, 8, 1, Guid.NewGuid(), until, false, default);
+        await h.Places.EnterAsync(new PlaceRequest(1, 7, until, 1, false, 5000), default); // account 7 waits
+        GameAuthReply auth = await h.Authenticate();
+        await h.Authorization.LogoutAsync(auth.GameContextCredential!, default);
+
+        IActionResult result = await Controller(h, true).Status(
+            new GameQueueRequest { GameContextCredential = auth.GameContextCredential!, WorldId = 1 }, default);
+
+        Assert.Equal("AUTHORIZATION_REQUIRED", Assert.IsType<GameQueueStatusReply>(Assert.IsType<UnauthorizedObjectResult>(result).Value).Error);
+    }
+
     private static GameQueueController Controller(JoinHarness h, bool ready)
     {
         IWorldRepository worlds = Substitute.For<IWorldRepository>();
