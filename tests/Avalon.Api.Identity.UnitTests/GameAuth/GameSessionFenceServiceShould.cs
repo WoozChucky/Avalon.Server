@@ -419,12 +419,18 @@ public sealed class GameSessionFenceServiceShould
     [InlineData(GameSessionEndReasons.Maintenance, false)]
     [InlineData(GameSessionEndReasons.Shutdown, false)]
     [InlineData(GameSessionEndReasons.Backstop, false)]
+    // A banned or deactivated account holds nothing, whatever the world says: the world reads a ban whose notice it
+    // missed as a drop (its heartbeat refused), and a ban before the activation ends the pending session with no reason.
+    [InlineData(GameSessionEndReasons.Drop, false, AccountStatus.Banned)]
+    [InlineData(null, false, AccountStatus.Deactivated)]
     // The theory runs on the first "ended" path (guard and session ended). The other two call the same EndedAsync, where
     // the rule lives once.
-    public async Task Hold_the_place_only_for_a_session_that_dropped(string? reason, bool held)
+    public async Task Hold_the_place_only_for_a_session_that_dropped(string? reason, bool held,
+        AccountStatus status = AccountStatus.Active)
     {
         await Arrange();
         Assert.Null((await Activate()).Error);
+        _h.Account.Status = status;
         _target.EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>()).Returns(true);
         _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
 

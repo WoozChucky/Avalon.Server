@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Globalization;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Services;
@@ -101,9 +102,32 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
     private async Task<GameSessionLeaseReply> EndedAsync(ushort worldId, AccountId accountId, long fence, string? reason,
         CancellationToken cancellationToken)
     {
-        await ReleasePlaceAsync(worldId, accountId, fence,
-            GameSessionEndReasons.HoldsPlace(reason) ? PlaceEnd.Hold : PlaceEnd.Remove, cancellationToken);
+        PlaceEnd end = GameSessionEndReasons.HoldsPlace(reason) && await MayHoldAPlaceAsync(accountId, cancellationToken)
+            ? PlaceEnd.Hold
+            : PlaceEnd.Remove;
+        await ReleasePlaceAsync(worldId, accountId, fence, end, cancellationToken);
         return new() { State = "ended" };
+    }
+
+    /// <summary>
+    /// Whether the account may keep a held place: identity owns the account's standing, which the world's reason cannot
+    /// always tell (#967). A ban or a deactivation whose notice the world missed closes the connection as a drop (the
+    /// heartbeat is refused), and a ban between the ticket and the activation ends the pending session with no reason:
+    /// an account no longer active (banned, deactivated, or being consolidated), or gone, holds nothing. A moved session
+    /// epoch alone does not count: a password, email or role change moves it too, and those keep the place. When the
+    /// account cannot be read, the reason decides, as before.
+    /// </summary>
+    private async Task<bool> MayHoldAPlaceAsync(AccountId accountId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            Account? root = await accounts.FindByIdAsync(accountId, false, cancellationToken);
+            return root is { Status: AccountStatus.Active, GameplayConsolidationId: null };
+        }
+        catch (Exception error) when (error is DbException or TimeoutException or InvalidOperationException)
+        {
+            return true;
+        }
     }
 
     /// <summary>The session owns its place to <paramref name="until"/>; an activation also spends its own ticket's hold.</summary>
