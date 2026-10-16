@@ -66,6 +66,11 @@ internal sealed class GameAdmissionHarness
     /// <summary>World 3's auth row, as the allocator reads it.</summary>
     public Avalon.Domain.Auth.World World { get; }
     public IWorldReadiness Readiness { get; } = Substitute.For<IWorldReadiness>();
+    /// <summary>The auth world rows: world 3 only, until a test adds one.</summary>
+    public IWorldRepository WorldRows { get; } = Substitute.For<IWorldRepository>();
+    public IWorldDatabases Databases { get; } = Substitute.For<IWorldDatabases>();
+    /// <summary>The request of the last <see cref="Join"/>, whose response headers it carries.</summary>
+    public HttpContext? LastJoin { get; private set; }
     public GameWorkloadConfiguration Workloads { get; } = new()
     {
         MinClientVersion = GameClientTestData.MinClientVersion,
@@ -125,15 +130,13 @@ internal sealed class GameAdmissionHarness
             MinVersion = "0.2.0",
             Version = "0.2.0",
         };
-        IWorldRepository worlds = Substitute.For<IWorldRepository>();
-        worlds.FindByIdAsync(world.Id, false, Arg.Any<CancellationToken>()).Returns(world);
-        IWorldDatabases databases = Substitute.For<IWorldDatabases>();
-        databases.IsAvailable(world.Id).Returns(true);
+        WorldRows.FindByIdAsync(world.Id, false, Arg.Any<CancellationToken>()).Returns(world);
+        Databases.IsAvailable(world.Id).Returns(true);
         Readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
         IWorldRepositories repositories = Substitute.For<IWorldRepositories>();
         repositories.Characters(world.Id).Returns(Characters);
         IOptions<GameWorkloadConfiguration> workloads = Options.Create(Workloads);
-        Allocator = new(worlds, accounts, databases, Readiness, repositories, workloads, _clock, applications, NullLogger<GameServerAllocator>.Instance);
+        Allocator = new(WorldRows, accounts, Databases, Readiness, repositories, workloads, _clock, applications, NullLogger<GameServerAllocator>.Instance);
 
         IGameSessionRepository sessions = Substitute.For<IGameSessionRepository>();
         sessions.FindAsync(Account.Id, Arg.Any<CancellationToken>()).Returns(_ => _head);
@@ -198,11 +201,13 @@ internal sealed class GameAdmissionHarness
     public Task<IActionResult> Worlds(string credential) =>
         Controller().Worlds(new GameContextCredentialRequest { GameContextCredential = credential }, default);
 
-    /// <summary><c>POST /game/join-tickets</c>, or <c>/game/reconnect-tickets</c>, for world 3.</summary>
-    public Task<IActionResult> Join(string credential, uint? characterId, bool reconnect)
+    /// <summary><c>POST /game/join-tickets</c>, or <c>/game/reconnect-tickets</c>, for world 3 unless told another.</summary>
+    public Task<IActionResult> Join(string credential, uint? characterId, bool reconnect, ushort worldId = 3)
     {
-        var request = new GameJoinRequest { GameContextCredential = credential, WorldId = 3, CharacterId = characterId };
-        return reconnect ? Controller().Reconnect(request, Guid.NewGuid(), default) : Controller().Join(request, Guid.NewGuid(), default);
+        var request = new GameJoinRequest { GameContextCredential = credential, WorldId = worldId, CharacterId = characterId };
+        GameAdmissionController controller = Controller();
+        LastJoin = controller.HttpContext;
+        return reconnect ? controller.Reconnect(request, Guid.NewGuid(), default) : controller.Join(request, Guid.NewGuid(), default);
     }
 
     private GameAdmissionController Controller()

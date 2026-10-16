@@ -50,8 +50,6 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
         if (context.AccountId is not { } id) return Refuse(GameWorldRefusal.ContextStale);
         if (!workloads.Value.Admits(context.ProtocolVersion)) return Refuse(GameWorldRefusal.UnsupportedProtocol);
         if (characterId == 0) return Refuse(GameWorldRefusal.CharacterNotFound);
-        GameServerDefinition? server = workloads.Value.Servers.SingleOrDefault(s => s.WorldId == worldId);
-        if (server is null || !databases.IsAvailable(new WorldId(worldId))) return Refuse(GameWorldRefusal.Unavailable);
         Account? root = await accounts.FindByIdAsync(new AccountId(id), false, cancellationToken);
         // The standing is named only to a context its account still stands behind (its credentials version), and before
         // the epoch, which a ban or a consolidation moves itself (#882). The password lock is not asked: it guards the
@@ -60,12 +58,20 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
         if (GameAccountStanding.Refusal(root) is { } standing) return Refuse(Standing(standing));
         if (root.Status != AccountStatus.Active || root.SessionEpoch != context.SessionEpoch) return Refuse(GameWorldRefusal.ContextStale);
 
+        // A world the context may not enter is not revealed, even while it is unavailable (the rule of
+        // WorldRouteMiddleware): no row, no workload and an access level too high are one answer, after the same reads
+        // (the account's and the world's row), and before anything about the world's state is read (#1053).
         Domain.Auth.World? world = await worlds.FindByIdAsync(new WorldId(worldId), false, cancellationToken);
-        if (world is null) return Refuse(GameWorldRefusal.Unavailable);
-        if (!applications.AllowsWorldAccess(context.ApplicationKey, worldId, world.AccessLevelRequired, root.AccessLevel))
+        GameServerDefinition? server = workloads.Value.Servers.SingleOrDefault(s => s.WorldId == worldId);
+        if (world is null || server is null ||
+            !applications.AllowsWorldAccess(context.ApplicationKey, worldId, world.AccessLevelRequired, root.AccessLevel))
+        {
             return Refuse(GameWorldRefusal.NotAllowed);
-        if (world.Port is < 1 or > 65535 || Uri.CheckHostName(world.Host) == UriHostNameType.Unknown ||
-            !await readiness.IsReadyAsync(worldId, cancellationToken))
+        }
+
+        // Only a world the context may enter says it is down.
+        if (!databases.IsAvailable(new WorldId(worldId)) || world.Port is < 1 or > 65535 ||
+            Uri.CheckHostName(world.Host) == UriHostNameType.Unknown || !await readiness.IsReadyAsync(worldId, cancellationToken))
         {
             return Refuse(GameWorldRefusal.Unavailable);
         }

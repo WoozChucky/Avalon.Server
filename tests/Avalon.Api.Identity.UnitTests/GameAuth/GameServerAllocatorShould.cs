@@ -98,7 +98,7 @@ public sealed class GameServerAllocatorShould
         Assert.Equal(new string('A', 64), destination.TlsCertificateSha256);
         Assert.Equal("0.2.0", destination.MinVersion);
         Assert.Single(await _allocator.ListAsync(_context, CancellationToken.None));
-        Assert.Equal(GameWorldRefusal.Unavailable, Refused(await _allocator.FindAsync(_context, 2, null, CancellationToken.None)));
+        Assert.Equal(GameWorldRefusal.NotAllowed, Refused(await _allocator.FindAsync(_context, 2, null, CancellationToken.None)));
     }
     [Fact]
     public async Task Gate_current_account_world_access_readiness_protocol_and_database_availability()

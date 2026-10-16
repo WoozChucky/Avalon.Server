@@ -23,13 +23,13 @@ public interface IGameServerAllocator
 /// </summary>
 public enum GameWorldRefusal : byte
 {
-    /// <summary>Try later: no workload assigned, the world's database unavailable, not ready (no fresh heartbeat), its row unusable, or the maintenance cutoff in force for a non-Admin.</summary>
+    /// <summary>Try later, told only of a world the context may enter: its database unavailable, its host or port unusable, not ready (no fresh heartbeat), the maintenance cutoff in force for a non-Admin, or a <c>MinVersion</c> that does not read.</summary>
     Unavailable = 0,
     /// <summary>The context's client version is below the world's <c>MinVersion</c>.</summary>
     ClientOutdated,
     /// <summary>The context's client version is below the API's floor, <c>Application:GameWorkloads:MinClientVersion</c> (#949).</summary>
     UnsupportedProtocol,
-    /// <summary>The context's application is not allowed on the world, or the account's access level is below the world's: one reason for both.</summary>
+    /// <summary>The context's application is not allowed on the world, the account's access level is below the world's, or the world has no row or no workload: one reason for all, so a world the context may not enter is never told apart from one that does not exist.</summary>
     NotAllowed,
     /// <summary>The account is banned (named only at the context's credentials version, #882).</summary>
     AccountBanned,

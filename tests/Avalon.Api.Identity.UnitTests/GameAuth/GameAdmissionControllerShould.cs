@@ -15,6 +15,7 @@ using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using AccountStatus = Avalon.Domain.Auth.AccountStatus;
+using WorldId = Avalon.Domain.Auth.WorldId;
 
 namespace Avalon.Api.Identity.UnitTests.GameAuth;
 
@@ -90,6 +91,8 @@ public sealed class GameAdmissionControllerShould
             Assert.Equal(status, answer.StatusCode);
             Assert.Equal(error, reply.Error);
             Assert.Equal(requiredVersion, reply.RequiredVersion);
+            // The 426's advisory Upgrade header names the same version, as a product token.
+            Assert.Equal(requiredVersion is null ? string.Empty : "avalon-client/" + requiredVersion, h.LastJoin!.Response.Headers.Upgrade.ToString());
             Assert.Null(reply.JoinTicket);
         }
         Assert.Equal(redemption, (await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", Guid.NewGuid(), Guid.NewGuid(), default)).Error);
@@ -109,5 +112,36 @@ public sealed class GameAdmissionControllerShould
         GameWorldDestination world = Assert.Single(worlds);
         Assert.Equal(listing == "update", world.RequiresUpdate);
         Assert.Equal(h.World.MinVersion, world.MinVersion);
+    }
+
+    /// <summary>
+    /// A world the context may not enter is never told apart from one that does not exist (#1053, the rule
+    /// <c>WorldRouteMiddleware</c> keeps): an id with no row, a row with no workload, and a world above the account's
+    /// access level, its database up or down, are one 403 <c>WORLD_NOT_ALLOWED</c>, and none of them reads the world's
+    /// database or readiness, whose answer would tell a restricted world's state.
+    /// </summary>
+    [Theory]
+    [InlineData((ushort)9, true)]
+    [InlineData((ushort)5, true)]
+    [InlineData((ushort)3, true)]
+    [InlineData((ushort)3, false)]
+    public async Task Refuse_a_world_the_context_may_not_enter_as_one_that_does_not_exist(ushort worldId, bool databaseUp)
+    {
+        var h = new GameAdmissionHarness(false);
+        // World 5: a row any Player may enter, but no workload. World 3 is PTR-only, and this context is the main
+        // application's, which does not lift the account to PTR. World 9 has no row.
+        var unassigned = new Avalon.Domain.Auth.World { Id = new WorldId(5), Name = "Unassigned", Host = "five.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0" };
+        h.WorldRows.FindByIdAsync(unassigned.Id, false, Arg.Any<CancellationToken>()).Returns(unassigned);
+        h.Databases.IsAvailable(Arg.Any<WorldId>()).Returns(databaseUp);
+        h.Databases.ClearReceivedCalls();
+        h.Readiness.ClearReceivedCalls();
+        string credential = (await h.Authenticate(2499460)).GameContextCredential!;
+
+        ObjectResult answer = Assert.IsAssignableFrom<ObjectResult>(await h.Join(credential, null, false, worldId));
+        Assert.Equal(StatusCodes.Status403Forbidden, answer.StatusCode);
+        Assert.Equal("WORLD_NOT_ALLOWED", Assert.IsType<GameJoinReply>(answer.Value).Error);
+        h.Databases.DidNotReceive().IsAvailable(Arg.Any<WorldId>());
+        await h.Readiness.DidNotReceive().IsReadyAsync(Arg.Any<ushort>(), Arg.Any<CancellationToken>());
+        await h.WorldRows.Received(1).FindByIdAsync(new WorldId(worldId), false, Arg.Any<CancellationToken>());
     }
 }
