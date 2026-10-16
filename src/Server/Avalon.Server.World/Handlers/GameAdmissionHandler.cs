@@ -14,7 +14,7 @@ namespace Avalon.Server.World.Handlers;
 /// Redeems a join ticket and admits the connection. On a world that seals (<c>Network:PacketEncryption</c>), admission
 /// also completes the key exchange: the client's public key must be one, the session is keyed from it, and the reply
 /// carries the connection's own. A world that does not seal runs no exchange (#878): whatever public key the client
-/// sends (a 0.3.0 client sends one before it knows the mode) is ignored, and the reply's key is empty.
+/// sends (a client from 0.3.0 on sends one before it knows the mode) is ignored, and the reply's key is empty.
 /// </summary>
 /// <remarks>
 /// The session is keyed off the tick, after the ticket is redeemed (an agreement, two derivations and two ciphers, about

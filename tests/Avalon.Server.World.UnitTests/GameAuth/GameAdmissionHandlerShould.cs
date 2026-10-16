@@ -48,7 +48,7 @@ public sealed class GameAdmissionHandlerShould
         using var connection = WorldAdmissionConnection.Create(server);
         IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>(); GameSessionLease lease = WorldAdmissionConnection.Lease();
         api.AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new WorldAdmissionResult(lease, null));
-        // A 0.3.0 client sends a public key of its own in both modes: it learns the mode from the reply.
+        // A client from 0.3.0 on sends a public key of its own in both modes: it learns the mode from the reply.
         byte[] clientKey = new CryptoManager().GetPublicKey();
         await Handler(api).ExecuteAsync(new()
         {

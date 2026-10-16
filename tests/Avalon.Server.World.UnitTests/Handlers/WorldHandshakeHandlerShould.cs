@@ -26,8 +26,8 @@ public sealed class WorldHandshakeHandlerShould
     }
     // The world's MinVersion is its only floor (#949): a client at it is accepted, whatever version the API signs in.
     [Theory]
-    [InlineData("0.0.1", "0.3.0", false)]
-    [InlineData("0.0.1", "0.3.0", true)]
+    [InlineData("0.0.1", "0.4.0", false)]
+    [InlineData("0.0.1", "0.4.0", true)]
     [InlineData("0.2.0", "0.2.0", false)]
     public async Task Accept_supported_client_only_after_admission_and_request_the_initial_ping(string minimum, string version,
         bool leaseOnly)
@@ -68,7 +68,7 @@ public sealed class WorldHandshakeHandlerShould
     public async Task Close_without_a_reply_when_the_worlds_own_minimum_does_not_parse()
     {
         using var connection = WorldAdmissionConnection.Create(); connection.PublishAdmission(WorldAdmissionConnection.Lease());
-        await Handler("invalid").ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.3.0" } });
+        await Handler("invalid").ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.4.0" } });
         Assert.True(connection.IsClosing); Assert.False(connection.IsGameplayAuthorized);
         Assert.Empty(connection.Sent);
     }
@@ -84,7 +84,7 @@ public sealed class WorldHandshakeHandlerShould
     public async Task Close_a_second_handshake_without_a_reply_whatever_its_version()
     {
         using var connection = WorldAdmissionConnection.Create(); connection.PublishAdmission(WorldAdmissionConnection.Lease());
-        await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.3.0" } });
+        await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.4.0" } });
         await Handler().ExecuteAsync(new() { Connection = connection, Packet = new() { Version = "0.1.0" } });
         Assert.True(connection.IsClosing);
         Assert.Single(connection.Sent);

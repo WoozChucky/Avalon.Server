@@ -194,7 +194,7 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
 14. `SGameAdmissionPacket(PublicKey, Result, PacketEncryption)` — `Accepted` with the world's mode (field 3,
     `Network:PacketEncryption`, #875): true, the reply carries the connection's public key and the client seals every
     gameplay packet it sends; false, TLS alone, the public key is empty and the client sends plain, keying nothing
-    (client 0.3.0 reads the mode before it asks for a key). The client seals exactly as told. Otherwise `InvalidRequest`,
+    (a client from 0.3.0 on reads the mode before it asks for a key). The client seals exactly as told. Otherwise `InvalidRequest`,
     `AuthorizationRequired`, `ServiceUnavailable`, `UnsupportedClient` (a client too old for this world or the
     API's floor, which the join ticket already refuses 426 or 400, #1053; step 15 is the backstop) or `WorldFull` (5,
     #967: sent only by the world's player-limit backstop, over `Game:PlayerLimit` plus margin), `PacketEncryption` false, and the connection is closed
@@ -222,9 +222,14 @@ by its header while its connection has a session; a world that does not seal has
 
 | Client | Server | Client to server | Server to client |
 |---|---|---|---|
-| 0.3.0 | flag off | plain; no key exchanged | plain |
-| 0.3.0 | flag on | sealed | sealed |
+| 0.3.0 and later | flag off | plain; no key exchanged | plain |
+| 0.3.0 and later | flag on | sealed | sealed |
 | before 0.3.0 | either | refused at sign-in and at world allocation while `Application:GameWorkloads:MinClientVersion` is 0.3.0 or above (#948, #949); one that reached a world with the flag off would seal, and be closed | |
+
+The floor's default in the API's `appsettings.json` is 0.4.0 since #967, the first client that says goodbye
+([`CMSG_LEAVE_WORLD`](#the-goodbye-cmsg_leave_world)): once a release with it is deployed, a 0.3.0 client is refused at
+sign-in (400 `UNSUPPORTED_PROTOCOL`). The floor is "at or above" (#949), so the 0.4.0 client ships first, against
+services whose floor is still 0.3.0.
 
 ## Time Sync: `SMSG_PING` and `CMSG_PONG`
 

@@ -143,7 +143,7 @@ public sealed class GameAdmissionControllerShould
         {
             case WorldRefusal.Unavailable: h.Readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(false); break;
             case WorldRefusal.ClientOutdated: h.World.MinVersion = "01.0.0"; break;
-            case WorldRefusal.BelowApiFloor: h.Workloads.MinClientVersion = "0.4.0"; break;
+            case WorldRefusal.BelowApiFloor: h.Workloads.MinClientVersion = "0.5.0"; break;
             case WorldRefusal.NotAllowed: h.World.AccessLevelRequired = AccountAccessLevel.GameMaster; break;
             case WorldRefusal.Banned: h.Account.Status = AccountStatus.Banned; break;
             default:
