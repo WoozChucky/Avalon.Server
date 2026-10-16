@@ -1,4 +1,5 @@
 using Avalon.Common.GameAuth;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
 
 namespace Avalon.World.GameAuth;
@@ -16,4 +17,12 @@ public static class SessionEndReasons
         // idling. Each holds the place for the grace.
         _ => GameSessionEndReasons.Drop,
     };
+
+    /// <summary>
+    /// Notes <paramref name="reason"/> on a world connection before a close that tells the client something else (an
+    /// account-wide session end the client is told as <c>Kicked</c>, a failed entry check told as <c>Maintenance</c>):
+    /// the first reason noted is the one identity is told.
+    /// </summary>
+    internal static void Note(IConnection connection, string reason) =>
+        (connection as WorldConnection)?.NoteSessionEndReason(reason);
 }

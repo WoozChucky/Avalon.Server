@@ -179,10 +179,7 @@ public class CharacterSelectHandler(
 
             if (!decision.IsValidAt(Clock.GetUtcNow().UtcDateTime))
             {
-#pragma warning disable MA0045 // tick continuation cannot await; the close finishes on its own
-                GracefulShutdownHelper.NotifyAndClose(connection, "World is under maintenance",
-                    DisconnectReason.Maintenance, logger);
-#pragma warning restore MA0045
+                EntryRefusal.Close(connection, decision, logger);
                 return;
             }
 

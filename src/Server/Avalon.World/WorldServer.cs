@@ -1112,11 +1112,19 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
 
         logger.LogInformation("Disconnecting account {AccountId}", id);
-        return CloseAll(connections, new AccountId(id), SessionEndedMessage, DisconnectReason.Kicked, logger);
+        // Everything on this channel ends the account's sessions for its credentials or its security (a ban or a
+        // deactivation has a channel of its own), not as a sanction: the place is held, as after a drop (#967, owner
+        // decision). Should a ban come here (its status notice could not be published), identity removes the place
+        // anyway: it reads the account's standing at the end.
+        return CloseAll(connections, new AccountId(id), SessionEndedMessage, DisconnectReason.Kicked, logger,
+            GameSessionEndReasons.Drop);
     }
 
+    /// <param name="sessionEnd">
+    /// What identity is told when the session ends, when it is not what <paramref name="reason"/> maps to (#967).
+    /// </param>
     private static int CloseAll(IEnumerable<IWorldConnection> connections, AccountId accountId, string text,
-        DisconnectReason reason, ILogger logger)
+        DisconnectReason reason, ILogger logger, string? sessionEnd = null)
     {
         int closed = 0;
         // A snapshot: closing a connection can change the collection it came from.
@@ -1124,6 +1132,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             try
             {
+                if (sessionEnd is not null) SessionEndReasons.Note(connection, sessionEnd);
 #pragma warning disable MA0045 // a cache subscription callback, and the process stays up to finish the close
                 GracefulShutdownHelper.NotifyAndClose(connection, text, reason, logger);
 #pragma warning restore MA0045

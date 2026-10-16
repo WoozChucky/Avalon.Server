@@ -21,6 +21,12 @@ public readonly record struct WorldEntryDecision(bool Allowed, DateTime ValidUnt
     /// </summary>
     public bool Busy { get; init; }
 
+    /// <summary>
+    /// The check failed (it threw, or took more than 5 s): a refusal, but a fault of the world's, not a maintenance
+    /// verdict, so the session's end holds the account's place (#967). Never allowed.
+    /// </summary>
+    public bool Failed { get; init; }
+
     public bool IsValidAt(DateTime nowUtc) => Allowed && nowUtc < ValidUntilUtc;
 }
 
@@ -66,7 +72,7 @@ public static class WorldEntryGateExtensions
         catch (Exception e)
         {
             s_failures.Report(logger, "The world entry check", e);
-            return default;
+            return new WorldEntryDecision { Failed = true };
         }
     }
 }
@@ -130,7 +136,7 @@ public sealed class WorldEntryGate(
         catch (Exception e)
         {
             _failures.Report(logger ?? (ILogger)NullLogger.Instance, "Reading the maintenance state or the account", e);
-            return default;
+            return new WorldEntryDecision { Failed = true };
         }
     }
 }

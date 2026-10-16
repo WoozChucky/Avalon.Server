@@ -27,16 +27,21 @@ public partial class WorldConnection
     /// <summary>Whether identity may hold the session past <see cref="GameSessionLease" /> (#1051, <see cref="RenewalLedger" />).</summary>
     internal bool RenewalUnaccounted => RenewalLedger.MayOutlastLease(ref _renewals);
 
-    // The first reason the world closed this connection for (#967), as an int; -1 while none. Written by whichever
-    // thread closes, read when the session's end is built.
-    private int _disconnectReason = -1;
+    // What identity is told when this connection's session ends (#967): the first reason noted, null while none. Written
+    // by whichever thread closes, read when the session's end is built.
+    private string? _sessionEndReason;
 
-    /// <summary>Notes the first reason the world closed this connection for (#967).</summary>
-    public void NoteDisconnectReason(DisconnectReason reason) => Interlocked.CompareExchange(ref _disconnectReason, (int)reason, -1);
+    /// <summary>Notes the first reason the world closed this connection for (#967), as <see cref="SessionEndReasons.For"/> maps it.</summary>
+    public void NoteDisconnectReason(DisconnectReason reason) => NoteSessionEndReason(SessionEndReasons.For(reason));
 
-    /// <summary>What identity is told when this connection's session ends (#967): <see cref="SessionEndReasons.For"/>.</summary>
-    public string SessionEndReason =>
-        SessionEndReasons.For(Volatile.Read(ref _disconnectReason) is var noted and >= 0 ? (DisconnectReason)noted : null);
+    /// <summary>
+    /// Notes the end reason itself (a <see cref="GameSessionEndReasons"/> value), before a close whose notice the client is
+    /// told differently: the first noted wins, so the notice's own reason then changes nothing.
+    /// </summary>
+    internal void NoteSessionEndReason(string reason) => Interlocked.CompareExchange(ref _sessionEndReason, reason, null);
+
+    /// <summary>What identity is told when this connection's session ends (#967): a drop when the world noted nothing.</summary>
+    public string SessionEndReason => Volatile.Read(ref _sessionEndReason) ?? GameSessionEndReasons.Drop;
     public bool IsTlsAuthenticated => _tlsAuthenticated;
     public GameSessionLease? GameSessionLease => Volatile.Read(ref _gameSessionLease);
     public bool IsGameplayAuthorized => _tlsAuthenticated && _protocolAccepted && !_maintenanceBlocked &&
