@@ -59,9 +59,19 @@ public class ScriptHotReloader : IScriptHotReloader
             return;
         }
 
+        // A diagnostic only: a signature that fails to resolve skips the warning and never stops the reload, which this
+        // compiler event (an async void) would otherwise end the process with.
         foreach (Type type in types)
         {
-            WarnIfPinned(type);
+            try
+            {
+                WarnIfPinned(type);
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Could not check hot-reloaded script {Script} for services that keep its compile",
+                    type.FullName);
+            }
         }
 
         // One generation at a time: two compiles finishing together replace each other in turn, and only the last
