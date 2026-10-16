@@ -32,15 +32,30 @@ public interface IScriptManager
     IReadOnlyList<string> AuraScriptNames { get; }
 
     /// <summary>
-    /// Registers AI scripts compiled at runtime (the hot reloader's), by name, in place of any script of that name.
-    /// <c>[ChainedScript]</c> types are skipped, as <see cref="Load"/> skips them.
+    /// Registers a generation of AI scripts compiled at runtime (the hot reloader's), by name, in place of any built-in
+    /// script of that name and of the generation registered before, which is dropped whole (#930): a name only an
+    /// older generation had is no longer registered. <c>[ChainedScript]</c> types are skipped, as <see cref="Load"/>
+    /// skips them.
     /// </summary>
     void RegisterHotReloaded(IEnumerable<Type> aiScriptTypes);
 }
 
+/// <summary>
+/// Finds every script by type name. <see cref="Load" /> scans the assemblies the process was built with (none loaded
+/// at runtime: not a collectible one, not a dynamic one) and lays the hot reloader's current generation over them, so
+/// the newest copy of a name wins and a type compiled or emitted at runtime by anything else is never named (#930).
+/// </summary>
+/// <remarks>
+/// The manager holds the types of the built-in scripts and of one hot-reloaded generation only: once a generation is
+/// replaced, nothing here keeps its load context in memory.
+/// </remarks>
 public class ScriptManager : IScriptManager
 {
     private readonly ILogger<ScriptManager> _logger;
+
+    // The built-in AI scripts, from the last Load, and the hot-reloaded generation laid over them. Under _registration.
+    private IReadOnlyDictionary<string, Type> _builtInAiScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
+    private IReadOnlyList<Type> _hotReloadedAiScripts = [];
 
     // Replaced whole, never changed in place: the hot reloader's thread registers while the tick thread reads.
     private volatile IReadOnlyDictionary<string, Type> _aiScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
@@ -65,7 +80,11 @@ public class ScriptManager : IScriptManager
 
         _logger.LogInformation("Loaded {Count} AI scripts", aiScripts.Count);
 
-        _aiScripts = aiScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
+        lock (_registration)
+        {
+            _builtInAiScripts = aiScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
+            _aiScripts = WithHotReloaded(_builtInAiScripts, _hotReloadedAiScripts);
+        }
 
         List<Type> abilityScripts = FindScriptTypes<AbilityScript>();
 
@@ -105,16 +124,25 @@ public class ScriptManager : IScriptManager
 
     public void RegisterHotReloaded(IEnumerable<Type> aiScriptTypes)
     {
+        Type[] generation = aiScriptTypes.Where(t => !t.IsDefined(typeof(ChainedScriptAttribute), inherit: false)).ToArray();
         lock (_registration)
         {
-            Dictionary<string, Type> scripts = new(_aiScripts, StringComparer.Ordinal);
-            foreach (Type type in aiScriptTypes.Where(t => !t.IsDefined(typeof(ChainedScriptAttribute), inherit: false)))
-            {
-                scripts[type.Name] = type;
-            }
-
-            _aiScripts = scripts;
+            _hotReloadedAiScripts = generation;
+            _aiScripts = WithHotReloaded(_builtInAiScripts, generation);
         }
+    }
+
+    // Built from the built-in scripts every time, never from the map before: that one may hold an older generation.
+    private static Dictionary<string, Type> WithHotReloaded(IReadOnlyDictionary<string, Type> builtIn,
+        IReadOnlyList<Type> generation)
+    {
+        Dictionary<string, Type> scripts = new(builtIn, StringComparer.Ordinal);
+        foreach (Type type in generation)
+        {
+            scripts[type.Name] = type;
+        }
+
+        return scripts;
     }
 
     /// <summary>
@@ -159,6 +187,12 @@ public class ScriptManager : IScriptManager
     public Type? GetAuraScript(string name) =>
         _auraScripts.TryGetValue(name, out Type? scriptType) ? scriptType : null;
 
+    /// <summary>
+    /// The concrete <typeparamref name="TBaseType" /> subclasses of the built-in assemblies: every one loaded but those
+    /// made at runtime. A collectible one is a hot-reload generation, which reaches the manager through
+    /// <see cref="RegisterHotReloaded" /> alone, or something else's, as is a dynamic one; scanned, an older or unrelated
+    /// copy of a name could be picked over the current one, and would be held for good.
+    /// </summary>
     private List<Type> FindScriptTypes<TBaseType>()
     {
         Type baseType = typeof(TBaseType);
@@ -168,6 +202,11 @@ public class ScriptManager : IScriptManager
 
         foreach (Assembly assembly in assemblies)
         {
+            if (assembly.IsDynamic || assembly.IsCollectible)
+            {
+                continue;
+            }
+
             try
             {
                 Type[] types = assembly.GetTypes();

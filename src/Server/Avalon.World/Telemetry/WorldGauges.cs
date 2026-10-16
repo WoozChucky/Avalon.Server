@@ -1,14 +1,15 @@
 using System.Diagnostics.Metrics;
 using Avalon.World.Public;
 using Avalon.World.Public.Instances;
+using Avalon.World.Scripts.Abstractions;
 
 namespace Avalon.World.Telemetry;
 
 /// <summary>
-/// The world's population and receive-queue gauges. Read on the metrics exporter's thread, never on the tick:
-/// the connection list is an immutable snapshot, each connection's receive queue is a concurrent queue, and
-/// the instance count comes from the registry's concurrent dictionary. The registry is null until
-/// World.LoadAsync has run.
+/// The world's population, receive-queue and script load context gauges. Read on the metrics exporter's thread, never
+/// on the tick: the connection list is an immutable snapshot, each connection's receive queue is a concurrent queue,
+/// the instance count comes from the registry's concurrent dictionary, and the load contexts are counted under their
+/// own lock. The registry is null until World.LoadAsync has run.
 /// </summary>
 public static class WorldGauges
 {
@@ -21,6 +22,19 @@ public static class WorldGauges
             "{instances}", "Map instances alive");
         meter.CreateObservableGauge("world.receive_queue.depth", () => ReceiveQueueDepth(connections()),
             "{packets}", "Packets received and not yet dispatched: the total over connections, and the deepest one");
+        meter.CreateObservableGauge("avalon.world.scripts.load_contexts", ScriptLoadContexts,
+            "{contexts}", "Hot-reload script load contexts in memory: the current one, and unloaded ones not yet collected");
+    }
+
+    // Allocates on the exporter's collection, never on the tick.
+    private static Measurement<long>[] ScriptLoadContexts()
+    {
+        (int current, int unloaded) = ScriptAssemblyLoadContext.CountAlive();
+        return
+        [
+            new Measurement<long>(current, new KeyValuePair<string, object?>("state", "current")),
+            new Measurement<long>(unloaded, new KeyValuePair<string, object?>("state", "unloaded")),
+        ];
     }
 
     // Allocates on the exporter's collection, never on the tick.

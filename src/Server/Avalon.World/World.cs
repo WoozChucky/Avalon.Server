@@ -94,8 +94,9 @@ public class World : IWorld
     private readonly ThrottledErrorLog _publishErrors;
     private readonly TickThreadGuard? _tick;
 
-    // Every AI script type hot reloaded so far, by name (the latest of each), applied on the tick. An instance whose build
-    // was in flight during a reload is brought up to date with it when it is published (#639).
+    // The AI script types of the latest hot-reload generation applied on the tick, by name. An instance whose build was
+    // in flight during a reload is brought up to date with it when it is published (#639). The latest generation only:
+    // one kept from before would keep that generation's load context in memory for good (#930).
     private readonly Dictionary<string, Type> _hotReloaded = new(StringComparer.InvariantCultureIgnoreCase);
 
     private InstanceRegistry? _registry;
@@ -740,6 +741,7 @@ public class World : IWorld
     {
         var scriptTypeDict =
             aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
+        _hotReloaded.Clear();
         foreach ((string name, Type type) in scriptTypeDict)
             _hotReloaded[name] = type;
 

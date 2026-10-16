@@ -13,16 +13,25 @@ public interface IScriptHotReloader
     void Update(out List<Type> scriptTypes);
 }
 
+/// <summary>Every AI script type of the new generation; the ones of the generation before are no longer in use.</summary>
 public delegate void ScriptsHotReloadedEventHandler(List<Type> types);
 
+/// <summary>
+/// Turns each compile of the hot-reload scripts into a generation of AI scripts (#930). A compile that brings AI
+/// scripts replaces the generation before: <see cref="ScriptsHotReloaded" /> and <see cref="Update" /> hand out its
+/// types, and the replaced generation's context is unloaded, to be collected once nothing uses its types any more. A
+/// compile that brings none replaces nothing, and its own context is unloaded at once.
+/// </summary>
 public class ScriptHotReloader : IScriptHotReloader
 {
     public event ScriptsHotReloadedEventHandler? ScriptsHotReloaded;
 
     private readonly List<Type> _scriptTypes = [];
+    private readonly object _generation = new();
 
     private readonly IScriptCompiler _scriptCompiler;
     private readonly ILogger<ScriptHotReloader> _logger;
+    private ScriptAssemblyLoadContext? _current;
     private bool _active;
 
     public ScriptHotReloader(ILoggerFactory loggerFactory, IScriptCompiler scriptCompiler)
@@ -40,20 +49,31 @@ public class ScriptHotReloader : IScriptHotReloader
         _scriptCompiler.Start();
     }
 
-    private void OnScriptCompiled(Assembly assembly)
+    private void OnScriptCompiled(CompiledScripts scripts)
     {
-        if (!_active) return;
+        List<Type> types = _active ? FindScriptTypes<AiScript>(scripts.Assembly) : [];
 
-        List<Type> types = FindScriptTypes<AiScript>(assembly);
-
-        if (types.Count == 0) return;
-
-        _logger.LogDebug("HotReloading {Count} AI scripts...", types.Count);
-        ScriptsHotReloaded?.Invoke(types);
-        lock (_scriptTypes)
+        if (types.Count == 0)
         {
-            _scriptTypes.Clear();
-            _scriptTypes.AddRange(types);
+            scripts.Context.Unload();
+            return;
+        }
+
+        // One generation at a time: two compiles finishing together replace each other in turn, and only the last
+        // stays current.
+        lock (_generation)
+        {
+            _logger.LogDebug("HotReloading {Count} AI scripts...", types.Count);
+            ScriptsHotReloaded?.Invoke(types);
+            lock (_scriptTypes)
+            {
+                _scriptTypes.Clear();
+                _scriptTypes.AddRange(types);
+            }
+
+            // In use until the world has swapped the scripts it runs; unloading only lets it go once nothing does.
+            _current?.Unload();
+            _current = scripts.Context;
         }
     }
 
