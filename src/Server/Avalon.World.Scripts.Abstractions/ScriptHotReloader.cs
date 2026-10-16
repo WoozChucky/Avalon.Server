@@ -59,6 +59,11 @@ public class ScriptHotReloader : IScriptHotReloader
             return;
         }
 
+        foreach (Type type in types)
+        {
+            WarnIfPinned(type);
+        }
+
         // One generation at a time: two compiles finishing together replace each other in turn, and only the last
         // stays current.
         lock (_generation)
@@ -97,6 +102,47 @@ public class ScriptHotReloader : IScriptHotReloader
             scriptTypes = [.. _scriptTypes];
             _scriptTypes.Clear();
         }
+    }
+
+    /// <summary>
+    /// Warns, once for <paramref name="scriptType" />, when a public constructor of it takes a service closed over the
+    /// script's own type (<c>ILogger&lt;TScript&gt;</c>, <c>IOptions&lt;Settings&lt;TScript&gt;&gt;</c>, ...): the
+    /// container keeps what it resolved for the life of the process, and with it the type and its whole compile, so
+    /// the generation is never collected. The script still loads and runs.
+    /// </summary>
+    private void WarnIfPinned(Type scriptType)
+    {
+        foreach (ConstructorInfo constructor in scriptType.GetConstructors())
+        {
+            foreach (ParameterInfo parameter in constructor.GetParameters())
+            {
+                if (!ClosesOver(parameter.ParameterType, scriptType))
+                    continue;
+
+                // Names only: a log record that held the types would hold the compile too, until it is written.
+                _logger.LogWarning(
+                    "Hot-reloaded script {Script} takes {ParameterType}, a service closed over its own type: the " +
+                    "container keeps it for the life of the process, and with it this compile, which is never " +
+                    "unloaded. Take ILoggerFactory (or a non-generic service) instead",
+                    scriptType.FullName, parameter.ParameterType.ToString());
+                return;
+            }
+        }
+    }
+
+    /// <summary>Whether <paramref name="type" />'s generic arguments, at any depth, include <paramref name="scriptType" />.</summary>
+    private static bool ClosesOver(Type type, Type scriptType)
+    {
+        if (!type.IsConstructedGenericType)
+            return false;
+
+        foreach (Type argument in type.GenericTypeArguments)
+        {
+            if (argument == scriptType || ClosesOver(argument, scriptType))
+                return true;
+        }
+
+        return false;
     }
 
     private List<Type> FindScriptTypes<TBaseType>(Assembly assembly)
