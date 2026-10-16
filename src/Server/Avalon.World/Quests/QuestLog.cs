@@ -163,7 +163,8 @@ public sealed class QuestLog(SaveStateTracker save)
     public ushort MarkersLevel { get; set; }
     public int MarkersVersion { get; set; } = -1;
     public object? MarkersCatalog { get; set; }
-    public IReadOnlyList<(ulong Creature, byte Marker)>? MarkersSent => _markersSent;
+    /// <summary>The markers last sent; the log reuses this list, so it is valid only until the next send.</summary>
+    internal IReadOnlyList<(ulong Creature, byte Marker)>? MarkersSent => _markersSent;
 
     // The markers last sent, and the list the next working-out fills (#973): the two trade places when a list is sent,
     // so working the markers out allocates no list once both have grown.
