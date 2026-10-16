@@ -133,7 +133,8 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
 
         """;
 
-    // KEYS: 1 places, 2 marks, 3 queue, 4 checkins, 5 arrivals, 6 the account's waiting key.
+    // KEYS: 1 places, 2 marks, 3 queue, 4 checkins, 5 arrivals, 6 the account's waiting key, then places and marks of
+    //       each other world.
     // ARGV: 1 account, 2 now, 3 until, 4 limit ('' for none), 5 staff ('1'/'0'), 6 queue capacity, 7 front positions,
     //       8 front timeout ms, 9 back timeout ms, 10 waiting-key prefix, 11 world id, 12 waiting-key lifetime s,
     //       13 the ticket's id (N format), 14 the unclaimed horizon in ms.
@@ -144,10 +145,23 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         -- Every place a ticket is admitted to is never shortened (a held place's grace, a turn, an owner's lease), and is
         -- the ticket's to hold. The owner field is left as it is: on a new place it can only be an ended session's
         -- tombstone, which keeps refusing that session's late renewals until it expires.
+        -- One place a ticket alone holds per account: a ticket admitted here releases the account's places that only a
+        -- ticket holds in every other world (a ticket's mark, no live session owning it). Never a place held after a drop,
+        -- nor one a ticket returned to from a drop (j:...:h), nor one a live session owns, nor a turn.
+        local function release_elsewhere()
+          for i = 7, #KEYS, 2 do
+            local _, id, was = ticket(redis.call('HGET', KEYS[i + 1], account))
+            if id and not was then
+              local current, ended = owner(KEYS[i + 1], account)
+              if not current or ended then forget_place(KEYS[i], KEYS[i + 1], account) end
+            end
+          end
+        end
         local function admit(source, waited, was)
           redis.call('ZADD', KEYS[1], 'GT', ARGV[3], account)
           redis.call('HSET', KEYS[2], account, ticket_mark(ARGV[3], ARGV[13], was))
           unclaimed(KEYS[2], account, ARGV[2])
+          release_elsewhere()
           return {0, source, 0, waited, turns, silent}
         end
         local function leave_line()
@@ -183,6 +197,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           if held and held > ends then ends = held end
           redis.call('HSET', KEYS[2], account, ticket_mark(string.format('%d', ends), ARGV[13], was))
           unclaimed(KEYS[2], account, ARGV[2])
+          release_elsewhere()
           return {0, 1, 0, 0, turns, silent}
         end
         local rank = redis.call('ZRANK', KEYS[3], account)
@@ -415,6 +430,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         RedisResult[] r = await RunArrayAsync(Enter,
         [
             .. WorldKeys(request.WorldId), CacheKeys.WorldQueueArrivals(request.WorldId), CacheKeys.WorldQueueWaiting(request.AccountId),
+            .. OtherWorldKeys(request.WorldId),
         ],
         [
             request.AccountId, Now, until, Limit(request.Limit), request.Staff ? "1" : "0",
@@ -429,18 +445,10 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     public async Task RenewAsync(ushort worldId, long accountId, long fence, Guid sessionId, DateTime until, bool activation,
         CancellationToken cancellationToken)
     {
-        var keys = new List<RedisKey> { CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId) };
-        if (activation)
-        {
-            // One pair per other world, however many workloads name it.
-            foreach (ushort other in workloads.Value.Servers.Select(s => s.WorldId).Where(id => id != worldId).Distinct())
-            {
-                keys.Add(CacheKeys.WorldPlaces(other));
-                keys.Add(CacheKeys.WorldPlaceMarks(other));
-            }
-        }
-
-        await RunTombstoningAsync(Renew, [.. keys],
+        RedisKey[] keys = activation
+            ? [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId), .. OtherWorldKeys(worldId)]
+            : [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)];
+        await RunTombstoningAsync(Renew, keys,
             [accountId, Ms(until), activation ? "1" : "0", fence, sessionId.ToString("N"), Now, s_tombstoneLifetime], cancellationToken);
     }
 
@@ -525,6 +533,16 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
 
     /// <summary>A limit for a script: the number, or the empty string for none, which Lua's <c>tonumber</c> reads as nil.</summary>
     private static RedisValue Limit(int? limit) => limit is { } value ? value : RedisValue.EmptyString;
+
+    /// <summary>The places and marks of every other configured world, one pair per world however many workloads name it.</summary>
+    private IEnumerable<RedisKey> OtherWorldKeys(ushort worldId)
+    {
+        foreach (ushort other in workloads.Value.Servers.Select(s => s.WorldId).Where(id => id != worldId).Distinct())
+        {
+            yield return CacheKeys.WorldPlaces(other);
+            yield return CacheKeys.WorldPlaceMarks(other);
+        }
+    }
 
     // RedisValue has implicit conversions from int and long but not from ushort, hence the (int) casts on world ids.
     private static RedisKey[] WorldKeys(ushort worldId) =>

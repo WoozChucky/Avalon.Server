@@ -101,6 +101,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
                 w.Extend(account, until);
                 w.Marks[account] = wasHeld ? RedisWorldPlaceStore.TicketMark(until, request.Ticket, true) : hold;
                 w.MarkUnclaimed(account, now);
+                ReleaseElsewhere(request.WorldId, account, now);
                 return new(PlaceOutcome.Admitted, source, 0, TimeSpan.FromMilliseconds(waited), sweep);
             }
 
@@ -134,6 +135,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
                 w.Marks[account] = RedisWorldPlaceStore.TicketMark(Math.Max(until, kept?.Until ?? 0), request.Ticket,
                     kept?.WasHeld == true);
                 w.MarkUnclaimed(account, now);
+                ReleaseElsewhere(request.WorldId, account, now);
                 return Task.FromResult(new PlaceDecision(PlaceOutcome.Admitted, PlaceSource.Kept, 0, TimeSpan.Zero, sweep));
             }
 
@@ -377,6 +379,19 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             WorldState w = World(worldId);
             PlaceSweep sweep = Sweep(worldId, w, Now);
             return Task.FromResult(new WorldPlaceCounts(w.Places.Count, w.Line.Count, w.Marks.Values.Count(m => m == Held), sweep));
+        }
+    }
+
+    /// <summary>
+    /// One place a ticket alone holds per account: the account's places in other worlds that only a ticket holds (no
+    /// live owner, a ticket's mark not taken from a drop) go. Held places, a live session's and turns stay.
+    /// </summary>
+    private void ReleaseElsewhere(ushort worldId, long account, long now)
+    {
+        foreach ((ushort id, WorldState other) in _worlds)
+        {
+            if (id == worldId || other.Ticket(account) is not { WasHeld: false }) continue;
+            if (other.Owner(account, now) is null or { Ended: true }) other.Forget(account);
         }
     }
 

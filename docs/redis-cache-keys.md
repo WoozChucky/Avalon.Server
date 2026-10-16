@@ -183,7 +183,8 @@ environment runs, and would not on a Redis Cluster.
 
 **Purpose:** The ledger. Every admitted account holds one place per world: in the world, at character select, holding
 a join ticket (until 15 s after its expiry), or held after a drop (from part 2). Activation removes the account's place
-in every other world.
+in every other world, and a join ticket admitted in one world removes the account's places that only a ticket holds
+in every other (#967).
 
 ### `world:{worldId}:places:marks`
 

@@ -451,6 +451,21 @@ public static class WorldPlaceScenarios
             await h.Renew(2);
             Assert.Equal(PlaceOutcome.WorldFull, (await h.Join(1, limit: 2, cap: 0)).Outcome);
         },
+        ["a ticket for another world releases a place only a ticket holds, never a held place or a live session's"] = async h =>
+        {
+            Assert.Equal(PlaceSource.Taken, (await h.Join(1, limit: 9)).Source); // a ticket alone, in world 1
+            await h.Admitted(2, limit: 9); // a live session in world 1
+            await h.Admitted(3, limit: 9);
+            await h.End(3, PlaceEnd.Hold); // a drop in world 1: held
+            await h.Admitted(4, limit: 9);
+            await h.End(4, PlaceEnd.Hold);
+            Assert.Equal(PlaceSource.Returned, (await h.Join(4, limit: 9)).Source); // a return: the ticket's, from a drop
+            Assert.Equal((4, 0, 1), await h.Sizes());
+            for (int account = 1; account <= 4; account++)
+                Assert.Equal(PlaceOutcome.Admitted, (await h.Join(account, limit: null, world: 2)).Outcome);
+            Assert.Equal((3, 0, 1), await h.Sizes()); // only account 1's ticket-only place went
+            Assert.Equal(4, (await h.Sizes(world: 2)).Taken);
+        },
         ["a takeover keeps the same place"] = async h =>
         {
             await h.Admitted(1, limit: 1);

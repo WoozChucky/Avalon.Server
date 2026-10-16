@@ -85,6 +85,11 @@ A stale call can at most keep a place counted a little longer (see the last poin
   heartbeats claim the place every 15 s, so a takeover or a reconnect is never refused for it. With no line (part 3)
   the account can ask again at once and take its released place as any newcomer could, if nobody took it first; the
   line (part 4) puts it behind whoever waits.
+- **One place a ticket alone holds per account, across worlds.** A join ticket admitted in one world releases the
+  account's places in every other configured world that only a ticket holds: a ticket's mark, with no live session
+  owning the place. A place held after a drop (`h`), one a ticket returned to from a drop (`j:...:h`), one a live
+  session owns, and a turn from the line all stay. So one account cannot squat one world while it asks tickets for
+  another; the release is in the same script as the admission, over the other worlds' keys as an activation's is.
 - A heartbeat of a session crossing its end in flight (the end first) changes nothing: the end's tombstone refuses
   it, whether the end removed the place or kept it, so a place given to another meanwhile is never taken back. The
   tombstone lasts one lease from the end, and a renewal still in flight at the end was sent within the session's lease,
