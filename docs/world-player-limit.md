@@ -48,10 +48,10 @@ A stale call can at most keep a place counted a little longer (see the last poin
   which only grows for an account: a takeover's session has a larger one than the session it replaces). Redemption,
   activation and heartbeats make their session the owner; a session older than the owner renews and ends nothing.
   Every session's end, whatever it does to the place (removed, held after a drop, kept by a ticket's hold, or already
-  gone), and every removal of the account's place in another world at an activation, leaves a tombstone: the field
-  records the session as ended there for one lease (45 s, after which Redis expires it, `HPEXPIREAT`), so that
-  session's own late heartbeats, and older ones', change nothing, even once the place is gone. A newer session's
-  fence still wins.
+  gone), and every activation, in each other world of the account (whether it still has a place there or not), leaves
+  a tombstone: the field records the session as ended there for one lease (45 s, counted by Redis from the moment it
+  is written, `HPEXPIRE`), so that session's own late heartbeats, and older ones', change nothing, even once the place
+  is gone. A newer session's fence still wins.
 
 | Moment | The place |
 |---|---|
@@ -75,7 +75,12 @@ A stale call can at most keep a place counted a little longer (see the last poin
 - A ticket that is never redeemed holds its place until 15 s after its expiry, then the place lapses.
 - A heartbeat of a session crossing its end in flight (the end first) changes nothing: the end's tombstone refuses
   it, whether the end removed the place or kept it, so a place given to another meanwhile is never taken back. The
-  tombstone lasts one lease, longer than any renewal the session can still have in flight. What remains: a replay that
+  tombstone lasts one lease from the end, and a renewal still in flight at the end was sent within the session's lease,
+  so it lands well before; the lease is counted by Redis from the end it records (a relative expiry), so no skew
+  between identity's clock and Redis's shortens it. Should Redis refuse the expiry (no `hpexpire` permission, or a
+  Redis before 7.4), no tombstone is written, never one without an expiry: the end and the activation still do the
+  rest, and only this protection is lost (a late heartbeat can then bring a removed place back for at most one lease,
+  counting the account in, never out). What remains: a replay that
   extends a place just before its ticket is redeemed and its session ends keeps that place counted until the
   replayed hold ends, at most 45 s after the replay. That only ever counts the account in for longer, never out.
 
@@ -124,8 +129,10 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | `world-queue:account:{accountId}` | string | `{worldId}:{enqueuedAtMs}`: the world the account waits for; a day's expiry, as garbage collection only |
 
 - Every change is one Lua script (`RedisWorldPlaceStore`), so "check the limit and take a place" and "leave the line
-  and take a place" are single steps. "Now" is passed in by identity from its `TimeProvider`; the scripts never call
-  Redis `TIME`.
+  and take a place" are single steps. "Now" is passed in by identity from its `TimeProvider`, and every place, lease,
+  hold and check-in deadline is on that clock; the scripts never call Redis `TIME`. The one time on Redis's clock is a
+  tombstone's 45 s, which Redis counts itself from when the tombstone is written (`HPEXPIRE`), so it needs no agreement
+  between the two clocks.
 - An entry whose time has passed does not count and is removed by the next script that runs for its world.
 - **Single-instance Redis only.** Joining a line leaves the account's line in another world, which the script names
   from the account's waiting key rather than from its declared keys, and an activation removes the account's place
@@ -148,15 +155,16 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 
 Each step only after the one before is done:
 
-1. **homelab#199 and homelab#200 deployed**: the Redis users carry the rules of
+1. **Redis 7.4 or later** (the field expiry `HPEXPIRE`; the homelab runs `redis:8`), and **homelab#199 and
+   homelab#202 deployed**: the Redis users carry the rules of
    [Redis users per API service](redis-cache-keys.md#redis-users-per-api-service) (homelab#199: `api-identity` the six
    key patterns and the sorted-set and hash commands, `api-worlds` read on `world:*:places` and
-   `world:*:queue:checkins`, and `zcount`; homelab#200: `api-identity` `hpexpireat`, which an ended session's
-   tombstone is written with). Check on the cluster before the identity release rolls:
-   `kubectl -n avalon exec avalon-redis-0 -- redis-cli -a "$PW" ACL GETUSER api-identity` (and `api-worlds`).
-   Deployed without them, every join answers 503, and without `hpexpireat` every session end, and every activation that
-   moves an account from another world, fails at the ledger (`NOPERM`; the session goes on or ends as usual, and the
-   place lapses with its lease).
+   `world:*:queue:checkins`, and `zcount`; homelab#202: `api-identity` `hpexpire`, which an ended session's tombstone
+   is written with, in place of the `hpexpireat` homelab#200 granted). Check on the cluster before the identity release
+   rolls: `kubectl -n avalon exec avalon-redis-0 -- redis-cli -a "$PW" ACL GETUSER api-identity` (and `api-worlds`).
+   Deployed without homelab#199, every join answers 503. Without `hpexpire` (or on an older Redis) everything works
+   but the tombstones: the scripts catch the refused expiry and write none, so an ended session's late heartbeat can
+   bring a removed place back for at most one lease.
 2. Identity, then the worlds service and the worlds, as in every release (identity before the worlds).
 3. Check: `/game/worlds` and `GET /world` show places taken for a world with players, and identity's and the worlds
    service's logs carry no "could not read world ... places" Warning.
@@ -180,7 +188,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 33, Skipped: 0` (the 32 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 34, Skipped: 0` (the 33 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary

@@ -171,16 +171,19 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             if (!activation) return Task.CompletedTask;
             foreach ((ushort id, WorldState other) in _worlds)
             {
-                if (id == worldId || !other.Places.ContainsKey(accountId)) continue;
-                if (other.Owner(accountId, now) is { } owner && owner.Fence > fence) continue;
-                if (other.Ticket(accountId) is { } running && running.Until > now)
+                // The older sessions there are ended, place or not (lost, swept); a place there goes, but for a running hold.
+                if (id == worldId || (other.Owner(accountId, now) is { } owner && owner.Fence > fence)) continue;
+                if (other.Places.ContainsKey(accountId))
                 {
-                    other.Extend(accountId, running.Until);
-                }
-                else
-                {
-                    other.Places.Remove(accountId);
-                    other.Marks.Remove(accountId);
+                    if (other.Ticket(accountId) is { } running && running.Until > now)
+                    {
+                        other.Extend(accountId, running.Until);
+                    }
+                    else
+                    {
+                        other.Places.Remove(accountId);
+                        other.Marks.Remove(accountId);
+                    }
                 }
 
                 other.Tombstone(accountId, fence, now);

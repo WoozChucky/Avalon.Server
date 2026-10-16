@@ -67,9 +67,9 @@ public interface IWorldPlaceStore
 
     /// <summary>
     /// The session with fencing token <paramref name="fence"/> ended: its place is removed, or held until
-    /// <paramref name="heldUntil"/>, and kept while a ticket's hold still runs; a place kept is marked as ended by that
-    /// session, so its late renewals change nothing. Nothing changes when a newer session owns the place or when it no
-    /// longer exists; the place is never shortened.
+    /// <paramref name="heldUntil"/>, and kept while a ticket's hold still runs; the place is never shortened, and never
+    /// re-created when it no longer exists. In every case but a newer session owning the place (which changes nothing),
+    /// the end leaves a tombstone of the session for one lease, place or not, so its late renewals change nothing.
     /// </summary>
     Task EndAsync(ushort worldId, long accountId, long fence, PlaceEnd end, DateTime heldUntil, CancellationToken cancellationToken);
 

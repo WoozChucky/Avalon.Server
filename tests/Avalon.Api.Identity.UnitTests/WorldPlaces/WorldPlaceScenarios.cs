@@ -24,10 +24,8 @@ public static class WorldPlaceScenarios
     public static Task RunAsync(string name, Func<FakeTimeProvider, WorldPlacesConfiguration, IWorldPlaceStore> create,
         PlaceIds ids)
     {
-        // Today's time, to the second: Redis expires an ended session's tombstone on its own clock (HPEXPIREAT), so the
-        // suite's times must be Redis's too. No row relies on a tombstone expiring, which only Redis's clock decides.
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-        var clock = new FakeTimeProvider(now.AddTicks(-(now.Ticks % TimeSpan.TicksPerSecond)));
+        // No row relies on a tombstone expiring: Redis counts that lease on its own clock, not this one.
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 14, 12, 0, 0, TimeSpan.Zero));
         var config = new WorldPlacesConfiguration();
         return s_rows[name](new Harness(clock, config, create(clock, config), ids));
     }
@@ -339,6 +337,16 @@ public static class WorldPlaceScenarios
             Assert.Equal(PlaceOutcome.Admitted, (await h.Join(3, limit: null)).Outcome); // which moves to world 1
             await h.Renew(3, fence: 2, activation: true); // session 2 activates: the place in world 2 goes
             await h.Renew(3, world: 2); // and session 1's last heartbeat in world 2 lands after
+            Assert.Equal(0, (await h.Sizes(world: 2)).Taken);
+        },
+        ["an activation ends the older sessions in another world even where their place is gone"] = async h =>
+        {
+            await h.Admitted(1, limit: 9, world: 2); // session 1, in world 2
+            h.Advance(46); // its place lapses unrenewed (as after a lost ledger) and is swept
+            Assert.Equal(0, (await h.Sizes(world: 2)).Taken);
+            Assert.Equal(PlaceOutcome.Admitted, (await h.Join(1, limit: null)).Outcome);
+            await h.Renew(1, fence: 2, activation: true); // session 2 activates in world 1
+            await h.Renew(1, world: 2); // session 1's heartbeat in world 2, in flight, lands after
             Assert.Equal(0, (await h.Sizes(world: 2)).Taken);
         },
         ["a ticket asked during a held place's grace never cuts the grace short"] = async h =>

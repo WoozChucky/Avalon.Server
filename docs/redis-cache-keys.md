@@ -50,7 +50,7 @@ servers sign in as the default user, with full access; the balance service uses 
 
 | User | Keys | Channels | Commands |
 |---|---|---|---|
-| `api-identity` | read and write `auth:source:*`, `auth:username:*`, `auth:account:*`, `auth:mfa:hash:*`, `auth:emailChange:*`, `auth:email:*`, `auth:launcherCode:*`, `auth:gameTicket:*`, `auth:gameTicketIssue:*`, `email-verification:*`, `game-auth:*`, `steam-web:*`, `world:*:places`, `world:*:places:marks`, `world:*:queue`, `world:*:queue:checkins`, `world:*:queue:arrivals`, `world-queue:account:*`; read `world:*:ready` | `world:accounts:disconnect`, `world:accounts:status`, `world:game-context:revoke` | `get set setex psetex getdel del unlink exists expire pexpire incr decr hget hset hdel hvals hpexpireat hmset hincrby zadd zrem zscore zrank zcard zcount zrangebyscore zremrangebyscore multi exec discard eval evalsha script\|load publish` |
+| `api-identity` | read and write `auth:source:*`, `auth:username:*`, `auth:account:*`, `auth:mfa:hash:*`, `auth:emailChange:*`, `auth:email:*`, `auth:launcherCode:*`, `auth:gameTicket:*`, `auth:gameTicketIssue:*`, `email-verification:*`, `game-auth:*`, `steam-web:*`, `world:*:places`, `world:*:places:marks`, `world:*:queue`, `world:*:queue:checkins`, `world:*:queue:arrivals`, `world-queue:account:*`; read `world:*:ready` | `world:accounts:disconnect`, `world:accounts:status`, `world:game-context:revoke` | `get set setex psetex getdel del unlink exists expire pexpire incr decr hget hset hdel hvals hpexpire hmset hincrby zadd zrem zscore zrank zcard zcount zrangebyscore zremrangebyscore multi exec discard eval evalsha script\|load publish` |
 | `api-worlds` | read `world:*:ready`, `world:*:presence`, `world:*:scripts`, `presence:world:*`, `world:*:places`, `world:*:queue:checkins` | `world:*:maintenance`, `world:*:reload`, `world:*:reload:result` | `get zcount publish subscribe unsubscribe` |
 | `api-commerce` | read and write `commerce:*` | none | `eval evalsha script\|load exists get incr expire set` |
 
@@ -61,8 +61,9 @@ user's rules widened in the same change, or the service gets `NOPERM`.
 
 The world places and queue (#967) need the identity rules above before the identity release that writes them is
 deployed: without them its place script fails with `NOPERM` and every join answers 503. Their scripts call `GET SET
-DEL INCR HGET HSET HDEL HVALS HPEXPIREAT ZADD ZREM ZSCORE ZRANK ZCARD ZRANGEBYSCORE ZREMRANGEBYSCORE` (`HPEXPIREAT`, homelab#200,
-for an ended session's tombstone; the rest homelab#199), and identity's own
+DEL INCR HGET HSET HDEL HVALS HPEXPIRE ZADD ZREM ZSCORE ZRANK ZCARD ZRANGEBYSCORE ZREMRANGEBYSCORE` (`HPEXPIRE`, Redis 7.4 or later, homelab#202,
+for an ended session's tombstone, called so that a refusal writes no tombstone rather than failing the script; the rest
+homelab#199), and identity's own
 `/game/worlds` counts read with `ZCOUNT`, as the worlds service's lists do; a `NOPERM` on those reads is not an error
 the caller sees, only counts of 0 and a Warning at most every 10 s (`RedisWorldOccupancy`). The scripts also touch another world's line keys (`world:{id}:queue` and
 `world:{id}:queue:checkins`) named from the waiting key, which the patterns above cover.
@@ -160,7 +161,8 @@ client must submit the hash back with a valid TOTP code within the TTL window. T
 
 The places each world has given out and the line of a full world ([World player limit](world-player-limit.md)).
 Identity is their only writer, and only through the Lua scripts of `RedisWorldPlaceStore`, each one atomic step; the
-scripts take "now" from identity's `TimeProvider` as an argument and never call Redis `TIME`. An entry whose time has
+scripts take "now" from identity's `TimeProvider` as an argument and never call Redis `TIME`; only a tombstone's 45 s is counted
+by Redis itself, from when it is written (`HPEXPIRE`). An entry whose time has
 passed does not count and is removed by the next script that runs for its world. The worlds service and identity's
 `/game/worlds` read the counts with `ZCOUNT` over the entries still current (`RedisWorldOccupancy`).
 
@@ -188,10 +190,10 @@ in every other world.
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldPlaceMarks(ushort worldId)` |
-| **Type** | Hash, two fields per account at most. `{accountId}`: the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold until then, the last ticket to enter, by the id of the session it becomes, N format), and no field for a place a session alone holds. `{accountId}:s`: the fencing token of the session that owns the place's lease (`{fence}`), or a tombstone of the session that ended there (`e:{fence}`), written with an expiry one lease away (`HPEXPIREAT`) and kept when the place goes, so the session's late renewals cannot bring the place back |
+| **Type** | Hash, two fields per account at most. `{accountId}`: the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold until then, the last ticket to enter, by the id of the session it becomes, N format), and no field for a place a session alone holds. `{accountId}:s`: the fencing token of the session that owns the place's lease (`{fence}`), or a tombstone of the session that ended there (`e:{fence}`), which Redis expires one lease after it is written (`HPEXPIRE`), kept when the place goes, so the session's late renewals cannot bring the place back |
 | **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
 | **Consumer** | API, identity: the scripts |
-| **TTL** | None; a field goes with its place |
+| **TTL** | None on the key. The `{accountId}` field and a live `{accountId}:s` go with their place; a tombstone (`e:{fence}`) expires on its own, one lease after it was written, and outlives the place it was written for |
 
 **Purpose:** Who holds each place, which a sorted set cannot say. It lets the scripts
 count held places, count a turn that expired unused, answer a returning or promoted account as such, and keep a
