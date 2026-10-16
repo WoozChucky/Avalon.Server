@@ -41,6 +41,7 @@ public static class GracefulShutdownHelper
 
     private static void Notify(IConnection connection, string reason, DisconnectReason reasonCode, ILogger? logger)
     {
+        (connection as IDisconnectReasonNote)?.NoteDisconnectReason(reasonCode);
         try
         {
             connection.Send(SDisconnectPacket.Create(reason, reasonCode, PacketEncoder.Shared));

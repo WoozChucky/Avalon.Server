@@ -1,4 +1,5 @@
 using Avalon.Common.GameAuth;
+using Avalon.Network.Packets.Generic;
 using Avalon.World.GameAuth;
 using Avalon.World.Persistence;
 using Avalon.World.Threading;
@@ -25,6 +26,17 @@ public partial class WorldConnection
 
     /// <summary>Whether identity may hold the session past <see cref="GameSessionLease" /> (#1051, <see cref="RenewalLedger" />).</summary>
     internal bool RenewalUnaccounted => RenewalLedger.MayOutlastLease(ref _renewals);
+
+    // The first reason the world closed this connection for (#967), as an int; -1 while none. Written by whichever
+    // thread closes, read when the session's end is built.
+    private int _disconnectReason = -1;
+
+    /// <summary>Notes the first reason the world closed this connection for (#967).</summary>
+    public void NoteDisconnectReason(DisconnectReason reason) => Interlocked.CompareExchange(ref _disconnectReason, (int)reason, -1);
+
+    /// <summary>What identity is told when this connection's session ends (#967): <see cref="SessionEndReasons.For"/>.</summary>
+    public string SessionEndReason =>
+        SessionEndReasons.For(Volatile.Read(ref _disconnectReason) is var noted and >= 0 ? (DisconnectReason)noted : null);
     public bool IsTlsAuthenticated => _tlsAuthenticated;
     public GameSessionLease? GameSessionLease => Volatile.Read(ref _gameSessionLease);
     public bool IsGameplayAuthorized => _tlsAuthenticated && _protocolAccepted && !_maintenanceBlocked &&

@@ -119,7 +119,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (pendingAdmission is not null)
             try { await pendingAdmission.ConfigureAwait(false); } catch (Exception) { }
         GameSessionLease? lease = connection.GameSessionLease ?? (pendingAdmission is { IsCompletedSuccessfully: true } ? pendingAdmission.Result.Lease : null);
-        return lease is null ? null : new SessionEnd(lease, connection.RenewalUnaccounted);
+        // Why the session ended is read once, here, as the end is built; the lane only carries it (#967).
+        return lease is null ? null : new SessionEnd(lease, connection.RenewalUnaccounted, connection.SessionEndReason);
     }
 
     // Bounded (#1051): a stop drains every connection at once, and identity must not receive every end together. This
@@ -154,11 +155,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             return s_notSent;
         }
 
-        return await AdmissionClient.EndAsync(end.Lease, stop).ConfigureAwait(false);
+        return await AdmissionClient.EndAsync(end.Lease, end.Reason, stop).ConfigureAwait(false);
     }
 
-    /// <summary>What a session's end needs: the lease, and whether a renewal asked for was never applied to it.</summary>
-    private readonly record struct SessionEnd(GameSessionLease Lease, bool RenewalUnaccounted);
+    /// <summary>
+    /// What a session's end needs: the lease, whether a renewal asked for was never applied to it, and why it ended
+    /// (a <c>GameSessionEndReasons</c> value, #967).
+    /// </summary>
+    private readonly record struct SessionEnd(GameSessionLease Lease, bool RenewalUnaccounted, string Reason);
 
     /// <summary>
     /// How long past its end a lease must be before its end is not sent (#1051): the clocks of the world, identity and

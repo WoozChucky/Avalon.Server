@@ -220,7 +220,7 @@ public class WorldServerShutdownShould : IDisposable
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         int inFlight = 0, mostInFlight = 0, ended = 0;
         IGameAdmissionClient admission = Substitute.For<IGameAdmissionClient>();
-        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(async _ =>
+        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(async _ =>
         {
             int now = Interlocked.Increment(ref inFlight);
             InterlockedMax(ref mostInFlight, now);
@@ -270,7 +270,7 @@ public class WorldServerShutdownShould : IDisposable
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         int calls = 0;
         IGameAdmissionClient admission = Substitute.For<IGameAdmissionClient>();
-        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(async call =>
+        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(async call =>
         {
             Interlocked.Increment(ref calls);
             entered.TrySetResult();
@@ -319,7 +319,7 @@ public class WorldServerShutdownShould : IDisposable
                 return Task.FromResult(new SessionLeaseResponse { Error = GameAuthErrors.ServiceUnavailable });
             return Task.FromResult(Renewal(lease, clock));
         });
-        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<CancellationToken>()).Returns(call =>
+        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             lock (ended) ended.Add(call.Arg<GameSessionLease>().Authority.AccountId.Value);
             return Task.FromResult(new SessionLeaseResponse { State = "ended" });
@@ -338,6 +338,41 @@ public class WorldServerShutdownShould : IDisposable
             await server.Stop().WaitAsync(TimeSpan.FromSeconds(30));
 
             Assert.Equal(new[] { 2L }, ended);
+        }
+        finally { Dispose(pairs); }
+    }
+
+    /// <summary>
+    /// #967: each session's end tells identity why it ended, which decides whether the place is held. The reason is the
+    /// one the world closed the connection for, noted at the close and read once as the drain builds the end: a kick, a
+    /// close the world did not choose (a drop), and the stop's own close.
+    /// </summary>
+    [Fact]
+    public async Task Send_each_session_end_with_the_reason_its_connection_closed_for()
+    {
+        var reasons = new Dictionary<long, string>();
+        IGameAdmissionClient admission = Substitute.For<IGameAdmissionClient>();
+        admission.EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            lock (reasons) reasons.Add(call.Arg<GameSessionLease>().Authority.AccountId.Value, call.Arg<string>());
+            return Task.FromResult(new SessionLeaseResponse { State = "ended" });
+        });
+        var server = new TestWorldServer(Substitute.For<IWorld>(), admission: admission);
+        var pairs = new List<(TcpClient, TcpClient)>();
+        try
+        {
+            List<Avalon.World.WorldConnection> connections = AdmitSessions(server, 3, TimeProvider.System, pairs);
+            await GracefulShutdownHelper.NotifyAndCloseAsync(connections[0], "kicked", DisconnectReason.Kicked);
+            await connections[1].CloseAsync(false); // the peer closed, or the connection was lost
+
+            await server.Stop().WaitAsync(TimeSpan.FromSeconds(30));
+
+            Assert.Equal(new Dictionary<long, string>
+            {
+                [1] = GameSessionEndReasons.Kicked,
+                [2] = GameSessionEndReasons.Drop,
+                [3] = GameSessionEndReasons.Shutdown,
+            }, reasons);
         }
         finally { Dispose(pairs); }
     }
