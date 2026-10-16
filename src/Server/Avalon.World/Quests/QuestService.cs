@@ -1192,7 +1192,8 @@ public sealed class QuestService(
 
     /// <summary>
     /// SMSG_QUEST_MARKERS (#433): every quest NPC in the character's instance with its marker for this character,
-    /// worked out again only when the instance, the level, the quest log or the catalog generation changed since the
+    /// worked out again only when the instance, the level, what the log holds or a held quest's state
+    /// (<see cref="QuestLog.MarkerVersion" />, never a mere count, #973) or the catalog generation changed since the
     /// last time, and sent only when the list differs from the one last sent.
     /// </summary>
     public void FlushMarkers(IWorldConnection connection, CharacterEntity character)
@@ -1200,7 +1201,7 @@ public sealed class QuestService(
         QuestLog log = character.Quests;
         QuestCatalog catalog = Catalog;
         if (log.MarkersInstance == character.InstanceId && log.MarkersLevel == character.Level
-            && log.MarkersVersion == log.Version && ReferenceEquals(log.MarkersCatalog, catalog))
+            && log.MarkersVersion == log.MarkerVersion && ReferenceEquals(log.MarkersCatalog, catalog))
         {
             return;
         }
@@ -1210,7 +1211,7 @@ public sealed class QuestService(
 
         log.MarkersInstance = character.InstanceId;
         log.MarkersLevel = character.Level;
-        log.MarkersVersion = log.Version;
+        log.MarkersVersion = log.MarkerVersion;
         log.MarkersCatalog = catalog;
 
         List<(ulong Creature, byte Marker)> markers = [];

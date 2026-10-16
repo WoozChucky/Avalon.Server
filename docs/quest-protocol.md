@@ -209,8 +209,9 @@ client replaces what it held.
 | 2 | `Available` | It offers a quest the character may accept (a full log still shows `Available`). |
 | 3 | `ReadyToTurnIn` | It takes back a quest the character holds ready to turn in. Outranks `Available`. |
 
-It is worked out again on entering the world, on entering another instance, and when an accept, progress, a
-turn-in, an abandon, a level-up or a reload of the quest data may have changed it, and it is **sent only when
+It is worked out again on entering the world, on entering another instance, and when an accept, a quest
+becoming ready to turn in or no longer ready, a turn-in, an abandon, a level-up or a reload of the quest data may
+have changed it (progress that leaves a quest's state as it is changes no marker), and it is **sent only when
 the list differs from the last one sent**, across instances too. So an arrival whose list equals the last one
 sends nothing: two instances in a row with no quest NPC (both empty lists), or a transfer back into the same
 town instance (where every creature is removed and added again through `SMSG_WORLD_STATE_REMOVE` and fresh

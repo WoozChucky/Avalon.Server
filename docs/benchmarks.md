@@ -4713,7 +4713,8 @@ What each step costs, and why:
 - `QuestService.FlushMarkers` walks every creature of the character's instance through
   `IReadOnlyDictionary.Values` (a boxed enumerator, 40 B) and builds a new list (32 B) each time the character's
   quest log, level or instance changed: 72 B and a walk of 200 creatures per kill credit per party member in a
-  forest, which holds no quest NPC, so the list it builds is always empty.
+  forest, which holds no quest NPC, so the list it builds is always empty. Done since #973's cleanup: the markers are
+  worked out again only when what the log holds or a held quest's state changes, never for a count alone.
 
 ### Results — the broadcast schedule (#975, 2026-10-14)
 

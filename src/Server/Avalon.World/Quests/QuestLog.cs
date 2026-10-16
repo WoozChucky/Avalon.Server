@@ -75,8 +75,14 @@ public sealed class QuestLog(SaveStateTracker save)
 
     public int ActiveCount => _active.Count;
 
-    /// <summary>Raised by every change, so the markers know when to look again.</summary>
-    public int Version { get; private set; }
+    /// <summary>
+    /// Raised by every change a quest marker can see, so the markers know when to look again (#973): which quests are
+    /// held or turned in (an accept, an abandon, a turn-in, a load) and a held quest's state (ready to turn in or not).
+    /// A count or a stage that leaves the state as it is leaves it alone: a marker reads neither (see
+    /// <see cref="QuestService.MarkerFor" />), and a crediting kill or a Bag recount would otherwise make every
+    /// character it touched walk every creature of its instance for a list equal to the one sent.
+    /// </summary>
+    public int MarkerVersion { get; private set; }
 
     /// <summary>
     /// Raised only when which quests are held or turned in changes (an accept, an abandon, a turn-in, a load), the two
@@ -151,7 +157,8 @@ public sealed class QuestLog(SaveStateTracker save)
     /// <summary>The locale this session's lines are written in; set at select from the connection. Never saved.</summary>
     public Avalon.Common.Accounts.AccountLocale Locale { get; set; }
 
-    // The markers last sent (QuestFlusher), and what they were computed from. Never saved.
+    // The markers last sent (QuestFlusher), and what they were computed from (MarkersVersion is the MarkerVersion they
+    // were worked out at). Never saved.
     public Guid? MarkersInstance { get; set; }
     public ushort MarkersLevel { get; set; }
     public int MarkersVersion { get; set; } = -1;
@@ -203,6 +210,7 @@ public sealed class QuestLog(SaveStateTracker save)
             _completed[row.QuestId] = row.CompletedAt;
 
         HeldVersion++;
+        MarkerVersion++;
         FlushOwed = true;
     }
 
@@ -211,6 +219,7 @@ public sealed class QuestLog(SaveStateTracker save)
         var quest = new ActiveQuest(questId, now);
         _active[questId] = quest;
         HeldVersion++;
+        MarkerVersion++;
         Changed(questId, QuestClientChange.Accepted);
         return quest;
     }
@@ -237,6 +246,7 @@ public sealed class QuestLog(SaveStateTracker save)
             return;
 
         quest.State = state;
+        MarkerVersion++;
         Changed(quest.QuestId, QuestClientChange.Progress);
     }
 
@@ -247,6 +257,7 @@ public sealed class QuestLog(SaveStateTracker save)
             return false;
 
         HeldVersion++;
+        MarkerVersion++;
         Changed(questId, QuestClientChange.Removed);
         return true;
     }
@@ -260,6 +271,7 @@ public sealed class QuestLog(SaveStateTracker save)
         _active.Remove(questId);
         _completed.TryAdd(questId, now);
         HeldVersion++;
+        MarkerVersion++;
         Changed(questId, QuestClientChange.Completed);
     }
 
@@ -285,7 +297,6 @@ public sealed class QuestLog(SaveStateTracker save)
         }
 
         save.QuestChanged(questId);
-        Version++;
         FlushOwed = true;
     }
 }
