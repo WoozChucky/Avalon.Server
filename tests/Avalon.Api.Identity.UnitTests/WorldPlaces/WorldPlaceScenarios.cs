@@ -198,7 +198,7 @@ public static class WorldPlaceScenarios
             h.Advance(60);
             PlaceDecision back = await h.Join(1, limit: 1);
             Assert.Equal((PlaceOutcome.Admitted, PlaceSource.Returned), (back.Outcome, back.Source));
-            Assert.Equal(0, (await h.Sizes()).Held);
+            Assert.Equal(1, (await h.Sizes()).Held); // still held after its drop, as its ticket's, until a session claims it
         },
         ["after the grace a returning player queues"] = async h =>
         {
@@ -249,7 +249,7 @@ public static class WorldPlaceScenarios
             await h.End(2, PlaceEnd.Hold);
             Assert.Equal(PlaceSource.Returned, (await h.Join(2, limit: 3)).Source); // returned: a ticket's place now
             await h.Admitted(3, limit: 3);
-            Assert.Equal((3, 0, 1), await h.Sizes());
+            Assert.Equal((3, 0, 2), await h.Sizes()); // account 2's return still counts as held
             await h.Release();
             Assert.Equal((2, 0, 0), await h.Sizes()); // the ticket's place and the live session's stay
             await h.End(3, PlaceEnd.Hold, fence: 1); // a drop's end landing within the stop's burst
@@ -575,14 +575,14 @@ public static class WorldPlaceScenarios
             await h.Admitted(4, limit: 9);
             await h.End(4, PlaceEnd.Hold);
             Assert.Equal(PlaceSource.Returned, (await h.Join(4, limit: 9)).Source); // a return: the ticket's, from a drop
-            Assert.Equal((4, 0, 1), await h.Sizes());
+            Assert.Equal((4, 0, 2), await h.Sizes());
             for (int account = 1; account <= 4; account++)
                 Assert.Equal(PlaceOutcome.Admitted, (await h.Join(account, limit: null, world: 2)).Outcome);
             Assert.Equal(4, (await h.Sizes(world: 2)).Taken);
-            Assert.Equal((4, 0, 1), await h.Sizes()); // account 1's place counted until its ticket's hold ends
+            Assert.Equal((4, 0, 2), await h.Sizes()); // account 1's place counted until its ticket's hold ends
             h.Advance(46);
             await h.Renew(2);
-            Assert.Equal((3, 0, 1), await h.Sizes()); // then only account 1's ticket-only place has gone
+            Assert.Equal((3, 0, 2), await h.Sizes()); // then only account 1's ticket-only place has gone
         },
         ["a place not the account's own to keep is no turn: it waits its rank in the line"] = async h =>
         {
@@ -697,6 +697,17 @@ public static class WorldPlaceScenarios
             Assert.Equal(PlaceOutcome.Admitted, (await h.Join(1, limit: null, world: 2)).Outcome);
             h.Advance(60); // past the ticket's hold, within the grace
             Assert.Equal(1, (await h.Sizes()).Taken);
+        },
+        ["a stop releases a drop's place a ticket's hold still runs on to that hold's end"] = async h =>
+        {
+            await h.Admitted(1, limit: 9);
+            Assert.Equal(PlaceSource.Kept, (await h.Join(1, limit: 9)).Source); // a takeover's ticket, its hold to 45 s
+            await h.End(1, PlaceEnd.Hold); // the old session drops: held for 90 s, and counted held
+            Assert.Equal((1, 0, 1), await h.Sizes());
+            await h.Release(); // the world stops
+            Assert.Equal((1, 0, 0), await h.Sizes()); // the ticket's alone now, no grace
+            h.Advance(46);
+            Assert.Equal(0, (await h.Sizes()).Taken);
         },
         ["a takeover keeps the same place"] = async h =>
         {

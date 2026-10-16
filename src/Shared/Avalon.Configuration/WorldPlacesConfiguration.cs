@@ -57,6 +57,9 @@ public sealed class WorldPlacesConfiguration
     /// </summary>
     public bool CoversHeldPlace() => UnclaimedPlace >= HeldPlace + HeldPlaceMargin;
 
+    /// <summary>A paused turn is kept at least as long as one turn window: <see cref="PausedTurn"/> covers <see cref="TurnWindow"/>.</summary>
+    public bool CoversTurnWindow() => PausedTurn >= TurnWindow;
+
     /// <summary>The least the unclaimed horizon runs past the held place's grace.</summary>
     public static readonly TimeSpan HeldPlaceMargin = TimeSpan.FromMinutes(1);
 }

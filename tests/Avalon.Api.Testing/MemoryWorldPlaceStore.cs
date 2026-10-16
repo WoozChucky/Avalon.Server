@@ -364,8 +364,26 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             if (w.Released is { } last && now >= last && now - last < (long)IWorldPlaceStore.HeldReleaseWindow.TotalMilliseconds)
                 return Task.CompletedTask;
             w.Released = now;
-            foreach (long account in w.Places.Keys.Where(a => w.Marks.TryGetValue(a, out string? m) && m == Held).ToList())
-                w.Forget(account);
+            foreach (long account in w.Places.Keys.ToList())
+            {
+                if (w.Marks.TryGetValue(account, out string? mark) && mark == Held)
+                {
+                    w.Forget(account);
+                }
+                else if (w.Ticket(account) is { WasHeld: true } hold)
+                {
+                    // Held after a drop with a ticket's hold on it: that ticket's alone, to the hold's end, without the grace.
+                    if (hold.Until > now)
+                    {
+                        w.Places[account] = hold.Until;
+                        w.Marks[account] = RedisWorldPlaceStore.TicketMark(hold.Until, Guid.ParseExact(hold.Id, "N"));
+                    }
+                    else
+                    {
+                        w.Forget(account);
+                    }
+                }
+            }
         }
 
         return Task.CompletedTask;
@@ -459,7 +477,9 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         {
             WorldState w = World(worldId);
             PlaceSweep sweep = Sweep(worldId, w, Now);
-            return Task.FromResult(new WorldPlaceCounts(w.Places.Count, w.Line.Count, w.Marks.Values.Count(m => m == Held), sweep));
+            // Held after a drop, whether or not a ticket's hold runs on it (j:...:h).
+            int held = w.Marks.Count(m => m.Value == Held || w.Ticket(m.Key) is { WasHeld: true });
+            return Task.FromResult(new WorldPlaceCounts(w.Places.Count, w.Line.Count, held, sweep));
         }
     }
 
