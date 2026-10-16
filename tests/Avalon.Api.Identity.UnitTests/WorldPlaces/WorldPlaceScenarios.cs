@@ -42,7 +42,7 @@ public static class WorldPlaceScenarios
         /// <summary>The ticket of the account's last join in the world.</summary>
         public Guid Ticket(int account, int world = 1) => _tickets[(account, world)];
 
-        /// <summary>A join, as a new ticket or as <paramref name="ticket"/> issued <paramref name="secondsAgo"/> seconds ago (a replay).</summary>
+        /// <summary>A join, as a new ticket or as <paramref name="ticket"/>, its place ending as if issued <paramref name="secondsAgo"/> seconds ago.</summary>
         public Task<PlaceDecision> Join(int account, int? limit, bool staff = false, int world = 1, int? cap = null,
             Guid? ticket = null, double secondsAgo = 0)
         {
@@ -65,9 +65,13 @@ public static class WorldPlaceScenarios
         public Task End(int account, PlaceEnd end, int world = 1, long fence = 1) =>
             store.EndAsync(ids.World(world), ids.Account(account), fence, end, Now.Add(config.HeldPlace), CancellationToken.None);
 
-        /// <summary>The ticket <paramref name="ticket"/>, issued <paramref name="secondsAgo"/> seconds ago, is known not to be issued.</summary>
-        public Task Withdraw(int account, Guid ticket, double secondsAgo = 0, int world = 1) =>
-            store.WithdrawAsync(ids.World(world), ids.Account(account), ticket, TicketPlaceEnd(secondsAgo), CancellationToken.None);
+        /// <summary>The ticket <paramref name="ticket"/> is known not to be issued.</summary>
+        public Task Withdraw(int account, Guid ticket, int world = 1) =>
+            store.WithdrawAsync(ids.World(world), ids.Account(account), ticket, CancellationToken.None);
+
+        /// <summary>The replay of the ticket <paramref name="ticket"/>, issued <paramref name="secondsAgo"/> seconds ago.</summary>
+        public Task Rejoin(int account, Guid ticket, double secondsAgo, int world = 1) =>
+            store.RejoinAsync(ids.World(world), ids.Account(account), ticket, TicketPlaceEnd(secondsAgo), CancellationToken.None);
 
         public Task<bool> Leave(int account, int world = 1) =>
             store.LeaveAsync(ids.World(world), ids.Account(account), CancellationToken.None);
@@ -231,20 +235,32 @@ public static class WorldPlaceScenarios
             Assert.Equal(PlaceSource.Taken, (await h.Join(1, limit: 1)).Source); // the client gave up: nothing is withdrawn
             Guid ticket = h.Ticket(1);
             h.Advance(5);
-            Assert.Equal(PlaceSource.Kept, (await h.Join(1, limit: 1, ticket: ticket, secondsAgo: 5)).Source); // the replay
+            Assert.Equal(PlaceSource.Kept, (await h.Join(1, limit: 1)).Source); // another request since
+            await h.Rejoin(1, ticket, secondsAgo: 5); // the replay
             Assert.Equal((1, 0, 0), await h.Sizes());
             await h.Renew(1, activation: true, session: ticket); // its session activates: the hold is that ticket's to spend
             await h.End(1, PlaceEnd.Remove);
             Assert.Equal(0, (await h.Sizes()).Taken);
         },
-        ["two tickets with the same end: the failed issue of one gives back nothing of the other's"] = async h =>
+        ["a replay never creates a place: a used ticket's leaves the freed place to whoever took it"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            Guid used = h.Ticket(1);
+            await h.End(1, PlaceEnd.Remove); // played and logged out
+            await h.Admitted(2, limit: 1); // the freed place goes to another
+            await h.Rejoin(1, used, secondsAgo: 0); // the used ticket's request replayed within its 30 s
+            Assert.Equal((1, 0, 0), await h.Sizes());
+            await h.Queued(1, limit: 1, position: 1);
+        },
+        ["a failed issue gives back its own place, never that of a ticket that entered after it, whatever their ends"] = async h =>
         {
             Assert.Equal(PlaceSource.Taken, (await h.Join(2, limit: 1, world: 2)).Source);
             await h.Withdraw(2, h.Ticket(2, world: 2), world: 2); // a lone ticket's failed issue gives its place back
             Assert.Equal(0, (await h.Sizes(world: 2)).Taken);
             Assert.Equal(PlaceSource.Taken, (await h.Join(1, limit: 1)).Source);
             Guid first = h.Ticket(1);
-            Assert.Equal(PlaceSource.Kept, (await h.Join(1, limit: 1)).Source); // a second ticket, at the same instant
+            // A concurrent request for the same key, entered second, its ticket ending a second earlier; it wins the write.
+            Assert.Equal(PlaceSource.Kept, (await h.Join(1, limit: 1, secondsAgo: 1)).Source);
             await h.Withdraw(1, first); // the first one's write failed
             Assert.Equal(1, (await h.Sizes()).Taken);
         },
@@ -287,6 +303,33 @@ public static class WorldPlaceScenarios
             await h.Renew(1, fence: 2, activation: true); // the takeover's session
             await h.End(1, PlaceEnd.Remove, fence: 2);
             Assert.Equal(0, (await h.Sizes()).Taken);
+        },
+        ["an ended session's late heartbeat changes nothing, and an end never brings back a place that is gone"] = async h =>
+        {
+            await h.Admitted(1, limit: 3);
+            await h.End(1, PlaceEnd.Hold);
+            await h.Renew(1); // its own heartbeat, arriving after its end
+            Assert.Equal((1, 0, 1), await h.Sizes());
+            await h.End(2, PlaceEnd.Hold); // the end of a session whose place is already gone
+            Assert.Equal((1, 0, 1), await h.Sizes());
+            await h.Renew(1, fence: 2); // a newer session of the held account renews it
+            Assert.Equal((1, 0, 0), await h.Sizes());
+
+            await h.Admitted(3, limit: 3, world: 2);
+            Assert.Equal(PlaceSource.Kept, (await h.Join(3, limit: 3, world: 2)).Source); // a takeover
+            await h.End(3, PlaceEnd.Remove, world: 2); // the old session ends: the takeover's hold keeps the place
+            h.Advance(10);
+            await h.Renew(3, world: 2); // and the old session's heartbeat arrives after its end
+            h.Advance(36); // the takeover's hold is over; that heartbeat's lease would not be
+            Assert.Equal(0, (await h.Sizes(world: 2)).Taken);
+        },
+        ["a ticket asked during a held place's grace never cuts the grace short"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            await h.End(1, PlaceEnd.Hold); // held for 90 s
+            Assert.Equal(PlaceSource.Returned, (await h.Join(1, limit: 1)).Source); // a ticket asked at once, never redeemed
+            h.Advance(60);
+            Assert.Equal(1, (await h.Sizes()).Taken);
         },
         ["a takeover keeps the same place"] = async h =>
         {

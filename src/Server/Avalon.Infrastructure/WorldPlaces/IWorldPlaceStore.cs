@@ -36,27 +36,28 @@ public readonly record struct WorldPlaceCounts(int Taken, int Queued, int Held, 
 /// The places a world has given out and the line of a full world (#967), changed only by atomic operations, written by
 /// identity alone. Ids are primitives: the store is at the edge of the server.
 /// <para>
-/// A place records who holds it: the join ticket issued for it, until its hold ends (by the ticket's id, the session id
-/// it will become), and the session that owns its lease (by the session's fencing token, which only grows for an
-/// account). A session's renewal or end changes the place only while no newer session owns it, and a ticket's
-/// withdrawal and an activation touch only that ticket's own hold, so no late or stale call ever removes or shortens
-/// a place another holder still has.
+/// A place records who holds it: the last join ticket to enter for it, until its hold ends (by the ticket's id, the
+/// session id it will become), and the session that owns its lease, or that ended there (by the session's fencing token,
+/// which only grows for an account). A session's renewal or end changes the place only while no newer session owns it,
+/// and a ticket's withdrawal and an activation touch only that ticket's own hold, so no late or stale call removes or
+/// shortens a place another holder still has. A stale call can at most keep a place counted a little longer (one lease
+/// or one ticket's hold, 45 s), never count it out.
 /// </para>
 /// </summary>
 public interface IWorldPlaceStore
 {
     /// <summary>
     /// Asked before a join ticket is issued: a place (kept, returned, taken, or a turn), the line, or full. An admitted
-    /// account's place is held by <see cref="PlaceRequest.Ticket"/> until <see cref="PlaceRequest.Until"/> (a later hold
-    /// already there stays); a kept place is never shortened.
+    /// account's place is held by <see cref="PlaceRequest.Ticket"/>, the last ticket to enter, until the later of
+    /// <see cref="PlaceRequest.Until"/> and any hold already there; no place is ever shortened.
     /// </summary>
     Task<PlaceDecision> EnterAsync(PlaceRequest request, CancellationToken cancellationToken);
 
     /// <summary>
     /// The session <paramref name="sessionId"/> (fencing token <paramref name="fence"/>) was redeemed, activated or renewed:
     /// it owns the place, which expires at <paramref name="until"/> (or later, while a ticket's hold does), put back when
-    /// it was lost, over the limit if need be. Nothing changes when a newer session owns the place, or when it is held
-    /// after a drop. With <paramref name="activation"/> the session spends its own ticket's hold, and the account's place
+    /// it was lost, over the limit if need be. Nothing changes when a newer session owns the place, or when this session
+    /// or a newer one has ended there. With <paramref name="activation"/> the session spends its own ticket's hold, and the account's place
     /// in every other world goes (a session is one per account), but for a ticket's hold still running there.
     /// </summary>
     Task RenewAsync(ushort worldId, long accountId, long fence, Guid sessionId, DateTime until, bool activation,
@@ -64,16 +65,23 @@ public interface IWorldPlaceStore
 
     /// <summary>
     /// The session with fencing token <paramref name="fence"/> ended: its place is removed, or held until
-    /// <paramref name="heldUntil"/>, and kept while a ticket's hold still runs. Nothing changes when a newer session owns
-    /// the place; the place is never shortened.
+    /// <paramref name="heldUntil"/>, and kept while a ticket's hold still runs; a place kept is marked as ended by that
+    /// session, so its late renewals change nothing. Nothing changes when a newer session owns the place or when it no
+    /// longer exists; the place is never shortened.
     /// </summary>
     Task EndAsync(ushort worldId, long accountId, long fence, PlaceEnd end, DateTime heldUntil, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The ticket <paramref name="ticket"/>, which took a place until <paramref name="until"/>, was not issued after all:
-    /// its hold is given back, and the place with it unless a session owns it. A no-op once another ticket holds it.
+    /// The ticket <paramref name="ticket"/>, which took a place, is known not to be issued: its hold is given back, and the
+    /// place with it unless a live session owns it. A no-op once another ticket has entered since.
     /// </summary>
-    Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken cancellationToken);
+    Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A replayed ticket, not yet redeemed: its place, if it still has one, is extended (never shortened) to
+    /// <paramref name="until"/> and held by <paramref name="ticket"/> again. Never creates a place: a replay asks no limit.
+    /// </summary>
+    Task RejoinAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken cancellationToken);
 
     /// <summary>A waiter checks in: its position, or its turn when the world is available and a place is free for it.</summary>
     Task<QueueCheckIn> CheckInAsync(ushort worldId, long accountId, int? limit, bool available, CancellationToken cancellationToken);

@@ -446,8 +446,10 @@ internal sealed class FlakyPlaceStore(IWorldPlaceStore inner) : IWorldPlaceStore
         CancellationToken ct) => Up(inner).RenewAsync(worldId, accountId, fence, sessionId, until, activation, ct);
     public Task EndAsync(ushort worldId, long accountId, long fence, PlaceEnd end, DateTime heldUntil, CancellationToken ct) =>
         Up(inner).EndAsync(worldId, accountId, fence, end, heldUntil, ct);
-    public Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken ct) =>
-        Up(inner).WithdrawAsync(worldId, accountId, ticket, until, ct);
+    public Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, CancellationToken ct) =>
+        Up(inner).WithdrawAsync(worldId, accountId, ticket, ct);
+    public Task RejoinAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken ct) =>
+        Up(inner).RejoinAsync(worldId, accountId, ticket, until, ct);
     public Task<QueueCheckIn> CheckInAsync(ushort worldId, long accountId, int? limit, bool available, CancellationToken ct) =>
         Up(inner).CheckInAsync(worldId, accountId, limit, available, ct);
     public Task<bool> LeaveAsync(ushort worldId, long accountId, CancellationToken ct) => Up(inner).LeaveAsync(worldId, accountId, ct);

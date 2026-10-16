@@ -187,7 +187,7 @@ in every other world.
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldPlaceMarks(ushort worldId)` |
-| **Type** | Hash, two fields per account at most. `{accountId}`: the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold until then, the ticket by the id of the session it becomes, N format), and no field for a place a session alone holds. `{accountId}:s`: the fencing token of the session that owns the place's lease |
+| **Type** | Hash, two fields per account at most. `{accountId}`: the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold until then, the last ticket to enter, by the id of the session it becomes, N format), and no field for a place a session alone holds. `{accountId}:s`: the fencing token of the session that owns the place's lease (`{fence}`), or that ended with the place kept (`e:{fence}`) |
 | **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
 | **Consumer** | API, identity: the scripts |
 | **TTL** | None; a field goes with its place |
@@ -196,8 +196,9 @@ in every other world.
 count held places, count a turn that expired unused, answer a returning or promoted account as such, and keep a
 place a join ticket holds through the end of the session the ticket replaces (a takeover or a reconnect), withdraw
 only a failed ticket's own hold, spend at an activation only that session's own ticket's hold, and ignore the late renewal
-or end of a session older than the owner (fencing tokens only grow for an account). The `{accountId}:s` values are
-numbers, so the held-places count over `HVALS` (values equal to `h`) never counts them.
+or end of a session older than the owner, or of one that ended there (fencing tokens only grow for an account). The `{accountId}:s` values are
+numbers or `e:` and a number, so the held-places count over `HVALS` (values equal to `h`) never counts them. A replay
+only extends a place still there, while its ticket is unredeemed, and an end never re-creates one.
 
 ### `world:{worldId}:queue`
 

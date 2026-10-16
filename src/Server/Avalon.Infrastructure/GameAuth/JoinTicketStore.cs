@@ -36,13 +36,19 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             if (prior.Binding != binding) return new(GameAuthErrors.IdempotencyConflict);
             GameJoinReply? replay = GameAuthJson.Deserialize<GameJoinReply>(crypto.UnprotectText(prior.Envelope, issueKey + ":" + binding));
             if (replay?.ExpiresAt is not { } replayExpires || replayExpires <= Now) return new(GameAuthErrors.TicketExpired);
-            // A replayed ticket always has its place (#967): the issue it replays may have been answered with a cancellation
-            // after its write landed, and nothing was withdrawn, but the place may have been lost since. It is entered
-            // again as that ticket's, never shortened, and with no limit asked: the ticket was issued.
-            if (prior.Ticket is { } replayed)
+            // A replayed ticket keeps its place (#967): the issue it replays may have been answered with a cancellation
+            // after its write landed, and nothing was withdrawn. Only while the ticket is unredeemed, and only a place
+            // still there, extended and held by the ticket again: a replay asks no limit, so it never creates a place, and a
+            // used ticket's place (its session since ended, the place given to another) is never brought back.
+            if (prior.Ticket is { } replayed && replay.JoinTicket is { } issuedTicket)
             {
-                await places.EnterAsync(new PlaceRequest(worldId, accountId, replayExpires.Add(GameAuthPolicy.TicketPlaceMargin),
-                    Limit: null, Staff: false, QueueCapacity: 0, Ticket: replayed), cancellationToken);
+                JoinTicketGrant? issuedGrant = GameAuthJson.Deserialize<JoinTicketGrant>(
+                    await store.ReadAsync(Key("join-ticket", GameAuthCryptography.Digest(issuedTicket)), cancellationToken));
+                if (issuedGrant is { Receipt: null })
+                {
+                    await places.RejoinAsync(worldId, accountId, replayed, replayExpires.Add(GameAuthPolicy.TicketPlaceMargin),
+                        cancellationToken);
+                }
             }
 
             return replay;
@@ -107,20 +113,20 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             return reply;
         }
 
-        if (took) await WithdrawPlaceAsync(worldId, accountId, sessionId, placeUntil);
+        if (took) await WithdrawPlaceAsync(worldId, accountId, sessionId);
         return new(GameAuthErrors.ContextChanged);
     }
 
     /// <summary>
     /// Gives back the place a ticket took when the ticket is known not to be issued (#967), best effort and whatever the
     /// request's cancellation: repeated failed issues must not hold places until they lapse. Only that ticket's own hold,
-    /// and the place only while no session owns it (<see cref="IWorldPlaceStore.WithdrawAsync"/>).
+    /// while no ticket entered since, and the place only while no live session owns it (<see cref="IWorldPlaceStore.WithdrawAsync"/>).
     /// </summary>
-    private async Task WithdrawPlaceAsync(ushort worldId, long accountId, Guid sessionId, DateTime placeUntil)
+    private async Task WithdrawPlaceAsync(ushort worldId, long accountId, Guid sessionId)
     {
         try
         {
-            await places.WithdrawAsync(worldId, accountId, sessionId, placeUntil, CancellationToken.None);
+            await places.WithdrawAsync(worldId, accountId, sessionId, CancellationToken.None);
         }
         catch (Exception error) when (PlaceLedgerOutage.IsOutage(error))
         {

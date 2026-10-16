@@ -202,7 +202,8 @@ public static class CacheKeys
     /// <summary>
     /// Who holds each place: a hash, two fields per account at most. <c>{accountId}</c> is the place's kind: <c>h</c> (held
     /// after a drop), <c>t:{enqueuedAtMs}</c> (a turn not yet used) or <c>j:{untilMs}:{ticket}</c> (a join ticket's hold,
-    /// <c>RedisWorldPlaceStore.TicketMark</c>). <c>{accountId}:s</c> is the fencing token of the session owning its lease.
+    /// <c>RedisWorldPlaceStore.TicketMark</c>, the last ticket to enter). <c>{accountId}:s</c> is the fencing token of the
+    /// session owning its lease (<c>{fence}</c>), or that ended with the place kept (<c>e:{fence}</c>).
     /// </summary>
     public static string WorldPlaceMarks(ushort worldId) => $"world:{worldId}:places:marks";
 
