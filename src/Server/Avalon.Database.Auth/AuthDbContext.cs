@@ -328,6 +328,9 @@ public class AuthDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<Domain.Auth.World> builder)
     {
+        builder.ToTable(table => table.HasCheckConstraint("CK_Worlds_PlayerLimit",
+            "\"PlayerLimit\" IS NULL OR (\"PlayerLimit\" >= 1 AND \"PlayerLimit\" <= 100000)"));
+
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,
