@@ -21,7 +21,7 @@ namespace Avalon.Infrastructure.WorldPlaces;
 /// </para>
 /// </summary>
 public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldPlacesConfiguration> options,
-    IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock) : IWorldPlaceStore
+    IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock, PlaceLedgerOutage outage) : IWorldPlaceStore
 {
     private const long WaitingKeySeconds = 86_400;
 
@@ -38,9 +38,11 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     /// ended), and the removal of a place with both its fields. An ended session's field is a tombstone: written only by
     /// <c>tombstone</c>, which always sets it to expire one lease from now on Redis's clock (<c>HPEXPIRE</c>), so it refuses that
     /// session's late renewals whether or not the place is still there, and never outlives them. (A plain <c>HSET</c> of a
-    /// newer session's live fence clears the expiry, as it should: the field then lives with the place.)
+    /// newer session's live fence clears the expiry, as it should: the field then lives with the place.) A refused expiry
+    /// sets <c>refused</c>, which the scripts that write tombstones return beside their result, so it is logged.
     /// </summary>
     private const string Holders = """
+        local refused = 0
         local function ticket(mark)
           if mark then
             local ends, id = string.match(mark, '^j:(%d+):(.*)$')
@@ -66,11 +68,15 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         end
         -- An ended session's tombstone, expiring one lease (ttl ms) from now on Redis's own clock, so no clock skew between
         -- identity and Redis can cut it short. Should the expiry fail (HPEXPIRE refused, or a Redis before 7.4), the field
-        -- is removed rather than left without one: no tombstone, never one that lasts forever.
+        -- is removed rather than left without one, whatever it held before (an earlier tombstone too): never a field that
+        -- lasts forever. The refusal is returned, and logged by the caller.
         local function tombstone(marks, account, fence, ttl)
           redis.call('HSET', marks, account .. ':s', 'e:' .. fence)
           local armed = redis.pcall('HPEXPIRE', marks, ttl, 'FIELDS', 1, account .. ':s')
-          if type(armed) == 'table' and armed.err then redis.call('HDEL', marks, account .. ':s') end
+          if type(armed) == 'table' and armed.err then
+            redis.call('HDEL', marks, account .. ':s')
+            refused = 1
+          end
         end
 
         """;
@@ -179,13 +185,13 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     // KEYS: 1 places, 2 marks of the world, then places and marks of each other world (an activation only).
     // ARGV: 1 account, 2 until (the lease), 3 '1' for an activation, 4 the session's fencing token, 5 the session's id
     //       (N format), 6 now, 7 a tombstone's lifetime in ms (one lease).
-    // Returns 1 when the session owns the place now, 0 when it changed nothing.
+    // Returns {1 when the session owns the place now, 0 when it changed nothing; 1 when a tombstone's expiry was refused}.
     private const string Renew = Holders + """
         local account, expiry, fence, now = ARGV[1], tonumber(ARGV[2]), tonumber(ARGV[4]), tonumber(ARGV[6])
         local current, ended = owner(KEYS[2], account)
         -- A session older than the place's owner renews nothing, nor does a session that ended there, or older than one
         -- that did (whether the place was kept or removed: the tombstone outlives the place by one lease).
-        if current and (current > fence or (ended and current >= fence)) then return 0 end
+        if current and (current > fence or (ended and current >= fence)) then return {0, refused} end
         local mark = redis.call('HGET', KEYS[2], account)
         local held, id = ticket(mark)
         if held and ARGV[3] == '1' and id == ARGV[5] then
@@ -216,20 +222,21 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
             tombstone(KEYS[i + 1], account, ARGV[4], ARGV[7])
           end
         end
-        return 1
+        return {1, refused}
         """;
 
     // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 '1' to hold, 3 held until, 4 now, 5 the ending session's fencing token,
     //       6 a tombstone's lifetime in ms (one lease).
-    // Returns 1 when the place was the session's to end, 0 when a newer session owns it or it no longer exists.
+    // Returns {1 when the place was the session's to end, 0 when a newer session owns it or it no longer exists; 1 when the
+    // tombstone's expiry was refused}.
     private const string End = Holders + """
         local account, now = ARGV[1], tonumber(ARGV[4])
         local current = owner(KEYS[2], account)
-        if current and current > tonumber(ARGV[5]) then return 0 end
+        if current and current > tonumber(ARGV[5]) then return {0, refused} end
         -- Whatever the end does to the place, the session is ended there: its late renewals change nothing.
         tombstone(KEYS[2], account, ARGV[5], ARGV[6])
         -- An end never creates a place: one lost or removed meanwhile stays gone.
-        if not redis.call('ZSCORE', KEYS[1], account) then return 0 end
+        if not redis.call('ZSCORE', KEYS[1], account) then return {0, refused} end
         local held = ticket(redis.call('HGET', KEYS[2], account))
         if held and held <= now then held = nil end
         if ARGV[2] == '1' then
@@ -242,21 +249,22 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           redis.call('ZREM', KEYS[1], account)
           redis.call('HDEL', KEYS[2], account)
         end
-        return 1
+        return {1, refused}
         """;
 
     // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 the withdrawn ticket's id (N format), 3 a tombstone's lifetime in ms (one
     //       lease).
-    // Returns 1 when the hold was the ticket's and is given back, 0 when another ticket entered since.
+    // Returns {1 when the hold was the ticket's and is given back, 0 when another ticket entered since; 1 when the
+    // tombstone's expiry was refused}.
     private const string Withdraw = Holders + """
         local _, id = ticket(redis.call('HGET', KEYS[2], ARGV[1]))
-        if id ~= ARGV[2] then return 0 end
+        if id ~= ARGV[2] then return {0, refused} end
         redis.call('HDEL', KEYS[2], ARGV[1])
         local current, ended = owner(KEYS[2], ARGV[1])
         if not current or ended then redis.call('ZREM', KEYS[1], ARGV[1]) end
         -- An ended session's tombstone stays, rearmed for one lease: the place it was kept for is gone.
         if ended then tombstone(KEYS[2], ARGV[1], string.format('%d', current), ARGV[3]) end
-        return 1
+        return {1, refused}
         """;
 
     // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 until, 3 the replayed ticket's id (N format).
@@ -347,25 +355,33 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         var keys = new List<RedisKey> { CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId) };
         if (activation)
         {
-            foreach (GameServerDefinition server in workloads.Value.Servers.Where(s => s.WorldId != worldId))
+            // One pair per other world, however many workloads name it.
+            foreach (ushort other in workloads.Value.Servers.Select(s => s.WorldId).Where(id => id != worldId).Distinct())
             {
-                keys.Add(CacheKeys.WorldPlaces(server.WorldId));
-                keys.Add(CacheKeys.WorldPlaceMarks(server.WorldId));
+                keys.Add(CacheKeys.WorldPlaces(other));
+                keys.Add(CacheKeys.WorldPlaceMarks(other));
             }
         }
 
-        await RunAsync(Renew, [.. keys],
+        await RunTombstoningAsync(Renew, [.. keys],
             [accountId, Ms(until), activation ? "1" : "0", fence, sessionId.ToString("N"), Now, s_tombstoneLifetime], cancellationToken);
     }
 
     public Task EndAsync(ushort worldId, long accountId, long fence, PlaceEnd end, DateTime heldUntil,
         CancellationToken cancellationToken) =>
-        RunAsync(End, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
+        RunTombstoningAsync(End, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
             [accountId, end == PlaceEnd.Hold ? "1" : "0", Ms(heldUntil), Now, fence, s_tombstoneLifetime], cancellationToken);
 
     public Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, CancellationToken cancellationToken) =>
-        RunAsync(Withdraw, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
+        RunTombstoningAsync(Withdraw, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
             [accountId, ticket.ToString("N"), s_tombstoneLifetime], cancellationToken);
+
+    /// <summary>A script that may write tombstones: an expiry Redis refused (the second result) is logged, throttled.</summary>
+    private async Task RunTombstoningAsync(string script, RedisKey[] keys, RedisValue[] values, CancellationToken cancellationToken)
+    {
+        RedisResult[] r = await RunArrayAsync(script, keys, values, cancellationToken);
+        if ((int)r[1] == 1) outage.ReportTombstoneRefused();
+    }
 
     public Task RejoinAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken cancellationToken) =>
         RunAsync(Rejoin, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],

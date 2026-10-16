@@ -38,7 +38,7 @@ public sealed class RedisWorldPlaceStoreShould
         await using ConnectionMultiplexer redis = await ConnectionMultiplexer.ConnectAsync(RedisTheoryAttribute.Configuration!);
         IReplicatedCache cache = await CleanAsync(redis);
         await WorldPlaceScenarios.RunAsync(scenario, (clock, config) => new RedisWorldPlaceStore(cache, Options.Create(config),
-            Workloads(s_ids), clock), s_ids);
+            Workloads(s_ids), clock, new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, clock)), s_ids);
     }
 
     /// <summary>What the world lists read: places and waiters still current, nothing yet unswept.</summary>
@@ -50,7 +50,8 @@ public sealed class RedisWorldPlaceStoreShould
         await using ConnectionMultiplexer redis = await ConnectionMultiplexer.ConnectAsync(RedisTheoryAttribute.Configuration!);
         IReplicatedCache cache = await CleanAsync(redis);
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 14, 12, 0, 0, TimeSpan.Zero));
-        var store = new RedisWorldPlaceStore(cache, Options.Create(new WorldPlacesConfiguration()), Workloads(s_ids), clock);
+        var store = new RedisWorldPlaceStore(cache, Options.Create(new WorldPlacesConfiguration()), Workloads(s_ids), clock,
+            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, clock));
         DateTime until = clock.GetUtcNow().UtcDateTime.AddSeconds(45);
         for (int account = 1; account <= 3; account++)
             await store.EnterAsync(new PlaceRequest(s_ids.World(1), s_ids.Account(account), until, 1, false, 5000), default);

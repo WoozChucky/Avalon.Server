@@ -13,6 +13,19 @@ public sealed class PlaceLedgerOutage(ILogger<PlaceLedgerOutage> logger, TimePro
     public static readonly TimeSpan Interval = TimeSpan.FromSeconds(10);
 
     private readonly LogThrottle _throttle = new(clock, Interval);
+    private readonly LogThrottle _refusals = new(clock, Interval);
+
+    /// <summary>
+    /// Redis refused the expiry of an ended session's tombstone (<c>HPEXPIRE</c>: the identity user lacks it, or Redis is
+    /// older than 7.4). The script went on without the tombstone, so that session's late renewals are not refused: logged
+    /// at Warning, at most once per <see cref="Interval"/>, with how many were left out since.
+    /// </summary>
+    public void ReportTombstoneRefused()
+    {
+        if (!_refusals.TryEnter(out int suppressed)) return;
+        logger.LogWarning("Redis refused the expiry of an ended session's tombstone (HPEXPIRE: no permission for the Redis user, or Redis before 7.4); ended sessions' late renewals are not refused until it is allowed. {Suppressed} earlier refusals were not logged",
+            suppressed);
+    }
 
     public void Report(string operation, Exception error)
     {

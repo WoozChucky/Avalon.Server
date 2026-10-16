@@ -78,9 +78,12 @@ A stale call can at most keep a place counted a little longer (see the last poin
   tombstone lasts one lease from the end, and a renewal still in flight at the end was sent within the session's lease,
   so it lands well before; the lease is counted by Redis from the end it records (a relative expiry), so no skew
   between identity's clock and Redis's shortens it. Should Redis refuse the expiry (no `hpexpire` permission, or a
-  Redis before 7.4), no tombstone is written, never one without an expiry: the end and the activation still do the
-  rest, and only this protection is lost (a late heartbeat can then bring a removed place back for at most one lease,
-  counting the account in, never out). What remains: a replay that
+  Redis before 7.4), the script deletes the `{accountId}:s` field it just wrote, whatever that field held before (a live
+  owner's fence, or an earlier tombstone the call was re-arming), so the account is left with no owner or tombstone
+  there, never with a field that lasts forever. The end and the activation still do the rest, and only this protection
+  is lost (a late heartbeat can then bring a removed place back for at most one lease, counting the account in, never
+  out). Identity logs the refusal at Warning, at most every 10 s: "Redis refused the expiry of an ended session's
+  tombstone". What remains: a replay that
   extends a place just before its ticket is redeemed and its session ends keeps that place counted until the
   replayed hold ends, at most 45 s after the replay. That only ever counts the account in for longer, never out.
 
@@ -163,11 +166,12 @@ Each step only after the one before is done:
    is written with, in place of the `hpexpireat` homelab#200 granted). Check on the cluster before the identity release
    rolls: `kubectl -n avalon exec avalon-redis-0 -- redis-cli -a "$PW" ACL GETUSER api-identity` (and `api-worlds`).
    Deployed without homelab#199, every join answers 503. Without `hpexpire` (or on an older Redis) everything works
-   but the tombstones: the scripts catch the refused expiry and write none, so an ended session's late heartbeat can
+   but the tombstones: the scripts catch the refused expiry and keep no tombstone, so an ended session's late heartbeat can
    bring a removed place back for at most one lease.
 2. Identity, then the worlds service and the worlds, as in every release (identity before the worlds).
 3. Check: `/game/worlds` and `GET /world` show places taken for a world with players, and identity's and the worlds
-   service's logs carry no "could not read world ... places" Warning.
+   service's logs carry no "could not read world ... places" Warning, and identity's carry no "Redis refused the expiry of
+   an ended session's tombstone" (the identity Redis user lacks `hpexpire`, or Redis is older than 7.4: check step 1).
 
 ## Testing the scripts
 
