@@ -17,14 +17,14 @@ public sealed class PlaceLedgerOutage(ILogger<PlaceLedgerOutage> logger, TimePro
 
     /// <summary>
     /// Redis refused the expiry of a field of the place ledger (<c>HPEXPIRE</c>: the identity user lacks it, or Redis is
-    /// older than 7.4): an ended session's tombstone, a released place's unclaimed time, or a lapsed squatter's lockout.
-    /// The script went on without the field, so ended sessions' late renewals are not refused, and the unclaimed horizon
-    /// and the lockout are weaker: logged at Warning, at most once per <see cref="Interval"/>, with how many were left out.
+    /// older than 7.4): an ended session's tombstone, a lapsed squatter's lockout, or a redeemed session's pending marker.
+    /// The script went on without the field, so ended sessions' late renewals are not refused, and the lockout and the
+    /// pending marker are lost: logged at Warning, at most once per <see cref="Interval"/>, with how many were left out.
     /// </summary>
     public void ReportExpiryRefused()
     {
         if (!_refusals.TryEnter(out int suppressed)) return;
-        logger.LogWarning("Redis refused the expiry of a place ledger field (HPEXPIRE: no permission for the Redis user, or Redis before 7.4): ended sessions' tombstones, the unclaimed horizon across worlds and the WORLD_FULL lockout are not kept until it is allowed. {Suppressed} earlier refusals were not logged",
+        logger.LogWarning("Redis refused the expiry of a place ledger field (HPEXPIRE: no permission for the Redis user, or Redis before 7.4): ended sessions' tombstones, the WORLD_FULL lockout and redeemed sessions' pending markers are not kept until it is allowed. {Suppressed} earlier refusals were not logged",
             suppressed);
     }
 

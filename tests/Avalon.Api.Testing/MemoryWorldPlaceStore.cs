@@ -16,6 +16,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
 {
     private const string Held = "h";
     private const string TurnPrefix = "t:";
+    private const string Released = "r";
 
     private readonly Lock _gate = new();
     private readonly Dictionary<ushort, WorldState> _worlds = [];
@@ -152,9 +153,11 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
 
             // A place no session has claimed for the horizon is not kept again: the request is a newcomer's, its place
             // still counted; admitted, the place is its own again with a new horizon; refused or queued, it is released.
-            bool present = w.Places.ContainsKey(account);
+            // A place another world's ticket released is counted but not the account's to keep.
+            bool present = w.Places.ContainsKey(account) && !(w.Marks.TryGetValue(account, out string? kind) && kind == Released);
+            bool pending = w.IsPending(account, now) && !w.LockedOut(account, now);
             bool lapsed = present && w.UnclaimedSince(account, now) is { } since &&
-                now - since >= (long)config.UnclaimedPlace.TotalMilliseconds && !w.IsPending(account, now);
+                now - since >= (long)config.UnclaimedPlace.TotalMilliseconds && !pending;
             long? HoldEnd() => w.Ticket(account) is { } t && t.Until > now ? t.Until : null;
             PlaceDecision Readmit(PlaceSource source, long waited)
             {
@@ -210,12 +213,12 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             if (w.LockedOut(account, now))
                 return Task.FromResult(new PlaceDecision(PlaceOutcome.WorldFull, PlaceSource.Taken, 0, TimeSpan.Zero, sweep));
             if (w.Line.Count == 0 && w.Places.Count < limit) return Task.FromResult(Readmit(PlaceSource.Taken, 0));
-            long? running = lapsed ? HoldEnd() : null;
             Release();
             if (w.Line.Count >= request.QueueCapacity)
             {
-                // Counted from when its place is free: its last ticket's hold, when that still runs.
-                if (lapsed) w.Lockouts[account] = (running ?? now) + (long)GameAuthPolicy.WorldFullRetryAfterMin.TotalMilliseconds;
+                // Counted from when its place is free: the place's own end, when it is kept for its last ticket's hold.
+                long free = w.Places.TryGetValue(account, out long kept) && kept > now ? kept : now;
+                if (lapsed) w.Lockouts[account] = free + (long)GameAuthPolicy.WorldFullRetryAfterMin.TotalMilliseconds;
                 return Task.FromResult(new PlaceDecision(PlaceOutcome.WorldFull, PlaceSource.Taken, 0, TimeSpan.Zero, sweep));
             }
 
@@ -249,11 +252,11 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             {
                 w.Unclaimed.Remove(accountId);
                 w.Pending.Remove(accountId);
+                if (activation) w.Lockouts.Remove(accountId); // the account is playing
             }
             else
             {
                 w.Pending[accountId] = now + (long)GameAuthPolicy.SessionLeaseLifetime.TotalMilliseconds;
-                if (w.UnclaimedSince(accountId, now) is { } since) w.Unclaimed[accountId] = (since, null);
             }
 
             w.Marks.TryGetValue(accountId, out string? mark);
@@ -318,7 +321,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
 
             long? held = w.Ticket(accountId)?.Until;
             if (held <= now) held = null;
-            if (end == PlaceEnd.Hold)
+            if (end == PlaceEnd.Hold && !w.LockedOut(accountId, now)) // no held grace while a lockout lives
             {
                 w.Extend(accountId, Ms(heldUntil));
                 if (held is null) w.Marks[accountId] = Held;
@@ -386,9 +389,10 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         {
             WorldState w = World(worldId);
             if (!w.Places.ContainsKey(accountId)) return Task.CompletedTask; // a replay never creates a place
+            w.Marks.TryGetValue(accountId, out string? mark);
+            if (mark == Released) return Task.CompletedTask; // released by another world's ticket: no ticket's to extend
             long expiry = Ms(until);
             w.Extend(accountId, expiry);
-            w.Marks.TryGetValue(accountId, out string? mark);
             if (mark == Held || mark?.StartsWith(TurnPrefix, StringComparison.Ordinal) == true) return Task.CompletedTask;
             (long Until, string Id, bool WasHeld)? held = w.Ticket(accountId);
             w.Marks[accountId] = RedisWorldPlaceStore.TicketMark(Math.Max(expiry, held?.Until ?? 0), ticket, held?.WasHeld == true);
@@ -456,12 +460,17 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
     {
         foreach ((_, WorldState other) in OtherWorlds(worldId))
         {
-            if (other.Ticket(account) is not { WasHeld: false } || other.Owner(account, now) is { Ended: false }) continue;
-            other.Places.Remove(account);
-            other.Marks.Remove(account);
-            // Its unclaimed time stays for one horizon, so redeeming the released place's old ticket starts no new one.
-            if (other.UnclaimedSince(account, now) is { } since)
-                other.Unclaimed[account] = (since, now + (long)config.UnclaimedPlace.TotalMilliseconds);
+            if (other.Ticket(account) is not { WasHeld: false } hold || other.Owner(account, now) is { Ended: false }) continue;
+            if (hold.Until > now)
+            {
+                // Its ticket may still be redeemed: counted to the hold's end, released, kept by no further ticket.
+                other.Places[account] = hold.Until;
+                other.Marks[account] = Released;
+            }
+            else
+            {
+                other.Forget(account);
+            }
         }
     }
 
