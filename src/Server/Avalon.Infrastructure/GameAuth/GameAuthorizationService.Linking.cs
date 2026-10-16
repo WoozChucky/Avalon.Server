@@ -144,7 +144,9 @@ public sealed partial class GameAuthorizationService
                     new(TokenKey(nextRefresh), null, GameAuthJson.Serialize(new GameAuthTokenRecord(next.Id, GameAuthTokenKinds.Refresh, next.Generation)), next.AbsoluteExpiresAt),
                     new(oldRefreshKey, oldRefreshRaw, GameAuthJson.Serialize(oldRefresh with { Spent = true }), context.AbsoluteExpiresAt),
                 };
-                return await store.CompareExchangeAsync(changes, cancellationToken) ? reply : GameAuthReply.Failure(GameAuthErrors.ContextChanged);
+                if (!await store.CompareExchangeAsync(changes, cancellationToken)) return GameAuthReply.Failure(GameAuthErrors.ContextChanged);
+                issued?.Issued(nextCredential, next.CredentialExpiresAt, context.CredentialDigest);
+                return reply;
             }
             catch (Exception)
             {

@@ -389,7 +389,8 @@ public sealed class AvalonGameAuthorizationShould
         IGameServerAllocator allocator = Substitute.For<IGameServerAllocator>();
         allocator.ListAsync(Arg.Any<GameContextRecord>(), Arg.Any<CancellationToken>()).Returns([]);
         var tickets = new JoinTicketStore(_store, _crypto, service, Substitute.For<IGameSessionRepository>(), allocator, _options, _clock, policy,
-            new MemoryWorldPlaceStore(_clock, new WorldPlacesConfiguration()), new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _clock));
+            new MemoryWorldPlaceStore(_clock, new WorldPlacesConfiguration()), new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _clock),
+            Options.Create(new WorldPlacesConfiguration()), new WorldPlaceMetrics(new System.Diagnostics.Metrics.Meter("test-places")));
         var admission = new GameAdmissionController(NullLogger<GameAdmissionController>.Instance, service, tickets, allocator, policy)
         {
             ControllerContext = new() { HttpContext = new DefaultHttpContext() },

@@ -11,11 +11,11 @@ The feature ships in five parts. This page describes what is in place now and ma
 | 1 | The `PlayerLimit` column and its endpoint; the ledger, kept with every session; true counts in the world lists | in place |
 | 2 | The reason a world gives for a session's end; the held place after a drop | in place |
 | 3 | Enforcement at the join (`WORLD_FULL`), the `Full` status, the world's backstop | in place |
-| 4 | The queue: the "queued" answer, the status and leave calls, their rate limit, the metrics | from PR 4 |
+| 4 | The queue: the "queued" answer, the status and leave calls, their rate limit, the metrics | in place |
 | 5 | The goodbye opcode (`CMSG_LEAVE_WORLD`), so a quit frees its place at once | from PR 5 |
 
-A world with a limit refuses a newcomer once it is full ([enforcement](#enforcement)); until part 4 there is no line,
-so a full world answers `WORLD_FULL` rather than queueing.
+A world with a limit queues a newcomer once it is full ([enforcement](#enforcement), [the queue](#the-queue)), and
+answers `WORLD_FULL` only once its line is at its cap.
 
 ## What the limit is
 
@@ -82,7 +82,7 @@ A stale call can at most keep a place counted a little longer (see the last poin
   without ever playing. Past the horizon a further ticket is not kept on the place: it goes through the capacity step
   as a newcomer's, its own place still counted. With room (a free place beyond its own, and nobody in the line), or
   for staff, it is admitted and the place is its own again with a new horizon; otherwise the answer is a newcomer's
-  (`WORLD_FULL`, or from part 4 the line) and the place is released, but not while its last ticket's hold still runs:
+  (the line, or `WORLD_FULL` once the line is at its cap) and the place is released, but not while its last ticket's hold still runs:
   that ticket may still be redeemed, and its session then finds the place it was counted for (the redemption renews it
   as any other, never over the limit, and the unclaimed time stays until an activation). The place goes at its own
   end: that hold's, or later when a session renewed it meanwhile. A live session's renewals are untouched: its
@@ -93,7 +93,7 @@ A stale call can at most keep a place counted a little longer (see the last poin
   another world, whose end identity answers `SESSION_REPLACED` and never records here, would otherwise leave a fence
   nobody renews and a place that never lapses.
 - **A lapsed place refused is not taken back at once.** An account whose unclaimed place lapsed and that is refused
-  `WORLD_FULL` (the world full and its line full, or no line, as in part 3) is locked out of that world for 45 s
+  `WORLD_FULL` (the world full and its line at its cap) is locked out of that world for 45 s
   (`GameAuthPolicy.WorldFullRetryAfterMin`, the shortest `Retry-After` the others are told), counted from when its
   place is free: the place's own end, when it is kept for its last ticket's hold. Until then each of its joins is
   `WORLD_FULL` again,
@@ -108,13 +108,17 @@ A stale call can at most keep a place counted a little longer (see the last poin
   activation removes it (the account is playing), and a session end while it lives gives the place no held grace (the
   grace would outlast the lockout): the place stays only while a ticket's hold or the session's lease still runs. Should Redis refuse
   the expiry, the field is not kept (see the Warning below), and the account can retake the place as before. A lapsed
-  account queued instead (from part 4, when the world's line has room) gets no lockout: it waits behind whoever is
-  already in the line.
-- **One place a ticket alone holds per account, across worlds.** A join ticket admitted in one world releases the
-  account's places in every other configured world that only a ticket holds: a ticket's mark, with no live session
-  owning the place. A place held after a drop (`h`), one a ticket returned to from a drop (`j:...:h`), one a live
-  session owns, and a turn from the line all stay. So one account cannot squat one world while it asks tickets for
-  another; the release is in the same script as the admission, over the other worlds' keys as an activation's is. A
+  account queued instead (the world's line has room) gets no lockout: it waits behind whoever is already in the line,
+  and the place it still has counted (kept for its last ticket's hold) is no turn ([the queue](#the-queue)). A
+  lockout the sweep writes while the account waits in the line changes nothing for it there: it is checked only for an
+  account outside the line, so an account that waits its turn is never locked out of it, and one that leaves the line
+  and asks again within the 45 s is refused as above.
+- **One reservation per account, across worlds.** A join ticket admitted in one world, or a turn the line gives in one
+  world, releases what the account holds in every other configured world with no live session owning it: a place only
+  a ticket holds (a ticket's mark), and an unused turn, which is given back as a leave gives it back
+  ([the queue](#the-queue)). A place held after a drop (`h`), one a ticket returned to from a drop (`j:...:h`) and one a
+  live session owns all stay. So one account cannot squat one world while it asks tickets, or waits turns, for another;
+  the release is in the same script as the admission or the turn, over the other worlds' keys as an activation's is. A
   released place whose ticket's hold still runs is not removed at once, since that ticket may still be redeemed: it
   stays counted to the hold's end, marked released (`r`), so no further ticket keeps it (the account asks as a
   newcomer) and no replay extends it, and a redemption of that ticket renews a place that never left the count, with
@@ -185,7 +189,9 @@ same `DisconnectReason` as before.
   brings back a place whose time has passed, swept or not.
 - **A return that fails holds the place again.** A join within the grace takes the held place as its ticket's
   (`j:{untilMs}:{ticket}:h`); should that ticket's issue fail, its withdrawal holds the place again, to the end it has,
-  rather than removing it.
+  rather than removing it. A drop while a ticket's hold still runs on the place (a takeover's ticket, say) keeps that
+  ticket's mark for the session it becomes, marked `:h` the same way: the place is held after a drop all the same, so
+  no ticket or turn for another world releases it or cuts its grace short.
 - **After a stop or a maintenance cutoff nobody holds a place** (decision 10): everyone is equal and joins the line with
   everybody else. The world's ends tell identity when: the first `shutdown` or `maintenance` end of the world releases
   every place it holds after a drop (`IWorldPlaceStore.ReleaseHeldAsync`; their tombstones stay). A stop's ends come in
@@ -193,8 +199,9 @@ same `DisconnectReason` as before.
   replica asks Redis at most once in it, and the marks hash's field `released` holds it across replicas). The release
   scans the world's places, at most once in the window: tracking the held ones apart would need a key the identity
   Redis user's patterns do not grant. A drop whose end lands within those 10 s keeps its place until the next `shutdown` or
-  `maintenance` end after them, or its grace. A place a ticket has taken since (a return within the grace) is that
-  ticket's and stays: the ticket is already issued. A stop or a cutoff that ends no session (no player left, or Admins
+  `maintenance` end after them, or its grace. A place held after a drop that a ticket's hold runs on (a return within the
+  grace, or a drop while a takeover's ticket was out, `j:...:h`) loses its grace too but stays that ticket's to its
+  hold's end, since the ticket is already issued and may still be redeemed; a hold already over goes with the place. A stop or a cutoff that ends no session (no player left, or Admins
   only) sends no such end, and the places held there run out with their grace, within 90 s.
 - **An end that is not sent holds nothing.** An end skipped in the `SessionEnds` lane (the stop's deadline passed, or
   the lease ran out more than 5 s ago with no renewal outstanding, #1051, counted on `world.session_ends.skipped`)
@@ -214,21 +221,131 @@ flag:
 
 | The account | On a full world (places taken at or over the limit) |
 |---|---|
-| Holds a place in the world: its own session (a reconnect, a takeover), a ticket's hold, or a place held after a drop | kept; ticket as before |
+| Holds a place in the world: its own session (a reconnect, a takeover), a ticket's hold, a place held after a drop, or a turn from the line | kept; ticket as before |
 | Staff (the Admin flag, tested with `Allows`) | a place, over the limit if need be; ticket as before |
-| Anyone else | **503 `WORLD_FULL`** with `Retry-After` a whole number of seconds from 45 to 75, drawn at random so the players refused together do not all ask again at once (`GameAuthPolicy.WorldFullRetryAfterMin`, `Max`); no ticket, no place |
+| In the line, its rank within the places free | its turn: a place and a ticket, as at a check-in's turn ([the queue](#the-queue)) |
+| Anyone else, while the line is under its cap (`Application:WorldPlaces:QueueCapacity`, 5,000) | **202** with `{ position, checkInAfterSeconds }` and no ticket: queued at the back of the line, or kept at its position when already in it |
+| Anyone else, the line at its cap | **503 `WORLD_FULL`** with `Retry-After` a whole number of seconds from 45 to 75, drawn at random so the players refused together do not all ask again at once (`GameAuthPolicy.WorldFullRetryAfterMin`, `Max`); no ticket, no place |
+
+A newcomer never jumps the line: while anyone waits, it queues too, even when a place is free at that instant.
 
 - `WORLD_FULL` is one of the retryable 503s, beside `WORLD_UNAVAILABLE` and `SERVICE_UNAVAILABLE`
-  ([world refusals](api-authentication.md#world-refusals)). It is answered before the ticket and its `join-issue`
-  receipt are written, so the same `Idempotency-Key` asked again is decided again rather than replayed.
-- No limit set: no refusal, as before. Until part 4 there is no line (its capacity is 0): a full world refuses, it does
-  not queue.
+  ([world refusals](api-authentication.md#world-refusals)). It, and the 202 of a queued join, are answered before the
+  ticket and its `join-issue` receipt are written, so the same `Idempotency-Key` asked again is decided again rather
+  than replayed: the key a client queued with gets its ticket at its turn.
+- No limit set: no refusal and no line, as before.
 - **`Full` in the lists.** `WorldStatus` gains `Full` (appended, in the REST contract's enum and the domain's): a world
   `Online` with a limit that places taken have reached. The order is `Maintenance`, then `Offline`, then `Full`, then
   `Online` (`WorldReadiness.WithCapacity`, on top of `Resolve`, which keeps its three values). `GET /world`,
   `GET /world/{id}` and identity's `POST /game/worlds` derive it from the ledger's count; `GET /world?sortBy=status`
   orders `Full` after `Maintenance`, by the enum's number. A world listed only with `requiresUpdate` gets its status
   the same way. The TCP auth server's world list is unchanged.
+
+## The queue
+
+A full world (a limit set, and places taken at or over it) queues the accounts that ask to enter, in arrival order,
+and lets them in as places free up. The line is identity's, in Redis, changed only by the ledger's scripts; the world
+knows nothing of it.
+
+- **Arrival order, no jumping.** A join that is queued is placed at the back by a per-world arrival counter (the
+  score's high part is a priority band, reserved and always 0). While anyone waits, every newcomer queues too, even
+  when a place is free at that instant. A join from an account already in the line keeps its position.
+- **The join's answer.** `POST /game/join-tickets` and `/game/reconnect-tickets` answer **202** with
+  `{ position, checkInAfterSeconds }` and no ticket. Nothing is stored for the request's `Idempotency-Key`, so the
+  same key, or a new one, asks afresh at the turn.
+- **Checking in.** The client then calls `POST /game/queue/status` with its game context credential and the world id,
+  at the interval each reply gives. The reply is `{ state, position, checkInAfterSeconds, estimatedWaitSeconds }`;
+  `estimatedWaitSeconds` is reserved and always null. A waiter that stops checking in is removed:
+
+  | Position | Check in every | Removed after |
+  |---|---|---|
+  | 1 to 10 (`WorldPlacesConfiguration.FrontPositions`) | `FrontCheckInSeconds` (5 s) | `FrontTimeoutSeconds` (15 s) without a check-in |
+  | 11 and further back | `BackCheckInSeconds` (15 s) | `BackTimeoutSeconds` (45 s) without a check-in |
+
+  Each check-in stores the moment the waiter is removed unless it checks in again, so a waiter told "every 15 s" keeps
+  its 45 s when the line moves it into the first ten. Silent waiters are removed by whichever script runs next for the
+  world (a join, a check-in, or identity's sampler every 15 s), before any position is computed, so a silent waiter at
+  the head never stalls the line.
+- **The states.** `queued` with the position; `paused` with the position while the world is not available (no row, no
+  ready heartbeat, or a maintenance cutoff in force: positions kept as long as the waiters check in, nobody is let in;
+  staff enter as ever); `your_turn`; `not_queued` (the account is not in this world's line: ask to join).
+- **The turn.** At a waiter's own check-in, with the world available and its rank within the places free (the limit
+  less places taken, the rank counted from 0), the script moves it out of the line and gives it a place for the turn
+  window (`TurnWindowSeconds`, 45 s), and the state is `your_turn`. The client then makes the ordinary join-ticket call,
+  which finds the place, runs every check a join runs (standing, license, application, the world, the session rules)
+  and issues the ticket; the queue never issues one itself. A waiter takes a place only at its own check-in, so nobody
+  is let in while away. A turn not used within the window expires (`turn_expired`) and the next in line takes it at its
+  check-in. A turn given releases what the account holds in other worlds with no session: a ticket-only place, and an
+  unused turn, given back ([one reservation per account](#places)).
+- **A turn while the world is not available.** A turn given just before the world goes away (it stopped, or a
+  maintenance cutoff came) is not lost: while the world is not available, a check-in by an account holding an unused
+  turn keeps the turn, its window starting again, and answers `paused` at position 1. The client goes on checking in
+  (a join meanwhile is refused 503 `WORLD_UNAVAILABLE`, as for anyone), and once the world is back the check-in answers
+  `your_turn` again. A client that stops checking in loses the turn when its window runs out. The turn is kept so at
+  most `Application:WorldPlaces:PausedTurnMinutes` (30) from when it was given, which a stop or a maintenance window of
+  that length fits, so a world whose readiness comes and goes cannot keep a turn for ever; past it the turn expires
+  (`turn_expired`) and the account asks to join again, at the back of the line.
+- **A place of its own is its turn at once.** An account that holds a place in the world its join would keep (a turn
+  already taken, a place held after a drop, its session's, a ticket's hold not lapsed) is told `your_turn` at once,
+  and leaves the line if it is in it; so does its join. A place that is not its own is counted but is no turn: one
+  released by its ticket for another world (`r`), or one that lapsed under tickets alone and is kept only for its last
+  ticket's hold. Such an account waits its rank like anyone, its own place counted among the places taken, and its
+  turn, when it comes, is taken over that place: never shortened (that ticket may still be redeemed), and its own, no
+  longer lapsed, so its join takes it. The turn's mark records when the account joined the line and when the turn was
+  given (`t:{enqueuedAtMs}:{givenAtMs}`), and, over such a place, that place's end and unclaimed time
+  (`t:{enqueuedAtMs}:{givenAtMs}:{endMs}:{unclaimedSinceMs}`), so a turn given back returns it to what it was.
+- **Leaving.** `POST /game/queue/leave` (same body) leaves the line and gives back a turn not yet used (`cancelled`);
+  it is safe to repeat and answers `not_queued`. A turn given over a place still counted for an earlier ticket is given
+  back to that place: counted again to its own end, released (`r`, kept by no further ticket), so that ticket's
+  redemption renews a place that never left the count rather than putting one back over the limit; otherwise the place
+  goes. Silence leaves the line too, within its timeout.
+- **One line per account.** Joining a second world's line leaves the first.
+- **The cap.** `QueueCapacity` (5,000) per world. A join that would queue past it is answered 503 `WORLD_FULL` with
+  `Retry-After` (45 to 75 s), and counted `refused_at_cap`. A `WORLD_FULL` for a lockout (a lapsed place refused a
+  moment ago) is counted `refused_locked_out` instead.
+- **The limit changed.** Raised or removed: the waiters within the new room enter at their next check-in. Lowered:
+  nobody leaves the world or the line. A check-in reads the limit from identity's cached view, so for up to 5 s after a
+  change, turns are still given at the previous limit (the join reads the row afresh, so tickets follow the new one at
+  once).
+- **What the calls trust.** The credential is checked on Redis alone (`GameAuthorizationService.GetCurrentContextAsync`:
+  current, not spent, not expired, the context not revoked by a logout, a refresh reuse or a replacing sign-in), with
+  no account standing or license: the calls grant nothing, and the join that follows a turn checks both. A banned
+  waiter can still check in until its credential runs out (at most 5 minutes: its refresh is refused, as the ban is
+  checked there), then is removed from the line within its timeout; any join meanwhile is refused. The world's
+  availability and limit are identity's cached view (`GameWorldAvailability`), read from the row and the ready
+  heartbeat at most every 5 s per world, so a check-in reads Redis alone.
+- **The credential lives 5 minutes.** A wait longer than that needs the game context refreshed, as at any other time
+  (`client/auth/game-context/refresh`); a check-in with a credential that ran out is 401. The client refreshes while it
+  waits; LocalDev's `check` and the load-test bots do.
+- **Their limits.** The two calls are out of the shared request limiter (`[DisableRateLimiting]`): its anonymous
+  partition, 60 a minute per source, would throttle the waiters of a household behind one address. `QueueRateLimiter`
+  limits them instead, in memory as the shared limiter is, in a one-minute window of thirty segments:
+  - **A credential identity knows** (it issued it, at a sign-in, a link or a refresh, or read it current at a check-in,
+    until it expires) has `Application:RateLimiting:QueuePermitsPerMinute` (30) calls a minute of its own, counted
+    before it is read, and goes through no gate of its source: nothing another caller behind its address does slows or
+    refuses it. It is still read on every call, so a revocation answers at once. The known credentials are a bounded
+    cache (100,000, by the first 16 bytes of each one's SHA-256); one not remembered for the bound is a stranger's. A credential
+    read current is kept before one only issued, and the credential a refresh or a sign-in replaces is forgotten at once.
+  - **Any other credential is a stranger's.** Its reads from one source go two at a time, the others waiting their turn
+    (refused once 64 wait), and once the source has presented 30 credentials in a minute that were not current, at most
+    `Application:RateLimiting:QueueUnknownReadsPerMinute` (60) a minute. The whole process reads at most
+    `Application:RateLimiting:QueueStrangerReadsInFlight` (256) strangers' credentials at once, whatever their sources;
+    past it a stranger's call is refused (429). Nothing is kept per stranger's credential, so a
+    flood of junk costs only its source's limiter state. Such a source can delay or refuse a waiter identity does not
+    know yet behind the same address (after an identity restart emptied the cache, say), never one it knows.
+  - **Each account** has `QueuePermitsPerMinute` (30) calls a minute after the read, its fair share across the
+    credentials it rotates through.
+  - A credential not of a credential's shape is refused (401) before any of this, at no cost.
+
+  An exempt source is not gated. Each limiter partition is dropped once it has been idle a window, as the shared
+  limiter's are. A refusal is 429 with `{ "error": "LOCKED" }` and a
+  `Retry-After` of at most 2 s (one segment), well inside the time a waiter has between its check-in interval and its
+  removal (10 s by default), so a waiter refused once and asking again when told keeps its position.
+- **No `Idempotency-Key`**: both calls are idempotent by nature and bind none. A successful check-in's request line is
+  logged at Debug, as a lease heartbeat's is: a full world's waiters check in every 5 or 15 s each.
+- **Errors.** 400 for plain HTTP or a malformed body, 401 `AUTHORIZATION_REQUIRED` for a credential that is not
+  current (refresh the context and ask again), 429 as above, 503 `SERVICE_UNAVAILABLE` when Redis or the auth database
+  cannot be read.
 
 ## The backstop
 
@@ -292,11 +409,12 @@ ledger is wrong or was lost (a Redis flush, and the window before heartbeats put
   never writes the limit.
 - Each change is logged at Information with who made it and the limit before and after.
 - It takes effect on identity's next join request. Lowering it below places taken removes nobody: nobody new enters
-  until places taken falls below it.
+  until places taken falls below it, and nobody leaves the line for it. Raising or removing it lets the waiters
+  within the new room in, each at its next check-in.
 - The world's backstop has its own limit, the world's configuration `Game:PlayerLimit` (Helm
   `server.game.playerLimit`), which the operator sets to the same number. **A limit is always set in two steps, together:**
-  1. `PUT /world/{id}/player-limit` with the number: identity's limit, which refuses newcomers (`WORLD_FULL`) and, from
-     part 4, queues them. Effective on the next join.
+  1. `PUT /world/{id}/player-limit` with the number: identity's limit, which queues newcomers and refuses them
+     (`WORLD_FULL`) once the line is at its cap. Effective on the next join.
   2. The same number as the world's chart value `server.game.playerLimit` (removed, or empty, to lift it): the
      backstop's limit. Effective when the pod rolls, which the change does: a restart, after which nobody holds a place
      (decision 10). So change it in a maintenance window or before the world's players arrive.
@@ -322,6 +440,24 @@ deadline, is still ahead), so what no script has swept yet is not shown. When Re
 an error Redis answers (a missing permission, `NOPERM`) is also logged at Warning, at most every 10 s
 (`RedisWorldOccupancy`), so a Redis user without the rules below does not show every world empty in silence.
 
+## Metrics
+
+Identity's, on the API's meter (`avalon-api`), each tagged `world`:
+
+| Metric | Kind | Meaning |
+|---|---|---|
+| `avalon.world.places.taken` | gauge | Places taken: every admitted account, in the world, at character select, holding an unredeemed ticket or a turn, or held after a drop. Not `avalon.world.players.online` (the world's gauge), which counts only characters in the world |
+| `avalon.world.places.held` | gauge | Places held after a dropped connection, a ticket's hold on one (a return within the grace) included |
+| `avalon.world.queue.length` | gauge | Accounts waiting in the line |
+| `avalon.world.places.limit` | gauge | The stored player limit, only for a world that has one |
+| `avalon.world.queue.outcomes` | counter, tag `reason` | How waits ended: `entered` (the join after a turn issued its ticket), `cancelled` (a leave that removed something), `timed_out` (a waiter removed for not checking in), `turn_expired` (a turn not used within its window), `refused_at_cap` (a join answered `WORLD_FULL`, the line at its cap), `refused_locked_out` (a join answered `WORLD_FULL` for the account's lockout: its unclaimed place lapsed and was refused a moment ago) |
+| `avalon.world.queue.wait` | histogram, seconds | The time in the line of those who entered, from joining the line to the ticket |
+
+The gauges are sampled every 15 s for each configured world (`WorldPlaceGauges`, a background service in identity),
+which also sweeps what expired where nobody joins or checks in, counting what it removed. A world whose sample fails (Redis,
+or its row) is logged at Debug and left out of the gauges until a sample succeeds. The world's own `world.admission.backstop_refusals` is
+described under [the backstop](#the-backstop).
+
 ## Redis
 
 Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cache-keys.md#world-places-and-queue-967):
@@ -329,7 +465,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | Key | Type | Content |
 |---|---|---|
 | `world:{worldId}:places` | sorted set | the ledger: member the account id, score the moment the place expires (Unix ms) |
-| `world:{worldId}:places:marks` | hash | per account five fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used), `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place) or `r` (released by the account's ticket for another world while its own ticket's hold ran: counted until that hold ends, kept by no ticket), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes); `{accountId}:f`, since when (Unix ms) no session has claimed the place, absent once one does, gone with the place; `{accountId}:l` (`1`), the lockout of an account refused when its unclaimed place lapsed, which Redis expires 45 s after its place is free, removed by an activation; `{accountId}:p`, the fencing token of a session redeemed and not yet activated, which Redis expires one lease after the redemption, removed by the activation, the owner's heartbeat, the session's end or the place's removal. One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
+| `world:{worldId}:places:marks` | hash | per account five fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}:{givenAtMs}` (a turn taken, not yet used; `t:{enqueuedAtMs}:{givenAtMs}:{endMs}:{unclaimedSinceMs}` when given over a place still counted), `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place) or `r` (released by the account's ticket for another world while its own ticket's hold ran: counted until that hold ends, kept by no ticket), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes); `{accountId}:f`, since when (Unix ms) no session has claimed the place, absent once one does, gone with the place; `{accountId}:l` (`1`), the lockout of an account refused when its unclaimed place lapsed, which Redis expires 45 s after its place is free, removed by an activation; `{accountId}:p`, the fencing token of a session redeemed and not yet activated, which Redis expires one lease after the redemption, removed by the activation, the owner's heartbeat, the session's end or the place's removal. One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
 | `world:{worldId}:queue` | sorted set | the line: member the account id, score its arrival number |
 | `world:{worldId}:queue:checkins` | sorted set | member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
 | `world:{worldId}:queue:arrivals` | string | the arrival counter |
@@ -375,6 +511,11 @@ Each step only after the one before is done:
    of a redeemed session, whose place can then lapse before its activation. Each refusal is the same Warning, "Redis
    refused the expiry of a place ledger field".
 2. Identity, then the worlds service and the worlds, as in every release (identity before the worlds).
+   **Turns and an identity from before part 4.** Part 4 writes turns (marks `t:{enqueuedAtMs}:{givenAtMs}` and
+   `t:{enqueuedAtMs}:{givenAtMs}:{endMs}:{unclaimedSinceMs}`), which an identity from before part 4 cannot read: its join of an account holding a turn fails with 503
+   `SERVICE_UNAVAILABLE`. So do not run identity pods from before part 4 beside part 4's: roll identity over without
+   overlap (stop the old pod, then start the new), or accept that 503 for the few seconds both run. Turns exist only on
+   a world with a limit, and no live world has one before part 5, so on today's worlds the overlap meets no turn.
 3. Check: `/game/worlds` and `GET /world` show places taken for a world with players, and identity's and the worlds
    service's logs carry no "could not read world ... places" Warning, and identity's carry no "Redis refused the expiry of
    a place ledger field" (the identity Redis user lacks `hpexpire`, or Redis is older than 7.4: check step 1).
@@ -398,7 +539,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 47, Skipped: 0` (the 46 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 55, Skipped: 0` (the 54 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary

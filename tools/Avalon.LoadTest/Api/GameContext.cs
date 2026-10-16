@@ -70,6 +70,12 @@ public sealed record GameContextTokens(string Credential, string RefreshToken, D
 /// <param name="TlsCertificateSha256">The SHA-256 of the world's complete DER leaf certificate, the pin.</param>
 public sealed record WorldDestination(ushort WorldId, string Host, int Port, string TlsServerName, string TlsCertificateSha256);
 
+/// <summary>A join's answer (#967): a ticket, or the bot's place in a full world's line and when to check in.</summary>
+public sealed record JoinAnswer(JoinTicket? Ticket, int Position, TimeSpan CheckInAfter);
+
+/// <summary>A check-in's answer (#967): <c>queued</c>, <c>paused</c>, <c>your_turn</c> or <c>not_queued</c>.</summary>
+public sealed record QueueStatus(string State, int Position, TimeSpan CheckInAfter);
+
 /// <summary>A one-use join ticket (30 seconds at most) and the world server that redeems it.</summary>
 public sealed record JoinTicket(string Ticket, WorldDestination Destination)
 {

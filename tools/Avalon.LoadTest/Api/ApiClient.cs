@@ -159,9 +159,10 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
     /// refused here: the tool enters only the world it was told to. A timeout, transport failure or 5xx is retried twice
     /// under the same <c>Idempotency-Key</c>, and so is a 409 <c>CONTEXT_CHANGED</c> (the context moved on while the
     /// ticket was issued, a refresh of it most likely; nothing was kept for the key), with the context's credential
-    /// read again for the retry.
+    /// read again for the retry. Or, for a full world (#967), the bot's place in its line: 202 with a position and when to
+    /// check in, and no ticket.
     /// </summary>
-    public async Task<JoinTicket> JoinTicketAsync(GameContext context, ushort worldId, bool confirmTakeover,
+    public async Task<JoinAnswer> JoinAsync(GameContext context, ushort worldId, bool confirmTakeover,
         CancellationToken ct)
     {
         const string Step = "join";
@@ -172,6 +173,9 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         JsonNode reply = await SendWithRetriesAsync(Step, "game/join-tickets", Guid.NewGuid(),
             () => new { gameContextCredential = context.Credential, worldId, confirmTakeover }, GameAuthErrors.ContextChanged,
             attemptTimeout: null, ct);
+        // A full world (#967): 202 with a position and no ticket.
+        if (Text(reply, "joinTicket") is null && Int(reply, "position") is { } position)
+            return new JoinAnswer(null, position, CheckInAfter(reply));
         string ticket = Required(reply, "joinTicket", Step);
         JsonNode destination = reply["destination"] ?? throw new ApiException(Step, 200, "the reply has no destination");
 
@@ -193,8 +197,33 @@ public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
         if (parsed.WorldId != worldId)
             throw new ApiException(Step, 200, $"the ticket is for world {parsed.WorldId}, not world {worldId}");
 
-        return new JoinTicket(ticket, parsed);
+        return new JoinAnswer(new JoinTicket(ticket, parsed), 0, TimeSpan.Zero);
     }
+
+    /// <summary>
+    /// A check-in in world <paramref name="worldId"/>'s line (#967): <c>queued</c>, <c>paused</c>, <c>your_turn</c> or
+    /// <c>not_queued</c>. A 429 (30 calls a minute per account) is an <see cref="ApiException"/>, as any failure.
+    /// </summary>
+    public async Task<QueueStatus> QueueStatusAsync(GameContext context, ushort worldId, CancellationToken ct)
+    {
+        const string Step = "queue";
+        JsonNode reply = await SendAsync(Step, HttpMethod.Post, "game/queue/status",
+            new { gameContextCredential = context.Credential, worldId }, null, idempotencyKey: null, ct);
+        return new QueueStatus(Required(reply, "state", Step), Int(reply, "position") ?? 0, CheckInAfter(reply));
+    }
+
+    /// <summary>Leaves world <paramref name="worldId"/>'s line (#967), giving back a turn not used; safe to repeat.</summary>
+    public Task LeaveQueueAsync(GameContext context, ushort worldId, CancellationToken ct) =>
+        SendAsync("queue-leave", HttpMethod.Post, "game/queue/leave", new { gameContextCredential = context.Credential, worldId },
+            null, idempotencyKey: null, ct, allowEmpty: true);
+
+    /// <summary>An integer property of a reply, or null.</summary>
+    private static int? Int(JsonNode reply, string property) =>
+        reply[property] is JsonValue value && value.TryGetValue(out int number) ? number : null;
+
+    /// <summary>When the reply says to check in again; 5 s when it does not say.</summary>
+    private static TimeSpan CheckInAfter(JsonNode reply) =>
+        TimeSpan.FromSeconds(Int(reply, "checkInAfterSeconds") is > 0 and int seconds ? seconds : 5);
 
     /// <summary>
     /// Refreshes the context: both the credential and the refresh token rotate, and the expiries move on. Sent under
@@ -521,8 +550,8 @@ public sealed class ApiException(string step, int status, string detail)
     : Exception($"{step} failed{(status == 0 ? "" : $" ({status})")}: {detail}")
 {
     /// <summary>The call that failed: <c>authenticate</c>, <c>code</c>, <c>token</c>, <c>game-ticket</c>,
-    /// <c>provider-attempt</c>, <c>redeem</c>, <c>join</c>, <c>refresh</c>, <c>logout</c>, <c>create-run</c> or
-    /// <c>delete-run</c>.</summary>
+    /// <c>provider-attempt</c>, <c>redeem</c>, <c>join</c>, <c>queue</c>, <c>queue-leave</c>, <c>refresh</c>,
+    /// <c>logout</c>, <c>create-run</c> or <c>delete-run</c>.</summary>
     public string Step { get; } = step;
 
     /// <summary>The HTTP status; 0 when no reply came (a transport failure or the timeout).</summary>

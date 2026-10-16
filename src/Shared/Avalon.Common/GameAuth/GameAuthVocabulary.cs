@@ -120,6 +120,15 @@ public static class GameAuthStates
     public const string Complete = "complete";
 }
 
+/// <summary>A waiter's state in a full world's line (#967), as <c>POST /game/queue/status</c> answers it.</summary>
+public static class GameQueueStates
+{
+    public const string Queued = "queued";
+    public const string Paused = "paused";
+    public const string YourTurn = "your_turn";
+    public const string NotQueued = "not_queued";
+}
+
 public static class StoreProviders
 {
     public const string Steam = "steam";

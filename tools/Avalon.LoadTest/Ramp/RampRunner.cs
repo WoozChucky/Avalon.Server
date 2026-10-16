@@ -102,6 +102,9 @@ public sealed record RampResult(
     /// </summary>
     public (long Sealed, long Plain) Admissions { get; init; }
 
+    /// <summary>The bots' waits in a full world's line over the ramp (<see cref="BotMetrics.Queue"/>, #967).</summary>
+    public QueueTotals Queue { get; init; }
+
     /// <summary>
     /// Sign-in failures over the ramp by kind (<see cref="BotMetrics.SignInFailed"/>), the context refresher's and the
     /// stop sequence's included; identity's side, apart from admission.
@@ -643,6 +646,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             StopReason = stopReason,
             SignIns = _signIns,
             Admissions = metrics.Admissions,
+            Queue = metrics.Queue,
             SignInFailures = new Dictionary<string, int>(signInFailures, StringComparer.Ordinal),
             SignOutFailures = signOutFailures,
             WorldDrained = null,
@@ -713,6 +717,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             KubeNotScrapedSinceDrain = !scraped,
             SignIns = _signIns,
             Admissions = metrics.Admissions,
+            Queue = metrics.Queue,
             SignInRate = SignInRate(),
             Ended = DateTimeOffset.UtcNow,
             SignInFailures = signInFailures,

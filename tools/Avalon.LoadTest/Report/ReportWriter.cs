@@ -102,6 +102,7 @@ public static class ReportWriter
         md.AppendLine($"- Mix: {options.Mix}");
         md.AppendLine($"- Fighters: {FightersText(options)}");
         md.AppendLine($"- Packet encryption, as the world's admission replies named it: {BotMetrics.EncryptionText(result.Admissions)}");
+        md.AppendLine($"- Queue: {BotMetrics.QueueText(result.Queue)}");
         md.AppendLine(Invariant(
             $"- Ramp: start {options.Start}, step {options.Step}, hold {options.Hold.TotalSeconds:0} s (judged on the last {RampRunner.JudgedWindow(options.Hold).TotalSeconds:0} s), max {options.Max}, {options.SignInConcurrency} sign-ins at once, input driven by {options.DriverLoops} loops (--driver-loops)"));
         md.AppendLine($"- Prometheus: {options.Prometheus} (pod {options.Pod}){(CommandLine.DiallingText(options.Dial, options.ProxyHeader) is { } dialling ? $"; {dialling}" : "")}");
@@ -435,6 +436,7 @@ public static class ReportWriter
                 SlowKicksMayBeGenerator = result.Steps.Where(step => step.Decision.SlowKicksMayBeGenerator).Select(step => step.Index),
                 result.SignIns,
                 PacketEncryption = new { result.Admissions.Sealed, result.Admissions.Plain },
+                Queue = new { result.Queue.Queued, result.Queue.Entered, WaitP50Seconds = result.Queue.WaitP50, WaitP95Seconds = result.Queue.WaitP95 },
                 SecondsPerSignIn = result.SignInRate.TotalSeconds,
                 result.SignInFailures,
                 result.SignOutFailures,

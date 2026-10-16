@@ -18,7 +18,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
     GameProviderRegistry providers, GameLicenseAuthorityService licenseAuthority,
     IOptions<StoreAuthenticationConfiguration> options, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock,
     IGameAccountRegistration? registration = null, IGameContextRevocations? revocations = null,
-    ILogger<GameAuthorizationService>? logger = null)
+    ILogger<GameAuthorizationService>? logger = null, IGameCredentialIssued? issued = null)
 {
     private readonly ILogger _logger = logger ?? NullLogger<GameAuthorizationService>.Instance;
 
@@ -89,6 +89,16 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         GameContextRecord? context = await CredentialContextAsync(credential, cancellationToken);
         return context is null ? default : await StandingOfAsync(context, requireLicense, cancellationToken);
     }
+
+    /// <summary>
+    /// The context <paramref name="credential"/> is the current credential of, read from Redis alone and not revoked (a
+    /// logout, a refresh reuse or a replacing sign-in marks the record so): no account standing and no license (#967, the queue's check-ins,
+    /// which grant nothing; the join that follows a turn checks both).
+    /// </summary>
+    public async Task<GameContextRecord?> GetCurrentContextAsync(string credential, CancellationToken cancellationToken) =>
+        await CredentialContextAsync(credential, cancellationToken) is { } context && context.State != GameAuthStates.Revoked
+            ? context
+            : null;
 
     /// <summary>The standing of <paramref name="context"/>, read through a current credential (<see cref="CredentialContextAsync"/>).</summary>
     private async Task<GameContextStanding> StandingOfAsync(GameContextRecord context, bool requireLicense, CancellationToken cancellationToken)
@@ -621,6 +631,8 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         if (!await store.CompareExchangeAsync(changes, cancellationToken)) return GameAuthReply.Failure(GameAuthErrors.ContextChanged);
         if (replacing && previous!.AccountId is { } oldAccount)
             await PublishRevocationAsync(new AccountId(oldAccount), previous.Id);
+        // After the follow-up work: the hook never throws, and an account's credentials alone are worth knowing.
+        if (context.AccountId is not null) issued?.Issued(credential, context.CredentialExpiresAt, previous?.CredentialDigest);
         return reply;
     }
 
@@ -742,7 +754,11 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                 new(TokenKey(nextCredential), null, GameAuthJson.Serialize(new GameAuthTokenRecord(context.Id, GameAuthTokenKinds.Credential, next.Generation)), next.CredentialExpiresAt),
                 new(TokenKey(nextRefresh), null, GameAuthJson.Serialize(new GameAuthTokenRecord(context.Id, GameAuthTokenKinds.Refresh, next.Generation)), next.AbsoluteExpiresAt),
             };
-            if (await store.CompareExchangeAsync(changes, cancellationToken)) return reply;
+            if (await store.CompareExchangeAsync(changes, cancellationToken))
+            {
+                if (next.AccountId is not null) issued?.Issued(nextCredential, next.CredentialExpiresAt, context.CredentialDigest);
+                return reply;
+            }
         }
         return GameAuthReply.Failure(GameAuthErrors.InProgress);
     }

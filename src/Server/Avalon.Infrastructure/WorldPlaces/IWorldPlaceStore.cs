@@ -23,8 +23,13 @@ public readonly record struct PlaceSweep(int TurnsExpired, int WaitersTimedOut);
 public readonly record struct PlaceRequest(ushort WorldId, long AccountId, DateTime Until, int? Limit, bool Staff, int QueueCapacity,
     Guid Ticket = default);
 
-/// <summary>The answer to a <see cref="PlaceRequest"/>: <paramref name="Position"/> from 1 when queued, <paramref name="Waited"/> for a turn.</summary>
-public readonly record struct PlaceDecision(PlaceOutcome Outcome, PlaceSource Source, int Position, TimeSpan Waited, PlaceSweep Sweep);
+/// <summary>
+/// The answer to a <see cref="PlaceRequest"/>: <paramref name="Position"/> from 1 when queued, <paramref name="Waited"/> for a
+/// turn. <paramref name="LockedOut"/> marks a <see cref="PlaceOutcome.WorldFull"/> answered for the account's lockout (its
+/// unclaimed place lapsed and was refused a moment ago), not for the line at its cap.
+/// </summary>
+public readonly record struct PlaceDecision(PlaceOutcome Outcome, PlaceSource Source, int Position, TimeSpan Waited, PlaceSweep Sweep,
+    bool LockedOut = false);
 
 /// <summary>The answer to a waiter's check-in: <paramref name="Position"/> from 1 when queued or paused.</summary>
 public readonly record struct QueueCheckIn(QueueState State, int Position, PlaceSweep Sweep);
@@ -96,10 +101,22 @@ public interface IWorldPlaceStore
     /// <summary>How long after one release of a world's held places another is a no-op.</summary>
     static readonly TimeSpan HeldReleaseWindow = TimeSpan.FromSeconds(10);
 
-    /// <summary>A waiter checks in: its position, or its turn when the world is available and a place is free for it.</summary>
+    /// <summary>
+    /// A waiter checks in: its position, or its turn when the world is available and a place is free for it. An account
+    /// holding a place of its own there (one its join keeps: a turn taken, a place held after a drop, its session's, a
+    /// ticket's hold not lapsed) is told its turn at once, and leaves the line if it is in it; a place that is not its own
+    /// (released by another world's ticket, or lapsed and kept only for its last ticket's hold) is counted but is no turn:
+    /// it waits its rank. While the world is not available an unused turn is kept (paused at position 1), its window
+    /// starting again. A turn given releases what the account holds in other worlds with no session (a ticket-only place,
+    /// an unused turn), as a ticket admitted does.
+    /// </summary>
     Task<QueueCheckIn> CheckInAsync(ushort worldId, long accountId, int? limit, bool available, CancellationToken cancellationToken);
 
-    /// <summary>Leaves the line, giving back a turn not yet used. Idempotent; true when something was removed.</summary>
+    /// <summary>
+    /// Leaves the line, giving back a turn not yet used: a turn given over a place the account still had counted returns
+    /// that place to what it was (counted to its own end, released) rather than removing it. Idempotent; true when
+    /// something was removed.
+    /// </summary>
     Task<bool> LeaveAsync(ushort worldId, long accountId, CancellationToken cancellationToken);
 
     /// <summary>Places taken, waiters and held places, after removing what expired.</summary>

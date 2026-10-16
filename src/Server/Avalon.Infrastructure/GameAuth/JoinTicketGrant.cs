@@ -98,11 +98,14 @@ public readonly record struct GameWorldAllocation
 }
 
 /// <summary>
-/// A join or reconnect ticket, or why none was issued (<see cref="Error"/>). <see cref="RequiredVersion"/> is set only
-/// with <c>CLIENT_OUTDATED</c> (#1053): the oldest client version the world accepts.
+/// A join or reconnect ticket, or why none was issued (<see cref="Error"/>), or (#967) the account's place in a full
+/// world's line, with when to check in (<see cref="Position"/> from 1, <see cref="CheckInAfterSeconds"/>; no ticket, no
+/// error). <see cref="RequiredVersion"/> is set only with <c>CLIENT_OUTDATED</c> (#1053): the oldest client version the
+/// world accepts.
 /// </summary>
 public sealed record GameJoinReply(string? Error = null, string? JoinTicket = null, DateTime? ExpiresAt = null,
-    GameWorldDestination? Destination = null, string? RequiredVersion = null)
+    GameWorldDestination? Destination = null, string? RequiredVersion = null, int? Position = null,
+    int? CheckInAfterSeconds = null)
 {
     public override string ToString() => $"Game admission ticket, error: {Error} (ticket redacted)";
 }

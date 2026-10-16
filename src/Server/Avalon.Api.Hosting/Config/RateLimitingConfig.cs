@@ -26,6 +26,28 @@ public class RateLimitingConfig
     public int ClientAuthPermitsPerMinute { get; set; } = 20;
 
     /// <summary>
+    /// A full world's queue check-ins and leaves (<c>/game/queue</c>, #967) a minute per credential, before it is read,
+    /// and again per account after, outside the limits above: the waiters behind one address are not throttled by each
+    /// other, and no neighbour can spend another's budget. At least 1.
+    /// </summary>
+    public int QueuePermitsPerMinute { get; set; } = 30;
+
+    /// <summary>
+    /// Queue calls with a credential identity has not yet seen current (#967), a minute per source, once that source has
+    /// presented 30 credentials in a minute that were not current: a flood of junk credentials is bounded in rate as well
+    /// as two at a time. A credential identity issued or read as current is not counted here. At least 1.
+    /// </summary>
+    public int QueueUnknownReadsPerMinute { get; set; } = 60;
+
+    /// <summary>
+    /// Queue calls with a credential identity does not know, read at once in the whole identity process (#967), whatever
+    /// their sources: a bound on what floods from many addresses cost together. Generous, well above what re-learning the
+    /// waiters' credentials after an identity restart needs. Past it a call is refused (429, asking again within 2 s). At
+    /// least 1.
+    /// </summary>
+    public int QueueStrangerReadsInFlight { get; set; } = 256;
+
+    /// <summary>
     /// Requests a minute per authenticated game server, including each player's lease heartbeat, for the workloads a
     /// service names (<see cref="Middlewares.IRateLimitWorkloads"/>). At least 1.
     /// </summary>
