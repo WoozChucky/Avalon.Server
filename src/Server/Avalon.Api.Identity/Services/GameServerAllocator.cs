@@ -26,37 +26,56 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
 
     public async Task<IReadOnlyList<GameWorldDestination>> ListAsync(GameContextRecord context, CancellationToken cancellationToken)
     {
+        // The context and its account are read once for the whole list, not once per world (#1053).
+        Eligibility eligibility = await EligibilityAsync(context, cancellationToken);
+        if (eligibility.Account is not { } root) return [];
         var result = new List<GameWorldDestination>();
         foreach (GameServerDefinition definition in workloads.Value.Servers)
         {
-            Checked world = await CheckAsync(context, definition.WorldId, null, cancellationToken);
+            Checked world = await CheckWorldAsync(context, root, definition.WorldId, null, cancellationToken);
             // A world the client is only too old for stays listed, marked, so the player is told to update (#1053).
             if ((world.Allocation.Destination ?? world.Outdated) is { } destination) result.Add(destination);
         }
         return result.OrderBy(x => x.WorldId).ToArray();
     }
 
-    public async Task<GameWorldAllocation> FindAsync(GameContextRecord context, ushort worldId, uint? characterId, CancellationToken cancellationToken) =>
-        (await CheckAsync(context, worldId, characterId, cancellationToken)).Allocation;
+    public async Task<GameWorldAllocation> FindAsync(GameContextRecord context, ushort worldId, uint? characterId, CancellationToken cancellationToken)
+    {
+        Eligibility eligibility = await EligibilityAsync(context, cancellationToken);
+        return eligibility.Account is { } root
+            ? (await CheckWorldAsync(context, root, worldId, characterId, cancellationToken)).Allocation
+            : GameWorldAllocation.Refuse(eligibility.Refusal);
+    }
 
     /// <summary>
-    /// The allocation, and on <see cref="GameWorldRefusal.ClientOutdated"/> the destination the client would have been
-    /// given had it been new enough (<see cref="Checked.Outdated"/>, marked): the version is checked after every other
-    /// rule but the character's, so a world refused for it alone is one the context is otherwise eligible for.
+    /// What no world changes: the context names an account, at or above the API's floor, which still stands behind it
+    /// (its credentials version, then its standing, then the epoch). The account when it may play, otherwise why not.
     /// </summary>
-    private async Task<Checked> CheckAsync(GameContextRecord context, ushort worldId, uint? characterId, CancellationToken cancellationToken)
+    private async Task<Eligibility> EligibilityAsync(GameContextRecord context, CancellationToken cancellationToken)
     {
-        if (!applications.AllowsWorld(context.ApplicationKey, worldId)) return Refuse(GameWorldRefusal.NotAllowed);
-        if (context.AccountId is not { } id) return Refuse(GameWorldRefusal.ContextStale);
-        if (!workloads.Value.Admits(context.ProtocolVersion)) return Refuse(GameWorldRefusal.UnsupportedProtocol);
-        if (characterId == 0) return Refuse(GameWorldRefusal.CharacterNotFound);
+        if (context.AccountId is not { } id) return new(null, GameWorldRefusal.ContextStale);
+        if (!workloads.Value.Admits(context.ProtocolVersion)) return new(null, GameWorldRefusal.UnsupportedProtocol);
         Account? root = await accounts.FindByIdAsync(new AccountId(id), false, cancellationToken);
         // The standing is named only to a context its account still stands behind (its credentials version), and before
         // the epoch, which a ban or a consolidation moves itself (#882). The password lock is not asked: it guards the
         // password steps only, never an identity proven another way.
-        if (root is null || root.CredentialsVersion != context.CredentialsVersion) return Refuse(GameWorldRefusal.ContextStale);
-        if (GameAccountStanding.Refusal(root) is { } standing) return Refuse(Standing(standing));
-        if (root.Status != AccountStatus.Active || root.SessionEpoch != context.SessionEpoch) return Refuse(GameWorldRefusal.ContextStale);
+        if (root is null || root.CredentialsVersion != context.CredentialsVersion) return new(null, GameWorldRefusal.ContextStale);
+        if (GameAccountStanding.Refusal(root) is { } standing) return new(null, Standing(standing));
+        if (root.Status != AccountStatus.Active || root.SessionEpoch != context.SessionEpoch) return new(null, GameWorldRefusal.ContextStale);
+        return new(root, default);
+    }
+
+    /// <summary>
+    /// One world for an eligible account (<see cref="EligibilityAsync"/>): the allocation, and on
+    /// <see cref="GameWorldRefusal.ClientOutdated"/> the destination the client would have been given had it been new
+    /// enough (<see cref="Checked.Outdated"/>, marked): the version is checked after every other rule but the
+    /// character's, so a world refused for it alone is one the context is otherwise eligible for.
+    /// </summary>
+    private async Task<Checked> CheckWorldAsync(GameContextRecord context, Account root, ushort worldId, uint? characterId,
+        CancellationToken cancellationToken)
+    {
+        if (!applications.AllowsWorld(context.ApplicationKey, worldId)) return Refuse(GameWorldRefusal.NotAllowed);
+        if (characterId == 0) return Refuse(GameWorldRefusal.CharacterNotFound);
 
         // A world the context may not enter is not revealed, even while it is unavailable (the rule of
         // WorldRouteMiddleware): no row, no workload and an access level too high are one answer, after the same reads
@@ -123,6 +142,8 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
     }
 
     private readonly record struct Checked(GameWorldAllocation Allocation, GameWorldDestination? Outdated = null);
+
+    private readonly record struct Eligibility(Account? Account, GameWorldRefusal Refusal);
 
     private static partial class Log
     {

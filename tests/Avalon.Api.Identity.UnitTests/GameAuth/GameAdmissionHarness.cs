@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Avalon.Api.Hosting.Worlds;
+using Avalon.Api.Identity.Authentication;
 using Avalon.Api.Identity.Controllers;
 using Avalon.Api.Identity.Services;
 using Avalon.Api.Services;
@@ -22,6 +24,7 @@ using NSubstitute;
 using Xunit;
 using GameContextCredentialRequest = Avalon.Api.Contract.GameContextCredentialRequest;
 using GameJoinRequest = Avalon.Api.Contract.GameJoinRequest;
+using JoinRedemptionRequest = Avalon.Api.Contract.JoinRedemptionRequest;
 
 namespace Avalon.Api.Identity.UnitTests.GameAuth;
 
@@ -208,6 +211,17 @@ internal sealed class GameAdmissionHarness
         GameAdmissionController controller = Controller();
         LastJoin = controller.HttpContext;
         return reconnect ? controller.Reconnect(request, Guid.NewGuid(), default) : controller.Join(request, Guid.NewGuid(), default);
+    }
+
+    /// <summary><c>POST /internal/game/join-tickets/redeem</c>, as world 3's workload <c>world-3</c>.</summary>
+    public Task<IActionResult> Redeem(string ticket)
+    {
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        http.User = new(new ClaimsIdentity([new Claim(GameServerAuthHandler.ServerIdClaim, "world-3")], GameServerAuthHandler.Scheme));
+        var controller = new InternalGameAdmissionController(NullLogger<InternalGameAdmissionController>.Instance, Tickets)
+        { ControllerContext = new() { HttpContext = http } };
+        return controller.Redeem(new JoinRedemptionRequest { JoinTicket = ticket, ConnectionId = Guid.NewGuid(), RedemptionId = Guid.NewGuid() }, default);
     }
 
     private GameAdmissionController Controller()

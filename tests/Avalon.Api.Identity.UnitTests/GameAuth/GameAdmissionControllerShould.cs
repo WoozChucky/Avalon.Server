@@ -95,7 +95,11 @@ public sealed class GameAdmissionControllerShould
             Assert.Equal(requiredVersion is null ? string.Empty : "avalon-client/" + requiredVersion, h.LastJoin!.Response.Headers.Upgrade.ToString());
             Assert.Null(reply.JoinTicket);
         }
-        Assert.Equal(redemption, (await h.Tickets.RedeemAsync(issued.JoinTicket!, "world-3", Guid.NewGuid(), Guid.NewGuid(), default)).Error);
+        // The world's redemption of the ticket issued before: 503 only for "try later"; every other refusal is 403, 401
+        // being the workload's own (#1053).
+        ObjectResult redeemed = Assert.IsAssignableFrom<ObjectResult>(await h.Redeem(issued.JoinTicket!));
+        Assert.Equal(redemption, Assert.IsType<JoinRedemptionReceipt>(redeemed.Value).Error);
+        Assert.Equal(redemption == "WORLD_UNAVAILABLE" ? StatusCodes.Status503ServiceUnavailable : StatusCodes.Status403Forbidden, redeemed.StatusCode);
 
         IActionResult listed = await h.Worlds(credential);
         if (listing == "refused")
@@ -140,8 +144,10 @@ public sealed class GameAdmissionControllerShould
         ObjectResult answer = Assert.IsAssignableFrom<ObjectResult>(await h.Join(credential, null, false, worldId));
         Assert.Equal(StatusCodes.Status403Forbidden, answer.StatusCode);
         Assert.Equal("WORLD_NOT_ALLOWED", Assert.IsType<GameJoinReply>(answer.Value).Error);
+        await h.WorldRows.Received(1).FindByIdAsync(new WorldId(worldId), false, Arg.Any<CancellationToken>());
+        // The world list hides it too, its database up or down (world 3 is the only one with a workload).
+        Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<GameWorldDestination>>(Assert.IsType<OkObjectResult>(await h.Worlds(credential)).Value));
         h.Databases.DidNotReceive().IsAvailable(Arg.Any<WorldId>());
         await h.Readiness.DidNotReceive().IsReadyAsync(Arg.Any<ushort>(), Arg.Any<CancellationToken>());
-        await h.WorldRows.Received(1).FindByIdAsync(new WorldId(worldId), false, Arg.Any<CancellationToken>());
     }
 }
