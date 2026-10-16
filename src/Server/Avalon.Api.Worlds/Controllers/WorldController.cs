@@ -118,4 +118,18 @@ public class WorldController : BaseController
         bool ready = await _readiness.IsReadyAsync(id, ct);
         return Ok(WorldMaintenanceDto.From(state, ready));
     }
+
+    /// <summary>The accounts the world admits (#967): 1 to 100,000, or null for no limit. Lowering it removes nobody.</summary>
+    [HttpPut("{id}/player-limit", Name = "SetWorldPlayerLimit")]
+    [Authorize(Policy = AvalonRoles.Admin)]
+    [ProducesResponseType(typeof(WorldDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetPlayerLimit([FromRoute] ushort id, [FromBody] WorldPlayerLimitRequest request,
+        CancellationToken ct)
+    {
+        WorldDto? world = await _service.SetPlayerLimitAsync(id, request.PlayerLimit, $"account:{User.AccountId().Value}",
+            User.AccessLevel(), ct);
+        return world is null ? NotFound() : Ok(world);
+    }
 }

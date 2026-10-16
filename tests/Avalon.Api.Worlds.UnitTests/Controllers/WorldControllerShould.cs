@@ -129,7 +129,8 @@ public class WorldControllerShould
     [InlineData(nameof(WorldController.GetMaintenance))]
     [InlineData(nameof(WorldController.EnableMaintenance))]
     [InlineData(nameof(WorldController.DisableMaintenance))]
-    public void Maintenance_actions_require_admin_policy(string action)
+    [InlineData(nameof(WorldController.SetPlayerLimit))]
+    public void Maintenance_and_player_limit_actions_require_admin_policy(string action)
     {
         MethodInfo method = typeof(WorldController).GetMethod(action)!;
         AuthorizeAttribute attribute = Assert.Single(method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute),

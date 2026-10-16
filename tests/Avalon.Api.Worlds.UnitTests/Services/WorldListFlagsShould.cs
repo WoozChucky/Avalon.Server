@@ -7,6 +7,8 @@ using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.WorldPlaces;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
@@ -51,7 +53,7 @@ public sealed class WorldListFlagsShould : IDisposable
     };
 
     private WorldService Sut() => new(new WorldRepository(_database), _databases,
-        Substitute.For<IWorldReadiness>());
+        Substitute.For<IWorldReadiness>(), Substitute.For<IWorldOccupancy>(), NullLogger<WorldService>.Instance);
 
     [Fact]
     public async Task Metadata_update_preserves_a_concurrent_maintenance_transition()
@@ -136,7 +138,8 @@ public sealed class WorldListFlagsShould : IDisposable
         }
         IWorldReadiness readiness = Substitute.For<IWorldReadiness>();
         readiness.IsReadyAsync(101, Arg.Any<CancellationToken>()).Returns(true);
-        var service = new WorldService(new WorldRepository(_database), _databases, readiness);
+        var service = new WorldService(new WorldRepository(_database), _databases, readiness, Substitute.For<IWorldOccupancy>(),
+            NullLogger<WorldService>.Instance);
 
         WorldDto? worldDto = await service.GetAsync(101, AccountAccessLevel.Player);
 

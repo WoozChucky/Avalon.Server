@@ -15,7 +15,14 @@ public sealed class WorldDto
     public bool Ready { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    /// <summary>Places taken (#967): every admitted account, in the world, at character select, or holding its place.</summary>
     public int OnlineCount { get; set; }
+
+    /// <summary>The accounts the world admits; null for no limit (#967).</summary>
+    public int? PlayerLimit { get; set; }
+
+    /// <summary>The accounts waiting for a place (#967).</summary>
+    public int QueueLength { get; set; }
 
     /// <summary>Whether this api is configured for the world's databases (Database:Worlds, #523).</summary>
     public bool Configured { get; set; }
