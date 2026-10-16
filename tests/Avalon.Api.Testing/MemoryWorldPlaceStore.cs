@@ -1,4 +1,5 @@
 using System.Globalization;
+using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Avalon.Infrastructure.WorldPlaces;
 
@@ -21,7 +22,8 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
     {
         public readonly Dictionary<long, long> Places = [];      // account -> expiry
         public readonly Dictionary<long, string> Marks = [];     // account -> "h", "t:{enqueuedAt}" or a ticket's hold mark
-        public readonly Dictionary<long, (long Fence, bool Ended)> Owners = []; // account -> the owning (or ended) session
+        // account -> the owning session, or the one that ended there (a tombstone, until its expiry)
+        public readonly Dictionary<long, (long Fence, long? TombstoneUntil)> Owners = [];
         public readonly SortedList<long, long> Line = [];        // arrival -> account
         public readonly Dictionary<long, long> Arrival = [];     // account -> arrival
         public readonly Dictionary<long, long> Deadline = [];    // account -> removal deadline
@@ -32,12 +34,31 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         public void Extend(long account, long expiry) =>
             Places[account] = Places.TryGetValue(account, out long current) ? Math.Max(current, expiry) : expiry;
 
+        /// <summary>The place and its fields, but an ended session's tombstone, which expires on its own.</summary>
         public void Forget(long account)
         {
             Places.Remove(account);
             Marks.Remove(account);
-            Owners.Remove(account);
+            if (Owners.TryGetValue(account, out (long Fence, long? TombstoneUntil) owner) && owner.TombstoneUntil is null)
+                Owners.Remove(account);
         }
+
+        /// <summary>The owner field as the scripts read it: absent once a tombstone has expired.</summary>
+        public (long Fence, bool Ended)? Owner(long account, long now)
+        {
+            if (!Owners.TryGetValue(account, out (long Fence, long? TombstoneUntil) owner)) return null;
+            if (owner.TombstoneUntil <= now)
+            {
+                Owners.Remove(account);
+                return null;
+            }
+
+            return (owner.Fence, owner.TombstoneUntil is not null);
+        }
+
+        /// <summary>The session <paramref name="fence"/> ended here: its tombstone, expiring one lease from now.</summary>
+        public void Tombstone(long account, long fence, long now) =>
+            Owners[account] = (fence, now + (long)GameAuthPolicy.SessionLeaseLifetime.TotalMilliseconds);
 
         /// <summary>The ticket's hold on the account's place, its end and its id, when the mark is one.</summary>
         public (long Until, string Id)? Ticket(long account)
@@ -62,10 +83,10 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             PlaceSweep sweep = Sweep(request.WorldId, w, now);
             PlaceDecision Admit(PlaceSource source, long waited)
             {
-                // Every place a ticket is admitted to is never shortened, and is the ticket's to hold.
+                // Every place a ticket is admitted to is never shortened, and is the ticket's to hold. The owner is left
+                // as it is: on a new place it can only be an ended session's tombstone.
                 w.Extend(account, until);
                 w.Marks[account] = hold;
-                if (source == PlaceSource.Taken) w.Owners.Remove(account);
                 return new(PlaceOutcome.Admitted, source, 0, TimeSpan.FromMilliseconds(waited), sweep);
             }
 
@@ -127,12 +148,10 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         {
             long now = Now, expiry = Ms(until);
             WorldState w = World(worldId);
-            // A session older than the owner renews nothing, nor does one that ended there, or older than one that did.
-            if (w.Owners.TryGetValue(accountId, out (long Fence, bool Ended) current) &&
-                (current.Fence > fence || (current.Ended && current.Fence >= fence)))
-            {
+            // A session older than the owner renews nothing, nor does one that ended there, or older than one that did
+            // (whether the place was kept or removed: the tombstone outlives the place by one lease).
+            if (w.Owner(accountId, now) is { } current && (current.Fence > fence || (current.Ended && current.Fence >= fence)))
                 return Task.CompletedTask;
-            }
 
             w.Marks.TryGetValue(accountId, out string? mark);
             (long Until, string Id)? held = w.Ticket(accountId);
@@ -148,21 +167,23 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
 
             if (held is { } hold && hold.Until > now && hold.Until > expiry) expiry = hold.Until;
             w.Places[accountId] = expiry;
-            w.Owners[accountId] = (fence, false);
+            w.Owners[accountId] = (fence, null);
             if (!activation) return Task.CompletedTask;
             foreach ((ushort id, WorldState other) in _worlds)
             {
-                if (id == worldId || (other.Owners.TryGetValue(accountId, out (long Fence, bool Ended) owner) && owner.Fence > fence))
-                    continue;
+                if (id == worldId || !other.Places.ContainsKey(accountId)) continue;
+                if (other.Owner(accountId, now) is { } owner && owner.Fence > fence) continue;
                 if (other.Ticket(accountId) is { } running && running.Until > now)
                 {
-                    other.Owners.Remove(accountId);
                     other.Extend(accountId, running.Until);
                 }
                 else
                 {
-                    other.Forget(accountId);
+                    other.Places.Remove(accountId);
+                    other.Marks.Remove(accountId);
                 }
+
+                other.Tombstone(accountId, fence, now);
             }
         }
 
@@ -174,26 +195,26 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
     {
         lock (_gate)
         {
+            long now = Now;
             WorldState w = World(worldId);
-            if (w.Owners.TryGetValue(accountId, out (long Fence, bool Ended) current) && current.Fence > fence)
-                return Task.CompletedTask;
+            if (w.Owner(accountId, now) is { } current && current.Fence > fence) return Task.CompletedTask;
+            w.Tombstone(accountId, fence, now); // whatever the end does to the place, the session is ended there
             if (!w.Places.ContainsKey(accountId)) return Task.CompletedTask; // an end never creates a place
             long? held = w.Ticket(accountId)?.Until;
-            if (held <= Now) held = null;
+            if (held <= now) held = null;
             if (end == PlaceEnd.Hold)
             {
                 w.Extend(accountId, Ms(heldUntil));
-                w.Owners[accountId] = (fence, true);
                 if (held is null) w.Marks[accountId] = Held;
             }
             else if (held is { } running)
             {
                 w.Extend(accountId, running);
-                w.Owners[accountId] = (fence, true);
             }
             else
             {
-                w.Forget(accountId);
+                w.Places.Remove(accountId);
+                w.Marks.Remove(accountId);
             }
         }
 
@@ -204,10 +225,13 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
     {
         lock (_gate)
         {
+            long now = Now;
             WorldState w = World(worldId);
             if (w.Ticket(accountId)?.Id != ticket.ToString("N")) return Task.CompletedTask;
             w.Marks.Remove(accountId);
-            if (!w.Owners.TryGetValue(accountId, out (long Fence, bool Ended) owner) || owner.Ended) w.Forget(accountId);
+            (long Fence, bool Ended)? owner = w.Owner(accountId, now);
+            if (owner is null or { Ended: true }) w.Places.Remove(accountId);
+            if (owner is { Ended: true } ended) w.Tombstone(accountId, ended.Fence, now); // rearmed: the place is gone
         }
 
         return Task.CompletedTask;

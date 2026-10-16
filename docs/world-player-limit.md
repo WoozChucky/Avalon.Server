@@ -46,9 +46,12 @@ A stale call can at most keep a place counted a little longer (see the last poin
   account's session in another world once the hold is over.
 - **The owning session.** The session that owns the place's lease, by its fencing token (`GameSessions.FencingToken`,
   which only grows for an account: a takeover's session has a larger one than the session it replaces). Redemption,
-  activation and heartbeats make their session the owner; a session older than the owner renews and ends nothing. A
-  session's end that keeps the place (held after a drop, or kept by a ticket's hold) records the session as ended
-  there, so that session's own late heartbeats, and older ones', change nothing.
+  activation and heartbeats make their session the owner; a session older than the owner renews and ends nothing.
+  Every session's end, whatever it does to the place (removed, held after a drop, kept by a ticket's hold, or already
+  gone), and every removal of the account's place in another world at an activation, leaves a tombstone: the field
+  records the session as ended there for one lease (45 s, after which Redis expires it, `HPEXPIREAT`), so that
+  session's own late heartbeats, and older ones', change nothing, even once the place is gone. A newer session's
+  fence still wins.
 
 | Moment | The place |
 |---|---|
@@ -70,11 +73,11 @@ A stale call can at most keep a place counted a little longer (see the last poin
   the application, the allocator's non-disclosing refusals, the session rules) answers first and takes no place, so
   capacity never speaks for a world the context may not enter.
 - A ticket that is never redeemed holds its place until 15 s after its expiry, then the place lapses.
-- A session's end that removes the place leaves no record. A heartbeat of that session crossing its end in flight (the
-  end first) may put the place back, owned by that session, until the later of the lease it carried and a ticket's
-  hold still running: at most 45 s after that heartbeat or that ticket's issue. Likewise a replay that extends a
-  place just before its ticket is redeemed and its session ends keeps that place counted until the replayed hold ends,
-  at most 45 s after the replay. Both only ever count the account in for longer, never out.
+- A heartbeat of a session crossing its end in flight (the end first) changes nothing: the end's tombstone refuses
+  it, whether the end removed the place or kept it, so a place given to another meanwhile is never taken back. The
+  tombstone lasts one lease, longer than any renewal the session can still have in flight. What remains: a replay that
+  extends a place just before its ticket is redeemed and its session ends keeps that place counted until the
+  replayed hold ends, at most 45 s after the replay. That only ever counts the account in for longer, never out.
 
 ## Setting a limit
 
@@ -114,7 +117,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | Key | Type | Content |
 |---|---|---|
 | `world:{worldId}:places` | sorted set | the ledger: member the account id, score the moment the place expires (Unix ms) |
-| `world:{worldId}:places:marks` | hash | per account two fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or that ended with the place kept (`e:{fence}`) |
+| `world:{worldId}:places:marks` | hash | per account two fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes) |
 | `world:{worldId}:queue` | sorted set | the line: member the account id, score its arrival number |
 | `world:{worldId}:queue:checkins` | sorted set | member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
 | `world:{worldId}:queue:arrivals` | string | the arrival counter |
@@ -134,6 +137,9 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
   reaches Redis puts the place back.
 - **A lost ledger** (Redis emptied or replaced) is rebuilt by the heartbeats: every admitted account's next heartbeat
   puts its place back, within 15 s, over the limit if need be; an admitted player is never removed for capacity.
+  Until a live session's next heartbeat (at most 15 s), its place is missing: new joins in that window see too few
+  places taken and can be admitted over the limit (from part 3, where the limit is enforced; the world's backstop
+  bounds it).
 - The identity service's Redis user needs the six patterns and the sorted-set commands its scripts call; the worlds
   service's user reads two of the keys (see [Redis users per API service](redis-cache-keys.md#redis-users-per-api-service)).
   Without them every join answers 503, the script failing with `NOPERM`.
@@ -142,12 +148,15 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 
 Each step only after the one before is done:
 
-1. **homelab#199 deployed**: the Redis users carry the rules of
-   [Redis users per API service](redis-cache-keys.md#redis-users-per-api-service) (`api-identity` the six key patterns
-   and the sorted-set and hash commands; `api-worlds` read on `world:*:places` and `world:*:queue:checkins`, and
-   `zcount`). Check on the cluster before the identity release rolls:
+1. **homelab#199 and homelab#200 deployed**: the Redis users carry the rules of
+   [Redis users per API service](redis-cache-keys.md#redis-users-per-api-service) (homelab#199: `api-identity` the six
+   key patterns and the sorted-set and hash commands, `api-worlds` read on `world:*:places` and
+   `world:*:queue:checkins`, and `zcount`; homelab#200: `api-identity` `hpexpireat`, which an ended session's
+   tombstone is written with). Check on the cluster before the identity release rolls:
    `kubectl -n avalon exec avalon-redis-0 -- redis-cli -a "$PW" ACL GETUSER api-identity` (and `api-worlds`).
-   Deployed without them, every join answers 503.
+   Deployed without them, every join answers 503, and without `hpexpireat` every session end, and every activation that
+   moves an account from another world, fails at the ledger (`NOPERM`; the session goes on or ends as usual, and the
+   place lapses with its lease).
 2. Identity, then the worlds service and the worlds, as in every release (identity before the worlds).
 3. Check: `/game/worlds` and `GET /world` show places taken for a world with players, and identity's and the worlds
    service's logs carry no "could not read world ... places" Warning.
@@ -171,7 +180,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 32, Skipped: 0` (the 31 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 33, Skipped: 0` (the 32 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Each run
 takes fresh world and account ids, so it needs an empty Redis no more than it changes one. The PR carries the summary
 line and the `redis-server --version` line.

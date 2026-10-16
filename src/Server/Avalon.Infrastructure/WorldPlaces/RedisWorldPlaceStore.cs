@@ -1,4 +1,5 @@
 using System.Globalization;
+using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -14,9 +15,9 @@ namespace Avalon.Infrastructure.WorldPlaces;
 /// Who holds a place is in the world's marks hash (<see cref="CacheKeys.WorldPlaceMarks"/>), two fields per account at
 /// most. The field <c>{account}</c> is the place's kind: <c>h</c> (held after a drop), <c>t:{enqueuedAtMs}</c> (a turn
 /// not yet used) or <see cref="TicketMark"/> (a join ticket's hold, the last ticket to enter). The field
-/// <c>{account}:s</c> is the fencing token of the session that owns the place's lease (<c>{fence}</c>), or that ended
-/// with the place kept (<c>e:{fence}</c>); fencing tokens only grow for an account, so a smaller one is an older
-/// session's.
+/// <c>{account}:s</c> is the fencing token of the session that owns the place's lease (<c>{fence}</c>), or of the session
+/// that ended there (<c>e:{fence}</c>, a tombstone expiring one lease after it was written, <c>HPEXPIREAT</c>, whether the
+/// place was kept or removed); fencing tokens only grow for an account, so a smaller one is an older session's.
 /// </para>
 /// </summary>
 public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldPlacesConfiguration> options,
@@ -34,7 +35,10 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     /// <summary>
     /// What every script reads a place's holders with: a ticket's hold (its end and id) from the kind field, the owning
     /// session's fencing token from the <c>{account}:s</c> field (<c>{fence}</c> while it is live, <c>e:{fence}</c> once it
-    /// ended with the place kept), and the removal of a place with both its fields.
+    /// ended), and the removal of a place with both its fields. An ended session's field is a tombstone: written only by
+    /// <c>tombstone</c>, which always sets it to expire one lease from now (<c>HPEXPIREAT</c>), so it refuses that
+    /// session's late renewals whether or not the place is still there, and never outlives them. (A plain <c>HSET</c> of a
+    /// newer session's live fence clears the expiry, as it should: the field then lives with the place.)
     /// </summary>
     private const string Holders = """
         local function ticket(mark)
@@ -50,9 +54,19 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           if string.sub(value, 1, 2) == 'e:' then return tonumber(string.sub(value, 3)), true end
           return tonumber(value), false
         end
+        -- The place's fields go with it, but an ended session's tombstone, which expires on its own.
+        local function forget_fields(marks, account)
+          redis.call('HDEL', marks, account)
+          local _, ended = owner(marks, account)
+          if not ended then redis.call('HDEL', marks, account .. ':s') end
+        end
         local function forget_place(places, marks, account)
           redis.call('ZREM', places, account)
-          redis.call('HDEL', marks, account, account .. ':s')
+          forget_fields(marks, account)
+        end
+        local function tombstone(marks, account, fence, ends)
+          redis.call('HSET', marks, account .. ':s', 'e:' .. fence)
+          redis.call('HPEXPIREAT', marks, ends, 'FIELDS', 1, account .. ':s')
         end
 
         """;
@@ -77,7 +91,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           for _, account in ipairs(expired) do
             local mark = redis.call('HGET', marks, account)
             if mark and string.sub(mark, 1, 2) == 't:' then turns = turns + 1 end
-            redis.call('HDEL', marks, account, account .. ':s')
+            forget_fields(marks, account)
           end
           if #expired > 0 then redis.call('ZREMRANGEBYSCORE', places, '-inf', now) end
           local silent = redis.call('ZRANGEBYSCORE', checkins, '-inf', now)
@@ -100,11 +114,11 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         local account, now = ARGV[1], tonumber(ARGV[2])
         local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[2], ARGV[10], ARGV[11])
         -- Every place a ticket is admitted to is never shortened (a held place's grace, a turn, an owner's lease), and is
-        -- the ticket's to hold.
+        -- the ticket's to hold. The owner field is left as it is: on a new place it can only be an ended session's
+        -- tombstone, which keeps refusing that session's late renewals until it expires.
         local function admit(source, waited)
           redis.call('ZADD', KEYS[1], 'GT', ARGV[3], account)
           redis.call('HSET', KEYS[2], account, 'j:' .. ARGV[3] .. ':' .. ARGV[13])
-          if source == 0 then redis.call('HDEL', KEYS[2], account .. ':s') end
           return {0, source, 0, waited, turns, silent}
         end
         local function leave_line()
@@ -160,13 +174,13 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
 
     // KEYS: 1 places, 2 marks of the world, then places and marks of each other world (an activation only).
     // ARGV: 1 account, 2 until (the lease), 3 '1' for an activation, 4 the session's fencing token, 5 the session's id
-    //       (N format), 6 now.
+    //       (N format), 6 now, 7 a tombstone's end (one lease from now).
     // Returns 1 when the session owns the place now, 0 when it changed nothing.
     private const string Renew = Holders + """
         local account, expiry, fence, now = ARGV[1], tonumber(ARGV[2]), tonumber(ARGV[4]), tonumber(ARGV[6])
         local current, ended = owner(KEYS[2], account)
         -- A session older than the place's owner renews nothing, nor does a session that ended there, or older than one
-        -- that did (a held place, or one a ticket's hold kept).
+        -- that did (whether the place was kept or removed: the tombstone outlives the place by one lease).
         if current and (current > fence or (ended and current >= fence)) then return 0 end
         local mark = redis.call('HGET', KEYS[2], account)
         local held, id = ticket(mark)
@@ -181,53 +195,62 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         redis.call('ZADD', KEYS[1], expiry, account)
         redis.call('HSET', KEYS[2], account .. ':s', ARGV[4])
         for i = 3, #KEYS, 2 do
-          -- A session is one per account: its place in another world goes, but for a ticket's hold still running there.
-          local other = owner(KEYS[i + 1], account)
-          if not other or other <= fence then
-            local hold = ticket(redis.call('HGET', KEYS[i + 1], account))
-            if hold and hold > now then
-              redis.call('HDEL', KEYS[i + 1], account .. ':s')
-              redis.call('ZADD', KEYS[i], 'GT', hold, account)
-            else
-              forget_place(KEYS[i], KEYS[i + 1], account)
+          -- A session is one per account: its place in another world goes, but for a ticket's hold still running there,
+          -- and the older sessions there are ended, so a late renewal of one cannot bring the place back.
+          if redis.call('ZSCORE', KEYS[i], account) then
+            local other = owner(KEYS[i + 1], account)
+            if not other or other <= fence then
+              local hold = ticket(redis.call('HGET', KEYS[i + 1], account))
+              if hold and hold > now then
+                redis.call('ZADD', KEYS[i], 'GT', hold, account)
+              else
+                redis.call('ZREM', KEYS[i], account)
+                redis.call('HDEL', KEYS[i + 1], account)
+              end
+              tombstone(KEYS[i + 1], account, ARGV[4], ARGV[7])
             end
           end
         end
         return 1
         """;
 
-    // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 '1' to hold, 3 held until, 4 now, 5 the ending session's fencing token.
+    // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 '1' to hold, 3 held until, 4 now, 5 the ending session's fencing token,
+    //       6 a tombstone's end (one lease from now).
     // Returns 1 when the place was the session's to end, 0 when a newer session owns it or it no longer exists.
     private const string End = Holders + """
         local account, now = ARGV[1], tonumber(ARGV[4])
         local current = owner(KEYS[2], account)
         if current and current > tonumber(ARGV[5]) then return 0 end
+        -- Whatever the end does to the place, the session is ended there: its late renewals change nothing.
+        tombstone(KEYS[2], account, ARGV[5], ARGV[6])
         -- An end never creates a place: one lost or removed meanwhile stays gone.
         if not redis.call('ZSCORE', KEYS[1], account) then return 0 end
         local held = ticket(redis.call('HGET', KEYS[2], account))
         if held and held <= now then held = nil end
         if ARGV[2] == '1' then
           redis.call('ZADD', KEYS[1], 'GT', ARGV[3], account)
-          redis.call('HSET', KEYS[2], account .. ':s', 'e:' .. ARGV[5])
           -- A ticket's hold still running keeps its mark, so the session it becomes can renew the place.
           if not held then redis.call('HSET', KEYS[2], account, 'h') end
         elseif held then
           redis.call('ZADD', KEYS[1], 'GT', held, account)
-          redis.call('HSET', KEYS[2], account .. ':s', 'e:' .. ARGV[5])
         else
-          forget_place(KEYS[1], KEYS[2], account)
+          redis.call('ZREM', KEYS[1], account)
+          redis.call('HDEL', KEYS[2], account)
         end
         return 1
         """;
 
-    // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 the withdrawn ticket's id (N format).
+    // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 the withdrawn ticket's id (N format), 3 a tombstone's end (one lease
+    //       from now).
     // Returns 1 when the hold was the ticket's and is given back, 0 when another ticket entered since.
     private const string Withdraw = Holders + """
         local _, id = ticket(redis.call('HGET', KEYS[2], ARGV[1]))
         if id ~= ARGV[2] then return 0 end
         redis.call('HDEL', KEYS[2], ARGV[1])
         local current, ended = owner(KEYS[2], ARGV[1])
-        if not current or ended then forget_place(KEYS[1], KEYS[2], ARGV[1]) end
+        if not current or ended then redis.call('ZREM', KEYS[1], ARGV[1]) end
+        -- An ended session's tombstone stays, rearmed for one lease: the place it was kept for is gone.
+        if ended then tombstone(KEYS[2], ARGV[1], string.format('%d', current), ARGV[3]) end
         return 1
         """;
 
@@ -327,17 +350,17 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         }
 
         await RunAsync(Renew, [.. keys],
-            [accountId, Ms(until), activation ? "1" : "0", fence, sessionId.ToString("N"), Now], cancellationToken);
+            [accountId, Ms(until), activation ? "1" : "0", fence, sessionId.ToString("N"), Now, TombstoneEnd], cancellationToken);
     }
 
     public Task EndAsync(ushort worldId, long accountId, long fence, PlaceEnd end, DateTime heldUntil,
         CancellationToken cancellationToken) =>
         RunAsync(End, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
-            [accountId, end == PlaceEnd.Hold ? "1" : "0", Ms(heldUntil), Now, fence], cancellationToken);
+            [accountId, end == PlaceEnd.Hold ? "1" : "0", Ms(heldUntil), Now, fence, TombstoneEnd], cancellationToken);
 
     public Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, CancellationToken cancellationToken) =>
         RunAsync(Withdraw, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
-            [accountId, ticket.ToString("N")], cancellationToken);
+            [accountId, ticket.ToString("N"), TombstoneEnd], cancellationToken);
 
     public Task RejoinAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken cancellationToken) =>
         RunAsync(Rejoin, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
@@ -373,6 +396,9 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     }
 
     private long Now => clock.GetUtcNow().ToUnixTimeMilliseconds();
+
+    /// <summary>When an ended session's tombstone expires: one lease from now, past any renewal that session still has in flight.</summary>
+    private long TombstoneEnd => Now + Ms(GameAuthPolicy.SessionLeaseLifetime);
     private static long Ms(TimeSpan span) => (long)span.TotalMilliseconds;
 
     /// <summary>A UTC time as Unix milliseconds, as the scripts and the hold marks spell it.</summary>

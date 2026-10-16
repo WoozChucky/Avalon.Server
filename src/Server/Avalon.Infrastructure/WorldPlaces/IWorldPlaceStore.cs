@@ -38,10 +38,12 @@ public readonly record struct WorldPlaceCounts(int Taken, int Queued, int Held, 
 /// <para>
 /// A place records who holds it: the last join ticket to enter for it, until its hold ends (by the ticket's id, the
 /// session id it will become), and the session that owns its lease, or that ended there (by the session's fencing token,
-/// which only grows for an account). A session's renewal or end changes the place only while no newer session owns it,
-/// and a ticket's withdrawal and an activation touch only that ticket's own hold, so no late or stale call removes or
-/// shortens a place another holder still has. A stale call can at most keep a place counted a little longer (one lease
-/// or one ticket's hold, 45 s), never count it out.
+/// which only grows for an account). A session's end, and an activation's removal of the account's place in another
+/// world, leave a tombstone of the ended session for one lease, kept when the place goes: a late renewal of that session
+/// or an older one changes nothing, so it can neither shorten a place another holder has nor bring back one given to
+/// another. A session's renewal or end changes the place only while no newer session owns it, and a ticket's withdrawal
+/// and an activation touch only that ticket's own hold. What a stale call can still do is keep a place counted a little
+/// longer (a replay's extended hold, at most 45 s), never count it out.
 /// </para>
 /// </summary>
 public interface IWorldPlaceStore

@@ -24,7 +24,10 @@ public static class WorldPlaceScenarios
     public static Task RunAsync(string name, Func<FakeTimeProvider, WorldPlacesConfiguration, IWorldPlaceStore> create,
         PlaceIds ids)
     {
-        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 14, 12, 0, 0, TimeSpan.Zero));
+        // Today's time, to the second: Redis expires an ended session's tombstone on its own clock (HPEXPIREAT), so the
+        // suite's times must be Redis's too. No row relies on a tombstone expiring, which only Redis's clock decides.
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var clock = new FakeTimeProvider(now.AddTicks(-(now.Ticks % TimeSpan.TicksPerSecond)));
         var config = new WorldPlacesConfiguration();
         return s_rows[name](new Harness(clock, config, create(clock, config), ids));
     }
@@ -321,6 +324,21 @@ public static class WorldPlaceScenarios
             h.Advance(10);
             await h.Renew(3, world: 2); // and the old session's heartbeat arrives after its end
             h.Advance(36); // the takeover's hold is over; that heartbeat's lease would not be
+            Assert.Equal(0, (await h.Sizes(world: 2)).Taken);
+        },
+        ["an ended session's heartbeat landing after the end removed its place does not bring the place back"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            await h.End(1, PlaceEnd.Remove); // logs out
+            await h.Admitted(2, limit: 1); // the freed place goes to another
+            await h.Renew(1); // its heartbeat, sent before the end, lands after it
+            Assert.Equal((1, 0, 0), await h.Sizes());
+            await h.Queued(1, limit: 1, position: 1); // its next join waits in the line, not kept over the limit
+
+            await h.Admitted(3, limit: 9, world: 2); // session 1 of account 3, in world 2
+            Assert.Equal(PlaceOutcome.Admitted, (await h.Join(3, limit: null)).Outcome); // which moves to world 1
+            await h.Renew(3, fence: 2, activation: true); // session 2 activates: the place in world 2 goes
+            await h.Renew(3, world: 2); // and session 1's last heartbeat in world 2 lands after
             Assert.Equal(0, (await h.Sizes(world: 2)).Taken);
         },
         ["a ticket asked during a held place's grace never cuts the grace short"] = async h =>
