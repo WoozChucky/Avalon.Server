@@ -197,7 +197,7 @@ outside `/world/{worldId}/`.
 
 | Route | Answer |
 |---|---|
-| `GET /public/world` | `{ defaultWorldId, worlds: [{ id, name }] }`: the configured, available worlds the caller may read, in id order. `Cache-Control: private, no-cache`, since the list depends on the caller |
+| `GET /public/world` | `{ defaultWorldId, worlds: [{ id, name, type, status, population, queueLength, maintenanceDeadlineUtc, lore }] }`: the configured, available worlds the caller may read, in id order, each with its live state. `Cache-Control: private, no-cache`, since the list depends on the caller |
 | `GET /public/world/{worldId}/item/{id}` | `PublicItemDto` |
 | `GET /public/world/{worldId}/ability/{id}` | `PublicAbilityDto` |
 
@@ -208,6 +208,16 @@ outside `/world/{worldId}/`.
 - **Caching:** an answer from a world every player may enter is `Cache-Control: public, max-age=300`; one from a
   world only this caller may enter is `private, max-age=300` (the middleware stores which in
   `HttpContext.Items[PublicWorldScopedAttribute.OpenToEveryoneItem]`).
+- **Live fields** (`GET /public/world`): `status` and `queueLength` come from the same `WorldLiveState` read as the
+  admin list. `population` is a band (`Low`, `Medium`, `High`, `Full`), never a count: `Full` iff the status is
+  Full, null when the world is Offline, in Maintenance or has no capacity, where capacity is the world's player
+  limit, else `Application:PublicPopulationReference`. `maintenanceDeadlineUtc` is set only while maintenance is
+  enabled (a scheduled cut-off shows with the status still Online); a stale deadline on a world whose maintenance
+  is off is null. `lore` is the world's lore text. Null properties are omitted from the JSON. If Redis cannot be
+  read, every world reads Offline with `queueLength` 0 and the answer is still 200.
+- **What it never returns:** host, port, `MinVersion`, `Version`, the exact online count, the player limit or the
+  maintenance revision. The endpoint is anonymous, so these stay in the Player-only `GET /world`. Live state is read
+  only for worlds the caller may read, so a staff-only world (Development, PTR) leaks nothing to anonymous callers.
 - **The default world** (`PublicWorlds.DefaultOf`) is `Application:PublicWorldId` when the caller may read it, else
   the first readable world, else none.
 - **GET only:** every `[PublicWorldScoped]` endpoint is a single-verb GET under `public/world/`
