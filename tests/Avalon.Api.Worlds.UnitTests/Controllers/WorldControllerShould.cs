@@ -199,5 +199,10 @@ public class WorldControllerShould
         using HttpResponseMessage response = await host.Client.SendAsync(request);
 
         Assert.Equal(status, (int)response.StatusCode);
+        int writes = status is 200 or 201 ? 1 : 0;
+        if (method == "POST")
+            await service.Received(writes).CreateAsync(Arg.Any<CreateWorldRequest>(), Arg.Any<CancellationToken>());
+        else
+            await service.Received(writes).UpdateAsync(Arg.Any<ushort>(), Arg.Any<UpdateWorldRequest>(), Arg.Any<CancellationToken>());
     }
 }

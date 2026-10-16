@@ -218,6 +218,8 @@ public sealed class PublicWorldListShould
         using var doc = JsonDocument.Parse(json);
         JsonElement[] worlds = doc.RootElement.GetProperty("worlds").EnumerateArray().ToArray();
         Assert.NotEmpty(worlds);
+        // The fixture makes all eight fields non-null, so the key set is exactly the contract.
+        Assert.Equal(allowed.Order(), worlds.Single().EnumerateObject().Select(p => p.Name).Order());
         foreach (JsonElement world in worlds)
         {
             foreach (JsonProperty property in world.EnumerateObject())
@@ -228,14 +230,40 @@ public sealed class PublicWorldListShould
         }
     }
 
+    [Theory]
+    [InlineData(ContractStatus.Online, true, 10, false, false)]
+    [InlineData(ContractStatus.Full, true, 90, false, false)]
+    [InlineData(ContractStatus.Maintenance, true, 10, true, true)]
+    [InlineData(ContractStatus.Offline, false, 0, false, false)]
+    public async Task Report_the_same_status_as_the_admin_world_route(ContractStatus expected, bool ready, int taken,
+        bool maintenance, bool pastCutoff)
+    {
+        Live(2, ready, taken, queue: 0);
+        DateTime? deadline = maintenance ? (pastCutoff ? s_now.AddMinutes(-1) : s_now.AddMinutes(12)) : null;
+        await using ApiTestHost host = await Start(2, asthoria: new AsthoriaRow(Limit: 90, Maintenance: maintenance, Deadline: deadline));
+        Account player = ApiTestHost.MakeAccount(AccountAccessLevel.Player);
+        host.AccountNowIs(player);
+        string token = ApiTestHost.Mint(player);
+
+        HttpResponseMessage admin = await host.GetAsync("/world/2", token);
+        HttpResponseMessage publicList = await host.GetAsync("/public/world", token);
+        ContractStatus adminStatus = (await admin.Content.ReadFromJsonAsync<WorldDto>())!.Status;
+        ContractStatus publicStatus = (await publicList.Content.ReadFromJsonAsync<PublicWorldsDto>())!.Worlds.Single().Status;
+
+        Assert.Equal(adminStatus, publicStatus);
+        Assert.Equal(expected, publicStatus);
+    }
+
     [Fact]
     public async Task Read_no_live_state_for_a_world_the_caller_may_not_read()
     {
         Live(2, ready: true, taken: 30, queue: 0);
         await using ApiTestHost host = await Start(2, asthoria: new AsthoriaRow(Limit: 90));
 
-        await host.Client.GetAsync("/public/world");
+        HttpResponseMessage response = await host.Client.GetAsync("/public/world");
 
+        Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
+        await _readiness.Received(1).IsReadyAsync(2, Arg.Any<CancellationToken>());
         await _readiness.Received(0).IsReadyAsync(3, Arg.Any<CancellationToken>());
         await _readiness.Received(0).IsReadyAsync(1, Arg.Any<CancellationToken>());
         await _occupancy.Received(0).ReadAsync(3, Arg.Any<CancellationToken>());

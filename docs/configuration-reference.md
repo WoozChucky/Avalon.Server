@@ -42,7 +42,7 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | `MapAssetConfig`            | `Avalon.Api.Worlds.Config`         | `Application:MapAssets`, as `IOptions<MapAssetConfig>` | API (worlds) | Not validated |
 | `NotificationConfig`        | `Avalon.Api.Identity.Config`       | `Application:Notification` | API (identity) | Not validated |
 | `EnvironmentConfig`         | `Avalon.Api.Hosting.Config`        | `Application:Environment` | API (identity) | Not validated |
-| `WorldsConfig`              | `Avalon.Api.Worlds.Config`         | `Application`: `PublicWorldId`, `PublicPopulationReference`, `PublicSiteUrl`, `Balance` | API (worlds) | `PublicSiteUrl` by hand (`PublicSiteSettings.Create`); see [REST API Worlds](#rest-api-worlds) |
+| `WorldsConfig`              | `Avalon.Api.Worlds.Config`         | `Application`: `PublicWorldId`, `PublicPopulationReference`, `PublicSiteUrl`, `Balance` | API (worlds) | `PublicSiteUrl` by hand (`PublicSiteSettings.Create`); `PublicPopulationReference` > 0 by hand in `AddWorlds`; see [REST API Worlds](#rest-api-worlds) |
 | `PreviewConfiguration`      | `Avalon.Api.Worlds.Previews`       | `Application:Previews`, as `IOptions<PreviewConfiguration>` | API (worlds) | Not validated; a bad colour only leaves `theme-color` out |
 | `DistributionConfiguration` | `Avalon.Api.Distribution`          | `Application:Distribution` | API (distribution) | Not validated; left incomplete, the `/client` endpoints answer 503 |
 | `BalanceConfiguration`      | `Avalon.Api.Worlds.Balance`        | `Application:Balance` | API (worlds) | Not validated; left incomplete, the admin `/balance` endpoints answer 503 |

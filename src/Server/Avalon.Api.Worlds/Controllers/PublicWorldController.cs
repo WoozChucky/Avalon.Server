@@ -34,7 +34,7 @@ public class PublicWorldController(IWorldRepository worlds, IWorldDatabases data
         List<WorldEntity> readable = await PublicWorlds.ReadableAsync(worlds, databases, caller, ct);
         ushort? chosen = PublicWorlds.DefaultOf(readable, settings.DefaultWorldId);
 
-        // Only worlds the caller may read reach the Redis reads below, so staff-only worlds never leave this method.
+        // Only worlds this caller may read are read from Redis, so an anonymous caller learns nothing of a staff-only world.
         DateTime nowUtc = clock.GetUtcNow().UtcDateTime;
         PublicWorldDto[] dtos = await Task.WhenAll(readable.Select(w => ToDtoAsync(w, nowUtc, ct)));
 

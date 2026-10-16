@@ -193,7 +193,7 @@ outside `/world/{worldId}/`.
 
 ## Public routes
 
-`[PublicWorldScoped]` is the anonymous-friendly variant, for the public site's item and ability tooltips:
+`[PublicWorldScoped]` is the anonymous-friendly variant, for the public site's item and ability tooltips and the public realm board:
 
 | Route | Answer |
 |---|---|

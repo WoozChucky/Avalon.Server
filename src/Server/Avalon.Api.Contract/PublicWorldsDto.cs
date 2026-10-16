@@ -2,7 +2,7 @@ namespace Avalon.Api.Contract;
 
 /// <summary>
 /// The worlds the caller may read, for tooltips and for the public realm board, and the one a link without a world
-/// reads. Anonymous and cacheable by no one: it carries no host, port, version, exact count or limit.
+/// reads. Anonymous and never stored by a shared cache: it carries no host, port, version, exact count or limit.
 /// </summary>
 public sealed class PublicWorldsDto
 {

@@ -1,3 +1,4 @@
+using Avalon.Api.Worlds.Controllers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -28,7 +29,12 @@ public sealed class PublicPopulationReferenceShould
     }
 
     [Theory]
-    [InlineData(null)]
-    [InlineData("40")]
-    public void Start_when_unset_or_positive(string? reference) => Assert.NotNull(Register(reference));
+    [InlineData(null, null)]
+    [InlineData("40", 40)]
+    public void Start_when_unset_or_positive(string? reference, int? expected)
+    {
+        using ServiceProvider provider = Register(reference).BuildServiceProvider();
+
+        Assert.Equal(expected, provider.GetRequiredService<PublicWorldSettings>().PopulationReference);
+    }
 }
