@@ -227,6 +227,11 @@ place for the grace: so a crash, a lost connection or a killed client keeps the 
   client's or the world's (a slow connection, a failed save), turns it into a drop; a reason the world noted before
   it, as it was already closing the connection, stands (a kick, a cutoff, a stop all release the place too; a
   world-side drop noted in the same instant holds it for the grace).
+- **A goodbye that wins the race with a stop or a cutoff** (it arrives before the world noted `shutdown` or
+  `maintenance` for the connection) ends its own session as `logout`: that end releases only its own place, not the
+  places the world holds after a drop. The other sessions' `shutdown` or `maintenance` ends in the same stop or cutoff
+  still release those ([the held place](#the-held-place)); a stop or cutoff whose every session said goodbye first
+  releases none, and those places run out with their grace, as after a stop that ends no session.
 - **Before admission, or blocked by maintenance,** it is dropped as every gameplay packet is: a connection maintenance
   blocked is closed with its own reason, which releases the place anyway.
 - **Change Character** keeps the connection and the session, and sends no goodbye: the place is untouched.
