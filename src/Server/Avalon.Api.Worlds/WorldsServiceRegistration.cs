@@ -27,7 +27,13 @@ public static class WorldsServiceRegistration
     {
         var config = WorldsConfig.Bind(configuration);
 
-        services.AddSingleton(new PublicWorldSettings(config.PublicWorldId));
+        if (config.PublicPopulationReference is <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Application:PublicPopulationReference must be a positive head count, not {config.PublicPopulationReference}.");
+        }
+
+        services.AddSingleton(new PublicWorldSettings(config.PublicWorldId, config.PublicPopulationReference));
         services.AddSingleton(PublicSiteSettings.Create(config.PublicSiteUrl));
         services.AddOptions<PreviewConfiguration>().BindConfiguration("Application:Previews");
         // Observability's reads of a presence's own world, the layout inputs included.

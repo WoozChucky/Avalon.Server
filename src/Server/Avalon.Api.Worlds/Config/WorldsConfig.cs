@@ -14,6 +14,12 @@ public sealed class WorldsConfig
     public ushort? PublicWorldId { get; set; }
 
     /// <summary>
+    /// The head count treated as busy for a world with no player limit; unset hides the gauge for such worlds. Unset by
+    /// default (a deployment setting); must be positive, checked at startup.
+    /// </summary>
+    public int? PublicPopulationReference { get; set; }
+
+    /// <summary>
     /// The public website's base URL, which link previews name as a page's canonical address. Unset by
     /// default (a deployment setting); validated at startup by <see cref="Previews.PublicSiteSettings.Create"/>.
     /// </summary>

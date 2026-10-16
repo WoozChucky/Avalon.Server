@@ -404,6 +404,10 @@ spec:
             - name: Application__PublicWorldId
               value: {{ .Values.publicWorldId | quote }}
             {{- end }}
+            {{- if not (kindIs "invalid" .Values.publicPopulationReference) }}
+            - name: Application__PublicPopulationReference
+              value: {{ .Values.publicPopulationReference | quote }}
+            {{- end }}
             {{- end }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"

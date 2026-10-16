@@ -333,6 +333,7 @@ or distribution ignores `worlds`, and the checks below apply to the parts a rele
 | Key | Default | Description |
 |---|---|---|
 | `Application:PublicWorldId` | none (`null`) | The default world of `GET /public/world` and of the link previews. Helm `publicWorldId`, rendered only when set |
+| `Application:PublicPopulationReference` | none (`null`) | The head count that reads as busy for a world with no player limit, which the public realm list bands its population against; unset shows no population for such a world. Must be positive, else startup stops, naming the setting. Helm `publicPopulationReference`, rendered only when set |
 | `Application:PublicSiteUrl` | none (blank) | The public site's base URL, e.g. `https://avalon.example`: an absolute http or https URL with no query or fragment, trailing slash dropped (`PublicSiteSettings.Create`); anything else stops startup, naming the setting. Helm `publicSiteUrl`; the AppHost sets `http://localhost:5173` |
 | `Application:Previews:SiteName` | `Avalon` | `og:site_name` and the not-found title; left out when empty |
 | `Application:Previews:AbilityColour` | `#BC8A4E` | An ability's `theme-color` |

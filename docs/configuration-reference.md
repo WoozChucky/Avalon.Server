@@ -42,7 +42,7 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | `MapAssetConfig`            | `Avalon.Api.Worlds.Config`         | `Application:MapAssets`, as `IOptions<MapAssetConfig>` | API (worlds) | Not validated |
 | `NotificationConfig`        | `Avalon.Api.Identity.Config`       | `Application:Notification` | API (identity) | Not validated |
 | `EnvironmentConfig`         | `Avalon.Api.Hosting.Config`        | `Application:Environment` | API (identity) | Not validated |
-| `WorldsConfig`              | `Avalon.Api.Worlds.Config`         | `Application`: `PublicWorldId`, `PublicSiteUrl`, `Balance` | API (worlds) | `PublicSiteUrl` by hand (`PublicSiteSettings.Create`); see [REST API Worlds](#rest-api-worlds) |
+| `WorldsConfig`              | `Avalon.Api.Worlds.Config`         | `Application`: `PublicWorldId`, `PublicPopulationReference`, `PublicSiteUrl`, `Balance` | API (worlds) | `PublicSiteUrl` by hand (`PublicSiteSettings.Create`); see [REST API Worlds](#rest-api-worlds) |
 | `PreviewConfiguration`      | `Avalon.Api.Worlds.Previews`       | `Application:Previews`, as `IOptions<PreviewConfiguration>` | API (worlds) | Not validated; a bad colour only leaves `theme-color` out |
 | `DistributionConfiguration` | `Avalon.Api.Distribution`          | `Application:Distribution` | API (distribution) | Not validated; left incomplete, the `/client` endpoints answer 503 |
 | `BalanceConfiguration`      | `Avalon.Api.Worlds.Balance`        | `Application:Balance` | API (worlds) | Not validated; left incomplete, the admin `/balance` endpoints answer 503 |
@@ -406,7 +406,7 @@ of it; `appsettings.json` keeps every service's non-secret defaults.
 | The rest of `Application:Authentication` (token lifetimes, the refresh cookie, the login, registration and email-change limits) | yes | | | |
 | `Application:StoreAuthentication:*`, `Application:SteamWebLink:*`, `Application:GameWorkloads:*`, `Kestrel:Endpoints:GameInternal:*`, `Application:Email:*`, `Application:Notification:*` | yes | | | |
 | `Application:StoreAuthentication:{Environment,SteamIdentityPrefix}` | yes | | yes | |
-| `Application:Templates:*`, `Application:MapAssets:*`, `Application:PublicWorldId`, `Application:PublicSiteUrl`, `Application:Previews:*`, `Application:Balance:*` | | yes | | |
+| `Application:Templates:*`, `Application:MapAssets:*`, `Application:PublicWorldId`, `Application:PublicPopulationReference`, `Application:PublicSiteUrl`, `Application:Previews:*`, `Application:Balance:*` | | yes | | |
 | `Application:Commerce:*` | | | yes | |
 | `Application:Distribution:*` | | | | yes |
 | `Application:ForwardedHeaders:*`, `Application:RateLimiting:{Enabled,AnonymousPermitsPerMinute,AuthenticatedPermitsPerMinute,ExemptSources}`, `Application:ApiDocs:Enabled` | yes | yes | yes | yes |
@@ -469,6 +469,8 @@ The API's `appsettings.json` lists no world, so the published image ships none. 
 The settings below are the worlds service's.
 
 **`Application:PublicWorldId`** (optional `ushort`): the world `GET /public/world` names as `defaultWorldId`. It falls back to the first world the caller may read when unset, or when that world is unavailable or not readable by the caller, so set it to the live world in a deployment.
+
+**`Application:PublicPopulationReference`** (optional `int`, no default; Helm `publicPopulationReference`, rendered only when set): the head count that reads as busy for a world with no player limit, so the public realm list can band its population (Low below a third of it, Medium below two thirds, High from there; such a world never reads Full). A world with a player limit bands against that limit instead. Unset, a world with no limit shows no population. It must be positive; zero or less stops the API at startup, naming the setting.
 
 **`Application:PublicSiteUrl`** (optional string, no default; Helm `publicSiteUrl`): the public website's base URL, e.g. `https://avalon.example`. It must be an absolute http or https URL with no query or fragment (a trailing slash is dropped); anything else stops the API at startup, naming the setting. `GET /public/preview/item/{id}` and `/ability/{id}` (link previews for bots that run no JavaScript; `?world=N`, else the default world) name `<PublicSiteUrl>/item/{id}` as the page's `og:url`, adding `?world=N` only when `world` was given. Unset, a preview leaves `og:url` out and its link is relative (`/item/{id}`).
 

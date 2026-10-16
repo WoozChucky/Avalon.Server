@@ -8,8 +8,11 @@ using WorldEntity = Avalon.Domain.Auth.World;
 
 namespace Avalon.Api.Worlds.Controllers;
 
-/// <summary>The configured public world, from Application:PublicWorldId.</summary>
-public sealed record PublicWorldSettings(ushort? DefaultWorldId);
+/// <summary>
+/// The configured public world, from Application:PublicWorldId, and the head count that reads as busy for a world
+/// with no player limit, from Application:PublicPopulationReference.
+/// </summary>
+public sealed record PublicWorldSettings(ushort? DefaultWorldId, int? PopulationReference = null);
 
 [AllowAnonymous]
 [ApiController]
