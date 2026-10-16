@@ -80,6 +80,18 @@ The send threads' busy time, in cores: `sum(rate(network_send_pass_duration_micr
 
 Any count is worth a look: a client sending faster than the tick takes (150 packets a pass per connection, `WorldConnection.MaxPacketsPerUpdate`), a tick stalled for as long as the cap is deep (about 34 s of input at the default), or a connection whose queue is wedged ([packet handlers](packet-handlers.md)). The counter does not see a flood the tick keeps up with, nor packets dropped as they arrive.
 
+### Silent connections
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `network.in.silent_kicks` | `network_in_silent_kicks_total` | Admitted connections closed for answering no time-sync ping for 60 seconds, counted from the admission or the last answer (#1034, the liveness rule, [packet protocol](networking-packet-protocol.md#time-sync-smsg_ping-and-cmsg_pong)): closed without a notice through the drain a disconnect takes (session end, save, lease released). No tags. On the world's meter (`world-server`) |
+
+A client answers every ping in every state, so a count is a client that died or hung without its socket closing, a
+peer holding a session open without speaking (or trickling a TLS record), or a network fault that cut many clients off
+at once (TCP keepalive closes those too, within about 90 s, and the rule usually gets there first). Each close is also
+an Information line (`Avalon.World.WorldConnection`) naming the connection, its account and how long it was silent, at
+most one every ten seconds for the whole world, with the number held back since the last.
+
 ### Session ends not sent
 
 | Metric | Prometheus | Measures |

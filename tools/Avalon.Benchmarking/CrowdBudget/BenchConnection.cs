@@ -58,7 +58,7 @@ internal sealed class BenchConnection(CharacterEntity character) : IWorldConnect
     public PendingSpawn? TakePendingSpawn() => throw new NotSupportedException();
     public void SendTimeSyncPing() => throw new NotSupportedException();
     public void RequestInitialTimeSyncPing() => throw new NotSupportedException();
-    public bool TakeInitialTimeSyncPingRequest() => throw new NotSupportedException();
+    public bool TakeTimeSyncPingRequest(long tick) => throw new NotSupportedException();
 
     public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp, long serverReceivedTicks) =>
         throw new NotSupportedException();

@@ -272,9 +272,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ReceiveQueueLimit _receiveQueueLimit;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
 
-    // 60Hz × 10s = 600 ticks. Spread pings across ticks so all connections don't fire
-    // in the same tick — each connection gets its own offset based on its index.
-    private const int TimeSyncTicksPeriod = 600;
+    /// <summary>
+    /// The time-sync ping's period in ticks: 60 Hz × 5 s (#1034, 600 before). Spread across ticks so all connections do
+    /// not ping on the same tick: each connection's phase is its place in the list. The liveness check rides it.
+    /// </summary>
+    public const int TimeSyncTicksPeriod = 300;
 
     // Monotonic tick counter used solely to derive the time-sync ping phase.
     private long _pingTickCounter;
@@ -911,18 +913,30 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         stageStart = StageDone(stageStart, s_presenceStage);
 
-        // Time-sync ping: stagger across the 600-tick window using each connection's
-        // list index, so 600 connections still produce only ~1 ping/tick worst case.
+        // Time-sync ping: stagger across the 300-tick window using each connection's
+        // list index, so 300 connections still produce only ~1 ping/tick worst case.
         // Phase MUST come from a monotonic counter that moves once per tick.
         // Each ping is stamped by its send thread as it is written (#875), so where the tick queues
         // it does not move the round trip.
-        long phase = _pingTickCounter++ % TimeSyncTicksPeriod;
+        long pingTick = _pingTickCounter++;
+        long phase = pingTick % TimeSyncTicksPeriod;
         for (int i = 0; i < conns.Length; i++)
         {
-            // A connection that has just handshaken pings on this tick whatever its phase, so its
-            // client learns its first round trip at once rather than up to a period later.
-            if (conns[i].TakeInitialTimeSyncPingRequest() || i % TimeSyncTicksPeriod == phase)
-                conns[i].SendTimeSyncPing();
+            IWorldConnection connection = conns[i];
+
+            // A connection that has just handshaken pings on this tick whatever its phase, and twice more about a
+            // second apart (the start burst, #1034), so its client has a measured offset in about two seconds rather
+            // than a period later. Asked every tick, so the burst moves on.
+            bool requested = connection.TakeTimeSyncPingRequest(pingTick);
+            bool due = i % TimeSyncTicksPeriod == phase;
+
+            // The liveness rule (#1034) rides the periodic ping, once a period per connection at the tick's time: an
+            // admitted connection that answered no ping for a minute is closed rather than pinged again.
+            if (due && connection is WorldConnection world && world.CloseIfSilent(now))
+                continue;
+
+            if (requested || due)
+                connection.SendTimeSyncPing();
         }
 
         stageStart = StageDone(stageStart, s_pingsStage);

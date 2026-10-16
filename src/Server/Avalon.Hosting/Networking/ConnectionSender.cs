@@ -82,11 +82,14 @@ public sealed class ConnectionSender : IOutbox
     public const string SlowConnectionMessage = "Your connection could not keep up with the server.";
 
     /// <summary>
-    /// How many written pings stay answerable (#892). A connection is pinged once per period (about ten seconds), plus
-    /// once after its handshake, and a ping is answered within a round trip, so two are unanswered at most in ordinary
-    /// play; a third is one a mass disconnect brought forward, as the period's phase follows the connection's place in
-    /// the list. Four keeps a stamp for thirty seconds or more at that cadence: the fourth ping written after it takes
-    /// its place, answered or not. A pong for it is then ignored, and the next ping measures again.
+    /// How many written pings stay answerable (#892), and so how many pongs may be in at once. A connection is pinged
+    /// once per period (five seconds since #1034), and three times in the two seconds after its handshake (the start
+    /// burst), and a ping is answered within a round trip, so one is unanswered in ordinary play, three during the
+    /// burst, and four when a periodic ping falls inside it or a mass disconnect brings one forward (the period's phase
+    /// follows the connection's place in the list). Each ping written grants one pong credit, the burst's too, so it
+    /// needs no allowance of its own, and a pong with no ping to answer still finds none. Four keeps a stamp for twenty
+    /// seconds at the steady cadence, and five or more for the burst's: the fourth ping written after it takes its
+    /// place, answered or not. A pong for it is then ignored, and the next ping measures again.
     /// </summary>
     public const int PingStampCapacity = 4;
 
@@ -103,7 +106,7 @@ public sealed class ConnectionSender : IOutbox
     /// <see cref="BurstTrimThreshold" /> before the buffer is given back (#883), and so the least time between two
     /// give-backs of one connection, whatever its peer does. Half a minute: three times the longest a stalled write is
     /// let live (<c>Network:MaxWriteStall</c>, 10 s by default), so a connection whose stalls recur keeps what they
-    /// need, and three ping periods, so even a connection that is sent nothing else is visited within it. Given back
+    /// need, and six ping periods, so even a connection that is sent nothing else is visited within it. Given back
     /// at once, a peer that stalled and caught up in a loop had the server rent a megabyte or two for it on every
     /// turn, past what the array pool keeps.
     /// </summary>
@@ -142,7 +145,6 @@ public sealed class ConnectionSender : IOutbox
     private int _faulted;
     private int _closeRequested;
     private int _doomed;
-    private long _pingClientTicks;
     private long _pingRoundTrip;
     private long _pingOffset;
     private uint _pingTickMicros;
@@ -262,16 +264,15 @@ public sealed class ConnectionSender : IOutbox
     /// a disconnect notice.
     /// </summary>
     /// <param name="tickMicros">The world's mean tick time in microseconds (#1016); 0, not reported.</param>
-    public void EnqueuePing(long clientTicks, long roundTrip, long offset, uint tickMicros)
+    public void EnqueuePing(long roundTrip, long offset, uint tickMicros)
     {
-        // Four writes, not one publish, so the four can be torn: the owner may stamp a ping between them and send
+        // Three writes, not one publish, so the three can be torn: the owner may stamp a ping between them and send
         // one value of this call with the others of the call before it. That is harmless only because nothing on the
         // server reads them back. They are told to the client, which is told the right ones with the next ping, and the
         // round trip the server keeps is measured from its own stamps (TryTakePingStamp), never from these. If the server
         // ever reads them, or a client must be able to rely on them belonging together, they have to be
         // published as one: under a version the owner re-reads until it is unchanged and even, or as one immutable
         // object swapped in, which costs an allocation per ping. Neither is cheaper than this, so neither is done.
-        Volatile.Write(ref _pingClientTicks, clientTicks);
         Volatile.Write(ref _pingRoundTrip, roundTrip);
         Volatile.Write(ref _pingOffset, offset);
         Volatile.Write(ref _pingTickMicros, tickMicros);
@@ -505,9 +506,8 @@ public sealed class ConnectionSender : IOutbox
         try
         {
             long serverTicks = _time.GetUtcNow().UtcTicks;
-            OutboundPacket stamped = SPingPacket.Create(serverTicks, Volatile.Read(ref _pingClientTicks),
-                Volatile.Read(ref _pingRoundTrip), Volatile.Read(ref _pingOffset), Volatile.Read(ref _pingTickMicros),
-                _encoder);
+            OutboundPacket stamped = SPingPacket.Create(serverTicks, Volatile.Read(ref _pingRoundTrip),
+                Volatile.Read(ref _pingOffset), Volatile.Read(ref _pingTickMicros), _encoder);
             int size = stamped.Size; // read before the release gives the payload back
             try
             {

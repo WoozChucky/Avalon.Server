@@ -7,7 +7,8 @@ namespace Avalon.Network.Packets.Generic;
 /// <summary>
 /// The client's answer to one <see cref="SPingPacket" />: one pong per ping, and no other. The server lets one pong in
 /// for each ping it wrote (#892), whatever that pong echoes, and drops any beyond that as it arrives. One that is let
-/// in and answers no ping the server has outstanding is ignored.
+/// in and answers no ping the server has outstanding is ignored. An admitted connection that sends no pong answering a
+/// ping for a minute is closed (#1034).
 /// </summary>
 [ProtoContract]
 [Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_PONG)]
@@ -17,18 +18,23 @@ public class CPongPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
 
     /// <summary>
-    /// The <see cref="SPingPacket.ServerTimestamp" /> of the ping this answers, echoed exactly. The server uses it only
-    /// to find that ping (#892); it measures the round trip itself.
+    /// The <see cref="SPingPacket.ServerTimestamp" /> of the ping this answers, echoed exactly. The server uses it to
+    /// find that ping (#892), and times the round trip from its own stamp. A pong that answers a ping keeps the
+    /// connection open (#1034).
     /// </summary>
     [ProtoMember(1)] public long LastServerTimestamp { get; set; }
 
     /// <summary>
-    /// When the client received the ping, in UTC ticks of its own clock. The server reads the client's clock offset
-    /// from it, and nothing else.
+    /// When the client received the ping, in UTC ticks of its own clock: the clock it adds the ping's offset to. The
+    /// server reads the client's clock offset from it, with <see cref="ClientSentTimestamp" />.
     /// </summary>
     [ProtoMember(2)] public long ClientReceivedTimestamp { get; set; }
 
-    /// <summary>When the client sent this pong, in UTC ticks of its own clock. The server no longer reads it (#892).</summary>
+    /// <summary>
+    /// When the client sent this pong, in UTC ticks of the same clock. Since #1034 the server takes the time between the
+    /// two, the client's hold of the ping, out of the round trip and the offset, unless it is negative or longer than the
+    /// whole round trip the server measured.
+    /// </summary>
     [ProtoMember(3)] public long ClientSentTimestamp { get; set; }
 
     public static NetworkPacket Create(long lastServerTicks, long clientReceivedTicks)

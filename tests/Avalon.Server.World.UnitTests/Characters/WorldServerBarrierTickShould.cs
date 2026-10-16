@@ -369,6 +369,43 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     /// <summary>
+    /// The time-sync cadence (#1034): a connection is pinged every 300 ticks (five seconds at 60 Hz) on the phase its
+    /// place in the list gives it, and three times in the two seconds after its handshake, the start burst: on the next
+    /// tick, then twice more 60 ticks apart, so its client has a measured clock offset in about two seconds. Here the
+    /// handshake asks before tick 100, and the connection, first in the list, pings on its phase at ticks 0, 300 and 600.
+    /// </summary>
+    [Fact]
+    public async Task Ping_every_five_seconds_and_three_times_in_the_two_after_the_handshake()
+    {
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build();
+        var wire = new MemoryStream();
+        connection.InitOutboxForTest(new PacketStream(wire));
+
+        var pinged = new List<int>();
+        int written = 0;
+        for (int tick = 0; tick <= 2 * WorldServer.TimeSyncTicksPeriod + 10; tick++)
+        {
+            if (tick == 100)
+                connection.RequestInitialTimeSyncPing();
+            server.Tick();
+            server.SendScheduler.RunAllPasses();
+
+            byte[] bytes = wire.ToArray();
+            using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(bytes, written, bytes.Length - written))
+                .EnumerateRawFramesAsync(256, int.MaxValue, guard.Token))
+            {
+                if (InboundPacketFrame.ParseFrame(raw).Header.Type == NetworkPacketType.SMSG_PING)
+                    pinged.Add(tick);
+            }
+
+            written = bytes.Length;
+        }
+
+        Assert.Equal([0, 100, 160, 220, 300, 600], pinged);
+    }
+
+    /// <summary>
     /// #639: presence is captured by the tick, after the world update, from the registry it ticked; the Redis writer
     /// only takes what the tick handed over. A second tick within the second captures nothing new.
     /// </summary>

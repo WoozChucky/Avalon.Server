@@ -21,6 +21,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
 using Avalon.World.Telemetry;
+using Avalon.World.Threading;
 using Microsoft.Extensions.Logging;
 using Packet = Avalon.Network.Packets.Packet;
 
@@ -84,8 +85,6 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     private readonly IWorldServer _server;
 
     private CharacterEntity? _characterEntity;
-
-    private long _lastClientTicks;
 
     // The world's clock (#820): packet arrival stamps, and the admission and heartbeat timings. The time-sync ping is
     // stamped on its send thread, by the send scheduler's clock, as it is written (#875).
@@ -229,7 +228,10 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     /// <summary>The last round trip in whole milliseconds; never negative.</summary>
     public long Latency { get; private set; }
 
-    /// <summary>The last round trip in ticks, measured by the server alone; never negative.</summary>
+    /// <summary>
+    /// The last network round trip in ticks: the server's own measurement, less the time the client says it held the
+    /// ping when that is believable (<see cref="OnPongReceived" />); never negative.
+    /// </summary>
     public long RoundTripTime { get; private set; }
 
     /// <summary>Server time minus client time, in ticks, as of the last answered ping.</summary>
@@ -243,6 +245,23 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     public bool InMap => InGame && _characterEntity?.Map > 0;
 #pragma warning restore CS8604
 
+    /// <summary>
+    /// The pings of the start burst after the handshake's own (#1034), so a client has a measured clock offset in about
+    /// two seconds rather than a period: the handshake's ping, then these, <see cref="StartBurstSpacingTicks" /> apart.
+    /// </summary>
+    public const int StartBurstFollowUps = 2;
+
+    /// <summary>The ticks between the pings of the start burst: about a second at 60 Hz.</summary>
+    public const int StartBurstSpacingTicks = 60;
+
+    /// <summary>
+    /// How long an admitted connection may go without a pong that answers a ping it was sent (#1034) before the tick
+    /// closes it, through the drain a disconnect takes. Counted from admission, so a client that never answers is closed
+    /// too. A client answers every ping, in every state, so only a dead, stuck or hostile one reaches it: twelve
+    /// periodic pings in a row unanswered.
+    /// </summary>
+    public static readonly TimeSpan LivenessTimeout = TimeSpan.FromSeconds(60);
+
     // Set once per connection by the version handshake's handler, which runs on the connection's read
     // loop (OnReceive hands CMSG_WORLD_HANDSHAKE to CallListener), and taken by the tick, which asks
     // every connection every tick. Two threads, and no interlocking: the handler sets it only after
@@ -252,19 +271,72 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     // request made more than once, would need an exchange.
     private bool _initialPingRequested;
 
+    // The start burst's pings still to come, and the tick the next is due on (#1034). Tick only.
+    private int _burstPingsLeft;
+    private long _nextBurstPingTick;
+
+    // The connection's monotonic clock as of its last pong that answered a ping, or as of its admission before the
+    // first (#1034): what the liveness rule measures from. Meaningless until the connection is admitted. Tick only: the
+    // admission is published by a tick continuation, a pong is handled by the session pass, and the check is the
+    // tick's time-sync sweep.
+    private long _lastAnswerTimestamp;
+
     /// <inheritdoc />
     public void RequestInitialTimeSyncPing() => _initialPingRequested = true;
 
     /// <inheritdoc />
-    public bool TakeInitialTimeSyncPingRequest()
+    public bool TakeTimeSyncPingRequest(long tick)
     {
-        if (!_initialPingRequested) return false;
-        _initialPingRequested = false;
+        if (_initialPingRequested)
+        {
+            _initialPingRequested = false;
+            _burstPingsLeft = StartBurstFollowUps;
+            _nextBurstPingTick = tick + StartBurstSpacingTicks;
+            return true;
+        }
+
+        if (_burstPingsLeft == 0 || tick < _nextBurstPingTick)
+            return false;
+
+        _burstPingsLeft--;
+        _nextBurstPingTick = tick + StartBurstSpacingTicks;
         return true;
     }
 
-    public void SendTimeSyncPing() =>
-        _sender?.EnqueuePing(_lastClientTicks, RoundTripTime, TimeSyncOffset, _server.MeanTickMicros);
+    public void SendTimeSyncPing() => _sender?.EnqueuePing(RoundTripTime, TimeSyncOffset, _server.MeanTickMicros);
+
+    /// <summary>
+    /// The liveness rule (#1034): an admitted connection that has had no pong answering one of its pings for
+    /// <see cref="LivenessTimeout" />, counted from its admission, is closed, as a connection that drops is
+    /// (<see cref="OnClose" />): the tick then ends its session, saves its character and releases its lease. Counted
+    /// in <c>network.in.silent_kicks</c>, with an Information line at most once per
+    /// <see cref="FailureLogThrottle.Interval" /> for the whole world, since a network fault can silence many at once. A
+    /// connection not yet admitted is the admission timeout's, and one maintenance has blocked drops every packet, its
+    /// pongs too, and is maintenance's to close. True when it closed the connection.
+    /// </summary>
+    /// <remarks>
+    /// Tick only: the time-sync sweep asks it on the connection's ping phase, once a period, at the tick's time, so it
+    /// costs no clock read and no scan of its own. A connection is closed within a period of the timeout.
+    /// </remarks>
+    public bool CloseIfSilent(in TickTime now)
+    {
+        if (IsClosing || _maintenanceBlocked || GameSessionLease is null)
+            return false;
+
+        TimeSpan silent = _time.GetElapsedTime(_lastAnswerTimestamp, now.On(_time).Timestamp);
+        if (silent < LivenessTimeout)
+            return false;
+
+        DiagnosticsConfig.World.SilentKicks.Add(1);
+        if (s_silentCloses.TryTake(_time, out int suppressed))
+            ReceiveLog.ClosedSilent(_logger, Id, AccountId?.Value, (long)silent.TotalSeconds, suppressed);
+#pragma warning disable MA0045 // the tick must not wait on the close it starts
+        Close(false);
+#pragma warning restore MA0045
+        return true;
+    }
+
+    private static readonly FailureLogThrottle s_silentCloses = new();
 
     /// <inheritdoc />
     public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp,
@@ -272,16 +344,17 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
     {
         // The echo only says which ping is answered (#892): it must be the stamp the send thread put on a ping it wrote
         // that no pong has answered yet, and it is taken here. A pong that echoes anything else (forged, sent twice, or
-        // answering a ping the record has dropped) changes nothing. At Debug, and at most once per ping written: a pong
-        // reaches this handler only with a credit (OnReceive).
+        // answering a ping the record has dropped) changes nothing, the liveness clock included. At Debug, and at most
+        // once per ping written: a pong reaches this handler only with a credit (OnReceive).
         if (_sender is null || !_sender.TryTakePingStamp(lastServerTimestamp))
         {
             HighRatePacketLog.PongAnswersNoPing(_logger, NetworkPacketType.CMSG_PONG, Id);
             return;
         }
 
-        // Both ends are the server's own: the stamp it wrote, which the echo now equals, and the pong's arrival. The
-        // client's send time plays no part, so the time it took to answer stays in the round trip.
+        // The four times of the exchange: t1, the stamp the server wrote, which the echo now equals; t2 and t3, when the
+        // client says it received the ping and sent the pong, on its own clock; t4, the pong's arrival. t1 and t4 are the
+        // server's own, so t4 - t1 is the whole round trip, the client's hold of the ping included.
         // serverReceivedTicks rather than the clock: this runs on the world tick, so a pong that landed
         // while the server slept out the rest of a tick would otherwise be charged that whole wait --
         // a round trip of one tick on a loopback connection, and half of it again as a clock offset,
@@ -291,18 +364,31 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         {
             // The pong arrived before its ping was stamped. Either its echo was sent ahead of the ping (a guess that hit:
             // it came in on the credit of an earlier, unanswered ping), or the wall clock, which both times come from, was
-            // set back in between. Nothing was measured, and the stamp is spent.
+            // set back in between. Nothing was measured, the stamp is spent, and it does not count as an answer.
             HighRatePacketLog.PongBeforeItsPing(_logger, NetworkPacketType.CMSG_PONG, Id);
             return;
         }
 
-        long latency = rtt / TimeSpan.TicksPerMillisecond;
+        // The client's hold, t3 - t2, comes out of the round trip (#1034): network round trip = (t4 - t1) - (t3 - t2).
+        // Believed only when it is not negative and no longer than the whole round trip, else ignored, as before #1034:
+        // a client cannot make the round trip negative, nor move its offset by more than half of it. Compared unsigned:
+        // with t3 >= t2 the difference fits a ulong whatever the two are, so no pair of garbage times wraps into a hold.
+        long network = rtt;
+        if (clientSentTimestamp >= clientReceivedTimestamp)
+        {
+            ulong hold = unchecked((ulong)(clientSentTimestamp - clientReceivedTimestamp));
+            if (hold <= (ulong)rtt)
+                network = rtt - (long)hold;
+        }
 
-        // Every term from THIS exchange. _lastClientTicks still holds the previous pong's stamp here
-        // (it is assigned below), and a later ping can already have gone out before this pong landed --
-        // either one turns the offset into the gap between pings. The client's receive time is the one
-        // term of its own left: it is its clock, and a false one moves only its own idea of server time.
-        TimeSyncOffset = lastServerTimestamp + rtt / 2 - clientReceivedTimestamp;
+        long latency = network / TimeSpan.TicksPerMillisecond;
+
+        // Server time minus client time, from all four times: ((t1 - t2) + (t4 - t3)) / 2, which is t1 + network / 2 - t2,
+        // the server's time half a network round trip after its stamp, less the client's at that moment. A client adds
+        // it to its clock to read the server's. Every term from THIS exchange: a later ping can already have gone out
+        // before this pong landed, and a term of another exchange turns the offset into the gap between pings. The
+        // client's times are its clock, and false ones move only its own idea of server time.
+        TimeSyncOffset = lastServerTimestamp + network / 2 - clientReceivedTimestamp;
 
         if (Latency - latency > 20 && _logger.IsEnabled(LogLevel.Information))
         {
@@ -312,13 +398,16 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
         if (_logger.IsEnabled(LogLevel.Trace))
         {
-            HighRatePacketLog.RoundTrip(_logger, Character?.Name ?? AccountId?.ToString(), rtt, latency,
+            HighRatePacketLog.RoundTrip(_logger, Character?.Name ?? AccountId?.ToString(), network, latency,
                 NetworkPacketType.CMSG_PONG, Id);
         }
 
-        _lastClientTicks = clientReceivedTimestamp;
-        RoundTripTime = rtt;
+        RoundTripTime = network;
         Latency = latency;
+
+        // An answer: the liveness clock starts again (#1034), at the tick's time, which the session pass handling this
+        // pong was given by the lease check (no clock read per pong).
+        _lastAnswerTimestamp = _leaseCheckedAt.On(_time).Timestamp;
     }
 
     public void UpdateSession()
@@ -746,6 +835,11 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
             Message = "Closed connection {ConnectionId} of account {AccountId}: {PacketType} arrived with {MaxDepth} packets already waiting for the tick (Network:MaxReceiveQueueDepth)")]
         public static partial void ReceiveQueueOverDepth(ILogger logger, Guid connectionId, long? accountId,
             NetworkPacketType packetType, uint maxDepth);
+
+        [LoggerMessage(Level = LogLevel.Information,
+            Message = "Closed connection {ConnectionId} of account {AccountId}: no pong answered a ping for {SilentSeconds} s; {Suppressed} more were closed so since the last line")]
+        public static partial void ClosedSilent(ILogger logger, Guid connectionId, long? accountId, long silentSeconds,
+            int suppressed);
 
         [LoggerMessage(Level = LogLevel.Debug, Message = "Dropped {PacketType}: not accepted in the connection's current state")]
         public static partial void DroppedForState(ILogger logger, NetworkPacketType packetType);

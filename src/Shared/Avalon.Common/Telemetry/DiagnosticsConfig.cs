@@ -47,6 +47,13 @@ public static class DiagnosticsConfig
             "{connections}", HandshakeFailuresDescription);
 
         /// <summary>
+        /// Admitted connections closed for answering no time-sync ping for a minute (#1034, the liveness rule), through
+        /// the drain a disconnect takes. No tags. docs/instrumentation.md.
+        /// </summary>
+        public static readonly Counter<long> SilentKicks = Meter.CreateCounter<long>("network.in.silent_kicks",
+            "{connections}", "Admitted connections closed after a minute without a pong that answered a ping");
+
+        /// <summary>
         /// Portal entries (<c>CMSG_ENTER_MAP</c>) the world refused, tagged <c>reason</c> from a fixed set
         /// (docs/instrumentation.md). Nothing a client sends, and no character, account or map, becomes a tag.
         /// </summary>
