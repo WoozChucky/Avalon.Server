@@ -43,6 +43,12 @@ public sealed class WorldPlacesConfiguration
     /// <summary>A waiter that checks in when told is never removed for it: each timeout is above its interval.</summary>
     public bool IsValid() => FrontTimeoutSeconds > FrontCheckInSeconds && BackTimeoutSeconds > BackCheckInSeconds;
 
-    /// <summary>A place held after a drop keeps its whole grace: the unclaimed horizon is at least the held place's grace.</summary>
-    public bool CoversHeldPlace() => UnclaimedPlace >= HeldPlace;
+    /// <summary>
+    /// A place held after a drop keeps its whole grace and is never swept past the horizon (which locks its account out):
+    /// the unclaimed horizon is at least the held place's grace plus <see cref="HeldPlaceMargin"/>.
+    /// </summary>
+    public bool CoversHeldPlace() => UnclaimedPlace >= HeldPlace + HeldPlaceMargin;
+
+    /// <summary>The least the unclaimed horizon runs past the held place's grace.</summary>
+    public static readonly TimeSpan HeldPlaceMargin = TimeSpan.FromMinutes(1);
 }

@@ -98,7 +98,7 @@ public static class IdentityServiceRegistration
             .BindConfiguration(Avalon.Configuration.WorldPlacesConfiguration.Section)
             .ValidateDataAnnotations()
             .Validate(c => c.IsValid(), $"{Avalon.Configuration.WorldPlacesConfiguration.Section}: each check-in timeout must be above its interval.")
-            .Validate(c => c.CoversHeldPlace(), $"{Avalon.Configuration.WorldPlacesConfiguration.Section}: UnclaimedPlaceMinutes must be at least HeldPlaceSeconds.")
+            .Validate(c => c.CoversHeldPlace(), $"{Avalon.Configuration.WorldPlacesConfiguration.Section}: UnclaimedPlaceMinutes (in minutes) must cover HeldPlaceSeconds plus 60 s, so a dropped player's held place is never swept past the unclaimed horizon.")
             .ValidateOnStart();
         services.AddSingleton<Avalon.Infrastructure.WorldPlaces.IWorldPlaceStore, Avalon.Infrastructure.WorldPlaces.RedisWorldPlaceStore>();
         services.AddSingleton<Avalon.Infrastructure.WorldPlaces.PlaceLedgerOutage>();

@@ -103,7 +103,8 @@ A stale call can at most keep a place counted a little longer (see the last poin
   run out instead and asking again at its end changes nothing: the sweep that removes a place unclaimed past the
   horizon writes the same lockout, 45 s from then, so the account meets it as a newcomer. Only a place tickets alone
   kept to the end can be swept unclaimed past the horizon: a live session's heartbeats claim the place, and a drop's
-  held place lasts the held grace, which the horizon is at least. A session's
+  held place lasts the held grace, and startup requires the horizon to run at least a minute past it
+  (`UnclaimedPlaceMinutes` × 60 ≥ `HeldPlaceSeconds` + 60). A session's
   activation removes it (the account is playing), and a session end while it lives gives the place no held grace (the
   grace would outlast the lockout): the place stays only while a ticket's hold or the session's lease still runs. Should Redis refuse
   the expiry, the field is not kept (see the Warning below), and the account can retake the place as before. A lapsed

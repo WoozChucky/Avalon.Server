@@ -828,7 +828,7 @@ Section: `Application:WorldPlaces`, read by identity (#967, [world player limit]
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `HeldPlaceSeconds` | int | `90` | How long a player whose connection dropped keeps their place on the world ([the held place](world-player-limit.md#the-held-place)), from 1 to 3600. A session that ended any other way releases its place at once |
-| `UnclaimedPlaceMinutes` | int | `15` | How long join tickets alone may keep a place no session claims, from when a ticket took it or a session's end left it until a session's activation or heartbeat claims it again ([places](world-player-limit.md#places)); past it a further ticket goes through the capacity step as a newcomer's. From 1 to 1440, and at least `HeldPlaceSeconds`: startup refuses less |
+| `UnclaimedPlaceMinutes` | int | `15` | How long join tickets alone may keep a place no session claims, from when a ticket took it or a session's end left it until a session's activation or heartbeat claims it again ([places](world-player-limit.md#places)); past it a further ticket goes through the capacity step as a newcomer's. From 1 to 1440, and `UnclaimedPlaceMinutes` × 60 at least `HeldPlaceSeconds` + 60, so a dropped player's held place is never swept past the horizon (which would lock the account out): startup refuses less, naming both settings |
 
 The section's other keys are read by the line of a full world, from part 4 of #967. Validated at startup: a value
 out of its range stops identity, naming the setting.
