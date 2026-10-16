@@ -99,8 +99,7 @@ public static class LoginCommand
             }
 
             ushort chosen = world ?? worlds[0]!["worldId"]!.GetValue<ushort>();
-            JsonNode join = await PostAsync(http, "game/join-tickets", new { gameContextCredential = credential, worldId = chosen },
-                null, Guid.NewGuid(), cancellationToken);
+            JsonNode join = await JoinAsync(http, credential, chosen, cancellationToken);
             Required(join, "joinTicket");
             Console.Error.WriteLine($"Join ticket issued for world {chosen}, until {join["expiresAt"]}.");
             return 0;
@@ -109,6 +108,42 @@ public static class LoginCommand
         {
             await PostAsync(http, "client/auth/game-context/logout", new { gameContextCredential = credential }, null, null,
                 CancellationToken.None, allowEmpty: true);
+        }
+    }
+
+    /// <summary>
+    /// A join ticket; for a full world (#967), waits in its line, checking in as told, and asks again at its turn (or once
+    /// no longer queued). Ctrl+C leaves the line.
+    /// </summary>
+    private static async Task<JsonNode> JoinAsync(HttpClient http, string credential, ushort world, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            JsonNode join = await PostAsync(http, "game/join-tickets", new { gameContextCredential = credential, worldId = world },
+                null, Guid.NewGuid(), cancellationToken);
+            if (join["position"] is null) return join;
+
+            Console.Error.WriteLine($"World {world} is full: queued at position {join["position"]}. Waiting for a turn (Ctrl+C leaves the line).");
+            int wait = join["checkInAfterSeconds"]?.GetValue<int>() ?? 5;
+            try
+            {
+                while (true)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(wait), cancellationToken);
+                    JsonNode status = await PostAsync(http, "game/queue/status",
+                        new { gameContextCredential = credential, worldId = world }, null, null, cancellationToken);
+                    string? state = status["state"]?.GetValue<string>();
+                    if (state is "your_turn" or "not_queued") break;
+                    Console.Error.WriteLine($"  {state} at position {status["position"]}");
+                    wait = status["checkInAfterSeconds"]?.GetValue<int>() ?? wait;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                await PostAsync(http, "game/queue/leave", new { gameContextCredential = credential, worldId = world }, null, null,
+                    CancellationToken.None, allowEmpty: true);
+                throw;
+            }
         }
     }
 
