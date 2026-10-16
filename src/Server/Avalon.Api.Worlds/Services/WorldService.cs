@@ -165,10 +165,7 @@ public class WorldService : IWorldService
 
     private async Task<WorldDto> ToDtoAsync(WorldEntity w, CancellationToken ct, DateTime nowUtc)
     {
-        bool ready = await _readiness.IsReadyAsync(w.Id.Value, ct);
-        WorldOccupancy occupancy = await _occupancy.ReadAsync(w.Id.Value, ct);
-        var state = new WorldMaintenanceState(w.MaintenanceEnabled, w.MaintenanceRevision,
-            w.MaintenanceDeadlineUtc);
+        WorldLiveState live = await WorldLiveState.ReadAsync(_readiness, _occupancy, w, nowUtc, ct);
         return new WorldDto
         {
             Id = w.Id.Value,
@@ -179,14 +176,13 @@ public class WorldService : IWorldService
             Port = w.Port,
             MinVersion = w.MinVersion,
             Version = w.Version,
-            Status = (Avalon.Api.Contract.WorldStatus)WorldReadiness.WithCapacity(WorldReadiness.Resolve(state, ready, nowUtc),
-                w.PlayerLimit, occupancy.PlayerCount),
-            Ready = ready,
+            Status = (Avalon.Api.Contract.WorldStatus)live.Status,
+            Ready = live.Ready,
             CreatedAt = w.CreatedAt,
             UpdatedAt = w.UpdatedAt,
-            OnlineCount = occupancy.PlayerCount,
+            OnlineCount = live.Occupancy.PlayerCount,
             PlayerLimit = w.PlayerLimit,
-            QueueLength = occupancy.QueueLength,
+            QueueLength = live.Occupancy.QueueLength,
             Configured = _databases.TryGet(w.Id, out _),
             Available = _databases.IsAvailable(w.Id),
         };
