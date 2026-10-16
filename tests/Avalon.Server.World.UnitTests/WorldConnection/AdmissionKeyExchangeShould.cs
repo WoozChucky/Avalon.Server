@@ -25,7 +25,7 @@ namespace Avalon.Server.World.UnitTests.WorldConnection;
 
 /// <summary>
 /// The key exchange at admission in both of a world's modes, end to end over loopback through the connection's real read
-/// loop, reader and admission handler, from what a 0.3.0 client sends (the ticket and a public key of its own, sent before
+/// loop, reader and admission handler, from what a client sends (0.3.0 on) (the ticket and a public key of its own, sent before
 /// it knows the mode). A world that seals keys the session off the tick, replies with its own key, and opens what the
 /// client then seals under it. One with <c>Network:PacketEncryption</c> off runs no exchange (#878): it replies with no key,
 /// and closes a connection that sends a packet flagged Encrypted, counted as <c>sealed_before_key</c>: the connection has
@@ -152,7 +152,7 @@ public sealed class AdmissionKeyExchangeShould
 
         Assert.Equal(packetEncryption, connection.CryptoSession is not null);
 
-        // What a 0.3.0 client sends: the ticket, and a fresh key of its own.
+        // What a client sends (0.3.0 on): the ticket, and a fresh key of its own.
         var clientKeys = new CryptoManager();
         await client.GetStream().WriteAsync(Frame(NetworkPacketType.CMSG_GAME_ADMISSION, NetworkPacketFlags.ClearText,
             Encoded(new CGameAdmissionPacket
@@ -173,7 +173,7 @@ public sealed class AdmissionKeyExchangeShould
         byte[] sealedList;
         if (packetEncryption)
         {
-            // The client keys its session from the reply, as a 0.3.0 client does on a world that seals.
+            // The client keys its session from the reply, as a client from 0.3.0 on does on a world that seals.
             var session = new AvalonCryptoSession(CryptoRole.Client, clientKeys.GetKeyPair());
             session.Initialize(reply.PublicKey);
             sealedList = session.Encrypt(Encoded(new CCharacterListPacket()));

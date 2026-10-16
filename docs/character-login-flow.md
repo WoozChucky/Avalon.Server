@@ -429,6 +429,17 @@ Game Client                      World Server                         Character 
   the character that left, and the session pass drops them once the connection holds no character, so
   they cannot hold back the next character list.
 - **Kept on purpose:** a leave is allowed in combat, as a logout is.
+- **No goodbye:** Change Character keeps the connection and the session, so the account keeps its place on the world;
+  the client never sends `CMSG_LEAVE_WORLD` for it (below).
+
+## Quitting (#967)
+
+A player who quits on purpose, to the desktop or back to the launcher, sends `CMSG_LEAVE_WORLD` (0x201F, no payload),
+then closes the connection. The world ends the session as a `logout`, which releases the account's place on the world
+at once; a close without the goodbye (a crash, a lost connection) is a drop, and the place is held for a short grace so
+the player can come back ([world player limit](world-player-limit.md#the-goodbye),
+[packet protocol](networking-packet-protocol.md#the-goodbye-cmsg_leave_world)). The character is saved and despawned
+as on any close; there is no answer to wait for. Change Character never sends it.
 
 ---
 

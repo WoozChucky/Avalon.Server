@@ -7,7 +7,7 @@ namespace Avalon.Api.Testing;
 public static class GameClientTestData
 {
     /// <summary><c>Application:GameWorkloads:MinClientVersion</c>, as the API's appsettings.json has it.</summary>
-    public const string MinClientVersion = "0.3.0";
+    public const string MinClientVersion = "0.4.0";
 
     /// <summary>The version a test's client states: the floor itself.</summary>
     public const string ClientVersion = MinClientVersion;

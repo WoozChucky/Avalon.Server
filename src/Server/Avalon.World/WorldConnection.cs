@@ -734,6 +734,11 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         if (header.Type == NetworkPacketType.CMSG_WORLD_HANDSHAKE && GameSessionLease?.IsActive == true)
             return new ValueTask(Server.CallListener(this, header, payload));
         if (!IsGameplayAuthorized) return ValueTask.CompletedTask;
+        // The goodbye (#967) is noted as it arrives: the client closes right after it, and the close's despawn runs on the
+        // tick before any session packet would, so a goodbye left to its handler would end every quit as a drop. Before
+        // the depth cap, so a goodbye the cap closes the connection on still counts. The handler closes a connection the
+        // client left open.
+        if (header.Type == NetworkPacketType.CMSG_LEAVE_WORLD) NoteGoodbye();
         // One pong per ping written (#892): each ping its send thread writes grants one credit, and a pong takes one as
         // it arrives, whatever it echoes. A pong with none is dropped here, never queued: a client cannot send guesses
         // of a stamp, or a flood for the tick to dispatch. After the admission check, so no credit is spent or probed

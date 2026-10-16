@@ -66,7 +66,7 @@ public sealed class PacketEncryptionStrictnessShould
         connection.Deliver(type, type switch
         {
             NetworkPacketType.CMSG_CHARACTER_LIST => new CCharacterListPacket(),
-            NetworkPacketType.CMSG_WORLD_HANDSHAKE => new CWorldHandshakePacket { Version = "0.3.0" },
+            NetworkPacketType.CMSG_WORLD_HANDSHAKE => new CWorldHandshakePacket { Version = "0.4.0" },
             NetworkPacketType.CMSG_PLAYER_INPUT => new CPlayerInputPacket(),
             NetworkPacketType.CMSG_GAME_ADMISSION => new CGameAdmissionPacket(),
             NetworkPacketType.CMSG_PONG => new CPongPacket(),

@@ -108,8 +108,9 @@ public sealed class GameServerAllocatorShould
         Assert.Equal(GameWorldRefusal.UnsupportedProtocol, await Find(_context with { ProtocolVersion = "1" }));
         Assert.Equal(GameWorldRefusal.UnsupportedProtocol, await Find(_context with { ProtocolVersion = "0.1.0" }));
         Assert.Equal(GameWorldRefusal.UnsupportedProtocol, await Find(_context with { ProtocolVersion = "0.2.0" }));
+        Assert.Equal(GameWorldRefusal.UnsupportedProtocol, await Find(_context with { ProtocolVersion = "0.3.0" })); // before the goodbye (#967)
         // A floor, not one version (#949): a client newer than the services is allocated.
-        Assert.Null(await Find(_context with { ProtocolVersion = "0.4.0" }));
+        Assert.Null(await Find(_context with { ProtocolVersion = "0.5.0" }));
         Assert.Equal(GameWorldRefusal.ContextStale, await Find(_context with { SessionEpoch = 1 }));
         // A consolidating account is frozen, named only at the context's credentials version; a password lock is not
         // asked (#882).

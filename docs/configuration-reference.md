@@ -803,8 +803,8 @@ Section: `Application:GameWorkloads`, read by identity (#949)
 |-----|------|---------|-------------|
 | `MinClientVersion` | string | `appsettings.json`'s | The oldest client version game sign-in (`POST /client/auth/provider-attempts`) and world allocation (the world list and join tickets) accept, as `major.minor.patch`. A client stating a version at or above it is accepted; one below it, or whose version is not three whole numbers (digits and two dots, nothing else), is answered 400 `UNSUPPORTED_PROTOCOL` at sign-in, and a game context naming it lists no world and is refused a join ticket (400 `UNSUPPORTED_PROTOCOL` at issue, and `UNSUPPORTED_PROTOCOL` when the world redeems one issued before, which the world answers `UnsupportedClient`, #1053). Before #1053 both were `WORLD_UNAVAILABLE`, which reads as "try later". A world's own `MinVersion` is checked too, at the same doors: see [world refusals](api-authentication.md#world-refusals) |
 
-The code supplies no value: the API's `appsettings.json` holds the default, so a local run needs nothing, and a
-deployment overrides it. Validated at startup: a value missing, or not three whole numbers with major and minor at most
+The code supplies no value: the API's `appsettings.json` holds the default, 0.4.0 since #967 (the first client that
+says goodbye, `CMSG_LEAVE_WORLD`; it was 0.3.0), so a local run needs nothing, and a deployment overrides it. Validated at startup: a value missing, or not three whole numbers with major and minor at most
 255 and patch at most 65535, stops identity, naming the setting.
 
 ```bash

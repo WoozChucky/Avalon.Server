@@ -22,6 +22,7 @@ public enum NetworkPacketType : short
     CMSG_WORLD_LIST = 0x201A,
     CMSG_WORLD_HANDSHAKE = 0x201D,
     CMSG_GAME_ADMISSION = 0x201E,
+    CMSG_LEAVE_WORLD = 0x201F,
 
     // Character
     CMSG_CHARACTER_LIST = 0x2010,

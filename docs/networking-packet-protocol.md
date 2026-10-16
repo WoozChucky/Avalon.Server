@@ -194,7 +194,7 @@ and their opcodes are unassigned. [Auth server login flow](auth-server.md) has t
 14. `SGameAdmissionPacket(PublicKey, Result, PacketEncryption)` — `Accepted` with the world's mode (field 3,
     `Network:PacketEncryption`, #875): true, the reply carries the connection's public key and the client seals every
     gameplay packet it sends; false, TLS alone, the public key is empty and the client sends plain, keying nothing
-    (client 0.3.0 reads the mode before it asks for a key). The client seals exactly as told. Otherwise `InvalidRequest`,
+    (a client from 0.3.0 on reads the mode before it asks for a key). The client seals exactly as told. Otherwise `InvalidRequest`,
     `AuthorizationRequired`, `ServiceUnavailable`, `UnsupportedClient` (a client too old for this world or the
     API's floor, which the join ticket already refuses 426 or 400, #1053; step 15 is the backstop) or `WorldFull` (5,
     #967: sent only by the world's player-limit backstop, over `Game:PlayerLimit` plus margin), `PacketEncryption` false, and the connection is closed
@@ -222,9 +222,39 @@ by its header while its connection has a session; a world that does not seal has
 
 | Client | Server | Client to server | Server to client |
 |---|---|---|---|
-| 0.3.0 | flag off | plain; no key exchanged | plain |
-| 0.3.0 | flag on | sealed | sealed |
+| 0.3.0 and later | flag off | plain; no key exchanged | plain |
+| 0.3.0 and later | flag on | sealed | sealed |
 | before 0.3.0 | either | refused at sign-in and at world allocation while `Application:GameWorkloads:MinClientVersion` is 0.3.0 or above (#948, #949); one that reached a world with the flag off would seal, and be closed | |
+
+The floor's default in the API's `appsettings.json` is 0.4.0 since #967, the first client that says goodbye
+([`CMSG_LEAVE_WORLD`](#the-goodbye-cmsg_leave_world)): once a release with it is deployed, a 0.3.0 client is refused at
+sign-in (400 `UNSUPPORTED_PROTOCOL`). The floor is "at or above" (#949), so the 0.4.0 client ships first, against
+services whose floor is still 0.3.0.
+
+## The goodbye: `CMSG_LEAVE_WORLD`
+
+`CMSG_LEAVE_WORLD` (0x201F, client to server, no payload, #967) says the player quits on purpose: to the desktop, or
+back to the launcher. The client sends it, sealed as any gameplay packet when the world seals, then closes the
+connection. It is never sent for Change Character (`CMSG_CHARACTER_LEAVE`), which keeps the connection and the session.
+Nothing answers it.
+
+- **What it does.** The world ends the session as a `logout`, and identity releases the account's place on the world at
+  once ([world player limit](world-player-limit.md#the-goodbye)). A close without it is a drop: the place is held for
+  the grace (90 s), so a player who lost the connection can come back.
+- **Noted as it arrives.** The read loop notes the session's end as a logout the moment the goodbye arrives
+  (`WorldConnection.OnReceive`), not when the tick dispatches it: the client closes right after it, and the close's
+  despawn runs on the tick before any session packet would. The first reason noted for a connection wins, so a close
+  after the goodbye, the client's own or the world's, does not change it; a reason the world noted before it, as it was
+  already closing the connection, stands. Noted only for an admitted connection whose version handshake was accepted
+  and that maintenance has not blocked; any other drops it as it drops every gameplay packet. A plain goodbye on a world
+  that seals closes the connection before it is noted (#875), a drop.
+- **Its handler** (`LeaveWorldHandler`, on the tick) closes a connection the client left open, which saves and despawns
+  the character as any close does.
+- **Accepted in every state** by `WorldSessionFilter`, before a character and in a map ([packet handlers](packet-handlers.md)).
+- **It ends only its own session.** A goodbye is the connection's own statement, read on the connection it arrives on:
+  a client can release only its own place, as it could by playing on and then quitting.
+- **A world from before #967's part 5** has no packet type for it: the read loop drops it, with one Warning on the
+  connection (#897), and the close that follows is a drop. So a 0.4.0 client works against such a world.
 
 ## Time Sync: `SMSG_PING` and `CMSG_PONG`
 

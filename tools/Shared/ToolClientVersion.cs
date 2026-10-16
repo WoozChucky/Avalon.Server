@@ -9,5 +9,6 @@ namespace Avalon.Tools;
 /// </summary>
 internal static class ToolClientVersion
 {
-    public const string Current = "0.3.0";
+    /// <remarks>0.4.0 (#967): the tools say goodbye (<c>CMSG_LEAVE_WORLD</c>) when a bot leaves the world.</remarks>
+    public const string Current = "0.4.0";
 }

@@ -111,15 +111,16 @@ public class GameAuthControllerShould
     }
 
     /// <summary>
-    /// #949: sign-in accepts a client at or above the configured floor (0.3.0 here), so a client can ship before the
-    /// services. One below it, or whose version is not three whole numbers, is refused before an attempt is stored.
+    /// #949: sign-in accepts a client at or above the configured floor (0.4.0 here, #967), so a client can ship before
+    /// the services. One below it, or whose version is not three whole numbers, is refused before an attempt is stored.
     /// </summary>
     [Theory]
-    [InlineData("0.3.0", true)]
-    [InlineData("0.3.1", true)]
+    [InlineData("0.4.0", true)]
+    [InlineData("0.4.1", true)]
     [InlineData("0.10.0", true)]
     [InlineData("1.0.0", true)]
-    [InlineData("0.2.9", false)]
+    [InlineData("0.3.0", false)] // the client before the goodbye (#967)
+    [InlineData("0.3.9", false)]
     [InlineData("0.1.0", false)]
     [InlineData("1", false)]
     [InlineData("99", false)]

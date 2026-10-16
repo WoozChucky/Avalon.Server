@@ -191,6 +191,15 @@
       "flagNames": "ClearText"
     },
     {
+      "name": "CMSG_LEAVE_WORLD",
+      "opcode": 8223,
+      "hex": "0x201F",
+      "message": "CLeaveWorldPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_ENTER_MAP",
       "opcode": 8225,
       "hex": "0x2021",
