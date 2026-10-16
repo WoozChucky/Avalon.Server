@@ -701,11 +701,14 @@ these runs.
   path (its connections refuse a time-sync ping) and is unchanged.
 - **Where the credit count lies.** The read loop reads it for every pong, so a flood keeps its cache line at the read
   loop's core. It is the last field of the struct that holds the stamps, which the runtime lays out after the sender's
-  integers: in the Release build, counted from the object's start, the count is at 280, the group of integers the tick's
-  enqueue and the send thread's framing write ends at 215 (`_doomed`, its last), and the object's fields end at 304
-  (each 8 more than when this was first measured: #883 added an 8-byte field ahead of them, the time a watch over a
-  grown burst buffer began, and a flag in the padding after the bool flags; the send thread writes them only as a
-  watch begins or ends, and nothing here moved against anything else).
+  integers: in the Release build, counted from the object's start (its method table word), the count is at 280, the
+  group of integers the tick's enqueue and the send thread's framing write ends at 207 (`_doomed`, its last), and the
+  object's fields end at 304. Measured again for #1034 (field addresses read with `ldflda` against the object's, in a
+  throwaway console), which removed an 8-byte field ahead of all three, the ping's echoed client time: every offset
+  moved back 8, from 288, 215 and 312, so the gap from the integers to the count is still 73 bytes. #883 had moved them
+  8 on, with an 8-byte field ahead of them (the time a watch over a grown burst buffer began) and a flag in the padding
+  after the bool flags, which the send thread writes only as a watch begins or ends. Neither change moved anything
+  against anything else, so what follows holds as it was.
   However the object falls across 64-byte lines, the count shares none with `_pendingBytes`, `_dirty`,
   `_activeEnqueues`, the bursts' counts or the int flags, so a flood never makes the tick's enqueue or the send thread's
   framing of a packet take a line back. It shares its line with the stamps and the connection's id (seven placements of

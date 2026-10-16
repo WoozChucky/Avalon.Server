@@ -51,7 +51,7 @@ public sealed class ConnectionSenderShould
         int count = 0;
         foreach ((NetworkPacketHeader _, byte[] payload) in await Frames(wire.ToArray()))
         {
-            long stamp = Serializer.Deserialize<SPingPacket>(payload.AsSpan()).ClientTimestamp;
+            long stamp = Serializer.Deserialize<SPingPacket>(payload.AsSpan()).Rtt;
             long writer = stamp / 1_000_000;
             Assert.Equal(last.GetValueOrDefault(writer) + 1, stamp % 1_000_000);
             last[writer] = stamp % 1_000_000;
@@ -71,7 +71,7 @@ public sealed class ConnectionSenderShould
 
         for (long stamp = 1; stamp <= 3; stamp++)
             sender.Enqueue(Numbered(stamp));
-        sender.EnqueuePing(clientTicks: 7, roundTrip: 8, offset: 9, tickMicros: 0); // a ping queued before the close is not written after the notice
+        sender.EnqueuePing(roundTrip: 8, offset: 9, tickMicros: 0); // a ping queued before the close is not written after the notice
         sender.Enqueue(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown, _encoder));
         await CloseAsync(scheduler, sender);
 
@@ -141,7 +141,7 @@ public sealed class ConnectionSenderShould
         Inline(stalled.Complete); // ended here, so the close finds no write in flight: its budget never runs out (#1019)
 
         Assert.Equal([1L, 2, 3, 4, 5, 6], (await Frames(stalled.ReadAtCompletion.ToArray()))
-            .Select(frame => Serializer.Deserialize<SPingPacket>(frame.Payload.AsSpan()).ClientTimestamp));
+            .Select(frame => Serializer.Deserialize<SPingPacket>(frame.Payload.AsSpan()).Rtt));
         await CloseAsync(scheduler, sender);
         Assert.Equal(0, _pool.Outstanding);
     }
@@ -343,7 +343,7 @@ public sealed class ConnectionSenderShould
         Assert.Equal(1, Volatile.Read(ref closes));
         Assert.Equal(1, stalled.Writes);
         (NetworkPacketHeader _, byte[] payload) = Assert.Single(await Frames(stalled.Written.ToArray()));
-        Assert.Equal(1, Serializer.Deserialize<SPingPacket>(payload.AsSpan()).ClientTimestamp);
+        Assert.Equal(1, Serializer.Deserialize<SPingPacket>(payload.AsSpan()).Rtt);
         Assert.Equal(0, _pool.Outstanding);
     }
 
@@ -426,7 +426,7 @@ public sealed class ConnectionSenderShould
                 List<(NetworkPacketHeader Header, byte[] Payload)> frames = await Frames(wire.ToArray());
                 foreach ((NetworkPacketHeader _, byte[] payload) in frames)
                 {
-                    long stamp = Serializer.Deserialize<SPingPacket>(payload.AsSpan()).ClientTimestamp;
+                    long stamp = Serializer.Deserialize<SPingPacket>(payload.AsSpan()).Rtt;
                     long writer = stamp / 1_000_000;
                     Assert.Equal(last.GetValueOrDefault(writer) + 1, stamp % 1_000_000);
                     last[writer] = stamp % 1_000_000;
@@ -481,7 +481,7 @@ public sealed class ConnectionSenderShould
         var wire = new MemoryStream();
         ConnectionSender sender = Open(scheduler, wire);
 
-        sender.EnqueuePing(clientTicks: 1, roundTrip: 2, offset: 3, tickMicros: 0);
+        sender.EnqueuePing(roundTrip: 2, offset: 3, tickMicros: 0);
         while (sender.Enqueue(Payload(4_096))) { }
         scheduler.RunPass(sender.OwnerThread);
 
@@ -506,10 +506,10 @@ public sealed class ConnectionSenderShould
         var wire = new MemoryStream();
         ConnectionSender sender = Open(scheduler, wire);
 
-        sender.EnqueuePing(clientTicks: 1, roundTrip: 2, offset: 3, tickMicros: 0);
+        sender.EnqueuePing(roundTrip: 2, offset: 3, tickMicros: 0);
         sender.Enqueue(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown, _encoder));
         scheduler.RunPass(sender.OwnerThread);
-        sender.EnqueuePing(clientTicks: 4, roundTrip: 5, offset: 6, tickMicros: 0);
+        sender.EnqueuePing(roundTrip: 5, offset: 6, tickMicros: 0);
         scheduler.RunPass(sender.OwnerThread);
 
         (NetworkPacketHeader header, byte[] _) = Assert.Single(await Frames(wire.ToArray()));
@@ -688,7 +688,7 @@ public sealed class ConnectionSenderShould
     }
 
     /// <summary>A plain packet that carries a number: an SPing's client timestamp.</summary>
-    private OutboundPacket Numbered(long stamp) => SPingPacket.Create(0, stamp, 0, 0, 0, _encoder);
+    private OutboundPacket Numbered(long stamp) => SPingPacket.Create(0, stamp, 0, 0, _encoder);
 
     private OutboundPacket Payload(int length) =>
         new(new NetworkPacketHeader { Type = NetworkPacketType.SMSG_WORLD_STATE_UPDATE, Protocol = NetworkProtocol.Tcp },

@@ -1,6 +1,7 @@
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.World.Threading;
 using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.WorldConnection;
@@ -86,24 +87,37 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     }
 
     /// <summary>
-    /// The pong lands 20 ms after its ping was written, and that is the round trip, whatever receive and send times the
-    /// client puts in it: an honest client's, one that took 5 ms to answer (no longer taken off), and three that the
-    /// formula over the client's times read as no round trip, a negative one and an hour.
+    /// The four times of an exchange (#1034): the client's hold of the ping (its send time less its receive time) comes
+    /// out of the round trip and out of the offset, so a client whose clock runs a second fast reads minus a second
+    /// whether it answered at once or 5 ms later; the old offset, from the whole round trip, read 2.5 ms off for the
+    /// hold. A hold of the whole round trip leaves a network round trip of 0. A hold that cannot be true is ignored, and
+    /// the whole round trip measured: a negative one, one longer than the round trip, and two client times so far apart
+    /// that their difference, taken signed, wraps round to a hold of minus one tick.
     /// </summary>
     [Theory]
-    [InlineData(10 * TicksPerMs, 10 * TicksPerMs)]
-    [InlineData(10 * TicksPerMs, 15 * TicksPerMs)]
-    [InlineData(0L, 20 * TicksPerMs)]
-    [InlineData(-TicksPerSecond, TicksPerSecond)]
-    [InlineData(TimeSpan.TicksPerHour, 0L)]
-    public async Task MeasureTheRoundTripItself_WhateverTimesThePongCarries(long receivedAfterStamp, long sentAfterStamp)
+    [InlineData(10, 10, 20, 20)]
+    [InlineData(10, 15, 25, 20)]
+    [InlineData(0, 20, 20, 0)]
+    [InlineData(10, 5, 20, 20)]
+    [InlineData(10, 3_600_010, 20, 20)]
+    [InlineData(10, 0, 20, 20, true)]
+    public async Task TakeTheClientsHoldOutOfTheRoundTripAndTheOffset_UnlessItCannotBeTrue(int receivedAfterMs,
+        int sentAfterMs, int arrivesAfterMs, long networkRoundTripMs, bool farApartClientTimes = false)
     {
         long stamp = (await WritePingAsync()).ServerTimestamp;
+        long clientAt = stamp + TicksPerSecond; // the client's clock, a second ahead of the server's
+        long received = farApartClientTimes ? long.MinValue : clientAt + receivedAfterMs * TicksPerMs;
+        long sent = farApartClientTimes ? long.MaxValue : clientAt + sentAfterMs * TicksPerMs;
 
-        Pong(stamp, stamp + receivedAfterStamp, stamp + sentAfterStamp, stamp + 20 * TicksPerMs);
+        Pong(stamp, received, sent, stamp + arrivesAfterMs * TicksPerMs);
 
-        Assert.Equal(20 * TicksPerMs, Connection.RoundTripTime);
-        Assert.Equal(20, Connection.Latency);
+        Assert.Equal(networkRoundTripMs * TicksPerMs, Connection.RoundTripTime);
+        Assert.Equal(networkRoundTripMs, Connection.Latency);
+        // A client adds the offset to its own clock, at its receive time, to read the server's half a round trip on.
+        long expectedOffset = farApartClientTimes
+            ? unchecked(stamp + 10 * TicksPerMs - long.MinValue)
+            : -TicksPerSecond;
+        Assert.Equal(expectedOffset, Connection.TimeSyncOffset);
     }
 
     /// <summary>
@@ -119,8 +133,7 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     [InlineData(0L, true)]
     public async Task ChangeNothing_AndSpendThePingsOneAnswer_WhenAPongEchoesTheStampOfNoPing(long echo, bool absolute)
     {
-        long answeredAt = await ExchangeAsync(oneWayTicks: 10 * TicksPerMs, clientAheadTicks: TicksPerSecond)
-            + 10 * TicksPerMs + TicksPerSecond;
+        await ExchangeAsync(oneWayTicks: 10 * TicksPerMs, clientAheadTicks: TicksPerSecond);
         Advance(TimeSpan.FromSeconds(10));
         long inFlight = (await WritePingAsync()).ServerTimestamp;
 
@@ -136,7 +149,6 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
         SPingPacket next = await WritePingAsync();
         Assert.Equal(20 * TicksPerMs, next.Rtt);
         Assert.Equal(-TicksPerSecond, next.Offset);
-        Assert.Equal(answeredAt, next.ClientTimestamp);
 
         Pong(next.ServerTimestamp, next.ServerTimestamp, next.ServerTimestamp, next.ServerTimestamp + 50 * TicksPerMs);
         Assert.Equal(50 * TicksPerMs, Connection.RoundTripTime);
@@ -175,7 +187,7 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
     /// <summary>
     /// Two pings in flight, the handshake's beside a periodic one: each pong is timed from the stamp of the ping it
     /// answers, whichever lands first. The first ping's pong takes 100 ms, the second's 40 ms, and each took 5 ms of that
-    /// to answer, which stays in the round trip.
+    /// to answer, which comes out of its round trip (#1034).
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -190,13 +202,13 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
         void AnswerFirst()
         {
             Pong(first, first + 50 * TicksPerMs, first + 55 * TicksPerMs, first + 100 * TicksPerMs);
-            Assert.Equal(100 * TicksPerMs, Connection.RoundTripTime);
+            Assert.Equal(95 * TicksPerMs, Connection.RoundTripTime);
         }
 
         void AnswerSecond()
         {
             Pong(second, second + 20 * TicksPerMs, second + 25 * TicksPerMs, second + 40 * TicksPerMs);
-            Assert.Equal(40 * TicksPerMs, Connection.RoundTripTime);
+            Assert.Equal(35 * TicksPerMs, Connection.RoundTripTime);
         }
 
         if (secondAnsweredFirst)
@@ -302,17 +314,42 @@ public sealed class WorldConnectionTimeSyncShould : IDisposable
         Assert.Equal(0, Connection.TimeSyncOffset);
     }
 
+    /// <summary>
+    /// The liveness rule (#1034): an admitted connection that answers no ping for a minute, counted from its admission,
+    /// is closed when the time-sync sweep next asks. A pong that answers a ping starts the minute again; one that answers
+    /// none does not, whether its echo is forged or is an answer already given. The lease is renewed throughout, as a
+    /// heartbeat renews it, so nothing but the rule can close the connection.
+    /// </summary>
     [Fact]
-    public void HandOutAnInitialPingRequestOnce()
+    public async Task CloseAnAdmittedConnection_ThatAnswersNoPingForAMinute()
     {
-        // The tick asks every connection every tick, so a request that did not clear would ping on
-        // all of them -- once per 16 ms rather than once per ten seconds.
-        Assert.False(Connection.TakeInitialTimeSyncPingRequest());
+        Live(TimeSpan.FromSeconds(30));
+        Live(TimeSpan.FromSeconds(29));
+        Assert.False(Connection.CloseIfSilent(TickTime.Read(_fixture.Clock))); // 59 s since the admission
 
-        Connection.RequestInitialTimeSyncPing();
+        long answered = (await WritePingAsync()).ServerTimestamp;
+        Pong(answered, answered, answered, answered + 20 * TicksPerMs);
+        Live(TimeSpan.FromSeconds(30));
+        Live(TimeSpan.FromSeconds(29));
+        Assert.False(Connection.CloseIfSilent(TickTime.Read(_fixture.Clock))); // 118 s since the admission, 59 since the answer
 
-        Assert.True(Connection.TakeInitialTimeSyncPingRequest());
-        Assert.False(Connection.TakeInitialTimeSyncPingRequest());
+        long unanswered = (await WritePingAsync()).ServerTimestamp;
+        Pong(unanswered + 1, unanswered, unanswered, unanswered + 20 * TicksPerMs); // forged
+        await WritePingAsync();
+        Pong(answered, answered, answered, _fixture.Clock.Now.UtcTicks + 20 * TicksPerMs); // the first answer again
+        Assert.Equal(3, _fixture.Dispatched);
+
+        Live(TimeSpan.FromSeconds(1));
+        Assert.True(Connection.CloseIfSilent(TickTime.Read(_fixture.Clock)));
+        Assert.True(Connection.IsClosing);
+    }
+
+    /// <summary>Both clocks move on by <paramref name="by" />, the lease renewed first, as a heartbeat keeps it.</summary>
+    private void Live(TimeSpan by)
+    {
+        _fixture.RenewLease();
+        _fixture.Clock.Now += by;
+        _fixture.Clock.Timestamp += by.Ticks;
     }
 
     /// <summary>

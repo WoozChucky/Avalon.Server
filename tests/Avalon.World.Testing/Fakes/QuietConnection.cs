@@ -61,13 +61,6 @@ public sealed class QuietConnection(CharacterEntity character) : IWorldConnectio
     public void CancelSelect() => throw new NotSupportedException();
     public void SetPendingSpawn(ICharacter character, IMapInstance instance, long sinceTicks) => throw new NotSupportedException();
     public PendingSpawn? TakePendingSpawn() => throw new NotSupportedException();
-    public void SendTimeSyncPing() => throw new NotSupportedException();
-    public void RequestInitialTimeSyncPing() => throw new NotSupportedException();
-    public bool TakeInitialTimeSyncPingRequest() => throw new NotSupportedException();
-
-    public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp, long serverReceivedTicks) =>
-        throw new NotSupportedException();
-
     public void UpdateSession() => throw new NotSupportedException();
     public void UpdateMap() { }
     public void FlushContinuations() => throw new NotSupportedException();

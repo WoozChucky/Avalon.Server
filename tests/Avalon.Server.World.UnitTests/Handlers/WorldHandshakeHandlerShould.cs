@@ -38,8 +38,7 @@ public sealed class WorldHandshakeHandlerShould
         Assert.True(connection.IsGameplayAuthorized);
         // The acceptance is what it was before refusals carried a reason: account 42 and Verified, nothing else.
         Assert.Equal([0x08, 0x2A, 0x10, 0x01], Assert.Single(connection.Sent).PayloadMemory.ToArray());
-        Assert.True(connection.TakeInitialTimeSyncPingRequest());
-        Assert.False(connection.TakeInitialTimeSyncPingRequest());
+        Assert.Equal(Avalon.World.WorldConnection.StartBurstDue, connection.NextTimeSyncTick); // the start burst, on the next tick
     }
     [Theory]
     [InlineData("0.3.0", "0.2.0", "0.3.0", false)]
@@ -62,7 +61,7 @@ public sealed class WorldHandshakeHandlerShould
         Assert.Equal(required, reply.MinVersion);
         Assert.Equal(42, reply.AccountId);
         Assert.True(connection.IsClosing); Assert.False(connection.IsGameplayAuthorized);
-        Assert.False(connection.TakeInitialTimeSyncPingRequest());
+        Assert.NotEqual(Avalon.World.WorldConnection.StartBurstDue, connection.NextTimeSyncTick);
     }
     // A world whose own MinVersion does not parse is misconfigured: it closes every handshake without a reply.
     [Fact]

@@ -272,9 +272,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ReceiveQueueLimit _receiveQueueLimit;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
 
-    // 60Hz × 10s = 600 ticks. Spread pings across ticks so all connections don't fire
-    // in the same tick — each connection gets its own offset based on its index.
-    private const int TimeSyncTicksPeriod = 600;
+    /// <summary>
+    /// The time-sync ping's period in ticks: 60 Hz × 5 s (#1034, 600 before). Spread across ticks so all connections do
+    /// not ping on the same tick: each connection pings on its own slot (<see cref="WorldConnection.TimeSyncSlot" />).
+    /// The liveness check rides it.
+    /// </summary>
+    public const int TimeSyncTicksPeriod = 300;
 
     // Monotonic tick counter used solely to derive the time-sync ping phase.
     private long _pingTickCounter;
@@ -778,8 +781,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             _ = disconnected.DrainGameplayAsync();
         }
 
-        // Cache once — both phases iterate the same set.
-        ImmutableArray<IWorldConnection> conns = Connections;
+        // Cache once — both phases iterate the same set: one snapshot of the typed list, and the interface view of the
+        // same array (an upcast, which holds whatever the list is built from).
+        ImmutableArray<WorldConnection> typedConns = TypedConnections;
+        var conns = ImmutableArray<IWorldConnection>.CastUp(typedConns);
 
         // The tick's time (#977): one read of the container's clock for every connection's lease check, and through it
         // every dispatch's authorization this tick, where each read the clock for itself.
@@ -911,18 +916,21 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         stageStart = StageDone(stageStart, s_presenceStage);
 
-        // Time-sync ping: stagger across the 600-tick window using each connection's
-        // list index, so 600 connections still produce only ~1 ping/tick worst case.
-        // Phase MUST come from a monotonic counter that moves once per tick.
-        // Each ping is stamped by its send thread as it is written (#875), so where the tick queues
-        // it does not move the round trip.
-        long phase = _pingTickCounter++ % TimeSyncTicksPeriod;
-        for (int i = 0; i < conns.Length; i++)
+        // Time-sync ping (#1034): each connection keeps the tick its next turn is due on, so the sweep reads one field
+        // of each and does the rest only for the connections due. A turn is the liveness rule first (an admitted
+        // connection that answered no ping for a minute is closed rather than pinged again), then a ping: every 300
+        // ticks on the connection's slot once the handshake has started its time sync (a turn before it is the liveness
+        // rule alone), one slot after another as connections are made, so 300 connections still
+        // produce about one ping a tick, whatever their place in the list, which shifts with every removal; and the
+        // start burst after the handshake, on the next tick and twice more 60 ticks apart. The tick count MUST move
+        // once per tick. Each ping is stamped by its send thread as it is written (#875), so where the tick queues it
+        // does not move the round trip.
+        long pingTick = _pingTickCounter++;
+        for (int i = 0; i < typedConns.Length; i++)
         {
-            // A connection that has just handshaken pings on this tick whatever its phase, so its
-            // client learns its first round trip at once rather than up to a period later.
-            if (conns[i].TakeInitialTimeSyncPingRequest() || i % TimeSyncTicksPeriod == phase)
-                conns[i].SendTimeSyncPing();
+            WorldConnection connection = typedConns[i];
+            if (pingTick >= connection.NextTimeSyncTick)
+                connection.OnTimeSyncDue(pingTick, now);
         }
 
         stageStart = StageDone(stageStart, s_pingsStage);

@@ -108,19 +108,21 @@ public interface IWorldConnection : IConnection
     PendingSpawn? TakePendingSpawn();
 
     /// <summary>
-    ///     The last round trip in whole milliseconds, as the server measured it (#892): never negative, and 0 until
+    ///     The last network round trip (<see cref="RoundTripTime" />) in whole milliseconds: never negative, and 0 until
     ///     the first pong that answers a ping. Advisory, in both directions, and nothing to base a decision about a
-    ///     player on. It has no age: a client that stops answering keeps its last reading, and one that never answers
-    ///     reads 0. A client can raise it by answering late. A client that guesses the next ping's timestamp, which is
-    ///     a clock reading it can predict, can lower it below its real round trip. It has no setter;
-    ///     <see cref="OnPongReceived" /> changes it, from the arrival time its caller passes.
+    ///     player on. It has no age: a client that stops answering keeps its last reading (until the liveness rule
+    ///     closes it, a minute on), and one that never answers reads 0. A client can raise it by answering late. It can
+    ///     lower it, as far as zero, by claiming to have held the ping for up to the whole round trip (#1034), or below
+    ///     its real round trip by guessing the next ping's timestamp, which is a clock reading it can predict. It has no
+    ///     setter, and the time sync that changes it is not on this interface: a script can neither ping nor answer one.
     /// </summary>
     long Latency { get; }
 
     /// <summary>
-    ///     The last round trip in ticks: from the server's stamp on a time-sync ping, taken as the ping was written,
-    ///     to the arrival of the pong that echoes it. Never negative, and 0 until the first such pong. Advisory, as
-    ///     <see cref="Latency" /> is: see there.
+    ///     The last network round trip in ticks: from the server's stamp on a time-sync ping, taken as the ping was
+    ///     written, to the arrival of the pong that echoes it, less the time the client says it held the ping when that
+    ///     is no less than zero and no more than the whole (#1034). Never negative, and 0 until the first such pong.
+    ///     Advisory, as <see cref="Latency" /> is: see there.
     /// </summary>
     long RoundTripTime { get; }
 
@@ -183,38 +185,6 @@ public interface IWorldConnection : IConnection
     /// Used by the respawn handler to drop concurrent respawn requests during the async
     /// resolver+instance-load chain.</summary>
     bool RespawnInFlight { get; set; }
-
-    /// <summary>
-    ///     Queues a time-sync ping; its send thread stamps it as it writes it (#875).
-    ///     Driven by <c>WorldServer</c>'s tick loop on a fixed cadence.
-    /// </summary>
-    void SendTimeSyncPing();
-
-    /// <summary>
-    ///     Asks for a time-sync ping on the next tick, whatever this connection's phase.
-    /// </summary>
-    void RequestInitialTimeSyncPing();
-
-    /// <summary>Takes that request if one is outstanding, clearing it. Called only from the tick.</summary>
-    bool TakeInitialTimeSyncPingRequest();
-
-    /// <summary>
-    ///     Handles a pong (#892). It counts only when <paramref name="lastServerTimestamp" /> is the stamp of a ping
-    ///     this connection's send thread wrote and no pong has answered yet; the stamp is then spent. The round trip
-    ///     is <paramref name="serverReceivedTicks" /> minus that stamp, both the server's own, and the clock offset is
-    ///     the stamp plus half the round trip minus <paramref name="clientReceivedTimestamp" />. Any other pong
-    ///     (an echo of no ping, a second answer to one ping, one that arrived before its stamp) changes nothing and is
-    ///     not answered. The world calls this for a client's pong at most once per ping it wrote: a pong beyond that is
-    ///     dropped as it arrives, before any handler.
-    /// </summary>
-    /// <param name="lastServerTimestamp">The echo of a ping's server timestamp: which ping this answers, nothing more.</param>
-    /// <param name="clientReceivedTimestamp">
-    ///     When the client says it received the ping, on its own clock. Used for the clock offset only.
-    /// </param>
-    /// <param name="clientSentTimestamp">When the client says it sent the pong. Not used.</param>
-    /// <param name="serverReceivedTicks">When the pong was read off the socket, NOT when it was handled.</param>
-    void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp,
-        long clientSentTimestamp, long serverReceivedTicks);
 
     /// <summary>
     ///     Processes pre-character packets (pong, character list/select/create/delete)

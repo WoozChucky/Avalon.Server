@@ -569,13 +569,6 @@ public class ArrivalBenchmarks
         public Task StartAsync(CancellationToken token = default) => throw new NotSupportedException();
         public void NoteLoadReportedEarly() => throw new NotSupportedException();
         public PendingSpawn? TakePendingSpawn() => throw new NotSupportedException();
-        public void SendTimeSyncPing() => throw new NotSupportedException();
-        public void RequestInitialTimeSyncPing() => throw new NotSupportedException();
-        public bool TakeInitialTimeSyncPingRequest() => throw new NotSupportedException();
-
-        public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp,
-            long serverReceivedTicks) => throw new NotSupportedException();
-
         public void UpdateSession() => throw new NotSupportedException();
         public void UpdateMap() => throw new NotSupportedException();
         public void FlushContinuations() => throw new NotSupportedException();

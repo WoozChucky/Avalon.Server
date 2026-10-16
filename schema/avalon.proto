@@ -1077,10 +1077,11 @@ message SPartyRosterPacket {
 }
 message SPingPacket {
    int64 ServerTimestamp = 1;
-   int64 ClientTimestamp = 2;
    int64 Rtt = 3;
    int64 Offset = 4;
    uint32 TickMicros = 5;
+   reserved 2;
+   reserved "ClientTimestamp";
 }
 message SPlayerStateAckPacket {
    uint32 Seq = 1;

@@ -31,6 +31,7 @@ public sealed class ReceiveQueueFixture : IDisposable
     private readonly TcpClient _client;
     private readonly TcpClient _peer;
     private readonly Recorder _recorder = new();
+    private readonly SessionLeaseResponse _grant;
 
     /// <param name="timeSyncWire">What the connection's sender writes to; null, the connection has no sender.</param>
     /// <param name="receiveQueueLimit">The receive queue's depth cap and its counter; null, the world's default.</param>
@@ -66,7 +67,7 @@ public sealed class ReceiveQueueFixture : IDisposable
         // Transport authentication is setup only; the TLS tests exercise the real handshake.
         typeof(WorldConnection).GetField("_tlsAuthenticated", BindingFlags.Instance | BindingFlags.NonPublic)!
             .SetValue(Connection, true);
-        GameSessionLease lease = GameSessionLease.TryCreate(new SessionLeaseResponse
+        _grant = new SessionLeaseResponse
         {
             State = "active",
             AccountId = "42",
@@ -80,7 +81,8 @@ public sealed class ReceiveQueueFixture : IDisposable
             SessionEpoch = "0",
             LeaseUntil = Clock.GetUtcNow().UtcDateTime.AddSeconds(44),
             AuthorizationUntil = Clock.GetUtcNow().UtcDateTime.AddMinutes(5),
-        }, "queue-fixture", 1, Clock)!;
+        };
+        GameSessionLease lease = GameSessionLease.TryCreate(_grant, "queue-fixture", 1, Clock)!;
         Connection.PublishAdmission(lease);
         Connection.AcceptProtocol();
         Connection.Character = new CharacterEntity { Data = new Character { Id = new CharacterId(7), Map = 1 } };
@@ -99,6 +101,17 @@ public sealed class ReceiveQueueFixture : IDisposable
         Connection.UpdateMap();
     }
 
+    /// <summary>
+    /// The connection's lease renewed for 44 s from now, as a heartbeat renews it, so a test can keep it admitted past
+    /// a lease's length.
+    /// </summary>
+    public void RenewLease()
+    {
+        DateTime now = Clock.GetUtcNow().UtcDateTime;
+        if (Connection.GameSessionLease?.TryRenew(_grant with { LeaseUntil = now.AddSeconds(44), AuthorizationUntil = now.AddMinutes(5) }) != true)
+            throw new InvalidOperationException("The lease could not be renewed");
+    }
+
     public void Dispose()
     {
         Connection.Close();
@@ -112,6 +125,11 @@ public sealed class ReceiveQueueFixture : IDisposable
     public sealed class QueueClock : TimeProvider
     {
         public DateTimeOffset Now { get; set; } = new(2026, 10, 11, 0, 0, 0, TimeSpan.Zero);
+
+        /// <summary>The monotonic clock, in <see cref="TimeSpan" /> ticks; it moves only when a test moves it.</summary>
+        public long Timestamp { get; set; }
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
 
         /// <summary>Each read also reads the system's clock, and drops it: what a read costs, with a fixed answer.</summary>
         public bool PaysForReads { get; init; }
@@ -127,7 +145,7 @@ public sealed class ReceiveQueueFixture : IDisposable
         {
             if (PaysForReads)
                 _ = TimeProvider.System.GetTimestamp();
-            return 0;
+            return Timestamp;
         }
     }
 

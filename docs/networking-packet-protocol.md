@@ -227,47 +227,86 @@ by its header while its connection has a session; a world that does not seal has
 
 ## Time Sync: `SMSG_PING` and `CMSG_PONG`
 
-The world server's tick queues a ping for every connection in its list once every 600 ticks (about ten seconds, each
-connection on the tick its place in the list gives it), whether or not the connection has been admitted yet, and one
-more right after a connection's version handshake. The client answers each ping with one pong. From the exchange the
-server measures the connection's round trip (`IWorldConnection.RoundTripTime` in ticks, `Latency` in whole
-milliseconds) and the offset between the two clocks, and tells the client both on the next ping. The character row
-and the REST API carry `Latency` as of character select (`CharacterSelectHandler` copies it once): often the
-handshake ping's reading, or 0. Both packets are plain inside TLS, whatever `Network:PacketEncryption` says. Every
-time is in UTC ticks (100 ns, counted from year 1).
+A world connection's first ping is the **start burst** (#1034), right after its version handshake: one ping on the next
+tick, then two more 60 ticks (about a second) apart (`WorldConnection.StartBurstFollowUps`, `StartBurstSpacingTicks`),
+so the client has a measured clock offset in about two seconds. From then on the world server's tick queues it a ping
+once every 300 ticks (five seconds; `WorldServer.TimeSyncTicksPeriod`, 600 before #1034), on the connection's own slot
+of the period (`WorldConnection.TimeSyncSlot`), one slot after another as connections are made, so the pings are
+spread over the period; the burst hands over to the slot no sooner than 60 ticks after its last ping. Until #1034 the
+slot was the connection's place in the list, which moved with every removal ahead of it and could skip a turn, or under
+steady churn every turn, and a connection was pinged from its first tick, before its handshake, when no pong can be let
+in. Each connection keeps the tick of its next turn (`WorldConnection.NextTimeSyncTick`), the one field the tick reads
+of it for the time sync, and the rest is done only on a turn (`WorldConnection.OnTimeSyncDue`): before the handshake a
+turn, on the slot, is the liveness check alone, and a closing connection gets no more turns. None of this, nor the
+pong's handling, is on `IWorldConnection`, the future modding surface: a script can neither send a ping, start a burst
+nor answer for a client. The client answers each ping with one pong. From the exchange the
+server measures the connection's network round trip (`IWorldConnection.RoundTripTime` in ticks, `Latency` in whole
+milliseconds) and the offset between the two clocks, and tells the client both on the next ping. An admitted
+connection that answers no ping for a minute is closed (liveness, below). The
+character row and the REST API carry `Latency` as of character select (`CharacterSelectHandler` copies it once):
+often a reading of the start burst, or 0. Both packets are plain inside TLS, whatever `Network:PacketEncryption` says.
+Every time is in UTC ticks (100 ns, counted from year 1).
 
 | Packet | Field | Meaning |
 |---|---|---|
-| `SPingPacket` | `ServerTimestamp` (1) | Server time as the connection's send thread wrote the ping (#875). It also names the ping |
-| | `ClientTimestamp` (2) | The `ClientReceivedTimestamp` of the last pong the server accepted |
-| | `Rtt` (3) | The last round trip the server measured |
-| | `Offset` (4) | Server time minus client time, from that same exchange |
+| `SPingPacket` | `ServerTimestamp` (1) | Server time as the connection's send thread wrote the ping (#875). It also names the ping: t1 |
+| | (2) | Reserved: `ClientTimestamp`, the `ClientReceivedTimestamp` of the last accepted pong, which no client read; removed in #1034 |
+| | `Rtt` (3) | The last network round trip the server measured |
+| | `Offset` (4) | Server time minus client time, from that same exchange: a client adds it to its own clock to read the server's |
 | | `TickMicros` (5) | The world's mean tick time in microseconds; 0, not reported (below) |
 | `CPongPacket` | `LastServerTimestamp` (1) | The `ServerTimestamp` of the ping it answers, echoed exactly |
-| | `ClientReceivedTimestamp` (2) | When the client received the ping, on its own clock |
-| | `ClientSentTimestamp` (3) | When the client sent the pong. Still on the wire; the server does not read it |
+| | `ClientReceivedTimestamp` (2) | When the client received the ping, on its own clock: t2 |
+| | `ClientSentTimestamp` (3) | When the client sent the pong, on the same clock: t3 |
 
-**The server measures the round trip alone (#892).** Before, the round trip was computed from the echo and the client's
-receive and send times, so a client could report any round trip it liked, zero and negative ones included. Now:
+**The server times the exchange from its own clock (#892), and the client's hold from the client's (#1034).** Before
+#892, the round trip was computed from the echo and the client's receive and send times, so a client could report any
+round trip it liked, zero and negative ones included. Now:
 
 - The send thread records the stamp of each ping as it writes it, before the ping can reach the client. It keeps the
   stamps of the last four pings it wrote (`ConnectionSender.PingStampCapacity`), each until a pong answers it. A
-  connection has one ping unanswered at a time, two when the handshake's ping sits beside a periodic one, so a stamp
-  stays answerable for thirty seconds or more.
+  connection has one ping unanswered at a time in steady play and three at most during the start burst (which takes
+  the place of the periodic pings until it ends); the fourth place is a spare for a client slow to answer the burst.
+  So a stamp stays answerable for twenty seconds at the steady cadence, and eight or more for a ping of the burst.
 - **One pong per ping.** Each ping written grants the connection one pong credit, never more than four at once. A pong
   takes a credit as the read loop receives it, whatever it echoes, and a pong that finds none is dropped there
-  (`WorldConnection.OnReceive`), before it is queued for the tick. The check comes after the admission check, so a pong
-  sent before admission is dropped as it always was and spends nothing: the credits of the pings written before
-  admission are still there after it, up to the four.
+  (`WorldConnection.OnReceive`), before it is queued for the tick. The start burst's pings each grant their own credit,
+  so the burst needs no allowance of its own, and a pong no ping was written for still finds none. The check comes after
+  the admission check, so a pong sent before admission is dropped as it always was and spends nothing. No ping is
+  written before the handshake (#1034), so a connection has no credit until its burst.
 - A pong that got in is accepted only when its `LastServerTimestamp` equals one of the recorded stamps. The stamp is
   then spent. The echo plays no other part.
-- `round trip = the pong's arrival - the ping's stamp`. Both are the server's own readings of its own clock: the stamp
-  taken at the write, and the arrival taken by the read loop as it reads the pong off the socket, not when the tick
-  handles it. `Latency` is the round trip in whole milliseconds.
-- `offset = the ping's stamp + round trip / 2 - ClientReceivedTimestamp`. That is the one term of the client's left. It
-  is the client's own clock by nature, and a false value moves only that client's own idea of server time.
-- The next ping carries `Rtt`, `Offset` and `ClientTimestamp` from the last accepted pong. All three are 0, as are
-  `Latency` and `RoundTripTime`, until the first one.
+- The four times: t1, the ping's stamp; t2 and t3, the pong's `ClientReceivedTimestamp` and `ClientSentTimestamp`;
+  t4, the pong's arrival, taken by the read loop as it reads the pong off the socket, not when the tick handles it. t1
+  and t4 are the server's own readings of its own clock, so `t4 - t1` is the whole round trip, the client's hold of
+  the ping (`t3 - t2`) included.
+- `network round trip = (t4 - t1) - (t3 - t2)`, the whole round trip less the client's hold. `RoundTripTime` and the
+  ping's `Rtt` are it, and `Latency` is it in whole milliseconds.
+- `offset = ((t1 - t2) + (t4 - t3)) / 2`, which is `t1 + network round trip / 2 - t2`: the server's time half a
+  network round trip after its stamp, less the client's when it received the ping. It is server time minus client
+  time, the sign the client applies (`NowTicks() + ClockOffsetTicks()` is server time), and the client's hold no longer
+  biases it by half the hold. The client's times are its own clock by nature, and false ones move only that client's
+  own idea of server time.
+- **A hold that cannot be true is ignored**: one that is negative (`t3 < t2`) or longer than the whole round trip.
+  The server then uses `t4 - t1` as the network round trip and in the offset, as before #1034, so a client's garbage
+  can never make the round trip negative or move the offset by more than half the round trip. The two client times
+  are compared without a signed subtraction, so no pair of far-apart values wraps round into a hold that looks valid.
+- The next ping carries `Rtt` and `Offset` from the last accepted pong. Both are 0, as are `Latency` and
+  `RoundTripTime`, until the first one.
+
+**Liveness: a minute without an answer (#1034).** An admitted connection (one whose admission published a game
+session lease) that has had no pong the server accepts as answering one of its pings (the echo of a stamp the record
+holds, as above, arriving no earlier than that stamp) for `WorldConnection.LivenessTimeout`, 60 seconds, is closed. The
+minute is counted from the admission, so a client that never answers is closed too, and starts again at each answer. A
+pong that answers nothing (a forged echo, an answer already given, one dropped for want of a credit) does not reset it.
+The client answers every ping in every state (loading, menus, minimised), so twelve periodic pings in a row unanswered
+is a client that is dead, stuck or hostile, and a peer that trickles a TLS record (which the frame deadline cannot see)
+cannot produce answers. The check rides the time-sync sweep (`WorldConnection.CloseIfSilent`, asked first on each of the
+connection's turns, once a period, at the tick's time), so a connection is closed within five seconds of its minute, instead
+of being pinged again. The close is the one a disconnect takes (`Close` then `OnClose`): the next tick ends the
+session, saves the character and releases the lease. No notice is sent. Counted in `network.in.silent_kicks`
+([instrumentation](instrumentation.md#silent-connections)), and logged at Information at most once per ten seconds for
+the world, with the number held back. A connection not yet admitted is the admission timeout's (15 s), and one
+maintenance has blocked drops every packet, its pongs too, and is closed by maintenance.
 
 **The world's tick time (#1016).** `TickMicros` is for a client's performance overlay, so a player can tell a slow
 server from a slow connection. It is the mean busy time of the world's whole ticks, from a tick's start to its end
@@ -283,15 +322,17 @@ measured mean is never 0. A client keeps its dash for 0. The field costs 2 to 4 
 2.1 s (2,000 µs is 3 bytes, 16,667 µs is 4), 5 or 6 bytes for a stall longer than that, and nothing when 0.
 
 **What a client must do.** Echo `ServerTimestamp` unchanged, answer each ping once, and send no other pong: a pong
-that echoes anything else uses up that ping's one answer, and the true echo sent after it is dropped. Answer as it
-reads the ping: the time between receiving a ping and sending its pong is part of the round trip (it used to be
-subtracted), and half of it lands in `Offset`. Fill `ClientReceivedTimestamp` from the clock it applies `Offset` to.
-After a stall in which pings went unanswered, answer only the newest ones, at most four, and drop the rest: the server
+that echoes anything else uses up that ping's one answer, and the true echo sent after it is dropped. Answer every
+ping, in every state, within the minute (liveness, above). Fill `ClientReceivedTimestamp` as it reads the ping and
+`ClientSentTimestamp` as it sends the pong, both from the clock it applies `Offset` to: the time between them is taken
+out of the round trip and the offset (#1034), so answering late costs nothing as long as the two times are true. After
+a stall in which pings went unanswered, answer only the newest ones, at most four, and drop the rest: the server
 remembers the last four stamps and lets at most four pongs in, whatever they echo, so an answer to an older ping
 takes the place of an answer to a newer one.
 
 **What the server drops and ignores.** In every case below `Latency`, `RoundTripTime` and the offset stay as they
-were, the next ping repeats the old `Rtt` and `Offset`, and the connection stays open. No metric counts any of them.
+were, the next ping repeats the old `Rtt` and `Offset`, the liveness minute runs on, and the connection stays open
+until that minute ends. No metric counts any of them.
 
 - *Dropped as it arrives*: a pong beyond one per ping written (a second answer, a burst, a pong before any ping). It is
   never queued and no handler runs. Logged at Trace only (`Avalon.World.WorldConnection`), since a client can send
@@ -305,7 +346,7 @@ were, the next ping repeats the old `Rtt` and `Offset`, and the connection stays
   at Debug, at most once per ping written.
 - *Let in, matched, then ignored*: a pong whose arrival reads earlier than the stamp it echoes. Either the echo was
   sent ahead of its ping (a guess that hit) or the server's clock was set back in between. The stamp is spent, nothing
-  is measured, and the round trip is never negative. Logged at Debug.
+  is measured, the round trip is never negative, and it is no answer to the liveness rule. Logged at Debug.
 
 **What the measurement does not prove: `Latency` is advisory, in both directions.**
 
@@ -316,9 +357,14 @@ were, the next ping repeats the old `Rtt` and `Offset`, and the connection stays
   leaves it one guess per ping against those thousands of candidates (up to four at once after letting pings go
   unanswered), where it used to have as many as it could send. That lowers the odds and does not close guessing. A
   ping identifier the client cannot predict would close it, and is a wire change.
-- *Answering late* raises the reading. How long a stamp stays answerable follows from the cadence alone (until four
-  later pings are written, some forty seconds at one ping per ten seconds). Nothing in the code caps the round trip.
-- *The reading has no age.* A client that stops answering keeps its last reading, and one that never answers reads 0.
+- *Answering late* raises the reading, unless the client also reports the hold. How long a stamp stays answerable
+  follows from the cadence alone (until four later pings are written, some twenty seconds at one ping per five
+  seconds). Nothing in the code caps the round trip.
+- *Claiming a hold* lowers it. The hold is the client's word (#1034): a client can report any hold from zero up to the
+  whole round trip, and read any network round trip from the whole one down to 0. The server's own `t4 - t1` bounds it
+  from above, and a hold outside that range is ignored.
+- *The reading has no age.* A client that stops answering keeps its last reading until the liveness rule closes it, a
+  minute on, and one that never answers reads 0.
 
 Code that would trust latency (lag compensation, cheat heuristics, matchmaking) needs more than this. An age for the
 reading and a ping identifier the client cannot predict would close staleness and guessing, and no more. A client could
@@ -361,6 +407,9 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
   another → the packet is not queued and the connection is closed without a notice (#927,
   [packet handlers](packet-handlers.md)). The outbound mirror is the slow-connection close past
   `Network:MaxPendingBytes` (#875).
+- An admitted world connection that answers no time-sync ping for 60 seconds → closed without a notice through the
+  drain a disconnect takes, with one count in `network.in.silent_kicks` (#1034,
+  [above](#time-sync-smsg_ping-and-cmsg_pong)).
 
 ## Open Defect — a `DateTime` loses its kind
 

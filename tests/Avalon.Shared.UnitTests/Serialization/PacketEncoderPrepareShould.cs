@@ -174,7 +174,7 @@ public class PacketEncoderPrepareShould
     {
         var encoder = new PacketEncoder(new PayloadSegmentPool());
         // Before any window: the thread's stream, through a type already built, and a segment of the packets' size.
-        encoder.Encode(new SPingPacket { ServerTimestamp = long.MaxValue, ClientTimestamp = long.MaxValue },
+        encoder.Encode(new SPingPacket { ServerTimestamp = long.MaxValue, Rtt = long.MaxValue },
             NetworkPacketType.SMSG_PING, NetworkPacketFlags.None, NetworkProtocol.Tcp).Release();
         new OutboundPacket(default, encoder.Pool.Rent(new byte[PreparedPayloadLength])).Release();
 

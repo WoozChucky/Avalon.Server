@@ -63,6 +63,8 @@ public partial class WorldConnection
         AssignAccessLevel(lease.AccessLevel);
         AccountId = lease.Authority.AccountId;
         _lastHeartbeatTicks = _time.GetTimestamp();
+        // The liveness clock starts at admission (#1034), so a client that never answers a ping is closed too.
+        _lastAnswerTimestamp = _lastHeartbeatTicks;
     }
 
     /// <summary>Whether the version handshake has been accepted (<see cref="AcceptProtocol" />), which it is once.</summary>
