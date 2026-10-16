@@ -25,7 +25,7 @@ public class QuestAvailabilityShould
     }
 
     private static QuestResult Check(QuestView quest, CharacterEntity c, int max = 20, bool script = true) =>
-        QuestAvailability.Check(quest, c, max, () => script);
+        QuestAvailability.Check(quest, c, max, (_, _) => script);
 
     [Fact]
     public void Not_offer_a_quest_already_held_or_already_done()

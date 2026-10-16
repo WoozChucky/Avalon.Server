@@ -4715,8 +4715,14 @@ What each step costs, and why:
 - `QuestService.FlushMarkers` walks every creature of the character's instance through
   `IReadOnlyDictionary.Values` (a boxed enumerator, 40 B) and builds a new list (32 B) each time the character's
   quest log, level or instance changed: 72 B and a walk of 200 creatures per kill credit per party member in a
-  forest, which holds no quest NPC, so the list it builds is always empty. Done since #973's cleanup: the markers are
-  worked out again only when what the log holds or a held quest's state changes, never for a count alone.
+  forest, which holds no quest NPC, so the list it builds is always empty. Since #973's closing cleanup it runs less
+  often and costs less when it does. It runs only when what the log holds or a held quest's state changes (an accept,
+  an abandon, a turn-in, a quest becoming ready or no longer ready), or the instance, the level or the catalog does,
+  never for a count alone. Each run fills the log's spare list (two kept per log, which trade places when one is
+  sent), walks the instance's creatures through the dictionary's own struct enumerator, and judges each quest with a
+  script-check delegate the service makes once. A send fills the service's own entries by index. So once those lists
+  have grown, a run allocates nothing except the view of the character a quest script's `CanAccept` is handed, one per
+  scripted quest asked. What is left of its cost is the walk over every creature of the instance.
 
 ### Results — the broadcast schedule (#975, 2026-10-14)
 

@@ -163,7 +163,27 @@ public sealed class QuestLog(SaveStateTracker save)
     public ushort MarkersLevel { get; set; }
     public int MarkersVersion { get; set; } = -1;
     public object? MarkersCatalog { get; set; }
-    public IReadOnlyList<(ulong Creature, byte Marker)>? MarkersSent { get; set; }
+    public IReadOnlyList<(ulong Creature, byte Marker)>? MarkersSent => _markersSent;
+
+    // The markers last sent, and the list the next working-out fills (#973): the two trade places when a list is sent,
+    // so working the markers out allocates no list once both have grown.
+    private List<(ulong Creature, byte Marker)>? _markersSent;
+    private List<(ulong Creature, byte Marker)>? _markersSpare;
+
+    /// <summary>An empty list for QuestService to work the markers out into: never the one last sent.</summary>
+    internal List<(ulong Creature, byte Marker)> MarkersWorking()
+    {
+        List<(ulong Creature, byte Marker)> working = _markersSpare ??= [];
+        working.Clear();
+        return working;
+    }
+
+    /// <summary><paramref name="markers" />, from <see cref="MarkersWorking" />, has been sent: it is the last sent now.</summary>
+    internal void MarkersWereSent(List<(ulong Creature, byte Marker)> markers)
+    {
+        _markersSpare = _markersSent;
+        _markersSent = markers;
+    }
 
     /// <summary>
     /// The quest catalog generation this session's held quests were last settled against (#738): set by the select
