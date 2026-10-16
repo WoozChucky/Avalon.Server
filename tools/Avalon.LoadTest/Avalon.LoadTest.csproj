@@ -10,6 +10,11 @@
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
 
+  <!-- The client version it states, shared with Avalon.LocalDev (#949). -->
+  <ItemGroup>
+    <Compile Include="..\Shared\ToolClientVersion.cs" Link="ToolClientVersion.cs" />
+  </ItemGroup>
+
   <!-- The packet contracts and the session crypto only: the tool talks to the servers as a client does. -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj" />

@@ -20,8 +20,11 @@ namespace Avalon.LoadTest.Api;
 /// </summary>
 public sealed class ApiClient(Uri api, TimeSpan timeout) : IDisposable
 {
-    /// <summary>The protocol the provider attempt must name: <c>GameWorkloadConfiguration.ClientProtocolVersion</c>.</summary>
-    public const string ProtocolVersion = "0.3.0";
+    /// <summary>
+    /// The client version the provider attempt names (<see cref="Avalon.Tools.ToolClientVersion"/>): sign-in accepts it
+    /// at or above <c>Application:GameWorkloads:MinClientVersion</c>.
+    /// </summary>
+    public const string ProtocolVersion = Avalon.Tools.ToolClientVersion.Current;
 
     /// <summary>The application the provider attempt is for.</summary>
     public const string ApplicationKey = "avalon.base";
