@@ -37,8 +37,7 @@ public interface IWorldService
     /// not exist. Effective on identity's next join request. The world's backstop has its own limit, Game:PlayerLimit,
     /// which the operator sets to the same number.
     /// </summary>
-    Task<WorldDto?> SetPlayerLimitAsync(ushort id, int? limit, string actor, AccountAccessLevel caller,
-        CancellationToken cancellationToken = default);
+    Task<WorldDto?> SetPlayerLimitAsync(ushort id, int? limit, string actor, CancellationToken cancellationToken = default);
 }
 
 public class WorldService : IWorldService
@@ -149,7 +148,7 @@ public class WorldService : IWorldService
         return await ToDtoAsync(world, cancellationToken, _time.GetUtcNow().UtcDateTime);
     }
 
-    public async Task<WorldDto?> SetPlayerLimitAsync(ushort id, int? limit, string actor, AccountAccessLevel caller,
+    public async Task<WorldDto?> SetPlayerLimitAsync(ushort id, int? limit, string actor,
         CancellationToken cancellationToken = default)
     {
         PlayerLimitChange? change = await _repository.SetPlayerLimitAsync(new WorldId(id), limit, _time.GetUtcNow().UtcDateTime,
@@ -158,7 +157,10 @@ public class WorldService : IWorldService
         _logger.LogInformation("World {WorldId} player limit changed from {Previous} to {Current} by {Actor}", id,
             change.Previous?.ToString(CultureInfo.InvariantCulture) ?? "none",
             change.Current?.ToString(CultureInfo.InvariantCulture) ?? "none", actor);
-        return await GetAsync(id, caller, cancellationToken);
+        // The row as written, as UpdateAsync answers: the write succeeded, so the reply is never a 404 (an admin endpoint,
+        // not the caller-visibility lookup of GetAsync).
+        WorldEntity? world = await _repository.FindByIdAsync(new WorldId(id), track: false, cancellationToken);
+        return world is null ? null : await ToDtoAsync(world, cancellationToken, _time.GetUtcNow().UtcDateTime);
     }
 
     private async Task<WorldDto> ToDtoAsync(WorldEntity w, CancellationToken ct, DateTime nowUtc)

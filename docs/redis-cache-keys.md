@@ -63,7 +63,7 @@ The world places and queue (#967) need the identity rules above before the ident
 deployed: without them its place script fails with `NOPERM` and every join answers 503. Their scripts call `GET SET
 DEL INCR HGET HSET HDEL HVALS ZADD ZREM ZSCORE ZRANK ZCARD ZRANGEBYSCORE ZREMRANGEBYSCORE`, and identity's own
 `/game/worlds` counts read with `ZCOUNT`, as the worlds service's lists do; a `NOPERM` on those reads is not an error
-the caller sees, only counts of 0. The scripts also touch another world's line keys (`world:{id}:queue` and
+the caller sees, only counts of 0 and a Warning at most every 10 s (`RedisWorldOccupancy`). The scripts also touch another world's line keys (`world:{id}:queue` and
 `world:{id}:queue:checkins`) named from the waiting key, which the patterns above cover.
 
 ---
@@ -187,13 +187,14 @@ in every other world.
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldPlaceMarks(ushort worldId)` |
-| **Type** | Hash: account id to `h` (a place held after a drop) or `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) |
+| **Type** | Hash: account id to `h` (a place held after a drop), `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) or `j:{untilMs}` (a join ticket holds the place until then, through the end of a session it replaces; the activation of its own session spends it) |
 | **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
 | **Consumer** | API, identity: the scripts |
 | **TTL** | None; a field goes with its place |
 
-**Purpose:** The kind of each place, which a sorted set cannot hold: an ordinary place has no field. It lets the scripts
-count held places, count a turn that expired unused, and answer a returning or promoted account as such.
+**Purpose:** The kind of each place, which a sorted set cannot hold: a place a session alone holds has no field. It lets the scripts
+count held places, count a turn that expired unused, answer a returning or promoted account as such, and keep a
+place a join ticket holds through the end of the session the ticket replaces (a takeover or a reconnect).
 
 ### `world:{worldId}:queue`
 

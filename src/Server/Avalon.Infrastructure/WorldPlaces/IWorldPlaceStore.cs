@@ -9,8 +9,13 @@ public enum PlaceSource { Taken = 0, Kept = 1, Returned = 2, Turn = 3 }
 /// <summary>A waiter's state at a check-in.</summary>
 public enum QueueState { NotQueued = 0, Queued = 1, Paused = 2, YourTurn = 3 }
 
-/// <summary>What a session's end does to its place: removes it, or holds it for the grace.</summary>
-public enum PlaceEnd { Remove = 0, Hold = 1 }
+/// <summary>
+/// What an end does to a place. <see cref="Remove"/> and <see cref="Hold"/> are a session's end: removed, or held for the
+/// grace, and either way kept as long as a join ticket issued since still holds it (a takeover or a reconnect not yet
+/// redeemed). <see cref="Withdraw"/> is a ticket that took a place and was then not issued: the place goes only while
+/// that ticket is still what holds it.
+/// </summary>
+public enum PlaceEnd { Remove = 0, Hold = 1, Withdraw = 2 }
 
 /// <summary>What the sweep that starts an operation removed: turns that expired unused, waiters that stopped checking in.</summary>
 public readonly record struct PlaceSweep(int TurnsExpired, int WaitersTimedOut);
@@ -33,17 +38,25 @@ public readonly record struct WorldPlaceCounts(int Taken, int Queued, int Held, 
 /// </summary>
 public interface IWorldPlaceStore
 {
-    /// <summary>Asked before a join ticket is issued: a place (kept, returned, taken, or a turn), the line, or full.</summary>
+    /// <summary>
+    /// Asked before a join ticket is issued: a place (kept, returned, taken, or a turn), the line, or full. An admitted
+    /// account's place is held by the ticket until <see cref="PlaceRequest.Until"/>; a kept place is never shortened.
+    /// </summary>
     Task<PlaceDecision> EnterAsync(PlaceRequest request, CancellationToken cancellationToken);
 
     /// <summary>
-    /// The session holding the place was redeemed, activated or renewed: the place expires at <paramref name="until"/>,
-    /// put back when it was lost, over the limit if need be. With <paramref name="leaveOtherWorlds"/> (activation) the
-    /// account's place in every other world is removed: a session is one per account.
+    /// The session holding the place was redeemed, activated or renewed: the place expires at <paramref name="until"/>
+    /// (or later, while a ticket issued since still holds it), put back when it was lost, over the limit if need be.
+    /// With <paramref name="leaveOtherWorlds"/> (activation) the ticket's hold is spent, and the account's place in every
+    /// other world is removed: a session is one per account.
     /// </summary>
     Task RenewAsync(ushort worldId, long accountId, DateTime until, bool leaveOtherWorlds, CancellationToken cancellationToken);
 
-    /// <summary>The session ended: its place is removed, or held until <paramref name="heldUntil"/>.</summary>
+    /// <summary>
+    /// The session ended (<see cref="PlaceEnd.Remove"/>, or <see cref="PlaceEnd.Hold"/> until <paramref name="heldUntil"/>),
+    /// or a ticket was withdrawn (<see cref="PlaceEnd.Withdraw"/>, <paramref name="heldUntil"/> the expiry its
+    /// <see cref="PlaceRequest.Until"/> gave the place).
+    /// </summary>
     Task EndAsync(ushort worldId, long accountId, PlaceEnd end, DateTime heldUntil, CancellationToken cancellationToken);
 
     /// <summary>A waiter checks in: its position, or its turn when the world is available and a place is free for it.</summary>

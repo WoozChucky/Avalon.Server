@@ -3,32 +3,48 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.Infrastructure.WorldPlaces;
 
 /// <summary>
-/// A renewal or an end the place ledger could not take (#967), logged at Warning by exception type only, at most once per
-/// <see cref="Interval"/>, with how many were left out since: during a Redis outage every heartbeat of every player
-/// meets it. The session is unaffected, and its next renewal that reaches Redis puts the place back.
+/// A renewal, an end or a withdrawal the place ledger could not take (#967), logged at Warning by exception type only, at
+/// most once per <see cref="Interval"/>, with how many were left out since: during a Redis outage every heartbeat of
+/// every player meets it. The session is unaffected: its next renewal that reaches Redis puts the place back, and a place
+/// nothing renews lapses at its expiry.
 /// </summary>
 public sealed class PlaceLedgerOutage(ILogger<PlaceLedgerOutage> logger, TimeProvider clock)
 {
     public static readonly TimeSpan Interval = TimeSpan.FromSeconds(10);
 
-    private long _lastLoggedTicks = long.MinValue;
-    private int _suppressed;
+    private readonly LogThrottle _throttle = new(clock, Interval);
 
     public void Report(string operation, Exception error)
     {
-        long now = clock.GetUtcNow().UtcTicks;
-        long last = Interlocked.Read(ref _lastLoggedTicks);
-        if ((last != long.MinValue && now - last < Interval.Ticks) ||
-            Interlocked.CompareExchange(ref _lastLoggedTicks, now, last) != last)
-        {
-            Interlocked.Increment(ref _suppressed);
-            return;
-        }
-
-        logger.LogWarning("The place ledger could not take a {Operation} ({ExceptionType}); the session goes on and its next renewal puts the place back. {Suppressed} earlier failures were not logged",
-            operation, error.GetType().Name, Interlocked.Exchange(ref _suppressed, 0));
+        if (!_throttle.TryEnter(out int suppressed)) return;
+        logger.LogWarning("The place ledger could not take a {Operation} ({ExceptionType}); the session goes on, its next renewal puts the place back and a place nothing renews lapses at its expiry. {Suppressed} earlier failures were not logged",
+            operation, error.GetType().Name, suppressed);
     }
 
     /// <summary>Whether <paramref name="error"/> is Redis being unreachable or slow, which a renewal or an end survives.</summary>
     public static bool IsOutage(Exception error) => error is StackExchange.Redis.RedisException or TimeoutException;
+}
+
+/// <summary>At most one log line per interval (#967), with how many were left out since; safe across threads.</summary>
+public sealed class LogThrottle(TimeProvider clock, TimeSpan interval)
+{
+    private long _lastLoggedTicks = long.MinValue;
+    private int _suppressed;
+
+    /// <summary>True when a line may be written now, with <paramref name="suppressed"/> the lines left out since the last.</summary>
+    public bool TryEnter(out int suppressed)
+    {
+        long now = clock.GetUtcNow().UtcTicks;
+        long last = Interlocked.Read(ref _lastLoggedTicks);
+        if ((last != long.MinValue && now - last < interval.Ticks) ||
+            Interlocked.CompareExchange(ref _lastLoggedTicks, now, last) != last)
+        {
+            Interlocked.Increment(ref _suppressed);
+            suppressed = 0;
+            return false;
+        }
+
+        suppressed = Interlocked.Exchange(ref _suppressed, 0);
+        return true;
+    }
 }

@@ -37,20 +37,25 @@ from it. Identity is its only writer.
 
 | Moment | The place |
 |---|---|
-| A join or reconnect ticket is issued | taken, or kept if the account already holds one in this world; it expires 15 s after the ticket does (`GameAuthPolicy.TicketPlaceMargin`), for a redemption in flight |
+| A join or reconnect ticket is issued | taken, or kept if the account already holds one in this world (a kept place is never shortened); the ticket holds it until 15 s after the ticket's expiry (`GameAuthPolicy.TicketPlaceMargin`), for a redemption in flight |
+| The ticket is not issued after all (its write failed, or the request failed after the place was taken) | a place the ticket took is given back at once, best effort, unless another ticket has held it since |
 | The world redeems the ticket | renewed to the pending session's lease |
-| The session is activated | renewed to the lease; the account's place in every other world is removed, since a session is one per account |
-| Each heartbeat (every 15 s) | renewed to the lease's new end |
-| The session ends (identity answers `ended`) | removed (from part 2, held for the grace after a drop) |
+| The session is activated | renewed to the lease, which spends the ticket's hold; the account's place in every other world is removed, since a session is one per account |
+| Each heartbeat (every 15 s) | renewed to the lease's new end (or the hold of a ticket issued since, when that is later) |
+| The session ends (identity answers `ended`) | removed (from part 2, held for the grace after a drop), unless a ticket issued since still holds it: then it stays until that ticket's hold ends |
 | The session's end is refused as `SESSION_REPLACED` or `BARRIER_PENDING` | unchanged |
 | The world cannot report (a crash) | expires with the lease, within 45 s |
 
 - An account holds at most one place per world, so a reconnect or a takeover of one's own session never needs a
-  second place.
+  second place. The ticket of a takeover or a reconnect keeps the place through the end of the session it replaces,
+  should that end arrive before the ticket is redeemed: the ledger never counts the account out in between.
 - The capacity step is the join's last: every check before it (the request, the credential, the account's standing,
   the application, the allocator's non-disclosing refusals, the session rules) answers first and takes no place, so
   capacity never speaks for a world the context may not enter.
 - A ticket that is never redeemed holds its place until 15 s after its expiry, then the place lapses.
+- A heartbeat that crosses the session's end in flight may put the place back after the end removed it. The place it
+  puts back ends with the lease that heartbeat carried (at most 45 s), never later, and the next join of the account
+  finds it as its own.
 
 ## Setting a limit
 
@@ -65,7 +70,7 @@ from it. Identity is its only writer.
 ```
 
 - `playerLimit` is required, null included: an empty body is refused (400) rather than read as "no limit". A value
-  outside 1 to 100,000 is 400; an unknown world 404. The reply is the world's `WorldDto`.
+  outside 1 to 100,000 is 400; an unknown world 404. The reply is the world's `WorldDto`, read from the row as written.
 - The limit is written by column (`PlayerLimit` and `UpdatedAt` alone, `IWorldRepository.SetPlayerLimitAsync`), so a
   maintenance transition or a metadata edit written at the same time survives, and a metadata edit (`PUT /world/{id}`)
   never writes the limit.
@@ -79,7 +84,9 @@ The world lists show the counts: `GET /world` and `GET /world/{id}` fill `WorldD
 carry `playerLimit` and `queueLength`; each world of identity's `POST /game/worlds` carries `status` (`Online` or
 `Maintenance`), `playerCount`, `playerLimit` and `queueLength`, and a join reply's `destination` carries `status` and
 `playerLimit` too. The counts read only entries still current (a place whose expiry, or a waiter whose check-in
-deadline, is still ahead), so what no script has swept yet is not shown. When Redis cannot be read the counts are 0.
+deadline, is still ahead), so what no script has swept yet is not shown. When Redis cannot be read the counts are 0;
+an error Redis answers (a missing permission, `NOPERM`) is also logged at Warning, at most every 10 s
+(`RedisWorldOccupancy`), so a Redis user without the rules below does not show every world empty in silence.
 
 ## Redis
 
@@ -88,7 +95,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | Key | Type | Content |
 |---|---|---|
 | `world:{worldId}:places` | sorted set | the ledger: member the account id, score the moment the place expires (Unix ms) |
-| `world:{worldId}:places:marks` | hash | account id to `h` (held after a drop) or `t:{enqueuedAtMs}` (a turn taken, not yet used); no field for an ordinary place |
+| `world:{worldId}:places:marks` | hash | account id to `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}` (a join ticket holds the place until then; spent by the session's activation); no field for a place a session alone holds |
 | `world:{worldId}:queue` | sorted set | the line: member the account id, score its arrival number |
 | `world:{worldId}:queue:checkins` | sorted set | member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
 | `world:{worldId}:queue:arrivals` | string | the arrival counter |
@@ -103,7 +110,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
   in every configured world in one call. Both hold on one Redis instance, which every environment runs; neither would
   on a Redis Cluster.
 - **Redis unavailable at a join** fails it closed: the join answers 503 `SERVICE_UNAVAILABLE` and no ticket is issued.
-- **Redis unavailable at a redemption, activation, heartbeat or end** changes nothing for the session: the failure is
+- **Redis unavailable at a redemption, activation, heartbeat, end or withdrawal** changes nothing for the session: the failure is
   logged at Warning at most every 10 s, with the count left out (`PlaceLedgerOutage`), and the next renewal that
   reaches Redis puts the place back.
 - **A lost ledger** (Redis emptied or replaced) is rebuilt by the heartbeats: every admitted account's next heartbeat
@@ -112,15 +119,29 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
   service's user reads two of the keys (see [Redis users per API service](redis-cache-keys.md#redis-users-per-api-service)).
   Without them every join answers 503, the script failing with `NOPERM`.
 
+## Releasing
+
+Each step only after the one before is done:
+
+1. **homelab#199 deployed**: the Redis users carry the rules of
+   [Redis users per API service](redis-cache-keys.md#redis-users-per-api-service) (`api-identity` the six key patterns
+   and the sorted-set and hash commands; `api-worlds` read on `world:*:places` and `world:*:queue:checkins`, and
+   `zcount`). Check on the cluster before the identity release rolls:
+   `kubectl -n avalon exec avalon-redis-0 -- redis-cli -a "$PW" ACL GETUSER api-identity` (and `api-worlds`).
+   Deployed without them, every join answers 503.
+2. Identity, then the worlds service and the worlds, as in every release (identity before the worlds).
+3. Check: `/game/worlds` and `GET /world` show places taken for a world with players, and identity's and the worlds
+   service's logs carry no "could not read world ... places" Warning.
+
 ## Testing the scripts
 
 The rules live in the Redis scripts, and the unit tests run no Redis. Every place and queue operation sits behind one
 interface, `IWorldPlaceStore`, with two implementations: `RedisWorldPlaceStore` and `MemoryWorldPlaceStore` (in
 `tests/Avalon.Api.Testing`, every operation under one lock, the reference the scripts are held to). One scenario suite,
 `WorldPlaceScenarios`, runs against both: CI runs it against the memory store (`MemoryWorldPlaceStoreShould`), and the
-Redis runner (`RedisWorldPlaceStoreShould`) is skipped unless `AVALON_TEST_REDIS` names a throwaway Redis (xUnit reports its
-two theories as 2 skipped, without enumerating their rows). Before a PR
-that changes a script, run it there (Git Bash; Docker must be running):
+Redis runner (`RedisWorldPlaceStoreShould`) is skipped unless `AVALON_TEST_REDIS` names a throwaway Redis (xUnit reports
+its two theories as 2 skipped, without enumerating their rows). Before a PR that changes a script, run it there (Git
+Bash; Docker must be running):
 
 ```bash
 docker run -d --rm --name avalon-redis-967 -p 56379:6379 redis:8
@@ -131,7 +152,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 23, Skipped: 0` (the 22 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 25, Skipped: 0` (the 24 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Each run
 takes fresh world and account ids, so it needs an empty Redis no more than it changes one. The PR carries the summary
 line and the `redis-server --version` line.

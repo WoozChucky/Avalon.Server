@@ -2,6 +2,7 @@ using Avalon.Api.Testing;
 using Avalon.Configuration;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.WorldPlaces;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -52,7 +53,7 @@ public sealed class RedisWorldPlaceStoreShould
         for (int account = 1; account <= 3; account++)
             await store.EnterAsync(new PlaceRequest(ids.World(1), ids.Account(account), until, 1, false, 5000), default);
 
-        var occupancy = new RedisWorldOccupancy(cache, clock);
+        var occupancy = new RedisWorldOccupancy(cache, clock, NullLogger<RedisWorldOccupancy>.Instance);
         Assert.Equal(new WorldOccupancy(1, 2), await occupancy.ReadAsync(ids.World(1), default));
         clock.Advance(TimeSpan.FromSeconds(46)); // the place and both waiters are past their time, not yet swept
         Assert.Equal(new WorldOccupancy(0, 0), await occupancy.ReadAsync(ids.World(1), default));

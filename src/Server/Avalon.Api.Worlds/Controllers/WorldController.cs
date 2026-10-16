@@ -128,8 +128,7 @@ public class WorldController : BaseController
     public async Task<IActionResult> SetPlayerLimit([FromRoute] ushort id, [FromBody] WorldPlayerLimitRequest request,
         CancellationToken ct)
     {
-        WorldDto? world = await _service.SetPlayerLimitAsync(id, request.PlayerLimit, $"account:{User.AccountId().Value}",
-            User.AccessLevel(), ct);
+        WorldDto? world = await _service.SetPlayerLimitAsync(id, request.PlayerLimit, $"account:{User.AccountId().Value}", ct);
         return world is null ? NotFound() : Ok(world);
     }
 }

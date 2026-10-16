@@ -56,8 +56,11 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         if (expires <= Now) return new(GameAuthErrors.AuthorizationRequired);
         // Capacity last (#967): every check above stands as it was, and a refusal above takes no place. The place lasts
         // 15 s past the ticket, for a redemption in flight. Part 1 keeps the ledger and enforces nothing: no limit is asked.
-        _ = await places.EnterAsync(new PlaceRequest(worldId, accountId, expires.Add(GameAuthPolicy.TicketPlaceMargin),
+        DateTime placeUntil = expires.Add(GameAuthPolicy.TicketPlaceMargin);
+        PlaceDecision place = await places.EnterAsync(new PlaceRequest(worldId, accountId, placeUntil,
             Limit: null, Staff: false, QueueCapacity: 0), cancellationToken);
+        // A place this ticket took, and only one it took, is given back if the ticket is not issued after all.
+        bool took = place is { Outcome: PlaceOutcome.Admitted, Source: PlaceSource.Taken };
         string ticket = GameAuthCryptography.NewToken();
         string ticketKey = Key("join-ticket", GameAuthCryptography.Digest(ticket));
         var grant = new JoinTicketGrant
@@ -81,11 +84,41 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         };
         var reply = new GameJoinReply(JoinTicket: ticket, ExpiresAt: expires, Destination: destination);
         string contextKey = Key("context", context.Id.ToString("N"));
-        return await store.CompareExchangeAsync([
-            new(contextKey, GameAuthJson.Serialize(context), GameAuthJson.Serialize(context), context.AbsoluteExpiresAt),
-            new(issueKey, null, GameAuthJson.Serialize(new JoinIssueReceipt(binding, crypto.ProtectText(GameAuthJson.Serialize(reply), issueKey + ":" + binding))), expires),
-            new(ticketKey, null, GameAuthJson.Serialize(grant), expires.Add(GameAuthPolicy.JoinReceiptRetention)),
-        ], cancellationToken) ? reply : new(GameAuthErrors.ContextChanged);
+        bool issued;
+        try
+        {
+            issued = await store.CompareExchangeAsync([
+                new(contextKey, GameAuthJson.Serialize(context), GameAuthJson.Serialize(context), context.AbsoluteExpiresAt),
+                new(issueKey, null, GameAuthJson.Serialize(new JoinIssueReceipt(binding, crypto.ProtectText(GameAuthJson.Serialize(reply), issueKey + ":" + binding))), expires),
+                new(ticketKey, null, GameAuthJson.Serialize(grant), expires.Add(GameAuthPolicy.JoinReceiptRetention)),
+            ], cancellationToken);
+        }
+        catch when (took)
+        {
+            await WithdrawPlaceAsync(worldId, accountId, placeUntil);
+            throw;
+        }
+
+        if (issued) return reply;
+        if (took) await WithdrawPlaceAsync(worldId, accountId, placeUntil);
+        return new(GameAuthErrors.ContextChanged);
+    }
+
+    /// <summary>
+    /// Gives back the place a ticket took when the ticket was not issued (#967), best effort and whatever the request's
+    /// cancellation: repeated failed issues must not hold places until they lapse. Only while that ticket is still what
+    /// holds the place (<see cref="PlaceEnd.Withdraw"/>).
+    /// </summary>
+    private async Task WithdrawPlaceAsync(ushort worldId, long accountId, DateTime placeUntil)
+    {
+        try
+        {
+            await places.EndAsync(worldId, accountId, PlaceEnd.Withdraw, placeUntil, CancellationToken.None);
+        }
+        catch (Exception error) when (PlaceLedgerOutage.IsOutage(error))
+        {
+            outage.Report("withdrawal", error);
+        }
     }
 
     public async Task<JoinRedemptionReceipt> RedeemAsync(string ticket, string serverId, Guid connectionId,

@@ -64,8 +64,14 @@ public static class WorldPlaceScenarios
         public async Task Admitted(int account, int? limit, int world = 1)
         {
             Assert.Equal(PlaceOutcome.Admitted, (await Join(account, limit, world: world)).Outcome);
-            await Renew(account, world);
+            await Renew(account, world, leaveOthers: true);
         }
+
+        /// <summary>The ticket of a join made <paramref name="secondsAgo"/> seconds ago was not issued after all.</summary>
+        public Task Withdraw(int account, double secondsAgo = 0, int world = 1) =>
+            store.EndAsync(ids.World(world), ids.Account(account), PlaceEnd.Withdraw,
+                Now.AddSeconds(-secondsAgo).Add(GameAuthPolicy.JoinTicketLifetime).Add(GameAuthPolicy.TicketPlaceMargin),
+                CancellationToken.None);
 
         public async Task Queued(int account, int? limit, int position, int world = 1)
         {
@@ -190,6 +196,30 @@ public static class WorldPlaceScenarios
             await h.Admitted(1, limit: 1);
             await h.End(1, PlaceEnd.Remove);
             Assert.Equal(PlaceOutcome.Admitted, (await h.Join(2, limit: 1)).Outcome);
+        },
+        ["a takeover ticket keeps the place through the end of the session it replaces"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            h.Advance(10);
+            await h.Renew(1); // a heartbeat of the session the ticket will replace
+            Assert.Equal(PlaceSource.Kept, (await h.Join(1, limit: 1)).Source);
+            await h.End(1, PlaceEnd.Remove); // the old session ends before the ticket is redeemed
+            Assert.Equal((1, 0, 0), await h.Sizes());
+            await h.Queued(2, limit: 1, position: 1);
+            await h.Renew(1, leaveOthers: true); // the ticket's session activates, which spends the ticket's hold
+            await h.End(1, PlaceEnd.Remove);
+            Assert.Equal(0, (await h.Sizes()).Taken);
+        },
+        ["a ticket not issued gives back the place it took, and only that"] = async h =>
+        {
+            Assert.Equal(PlaceSource.Taken, (await h.Join(1, limit: 1)).Source);
+            await h.Withdraw(1);
+            Assert.Equal((0, 0, 0), await h.Sizes());
+            Assert.Equal(PlaceSource.Taken, (await h.Join(1, limit: 1)).Source);
+            h.Advance(1);
+            Assert.Equal(PlaceSource.Kept, (await h.Join(1, limit: 1)).Source); // a second ticket since holds the place
+            await h.Withdraw(1, secondsAgo: 1); // the first ticket's withdrawal
+            Assert.Equal(1, (await h.Sizes()).Taken);
         },
         ["a takeover keeps the same place"] = async h =>
         {

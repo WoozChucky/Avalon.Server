@@ -12,6 +12,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
 {
     private const string Held = "h";
     private const string TurnPrefix = "t:";
+    private const string TicketPrefix = "j:";
 
     private readonly Lock _gate = new();
     private readonly Dictionary<ushort, WorldState> _worlds = [];
@@ -20,7 +21,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
     private sealed class WorldState
     {
         public readonly Dictionary<long, long> Places = [];      // account -> expiry
-        public readonly Dictionary<long, string> Marks = [];     // account -> "h" or "t:{enqueuedAt}"
+        public readonly Dictionary<long, string> Marks = [];     // account -> "h", "t:{enqueuedAt}" or "j:{ticket place expiry}"
         public readonly SortedList<long, long> Line = [];        // arrival -> account
         public readonly Dictionary<long, long> Arrival = [];     // account -> arrival
         public readonly Dictionary<long, long> Deadline = [];    // account -> removal deadline
@@ -32,6 +33,13 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
     private static long Ms(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
     private WorldState World(ushort id) => _worlds.TryGetValue(id, out WorldState? w) ? w : _worlds[id] = new WorldState();
 
+    /// <summary>Until when a join ticket holds the account's place, when its mark says one does.</summary>
+    private static long? Ticket(WorldState w, long account) =>
+        w.Marks.TryGetValue(account, out string? mark) && mark.StartsWith(TicketPrefix, StringComparison.Ordinal)
+            ? long.Parse(mark[2..], CultureInfo.InvariantCulture) : null;
+
+    private static string TicketMark(long until) => TicketPrefix + until.ToString(CultureInfo.InvariantCulture);
+
     public Task<PlaceDecision> EnterAsync(PlaceRequest request, CancellationToken cancellationToken)
     {
         lock (_gate)
@@ -42,19 +50,22 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             PlaceDecision Admit(PlaceSource source, long waited)
             {
                 w.Places[account] = until;
-                w.Marks.Remove(account);
+                w.Marks[account] = TicketMark(until);
                 return new(PlaceOutcome.Admitted, source, 0, TimeSpan.FromMilliseconds(waited), sweep);
             }
 
             PlaceDecision Queued(int position) => new(PlaceOutcome.Queued, PlaceSource.Taken, position, TimeSpan.Zero, sweep);
 
-            if (w.Places.ContainsKey(account))
+            if (w.Places.TryGetValue(account, out long expiry))
             {
                 w.Marks.TryGetValue(account, out string? mark);
                 if (mark == Held) return Task.FromResult(Admit(PlaceSource.Returned, 0));
                 if (mark?.StartsWith(TurnPrefix, StringComparison.Ordinal) == true)
                     return Task.FromResult(Admit(PlaceSource.Turn, now - long.Parse(mark[2..], CultureInfo.InvariantCulture)));
-                return Task.FromResult(Admit(PlaceSource.Kept, 0));
+                // Kept: never shortened (a live session's lease, or an earlier ticket's), and held by this ticket too.
+                w.Places[account] = Math.Max(expiry, until);
+                if (Ticket(w, account) is not { } held || held < until) w.Marks[account] = TicketMark(until);
+                return Task.FromResult(new PlaceDecision(PlaceOutcome.Admitted, PlaceSource.Kept, 0, TimeSpan.Zero, sweep));
             }
 
             int rank = w.Rank(account);
@@ -99,8 +110,11 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         lock (_gate)
         {
             WorldState w = World(worldId);
-            w.Places[accountId] = Ms(until);
-            w.Marks.Remove(accountId);
+            long expiry = Ms(until);
+            long? held = Ticket(w, accountId);
+            if (leaveOtherWorlds || held is null) w.Marks.Remove(accountId);
+            else if (held > expiry) expiry = held.Value;
+            w.Places[accountId] = expiry;
             if (leaveOtherWorlds)
             {
                 foreach ((ushort id, WorldState other) in _worlds)
@@ -120,10 +134,28 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         lock (_gate)
         {
             WorldState w = World(worldId);
+            if (end == PlaceEnd.Withdraw)
+            {
+                if (w.Marks.TryGetValue(accountId, out string? mark) && mark == TicketMark(Ms(heldUntil)))
+                {
+                    w.Places.Remove(accountId);
+                    w.Marks.Remove(accountId);
+                }
+
+                return Task.CompletedTask;
+            }
+
+            long? held = Ticket(w, accountId);
+            if (held <= Now) held = null;
             if (end == PlaceEnd.Hold)
             {
-                w.Places[accountId] = Ms(heldUntil);
+                w.Places[accountId] = Math.Max(Ms(heldUntil), held ?? 0);
                 w.Marks[accountId] = Held;
+            }
+            else if (held is { } ticket)
+            {
+                // A ticket issued since (a takeover or a reconnect not yet redeemed) still holds the place.
+                w.Places[accountId] = ticket;
             }
             else
             {
