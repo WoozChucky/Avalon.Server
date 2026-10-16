@@ -26,6 +26,12 @@ public class RateLimitingConfig
     public int ClientAuthPermitsPerMinute { get; set; } = 20;
 
     /// <summary>
+    /// A full world's queue check-ins and leaves (<c>/game/queue</c>, #967) a minute per account, outside the limits
+    /// above: the waiters behind one address are not throttled by each other. At least 1.
+    /// </summary>
+    public int QueuePermitsPerMinute { get; set; } = 30;
+
+    /// <summary>
     /// Requests a minute per authenticated game server, including each player's lease heartbeat, for the workloads a
     /// service names (<see cref="Middlewares.IRateLimitWorkloads"/>). At least 1.
     /// </summary>

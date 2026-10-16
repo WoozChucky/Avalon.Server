@@ -106,6 +106,8 @@ public sealed class RouteOwnershipShould
         ["POST /game/worlds"] = Identity,
         ["POST /game/join-tickets"] = Identity,
         ["POST /game/reconnect-tickets"] = Identity,
+        ["POST /game/queue/status"] = Identity,
+        ["POST /game/queue/leave"] = Identity,
         ["POST /internal/game/join-tickets/redeem"] = Identity,
         ["POST /internal/game/sessions/activate"] = Identity,
         ["POST /internal/game/sessions/heartbeat"] = Identity,

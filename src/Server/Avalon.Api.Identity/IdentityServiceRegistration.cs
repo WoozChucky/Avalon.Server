@@ -103,6 +103,10 @@ public static class IdentityServiceRegistration
         services.AddSingleton<Avalon.Infrastructure.WorldPlaces.IWorldPlaceStore, Avalon.Infrastructure.WorldPlaces.RedisWorldPlaceStore>();
         services.AddSingleton<Avalon.Infrastructure.WorldPlaces.PlaceLedgerOutage>();
         services.AddSingleton(_ => new Avalon.Infrastructure.WorldPlaces.WorldPlaceMetrics(Avalon.Common.Telemetry.DiagnosticsConfig.Api.Meter));
+        // A full world's line: the waiters' check-ins and leaves, with their own per-account limit.
+        services.AddSingleton<GameWorldAvailability>();
+        services.AddScoped<GameQueueService>();
+        services.AddSingleton<QueueRateLimiter>();
         // Places taken and line length for /game/worlds, which the worlds service reads too: registered once in a process.
         services.TryAddSingleton<Avalon.Infrastructure.WorldPlaces.IWorldOccupancy, Avalon.Infrastructure.WorldPlaces.RedisWorldOccupancy>();
         services.AddOptions<Avalon.Configuration.GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads")
@@ -170,8 +174,13 @@ public static class IdentityServiceRegistration
         services.AddSingleton<IRateLimitWorkloads, GameServerRateLimitWorkloads>();
         // The workload listener's refused certificates, logged with their reason (#1051).
         services.TryAddSingleton<RefusedWorkloadCertificateLog>();
-        // A successful lease heartbeat's request line is Debug (#1051): one per player every 15 seconds.
-        services.Configure<RequestLoggingOptions>(options => options.QuietOnSuccess.Add(GameInternalRoutes.IsHeartbeat));
+        // A successful lease heartbeat's request line is Debug (#1051): one per player every 15 seconds. So is a queue
+        // check-in's (#967): a full world's waiters check in every 5 or 15 seconds each.
+        services.Configure<RequestLoggingOptions>(options =>
+        {
+            options.QuietOnSuccess.Add(GameInternalRoutes.IsHeartbeat);
+            options.QuietOnSuccess.Add(path => path.Equals("/game/queue/status", StringComparison.OrdinalIgnoreCase));
+        });
 
         services.AddScoped<IAuthorizationHandler, Authorization.AccountReadHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.AccountWriteHandler>();

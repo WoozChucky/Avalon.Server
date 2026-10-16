@@ -90,6 +90,13 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
         return context is null ? default : await StandingOfAsync(context, requireLicense, cancellationToken);
     }
 
+    /// <summary>
+    /// The context <paramref name="credential"/> is the current credential of, read from Redis alone: no account standing and
+    /// no license (#967, the queue's check-ins, which grant nothing; the join that follows a turn checks both).
+    /// </summary>
+    public Task<GameContextRecord?> GetCurrentContextAsync(string credential, CancellationToken cancellationToken) =>
+        CredentialContextAsync(credential, cancellationToken);
+
     /// <summary>The standing of <paramref name="context"/>, read through a current credential (<see cref="CredentialContextAsync"/>).</summary>
     private async Task<GameContextStanding> StandingOfAsync(GameContextRecord context, bool requireLicense, CancellationToken cancellationToken)
     {
