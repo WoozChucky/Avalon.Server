@@ -35,14 +35,26 @@ exceed the limit by the staff admitted (from part 3).
 The ledger is kept whether or not a limit is set, so the world lists show a true count and a limit set later starts
 from it. Identity is its only writer.
 
+Each place records who holds it, so that no late or stale call removes or shortens a place someone else still has:
+
+- **The ticket's hold.** A join or reconnect ticket is known to the ledger by the id of the session it will become (its
+  grant's `GameSessionId`, which the redemption and the activation carry). Its hold on the place runs until 15 s after
+  the ticket's expiry (`GameAuthPolicy.TicketPlaceMargin`). A later ticket's hold replaces an earlier one's; only that
+  ticket's withdrawal or its own session's activation ever removes it.
+- **The owning session.** The session that owns the place's lease, by its fencing token (`GameSessions.FencingToken`,
+  which only grows for an account: a takeover's session has a larger one than the session it replaces). Redemption,
+  activation and heartbeats make their session the owner; a session older than the owner renews and ends nothing.
+
 | Moment | The place |
 |---|---|
-| A join or reconnect ticket is issued | taken, or kept if the account already holds one in this world (a kept place is never shortened); the ticket holds it until 15 s after the ticket's expiry (`GameAuthPolicy.TicketPlaceMargin`), for a redemption in flight |
-| The ticket is not issued after all (its write failed, or the request failed after the place was taken) | a place the ticket took is given back at once, best effort, unless another ticket has held it since |
-| The world redeems the ticket | renewed to the pending session's lease |
-| The session is activated | renewed to the lease, which spends the ticket's hold; the account's place in every other world is removed, since a session is one per account |
-| Each heartbeat (every 15 s) | renewed to the lease's new end (or the hold of a ticket issued since, when that is later) |
-| The session ends (identity answers `ended`) | removed (from part 2, held for the grace after a drop), unless a ticket issued since still holds it: then it stays until that ticket's hold ends |
+| A join or reconnect ticket is issued | taken, or kept if the account already holds one in this world (a kept place is never shortened); the ticket holds it until 15 s after its expiry |
+| The ticket's issue is known to have failed (its write was refused) | the ticket's hold is given back, best effort, and the place with it unless a session owns it; a later ticket's hold is left alone. An issue that threw (a cancellation, a timeout) gives nothing back: its write may have landed |
+| The same request is replayed (its `Idempotency-Key`) | the replayed ticket's place is entered again as that ticket's, never shortened and with no limit asked, so a replayed ticket always has its place |
+| The world redeems the ticket | the pending session owns the place, to its lease |
+| The session is activated | renewed to the lease; it spends its own ticket's hold (never another ticket's); the account's place in every other world is removed, since a session is one per account, but for a ticket's hold still running there |
+| Each heartbeat (every 15 s) | renewed to the lease's new end, or a ticket's later hold |
+| The session ends (identity answers `ended`) | removed (from part 2, held for the grace after a drop), unless a ticket's hold still runs: then it stays until that hold ends. Never shortened |
+| The end or heartbeat of a session older than the owner (a takeover's predecessor, arriving late) | unchanged |
 | The session's end is refused as `SESSION_REPLACED` or `BARRIER_PENDING` | unchanged |
 | The world cannot report (a crash) | expires with the lease, within 45 s |
 
@@ -53,9 +65,10 @@ from it. Identity is its only writer.
   the application, the allocator's non-disclosing refusals, the session rules) answers first and takes no place, so
   capacity never speaks for a world the context may not enter.
 - A ticket that is never redeemed holds its place until 15 s after its expiry, then the place lapses.
-- A heartbeat that crosses the session's end in flight may put the place back after the end removed it. The place it
-  puts back ends with the lease that heartbeat carried (at most 45 s), never later, and the next join of the account
-  finds it as its own.
+- A heartbeat that crosses its own session's end in flight (the end first) may put the place back, owned by that
+  session. The place it puts back ends at the later of the lease that heartbeat carried and a ticket's hold still
+  running: at most 45 s after that heartbeat or that ticket's issue, never later. It only ever counts the account in
+  for longer, never out.
 
 ## Setting a limit
 
@@ -95,7 +108,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | Key | Type | Content |
 |---|---|---|
 | `world:{worldId}:places` | sorted set | the ledger: member the account id, score the moment the place expires (Unix ms) |
-| `world:{worldId}:places:marks` | hash | account id to `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}` (a join ticket holds the place until then; spent by the session's activation); no field for a place a session alone holds |
+| `world:{worldId}:places:marks` | hash | per account two fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the ticket by its session id), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place |
 | `world:{worldId}:queue` | sorted set | the line: member the account id, score its arrival number |
 | `world:{worldId}:queue:checkins` | sorted set | member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
 | `world:{worldId}:queue:arrivals` | string | the arrival counter |
@@ -152,7 +165,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 25, Skipped: 0` (the 24 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 29, Skipped: 0` (the 28 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Each run
 takes fresh world and account ids, so it needs an empty Redis no more than it changes one. The PR carries the summary
 line and the `redis-server --version` line.

@@ -391,7 +391,7 @@ public sealed class GameSessionFenceServiceShould
     {
         await Arrange();
         DateTime now = _h.Clock.GetUtcNow().UtcDateTime;
-        await _h.Places.EnterAsync(new PlaceRequest(2, 7, now.AddSeconds(45), null, false, 0), default); // a place left in world 2
+        await _h.Places.RenewAsync(2, 7, 1, Guid.NewGuid(), now.AddSeconds(45), false, default); // an older session's place left in world 2
         Assert.Null((await Activate()).Error);
         Assert.Equal((1, 0), ((await _h.Places.CountAsync(1, default)).Taken, (await _h.Places.CountAsync(2, default)).Taken));
 
@@ -442,10 +442,12 @@ internal sealed class FlakyPlaceStore(IWorldPlaceStore inner) : IWorldPlaceStore
     public bool Down { get; set; }
     private T Up<T>(T value) => Down ? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down") : value;
     public Task<PlaceDecision> EnterAsync(PlaceRequest request, CancellationToken ct) => Up(inner).EnterAsync(request, ct);
-    public Task RenewAsync(ushort worldId, long accountId, DateTime until, bool leaveOtherWorlds, CancellationToken ct) =>
-        Up(inner).RenewAsync(worldId, accountId, until, leaveOtherWorlds, ct);
-    public Task EndAsync(ushort worldId, long accountId, PlaceEnd end, DateTime heldUntil, CancellationToken ct) =>
-        Up(inner).EndAsync(worldId, accountId, end, heldUntil, ct);
+    public Task RenewAsync(ushort worldId, long accountId, long fence, Guid sessionId, DateTime until, bool activation,
+        CancellationToken ct) => Up(inner).RenewAsync(worldId, accountId, fence, sessionId, until, activation, ct);
+    public Task EndAsync(ushort worldId, long accountId, long fence, PlaceEnd end, DateTime heldUntil, CancellationToken ct) =>
+        Up(inner).EndAsync(worldId, accountId, fence, end, heldUntil, ct);
+    public Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken ct) =>
+        Up(inner).WithdrawAsync(worldId, accountId, ticket, until, ct);
     public Task<QueueCheckIn> CheckInAsync(ushort worldId, long accountId, int? limit, bool available, CancellationToken ct) =>
         Up(inner).CheckInAsync(worldId, accountId, limit, available, ct);
     public Task<bool> LeaveAsync(ushort worldId, long accountId, CancellationToken ct) => Up(inner).LeaveAsync(worldId, accountId, ct);

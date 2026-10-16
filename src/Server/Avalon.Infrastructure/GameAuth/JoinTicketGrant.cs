@@ -107,7 +107,11 @@ public sealed record GameJoinReply(string? Error = null, string? JoinTicket = nu
     public override string ToString() => $"Game admission ticket, error: {Error} (ticket redacted)";
 }
 
-internal sealed record JoinIssueReceipt(string Binding, string Envelope);
+/// <summary>
+/// A join ticket's issue, kept for its idempotent replay. <see cref="Ticket"/> is the ticket's id in the place ledger (its
+/// grant's <c>GameSessionId</c>, #967), so a replay re-enters the place as that ticket's; null on a receipt written before.
+/// </summary>
+internal sealed record JoinIssueReceipt(string Binding, string Envelope, Guid? Ticket = null);
 internal sealed record JoinTicketGrant
 {
     public Guid TicketId { get; init; }

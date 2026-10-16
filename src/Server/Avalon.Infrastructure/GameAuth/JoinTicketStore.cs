@@ -35,7 +35,17 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         {
             if (prior.Binding != binding) return new(GameAuthErrors.IdempotencyConflict);
             GameJoinReply? replay = GameAuthJson.Deserialize<GameJoinReply>(crypto.UnprotectText(prior.Envelope, issueKey + ":" + binding));
-            return replay?.ExpiresAt > Now ? replay : new(GameAuthErrors.TicketExpired);
+            if (replay?.ExpiresAt is not { } replayExpires || replayExpires <= Now) return new(GameAuthErrors.TicketExpired);
+            // A replayed ticket always has its place (#967): the issue it replays may have been answered with a cancellation
+            // after its write landed, and nothing was withdrawn, but the place may have been lost since. It is entered
+            // again as that ticket's, never shortened, and with no limit asked: the ticket was issued.
+            if (prior.Ticket is { } replayed)
+            {
+                await places.EnterAsync(new PlaceRequest(worldId, accountId, replayExpires.Add(GameAuthPolicy.TicketPlaceMargin),
+                    Limit: null, Staff: false, QueueCapacity: 0, Ticket: replayed), cancellationToken);
+            }
+
+            return replay;
         }
         GameWorldAllocation allocation = await allocator.FindAsync(context, worldId, characterId, cancellationToken);
         // Why, so a client retries only what a retry may change (#1053); a client too old is told the version it needs.
@@ -56,17 +66,19 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         if (expires <= Now) return new(GameAuthErrors.AuthorizationRequired);
         // Capacity last (#967): every check above stands as it was, and a refusal above takes no place. The place lasts
         // 15 s past the ticket, for a redemption in flight. Part 1 keeps the ledger and enforces nothing: no limit is asked.
+        // The ticket is known to the ledger by the id of the session it becomes, which redemption and activation carry.
+        var sessionId = Guid.NewGuid();
         DateTime placeUntil = expires.Add(GameAuthPolicy.TicketPlaceMargin);
         PlaceDecision place = await places.EnterAsync(new PlaceRequest(worldId, accountId, placeUntil,
-            Limit: null, Staff: false, QueueCapacity: 0), cancellationToken);
-        // A place this ticket took, and only one it took, is given back if the ticket is not issued after all.
+            Limit: null, Staff: false, QueueCapacity: 0, Ticket: sessionId), cancellationToken);
+        // A place this ticket took, and only one it took, is given back if the ticket is known not to be issued.
         bool took = place is { Outcome: PlaceOutcome.Admitted, Source: PlaceSource.Taken };
         string ticket = GameAuthCryptography.NewToken();
         string ticketKey = Key("join-ticket", GameAuthCryptography.Digest(ticket));
         var grant = new JoinTicketGrant
         {
             TicketId = Guid.NewGuid(),
-            GameSessionId = Guid.NewGuid(),
+            GameSessionId = sessionId,
             ContextId = context.Id,
             ContextGeneration = context.Generation,
             AccountId = accountId,
@@ -84,36 +96,31 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         };
         var reply = new GameJoinReply(JoinTicket: ticket, ExpiresAt: expires, Destination: destination);
         string contextKey = Key("context", context.Id.ToString("N"));
-        bool issued;
-        try
-        {
-            issued = await store.CompareExchangeAsync([
+        // Only a write known to have failed gives the place back: one that threw (a cancellation, a timeout) may have
+        // landed, and its ticket's replay finds the place again.
+        if (await store.CompareExchangeAsync([
                 new(contextKey, GameAuthJson.Serialize(context), GameAuthJson.Serialize(context), context.AbsoluteExpiresAt),
-                new(issueKey, null, GameAuthJson.Serialize(new JoinIssueReceipt(binding, crypto.ProtectText(GameAuthJson.Serialize(reply), issueKey + ":" + binding))), expires),
+                new(issueKey, null, GameAuthJson.Serialize(new JoinIssueReceipt(binding, crypto.ProtectText(GameAuthJson.Serialize(reply), issueKey + ":" + binding), sessionId)), expires),
                 new(ticketKey, null, GameAuthJson.Serialize(grant), expires.Add(GameAuthPolicy.JoinReceiptRetention)),
-            ], cancellationToken);
-        }
-        catch when (took)
+            ], cancellationToken))
         {
-            await WithdrawPlaceAsync(worldId, accountId, placeUntil);
-            throw;
+            return reply;
         }
 
-        if (issued) return reply;
-        if (took) await WithdrawPlaceAsync(worldId, accountId, placeUntil);
+        if (took) await WithdrawPlaceAsync(worldId, accountId, sessionId, placeUntil);
         return new(GameAuthErrors.ContextChanged);
     }
 
     /// <summary>
-    /// Gives back the place a ticket took when the ticket was not issued (#967), best effort and whatever the request's
-    /// cancellation: repeated failed issues must not hold places until they lapse. Only while that ticket is still what
-    /// holds the place (<see cref="PlaceEnd.Withdraw"/>).
+    /// Gives back the place a ticket took when the ticket is known not to be issued (#967), best effort and whatever the
+    /// request's cancellation: repeated failed issues must not hold places until they lapse. Only that ticket's own hold,
+    /// and the place only while no session owns it (<see cref="IWorldPlaceStore.WithdrawAsync"/>).
     /// </summary>
-    private async Task WithdrawPlaceAsync(ushort worldId, long accountId, DateTime placeUntil)
+    private async Task WithdrawPlaceAsync(ushort worldId, long accountId, Guid sessionId, DateTime placeUntil)
     {
         try
         {
-            await places.EndAsync(worldId, accountId, PlaceEnd.Withdraw, placeUntil, CancellationToken.None);
+            await places.WithdrawAsync(worldId, accountId, sessionId, placeUntil, CancellationToken.None);
         }
         catch (Exception error) when (PlaceLedgerOutage.IsOutage(error))
         {
@@ -173,7 +180,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
                 serverId, grant.WorldId, grant.Environment, grant.CredentialsVersion, grant.SessionEpoch, grant.AuthorizationUntil, grant.Takeover)
             { GameContextId = grant.ContextId, AdmissionExpiresAt = grant.ExpiresAt, Reconnect = grant.Reconnect };
             GameSession? head = await sessions.TryReserveAsync(reservation, Now, cancellationToken);
-            if (head is not null) await KeepPlaceAsync(grant.WorldId, grant.AccountId, head.LeaseUntil, cancellationToken);
+            if (head is not null) await KeepPlaceAsync(grant.WorldId, head, cancellationToken);
             JoinRedemptionReceipt reply = head is null ? JoinRedemptionReceipt.Failure(GameAuthErrors.SessionConflict) :
                 grant.ExpiresAt <= Now ? JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired) : new JoinRedemptionReceipt
                 {
@@ -199,12 +206,16 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         return JoinRedemptionReceipt.Failure(GameAuthErrors.InProgress);
     }
 
-    /// <summary>Renews the account's place to the pending session's lease; Redis down changes nothing for the session (#967).</summary>
-    private async Task KeepPlaceAsync(ushort worldId, long accountId, DateTime until, CancellationToken cancellationToken)
+    /// <summary>
+    /// The pending session owns the account's place from now, to its lease (#967); Redis down changes nothing for the
+    /// session.
+    /// </summary>
+    private async Task KeepPlaceAsync(ushort worldId, GameSession head, CancellationToken cancellationToken)
     {
         try
         {
-            await places.RenewAsync(worldId, accountId, until, leaveOtherWorlds: false, cancellationToken);
+            await places.RenewAsync(worldId, head.AccountId.Value, head.FencingToken, head.GameSessionId, head.LeaseUntil,
+                activation: false, cancellationToken);
         }
         catch (Exception error) when (PlaceLedgerOutage.IsOutage(error))
         {

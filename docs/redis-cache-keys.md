@@ -187,14 +187,17 @@ in every other world.
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldPlaceMarks(ushort worldId)` |
-| **Type** | Hash: account id to `h` (a place held after a drop), `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) or `j:{untilMs}` (a join ticket holds the place until then, through the end of a session it replaces; the activation of its own session spends it) |
+| **Type** | Hash, two fields per account at most. `{accountId}`: the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold until then, the ticket by the id of the session it becomes, N format), and no field for a place a session alone holds. `{accountId}:s`: the fencing token of the session that owns the place's lease |
 | **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
 | **Consumer** | API, identity: the scripts |
 | **TTL** | None; a field goes with its place |
 
-**Purpose:** The kind of each place, which a sorted set cannot hold: a place a session alone holds has no field. It lets the scripts
+**Purpose:** Who holds each place, which a sorted set cannot say. It lets the scripts
 count held places, count a turn that expired unused, answer a returning or promoted account as such, and keep a
-place a join ticket holds through the end of the session the ticket replaces (a takeover or a reconnect).
+place a join ticket holds through the end of the session the ticket replaces (a takeover or a reconnect), withdraw
+only a failed ticket's own hold, spend at an activation only that session's own ticket's hold, and ignore the late renewal
+or end of a session older than the owner (fencing tokens only grow for an account). The `{accountId}:s` values are
+numbers, so the held-places count over `HVALS` (values equal to `h`) never counts them.
 
 ### `world:{worldId}:queue`
 

@@ -12,7 +12,6 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
 {
     private const string Held = "h";
     private const string TurnPrefix = "t:";
-    private const string TicketPrefix = "j:";
 
     private readonly Lock _gate = new();
     private readonly Dictionary<ushort, WorldState> _worlds = [];
@@ -21,50 +20,65 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
     private sealed class WorldState
     {
         public readonly Dictionary<long, long> Places = [];      // account -> expiry
-        public readonly Dictionary<long, string> Marks = [];     // account -> "h", "t:{enqueuedAt}" or "j:{ticket place expiry}"
+        public readonly Dictionary<long, string> Marks = [];     // account -> "h", "t:{enqueuedAt}" or a ticket's hold mark
+        public readonly Dictionary<long, long> Owners = [];      // account -> the owning session's fencing token
         public readonly SortedList<long, long> Line = [];        // arrival -> account
         public readonly Dictionary<long, long> Arrival = [];     // account -> arrival
         public readonly Dictionary<long, long> Deadline = [];    // account -> removal deadline
         public long Arrivals;
         public int Rank(long account) => Arrival.TryGetValue(account, out long arrival) ? Line.IndexOfKey(arrival) : -1;
+
+        /// <summary>ZADD GT: the place's end, never moved earlier; a missing place is added.</summary>
+        public void Extend(long account, long expiry) =>
+            Places[account] = Places.TryGetValue(account, out long current) ? Math.Max(current, expiry) : expiry;
+
+        public void Forget(long account)
+        {
+            Places.Remove(account);
+            Marks.Remove(account);
+            Owners.Remove(account);
+        }
+
+        /// <summary>The ticket's hold on the account's place, its end and its id, when the mark is one.</summary>
+        public (long Until, string Id)? Ticket(long account)
+        {
+            if (!Marks.TryGetValue(account, out string? mark) || !mark.StartsWith("j:", StringComparison.Ordinal)) return null;
+            int colon = mark.IndexOf(':', 2);
+            return (long.Parse(mark[2..colon], CultureInfo.InvariantCulture), mark[(colon + 1)..]);
+        }
     }
 
     private long Now => clock.GetUtcNow().ToUnixTimeMilliseconds();
-    private static long Ms(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+    private static long Ms(DateTime utc) => RedisWorldPlaceStore.Ms(utc);
     private WorldState World(ushort id) => _worlds.TryGetValue(id, out WorldState? w) ? w : _worlds[id] = new WorldState();
-
-    /// <summary>Until when a join ticket holds the account's place, when its mark says one does.</summary>
-    private static long? Ticket(WorldState w, long account) =>
-        w.Marks.TryGetValue(account, out string? mark) && mark.StartsWith(TicketPrefix, StringComparison.Ordinal)
-            ? long.Parse(mark[2..], CultureInfo.InvariantCulture) : null;
-
-    private static string TicketMark(long until) => TicketPrefix + until.ToString(CultureInfo.InvariantCulture);
 
     public Task<PlaceDecision> EnterAsync(PlaceRequest request, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
             long now = Now, until = Ms(request.Until), account = request.AccountId;
+            string hold = RedisWorldPlaceStore.TicketMark(until, request.Ticket);
             WorldState w = World(request.WorldId);
             PlaceSweep sweep = Sweep(request.WorldId, w, now);
             PlaceDecision Admit(PlaceSource source, long waited)
             {
                 w.Places[account] = until;
-                w.Marks[account] = TicketMark(until);
+                w.Marks[account] = hold;
+                w.Owners.Remove(account);
                 return new(PlaceOutcome.Admitted, source, 0, TimeSpan.FromMilliseconds(waited), sweep);
             }
 
             PlaceDecision Queued(int position) => new(PlaceOutcome.Queued, PlaceSource.Taken, position, TimeSpan.Zero, sweep);
 
-            if (w.Places.TryGetValue(account, out long expiry))
+            if (w.Places.ContainsKey(account))
             {
                 w.Marks.TryGetValue(account, out string? mark);
                 if (mark == Held) return Task.FromResult(Admit(PlaceSource.Returned, 0));
                 if (mark?.StartsWith(TurnPrefix, StringComparison.Ordinal) == true)
                     return Task.FromResult(Admit(PlaceSource.Turn, now - long.Parse(mark[2..], CultureInfo.InvariantCulture)));
-                // Kept: never shortened (a live session's lease, or an earlier ticket's), and held by this ticket too.
-                w.Places[account] = Math.Max(expiry, until);
-                if (Ticket(w, account) is not { } held || held < until) w.Marks[account] = TicketMark(until);
+                // Kept: never shortened, and this ticket's to hold unless a later hold is already there.
+                w.Extend(account, until);
+                if (w.Ticket(account) is not { } held || held.Until <= until) w.Marks[account] = hold;
                 return Task.FromResult(new PlaceDecision(PlaceOutcome.Admitted, PlaceSource.Kept, 0, TimeSpan.Zero, sweep));
             }
 
@@ -105,23 +119,42 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         }
     }
 
-    public Task RenewAsync(ushort worldId, long accountId, DateTime until, bool leaveOtherWorlds, CancellationToken cancellationToken)
+    public Task RenewAsync(ushort worldId, long accountId, long fence, Guid sessionId, DateTime until, bool activation,
+        CancellationToken cancellationToken)
     {
         lock (_gate)
         {
+            long now = Now, expiry = Ms(until);
             WorldState w = World(worldId);
-            long expiry = Ms(until);
-            long? held = Ticket(w, accountId);
-            if (leaveOtherWorlds || held is null) w.Marks.Remove(accountId);
-            else if (held > expiry) expiry = held.Value;
-            w.Places[accountId] = expiry;
-            if (leaveOtherWorlds)
+            w.Marks.TryGetValue(accountId, out string? mark);
+            // A session older than the place's owner renews nothing, nor does a session whose place is held after it ended.
+            if ((w.Owners.TryGetValue(accountId, out long current) && current > fence) || mark == Held) return Task.CompletedTask;
+            (long Until, string Id)? held = w.Ticket(accountId);
+            if (held is { } own && activation && own.Id == sessionId.ToString("N"))
             {
-                foreach ((ushort id, WorldState other) in _worlds)
+                w.Marks.Remove(accountId); // the activation spends its own ticket's hold, and only its own
+                held = null;
+            }
+            else if (mark is not null && held is null)
+            {
+                w.Marks.Remove(accountId);
+            }
+
+            if (held is { } hold && hold.Until > now && hold.Until > expiry) expiry = hold.Until;
+            w.Places[accountId] = expiry;
+            w.Owners[accountId] = fence;
+            if (!activation) return Task.CompletedTask;
+            foreach ((ushort id, WorldState other) in _worlds)
+            {
+                if (id == worldId || (other.Owners.TryGetValue(accountId, out long owner) && owner > fence)) continue;
+                if (other.Ticket(accountId) is { } running && running.Until > now)
                 {
-                    if (id == worldId) continue;
-                    other.Places.Remove(accountId);
-                    other.Marks.Remove(accountId);
+                    other.Owners.Remove(accountId);
+                    other.Extend(accountId, running.Until);
+                }
+                else
+                {
+                    other.Forget(accountId);
                 }
             }
         }
@@ -129,39 +162,43 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         return Task.CompletedTask;
     }
 
-    public Task EndAsync(ushort worldId, long accountId, PlaceEnd end, DateTime heldUntil, CancellationToken cancellationToken)
+    public Task EndAsync(ushort worldId, long accountId, long fence, PlaceEnd end, DateTime heldUntil,
+        CancellationToken cancellationToken)
     {
         lock (_gate)
         {
             WorldState w = World(worldId);
-            if (end == PlaceEnd.Withdraw)
-            {
-                if (w.Marks.TryGetValue(accountId, out string? mark) && mark == TicketMark(Ms(heldUntil)))
-                {
-                    w.Places.Remove(accountId);
-                    w.Marks.Remove(accountId);
-                }
-
-                return Task.CompletedTask;
-            }
-
-            long? held = Ticket(w, accountId);
+            if (w.Owners.TryGetValue(accountId, out long current) && current > fence) return Task.CompletedTask;
+            long? held = w.Ticket(accountId)?.Until;
             if (held <= Now) held = null;
+            w.Owners.Remove(accountId);
             if (end == PlaceEnd.Hold)
             {
-                w.Places[accountId] = Math.Max(Ms(heldUntil), held ?? 0);
-                w.Marks[accountId] = Held;
+                w.Extend(accountId, Ms(heldUntil));
+                if (held is null) w.Marks[accountId] = Held;
             }
-            else if (held is { } ticket)
+            else if (held is { } running)
             {
-                // A ticket issued since (a takeover or a reconnect not yet redeemed) still holds the place.
-                w.Places[accountId] = ticket;
+                w.Extend(accountId, running);
             }
             else
             {
-                w.Places.Remove(accountId);
-                w.Marks.Remove(accountId);
+                w.Forget(accountId);
             }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            WorldState w = World(worldId);
+            if (!w.Marks.TryGetValue(accountId, out string? mark) || mark != RedisWorldPlaceStore.TicketMark(Ms(until), ticket))
+                return Task.CompletedTask;
+            w.Marks.Remove(accountId);
+            if (!w.Owners.ContainsKey(accountId)) w.Places.Remove(accountId);
         }
 
         return Task.CompletedTask;
@@ -200,8 +237,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             if (removed) RemoveFromLine(worldId, w, accountId);
             if (w.Marks.TryGetValue(accountId, out string? mark) && mark.StartsWith(TurnPrefix, StringComparison.Ordinal))
             {
-                w.Places.Remove(accountId);
-                w.Marks.Remove(accountId);
+                w.Forget(accountId);
                 removed = true;
             }
 
@@ -225,8 +261,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         foreach (long account in w.Places.Where(p => p.Value <= now).Select(p => p.Key).ToList())
         {
             if (w.Marks.TryGetValue(account, out string? mark) && mark.StartsWith(TurnPrefix, StringComparison.Ordinal)) turns++;
-            w.Places.Remove(account);
-            w.Marks.Remove(account);
+            w.Forget(account);
         }
 
         var silent = w.Deadline.Where(d => d.Value <= now).Select(d => d.Key).ToList();

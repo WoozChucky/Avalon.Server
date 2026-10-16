@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Configuration;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -9,6 +10,13 @@ namespace Avalon.Infrastructure.WorldPlaces;
 /// and "leave the line and take a place" are single steps. Time is the caller's <see cref="TimeProvider"/>, passed in as
 /// Unix milliseconds. Single-instance Redis only: joining a line leaves the line of another world, which the script
 /// names from the account's waiting key (<see cref="CacheKeys.WorldQueueWaiting"/>), not from KEYS.
+/// <para>
+/// Who holds a place is in the world's marks hash (<see cref="CacheKeys.WorldPlaceMarks"/>), two fields per account at
+/// most. The field <c>{account}</c> is the place's kind: <c>h</c> (held after a drop), <c>t:{enqueuedAtMs}</c> (a turn
+/// not yet used) or <see cref="TicketMark"/> (a join ticket's hold). The field <c>{account}:s</c> is the fencing token
+/// of the session that owns the place's lease; fencing tokens only grow for an account, so a smaller one is an older
+/// session's.
+/// </para>
 /// </summary>
 public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldPlacesConfiguration> options,
     IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock) : IWorldPlaceStore
@@ -16,20 +24,38 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     private const long WaitingKeySeconds = 86_400;
 
     /// <summary>
-    /// Until when a join ticket holds a place, from its mark <c>j:{ms}</c>; nil for any other mark. A ticket's hold keeps
-    /// the place through the end of the session the ticket takes over (a takeover or a reconnect not yet redeemed), and
-    /// the activation of the ticket's own session spends it.
+    /// The mark of a join ticket's hold on a place: <c>j:{untilMs}:{ticket}</c>, the ticket by the id (<c>N</c> format)
+    /// of the session it becomes, so a withdrawal or an activation only ever touches its own ticket's hold.
     /// </summary>
-    private const string TicketFunction = """
+    public static string TicketMark(long untilMs, Guid ticket) =>
+        string.Create(CultureInfo.InvariantCulture, $"j:{untilMs}:{ticket:N}");
+
+    /// <summary>
+    /// What every script reads a place's holders with: a ticket's hold (its end and id) from the kind field, the owning
+    /// session's fencing token from the <c>{account}:s</c> field, and the removal of a place with both its fields.
+    /// </summary>
+    private const string Holders = """
         local function ticket(mark)
-          if mark and string.sub(mark, 1, 2) == 'j:' then return tonumber(string.sub(mark, 3)) end
+          if mark then
+            local ends, id = string.match(mark, '^j:(%d+):(.*)$')
+            if ends then return tonumber(ends), id end
+          end
+          return nil, nil
+        end
+        local function owner(marks, account)
+          local fence = redis.call('HGET', marks, account .. ':s')
+          if fence then return tonumber(fence) end
           return nil
+        end
+        local function forget_place(places, marks, account)
+          redis.call('ZREM', places, account)
+          redis.call('HDEL', marks, account, account .. ':s')
         end
 
         """;
 
     /// <summary>The helpers every script that sweeps starts with. The line keys of another world are spelled as in CacheKeys.</summary>
-    private const string Functions = TicketFunction + """
+    private const string Functions = Holders + """
         local function forget(key, world)
           local waiting = redis.call('GET', key)
           if waiting and string.sub(waiting, 1, #world + 1) == world .. ':' then redis.call('DEL', key) end
@@ -48,7 +74,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           for _, account in ipairs(expired) do
             local mark = redis.call('HGET', marks, account)
             if mark and string.sub(mark, 1, 2) == 't:' then turns = turns + 1 end
-            redis.call('HDEL', marks, account)
+            redis.call('HDEL', marks, account, account .. ':s')
           end
           if #expired > 0 then redis.call('ZREMRANGEBYSCORE', places, '-inf', now) end
           local silent = redis.call('ZRANGEBYSCORE', checkins, '-inf', now)
@@ -64,14 +90,16 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
 
     // KEYS: 1 places, 2 marks, 3 queue, 4 checkins, 5 arrivals, 6 the account's waiting key.
     // ARGV: 1 account, 2 now, 3 until, 4 limit ('' for none), 5 staff ('1'/'0'), 6 queue capacity, 7 front positions,
-    //       8 front timeout ms, 9 back timeout ms, 10 waiting-key prefix, 11 world id, 12 waiting-key lifetime s.
+    //       8 front timeout ms, 9 back timeout ms, 10 waiting-key prefix, 11 world id, 12 waiting-key lifetime s,
+    //       13 the ticket's hold mark (TicketMark).
     // Returns {outcome, source, position, waited ms, turns expired, waiters timed out}.
     private const string Enter = Functions + """
         local account, now = ARGV[1], tonumber(ARGV[2])
         local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[2], ARGV[10], ARGV[11])
         local function admit(source, waited)
           redis.call('ZADD', KEYS[1], ARGV[3], account)
-          redis.call('HSET', KEYS[2], account, 'j:' .. ARGV[3])
+          redis.call('HSET', KEYS[2], account, ARGV[13])
+          redis.call('HDEL', KEYS[2], account .. ':s')
           return {0, source, 0, waited, turns, silent}
         end
         local function leave_line()
@@ -83,10 +111,11 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           local mark = redis.call('HGET', KEYS[2], account)
           if mark == 'h' then return admit(2, 0) end
           if mark and string.sub(mark, 1, 2) == 't:' then return admit(3, now - tonumber(string.sub(mark, 3))) end
-          -- Kept: never shortened (a live session's lease, or an earlier ticket's), and held by this ticket too.
+          -- Kept: never shortened (its owner's lease, or an earlier ticket's hold), and this ticket's to hold unless a
+          -- later hold is already there.
           redis.call('ZADD', KEYS[1], 'GT', ARGV[3], account)
           local held = ticket(mark)
-          if not held or held < tonumber(ARGV[3]) then redis.call('HSET', KEYS[2], account, 'j:' .. ARGV[3]) end
+          if not held or held <= tonumber(ARGV[3]) then redis.call('HSET', KEYS[2], account, ARGV[13]) end
           return {0, 1, 0, 0, turns, silent}
         end
         local rank = redis.call('ZRANK', KEYS[3], account)
@@ -122,49 +151,70 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         return {1, 0, position, 0, turns, silent}
         """;
 
-    // KEYS: 1 places, 2 marks of the world, then places and marks of each other world.
-    // ARGV: 1 account, 2 until (the lease), 3 '1' for an activation. The place's end is the lease's, or a ticket's hold when
-    // that is later; an activation spends the hold.
-    private const string Renew = TicketFunction + """
-        local expiry = tonumber(ARGV[2])
-        local held = ticket(redis.call('HGET', KEYS[2], ARGV[1]))
-        if ARGV[3] == '1' or not held then
-          redis.call('HDEL', KEYS[2], ARGV[1])
-        elseif held > expiry then
-          expiry = held
+    // KEYS: 1 places, 2 marks of the world, then places and marks of each other world (an activation only).
+    // ARGV: 1 account, 2 until (the lease), 3 '1' for an activation, 4 the session's fencing token, 5 the session's id
+    //       (N format), 6 now.
+    // Returns 1 when the session owns the place now, 0 when it changed nothing.
+    private const string Renew = Holders + """
+        local account, expiry, fence, now = ARGV[1], tonumber(ARGV[2]), tonumber(ARGV[4]), tonumber(ARGV[6])
+        local current = owner(KEYS[2], account)
+        local mark = redis.call('HGET', KEYS[2], account)
+        -- A session older than the place's owner renews nothing, nor does a session whose place is held after it ended.
+        if (current and current > fence) or mark == 'h' then return 0 end
+        local held, id = ticket(mark)
+        if held and ARGV[3] == '1' and id == ARGV[5] then
+          -- The activation spends its own ticket's hold, and only its own.
+          redis.call('HDEL', KEYS[2], account)
+          held = nil
+        elseif mark and not held then
+          redis.call('HDEL', KEYS[2], account)
         end
-        redis.call('ZADD', KEYS[1], expiry, ARGV[1])
+        if held and held > now and held > expiry then expiry = held end
+        redis.call('ZADD', KEYS[1], expiry, account)
+        redis.call('HSET', KEYS[2], account .. ':s', ARGV[4])
         for i = 3, #KEYS, 2 do
-          redis.call('ZREM', KEYS[i], ARGV[1])
-          redis.call('HDEL', KEYS[i + 1], ARGV[1])
+          -- A session is one per account: its place in another world goes, but for a ticket's hold still running there.
+          local other = owner(KEYS[i + 1], account)
+          if not other or other <= fence then
+            local hold = ticket(redis.call('HGET', KEYS[i + 1], account))
+            if hold and hold > now then
+              redis.call('HDEL', KEYS[i + 1], account .. ':s')
+              redis.call('ZADD', KEYS[i], 'GT', hold, account)
+            else
+              forget_place(KEYS[i], KEYS[i + 1], account)
+            end
+          end
         end
         return 1
         """;
 
-    // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 '0' remove, '1' hold, '2' withdraw, 3 held until (hold) or the expiry
-    // the withdrawn ticket gave the place (withdraw), 4 now.
-    private const string End = TicketFunction + """
-        local mark = redis.call('HGET', KEYS[2], ARGV[1])
-        if ARGV[2] == '2' then
-          if mark == 'j:' .. ARGV[3] then
-            redis.call('ZREM', KEYS[1], ARGV[1])
-            redis.call('HDEL', KEYS[2], ARGV[1])
-          end
-          return 1
-        end
-        local held = ticket(mark)
-        if held and held <= tonumber(ARGV[4]) then held = nil end
+    // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 '1' to hold, 3 held until, 4 now, 5 the ending session's fencing token.
+    // Returns 1 when the place was the session's to end, 0 when a newer session owns it.
+    private const string End = Holders + """
+        local account, now = ARGV[1], tonumber(ARGV[4])
+        local current = owner(KEYS[2], account)
+        if current and current > tonumber(ARGV[5]) then return 0 end
+        local held = ticket(redis.call('HGET', KEYS[2], account))
+        if held and held <= now then held = nil end
+        redis.call('HDEL', KEYS[2], account .. ':s')
         if ARGV[2] == '1' then
-          local expiry = tonumber(ARGV[3])
-          if held and held > expiry then expiry = held end
-          redis.call('ZADD', KEYS[1], expiry, ARGV[1])
-          redis.call('HSET', KEYS[2], ARGV[1], 'h')
+          redis.call('ZADD', KEYS[1], 'GT', ARGV[3], account)
+          -- A ticket's hold still running keeps its mark, so the session it becomes can renew the place.
+          if not held then redis.call('HSET', KEYS[2], account, 'h') end
         elseif held then
-          redis.call('ZADD', KEYS[1], held, ARGV[1])
+          redis.call('ZADD', KEYS[1], 'GT', held, account)
         else
-          redis.call('ZREM', KEYS[1], ARGV[1])
-          redis.call('HDEL', KEYS[2], ARGV[1])
+          forget_place(KEYS[1], KEYS[2], account)
         end
+        return 1
+        """;
+
+    // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 the withdrawn ticket's hold mark (TicketMark).
+    // Returns 1 when the hold was the ticket's and is given back, 0 when another holds the place.
+    private const string Withdraw = Holders + """
+        if redis.call('HGET', KEYS[2], ARGV[1]) ~= ARGV[2] then return 0 end
+        redis.call('HDEL', KEYS[2], ARGV[1])
+        if not owner(KEYS[2], ARGV[1]) then redis.call('ZREM', KEYS[1], ARGV[1]) end
         return 1
         """;
 
@@ -201,8 +251,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         forget(KEYS[5], ARGV[2])
         local mark = redis.call('HGET', KEYS[2], ARGV[1])
         if mark and string.sub(mark, 1, 2) == 't:' then
-          redis.call('ZREM', KEYS[1], ARGV[1])
-          redis.call('HDEL', KEYS[2], ARGV[1])
+          forget_place(KEYS[1], KEYS[2], ARGV[1])
           removed = 1
         end
         return removed
@@ -222,24 +271,26 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     public async Task<PlaceDecision> EnterAsync(PlaceRequest request, CancellationToken cancellationToken)
     {
         WorldPlacesConfiguration c = options.Value;
+        long until = Ms(request.Until);
         RedisResult[] r = await RunArrayAsync(Enter,
         [
             .. WorldKeys(request.WorldId), CacheKeys.WorldQueueArrivals(request.WorldId), CacheKeys.WorldQueueWaiting(request.AccountId),
         ],
         [
-            request.AccountId, Now, Ms(request.Until), Limit(request.Limit), request.Staff ? "1" : "0",
+            request.AccountId, Now, until, Limit(request.Limit), request.Staff ? "1" : "0",
             request.QueueCapacity, WorldPlacesConfiguration.FrontPositions, Ms(c.TimeoutAt(1)),
             Ms(c.TimeoutAt(WorldPlacesConfiguration.FrontPositions + 1)), CacheKeys.WorldQueueWaitingPrefix,
-            (int)request.WorldId, WaitingKeySeconds,
+            (int)request.WorldId, WaitingKeySeconds, TicketMark(until, request.Ticket),
         ], cancellationToken);
         return new((PlaceOutcome)(int)r[0], (PlaceSource)(int)r[1], (int)r[2], TimeSpan.FromMilliseconds((long)r[3]),
             new((int)r[4], (int)r[5]));
     }
 
-    public async Task RenewAsync(ushort worldId, long accountId, DateTime until, bool leaveOtherWorlds, CancellationToken cancellationToken)
+    public async Task RenewAsync(ushort worldId, long accountId, long fence, Guid sessionId, DateTime until, bool activation,
+        CancellationToken cancellationToken)
     {
         var keys = new List<RedisKey> { CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId) };
-        if (leaveOtherWorlds)
+        if (activation)
         {
             foreach (GameServerDefinition server in workloads.Value.Servers.Where(s => s.WorldId != worldId))
             {
@@ -248,12 +299,18 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
             }
         }
 
-        await RunAsync(Renew, [.. keys], [accountId, Ms(until), leaveOtherWorlds ? "1" : "0"], cancellationToken);
+        await RunAsync(Renew, [.. keys],
+            [accountId, Ms(until), activation ? "1" : "0", fence, sessionId.ToString("N"), Now], cancellationToken);
     }
 
-    public Task EndAsync(ushort worldId, long accountId, PlaceEnd end, DateTime heldUntil, CancellationToken cancellationToken) =>
+    public Task EndAsync(ushort worldId, long accountId, long fence, PlaceEnd end, DateTime heldUntil,
+        CancellationToken cancellationToken) =>
         RunAsync(End, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
-            [accountId, (int)end, Ms(heldUntil), Now], cancellationToken);
+            [accountId, end == PlaceEnd.Hold ? "1" : "0", Ms(heldUntil), Now, fence], cancellationToken);
+
+    public Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken cancellationToken) =>
+        RunAsync(Withdraw, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
+            [accountId, TicketMark(Ms(until), ticket)], cancellationToken);
 
     public async Task<QueueCheckIn> CheckInAsync(ushort worldId, long accountId, int? limit, bool available, CancellationToken cancellationToken)
     {
@@ -286,7 +343,9 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
 
     private long Now => clock.GetUtcNow().ToUnixTimeMilliseconds();
     private static long Ms(TimeSpan span) => (long)span.TotalMilliseconds;
-    private static long Ms(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+
+    /// <summary>A UTC time as Unix milliseconds, as the scripts and the hold marks spell it.</summary>
+    public static long Ms(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
 
     /// <summary>A limit for a script: the number, or the empty string for none, which Lua's <c>tonumber</c> reads as nil.</summary>
     private static RedisValue Limit(int? limit) => limit is { } value ? value : RedisValue.EmptyString;

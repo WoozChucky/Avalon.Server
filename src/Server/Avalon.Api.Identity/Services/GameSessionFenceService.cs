@@ -43,7 +43,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         if (read.Valid is not { } current || current.Head.State != GameSessionState.Active)
             return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         GameSessionLeaseReply active = Reply(current.Head, current.Root, guarded);
-        await KeepPlaceAsync(current.Head.WorldId, accountId, active.LeaseUntil!.Value, false, "heartbeat", cancellationToken);
+        await KeepPlaceAsync(current.Head, active.LeaseUntil!.Value, false, "heartbeat", cancellationToken);
         return active;
     }
     public async Task<GameSessionLeaseReply> EndAsync(string serverId, AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken)
@@ -62,7 +62,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         if (await guard.EndAsync(authority, cancellationToken))
         {
             if (await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken))
-                return await EndedAsync(head.WorldId, accountId, cancellationToken);
+                return await EndedAsync(head.WorldId, accountId, fence, cancellationToken);
             return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
         }
 
@@ -72,7 +72,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         {
             // An activation still in flight may have reached the guard since: block it now, so it cannot activate there.
             await guard.EndAsync(authority, cancellationToken);
-            return await EndedAsync(head.WorldId, accountId, cancellationToken);
+            return await EndedAsync(head.WorldId, accountId, fence, cancellationToken);
         }
 
         // The head changed since it was read: replaced, or made active by an activation in flight, which ends as any
@@ -83,23 +83,29 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         if (!await guard.EndAsync(authority, cancellationToken))
             return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
         if (await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken))
-            return await EndedAsync(head.WorldId, accountId, cancellationToken);
+            return await EndedAsync(head.WorldId, accountId, fence, cancellationToken);
         return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
     }
 
-    /// <summary>The session ended: its place is released (#967), and the answer is "ended".</summary>
-    private async Task<GameSessionLeaseReply> EndedAsync(ushort worldId, AccountId accountId, CancellationToken cancellationToken)
+    /// <summary>
+    /// The session (fencing token <paramref name="fence"/>) ended: its place is released (#967), unless a newer session
+    /// owns it or a ticket's hold still runs, and the answer is "ended".
+    /// </summary>
+    private async Task<GameSessionLeaseReply> EndedAsync(ushort worldId, AccountId accountId, long fence,
+        CancellationToken cancellationToken)
     {
-        await ReleasePlaceAsync(worldId, accountId, PlaceEnd.Remove, cancellationToken);
+        await ReleasePlaceAsync(worldId, accountId, fence, PlaceEnd.Remove, cancellationToken);
         return new() { State = "ended" };
     }
 
-    private async Task KeepPlaceAsync(ushort worldId, AccountId accountId, DateTime until, bool leaveOtherWorlds,
-        string operation, CancellationToken cancellationToken)
+    /// <summary>The session owns its place to <paramref name="until"/>; an activation also spends its own ticket's hold.</summary>
+    private async Task KeepPlaceAsync(GameSession head, DateTime until, bool activation, string operation,
+        CancellationToken cancellationToken)
     {
         try
         {
-            await places.RenewAsync(worldId, accountId.Value, until, leaveOtherWorlds, cancellationToken);
+            await places.RenewAsync(head.WorldId, head.AccountId.Value, head.FencingToken, head.GameSessionId, until, activation,
+                cancellationToken);
         }
         catch (Exception error) when (PlaceLedgerOutage.IsOutage(error))
         {
@@ -107,11 +113,12 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         }
     }
 
-    private async Task ReleasePlaceAsync(ushort worldId, AccountId accountId, PlaceEnd end, CancellationToken cancellationToken)
+    private async Task ReleasePlaceAsync(ushort worldId, AccountId accountId, long fence, PlaceEnd end,
+        CancellationToken cancellationToken)
     {
         try
         {
-            await places.EndAsync(worldId, accountId.Value, end, Now, cancellationToken);
+            await places.EndAsync(worldId, accountId.Value, fence, end, Now, cancellationToken);
         }
         catch (Exception error) when (PlaceLedgerOutage.IsOutage(error))
         {
@@ -172,7 +179,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
             return GameSessionLeaseReply.Failure(GameAuthErrors.SessionRevoked);
         GameSessionLeaseReply active = Reply(current.Head, current.Root, guarded);
         // A session is one per account: its place in any other world goes (#967).
-        await KeepPlaceAsync(current.Head.WorldId, accountId, active.LeaseUntil!.Value, true, "activation", cancellationToken);
+        await KeepPlaceAsync(current.Head, active.LeaseUntil!.Value, true, "activation", cancellationToken);
         return active;
     }
     /// <summary>A database outage while checking the session's context: the world keeps its lease and asks again.</summary>
