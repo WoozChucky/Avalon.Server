@@ -37,6 +37,12 @@ public class World : IDbEntity<WorldId>
     /// </summary>
     public int? PlayerLimit { get; set; }
 
+    /// <summary>The longest lore a world may have.</summary>
+    public const int MaxLoreLength = 280;
+
+    /// <summary>A short text about the world, entered by admins in the world editor; null for none.</summary>
+    public string? Lore { get; set; }
+
     [Required] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [Required] public DateTime UpdatedAt { get; set; }

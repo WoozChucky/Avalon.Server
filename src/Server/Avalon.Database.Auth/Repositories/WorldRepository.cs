@@ -34,6 +34,7 @@ public class WorldRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .SetProperty(w => w.Version, world.Version)
             .SetProperty(w => w.Type, world.Type)
             .SetProperty(w => w.AccessLevelRequired, world.AccessLevelRequired)
+            .SetProperty(w => w.Lore, world.Lore)
             .SetProperty(w => w.UpdatedAt, world.UpdatedAt), ct);
     }
 

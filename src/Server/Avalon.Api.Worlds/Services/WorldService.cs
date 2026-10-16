@@ -121,6 +121,7 @@ public class WorldService : IWorldService
             Version = request.Version,
             Type = (Avalon.Domain.Auth.WorldType)request.Type,
             AccessLevelRequired = (Avalon.Common.Accounts.AccountAccessLevel)request.AccessLevelRequired,
+            Lore = NormalizeLore(request.Lore),
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -141,6 +142,7 @@ public class WorldService : IWorldService
         if (request.Version is not null) world.Version = request.Version;
         if (request.Type.HasValue) world.Type = (Avalon.Domain.Auth.WorldType)request.Type.Value;
         if (request.AccessLevelRequired.HasValue) world.AccessLevelRequired = (Avalon.Common.Accounts.AccountAccessLevel)request.AccessLevelRequired.Value;
+        if (request.Lore is not null) world.Lore = NormalizeLore(request.Lore);
 
         world.UpdatedAt = DateTime.UtcNow;
 
@@ -163,6 +165,9 @@ public class WorldService : IWorldService
         return world is null ? null : await ToDtoAsync(world, cancellationToken, _time.GetUtcNow().UtcDateTime);
     }
 
+    /// <summary>Blank lore is no lore.</summary>
+    private static string? NormalizeLore(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
     private async Task<WorldDto> ToDtoAsync(WorldEntity w, CancellationToken ct, DateTime nowUtc)
     {
         WorldLiveState live = await WorldLiveState.ReadAsync(_readiness, _occupancy, w, nowUtc, ct);
@@ -174,6 +179,7 @@ public class WorldService : IWorldService
             AccessLevelRequired = (Avalon.Api.Contract.AccountAccessLevel)w.AccessLevelRequired,
             Host = w.Host,
             Port = w.Port,
+            Lore = w.Lore,
             MinVersion = w.MinVersion,
             Version = w.Version,
             Status = (Avalon.Api.Contract.WorldStatus)live.Status,

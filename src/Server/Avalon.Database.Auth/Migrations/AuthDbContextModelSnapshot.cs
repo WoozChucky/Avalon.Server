@@ -837,6 +837,10 @@ namespace Avalon.Database.Auth.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Lore")
+                        .HasMaxLength(280)
+                        .HasColumnType("character varying(280)");
+
                     b.Property<DateTime?>("MaintenanceDeadlineUtc")
                         .HasColumnType("timestamp with time zone");
 

@@ -331,6 +331,8 @@ public class AuthDbContext : DbContext
         builder.ToTable(table => table.HasCheckConstraint("CK_Worlds_PlayerLimit",
             "\"PlayerLimit\" IS NULL OR (\"PlayerLimit\" >= 1 AND \"PlayerLimit\" <= 100000)"));
 
+        builder.Property(w => w.Lore).HasMaxLength(Domain.Auth.World.MaxLoreLength);
+
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,
