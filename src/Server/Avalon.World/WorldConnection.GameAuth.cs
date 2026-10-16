@@ -40,6 +40,13 @@ public partial class WorldConnection
     /// </summary>
     internal void NoteSessionEndReason(string reason) => Interlocked.CompareExchange(ref _sessionEndReason, reason, null);
 
+    /// <summary>
+    /// The client said goodbye (<c>CMSG_LEAVE_WORLD</c>, #967): the session ends as a logout, which releases the place at
+    /// once. Noted as the goodbye arrives, so no close after it changes what identity is told; a reason the world noted
+    /// before it, as it was already closing the connection, stands.
+    /// </summary>
+    internal void NoteGoodbye() => NoteSessionEndReason(GameSessionEndReasons.Logout);
+
     /// <summary>What identity is told when this connection's session ends (#967): a drop when the world noted nothing.</summary>
     public string SessionEndReason => Volatile.Read(ref _sessionEndReason) ?? GameSessionEndReasons.Drop;
     public bool IsTlsAuthenticated => _tlsAuthenticated;

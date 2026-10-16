@@ -48,11 +48,14 @@ public class WorldSessionFilter(IWorldConnection connection) : PacketFilter
     /// filter: the session pass runs before any instance ticks, so the despawn a leave starts never
     /// lands while an instance is walking its characters, and a leave queued behind in-map packets
     /// waits at the head until the map pass has taken them.</item>
+    /// <item>The goodbye (#967) in every state, before a character and in a map: the read loop has already noted
+    /// the session's end as a logout when it arrives (<c>WorldConnection.OnReceive</c>), and its handler closes a
+    /// connection the client left open. Here and never in the map filter, as the leave.</item>
     /// </list>
     /// </summary>
     private static bool IsAcceptedInEveryState(NetworkPacketType type) =>
         type is NetworkPacketType.CMSG_PONG or NetworkPacketType.CMSG_CHARACTER_LOADED
-            or NetworkPacketType.CMSG_CHARACTER_LEAVE;
+            or NetworkPacketType.CMSG_CHARACTER_LEAVE or NetworkPacketType.CMSG_LEAVE_WORLD;
 
     /// <summary>The select-phase packets, accepted only while the connection holds no character.</summary>
     private static bool IsSelectPacket(NetworkPacketType type) =>

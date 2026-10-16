@@ -220,6 +220,8 @@ message CItemUsePacket {
    InventoryType Container = 2;
    uint32 Slot = 3;
 }
+message CLeaveWorldPacket {
+}
 message CLootPickupPacket {
    uint64 LootGuid = 1;
 }
@@ -554,6 +556,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_WORLD_LIST = 8218;
    NetworkPacketType_CMSG_WORLD_HANDSHAKE = 8221;
    NetworkPacketType_CMSG_GAME_ADMISSION = 8222;
+   NetworkPacketType_CMSG_LEAVE_WORLD = 8223;
    NetworkPacketType_CMSG_ENTER_MAP = 8225;
    NetworkPacketType_CMSG_RESPAWN_AT_TOWN = 8226;
    NetworkPacketType_CMSG_INTERACT = 8240;
