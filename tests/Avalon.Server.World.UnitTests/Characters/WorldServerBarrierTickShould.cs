@@ -335,9 +335,9 @@ public class WorldServerBarrierTickShould : IDisposable
 
     /// <summary>
     /// The time-sync ping carries the world's mean tick time (#1016), measured on every tick from the tick's own start
-    /// and end, as the client reads it off the wire. The first tick's ping is queued before any window of about a second
-    /// has closed, so it reads 0, "not reported". That tick began a second ago and so closes the first window, one tick
-    /// long; the next ping carries its mean.
+    /// and end, as the client reads it off the wire. The first tick's ping (the start burst's, asked for before it) is
+    /// queued before any window of about a second has closed, so it reads 0, "not reported". That tick began a second
+    /// ago and so closes the first window, one tick long; the next ping carries its mean.
     /// </summary>
     [Fact]
     public async Task Send_the_worlds_mean_tick_time_with_the_ping_and_0_before_a_window_closed()
@@ -346,11 +346,11 @@ public class WorldServerBarrierTickShould : IDisposable
         var wire = new MemoryStream();
         connection.InitOutboxForTest(new PacketStream(wire));
 
-        // Each tick's ping is written by the send thread before the next tick: two pings still queued go out as one.
+        // Each ping is written by the send thread before the next is queued: two pings still queued go out as one.
+        connection.RequestInitialTimeSyncPing();
         server.Tick(tickStart: System.Diagnostics.Stopwatch.GetTimestamp() - System.Diagnostics.Stopwatch.Frequency);
         server.SendScheduler.RunAllPasses();
-        connection.RequestInitialTimeSyncPing(); // the first tick pinged on the connection's phase; this one by request
-        server.Tick(tickStart: System.Diagnostics.Stopwatch.GetTimestamp());
+        connection.SendTimeSyncPing(); // the next ping, as the tick queues it
         server.SendScheduler.RunAllPasses();
 
         var pings = new List<uint>();
@@ -369,24 +369,37 @@ public class WorldServerBarrierTickShould : IDisposable
     }
 
     /// <summary>
-    /// The time-sync cadence (#1034): a connection is pinged every 300 ticks (five seconds at 60 Hz) on the phase its
-    /// place in the list gives it, and three times in the two seconds after its handshake, the start burst: on the next
-    /// tick, then twice more 60 ticks apart, so its client has a measured clock offset in about two seconds. Here the
-    /// handshake asks before tick 100, and the connection, first in the list, pings on its phase at ticks 0, 300 and 600.
+    /// The time-sync cadence (#1034): a connection is pinged every 300 ticks (five seconds at 60 Hz) on its own slot of
+    /// the period, and three times in the two seconds after its handshake, the start burst: on the next tick, then twice
+    /// more 60 ticks apart, so its client has a measured clock offset in about two seconds; the burst hands back to the
+    /// slot. Its turns follow the connection, not its place in the list: the two connections ahead of it are removed
+    /// along the way, which moved it from third to first, and it is still pinged on every tick it is due, and only then.
     /// </summary>
     [Fact]
-    public async Task Ping_every_five_seconds_and_three_times_in_the_two_after_the_handshake()
+    public async Task Ping_every_five_seconds_on_its_slot_and_three_times_after_the_handshake_whoever_leaves_ahead()
     {
-        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build();
+        (TestWorldServer server, _, Avalon.World.WorldConnection first) = Build();
+        using var second = Avalon.Server.World.UnitTests.GameAuth.WorldAdmissionConnection.Create(server, tls: false);
+        using var pinged = Avalon.Server.World.UnitTests.GameAuth.WorldAdmissionConnection.Create(server, tls: false);
+        // Not past TLS, so the admission timeout leaves them alone: the time sync pings a connection in any state.
+        server.Add(second);
+        server.Add(pinged);
         var wire = new MemoryStream();
-        connection.InitOutboxForTest(new PacketStream(wire));
+        pinged.InitOutboxForTest(new PacketStream(wire));
+        int slot = pinged.TimeSyncSlot;
 
-        var pinged = new List<int>();
+        var ticks = new List<int>();
         int written = 0;
-        for (int tick = 0; tick <= 2 * WorldServer.TimeSyncTicksPeriod + 10; tick++)
+        for (int tick = 0; tick <= slot + 2 * WorldServer.TimeSyncTicksPeriod + 10; tick++)
         {
-            if (tick == 100)
-                connection.RequestInitialTimeSyncPing();
+            if (tick == slot + 50)
+            {
+                await server.RemoveConnection(first);
+                await server.RemoveConnection(second);
+            }
+
+            if (tick == slot + 100)
+                pinged.RequestInitialTimeSyncPing();
             server.Tick();
             server.SendScheduler.RunAllPasses();
 
@@ -396,13 +409,13 @@ public class WorldServerBarrierTickShould : IDisposable
                 .EnumerateRawFramesAsync(256, int.MaxValue, guard.Token))
             {
                 if (InboundPacketFrame.ParseFrame(raw).Header.Type == NetworkPacketType.SMSG_PING)
-                    pinged.Add(tick);
+                    ticks.Add(tick);
             }
 
             written = bytes.Length;
         }
 
-        Assert.Equal([0, 100, 160, 220, 300, 600], pinged);
+        Assert.Equal([slot, slot + 100, slot + 160, slot + 220, slot + 300, slot + 600], ticks);
     }
 
     /// <summary>

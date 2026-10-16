@@ -227,12 +227,18 @@ by its header while its connection has a session; a world that does not seal has
 
 ## Time Sync: `SMSG_PING` and `CMSG_PONG`
 
-The world server's tick queues a ping for every connection in its list once every 300 ticks (five seconds, each
-connection on the tick its place in the list gives it; `WorldServer.TimeSyncTicksPeriod`, 600 before #1034), whether
-or not the connection has been admitted yet. Right after a connection's version handshake it also sends the **start
-burst** (#1034): one ping on the next tick, whatever the connection's phase, then two more 60 ticks (about a second)
-apart (`WorldConnection.StartBurstFollowUps`, `StartBurstSpacingTicks`), so the client has a measured clock offset in
-about two seconds instead of up to a period later. The client answers each ping with one pong. From the exchange the
+The world server's tick queues a ping for every connection in its list once every 300 ticks (five seconds;
+`WorldServer.TimeSyncTicksPeriod`, 600 before #1034), whether or not the connection has been admitted yet. Each
+connection pings on its own slot of the period (`WorldConnection.TimeSyncSlot`), one slot after another as connections
+are made, so the pings are spread over the period; until #1034 the slot was the connection's place in the list, which
+moved with every removal ahead of it and could skip a turn, or under steady churn every turn. Right after a
+connection's version handshake it also sends the **start burst** (#1034): one ping on the next tick, whatever the
+connection's slot, then two more 60 ticks (about a second) apart (`WorldConnection.StartBurstFollowUps`,
+`StartBurstSpacingTicks`), then back to its slot, so the client has a measured clock offset in about two seconds
+instead of up to a period later. Each connection keeps the tick of its next turn (`WorldConnection.NextTimeSyncTick`),
+the one field the tick reads of it for the time sync, and the rest is done only on a turn
+(`WorldConnection.OnTimeSyncDue`). None of this, nor the pong's handling, is on `IWorldConnection`, the future
+modding surface: a script can neither send a ping, start a burst nor answer for a client. The client answers each ping with one pong. From the exchange the
 server measures the connection's network round trip (`IWorldConnection.RoundTripTime` in ticks, `Latency` in whole
 milliseconds) and the offset between the two clocks, and tells the client both on the next ping. An admitted
 connection that answers no ping for a minute is closed (liveness, below). The
@@ -257,8 +263,10 @@ round trip it liked, zero and negative ones included. Now:
 
 - The send thread records the stamp of each ping as it writes it, before the ping can reach the client. It keeps the
   stamps of the last four pings it wrote (`ConnectionSender.PingStampCapacity`), each until a pong answers it. A
-  connection has one ping unanswered at a time in steady play, three during the start burst, and four when a periodic
-  ping falls inside the burst, so a stamp stays answerable for twenty seconds at the steady cadence.
+  connection has one ping unanswered at a time in steady play, three during the start burst (which takes the place
+  of the periodic pings until it ends), and four with a periodic ping written before the handshake, whose pong came
+  too early to be let in. So a stamp stays answerable for twenty seconds at the steady cadence, and eight or more for
+  a ping of the burst.
 - **One pong per ping.** Each ping written grants the connection one pong credit, never more than four at once. A pong
   takes a credit as the read loop receives it, whatever it echoes, and a pong that finds none is dropped there
   (`WorldConnection.OnReceive`), before it is queued for the tick. The start burst's pings each grant their own credit,
@@ -292,8 +300,8 @@ minute is counted from the admission, so a client that never answers is closed t
 pong that answers nothing (a forged echo, an answer already given, one dropped for want of a credit) does not reset it.
 The client answers every ping in every state (loading, menus, minimised), so twelve periodic pings in a row unanswered
 is a client that is dead, stuck or hostile, and a peer that trickles a TLS record (which the frame deadline cannot see)
-cannot produce answers. The check rides the time-sync sweep (`WorldConnection.CloseIfSilent`, asked on the connection's
-ping phase, once a period, at the tick's time), so a connection is closed within five seconds of its minute, instead
+cannot produce answers. The check rides the time-sync sweep (`WorldConnection.CloseIfSilent`, asked first on each of the
+connection's turns, once a period, at the tick's time), so a connection is closed within five seconds of its minute, instead
 of being pinged again. The close is the one a disconnect takes (`Close` then `OnClose`): the next tick ends the
 session, saves the character and releases the lease. No notice is sent. Counted in `network.in.silent_kicks`
 ([instrumentation](instrumentation.md#silent-connections)), and logged at Information at most once per ten seconds for

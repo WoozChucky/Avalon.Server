@@ -114,7 +114,7 @@ public interface IWorldConnection : IConnection
     ///     closes it, a minute on), and one that never answers reads 0. A client can raise it by answering late. It can
     ///     lower it, as far as zero, by claiming to have held the ping for up to the whole round trip (#1034), or below
     ///     its real round trip by guessing the next ping's timestamp, which is a clock reading it can predict. It has no
-    ///     setter; <see cref="OnPongReceived" /> changes it, from the arrival time its caller passes.
+    ///     setter, and the time sync that changes it is not on this interface: a script can neither ping nor answer one.
     /// </summary>
     long Latency { get; }
 
@@ -185,43 +185,6 @@ public interface IWorldConnection : IConnection
     /// Used by the respawn handler to drop concurrent respawn requests during the async
     /// resolver+instance-load chain.</summary>
     bool RespawnInFlight { get; set; }
-
-    /// <summary>
-    ///     Queues a time-sync ping; its send thread stamps it as it writes it (#875).
-    ///     Driven by <c>WorldServer</c>'s tick loop on a fixed cadence (every five seconds) and the start burst.
-    /// </summary>
-    void SendTimeSyncPing();
-
-    /// <summary>
-    ///     Asks for the start burst of time-sync pings (#1034): one on the next tick, whatever this connection's phase,
-    ///     and two more about a second apart.
-    /// </summary>
-    void RequestInitialTimeSyncPing();
-
-    /// <summary>
-    ///     Whether a ping of the start burst is due on <paramref name="tick" />, the world's ping tick count, and takes
-    ///     it if so. Called only from the tick, once per tick, which moves the burst on.
-    /// </summary>
-    bool TakeTimeSyncPingRequest(long tick);
-
-    /// <summary>
-    ///     Handles a pong (#892). It counts only when <paramref name="lastServerTimestamp" /> is the stamp of a ping
-    ///     this connection's send thread wrote and no pong has answered yet; the stamp is then spent. From the four
-    ///     times of the exchange (#1034): the whole round trip is <paramref name="serverReceivedTicks" /> minus that
-    ///     stamp, both the server's own; the network round trip is that less the client's hold of the ping
-    ///     (<paramref name="clientSentTimestamp" /> minus <paramref name="clientReceivedTimestamp" />), unless the hold is
-    ///     negative or longer than the whole round trip, when it is ignored; and the clock offset, server minus client,
-    ///     is the stamp plus half the network round trip minus <paramref name="clientReceivedTimestamp" />. Any other
-    ///     pong (an echo of no ping, a second answer to one ping, one that arrived before its stamp) changes nothing and
-    ///     is not answered. The world calls this for a client's pong at most once per ping it wrote: a pong beyond that
-    ///     is dropped as it arrives, before any handler.
-    /// </summary>
-    /// <param name="lastServerTimestamp">The echo of a ping's server timestamp: which ping this answers, nothing more.</param>
-    /// <param name="clientReceivedTimestamp">When the client says it received the ping, on its own clock.</param>
-    /// <param name="clientSentTimestamp">When the client says it sent the pong, on the same clock.</param>
-    /// <param name="serverReceivedTicks">When the pong was read off the socket, NOT when it was handled.</param>
-    void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp,
-        long clientSentTimestamp, long serverReceivedTicks);
 
     /// <summary>
     ///     Processes pre-character packets (pong, character list/select/create/delete)
