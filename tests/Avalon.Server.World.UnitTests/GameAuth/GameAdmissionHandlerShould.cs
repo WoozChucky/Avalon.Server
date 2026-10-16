@@ -347,25 +347,38 @@ public sealed class GameAdmissionHandlerShould
     /// <summary>
     /// A source may start at most <c>World:Admission:MaxPerSourcePerMinute</c> admissions a minute (#1052), 2 here, each
     /// redeemed and ended at once: the third is answered <c>ServiceUnavailable</c> before its ticket is redeemed, counted
-    /// as <c>rate</c>, and one more is allowed every 30 s; an exempt source is never held to it. A source whose budget is
-    /// whole again is the same as one never seen, and is swept from the table, so it cannot grow without bound.
+    /// as <c>rate</c>, and one more is allowed every 30 s; an exempt source is never held to it. Over IPv6 the source's
+    /// /56 has a rate of its own (<c>MaxPerIPv6BlockPerMinute</c>, 3 here), spent with the source's: a second /64 of the
+    /// /56 takes its last, and a third /64 is refused though its own budget is whole. A source whose budget is whole
+    /// again is the same as one never seen, and is swept from the table, so it cannot grow without bound.
     /// </summary>
-    [Fact]
-    public async Task Hold_a_source_to_its_admissions_per_minute_and_forget_it_once_idle()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Hold_a_source_to_its_admissions_per_minute_and_forget_it_once_idle(bool ipv6)
     {
-        IPAddress flooder = IPAddress.Parse("203.0.113.7"), bots = IPAddress.Parse("10.10.1.21");
+        var flooder = IPAddress.Parse(ipv6 ? "2001:db8:0:1::7" : "203.0.113.7");
+        var bots = IPAddress.Parse("10.10.1.21");
         var clock = new FakeTimeProvider();
-        var sources = new AdmissionSourceBudget(
-            new AdmissionSourceOptions { MaxPerSourcePerMinute = 2, ExemptSources = ["10.10.1.21/32"] }, clock);
+        var sources = new AdmissionSourceBudget(new AdmissionSourceOptions
+        {
+            MaxPerSourcePerMinute = 2,
+            MaxPerIPv6BlockPerMinute = 3,
+            ExemptSources = ["10.10.1.21/32"],
+        }, clock);
         IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
         api.AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new WorldAdmissionResult(null, "INVALID_TICKET"));
         var handler = new GameAdmissionHandler(api, sources);
         using SourceRefusals refusals = new();
 
+        // The flooder's four, the bot PC's three, a source elsewhere, and two more /64s of the flooder's /56.
         WorldAdmissionConnection[] connections = [.. Enumerable.Range(0, 4).Select(_ => WorldAdmissionConnection.Create(source: flooder)),
             .. Enumerable.Range(0, 3).Select(_ => WorldAdmissionConnection.Create(source: bots)),
-            WorldAdmissionConnection.Create(source: IPAddress.Parse("203.0.113.8"))];
+            WorldAdmissionConnection.Create(source: IPAddress.Parse("203.0.113.8")),
+            WorldAdmissionConnection.Create(source: IPAddress.Parse("2001:db8:0:2::8")),
+            WorldAdmissionConnection.Create(source: IPAddress.Parse("2001:db8:0:3::9"))];
+        List<WorldAdmissionConnection> refused = [connections[2]];
         try
         {
             foreach (WorldAdmissionConnection connection in connections[..2].Concat(connections[4..7]))
@@ -378,19 +391,29 @@ public sealed class GameAdmissionHandlerShould
             Assert.True(connections[2].IsClosing);
             Assert.Equal(GameAdmissionResult.ServiceUnavailable, ReplyOf(connections[2]));
 
+            if (ipv6)
+            {
+                await Admit(handler, connections[8]);
+                Assert.False(connections[8].IsClosing);
+                await Admit(handler, connections[9]);
+                Assert.True(connections[9].IsClosing);
+                Assert.Equal(GameAdmissionResult.ServiceUnavailable, ReplyOf(connections[9]));
+                refused.Add(connections[9]);
+            }
+
             clock.Advance(TimeSpan.FromSeconds(30));
             await Admit(handler, connections[3]);
             Assert.False(connections[3].IsClosing);
-            Assert.Equal(1, sources.RateEntries);
 
-            // Two minutes on, the flooder's budget is whole: the next admission's sweep drops it.
+            // Two minutes on, every budget is whole: the next admission's sweep drops them all.
             clock.Advance(TimeSpan.FromMinutes(2));
             await Admit(handler, connections[7]);
             Assert.Equal(1, sources.RateEntries);
 
-            Assert.Equal(["rate"], refusals.Reasons);
-            await api.DidNotReceive().AdmitAsync(Arg.Any<string>(), connections[2].Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-            foreach (WorldAdmissionConnection connection in connections.Where(c => c != connections[2]))
+            Assert.Equal(Enumerable.Repeat("rate", refused.Count), refusals.Reasons);
+            foreach (WorldAdmissionConnection connection in refused)
+                await api.DidNotReceive().AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+            foreach (WorldAdmissionConnection connection in connections.Take(ipv6 ? 9 : 8).Except(refused))
                 await Until(() => api.ReceivedCalls().Any(call => call.GetArguments()[1] is Guid id && id == connection.Id));
         }
         finally

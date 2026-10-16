@@ -210,7 +210,7 @@ through its own code, and a return to town refuses nothing by a reply.
 |---|---|---|
 | `world.work.refusals` | `world_work_refusals_total` | Operations a full work queue (`WorldDatabaseWork`) refused (#1050), counted in the queue as it refuses them, tagged `lane`. On the world's meter (`world-server`) |
 | `world.admission.failures` | `world_admission_failures_total` | Admissions (`CMSG_GAME_ADMISSION`) whose redemption threw, or was cancelled, once started, answered `ServiceUnavailable` and closed (#1050). No tags. On the world's meter |
-| `world.admission.source_refusals` | `world_admission_source_refusals_total` | Admissions refused before their ticket was redeemed because their source was over its budget (#1052), answered `ServiceUnavailable` and closed. Tagged `reason`: `in_flight` (`World:Admission:MaxInFlightPerSource`, or its IPv6 /56's `MaxInFlightPerIPv6Block`) or `rate` (`MaxPerSourcePerMinute`); no address becomes a tag. On the world's meter |
+| `world.admission.source_refusals` | `world_admission_source_refusals_total` | Admissions refused before their ticket was redeemed because their source was over its budget (#1052), answered `ServiceUnavailable` and closed. Tagged `reason`: `in_flight` (`World:Admission:MaxInFlightPerSource`, or its IPv6 /56's `MaxInFlightPerIPv6Block`) or `rate` (`MaxPerSourcePerMinute`, or its IPv6 /56's `MaxPerIPv6BlockPerMinute`); no address becomes a tag. On the world's meter |
 
 `lane` takes a fixed set of values, nothing a client sends; each names one queue, and each queue has its own capacity:
 
@@ -240,7 +240,8 @@ it, as above. Every 10 s bound is timed on the monotonic clock, so a wall clock 
 
 `world.admission.source_refusals` with `reason` `in_flight` is one source holding `World:Admission:MaxInFlightPerSource`
 admissions (16 by default) whose redemptions have not ended, or one IPv6 /56 holding `MaxInFlightPerIPv6Block` (32);
-with `rate`, one source that started `MaxPerSourcePerMinute` (120) in the last minute. Either is a flood of join
+with `rate`, one source that started `MaxPerSourcePerMinute` (120) in the last minute, or one /56 that started
+`MaxPerIPv6BlockPerMinute` (480). Either is a flood of join
 tickets from one address, or many clients behind one address (carrier-grade NAT) reconnecting at once while
 redemptions are slow ([configuration](configuration-reference.md#world-admission-budget)): after a restart, refusals
 from addresses that are not floods mean the defaults are too low. Each also writes one Warning

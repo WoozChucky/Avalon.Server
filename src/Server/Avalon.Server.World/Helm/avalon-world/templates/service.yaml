@@ -6,6 +6,13 @@ metadata:
     {{- include "avalon-server.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
+  {{- if eq .Values.service.type "LoadBalancer" }}
+  # No NodePort (#1052): kube-proxy would forward every node's port to the pod from a pod-network address, which a
+  # world that trusts the pod network for PROXY v2 headers believes, past loadBalancerSourceRanges. k3s ServiceLB
+  # forwards to the Service's cluster IP and port, so it needs none. A node port already allocated is not freed by
+  # this: remove spec.ports[].nodePort from the Service once.
+  allocateLoadBalancerNodePorts: false
+  {{- end }}
   {{- with .Values.service.loadBalancerSourceRanges }}
   # Only these sources may reach a LoadBalancer Service (e.g. just the fronting proxy).
   loadBalancerSourceRanges:

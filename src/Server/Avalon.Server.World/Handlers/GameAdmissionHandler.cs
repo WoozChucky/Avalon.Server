@@ -24,7 +24,8 @@ namespace Avalon.Server.World.Handlers;
 /// admission is published is dropped, since the connection has no lease yet.
 /// <para>
 /// One source may have at most <c>World:Admission:MaxInFlightPerSource</c> admissions in flight, its IPv6 /56 at most
-/// <c>MaxInFlightPerIPv6Block</c>, and it may start at most <c>MaxPerSourcePerMinute</c> a minute (#1052,
+/// <c>MaxInFlightPerIPv6Block</c>, and it may start at most <c>MaxPerSourcePerMinute</c> a minute, its /56 at most
+/// <c>MaxPerIPv6BlockPerMinute</c> (#1052,
 /// <see cref="AdmissionSourceBudget" />): one past any of them is answered <c>ServiceUnavailable</c> and closed before
 /// its ticket is redeemed. Its slot is taken after the checks that cost nothing and given back exactly once: at once when the
 /// admission lane refuses the redemption, or else when the redemption has ended (<see cref="KeyAsync" />, which reads
@@ -54,6 +55,7 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission, Admissi
             connection.ReportAdmissionOverSourceBudget(refusal, refusal switch
             {
                 AdmissionSourceRefusal.Rate => sources.MaxPerSourcePerMinute,
+                AdmissionSourceRefusal.IPv6BlockRate => sources.MaxPerIPv6BlockPerMinute,
                 AdmissionSourceRefusal.IPv6BlockInFlight => sources.MaxInFlightPerIPv6Block,
                 _ => sources.MaxInFlightPerSource,
             });

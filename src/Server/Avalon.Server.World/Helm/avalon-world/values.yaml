@@ -12,9 +12,11 @@ server:
   # PROXY protocol v2 from an L4 proxy in front (e.g. Caddy layer4): the real client address
   # instead of the proxy's, so per-source limits apply per player. Connections from
   # trustedProxies (CIDR) must start with the header; others are read as direct clients.
-  # Whoever can connect from a trusted address can name any client, so enabling it requires
-  # service.loadBalancerSourceRanges (only the proxies may reach the node's port); a trusted pod
-  # network also wants networkPolicy below, so no other pod can dial the world pod directly.
+  # Whoever can connect from a trusted address can name any client, so enabling it requires, with
+  # service.type LoadBalancer, service.loadBalancerSourceRanges (only the proxies may reach the node's
+  # port; the chart allocates no NodePort, which would bypass them), and with any other type
+  # networkPolicy below. A trusted pod network wants networkPolicy in both, so no other pod can dial
+  # the world pod directly.
   proxyProtocol:
     enabled: false
     trustedProxies: []
@@ -38,6 +40,9 @@ server:
     maxInFlightPerIPv6Block: ""
     # World:Admission:MaxPerSourcePerMinute: admissions one source may start a minute, 1 to 60000; default 120.
     maxPerSourcePerMinute: ""
+    # World:Admission:MaxPerIPv6BlockPerMinute: admissions one IPv6 /56 may start a minute, at least
+    # maxPerSourcePerMinute, at most 240000; default 480.
+    maxPerIPv6BlockPerMinute: ""
     # Sources that budget does not count (World:Admission:ExemptSources): load machines, as addresses or CIDR networks
     # no wider than /24 or /64, none covering loopback or a trusted proxy. Rendered only when set; e.g. [10.10.1.21/32]
     # for the load-test bot PC on the load-test world.
@@ -88,7 +93,10 @@ replicaCount: 1
 # gamePort (podSelector, namespaceSelector, ipBlock), e.g. an in-cluster proxy. The chart refuses to
 # enable it with neither, since a rule with no peer would admit every source. Probes come from the
 # node: k3s's policy controller admits a pod's own node; add the node's ipBlock to gamePort where
-# yours does not.
+# yours does not. What it does not close: processes on the world's node and hostNetwork pods there
+# are always admitted, and arrive from an address the world may trust; a cluster with no policy
+# controller enforcing NetworkPolicy ignores it; and ServiceLB pods outside kube-system (k3s
+# --servicelb-namespace) do not match serviceLB, so every player is refused (it fails closed).
 networkPolicy:
   enabled: false
   serviceLB: false

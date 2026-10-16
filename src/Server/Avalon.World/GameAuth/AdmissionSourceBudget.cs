@@ -27,6 +27,9 @@ public sealed class AdmissionSourceOptions
     /// <summary>The default <see cref="MaxPerSourcePerMinute" />.</summary>
     public const int DefaultMaxPerSourcePerMinute = 120;
 
+    /// <summary>The default <see cref="MaxPerIPv6BlockPerMinute" />: four sources' worth.</summary>
+    public const int DefaultMaxPerIPv6BlockPerMinute = 480;
+
     /// <summary>
     /// Admissions one source may have in flight, from the moment the world takes one to redeem until its redemption has
     /// ended (#1052). One past it is answered <c>ServiceUnavailable</c> and closed before its ticket is redeemed. A
@@ -54,6 +57,14 @@ public sealed class AdmissionSourceOptions
     public int MaxPerSourcePerMinute { get; set; } = DefaultMaxPerSourcePerMinute;
 
     /// <summary>
+    /// Admissions one IPv6 /56 may start per minute, across all its /64 sources (#1052): without it a /56 would get 256
+    /// sources' rate. Spent with the source's, as the in-flight caps are taken together. At least
+    /// <see cref="MaxPerSourcePerMinute" />, at most 240,000. IPv4 has no second level.
+    /// </summary>
+    [Range(1, 240_000)]
+    public int MaxPerIPv6BlockPerMinute { get; set; } = DefaultMaxPerIPv6BlockPerMinute;
+
+    /// <summary>
     /// Sources no per-source budget counts (named load machines): IP addresses or networks in CIDR form, none wider
     /// than /24 (IPv4) or /64 (IPv6), none covering loopback or a network <c>Hosting:ProxyProtocol:TrustedProxies</c>
     /// lists (<see cref="AdmissionSourceValidation" />). Empty by default.
@@ -63,7 +74,7 @@ public sealed class AdmissionSourceOptions
 
 /// <summary>
 /// Refuses at startup what annotations cannot: a <c>World:Admission:MaxInFlightPerIPv6Block</c> below
-/// <c>MaxInFlightPerSource</c>, and an <c>ExemptSources</c> entry (the first, named, with why) that does not parse as
+/// <c>MaxInFlightPerSource</c>, a <c>MaxPerIPv6BlockPerMinute</c> below <c>MaxPerSourcePerMinute</c>, and an <c>ExemptSources</c> entry (the first, named, with why) that does not parse as
 /// written (<see cref="ExemptNetwork.TryParse" />), is wider than /24 or /64, or covers loopback or a trusted proxy. A
 /// trusted proxy's connection that names no client (a PROXY v2 LOCAL header, a health check) keeps the proxy's own
 /// address, so exempting the proxy would exempt each of those.
@@ -81,6 +92,15 @@ public sealed class AdmissionSourceValidation(IOptions<HostingConfiguration> hos
                 $"({options.MaxInFlightPerIPv6Block}) must be at least " +
                 $"{AdmissionSourceOptions.Section}:{nameof(AdmissionSourceOptions.MaxInFlightPerSource)} " +
                 $"({options.MaxInFlightPerSource}): a /56 holds every /64 in it.");
+        }
+
+        if (options.MaxPerIPv6BlockPerMinute < options.MaxPerSourcePerMinute)
+        {
+            return ValidateOptionsResult.Fail(
+                $"{AdmissionSourceOptions.Section}:{nameof(AdmissionSourceOptions.MaxPerIPv6BlockPerMinute)} " +
+                $"({options.MaxPerIPv6BlockPerMinute}) must be at least " +
+                $"{AdmissionSourceOptions.Section}:{nameof(AdmissionSourceOptions.MaxPerSourcePerMinute)} " +
+                $"({options.MaxPerSourcePerMinute}): a /56 holds every /64 in it.");
         }
 
         foreach (string entry in options.ExemptSources)
@@ -137,6 +157,9 @@ public enum AdmissionSourceRefusal
 
     /// <summary>The source had started <c>MaxPerSourcePerMinute</c> in the last minute.</summary>
     Rate,
+
+    /// <summary>The source's IPv6 /56 had started <c>MaxPerIPv6BlockPerMinute</c> in the last minute.</summary>
+    IPv6BlockRate,
 }
 
 /// <summary>
@@ -144,7 +167,8 @@ public enum AdmissionSourceRefusal
 /// join ticket, real or not, costs an admission slot and a redemption at the identity service, so one source may hold
 /// at most <see cref="AdmissionSourceOptions.MaxInFlightPerSource" /> of them at once and start at most
 /// <see cref="AdmissionSourceOptions.MaxPerSourcePerMinute" /> a minute; an IPv6 source's /56 may also hold at most
-/// <see cref="AdmissionSourceOptions.MaxInFlightPerIPv6Block" />. One past any of them is refused before its ticket is
+/// <see cref="AdmissionSourceOptions.MaxInFlightPerIPv6Block" /> and start at most
+/// <see cref="AdmissionSourceOptions.MaxPerIPv6BlockPerMinute" /> a minute. One past any of them is refused before its ticket is
 /// redeemed. A source is the client's address as the world resolves it (after a trusted proxy's PROXY v2 header,
 /// <see cref="Avalon.Hosting.Networking.Connection.ClientIPAddress" />), so it is only as trustworthy as the path to that
 /// proxy: an IPv4 address, or an IPv6 /64, which one host is normally given whole and could rotate through, as the login
@@ -161,7 +185,7 @@ public enum AdmissionSourceRefusal
 /// with a flooding one.
 /// </para>
 /// <para>
-/// Rate: one timestamp per source, the time its budget is next whole again (a cell-rate check: each admission moves it
+/// Rate: one timestamp per source (and per IPv6 /56, in the same table), the time its budget is next whole again (a cell-rate check: each admission moves it
 /// on by a minute over the rate, and one that would move it more than a minute past now is refused). An entry whose
 /// time has passed is the same as none, and is swept away once a minute, or once a second while the table holds
 /// <see cref="MaxRateEntries" />; a source first seen while the table is still that full after its sweep is not
@@ -189,6 +213,8 @@ public sealed class AdmissionSourceBudget
     // may go (a minute less one admission), so a whole minute's worth may be taken at once.
     private readonly long _emission;
     private readonly long _tolerance;
+    private readonly long _blockEmission;
+    private readonly long _blockTolerance;
     private readonly long _sweepInterval;
     private readonly long _fullSweepInterval;
     private long _lastSweep;
@@ -201,14 +227,18 @@ public sealed class AdmissionSourceBudget
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxInFlightPerSource, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxInFlightPerIPv6Block, options.MaxInFlightPerSource);
         ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxPerSourcePerMinute, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(options.MaxPerIPv6BlockPerMinute, options.MaxPerSourcePerMinute);
         MaxInFlightPerSource = options.MaxInFlightPerSource;
         MaxInFlightPerIPv6Block = options.MaxInFlightPerIPv6Block;
         MaxPerSourcePerMinute = options.MaxPerSourcePerMinute;
+        MaxPerIPv6BlockPerMinute = options.MaxPerIPv6BlockPerMinute;
         _exempt = options.ExemptSources.Select(ParseExempt).ToArray();
         _time = time ?? TimeProvider.System;
         long minute = _time.TimestampFrequency * 60;
         _emission = minute / options.MaxPerSourcePerMinute;
         _tolerance = minute - _emission;
+        _blockEmission = minute / options.MaxPerIPv6BlockPerMinute;
+        _blockTolerance = minute - _blockEmission;
         _sweepInterval = minute;
         _fullSweepInterval = _time.TimestampFrequency;
         _lastSweep = _time.GetTimestamp();
@@ -231,12 +261,16 @@ public sealed class AdmissionSourceBudget
     /// <summary><see cref="AdmissionSourceOptions.MaxPerSourcePerMinute" />.</summary>
     public int MaxPerSourcePerMinute { get; }
 
+    /// <summary><see cref="AdmissionSourceOptions.MaxPerIPv6BlockPerMinute" />.</summary>
+    public int MaxPerIPv6BlockPerMinute { get; }
+
     /// <summary>
     /// Takes a slot for an admission from <paramref name="address" />, or says why not: its source started
     /// <see cref="MaxPerSourcePerMinute" /> in the last minute (every admission that reaches here spends from that, one
     /// refused for being in flight too), or has <see cref="MaxInFlightPerSource" /> in flight, or its IPv6 /56 has
-    /// <see cref="MaxInFlightPerIPv6Block" />. The source's count and its /56's are taken together: when the /56 refuses,
-    /// the source's count is given back before this returns. An exempt source always gets a slot, which counts nothing.
+    /// <see cref="MaxInFlightPerIPv6Block" />, or started <see cref="MaxPerIPv6BlockPerMinute" />. The source's rate and
+    /// its /56's are spent together, and so are their in-flight counts taken: when the /56 refuses, what the source
+    /// spent or took is given back before this returns. An exempt source always gets a slot, which counts nothing.
     /// See <see cref="Slot" /> for giving it back.
     /// </summary>
     public AdmissionSourceRefusal TryAcquire(IPAddress? address, out Slot slot)
@@ -246,8 +280,17 @@ public sealed class AdmissionSourceBudget
             return AdmissionSourceRefusal.None;
 
         UInt128 key = KeyOf(address, out UInt128 block, out bool hasBlock);
-        if (!TryTakeRate(key))
+        long now = _time.GetTimestamp();
+        SweepIfDue(now);
+        RateTake taken = TryTakeRate(key, now, _emission, _tolerance);
+        if (taken == RateTake.Refused)
             return AdmissionSourceRefusal.Rate;
+        if (hasBlock && TryTakeRate(block, now, _blockEmission, _blockTolerance) == RateTake.Refused)
+        {
+            if (taken == RateTake.Taken)
+                GiveBackRate(key, _emission);
+            return AdmissionSourceRefusal.IPv6BlockRate;
+        }
         if (!TryTake(key, MaxInFlightPerSource))
             return AdmissionSourceRefusal.InFlight;
         if (hasBlock && !TryTake(block, MaxInFlightPerIPv6Block))
@@ -278,12 +321,16 @@ public sealed class AdmissionSourceBudget
 
     /// <summary>
     /// How <paramref name="address" /> is named in a refusal's log line: the source as counted (an IPv4 address, an IPv6
-    /// /64), or its /56 for <see cref="AdmissionSourceRefusal.IPv6BlockInFlight" />. Made only when a line is written.
+    /// /64), or its /56 for a /56's refusal. Made only when a line is written.
     /// </summary>
     public static string Describe(IPAddress address, AdmissionSourceRefusal refusal)
     {
-        if (refusal != AdmissionSourceRefusal.IPv6BlockInFlight || address.AddressFamily != AddressFamily.InterNetworkV6)
+        if (refusal is not (AdmissionSourceRefusal.IPv6BlockInFlight or AdmissionSourceRefusal.IPv6BlockRate)
+            || address.AddressFamily != AddressFamily.InterNetworkV6)
+        {
             return RemoteAddress.SourceOf(address);
+        }
+
         byte[] bytes = address.GetAddressBytes();
         Array.Clear(bytes, 7, 9);
         return $"{new IPAddress(bytes)}/56";
@@ -322,33 +369,51 @@ public sealed class AdmissionSourceBudget
         }
     }
 
-    private bool TryTakeRate(UInt128 key)
+    private enum RateTake { Taken, Untracked, Refused }
+
+    /// <summary>
+    /// Spends one admission from <paramref name="key" />'s rate: refused when its time would move more than
+    /// <paramref name="tolerance" /> past now. Untracked when the table is full after its sweep: not refused for it
+    /// (the in-flight caps still hold), and nothing to give back.
+    /// </summary>
+    private RateTake TryTakeRate(UInt128 key, long now, long emission, long tolerance)
     {
-        long now = _time.GetTimestamp();
-        SweepIfDue(now);
         while (true)
         {
             if (_rate.TryGetValue(key, out long whole))
             {
                 long from = Math.Max(whole, now);
-                if (from - now > _tolerance)
-                    return false;
-                if (_rate.TryUpdate(key, from + _emission, whole))
-                    return true;
+                if (from - now > tolerance)
+                    return RateTake.Refused;
+                if (_rate.TryUpdate(key, from + emission, whole))
+                    return RateTake.Taken;
             }
             else
             {
                 if (Interlocked.Increment(ref _rateEntries) > MaxRateEntries)
                 {
-                    // Full after its sweep: not tracked, and not refused for it (the in-flight caps still hold).
                     Interlocked.Decrement(ref _rateEntries);
-                    return true;
+                    return RateTake.Untracked;
                 }
 
-                if (_rate.TryAdd(key, now + _emission))
-                    return true;
+                if (_rate.TryAdd(key, now + emission))
+                    return RateTake.Taken;
                 Interlocked.Decrement(ref _rateEntries);
             }
+        }
+    }
+
+    /// <summary>
+    /// Gives back one admission <see cref="TryTakeRate" /> spent from <paramref name="key" />: its time moves back by
+    /// what the spend moved it on, whatever else was spent since, which commutes with them. An entry swept since (its
+    /// time already passed) has nothing to give back to.
+    /// </summary>
+    private void GiveBackRate(UInt128 key, long emission)
+    {
+        while (_rate.TryGetValue(key, out long whole))
+        {
+            if (_rate.TryUpdate(key, whole - emission, whole))
+                return;
         }
     }
 

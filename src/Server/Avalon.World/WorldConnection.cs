@@ -682,24 +682,26 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     /// <summary>
     /// This connection's source is over its admission budget (#1052, <see cref="AdmissionSourceBudget" />): it has
-    /// <paramref name="limit" /> admissions in flight, or its IPv6 /56 has, or it started that many in the last minute.
+    /// <paramref name="limit" /> admissions in flight, or its IPv6 /56 has, or it (or its /56) started that many in the
+    /// last minute.
     /// The admission is answered <c>ServiceUnavailable</c> and closed at once, on the receive path that delivered it,
     /// before its ticket is redeemed. Counted under <c>world.admission.source_refusals</c>, <c>reason</c>
     /// <c>in_flight</c> (the source's cap or its /56's) or <c>rate</c>. A Warning naming the source as it is counted (an
-    /// IPv4 address, an IPv6 /64, or the /56 its block cap counts), and the limit, without an exception, at most once per
+    /// IPv4 address, an IPv6 /64, or the /56 a block limit counts), and the limit, without an exception, at most once per
     /// <see cref="FailureLogThrottle.Interval" /> for the whole world, with how many more were refused since: a flood
     /// from one source writes one line every 10 s, not one per try.
     /// </summary>
     public void ReportAdmissionOverSourceBudget(AdmissionSourceRefusal refusal, int limit)
     {
         DiagnosticsConfig.World.AdmissionSourceRefusals.Add(1,
-            refusal == AdmissionSourceRefusal.Rate ? s_rateReason : s_inFlightReason);
+            refusal is AdmissionSourceRefusal.Rate or AdmissionSourceRefusal.IPv6BlockRate ? s_rateReason : s_inFlightReason);
         if (s_overBudgetAdmissions.TryTake(_time, out int suppressed))
         {
             string source = ClientIPAddress is { } address ? AdmissionSourceBudget.Describe(address, refusal) : ClientAddress;
             string budget = refusal switch
             {
                 AdmissionSourceRefusal.Rate => "admissions started in the last minute (World:Admission:MaxPerSourcePerMinute)",
+                AdmissionSourceRefusal.IPv6BlockRate => "admissions started from its /56 in the last minute (World:Admission:MaxPerIPv6BlockPerMinute)",
                 AdmissionSourceRefusal.IPv6BlockInFlight => "admissions in flight from its /56 (World:Admission:MaxInFlightPerIPv6Block)",
                 _ => "admissions in flight (World:Admission:MaxInFlightPerSource)",
             };

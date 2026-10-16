@@ -58,7 +58,7 @@ spec:
                   key: {{ required "server.admission.apiCertificateKey is required" .Values.server.admission.apiCertificateKey | quote }}
             - name: World__Admission__ServerId
               value: {{ required "server.admission.serverId is required" .Values.server.admission.serverId | quote }}
-            {{- range $setting := list "MaxInFlightPerSource" "MaxInFlightPerIPv6Block" "MaxPerSourcePerMinute" }}
+            {{- range $setting := list "MaxInFlightPerSource" "MaxInFlightPerIPv6Block" "MaxPerSourcePerMinute" "MaxPerIPv6BlockPerMinute" }}
             {{- $key := untitle $setting }}
             {{- $limit := index $.Values.server.admission $key }}
             {{- if and (kindIs "float64" $limit) (eq $limit (floor $limit)) }}{{ $limit = int64 $limit }}{{ end }}
@@ -83,8 +83,14 @@ spec:
                   optional: true
             - name: Hosting__Port
               value: {{ .Values.service.port | quote }}
-            {{- if and .Values.server.proxyProtocol.enabled (not .Values.service.loadBalancerSourceRanges) }}
+            {{- if .Values.server.proxyProtocol.enabled }}
+            {{- if eq .Values.service.type "LoadBalancer" }}
+            {{- if not .Values.service.loadBalancerSourceRanges }}
             {{- fail "server.proxyProtocol.enabled requires service.loadBalancerSourceRanges: whoever reaches the port from a trusted proxy address names any client, so list the proxies (and load machines) that may connect." }}
+            {{- end }}
+            {{- else if not (.Values.networkPolicy | default dict).enabled }}
+            {{- fail (printf "server.proxyProtocol.enabled with service.type %s requires networkPolicy.enabled: whoever reaches the pod from a trusted proxy address names any client, so admit only the proxies." .Values.service.type) }}
+            {{- end }}
             {{- end }}
             - name: Hosting__ProxyProtocol__Enabled
               value: {{ .Values.server.proxyProtocol.enabled | quote }}

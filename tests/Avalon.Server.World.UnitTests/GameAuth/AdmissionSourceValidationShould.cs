@@ -33,15 +33,18 @@ public sealed class AdmissionSourceValidationShould
         Assert.Contains($"World:Admission:ExemptSources has {refusalNaming}", result.FailureMessage, StringComparison.Ordinal);
     }
 
-    /// <summary>A /56 holds every /64 in it, so its cap below a source's would refuse a source under its own.</summary>
-    [Fact]
-    public void Refuse_an_IPv6_block_cap_below_the_source_cap()
+    /// <summary>A /56 holds every /64 in it, so a limit of its below a source's would refuse a source under its own.</summary>
+    [Theory]
+    [InlineData(false, "World:Admission:MaxInFlightPerIPv6Block (8) must be at least World:Admission:MaxInFlightPerSource (16)")]
+    [InlineData(true, "World:Admission:MaxPerIPv6BlockPerMinute (60) must be at least World:Admission:MaxPerSourcePerMinute (120)")]
+    public void Refuse_an_IPv6_block_limit_below_the_source_limit(bool rate, string refusal)
     {
-        ValidateOptionsResult result = new AdmissionSourceValidation(Options.Create(new HostingConfiguration()))
-            .Validate(null, new AdmissionSourceOptions { MaxInFlightPerSource = 16, MaxInFlightPerIPv6Block = 8 });
+        AdmissionSourceOptions options = rate
+            ? new AdmissionSourceOptions { MaxPerSourcePerMinute = 120, MaxPerIPv6BlockPerMinute = 60 }
+            : new AdmissionSourceOptions { MaxInFlightPerSource = 16, MaxInFlightPerIPv6Block = 8 };
+        ValidateOptionsResult result = new AdmissionSourceValidation(Options.Create(new HostingConfiguration())).Validate(null, options);
 
         Assert.True(result.Failed);
-        Assert.Contains("World:Admission:MaxInFlightPerIPv6Block (8) must be at least World:Admission:MaxInFlightPerSource (16)",
-            result.FailureMessage, StringComparison.Ordinal);
+        Assert.Contains(refusal, result.FailureMessage, StringComparison.Ordinal);
     }
 }

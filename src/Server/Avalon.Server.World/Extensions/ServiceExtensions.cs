@@ -55,7 +55,7 @@ public static class ServiceExtensions
             .PostConfigure<IConfiguration>((admission, config) => admission.WorldId = ushort.TryParse(config["Game:WorldId"], out ushort id) ? id : (ushort)0)
             .Validate(a => a.IsValid(), "World admission requires a fixed HTTPS API origin, server identity, workload certificate and API certificate SHA-256 pin.").ValidateOnStart();
         // The per-source budget on admissions (#1052): World:Admission:MaxInFlightPerSource, MaxInFlightPerIPv6Block,
-        // MaxPerSourcePerMinute and ExemptSources.
+        // MaxPerSourcePerMinute, MaxPerIPv6BlockPerMinute and ExemptSources.
         services.AddOptions<AdmissionSourceOptions>().BindConfiguration(AdmissionSourceOptions.Section)
             .ValidateDataAnnotations().ValidateOnStart();
         services.AddSingleton<IValidateOptions<AdmissionSourceOptions>, AdmissionSourceValidation>();
