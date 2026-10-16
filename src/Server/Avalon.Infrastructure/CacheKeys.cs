@@ -190,6 +190,34 @@ public static class CacheKeys
     /// </summary>
     public static string WorldPresence(ushort worldId) => $"world:{worldId}:presence";
 
+    // ── World places and queue (#967) ─────────────────────────────────────────
+
+    /// <summary>
+    /// A world's place ledger: a sorted set, member the account id, score the moment the place expires (Unix ms). Every
+    /// admitted account holds one (in the world, at character select, holding a ticket, or held after a drop). Written
+    /// only by identity's <c>RedisWorldPlaceStore</c> scripts; read by the worlds service for the world list.
+    /// </summary>
+    public static string WorldPlaces(ushort worldId) => $"world:{worldId}:places";
+
+    /// <summary>What kind each place is: a hash, account id to <c>h</c> (held after a drop) or <c>t:{enqueuedAtMs}</c> (a turn not yet used).</summary>
+    public static string WorldPlaceMarks(ushort worldId) => $"world:{worldId}:places:marks";
+
+    /// <summary>A full world's line: a sorted set, member the account id, score its arrival number (priority band 0).</summary>
+    public static string WorldQueue(ushort worldId) => $"world:{worldId}:queue";
+
+    /// <summary>When each waiter leaves the line unless it checks in again: a sorted set, score Unix ms.</summary>
+    public static string WorldQueueCheckIns(ushort worldId) => $"world:{worldId}:queue:checkins";
+
+    /// <summary>A world's arrival counter (<c>INCR</c>), which orders its line.</summary>
+    public static string WorldQueueArrivals(ushort worldId) => $"world:{worldId}:queue:arrivals";
+
+    /// <summary>The prefix of <see cref="WorldQueueWaiting"/>, which the scripts complete with an account id.</summary>
+    public const string WorldQueueWaitingPrefix = "world-queue:account:";
+
+    /// <summary>The world an account waits for, one at most: <c>{worldId}:{enqueuedAtMs}</c>, a day's expiry as garbage collection only.</summary>
+    public static string WorldQueueWaiting(long accountId) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{WorldQueueWaitingPrefix}{accountId}");
+
     /// <summary>
     /// Reverse index: which instance of <paramref name="worldId"/> currently holds a character.
     /// Value: JSON <c>CharacterPresenceIndex</c>. Lets the Api find a player without
