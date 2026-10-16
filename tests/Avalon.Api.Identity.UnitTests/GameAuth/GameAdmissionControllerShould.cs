@@ -71,15 +71,24 @@ public sealed class GameAdmissionControllerShould
             || key.Contains(":join-issue:", StringComparison.Ordinal));
     }
 
-    /// <summary>#967: a world at its player limit is a retryable refusal, 503 <c>WORLD_FULL</c> with when to ask again, 45 to 75 s.</summary>
-    [Fact]
-    public async Task Answer_a_full_world_with_503_and_a_retry_after()
+    /// <summary>
+    /// #967: a full world answers 202 with a position while its line has room, and once it has none 503 <c>WORLD_FULL</c>
+    /// with when to ask again, 45 to 75 s.
+    /// </summary>
+    [Theory]
+    [InlineData(5000, 0, 202)]
+    [InlineData(1, 1, 503)]
+    public async Task Answer_a_full_world_by_its_line(int queueCapacity, int waitersAhead, int status)
     {
         var h = new JoinHarness();
+        h.PlaceConfiguration.QueueCapacity = queueCapacity;
         h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(
             GameWorldAllocation.Admit(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost",
                 new string('A', 64), "0.0.1", "0.0.1", PlayerLimit: 1)));
-        await h.Places.RenewAsync(1, 8, 1, Guid.NewGuid(), h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45), false, default);
+        DateTime until = h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45);
+        await h.Places.RenewAsync(1, 8, 1, Guid.NewGuid(), until, false, default);
+        for (int waiter = 0; waiter < waitersAhead; waiter++)
+            await h.Places.EnterAsync(new PlaceRequest(1, 100 + waiter, until, 1, false, queueCapacity), default);
         GameAuthReply auth = await h.Authenticate();
         var http = new DefaultHttpContext();
         http.Request.Scheme = "https";
@@ -92,7 +101,16 @@ public sealed class GameAdmissionControllerShould
         ObjectResult result = Assert.IsType<ObjectResult>(await controller.Join(
             new GameJoinRequest { GameContextCredential = auth.GameContextCredential!, WorldId = 1 }, Guid.NewGuid(), default));
 
-        Assert.Equal((503, "WORLD_FULL"), (result.StatusCode, Assert.IsType<GameJoinReply>(result.Value).Error));
+        GameJoinReply reply = Assert.IsType<GameJoinReply>(result.Value);
+        Assert.Equal(status, result.StatusCode);
+        Assert.Null(reply.JoinTicket);
+        if (status == 202)
+        {
+            Assert.Equal((null, 1, 5, ""), (reply.Error, reply.Position, reply.CheckInAfterSeconds, http.Response.Headers.RetryAfter.ToString()));
+            return;
+        }
+
+        Assert.Equal(("WORLD_FULL", null), (reply.Error, reply.Position));
         Assert.InRange(int.Parse(http.Response.Headers.RetryAfter.ToString(), System.Globalization.CultureInfo.InvariantCulture), 45, 75);
     }
 

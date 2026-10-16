@@ -52,6 +52,7 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
     [HttpPost("join-tickets", Name = "CreateGameJoinTicket")]
     [IdempotencyKeyRequired(typeof(GameJoinReply))]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status404NotFound)]
@@ -63,6 +64,7 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
     [HttpPost("reconnect-tickets", Name = "CreateGameReconnectTicket")]
     [IdempotencyKeyRequired(typeof(GameJoinReply))]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status404NotFound)]
@@ -81,9 +83,11 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
                 requestId, request.ConfirmTakeover, reconnect, cancellationToken);
             // A retryable refusal (503) apart from a permanent one (#1053): a client too old is told to update (426,
             // with the version required), one the world will never take is refused (403, 404, 400). A world at its
-            // player limit is a retryable one too, with when to ask again (#967).
+            // player limit is a retryable one too, with when to ask again (#967); while its line has room the account
+            // waits in it instead: 202 with its position and when to check in, no ticket.
             return reply.Error switch
             {
+                null when reply.Position is not null => StatusCode(StatusCodes.Status202Accepted, reply),
                 null => Ok(reply),
                 GameAuthErrors.InvalidRequest or GameAuthErrors.UnsupportedProtocol => BadRequest(reply),
                 GameAuthErrors.ActiveGameSession or GameAuthErrors.IdempotencyConflict or GameAuthErrors.ContextChanged

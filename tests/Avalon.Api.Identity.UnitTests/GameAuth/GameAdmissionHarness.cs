@@ -191,7 +191,8 @@ internal sealed class GameAdmissionHarness
         gameplay.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => call.ArgAt<DateTime>(1));
         Places = new MemoryWorldPlaceStore(_clock, new WorldPlacesConfiguration());
         var outage = new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _clock);
-        Tickets = new(store, crypto, Authorization, sessions, Allocator, options, _clock, applications, Places, outage);
+        Tickets = new(store, crypto, Authorization, sessions, Allocator, options, _clock, applications, Places, outage,
+            Options.Create(new WorldPlacesConfiguration()), new WorldPlaceMetrics(new System.Diagnostics.Metrics.Meter("test-places")));
         _fences = new(sessions, Authorization, repositories, accounts, workloads, _clock, applications, Places, outage,
             Options.Create(new WorldPlacesConfiguration()));
     }

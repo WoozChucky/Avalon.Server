@@ -13,7 +13,8 @@ namespace Avalon.Infrastructure.GameAuth;
 public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptography crypto,
     GameAuthorizationService authorization, IGameSessionRepository sessions, IGameServerAllocator allocator,
     IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, GameApplicationAccessPolicy applications,
-    IWorldPlaceStore places, PlaceLedgerOutage outage)
+    IWorldPlaceStore places, PlaceLedgerOutage outage, IOptions<WorldPlacesConfiguration> placeOptions,
+    WorldPlaceMetrics metrics)
 {
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     private string Key(string kind, string id) => CacheKeys.GameAuth(options.Value.Environment, kind, id);
@@ -72,14 +73,25 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         if (expires <= Now) return new(GameAuthErrors.AuthorizationRequired);
         // Capacity last (#967): every check above stands as it was, and a refusal above takes no place. The place lasts
         // 15 s past the ticket, for a redemption in flight. Staff (the Admin flag) always get one, and an account holding
-        // its place (its own session, a held place) keeps it; anyone else is refused at the world's limit. No line yet
-        // (capacity 0). The ticket is known to the ledger by the id of the session it becomes, which redemption and
-        // activation carry. A refusal is answered before the ticket and its receipt are written, so it is never replayed.
+        // its place (its own session, a held place, a turn from the line) keeps it; anyone else takes a free place only
+        // while nobody waits, joins the line of a full world, or is refused once the line is at its cap. The ticket is
+        // known to the ledger by the id of the session it becomes, which redemption and activation carry. A queued or
+        // full answer is returned before the ticket and its receipt are written, so the same Idempotency-Key asks afresh.
+        WorldPlacesConfiguration line = placeOptions.Value;
         var sessionId = Guid.NewGuid();
         DateTime placeUntil = expires.Add(GameAuthPolicy.TicketPlaceMargin);
         PlaceDecision place = await places.EnterAsync(new PlaceRequest(worldId, accountId, placeUntil,
-            destination.PlayerLimit, destination.Staff, QueueCapacity: 0, Ticket: sessionId), cancellationToken);
-        if (place.Outcome != PlaceOutcome.Admitted) return new(GameAuthErrors.WorldFull);
+            destination.PlayerLimit, destination.Staff, line.QueueCapacity, sessionId), cancellationToken);
+        metrics.Record(worldId, place.Sweep);
+        switch (place.Outcome)
+        {
+            case PlaceOutcome.Queued:
+                return new(Position: place.Position, CheckInAfterSeconds: (int)line.CheckInAfter(place.Position).TotalSeconds);
+            case PlaceOutcome.WorldFull:
+                metrics.RefusedAtCap(worldId);
+                return new(GameAuthErrors.WorldFull);
+        }
+
         // A place this ticket took, and only one it took, is given back if the ticket is known not to be issued.
         bool took = place is { Outcome: PlaceOutcome.Admitted, Source: PlaceSource.Taken };
         string ticket = GameAuthCryptography.NewToken();
@@ -113,6 +125,8 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
                 new(ticketKey, null, GameAuthJson.Serialize(grant), expires.Add(GameAuthPolicy.JoinReceiptRetention)),
             ], cancellationToken))
         {
+            // A waiter's wait ends when the join after its turn issues the ticket.
+            if (place.Source == PlaceSource.Turn) metrics.Entered(worldId, place.Waited);
             return reply;
         }
 

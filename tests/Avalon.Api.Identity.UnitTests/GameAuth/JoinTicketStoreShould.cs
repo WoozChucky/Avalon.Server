@@ -1,3 +1,4 @@
+using System.Diagnostics.Metrics;
 using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
@@ -180,9 +181,30 @@ public sealed class JoinTicketStoreShould
         Assert.Equal(0, (await _h.Places.CountAsync(1, default)).Taken);
     }
 
+    /// <summary>#967: a full world queues; the queued answer is not kept for its Idempotency-Key, so the same key gets a ticket at the turn.</summary>
+    [Fact]
+    public async Task Queue_a_join_to_a_full_world_and_answer_the_same_key_afresh_at_its_turn()
+    {
+        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(
+            GameWorldAllocation.Admit(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost",
+                new string('A', 64), "0.0.1", "0.0.1", PlayerLimit: 1)));
+        DateTime until = _h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45);
+        await _h.Places.RenewAsync(1, 8, 1, Guid.NewGuid(), until, false, default); // another account's session holds the one place
+        GameAuthReply auth = await _h.Authenticate();
+        var key = Guid.NewGuid();
+
+        GameJoinReply queued = await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, key, false, false, default);
+        Assert.Equal((null, null, 1, 5), (queued.Error, queued.JoinTicket, queued.Position, queued.CheckInAfterSeconds));
+
+        await _h.Places.EndAsync(1, 8, 1, PlaceEnd.Remove, until, default);
+        Assert.Equal(QueueState.YourTurn, (await _h.Places.CheckInAsync(1, 7, 1, true, default)).State);
+        GameJoinReply entered = await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, key, false, false, default);
+        Assert.NotNull(entered.JoinTicket);
+    }
+
     /// <summary>
-    /// #967 section 6: capacity last. A full world refuses a newcomer, and writes no ticket or receipt for it; staff, and
-    /// an account holding its place (here held after a drop), still get a ticket.
+    /// #967 section 6: capacity last. A full world whose line is at its cap refuses a newcomer, and writes no ticket or
+    /// receipt for it; staff, and an account holding its place (here held after a drop), still get a ticket.
     /// </summary>
     [Theory]
     [InlineData(false, false, "WORLD_FULL")]
@@ -196,6 +218,8 @@ public sealed class JoinTicketStoreShould
                 new string('A', 64), "0.0.1", "0.0.1", PlayerLimit: 1, Staff: staff)));
         DateTime until = _h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45);
         await _h.Places.RenewAsync(1, 8, 1, Guid.NewGuid(), until, false, default); // another account holds the one place
+        _h.PlaceConfiguration.QueueCapacity = 1;
+        await _h.Places.EnterAsync(new PlaceRequest(1, 9, until, 1, false, 1), default); // and a third fills the line
         if (holdsPlace)
         {
             // Account 7 dropped a moment ago and holds its place for the grace, over the limit.
@@ -226,9 +250,11 @@ internal sealed class JoinHarness
     public StoreAuthenticationConfiguration Configuration { get; } = new() { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-only", SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
     /// <summary>The place ledger (#967) the ticket store keeps: the in-memory one unless a test gives another.</summary>
     public IWorldPlaceStore Places { get; }
+    /// <summary>The place and line settings, shared by the in-memory ledger and the ticket store.</summary>
+    public WorldPlacesConfiguration PlaceConfiguration { get; } = new();
     public JoinHarness(IWorldPlaceStore? places = null)
     {
-        Places = places ?? new MemoryWorldPlaceStore(Clock, new WorldPlacesConfiguration());
+        Places = places ?? new MemoryWorldPlaceStore(Clock, PlaceConfiguration);
         IAccountRepository accounts = Substitute.For<IAccountRepository>();
         IExternalIdentityRepository identities = Substitute.For<IExternalIdentityRepository>();
         ISteamProofVerifier verifier = Substitute.For<ISteamProofVerifier>();
@@ -267,7 +293,8 @@ internal sealed class JoinHarness
             return head;
         });
         Tickets = new(Store, crypto, Authorization, Sessions, Allocator, options, Clock, new GameApplicationAccessPolicy(options),
-            Places, new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, Clock));
+            Places, new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, Clock), Options.Create(PlaceConfiguration),
+            new WorldPlaceMetrics(new Meter("test-places")));
     }
     public async Task<GameAuthReply> Authenticate(uint? appId = null)
     {

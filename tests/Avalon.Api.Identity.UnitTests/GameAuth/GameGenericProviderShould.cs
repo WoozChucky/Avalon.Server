@@ -70,7 +70,8 @@ public sealed class GameGenericProviderShould
         });
         var tickets = new JoinTicketStore(store, crypto, service, sessions, allocator, config, clock, new(config),
             new MemoryWorldPlaceStore(clock, new WorldPlacesConfiguration()),
-            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, clock));
+            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, clock), Options.Create(new WorldPlacesConfiguration()),
+            new WorldPlaceMetrics(new System.Diagnostics.Metrics.Meter("test-places")));
         GameJoinReply issued = await tickets.IssueAsync(refreshed.GameContextCredential!, 1, null, Guid.NewGuid(), false, false, default);
         Assert.Null(issued.Error);
         Assert.Null((await tickets.RedeemAsync(issued.JoinTicket!, "world-1", Guid.NewGuid(), Guid.NewGuid(), default)).Error);

@@ -102,6 +102,7 @@ public static class IdentityServiceRegistration
             .ValidateOnStart();
         services.AddSingleton<Avalon.Infrastructure.WorldPlaces.IWorldPlaceStore, Avalon.Infrastructure.WorldPlaces.RedisWorldPlaceStore>();
         services.AddSingleton<Avalon.Infrastructure.WorldPlaces.PlaceLedgerOutage>();
+        services.AddSingleton(_ => new Avalon.Infrastructure.WorldPlaces.WorldPlaceMetrics(Avalon.Common.Telemetry.DiagnosticsConfig.Api.Meter));
         // Places taken and line length for /game/worlds, which the worlds service reads too: registered once in a process.
         services.TryAddSingleton<Avalon.Infrastructure.WorldPlaces.IWorldOccupancy, Avalon.Infrastructure.WorldPlaces.RedisWorldOccupancy>();
         services.AddOptions<Avalon.Configuration.GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads")
