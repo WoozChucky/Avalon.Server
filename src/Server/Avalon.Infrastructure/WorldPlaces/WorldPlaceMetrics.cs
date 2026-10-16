@@ -11,7 +11,7 @@ public sealed class WorldPlaceMetrics
     public WorldPlaceMetrics(Meter meter)
     {
         _outcomes = meter.CreateCounter<long>("avalon.world.queue.outcomes", "{accounts}",
-            "How waits in a world's line ended: entered, cancelled, timed_out, turn_expired, refused_at_cap");
+            "How waits in a world's line ended: entered, cancelled, timed_out, turn_expired, refused_at_cap, refused_locked_out");
         _wait = meter.CreateHistogram<double>("avalon.world.queue.wait", "s", "Time in the line of those who entered");
     }
 
@@ -34,6 +34,12 @@ public sealed class WorldPlaceMetrics
 
     /// <summary>A join refused <c>WORLD_FULL</c>: the world full and its line at its cap.</summary>
     public void RefusedAtCap(ushort worldId) => Add(worldId, "refused_at_cap", 1);
+
+    /// <summary>
+    /// A join refused <c>WORLD_FULL</c> for the account's lockout: its unclaimed place lapsed and was refused a moment ago
+    /// (no wait in the line ended; counted here so <c>refused_at_cap</c> means the cap alone).
+    /// </summary>
+    public void RefusedLockedOut(ushort worldId) => Add(worldId, "refused_locked_out", 1);
 
     private void Add(ushort worldId, string reason, int count) => _outcomes.Add(count,
         new KeyValuePair<string, object?>("world", (int)worldId), new KeyValuePair<string, object?>("reason", reason));

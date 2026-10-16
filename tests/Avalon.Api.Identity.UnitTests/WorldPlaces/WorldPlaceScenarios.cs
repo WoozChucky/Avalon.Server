@@ -623,6 +623,57 @@ public static class WorldPlaceScenarios
             Assert.Equal((QueueState.Queued, 2), (released.State, released.Position));
             Assert.Equal(QueueState.YourTurn, (await h.CheckIn(6, limit: 2, world: 2)).State);
         },
+        ["a turn given back over a place still counted returns it to its last ticket's hold"] = async h =>
+        {
+            // Account 4's place in world 2 was released by its ticket for world 1 while that place's own hold runs.
+            Assert.Equal(PlaceSource.Taken, (await h.Join(4, limit: 2, world: 2)).Source);
+            Guid first = h.Ticket(4, world: 2);
+            await h.Admitted(5, limit: 2, world: 2);
+            Assert.Equal(PlaceOutcome.Admitted, (await h.Join(4, limit: null)).Outcome);
+            await h.Queued(4, limit: 2, position: 1, world: 2);
+            await h.End(5, PlaceEnd.Remove, world: 2);
+            Assert.Equal(QueueState.YourTurn, (await h.CheckIn(4, limit: 2, world: 2)).State); // over the counted place
+            Assert.True(await h.Leave(4, world: 2));
+            Assert.Equal(1, (await h.Sizes(world: 2)).Taken); // still counted for its first ticket
+            await h.Renew(4, world: 2, session: first); // which is redeemed: it renews the place it was counted for
+            Assert.Equal(1, (await h.Sizes(world: 2)).Taken);
+        },
+        ["a turn given releases the account's unused turn in another world"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            await h.Queued(3, limit: 1, position: 1);
+            await h.End(1, PlaceEnd.Remove);
+            Assert.Equal(QueueState.YourTurn, (await h.CheckIn(3, limit: 1)).State); // a turn in world 1, not used
+            await h.Admitted(2, limit: 1, world: 2);
+            await h.Queued(3, limit: 1, position: 1, world: 2);
+            await h.End(2, PlaceEnd.Remove, world: 2);
+            Assert.Equal(QueueState.YourTurn, (await h.CheckIn(3, limit: 1, world: 2)).State);
+            Assert.Equal((0, 0, 0), await h.Sizes()); // world 1's turn is given back
+        },
+        ["an account with a place of its own leaves the line"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            await h.Queued(2, limit: 1, position: 1);
+            await h.Queued(3, limit: 1, position: 2);
+            await h.Renew(2); // an earlier ticket of account 2's, redeemed: a place of its own (pending)
+            await h.Expect(QueueState.YourTurn, 0, account: 2, limit: 1);
+            await h.Expect(QueueState.Queued, 1, account: 3, limit: 1);
+        },
+        ["an unused turn is kept while the world is not available"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            await h.Queued(2, limit: 1, position: 1);
+            await h.End(1, PlaceEnd.Remove);
+            await h.Expect(QueueState.YourTurn, 0, account: 2, limit: 1);
+            for (int i = 0; i < 9; i++) // 90 s, twice the turn window, the world unavailable
+            {
+                h.Advance(10);
+                await h.Expect(QueueState.Paused, 1, account: 2, limit: 1, available: false);
+            }
+
+            await h.Expect(QueueState.YourTurn, 0, account: 2, limit: 1);
+            Assert.Equal(PlaceSource.Turn, (await h.Join(2, limit: 1)).Source);
+        },
         ["a takeover keeps the same place"] = async h =>
         {
             await h.Admitted(1, limit: 1);

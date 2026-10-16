@@ -88,7 +88,8 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             case PlaceOutcome.Queued:
                 return new(Position: place.Position, CheckInAfterSeconds: (int)line.CheckInAfter(place.Position).TotalSeconds);
             case PlaceOutcome.WorldFull:
-                metrics.RefusedAtCap(worldId);
+                if (place.LockedOut) metrics.RefusedLockedOut(worldId);
+                else metrics.RefusedAtCap(worldId);
                 return new(GameAuthErrors.WorldFull);
         }
 
