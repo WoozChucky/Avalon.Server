@@ -2,8 +2,8 @@
 
 `tools/Avalon.LoadTest` answers one question: how many players one world server holds, and what gives out first.
 It runs headless bots from one PC. Each bot signs in over the REST API as the launcher and the game client do,
-enters a world over TLS as the game client does, and then stands, walks, changes character or fights its way through
-a forest of its own while a ramp adds bots in steps. Each step is judged against a set of limits: the server's
+enters a world over TLS as the game client does, and then stands, walks, changes character, quits and comes back, or
+fights its way through a forest of its own while a ramp adds bots in steps. Each step is judged against a set of limits: the server's
 numbers come from Prometheus, the bots' from the tool, and the bot PC's own load decides whether those numbers can be
 trusted. The ramp ends at the first limit breached twice in a row, and the tool writes a report with the capacity and
 what failed first.
@@ -207,7 +207,9 @@ This is the capacity run, described under [The ramp](#the-ramp).
 | Option | Default | Meaning |
 |---|---|---|
 | `--run ABC` | the only run kept | The run whose accounts are used |
-| `--mix SHARES` | `idle=60,walker=30,churner=10` | Behaviour weights: `name=weight` pairs of `idle`, `walker`, `churner`, `fighter`, each at most once, weights 0 to 1000, at least one above 0; a behaviour left out has weight 0 (for example `idle=40,walker=20,churner=10,fighter=30`) |
+| `--mix SHARES` | `idle=60,walker=30,churner=10` | Behaviour weights: `name=weight` pairs of `idle`, `walker`, `churner`, `fighter`, `quitter`, each at most once, weights 0 to 1000, at least one above 0; a behaviour left out has weight 0 (for example `idle=40,walker=20,churner=10,fighter=30`) |
+| `--quit-after T[-T]` | none: needed with a quitter in the mix | A [quitter](#behaviours)'s stay in the world before it quits: `90s`, `2m` or plain seconds, or two joined by a dash, the shorter first (`2m-5m`), a stay drawn between them for every quit; above 0, at most 1 h. Refused when the mix gives quitters no weight |
+| `--rejoin-after T[-T]` | none: needed with a quitter in the mix | A quitter's time out of the world before it joins again, as `--quit-after`, 0 to 1 h (0: at once) |
 | `--start N` | `50` | The first step's bots, 1 to 5,000 (cut to `--max`) |
 | `--step N` | `50` | Bots added each step, 1 to 5,000 |
 | `--hold T` | `90s` | How long each step holds: `90s`, `2m` or plain seconds, 50 s to 1 h. The judged window is its last 60 s (the whole hold less 30 s when shorter than 90 s); everything before it settles: 30 s, longer when the hold exceeds 90 s |
@@ -225,11 +227,14 @@ This is the capacity run, described under [The ramp](#the-ramp).
 The console first prints the ramp's settings in one line (the run, the world, start, step, max, hold, `--dial` (with
 `directly with a PROXY v2 header` under `--proxy-header`) and the input driver's loops), then one line per step, then the result and the report's path. A step's line gives the
 driver's lateness p95 over every loop's steps (`gen-lag`) and the worst loop's own in brackets. A step with fighters
-adds their count, the forest instances the world ticked per tick and the trips completed:
+adds their count, the forest instances the world ticked per tick and the trips completed; a step with bots in a full
+world's line or with quitters adds, after the bots, those in the world and in the line at the hold's end and the
+step's quits:
 
 ```text
 step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  lag 0.4 ms (worst loop 0.9)  → pass
 step 4  bots 200  tick p99 9.8 ms  ack p95 35 ms  ws 31%  lag 0.5 ms (worst loop 1.1)  fighters 60  forest 41.2  trips 18  → pass
+step 5  bots 400  in world 300  in line 92  quits 41  tick p99 6.1 ms  ack p95 33 ms  ws 27%  lag 0.4 ms (worst loop 0.8)  → pass
 ```
 
 ### Dialling the world directly
@@ -272,20 +277,45 @@ the line, checking in as told, and asks again at its turn ([entry and retries](#
 says how many entries were queued and how long they waited. A bot that leaves the world says goodbye
 (`CMSG_LEAVE_WORLD`, #967) before it closes, on a reconnect as on a leave for good, so its place is released at once
 and churn holds no places; a bot whose connection was lost, or whose goodbye could not be sent within 2 s, holds its
-place for the grace, as a dropped player does. To test a limit on world 4 (no live world gets one before the 0.4.0
-client is out and part 5 is deployed):
+place for the grace, as a dropped player does.
+
+**A step on a full world.** The ramp counts a bot waiting in the line as present. Filling a step, it waits for each
+bot only until the bot is in the world, has failed every attempt, or waits in the line; a waiting bot is live, counts
+towards the step's bots, and its life takes its entry over (it never has two at once), so the step holds while the
+line checks in, and the next step tops up as usual. The step is judged as any other: the server's limits measure the
+world with the players it let in, the acks come only from bots in the world, and a bot still waiting has no entry
+attempt that ended, so admission counts it neither as tried nor as failing. It counts once it gets in, as an attempt
+that succeeded in the step its turn came in; a check-in that fails (`queue:<code>`, after its retries) is an entry
+failure as any. The step's row gives the bots in the line at the hold's end and the step's quits and entries from the
+line ([the report](#the-report)). The capacity, or `no limit reached up to N bots`, counts the bots present, the line
+included, and the result line says how many of the counted step's bots were waiting (`no limit reached up to 500 bots
+(200 of them waiting in the line)`).
+
+**Quitters move the line.** On a full world only a player who leaves frees a place. A churner's character change keeps
+its session and its place; its reconnect, every fourth churn, says goodbye too and so frees it, but seldom, and asks
+to join again at once. A [quitter](#behaviours) quits as a player does: the leave,
+the goodbye and the close, which releases its place at once; the head of the line takes it at its next check-in (every
+5 s in the first ten). After `--rejoin-after` out of the world, the quitter joins again without a takeover and queues
+behind the line. With Q quitters in the world and a mean stay S (`--quit-after`), about Q ÷ S places free each
+minute, which is how fast the line drains. Neither has a default: the test chooses them. No limit needs raising by
+hand to give turns.
+
+To test a limit on world 4 (no live world gets one before the 0.4.0 client is out and part 5 is deployed):
 
 1. Set identity's limit: `PUT /world/4/player-limit` with `{ "playerLimit": 300 }` (Admin), and world 4's own backstop
    limit to the same number, the chart value `server.game.playerLimit: 300` in the homelab's world values. The chart
    value rolls world 4's pod, so set it before the ramp, and wait for the last dev image to roll before starting.
 2. Against a world from before part 5 of #967, which drops the goodbye, a bot that leaves holds its place for the held
-   grace (90 s), and a churning profile then reads as a full world it is not: there, run profiles that do not churn, or
-   set identity's `Application__WorldPlaces__HeldPlaceSeconds` to 5 for the run and restore it after. From part 5 on,
-   nothing is needed.
-3. Ramp past the limit, for example to 500 bots, directly (`--dial 10.10.1.15 --proxy-header`) or through Caddy
-   (`--dial 10.10.1.17`); 500 is far under both the world's and Caddy's capacity.
-4. Read: `avalon_world_places_taken{world="4"}` never above 300 (plus staff); the line drains in arrival order (the
-   report's queue waits, `avalon_world_queue_outcomes_total` with `entered` and no unexpected `timed_out`);
+   grace (90 s), and a churning or quitting profile then reads as a full world it is not: there, run profiles that do
+   not churn or quit, or set identity's `Application__WorldPlaces__HeldPlaceSeconds` to 5 for the run and restore it
+   after. From part 5 on, nothing is needed.
+3. Ramp past the limit with quitters in the mix, for example to 500 bots with
+   `--mix idle=60,walker=20,quitter=20 --quit-after <stay> --rejoin-after <away>`, directly
+   (`--dial 10.10.1.15 --proxy-header`) or through Caddy (`--dial 10.10.1.17`); 500 is far under both the world's and
+   Caddy's capacity.
+4. Read: `avalon_world_places_taken{world="4"}` never above 300 (plus staff); the line drains in arrival order as the
+   quitters leave (the steps' bots in the line, quits and entries from the line; the report's queue waits;
+   `avalon_world_queue_outcomes_total` with `entered` and no unexpected `timed_out`);
    `avalon_world_queue_wait_seconds`; the world's tick p99 and TPS against the last ramp at 300; identity's CPU and
    request latency under the check-ins (about 15 a second for 200 waiters: 10 every 5 s, 190 every 15 s);
    `world_admission_backstop_refusals_total` at 0; `world.session_ends.skipped` and
@@ -371,8 +401,9 @@ retried on the next pass, under the same idempotency key, and counted as a sign-
 sign-in failure (`refresh:<code>`) and replaced by a fresh sign-in. A bot whose fresh sign-in also fails
 (`sign-in-again:<call>`) gives up for good. It no longer counts as live, and the next fill signs in another account
 in its place. A first sign-in that fails counts as `sign-in:<call>`. Sign-in failures are identity's side and never
-part of admission. A churner's reconnect keeps its context, so the refresher goes on refreshing (and if need be
-replacing) it; only the bot's final leave, which signs the context out, ends that.
+part of admission. A churner's reconnect and a quitter's quit keep the context, as does a wait in a full world's line,
+so the refresher goes on refreshing (and if need be replacing) it; only the bot's final leave, which signs the context
+out, ends that.
 
 ### Entry and retries
 
@@ -408,9 +439,11 @@ Each bot's input numbers start at 1 on every connection.
 | `walker` | Walks a random heading. When an ack reports less than 0.1 m/s while it asked to move (a wall), it turns 90 to 270 degrees and goes on. There is no navmesh in the tool, so walkers gather along walls more than players do |
 | `churner` | Walks like a walker. After a random 2 to 5 minutes in the world it changes character on the same connection (leave, the logout save, list, select, load, first ack). Every fourth churn it reconnects instead: it closes the connection, keeps its game context, and enters again with a new join ticket and a takeover |
 | `fighter` | Walks from town into a forest of its own, fights its creatures with its class's basic ability, walks back out and goes again, alone or in a party: see [Fighters](#fighters) |
+| `quitter` | Walks like a walker. After `--quit-after` in the world it quits as a player does: the leave (the logout save), the goodbye (`CMSG_LEAVE_WORLD`) and the close, so the world ends its session as a logout and identity frees its place at once. It keeps its game context, stays out for `--rejoin-after`, then joins again with a new join ticket and no takeover, waiting in the line when the world is full. Each stay and each time out is drawn afresh from its range. A quit is counted as a quit, not a disconnect; a return is an entry like any other |
 
 A connection the world closes while a bot is in the world is counted as a disconnect, and the bot enters again with
-a takeover. A churn that fails is counted, and the bot closes its connection and enters afresh.
+a takeover. A churn that fails is counted, and the bot closes its connection and enters afresh. A quitter's return
+that fails every attempt is counted, and the bot enters again after 30 seconds, with a takeover.
 
 **The mix.** Behaviours go to bots by smooth weighted round-robin over the bot index, so every count of bots holds the
 `--mix` shares as closely as whole bots allow, interleaved. With the default mix, every block of ten bot indexes from
@@ -632,7 +665,9 @@ back. A character in no party gets no roster, and nothing is sent.
 2. It signs in `--start` bots (at most `--sign-in-concurrency` at once). If a sign-in fails, that account is passed
    over for the next one.
 3. It enters them, 32 at a time, each with its behaviour from the mix. With `--party-size` above 1, the fighters among
-   them are grouped into [parties](#parties), which form in the background once their members are in.
+   them are grouped into [parties](#parties), which form in the background once their members are in. A bot whose join
+   is told to wait in a full world's line is not waited for: it waits in the line under its own life, checking in, and
+   enters at its turn ([a step on a full world](#a-player-limit-test)).
 4. It holds the step for `--hold`. The judged window is the hold's last 60 seconds (the hold less 30 seconds, for a
    hold under 90 seconds); everything before it settles and is not judged: 30 seconds, longer when the hold exceeds
    90 seconds. While the step holds, the next step's bots sign in.
@@ -645,8 +680,9 @@ Each step therefore takes the hold plus about 15 seconds. With the defaults, a r
 about 105 seconds, roughly 35 minutes, plus any re-holds.
 
 **Live bots** are those sent into the world that have not given up. A step's bot count, the decision and the capacity
-count live bots. A live bot may be between a churn and its next entry. The report adds two cross-checks: the bots in
-the world at the hold's end, and the world's own players online less the count before the ramp.
+count live bots. A live bot may be between a churn and its next entry, out of the world after a quit, or waiting in a
+full world's line. The report adds two cross-checks: the bots in the world at the hold's end, and the world's own
+players online less the count before the ramp; and it gives the bots in the line at the hold's end.
 
 **Running out.** The ramp stops only when it cannot add a single bot to a step (the run's accounts ran out, or no
 further bot could sign in): it stops as `stopped`, with the reason and the last passing count. A step it can fill only
@@ -664,7 +700,7 @@ A step breaches a limit when its value is on the tripping side of the threshold.
 | `tps` | 58 | ticks/s | below | Prometheus: `avg_over_time(world_tick_rate_tps[w])` |
 | `ack-p95` | 150 | ms | above | Bots: the 95th percentile of input-to-ack latency over the judged window, over the input driver's inputs (an entry's `first-ack` probes are not samples). An input still unanswered when its slot is reused, about a second later, counts at its age then |
 | `slow-kicks` | 0 | count | above | Prometheus: the raw samples of `network_out_slow_kicks_total` (every `reason`), read at the hold's end plus the 15 s export lag over a range reaching 300 s before the step's start, the connections the world closed as too slow to read (#875; it never drops a packet). A sample counts when its interval, from the sample before it, overlaps the window: its increase over the sample before it, summed over every series. A reason's series exists only from its first kick, so a series' first sample after the window's start (its first kick, or a new process) counts its whole value; the range reaches back as far as Prometheus's own 5-minute lookback before the step, so a series already there has a sample before the window. A sample below the one before it is a restarted process and counts its whole value. An interval that added kicks from a sample before the step's start reads unknown. The world's export is checked with `count(network_send_pass_duration_microseconds_count) or (0 * count(world_tick_duration_microseconds_count))` (see below) |
-| `admission` | 0.01 | fraction | above | Bots: the bots that could not get into the world during the step ÷ the bots that tried, over the whole step, settle included. Each bot counts once: it tried when any entry attempt of its ended in the step, and got in when any of those succeeded, so a failure followed by a success in the step is a bot that got in, and a bot that only failed counts once however many retries it made. An attempt counts in the step its outcome lands in. Entries are first entries, re-entries, reconnects and character changes; sign-in and leave failures are not part of it. The step row also gives the attempts, the failed ones and the failures by kind |
+| `admission` | 0.01 | fraction | above | Bots: the bots that could not get into the world during the step ÷ the bots that tried, over the whole step, settle included. Each bot counts once: it tried when any entry attempt of its ended in the step, and got in when any of those succeeded, so a failure followed by a success in the step is a bot that got in, and a bot that only failed counts once however many retries it made. An attempt counts in the step its outcome lands in, so a bot waiting in a full world's line, whose attempt has not ended, is neither tried nor failing until it gets in. Entries are first entries, re-entries, reconnects, quitters' returns and character changes; sign-in and leave failures are not part of it. The step row also gives the attempts, the failed ones and the failures by kind |
 | `memory` | 0.85 | fraction | above | Prometheus: `max(dotnet_process_memory_working_set_bytes)` ÷ `kube_pod_container_resource_limits{namespace="avalon",pod=<--pod>,container="avalon-world",resource="memory"}`, at the hold's end |
 | `gc-stall` | 16.7 | ms | above | Prometheus: the raw samples of `dotnet_gc_pause_time_seconds_total[w+60s]` and `dotnet_gc_collections_total[w+60s]` (every `gc_heap_generation`). For each export interval ending within the window (10 s on world 4), the pause the world added in it ÷ the collections it added in it, summed over the generations. Intervals pair per process (a series' labels except `gc_heap_generation`) by sample time, and the value is the worst interval's average over every process. A series' first sample within the window (a new world, or a gap of more than 60 s before the window) counts from 0. An interval with no collection has no average, and a window with no collection reads 0. The tool takes each sample's increase over the one before it itself, because `increase` and `rate` extrapolate to the range's edges; a process with any counter below the sample before it restarted within that interval, and every one of its counters counts its whole value there. The world's export of both is checked with `(count(dotnet_gc_pause_time_seconds_total) and count(dotnet_gc_collections_total)) or (0 * count(world_tick_duration_microseconds_count))` (see below) |
 | `gc-pause` | 0.05 | fraction | above | Prometheus: `sum(rate(dotnet_gc_pause_time_seconds_total[w]))`, the share of the window the GC paused the process |
@@ -808,7 +844,9 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   could not be made whole says so: `(restart check: partial, ...)` or `(restart check: unknown, Prometheus gave
   nothing at the end)`. The tool warns when `target_info`'s pod name is not `--pod`. Then the run and its size, the
   API, the mix, the fighters' settings (`--forest-time` and `--party-size`, with the 0 to 30 second first-trip wait, or
-  `none in the mix` when the mix gives fighters no weight), the packet encryption the world's admission replies named
+  `none in the mix` when the mix gives fighters no weight), the quitters' settings (`--quit-after` and
+  `--rejoin-after`, or `none in the mix`; `ramp.quits` in the JSON, `staySeconds` and `awaySeconds` each with `min` and
+  `max`, null without quitters), the packet encryption the world's admission replies named
   over the ramp (#875: `on (sealed inside TLS, Network:PacketEncryption)`, `off (TLS alone)`, or `mixed` with the
   sealed and plain admissions counted when the world changed mode during the ramp; `packetEncryption.sealed` and
   `packetEncryption.plain` in the JSON), the queue (#967: `Queue: no entry was queued`, or `N entries queued, M got in;
@@ -824,11 +862,13 @@ wait p50 X s, p95 Y s` over the whole ramp, the wait from a bot's first queued j
   the last judged step (<the missing fact>)`, or `the restart check was partial (...)`). When the finished report's
   reads change the line, the console prints it again. A stop reason is one of: Ctrl+C, an error, the run's accounts
   running out, or no further bot able to sign in. Each `stopped` result adds the last passing step's count, or says
-  that no step passed. Then "failed first": each confirmed breach with its value and threshold (`tick-p99 18.2 ms >
-  16.7 ms`).
+  that no step passed. A count whose step (the last passing one) had bots in a full world's line at its hold's end
+  says how many (`no limit reached up to 500 bots (200 of them waiting in the line)`). Then "failed first": each
+  confirmed breach with its value and threshold (`tick-p99 18.2 ms > 16.7 ms`).
 - **Steps**, one row per held step (a re-hold is a row of its own):
-  - live bots, by behaviour (idle / walker / churner / fighter); bots in the world at the hold's end; players online
-    less the count before the ramp;
+  - live bots, by behaviour (idle / walker / churner / fighter / quitter); bots in the world at the hold's end; bots
+    waiting in a full world's line at the hold's end (`inLine` in the JSON); players online less the count before the
+    ramp;
   - map instances at the hold's end, every map together (`avalon_world_instances_active` carries no map type; the
     [fighters' section](#the-fighters-section) splits them); tick p99; average TPS; ack p50, p95 and p99; slow kicks
     (`not exported` when the world build has no send threads); the deepest receive backlog of any connection (a
@@ -851,7 +891,9 @@ wait p50 X s, p95 Y s` over the whole ramp, the wait from a bot's first queued j
     read. The JSON has them under each step's `server.sendThreads`: `readout`, `threads` (the threads that ran a pass in
     the window), `busyCores`, `busiestThread` (a fraction of one core) and `pendingBytesP99` (bytes), null unless read;
   - admission as bots that never got in ÷ bots that tried; entry attempts and failed attempts, and failures by kind;
-    leave failures by kind and sign-in failures by kind (both apart from admission); disconnects;
+    leave failures by kind and sign-in failures by kind (both apart from admission); disconnects; quitters' quits and
+    the bots that got in from a full world's line, over the whole step (`client.quits` and `client.queueEntries` in
+    the JSON);
   - the bot PC's CPU, the driver's lateness p95 (every loop's steps together, judged as `gen-lag`) with the worst
     loop's own p95 in brackets (`1.2 ms (3.4 ms)`, for reading only; `driverWorstLoopLagP95Ms` in the JSON), and the
     driver's
@@ -889,8 +931,8 @@ wait p50 X s, p95 Y s` over the whole ramp, the wait from a bot's first queued j
 before it show how that value climbed. A `bot PC saturated` result is a lower bound: run again with a lighter mix
 (fewer walkers and churners) or a stronger bot PC, or, on `gen-lag` with the busiest driver loop near 100 % busy,
 with more `--driver-loops`. A ramp that stopped unknown usually means a missing metric: check [the export
-interval](#before-a-run) and Prometheus. If the bot count and the two cross-checks disagree, bots were
-not where the tool thought they were. Look at the failure kinds and the disconnects.
+interval](#before-a-run) and Prometheus. If the bot count, less the bots in the line and the quitters out of the
+world, and the two cross-checks disagree, bots were not where the tool thought they were. Look at the failure kinds and the disconnects.
 
 **Pricing the session layer.** The bots seal or send plain as the world asks, so one world measures both modes: ramp
 it with `server.network.packetEncryption` on (the homelab values), then again with it off, and compare the two

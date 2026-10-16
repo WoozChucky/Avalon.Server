@@ -131,11 +131,15 @@ static int Usage()
               (the world keeps parties until it restarts). --driver-loops as for ramp.
           ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
                [--limit name=value]... [--dial HOST [--proxy-header]] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
-               [--forest-time 5m] [--party-size 1] [--driver-loops N]
+               [--forest-time 5m] [--party-size 1] [--driver-loops N] [--quit-after T[-T] --rejoin-after T[-T]]
               The capacity run: adds bots in steps of --step from --start up to --max (default: the run's size),
               holds each step --hold (a settle of at least 30 s, then judged on up to its last 60 s), and stops
-              at the first limit breached twice in a row. Behaviours are shared by --mix (idle, walker, churner,
-              fighter); a fighter's trip stays --forest-time in the forest (default 5m). --party-size N (1 to
+              at the first limit breached twice in a row. A bot waiting in a full world's line counts as present:
+              the step holds with it checking in. Behaviours are shared by --mix (idle, walker, churner,
+              fighter, quitter). A quitter walks, quits the world with the goodbye after --quit-after in it, and
+              joins again after --rejoin-after out of it (each 90s, 2m or seconds, or two joined by a dash, 2m-5m,
+              drawn between them for every quit; both needed with a quitter in the mix, no default); on a full
+              world it then waits behind the line. A fighter's trip stays --forest-time in the forest (default 5m). --party-size N (1 to
               {BotParty.MaxSize}, default 1: solo) groups the fighters each step adds into parties of N, in bot
               order: the first invites the others by name, they accept, and once formed they walk to the portal
               together and share one forest. A party that fails to form tries once more, then its members fight

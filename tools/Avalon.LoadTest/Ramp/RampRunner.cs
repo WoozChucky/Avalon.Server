@@ -21,15 +21,18 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="ForestTime">How long a fighter's trip stays in the forest (<c>--forest-time</c>).</param>
 /// <param name="PartySize">The fighters' party size (<c>--party-size</c>), 1 (solo) to <see cref="BotParty.MaxSize"/>.</param>
 /// <param name="DriverLoops">The input driver's loops (<c>--driver-loops</c>), each on its own thread, sharing the bots out.</param>
+/// <param name="Quits">The quitters' times (<c>--quit-after</c>, <c>--rejoin-after</c>); null when the mix has no quitter.</param>
 public sealed record RampOptions(
     string Mix, int Start, int Step, TimeSpan Hold, int Max, IReadOnlyList<Limit> Limits, string? Dial, bool ProxyHeader,
-    Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops);
+    Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops,
+    QuitTimes? Quits);
 
 /// <summary>One held step: what was there, what was measured, and the decision on it.</summary>
 /// <param name="Index">The step's number from 1; a re-hold is a step of its own at the same count.</param>
 /// <param name="Bots">
 /// The live bots: those sent into the world that have not given up (<see cref="BotState.Stopped"/>, their context
-/// lost), in the world or on their way back into it. The decider and the capacity count these.
+/// lost), in the world, on their way back into it, or waiting in a full world's line (#967). The decider and the
+/// capacity count these.
 /// </param>
 /// <param name="ByBehaviour">The live bots by behaviour.</param>
 /// <param name="GeneratorCpu">The bot PC's CPU use over the judged window, a fraction of its cores.</param>
@@ -40,6 +43,9 @@ public sealed record StepRecord(
 {
     /// <summary>Bots in the world at the hold's end (<see cref="BotState.InWorld"/>), a cross-check of <see cref="Bots"/>.</summary>
     public int InWorld { get; init; }
+
+    /// <summary>Live bots waiting in a full world's line at the hold's end (<see cref="BotState.Queued"/>, #967).</summary>
+    public int InLine { get; init; }
 
     /// <summary>
     /// The world's players online at the hold's end less the count before the ramp, the server's own cross-check of
@@ -561,7 +567,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         using var background = new CancellationTokenSource();
         using var refreshes = new CancellationTokenSource();
         using var signInsAgain = new CancellationTokenSource();
-        using var lives = new CancellationTokenSource();
+        // Linked to Ctrl+C: an entry waiting in a full world's line belongs to its bot's life (FillAsync), and stops with it.
+        using var lives = CancellationTokenSource.CreateLinkedTokenSource(ct);
         using var presigning = CancellationTokenSource.CreateLinkedTokenSource(ct);
         Task driving = driver.RunAsync(background.Token);
         Task refreshing = refresher.RunAsync(refreshes.Token, signInsAgain.Token);
@@ -861,10 +868,13 @@ public sealed class RampRunner(RunFile run, RampOptions options)
 
     /// <summary>
     /// Brings the bots sent into the world up to <paramref name="target"/>: the ones signed in ahead first, more signed in
-    /// now if they fall short, then all entered at once (32 at a time), each with its behaviour from the mix. A bot
-    /// whose entry fails every attempt still gets its <see cref="BotLife"/>, which enters it again after a pause: its
-    /// failures go on counting against admission rather than the bot quietly dropping out. A bot that gave up (its
-    /// context lost) no longer counts towards the target: another account takes its place. Returns the bots entered.
+    /// now if they fall short, then all entered at once (32 at a time), each with its behaviour from the mix. The fill
+    /// waits for each bot until it is in the world, failed every attempt, or waits in a full world's line (#967): a
+    /// waiting bot is live and counts towards the step, and its life takes its entry over, so a step on a full world
+    /// holds with its bots in the line checking in. A bot whose entry fails every attempt still gets its
+    /// <see cref="BotLife"/>, which enters it again after a pause: its failures go on counting against admission rather
+    /// than the bot quietly dropping out. A bot that gave up (its context lost) no longer counts towards the target:
+    /// another account takes its place. Returns the bots entered.
     /// </summary>
     /// <remarks>
     /// With <c>--party-size</c> N above 1, the fighters among the bots entered are grouped in index order into whole
@@ -890,25 +900,20 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         string inParties = parties.Count == 0 ? "" : Invariant($", {parties.Count} parties of {options.PartySize}");
         Console.Error.WriteLine(Invariant($"  entering {entering.Count} bots ({LiveCount() + entering.Count} live{inParties})"));
         await Parallel.ForEachAsync(entering, new ParallelOptions { MaxDegreeOfParallelism = Concurrency, CancellationToken = ct },
-            async (bot, token) =>
+            async (bot, _) =>
             {
-                bool failed = false;
-                try
-                {
-                    await bot.EnterAsync(takeover: false, token);
-                }
-                catch (Exception error) when (error is not OperationCanceledException)
-                {
-                    // Counted by the bot; its life enters it again, after the pause.
-                    failed = true;
-                }
-
+                // On the lives' token, which Ctrl+C cancels too: the entry may outlive the fill, waiting in the line.
+                Task entry = await BotLife.StartEntryAsync(bot, life);
                 lock (_botsLock)
                 {
                     _added.Add(bot);
-                    _lives.Add(BotLife.RunAsync(bot, metrics, life, pauseFirst: failed));
+                    // A failed entry was counted by the bot; its life enters it again, after the pause.
+                    _lives.Add(BotLife.RunAsync(bot, metrics, life, entry));
                 }
             });
+
+        int inLine = entering.Count(bot => bot.State == BotState.Queued);
+        if (inLine > 0) Console.Error.WriteLine(Invariant($"  {inLine} of them wait in the world's line"));
 
         // Their members stand in town until each party has formed or gone solo.
         foreach (BotParty party in parties) _formations.Add(PartyFormer.FormAsync(party, life));
@@ -916,7 +921,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     }
 
     /// <summary>
-    /// Gives each bot its behaviour from the mix, and each fighter its <see cref="Fighter"/>: in whole parties of
+    /// Gives each bot its behaviour from the mix, each quitter its times, and each fighter its <see cref="Fighter"/>: in whole parties of
     /// <c>--party-size</c>, in index order, setting out together once formed; the rest, fewer than a party, solo after
     /// their own first-trip wait. Returns the parties, still to be formed.
     /// </summary>
@@ -927,6 +932,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         {
             bot.Behaviour = Bots.Mix.For(bot.Index, _mix);
             if (bot.Behaviour == BehaviourKind.Fighter) fighters.Add(bot);
+            if (bot.Behaviour == BehaviourKind.Quitter)
+                bot.Quits = options.Quits ?? throw new InvalidOperationException("A quitter in the mix needs its times.");
         }
 
         int size = options.PartySize;
@@ -1055,6 +1062,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         double cpu = (process.TotalProcessorTime - cpuBefore) / (Stopwatch.GetElapsedTime(windowStart) * Environment.ProcessorCount);
         Bot[] live = [.. _added.Where(bot => bot.State != BotState.Stopped)];
         int inWorld = live.Count(bot => bot.State == BotState.InWorld);
+        int inLine = live.Count(bot => bot.State == BotState.Queued);
 
         await Task.Delay(s_exportLag, ct);
         ServerValues server = await prometheus.SampleAsync(end, window, end - options.Hold, end + s_exportLag, ct);
@@ -1076,6 +1084,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         return new StepRecord(index, live.Length, byBehaviour, server, client, cpu, lag, decision)
         {
             InWorld = inWorld,
+            InLine = inLine,
             PlayersOnlineAdded = playersAdded,
             WindowEnd = end,
             DriverBusy = busy,
@@ -1099,8 +1108,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     }
 
     /// <summary>
-    /// The judged window's acks with the whole step's entry, leave, sign-in, sign-out and disconnect counts, and its fighter
-    /// counts.
+    /// The judged window's acks with the whole step's entry, leave, sign-in, sign-out and disconnect counts, its quits and
+    /// entries from the line, and its fighter counts.
     /// </summary>
     private static StepClientValues Merge(StepClientValues settle, StepClientValues judged)
     {
@@ -1143,6 +1152,8 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             FighterFailures = fighterFailures,
             PartiesFormed = settle.PartiesFormed + judged.PartiesFormed,
             PartyFormFailures = partyFailures,
+            Quits = settle.Quits + judged.Quits,
+            QueueEntries = settle.QueueEntries + judged.QueueEntries,
         };
     }
 
@@ -1241,7 +1252,9 @@ public sealed class RampRunner(RunFile run, RampOptions options)
     /// <summary>
     /// The console line of a step: <c>step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  lag 0.4 ms (worst loop 0.9)  → pass</c>;
     /// the driver's lateness p95 over every loop's steps, and the worst loop's own; with fighters,
-    /// their count, forest instances per tick and trips before the verdict (<c>fighters 30  forest 9.8  trips 12</c>).
+    /// their count, forest instances per tick and trips before the verdict (<c>fighters 30  forest 9.8  trips 12</c>); with
+    /// bots in a full world's line or quitters, the bots in the world and in the line at the hold's end and the step's
+    /// quits (<c>in world 300  in line 100  quits 12</c>).
     /// </summary>
     private string StepLine(StepRecord step)
     {
@@ -1250,8 +1263,11 @@ public sealed class RampRunner(RunFile run, RampOptions options)
         string fighting = fighters == 0
             ? ""
             : Invariant($"  fighters {fighters}  forest {Number(step.Server.InstancesByMap.Forest, "0.0")}  trips {step.Client.ForestTrips}");
+        string line = step.InLine == 0 && step.ByBehaviour.GetValueOrDefault(BehaviourKind.Quitter) == 0
+            ? ""
+            : Invariant($"  in world {step.InWorld}  in line {step.InLine}  quits {step.Client.Quits}");
         return Invariant(
-            $"step {step.Index}  bots {step.Bots}  tick p99 {Number(step.Server.TickP99Ms, "0.0")} ms  ack p95 {Number(step.Client.AckP95, "0")} ms  ws {Percent(step.Server.WorkingSetFraction)}  lag {Number(step.GeneratorLagP95Ms, "0.0")} ms (worst loop {Number(step.DriverWorstLoopLagP95Ms, "0.0")}){fighting}  {arrow} {Verdict(step, options.Limits)}");
+            $"step {step.Index}  bots {step.Bots}{line}  tick p99 {Number(step.Server.TickP99Ms, "0.0")} ms  ack p95 {Number(step.Client.AckP95, "0")} ms  ws {Percent(step.Server.WorkingSetFraction)}  lag {Number(step.GeneratorLagP95Ms, "0.0")} ms (worst loop {Number(step.DriverWorstLoopLagP95Ms, "0.0")}){fighting}  {arrow} {Verdict(step, options.Limits)}");
     }
 
     /// <summary>A step's verdict in words: pass, a re-hold and why, or the end.</summary>
