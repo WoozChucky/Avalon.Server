@@ -1,0 +1,44 @@
+{{- /*
+Who may reach the world pod's game port (#1052, hardening; off by default). A world that trusts a network for PROXY v2
+headers (server.proxyProtocol.trustedProxies) believes whatever client address a peer there names, and k3s ServiceLB
+masquerades every forwarded connection into the pod network, so without this any pod in the cluster could dial the
+world pod directly and name any client: claim an exempt source, or spend another source's admission budget. On, the
+game port admits only this Service's ServiceLB pods (networkPolicy.serviceLB) and the peers networkPolicy.gamePort
+lists. Refused with neither: a rule with no peer would admit every source.
+*/}}
+{{- $policy := .Values.networkPolicy | default dict }}
+{{- if $policy.enabled }}
+{{- if not (or $policy.serviceLB $policy.gamePort) }}
+{{- fail "networkPolicy lists no peer for the game port: set networkPolicy.serviceLB (k3s ServiceLB) or name the peers in networkPolicy.gamePort, or every source would reach the world." }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "avalon-server.fullname" . }}
+  labels:
+    {{- include "avalon-server.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "avalon-server.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        {{- if $policy.serviceLB }}
+        # k3s ServiceLB: the svclb pods of this Service, in kube-system, which forward the node's port to it.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              svccontroller.k3s.cattle.io/svcname: {{ include "avalon-server.fullname" . | quote }}
+              svccontroller.k3s.cattle.io/svcnamespace: {{ .Release.Namespace | quote }}
+        {{- end }}
+        {{- with $policy.gamePort }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+{{- end }}

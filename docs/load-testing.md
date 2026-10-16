@@ -81,13 +81,13 @@ Everything here has to be in place, or the run fails early or measures the wrong
    `Thread.Sleep` where that timer is missing (older Windows, Linux, macOS); on every system it yields its thread
    through the last millisecond of each step.
 9. **The bot PC's address is exempt from world 4's admission budget.** The world lets one source have
-   `World:Admission:MaxInFlightPerSource` admissions in flight (default 16, #1052), and refuses the rest with
-   `ServiceUnavailable` before their tickets are redeemed. A ramp step admits its bots from one address at once, far
-   past 16, so world 4 lists the bot PC in `World:Admission:ExemptSources` (Helm `server.admission.exemptSources`,
+   `World:Admission:MaxInFlightPerSource` admissions in flight (default 16, #1052) and start
+   `MaxPerSourcePerMinute` a minute (default 120), and refuses the rest with `ServiceUnavailable` before their
+   tickets are redeemed. A ramp step admits its bots from one address at once, far past both, so world 4 lists the bot PC in `World:Admission:ExemptSources` (Helm `server.admission.exemptSources`,
    `[10.10.1.21/32]`, in the homelab's world values for the load-test release only)
    ([configuration](configuration-reference.md#world-admission-budget)). The world sees that address through Caddy
    and when [dialled directly](#dialling-the-world-directly), so one entry covers both paths. Without it, the bots past
-   the 16th in flight are answered `ServiceUnavailable` and `world_admission_source_refusals_total` rises.
+   either limit are answered `ServiceUnavailable` and `world_admission_source_refusals_total` rises.
 10. **Asthoria is quiet.** See [Cautions](#cautions): check its player count first.
 
 ## Commands

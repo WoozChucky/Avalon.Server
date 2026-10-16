@@ -32,4 +32,16 @@ public sealed class AdmissionSourceValidationShould
         Assert.True(result.Failed);
         Assert.Contains($"World:Admission:ExemptSources has {refusalNaming}", result.FailureMessage, StringComparison.Ordinal);
     }
+
+    /// <summary>A /56 holds every /64 in it, so its cap below a source's would refuse a source under its own.</summary>
+    [Fact]
+    public void Refuse_an_IPv6_block_cap_below_the_source_cap()
+    {
+        ValidateOptionsResult result = new AdmissionSourceValidation(Options.Create(new HostingConfiguration()))
+            .Validate(null, new AdmissionSourceOptions { MaxInFlightPerSource = 16, MaxInFlightPerIPv6Block = 8 });
+
+        Assert.True(result.Failed);
+        Assert.Contains("World:Admission:MaxInFlightPerIPv6Block (8) must be at least World:Admission:MaxInFlightPerSource (16)",
+            result.FailureMessage, StringComparison.Ordinal);
+    }
 }

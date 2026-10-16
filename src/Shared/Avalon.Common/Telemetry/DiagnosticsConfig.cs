@@ -69,13 +69,13 @@ public static class DiagnosticsConfig
             "world.admission.failures", "{admissions}", "Admissions whose redemption threw, answered ServiceUnavailable");
 
         /// <summary>
-        /// Admissions refused before their ticket was redeemed because their source already had
-        /// <c>World:Admission:MaxInFlightPerSource</c> in flight (#1052): answered <c>ServiceUnavailable</c>. No tags:
-        /// nothing a client sends, and no address, becomes one.
+        /// Admissions refused before their ticket was redeemed because their source was over its budget (#1052):
+        /// answered <c>ServiceUnavailable</c>. Tagged <c>reason</c>: <c>in_flight</c> (its cap, or its IPv6 /56's) or
+        /// <c>rate</c>. Nothing a client sends, and no address, becomes a tag.
         /// </summary>
         public static readonly Counter<long> AdmissionSourceRefusals = Meter.CreateCounter<long>(
             "world.admission.source_refusals", "{admissions}",
-            "Admissions refused because their source had its most admissions in flight, answered ServiceUnavailable");
+            "Admissions refused because their source was over its admission budget, by reason, answered ServiceUnavailable");
 
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 

@@ -210,7 +210,7 @@ through its own code, and a return to town refuses nothing by a reply.
 |---|---|---|
 | `world.work.refusals` | `world_work_refusals_total` | Operations a full work queue (`WorldDatabaseWork`) refused (#1050), counted in the queue as it refuses them, tagged `lane`. On the world's meter (`world-server`) |
 | `world.admission.failures` | `world_admission_failures_total` | Admissions (`CMSG_GAME_ADMISSION`) whose redemption threw, or was cancelled, once started, answered `ServiceUnavailable` and closed (#1050). No tags. On the world's meter |
-| `world.admission.source_refusals` | `world_admission_source_refusals_total` | Admissions refused before their ticket was redeemed because their source already had `World:Admission:MaxInFlightPerSource` in flight (#1052), answered `ServiceUnavailable` and closed. No tags: no address becomes one. On the world's meter |
+| `world.admission.source_refusals` | `world_admission_source_refusals_total` | Admissions refused before their ticket was redeemed because their source was over its budget (#1052), answered `ServiceUnavailable` and closed. Tagged `reason`: `in_flight` (`World:Admission:MaxInFlightPerSource`, or its IPv6 /56's `MaxInFlightPerIPv6Block`) or `rate` (`MaxPerSourcePerMinute`); no address becomes a tag. On the world's meter |
 
 `lane` takes a fixed set of values, nothing a client sends; each names one queue, and each queue has its own capacity:
 
@@ -238,12 +238,16 @@ once per 10 s for the world. Any other tick continuation whose task faulted stay
 ("Continuation faulted"), under the same bound; a continuation whose work a full queue refused is a Warning without
 it, as above. Every 10 s bound is timed on the monotonic clock, so a wall clock set back cannot mute a line.
 
-`world.admission.source_refusals` is one source holding `World:Admission:MaxInFlightPerSource` admissions (16 by
-default) whose redemptions have not ended: a flood of join tickets from one address, or many clients behind one
-address reconnecting at once while redemptions are slow ([configuration](configuration-reference.md#world-admission-budget)).
-Each also writes one Warning (`Avalon.World.WorldConnection`), without an exception, at most once per 10 s for the
-world, naming the source of the one it logs as it is counted (an IPv4 address, or an IPv6 /64, as the world's other
-connection lines name the address) and how many more were refused since the last line, from any source. During a
+`world.admission.source_refusals` with `reason` `in_flight` is one source holding `World:Admission:MaxInFlightPerSource`
+admissions (16 by default) whose redemptions have not ended, or one IPv6 /56 holding `MaxInFlightPerIPv6Block` (32);
+with `rate`, one source that started `MaxPerSourcePerMinute` (120) in the last minute. Either is a flood of join
+tickets from one address, or many clients behind one address (carrier-grade NAT) reconnecting at once while
+redemptions are slow ([configuration](configuration-reference.md#world-admission-budget)): after a restart, refusals
+from addresses that are not floods mean the defaults are too low. Each also writes one Warning
+(`Avalon.World.WorldConnection`), without an exception, at most once per 10 s for the world, naming the source of the
+one it logs as it is counted (an IPv4 address, an IPv6 /64, or the /56 its block cap counts, as the world's other
+connection lines name the address), the limit it reached, and how many more were refused since the last line, from
+any source. During a
 load-test ramp a count here means the bot PC is not exempt (`World:Admission:ExemptSources`). A refusal here never
 reaches the admission lane, so it is not also counted under `world.work.refusals`.
 

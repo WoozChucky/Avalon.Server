@@ -43,7 +43,7 @@ public sealed class ExemptSources : IExemptSources
     /// <inheritdoc cref="ExemptNetwork.ShortestIPv4Prefix"/>
     public const int ShortestIPv4Prefix = ExemptNetwork.ShortestIPv4Prefix;
 
-    /// <inheritdoc cref="ExemptNetwork.ShortestIPv4Prefix"/>
+    /// <inheritdoc cref="ExemptNetwork.ShortestIPv6Prefix"/>
     public const int ShortestIPv6Prefix = ExemptNetwork.ShortestIPv6Prefix;
 
     private readonly IPNetwork[] _networks;

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Net;
+using Microsoft.Extensions.Time.Testing;
 using Avalon.Common.Cryptography;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure.GameAuth;
@@ -217,41 +218,47 @@ public sealed class GameAdmissionHandlerShould
     /// <summary>
     /// One source may have at most <c>World:Admission:MaxInFlightPerSource</c> admissions in flight (#1052): one past it
     /// is answered <c>ServiceUnavailable</c> and closed before its ticket is redeemed, and counted, while another source
-    /// and an exempt one (the load-test bot PC, here past the cap) are redeemed. The slot comes back however the
-    /// admission ends: admitted, refused by the identity service, its redemption faulted, its connection closed before
-    /// the redemption ended (the slot is held until then, since the redemption still runs), or the admission lane full,
-    /// which gives it back at once. A slot that leaked would refuse the source's next admission.
+    /// and an exempt one (the load-test bot PC, here past the cap) are redeemed. Over IPv6 the source is a /64, and its
+    /// /56 has a cap of its own (<c>MaxInFlightPerIPv6Block</c>, 2 here): a second /64 of the same /56 is redeemed, a
+    /// third is refused. The slots come back however the admission ends: admitted, refused by the identity service, its
+    /// redemption faulted, its connection closed before the redemption ended (the slot is held until then, since the
+    /// redemption still runs), or the admission lane full, which gives them back at once. A slot that leaked would
+    /// refuse the source's next admission.
     /// </summary>
     [Theory]
-    [InlineData(Ending.Accepted)]
-    [InlineData(Ending.Refused)]
-    [InlineData(Ending.Faulted)]
-    [InlineData(Ending.ClosedFirst)]
-    [InlineData(Ending.Overloaded)]
-    public async Task Hold_a_source_to_its_admissions_in_flight_and_give_its_slot_back_however_one_ends(Ending ending)
+    [InlineData(Ending.Accepted, false)]
+    [InlineData(Ending.Refused, false)]
+    [InlineData(Ending.Faulted, false)]
+    [InlineData(Ending.ClosedFirst, false)]
+    [InlineData(Ending.Overloaded, false)]
+    [InlineData(Ending.Refused, true)]
+    [InlineData(Ending.Overloaded, true)]
+    public async Task Hold_a_source_to_its_admissions_in_flight_and_give_its_slot_back_however_one_ends(Ending ending, bool ipv6)
     {
-        IPAddress flooder = IPAddress.Parse("203.0.113.7"), neighbour = IPAddress.Parse("203.0.113.8"), bots = IPAddress.Parse("10.10.1.21");
-        var sources = new AdmissionSourceBudget(new AdmissionSourceOptions { MaxInFlightPerSource = 1, ExemptSources = ["10.10.1.21/32"] });
+        // Over IPv6 the neighbour is another /64 of the flooder's /56, and the cousin a third.
+        var flooder = IPAddress.Parse(ipv6 ? "2001:db8:0:1::7" : "203.0.113.7");
+        var neighbour = IPAddress.Parse(ipv6 ? "2001:db8:0:2::8" : "203.0.113.8");
+        var cousin = IPAddress.Parse("2001:db8:0:3::9");
+        var bots = IPAddress.Parse("10.10.1.21");
+        var sources = new AdmissionSourceBudget(new AdmissionSourceOptions
+        {
+            MaxInFlightPerSource = 1,
+            MaxInFlightPerIPv6Block = 2,
+            ExemptSources = ["10.10.1.21/32"],
+        });
         // Every redemption waits for this test to end it.
         var redemption = new TaskCompletionSource<WorldAdmissionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
         api.AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(_ => redemption.Task);
         var handler = new GameAdmissionHandler(api, sources);
-        var refusals = new ConcurrentQueue<long>();
-        using var meter = new MeterListener();
-        meter.InstrumentPublished = (instrument, listener) =>
-        {
-            if (instrument.Meter.Name == "world-server" && instrument.Name == "world.admission.source_refusals")
-                listener.EnableMeasurementEvents(instrument);
-        };
-        meter.SetMeasurementEventCallback<long>((_, value, _, _) => refusals.Enqueue(value));
-        meter.Start();
+        using SourceRefusals refusals = new();
 
         using var first = WorldAdmissionConnection.Create(source: flooder);
         using var second = WorldAdmissionConnection.Create(source: flooder);
         using var other = WorldAdmissionConnection.Create(source: neighbour);
         using var bot = WorldAdmissionConnection.Create(source: bots);
         using var anotherBot = WorldAdmissionConnection.Create(source: bots);
+        using var third = WorldAdmissionConnection.Create(source: cousin);
         using var again = WorldAdmissionConnection.Create(source: flooder);
 
         if (ending == Ending.Overloaded)
@@ -278,6 +285,7 @@ public sealed class GameAdmissionHandlerShould
                 await Task.WhenAll(holding).WaitAsync(s_hang);
             }
             Assert.Equal(0, sources.InFlight(flooder));
+            Assert.Equal(0, sources.InFlightInIPv6Block(flooder));
         }
         else
         {
@@ -297,6 +305,16 @@ public sealed class GameAdmissionHandlerShould
             Assert.False(other.IsClosing || bot.IsClosing || anotherBot.IsClosing);
             Assert.Equal(1, sources.InFlight(neighbour));
             Assert.Equal(0, sources.InFlight(bots));
+            if (ipv6)
+            {
+                // The /56 holds the flooder's and the neighbour's: a third /64 of it is refused, and gives back its own.
+                Assert.Equal(2, sources.InFlightInIPv6Block(flooder));
+                await Admit(handler, third);
+                Assert.True(third.IsClosing);
+                Assert.Equal(GameAdmissionResult.ServiceUnavailable, ReplyOf(third));
+                Assert.Equal(0, sources.InFlight(cousin));
+                Assert.Equal(2, sources.InFlightInIPv6Block(flooder));
+            }
 
             if (ending == Ending.ClosedFirst)
             {
@@ -307,7 +325,8 @@ public sealed class GameAdmissionHandlerShould
                 redemption.SetException(new InvalidOperationException("a defect"));
             else
                 redemption.SetResult(ending == Ending.Refused ? new WorldAdmissionResult(null, "INVALID_TICKET") : new WorldAdmissionResult(WorldAdmissionConnection.Lease(), null));
-            await Until(() => sources.InFlight(flooder) == 0 && sources.InFlight(neighbour) == 0);
+            await Until(() => sources.InFlight(flooder) == 0 && sources.InFlight(neighbour) == 0 &&
+                              sources.InFlightInIPv6Block(flooder) == 0);
         }
 
         // The slot came back: the source's next admission is redeemed.
@@ -315,13 +334,93 @@ public sealed class GameAdmissionHandlerShould
         await Admit(handler, again);
         await FlushUntil(again, () => again.IsClosing || again.AccountId is not null);
         Assert.Equal(0, sources.InFlight(flooder));
-        Assert.Equal(ending == Ending.Overloaded ? 0 : 1, refusals.Sum());
+        Assert.Equal(0, sources.InFlightInIPv6Block(flooder));
+        Assert.Equal(Enumerable.Repeat("in_flight", ending == Ending.Overloaded ? 0 : ipv6 ? 2 : 1), refusals.Reasons);
         WorldAdmissionConnection[] redeemed = ending == Ending.Overloaded ? [again] : [first, other, bot, anotherBot, again];
         foreach (WorldAdmissionConnection connection in redeemed)
             await api.Received(1).AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
-        WorldAdmissionConnection[] refused = ending == Ending.Overloaded ? [first] : [second];
+        WorldAdmissionConnection[] refused = ending == Ending.Overloaded ? [first] : ipv6 ? [second, third] : [second];
         foreach (WorldAdmissionConnection connection in refused)
             await api.DidNotReceive().AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// A source may start at most <c>World:Admission:MaxPerSourcePerMinute</c> admissions a minute (#1052), 2 here, each
+    /// redeemed and ended at once: the third is answered <c>ServiceUnavailable</c> before its ticket is redeemed, counted
+    /// as <c>rate</c>, and one more is allowed every 30 s; an exempt source is never held to it. A source whose budget is
+    /// whole again is the same as one never seen, and is swept from the table, so it cannot grow without bound.
+    /// </summary>
+    [Fact]
+    public async Task Hold_a_source_to_its_admissions_per_minute_and_forget_it_once_idle()
+    {
+        IPAddress flooder = IPAddress.Parse("203.0.113.7"), bots = IPAddress.Parse("10.10.1.21");
+        var clock = new FakeTimeProvider();
+        var sources = new AdmissionSourceBudget(
+            new AdmissionSourceOptions { MaxPerSourcePerMinute = 2, ExemptSources = ["10.10.1.21/32"] }, clock);
+        IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
+        api.AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(new WorldAdmissionResult(null, "INVALID_TICKET"));
+        var handler = new GameAdmissionHandler(api, sources);
+        using SourceRefusals refusals = new();
+
+        WorldAdmissionConnection[] connections = [.. Enumerable.Range(0, 4).Select(_ => WorldAdmissionConnection.Create(source: flooder)),
+            .. Enumerable.Range(0, 3).Select(_ => WorldAdmissionConnection.Create(source: bots)),
+            WorldAdmissionConnection.Create(source: IPAddress.Parse("203.0.113.8"))];
+        try
+        {
+            foreach (WorldAdmissionConnection connection in connections[..2].Concat(connections[4..7]))
+            {
+                await Admit(handler, connection);
+                Assert.False(connection.IsClosing);
+            }
+
+            await Admit(handler, connections[2]);
+            Assert.True(connections[2].IsClosing);
+            Assert.Equal(GameAdmissionResult.ServiceUnavailable, ReplyOf(connections[2]));
+
+            clock.Advance(TimeSpan.FromSeconds(30));
+            await Admit(handler, connections[3]);
+            Assert.False(connections[3].IsClosing);
+            Assert.Equal(1, sources.RateEntries);
+
+            // Two minutes on, the flooder's budget is whole: the next admission's sweep drops it.
+            clock.Advance(TimeSpan.FromMinutes(2));
+            await Admit(handler, connections[7]);
+            Assert.Equal(1, sources.RateEntries);
+
+            Assert.Equal(["rate"], refusals.Reasons);
+            await api.DidNotReceive().AdmitAsync(Arg.Any<string>(), connections[2].Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+            foreach (WorldAdmissionConnection connection in connections.Where(c => c != connections[2]))
+                await Until(() => api.ReceivedCalls().Any(call => call.GetArguments()[1] is Guid id && id == connection.Id));
+        }
+        finally
+        {
+            foreach (WorldAdmissionConnection connection in connections)
+                connection.Dispose();
+        }
+    }
+
+    /// <summary>The <c>reason</c> of each <c>world.admission.source_refusals</c> count, in order.</summary>
+    private sealed class SourceRefusals : IDisposable
+    {
+        private readonly ConcurrentQueue<string> _reasons = new();
+        private readonly MeterListener _meter = new();
+
+        public SourceRefusals()
+        {
+            _meter.InstrumentPublished = (instrument, listener) =>
+            {
+                if (instrument.Meter.Name == "world-server" && instrument.Name == "world.admission.source_refusals")
+                    listener.EnableMeasurementEvents(instrument);
+            };
+            _meter.SetMeasurementEventCallback<long>((_, _, tags, _) =>
+                _reasons.Enqueue(tags.Length == 1 && tags[0].Key == "reason" ? (string)tags[0].Value! : "?"));
+            _meter.Start();
+        }
+
+        public IEnumerable<string> Reasons => _reasons;
+
+        public void Dispose() => _meter.Dispose();
     }
 
     private static GameAdmissionHandler Handler(IGameAdmissionClient api) =>

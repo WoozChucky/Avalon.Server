@@ -23,9 +23,10 @@ namespace Avalon.Server.World.Handlers;
 /// the only way a client can seal, goes out after the keying has finished; and a packet that arrives before the
 /// admission is published is dropped, since the connection has no lease yet.
 /// <para>
-/// One source may have at most <c>World:Admission:MaxInFlightPerSource</c> admissions in flight (#1052,
-/// <see cref="AdmissionSourceBudget" />): one past it is answered <c>ServiceUnavailable</c> and closed before its ticket
-/// is redeemed. Its slot is taken after the checks that cost nothing and given back exactly once: at once when the
+/// One source may have at most <c>World:Admission:MaxInFlightPerSource</c> admissions in flight, its IPv6 /56 at most
+/// <c>MaxInFlightPerIPv6Block</c>, and it may start at most <c>MaxPerSourcePerMinute</c> a minute (#1052,
+/// <see cref="AdmissionSourceBudget" />): one past any of them is answered <c>ServiceUnavailable</c> and closed before
+/// its ticket is redeemed. Its slot is taken after the checks that cost nothing and given back exactly once: at once when the
 /// admission lane refuses the redemption, or else when the redemption has ended (<see cref="KeyAsync" />, which reads
 /// its end whatever it was: an answer, a fault, a cancellation). A connection that closes first gives it back no
 /// sooner: its redemption still runs, and still costs the identity service, until it ends, which the admission
@@ -45,11 +46,17 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission, Admissi
             ctx.Connection.Send(SGameAdmissionPacket.Create([], PacketEncoder.Shared, GameAdmissionResult.InvalidRequest));
             return ctx.Connection.CloseAsync(false);
         }
-        if (!sources.TryAcquire(connection.ClientIPAddress, out AdmissionSourceBudget.Slot slot))
+        if (sources.TryAcquire(connection.ClientIPAddress, out AdmissionSourceBudget.Slot slot) is var refusal and
+            not AdmissionSourceRefusal.None)
         {
-            // Its source has its most admissions in flight (#1052): answered as a full lane is, before the ticket is
-            // redeemed, on the receive path. No wire change: the client is told to try later.
-            connection.ReportAdmissionOverSourceBudget(sources.MaxInFlightPerSource);
+            // Its source is over its budget (#1052): in flight, its IPv6 /56's in flight, or its rate. Answered as a full
+            // lane is, before the ticket is redeemed, on the receive path. No wire change: the client is told to try later.
+            connection.ReportAdmissionOverSourceBudget(refusal, refusal switch
+            {
+                AdmissionSourceRefusal.Rate => sources.MaxPerSourcePerMinute,
+                AdmissionSourceRefusal.IPv6BlockInFlight => sources.MaxInFlightPerIPv6Block,
+                _ => sources.MaxInFlightPerSource,
+            });
             connection.Send(SGameAdmissionPacket.Create([], PacketEncoder.Shared, GameAdmissionResult.ServiceUnavailable));
             return connection.CloseAsync(false);
         }
