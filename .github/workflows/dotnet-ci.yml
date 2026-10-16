@@ -16,7 +16,7 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     permissions:
       contents: read
@@ -67,7 +67,7 @@ jobs:
   # Builds only the four servers, each project once (not the solution build's tests and tools), and pushes their
   # images under this run's dev version. No chart names them yet, so nothing deploys them.
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     permissions: { contents: read, packages: write }
     outputs:
@@ -106,7 +106,7 @@ jobs:
   # avalon-world last, as before #1018.
   charts:
     needs: [build, publish]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     concurrency: { group: server-dev, cancel-in-progress: false }
     permissions: { contents: read, packages: write }
@@ -127,7 +127,7 @@ jobs:
 
   changelog:
     needs: [publish, charts]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions: { contents: read, pull-requests: read }
     steps:
       - uses: actions/setup-python@v7
