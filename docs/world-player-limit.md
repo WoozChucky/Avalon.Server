@@ -74,6 +74,17 @@ A stale call can at most keep a place counted a little longer (see the last poin
   the application, the allocator's non-disclosing refusals, the session rules) answers first and takes no place, so
   capacity never speaks for a world the context may not enter.
 - A ticket that is never redeemed holds its place until 15 s after its expiry, then the place lapses.
+- **Tickets alone keep an unclaimed place for 15 minutes at most** (`Application:WorldPlaces:UnclaimedPlaceMinutes`).
+  A place is unclaimed from the moment a ticket takes it, or a session's end leaves it (a held place after a drop
+  included), until a session claims it: its activation, or a heartbeat of the session that owns it (a redemption alone
+  does not). Asking a new join ticket every half minute would otherwise keep a place on a full world indefinitely
+  without ever playing. Past the horizon a further ticket is not kept on the place: it goes through the capacity step
+  as a newcomer's, its own place still counted. With room (a free place beyond its own, and nobody in the line), or
+  for staff, it is admitted and the place is its own again with a new horizon; otherwise the place is released and the
+  answer is a newcomer's (`WORLD_FULL`, or from part 4 the line). A live session's renewals are untouched: its
+  heartbeats claim the place every 15 s, so a takeover or a reconnect is never refused for it. With no line (part 3)
+  the account can ask again at once and take its released place as any newcomer could, if nobody took it first; the
+  line (part 4) puts it behind whoever waits.
 - A heartbeat of a session crossing its end in flight (the end first) changes nothing: the end's tombstone refuses
   it, whether the end removed the place or kept it, so a place given to another meanwhile is never taken back. The
   tombstone lasts one lease from the end, and a renewal still in flight at the end was sent within the session's lease,
@@ -258,7 +269,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | Key | Type | Content |
 |---|---|---|
 | `world:{worldId}:places` | sorted set | the ledger: member the account id, score the moment the place expires (Unix ms) |
-| `world:{worldId}:places:marks` | hash | per account two fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes). One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
+| `world:{worldId}:places:marks` | hash | per account three fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes); `{accountId}:f`, since when (Unix ms) no session has claimed the place, absent once one does, gone with the place. One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
 | `world:{worldId}:queue` | sorted set | the line: member the account id, score its arrival number |
 | `world:{worldId}:queue:checkins` | sorted set | member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
 | `world:{worldId}:queue:arrivals` | string | the arrival counter |
@@ -324,7 +335,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 38, Skipped: 0` (the 37 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 40, Skipped: 0` (the 39 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary
