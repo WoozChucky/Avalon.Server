@@ -7,6 +7,7 @@ using Avalon.Common.GameAuth;
 using Avalon.LoadTest.Api;
 using Avalon.LoadTest.World;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Movement;
 
@@ -78,6 +79,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
 
     /// <summary>A leave waits for the character's logout save.</summary>
     private static readonly TimeSpan s_leaveTimeout = TimeSpan.FromSeconds(20);
+
+    /// <summary>The goodbye is one frame written, never answered (#967).</summary>
+    private static readonly TimeSpan s_goodbyeTimeout = TimeSpan.FromSeconds(2);
 
     /// <summary>How often a spawned bot repeats its first idle input until one is answered.</summary>
     private static readonly TimeSpan s_firstAckProbeInterval = TimeSpan.FromMilliseconds(50);
@@ -407,6 +411,14 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             }
             finally
             {
+                // The goodbye (#967), whatever happened to the leave: a close without it is a drop, and the world would
+                // hold the bot's place for the grace. Only after the handshake; before it the world drops it anyway.
+                if (was is BotState.Handshaken or BotState.Selecting or BotState.Loaded or BotState.InWorld &&
+                    !connection.Closed.IsCompleted)
+                {
+                    await SayGoodbyeAsync(connection);
+                }
+
                 // Whatever happened to the leave, a cancel included, the socket is closed.
                 await CloseAsync();
                 _state = Context is null ? BotState.SignedOut : BotState.SignedIn;
@@ -787,6 +799,25 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }, ct);
         if (result != CharacterLeaveResult.Left)
             throw new BotStepException("leave", $"leave:{result}", $"the world answered the leave with {result}");
+    }
+
+    /// <summary>
+    /// The goodbye (<c>CMSG_LEAVE_WORLD</c>, #967), best effort within 2 s: one that cannot be sent leaves the place held
+    /// for the grace, as a dropped client's is. Its own timeout, not the caller's token: sent on a cancel too.
+    /// </summary>
+    private static async Task SayGoodbyeAsync(WorldConnection connection)
+    {
+        using var limit = new CancellationTokenSource(s_goodbyeTimeout);
+        try
+        {
+            await connection.SendAsync(connection.Outgoing(new CLeaveWorldPacket(), NetworkPacketType.CMSG_LEAVE_WORLD),
+                limit.Token);
+        }
+        catch (Exception error) when (error is OperationCanceledException or IOException or ObjectDisposedException
+            or AuthenticationException or SocketException)
+        {
+            // The close that follows ends the session as a drop.
+        }
     }
 
     /// <summary>An ack on <paramref name="connection"/>'s read loop, decoded with its session; ignored once it is not the bot's.</summary>
