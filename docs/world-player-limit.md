@@ -181,6 +181,7 @@ docker stop avalon-redis-967
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
 after. Expected: `Passed!  - Failed: 0, Passed: 33, Skipped: 0` (the 32 scenarios and the world list's count). A
-scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Each run
-takes fresh world and account ids, so it needs an empty Redis no more than it changes one. The PR carries the summary
+scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
+uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
+empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary
 line and the `redis-server --version` line.

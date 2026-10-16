@@ -22,20 +22,23 @@ public sealed class MemoryWorldPlaceStoreShould
 
 /// <summary>
 /// The same scenarios against the Redis scripts, on a throwaway Redis named by <c>AVALON_TEST_REDIS</c> (host:port). CI
-/// has none and reports these skipped; the PR carries the result of a run (docs/world-player-limit.md). Each run takes
-/// fresh world and account ids, so it needs an empty Redis no more than it changes one.
+/// has none and reports these skipped; the PR carries the result of a run (docs/world-player-limit.md). Every row uses
+/// the same world and account ids and deletes their keys before it starts, so it never meets what an earlier row or run
+/// left there: it needs no empty Redis, and the data it leaves behind is only ever its own ids' keys.
 /// </summary>
 public sealed class RedisWorldPlaceStoreShould
 {
+    /// <summary>The ids every row uses, far from any a local run of the services gives out.</summary>
+    private static readonly PlaceIds s_ids = new(40_001, 7_000_000_001);
+
     [RedisTheory]
     [MemberData(nameof(WorldPlaceScenarios.Names), MemberType = typeof(WorldPlaceScenarios))]
     public async Task Keep_the_place_and_queue_rules(string scenario)
     {
         await using ConnectionMultiplexer redis = await ConnectionMultiplexer.ConnectAsync(RedisTheoryAttribute.Configuration!);
-        IReplicatedCache cache = Cache(redis);
-        PlaceIds ids = FreshIds();
+        IReplicatedCache cache = await CleanAsync(redis);
         await WorldPlaceScenarios.RunAsync(scenario, (clock, config) => new RedisWorldPlaceStore(cache, Options.Create(config),
-            Workloads(ids), clock), ids);
+            Workloads(s_ids), clock), s_ids);
     }
 
     /// <summary>What the world lists read: places and waiters still current, nothing yet unswept.</summary>
@@ -45,29 +48,38 @@ public sealed class RedisWorldPlaceStoreShould
     {
         _ = unused;
         await using ConnectionMultiplexer redis = await ConnectionMultiplexer.ConnectAsync(RedisTheoryAttribute.Configuration!);
-        IReplicatedCache cache = Cache(redis);
-        PlaceIds ids = FreshIds();
+        IReplicatedCache cache = await CleanAsync(redis);
         var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 14, 12, 0, 0, TimeSpan.Zero));
-        var store = new RedisWorldPlaceStore(cache, Options.Create(new WorldPlacesConfiguration()), Workloads(ids), clock);
+        var store = new RedisWorldPlaceStore(cache, Options.Create(new WorldPlacesConfiguration()), Workloads(s_ids), clock);
         DateTime until = clock.GetUtcNow().UtcDateTime.AddSeconds(45);
         for (int account = 1; account <= 3; account++)
-            await store.EnterAsync(new PlaceRequest(ids.World(1), ids.Account(account), until, 1, false, 5000), default);
+            await store.EnterAsync(new PlaceRequest(s_ids.World(1), s_ids.Account(account), until, 1, false, 5000), default);
 
         var occupancy = new RedisWorldOccupancy(cache, clock, NullLogger<RedisWorldOccupancy>.Instance);
-        Assert.Equal(new WorldOccupancy(1, 2), await occupancy.ReadAsync(ids.World(1), default));
+        Assert.Equal(new WorldOccupancy(1, 2), await occupancy.ReadAsync(s_ids.World(1), default));
         clock.Advance(TimeSpan.FromSeconds(46)); // the place and both waiters are past their time, not yet swept
-        Assert.Equal(new WorldOccupancy(0, 0), await occupancy.ReadAsync(ids.World(1), default));
+        Assert.Equal(new WorldOccupancy(0, 0), await occupancy.ReadAsync(s_ids.World(1), default));
     }
 
-    private static IReplicatedCache Cache(ConnectionMultiplexer redis)
+    /// <summary>The cache over <paramref name="redis"/>, with every key of the rows' two worlds and sixteen accounts deleted.</summary>
+    private static async Task<IReplicatedCache> CleanAsync(ConnectionMultiplexer redis)
     {
+        IDatabase database = redis.GetDatabase();
+        var keys = new List<RedisKey>();
+        foreach (ushort world in new[] { s_ids.World(1), s_ids.World(2) })
+        {
+            keys.AddRange([
+                CacheKeys.WorldPlaces(world), CacheKeys.WorldPlaceMarks(world), CacheKeys.WorldQueue(world),
+                CacheKeys.WorldQueueCheckIns(world), CacheKeys.WorldQueueArrivals(world),
+            ]);
+        }
+
+        for (int account = 1; account <= 16; account++) keys.Add(CacheKeys.WorldQueueWaiting(s_ids.Account(account)));
+        await database.KeyDeleteAsync([.. keys]);
         IReplicatedCache cache = Substitute.For<IReplicatedCache>();
-        cache.Database.Returns(redis.GetDatabase());
+        cache.Database.Returns(database);
         return cache;
     }
-
-    private static PlaceIds FreshIds() =>
-        new((ushort)Random.Shared.Next(10_000, 60_000), Random.Shared.NextInt64(1_000_000_000, 9_000_000_000));
 
     private static IOptions<GameWorkloadConfiguration> Workloads(PlaceIds ids) => Options.Create(new GameWorkloadConfiguration
     {
