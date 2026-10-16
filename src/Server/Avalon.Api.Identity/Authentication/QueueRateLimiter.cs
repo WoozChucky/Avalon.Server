@@ -26,14 +26,17 @@ public readonly record struct QueueRead(RateLimitLease? Lease, TimeSpan? RetryAf
 /// <item>Any other credential is a stranger's: its reads from one source go at most <see cref="ReadsInFlight"/> at a time,
 /// the others waiting their turn (<see cref="ReadsWaiting"/> at most), and once the source has presented
 /// <see cref="FailedCredentialsPerMinute"/> credentials that were not current, at most
-/// <see cref="RateLimitingConfig.QueueUnknownReadsPerMinute"/> a minute. Nothing is kept per stranger's credential, so a
+/// <see cref="RateLimitingConfig.QueueUnknownReadsPerMinute"/> a minute; and at most
+/// <see cref="RateLimitingConfig.QueueStrangerReadsInFlight"/> strangers' reads in flight in the whole process, whatever
+/// their sources. Nothing is kept per stranger's credential, so a
 /// flood of junk costs only its source's partitions. Such a source can delay, and refuse, a waiter identity has not seen
 /// yet behind the same address (after an identity restart, say), never one it knows.</item>
 /// <item>After the read, each account has <see cref="RateLimitingConfig.QueuePermitsPerMinute"/> calls a minute, its fair
 /// share across the credentials it rotates through.</item>
 /// </list>
 /// The known credentials are a bounded cache (<see cref="KnownCredentialCapacity"/>, by the first 16 bytes of each one's
-/// SHA-256), and every limiter partition is dropped once idle, as the shared limiter's are. An exempt source
+/// SHA-256), a credential read current kept before one only issued, and the credential a refresh or a sign-in replaces
+/// forgotten at once; every limiter partition is dropped once idle, as the shared limiter's are. An exempt source
 /// (<see cref="IExemptSources"/>) is not gated.
 /// </summary>
 public sealed class QueueRateLimiter : IGameCredentialIssued, IDisposable
@@ -65,6 +68,7 @@ public sealed class QueueRateLimiter : IGameCredentialIssued, IDisposable
     private readonly PartitionedRateLimiter<string> _accounts;
     private readonly PartitionedRateLimiter<string> _failures;
     private readonly PartitionedRateLimiter<string> _strangers;
+    private readonly ConcurrencyLimiter _allStrangers;
     private readonly PartitionedRateLimiter<string> _reads = PartitionedRateLimiter.Create<string, string>(
         source => RateLimitPartition.GetConcurrencyLimiter(source, _ => new ConcurrencyLimiterOptions
         {
@@ -90,6 +94,7 @@ public sealed class QueueRateLimiter : IGameCredentialIssued, IDisposable
         _accounts = Partitioned(config.Value.QueuePermitsPerMinute);
         _failures = Partitioned(FailedCredentialsPerMinute);
         _strangers = Partitioned(config.Value.QueueUnknownReadsPerMinute);
+        _allStrangers = new ConcurrencyLimiter(new ConcurrencyLimiterOptions { PermitLimit = config.Value.QueueStrangerReadsInFlight, QueueLimit = 0 });
     }
 
     /// <summary>How many credentials are known now (at most the capacity).</summary>
@@ -112,12 +117,23 @@ public sealed class QueueRateLimiter : IGameCredentialIssued, IDisposable
         if (_exempt.IsExempt(context.Connection.RemoteIpAddress)) return new(s_free, null);
         string source = ApiRateLimiting.SourceOf(context);
         // Every stranger's read is counted in flight, so a burst cannot all pass before its failures are recorded.
-        RateLimitLease read = await _reads.AcquireAsync(source, 1, cancellationToken);
-        if (!read.IsAcquired)
+        RateLimitLease perSource = await _reads.AcquireAsync(source, 1, cancellationToken);
+        if (!perSource.IsAcquired)
         {
-            read.Dispose();
+            perSource.Dispose();
             return new(null, Segment);
         }
+
+        // And at most so many strangers' reads in flight in the whole process, whatever their sources.
+        RateLimitLease everywhere = _allStrangers.AttemptAcquire();
+        if (!everywhere.IsAcquired)
+        {
+            everywhere.Dispose();
+            perSource.Dispose();
+            return new(null, Segment);
+        }
+
+        RateLimitLease read = new PairLease(perSource, everywhere);
 
         using (RateLimitLease left = _failures.AttemptAcquire(source, 0))
         {
@@ -130,11 +146,30 @@ public sealed class QueueRateLimiter : IGameCredentialIssued, IDisposable
         return new(null, RetryAfter(rated));
     }
 
-    /// <summary>The credential was read current: known until it expires.</summary>
-    public void CredentialCurrent(string credential, DateTime expiresAtUtc) => Remember(credential, expiresAtUtc);
+    /// <summary>The credential was read current: known until it expires, kept before credentials only issued.</summary>
+    public void CredentialCurrent(string credential, DateTime expiresAtUtc)
+    {
+        if (_enabled && !_known.TryGetValue(Key(credential), out _)) Remember(Key(credential), expiresAtUtc, CacheItemPriority.High);
+    }
 
-    /// <summary>A credential identity committed (<see cref="IGameCredentialIssued"/>): known from its first check-in.</summary>
-    public void Issued(string credential, DateTime expiresAtUtc) => Remember(credential, expiresAtUtc);
+    /// <summary>
+    /// A credential identity committed (<see cref="IGameCredentialIssued"/>): known from its first check-in, and the one it
+    /// replaces forgotten. Never throws.
+    /// </summary>
+    public void Issued(string credential, DateTime expiresAtUtc, string? replacedDigest)
+    {
+        if (!_enabled) return;
+        try
+        {
+            if (replacedDigest is { Length: >= 32 })
+                _known.Remove(BinaryPrimitives.ReadUInt128LittleEndian(Convert.FromHexString(replacedDigest.AsSpan(0, 32))));
+            Remember(Key(credential), expiresAtUtc, CacheItemPriority.Normal);
+        }
+        catch (Exception error) when (error is ObjectDisposedException or FormatException)
+        {
+            // A cache disposed at shutdown, or a digest that does not read: the credential stays a stranger's.
+        }
+    }
 
     /// <summary>The credential was not current: forgotten, and one of its source's failures spent.</summary>
     public void CredentialFailed(HttpContext context, string credential)
@@ -161,15 +196,15 @@ public sealed class QueueRateLimiter : IGameCredentialIssued, IDisposable
         _failures.Dispose();
         _strangers.Dispose();
         _reads.Dispose();
+        _allStrangers.Dispose();
     }
 
-    private void Remember(string credential, DateTime expiresAtUtc)
+    private void Remember(UInt128 key, DateTime expiresAtUtc, CacheItemPriority priority)
     {
-        if (!_enabled) return;
         // Relative to identity's own clock, which the credential's expiry is on; the cache counts it on its own.
         TimeSpan left = DateTime.SpecifyKind(expiresAtUtc, DateTimeKind.Utc) - _clock.GetUtcNow().UtcDateTime;
         if (left <= TimeSpan.Zero) return;
-        _known.Set(Key(credential), true, new MemoryCacheEntryOptions { Size = 1, AbsoluteExpirationRelativeToNow = left });
+        _known.Set(key, true, new MemoryCacheEntryOptions { Size = 1, AbsoluteExpirationRelativeToNow = left, Priority = priority });
     }
 
     /// <summary>The first 16 bytes of the credential's SHA-256: the credential itself is never kept.</summary>
@@ -191,6 +226,29 @@ public sealed class QueueRateLimiter : IGameCredentialIssued, IDisposable
 
     private static PartitionedRateLimiter<string> Partitioned(int permits) => PartitionedRateLimiter.Create<string, string>(
         key => RateLimitPartition.GetSlidingWindowLimiter(key, _ => Window(permits)), StringComparer.Ordinal);
+
+    /// <summary>A stranger's read holds its source's permit and the process's: both go back together.</summary>
+    private sealed class PairLease(RateLimitLease first, RateLimitLease second) : RateLimitLease
+    {
+        public override bool IsAcquired => true;
+        public override IEnumerable<string> MetadataNames => [];
+        public override bool TryGetMetadata(string metadataName, out object? metadata)
+        {
+            metadata = null;
+            return false;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                first.Dispose();
+                second.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+    }
 
     /// <summary>The lease of a read no gate applies to.</summary>
     private sealed class FreeLease : RateLimitLease

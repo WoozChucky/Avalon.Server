@@ -40,6 +40,14 @@ public class RateLimitingConfig
     public int QueueUnknownReadsPerMinute { get; set; } = 60;
 
     /// <summary>
+    /// Queue calls with a credential identity does not know, read at once in the whole identity process (#967), whatever
+    /// their sources: a bound on what floods from many addresses cost together. Generous, well above what re-learning the
+    /// waiters' credentials after an identity restart needs. Past it a call is refused (429, asking again within 2 s). At
+    /// least 1.
+    /// </summary>
+    public int QueueStrangerReadsInFlight { get; set; } = 256;
+
+    /// <summary>
     /// Requests a minute per authenticated game server, including each player's lease heartbeat, for the workloads a
     /// service names (<see cref="Middlewares.IRateLimitWorkloads"/>). At least 1.
     /// </summary>

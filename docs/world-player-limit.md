@@ -324,10 +324,13 @@ knows nothing of it.
     until it expires) has `Application:RateLimiting:QueuePermitsPerMinute` (30) calls a minute of its own, counted
     before it is read, and goes through no gate of its source: nothing another caller behind its address does slows or
     refuses it. It is still read on every call, so a revocation answers at once. The known credentials are a bounded
-    cache (100,000, by the first 16 bytes of each one's SHA-256); one not remembered for the bound is a stranger's.
+    cache (100,000, by the first 16 bytes of each one's SHA-256); one not remembered for the bound is a stranger's. A credential
+    read current is kept before one only issued, and the credential a refresh or a sign-in replaces is forgotten at once.
   - **Any other credential is a stranger's.** Its reads from one source go two at a time, the others waiting their turn
     (refused once 64 wait), and once the source has presented 30 credentials in a minute that were not current, at most
-    `Application:RateLimiting:QueueUnknownReadsPerMinute` (60) a minute. Nothing is kept per stranger's credential, so a
+    `Application:RateLimiting:QueueUnknownReadsPerMinute` (60) a minute. The whole process reads at most
+    `Application:RateLimiting:QueueStrangerReadsInFlight` (256) strangers' credentials at once, whatever their sources;
+    past it a stranger's call is refused (429). Nothing is kept per stranger's credential, so a
     flood of junk costs only its source's limiter state. Such a source can delay or refuse a waiter identity does not
     know yet behind the same address (after an identity restart emptied the cache, say), never one it knows.
   - **Each account** has `QueuePermitsPerMinute` (30) calls a minute after the read, its fair share across the

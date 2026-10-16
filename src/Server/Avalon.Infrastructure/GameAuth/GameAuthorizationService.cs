@@ -629,9 +629,10 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             changes.Add(new(oldKey, old, GameAuthJson.Serialize(retired), context.AbsoluteExpiresAt));
         }
         if (!await store.CompareExchangeAsync(changes, cancellationToken)) return GameAuthReply.Failure(GameAuthErrors.ContextChanged);
-        issued?.Issued(credential, context.CredentialExpiresAt);
         if (replacing && previous!.AccountId is { } oldAccount)
             await PublishRevocationAsync(new AccountId(oldAccount), previous.Id);
+        // After the follow-up work: the hook never throws, and an account's credentials alone are worth knowing.
+        if (context.AccountId is not null) issued?.Issued(credential, context.CredentialExpiresAt, previous?.CredentialDigest);
         return reply;
     }
 
@@ -755,7 +756,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             };
             if (await store.CompareExchangeAsync(changes, cancellationToken))
             {
-                issued?.Issued(nextCredential, next.CredentialExpiresAt);
+                if (next.AccountId is not null) issued?.Issued(nextCredential, next.CredentialExpiresAt, context.CredentialDigest);
                 return reply;
             }
         }

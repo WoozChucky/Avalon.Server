@@ -692,6 +692,7 @@ Section: `Application:RateLimiting`, read by every API service (#561)
 | `ClientAuthPermitsPerMinute`    | int  | `20`    | Identity: launcher sign-in requests (`client/auth`: code, token, refresh, revoke) a minute per source, on top of the above (#591) |
 | `QueuePermitsPerMinute`         | int  | `30`    | Identity: a full world's queue check-ins and leaves (`/game/queue/status`, `/game/queue/leave`, #967), counted instead of the limits above, which those two calls are out of: a minute per credential identity knows (one it issued, or read current, until it expires), before the credential is read and past no gate of its source; and again per account after the read ([the queue](world-player-limit.md#the-queue)). The queue's refusals ask again within 2 s |
 | `QueueUnknownReadsPerMinute`    | int  | `60`    | Identity: queue calls with a credential identity does not know, a minute per source, once that source has presented 30 credentials in a minute that were not current. Such reads also go two at a time per source (refused once 64 wait), whatever the failures; a known credential is never counted here |
+| `QueueStrangerReadsInFlight`    | int  | `256`   | Identity: queue calls with a credential identity does not know, read at once in the whole process, whatever their sources: a bound on what floods from many addresses cost together, well above what re-learning the waiters' credentials after an identity restart needs. Past it a call is refused (429, asking again within 2 s) |
 | `WorkloadPermitsPerMinute`      | int  | `16384` | Identity: requests a minute per authenticated game server on the game workload listener, every player's lease heartbeat included, counted instead of the limits above ([game server admission](steam-authentication-workloads.md)) |
 | `ExemptSources`                 | string[] | `[]` | Sources exempt from every per-source limit, for load machines: IP addresses or networks in CIDR form. See [Exempt sources](#exempt-sources) below |
 
@@ -729,7 +730,7 @@ Application__RateLimiting__ClientAuthPermitsPerMinute=20
 The Helm chart passes `rateLimiting.enabled`, `rateLimiting.anonymousPermitsPerMinute`,
 `rateLimiting.authenticatedPermitsPerMinute` and `rateLimiting.clientAuthPermitsPerMinute` (the last only to a
 release that runs identity), each only when set, and `rateLimiting.exemptSources` (below); empty, the API's defaults apply. `WorkloadPermitsPerMinute`,
-`QueuePermitsPerMinute` and `QueueUnknownReadsPerMinute` have no chart value.
+`QueuePermitsPerMinute`, `QueueUnknownReadsPerMinute` and `QueueStrangerReadsInFlight` have no chart value.
 
 The launcher sign-in endpoints (`client/auth/*`, #591) also carry the named policy `client-auth`: a
 separate sliding window per source (the same source rule), counted in addition to the limits above, so a

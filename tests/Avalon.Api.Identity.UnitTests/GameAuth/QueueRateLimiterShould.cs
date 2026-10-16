@@ -1,4 +1,5 @@
 using System.Net;
+using System.Threading.RateLimiting;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Identity.Authentication;
@@ -30,8 +31,8 @@ public sealed class QueueRateLimiterShould
     {
         using QueueRateLimiter limiter = Limiter();
         string honest = GameAuthCryptography.NewToken(), neighbour = GameAuthCryptography.NewToken();
-        limiter.Issued(honest, Expiry);
-        limiter.Issued(neighbour, Expiry);
+        limiter.Issued(honest, Expiry, null);
+        limiter.Issued(neighbour, Expiry, null);
         for (int failure = 0; failure < QueueRateLimiter.FailedCredentialsPerMinute; failure++)
             limiter.CredentialFailed(_household, GameAuthCryptography.NewToken());
 
@@ -73,11 +74,31 @@ public sealed class QueueRateLimiterShould
     }
 
     [Fact]
-    public void Keep_no_more_known_credentials_than_its_bound()
+    public void Keep_no_more_known_credentials_than_its_bound_and_forget_one_replaced()
     {
         using var limiter = new QueueRateLimiter(Options.Create(new RateLimitingConfig()), Substitute.For<IExemptSources>(), _clock, 8);
-        for (int credential = 0; credential < 20; credential++) limiter.Issued(GameAuthCryptography.NewToken(), Expiry);
+        string first = GameAuthCryptography.NewToken();
+        limiter.Issued(first, Expiry, null);
+        limiter.Issued(GameAuthCryptography.NewToken(), Expiry, GameAuthCryptography.Digest(first)); // a refresh replaces it
+        Assert.Equal(1, limiter.KnownCredentials);
+        for (int credential = 0; credential < 20; credential++) limiter.Issued(GameAuthCryptography.NewToken(), Expiry, null);
         Assert.InRange(limiter.KnownCredentials, 1, 8);
+    }
+
+    [Fact]
+    public async Task Refuse_strangers_past_the_process_bound_whatever_their_sources_but_never_a_known_credential()
+    {
+        using QueueRateLimiter limiter = Limiter(new RateLimitingConfig { QueueStrangerReadsInFlight = 1 });
+        string known = GameAuthCryptography.NewToken();
+        limiter.Issued(known, Expiry, null);
+        var elsewhere = new DefaultHttpContext();
+        elsewhere.Connection.RemoteIpAddress = IPAddress.Parse("198.51.100.9");
+
+        using RateLimitLease held = (await limiter.StartReadAsync(_household, GameAuthCryptography.NewToken(), default)).Lease!;
+        QueueRead refused = await limiter.StartReadAsync(elsewhere, GameAuthCryptography.NewToken(), default);
+        Assert.Null(refused.Lease);
+        Assert.InRange(refused.RetryAfter!.Value, TimeSpan.FromTicks(1), QueueRateLimiter.Segment);
+        Assert.NotNull((await limiter.StartReadAsync(elsewhere, known, default)).Lease);
     }
 
     private QueueRateLimiter Limiter(RateLimitingConfig? config = null) =>

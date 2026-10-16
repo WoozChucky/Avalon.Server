@@ -83,6 +83,8 @@ public static class ApiRateLimiting
                 $"{Section}:{nameof(RateLimitingConfig.QueuePermitsPerMinute)} must be at least 1.")
             .Validate(c => c.QueueUnknownReadsPerMinute >= 1,
                 $"{Section}:{nameof(RateLimitingConfig.QueueUnknownReadsPerMinute)} must be at least 1.")
+            .Validate(c => c.QueueStrangerReadsInFlight >= 1,
+                $"{Section}:{nameof(RateLimitingConfig.QueueStrangerReadsInFlight)} must be at least 1.")
             .Validate(c => c.WorkloadPermitsPerMinute >= 1,
                 $"{Section}:{nameof(RateLimitingConfig.WorkloadPermitsPerMinute)} must be at least 1.")
             .ValidateOnStart();
