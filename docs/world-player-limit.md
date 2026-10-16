@@ -189,7 +189,9 @@ same `DisconnectReason` as before.
   brings back a place whose time has passed, swept or not.
 - **A return that fails holds the place again.** A join within the grace takes the held place as its ticket's
   (`j:{untilMs}:{ticket}:h`); should that ticket's issue fail, its withdrawal holds the place again, to the end it has,
-  rather than removing it.
+  rather than removing it. A drop while a ticket's hold still runs on the place (a takeover's ticket, say) keeps that
+  ticket's mark for the session it becomes, marked `:h` the same way: the place is held after a drop all the same, so
+  no ticket or turn for another world releases it or cuts its grace short.
 - **After a stop or a maintenance cutoff nobody holds a place** (decision 10): everyone is equal and joins the line with
   everybody else. The world's ends tell identity when: the first `shutdown` or `maintenance` end of the world releases
   every place it holds after a drop (`IWorldPlaceStore.ReleaseHeldAsync`; their tombstones stay). A stop's ends come in
@@ -278,15 +280,19 @@ knows nothing of it.
   maintenance cutoff came) is not lost: while the world is not available, a check-in by an account holding an unused
   turn keeps the turn, its window starting again, and answers `paused` at position 1. The client goes on checking in
   (a join meanwhile is refused 503 `WORLD_UNAVAILABLE`, as for anyone), and once the world is back the check-in answers
-  `your_turn` again. A client that stops checking in loses the turn when its window runs out.
+  `your_turn` again. A client that stops checking in loses the turn when its window runs out. The turn is kept so at
+  most `Application:WorldPlaces:PausedTurnMinutes` (30) from when it was given, which a stop or a maintenance window of
+  that length fits, so a world whose readiness comes and goes cannot keep a turn for ever; past it the turn expires
+  (`turn_expired`) and the account asks to join again, at the back of the line.
 - **A place of its own is its turn at once.** An account that holds a place in the world its join would keep (a turn
   already taken, a place held after a drop, its session's, a ticket's hold not lapsed) is told `your_turn` at once,
   and leaves the line if it is in it; so does its join. A place that is not its own is counted but is no turn: one
   released by its ticket for another world (`r`), or one that lapsed under tickets alone and is kept only for its last
   ticket's hold. Such an account waits its rank like anyone, its own place counted among the places taken, and its
   turn, when it comes, is taken over that place: never shortened (that ticket may still be redeemed), and its own, no
-  longer lapsed, so its join takes it. The turn's mark records the place's end and unclaimed time
-  (`t:{enqueuedAtMs}:{endMs}:{unclaimedSinceMs}`), so a turn given back returns it to what it was.
+  longer lapsed, so its join takes it. The turn's mark records when the account joined the line and when the turn was
+  given (`t:{enqueuedAtMs}:{givenAtMs}`), and, over such a place, that place's end and unclaimed time
+  (`t:{enqueuedAtMs}:{givenAtMs}:{endMs}:{unclaimedSinceMs}`), so a turn given back returns it to what it was.
 - **Leaving.** `POST /game/queue/leave` (same body) leaves the line and gives back a turn not yet used (`cancelled`);
   it is safe to repeat and answers `not_queued`. A turn given over a place still counted for an earlier ticket is given
   back to that place: counted again to its own end, released (`r`, kept by no further ticket), so that ticket's
@@ -312,15 +318,18 @@ knows nothing of it.
   waits; LocalDev's `check` and the load-test bots do.
 - **Their limits.** The two calls are out of the shared request limiter (`[DisableRateLimiting]`): its anonymous
   partition, 60 a minute per source, would throttle the waiters of a household behind one address. `QueueRateLimiter`
-  limits them instead, in memory as the shared limiter is, in a one-minute window of thirty segments:
-  - every call from a source counts against `Application:RateLimiting:QueueSourcePermitsPerMinute` (600) before
-    anything is read, so no source makes unbounded Redis reads;
+  limits them instead, in memory as the shared limiter is, in a one-minute window of thirty segments, with no budget
+  shared by the callers behind one address, so a neighbour can never spend an honest waiter's:
+  - each credential (by its SHA-256) has `Application:RateLimiting:QueuePermitsPerMinute` (30) calls a minute, counted
+    before it is read, so one credential cannot make unbounded Redis reads;
   - a source that has presented 30 credentials in a minute that were not current is slowed, never shut out: its
-    credential reads go two at a time, the others waiting their turn (64 at most), so a neighbour behind the same
-    address cannot push honest waiters out of the line;
-  - each account has `Application:RateLimiting:QueuePermitsPerMinute` (30) calls a minute, its fair share.
+    credential reads go two at a time, the others waiting their turn, which also bounds a flood of junk credentials (each
+    has a budget of its own). Only when 64 reads already wait is a call refused;
+  - each account has `Application:RateLimiting:QueuePermitsPerMinute` (30) calls a minute after the read, its fair share
+    across the credentials it rotates through.
 
-  An exempt source is bounded by neither per-source limit. A refusal is 429 with `{ "error": "LOCKED" }` and a
+  An exempt source is not gated for its failures. Each budget is dropped by the limiter once it has been idle a window,
+  as the shared limiter's are. A refusal is 429 with `{ "error": "LOCKED" }` and a
   `Retry-After` of at most 2 s (one segment), well inside the time a waiter has between its check-in interval and its
   removal (10 s by default), so a waiter refused once and asking again when told keeps its position.
 - **No `Idempotency-Key`**: both calls are idempotent by nature and bind none. A successful check-in's request line is
@@ -447,7 +456,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | Key | Type | Content |
 |---|---|---|
 | `world:{worldId}:places` | sorted set | the ledger: member the account id, score the moment the place expires (Unix ms) |
-| `world:{worldId}:places:marks` | hash | per account five fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used; `t:{enqueuedAtMs}:{endMs}:{unclaimedSinceMs}` when given over a place still counted), `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place) or `r` (released by the account's ticket for another world while its own ticket's hold ran: counted until that hold ends, kept by no ticket), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes); `{accountId}:f`, since when (Unix ms) no session has claimed the place, absent once one does, gone with the place; `{accountId}:l` (`1`), the lockout of an account refused when its unclaimed place lapsed, which Redis expires 45 s after its place is free, removed by an activation; `{accountId}:p`, the fencing token of a session redeemed and not yet activated, which Redis expires one lease after the redemption, removed by the activation, the owner's heartbeat, the session's end or the place's removal. One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
+| `world:{worldId}:places:marks` | hash | per account five fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}:{givenAtMs}` (a turn taken, not yet used; `t:{enqueuedAtMs}:{givenAtMs}:{endMs}:{unclaimedSinceMs}` when given over a place still counted), `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place) or `r` (released by the account's ticket for another world while its own ticket's hold ran: counted until that hold ends, kept by no ticket), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes); `{accountId}:f`, since when (Unix ms) no session has claimed the place, absent once one does, gone with the place; `{accountId}:l` (`1`), the lockout of an account refused when its unclaimed place lapsed, which Redis expires 45 s after its place is free, removed by an activation; `{accountId}:p`, the fencing token of a session redeemed and not yet activated, which Redis expires one lease after the redemption, removed by the activation, the owner's heartbeat, the session's end or the place's removal. One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
 | `world:{worldId}:queue` | sorted set | the line: member the account id, score its arrival number |
 | `world:{worldId}:queue:checkins` | sorted set | member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
 | `world:{worldId}:queue:arrivals` | string | the arrival counter |
@@ -493,6 +502,11 @@ Each step only after the one before is done:
    of a redeemed session, whose place can then lapse before its activation. Each refusal is the same Warning, "Redis
    refused the expiry of a place ledger field".
 2. Identity, then the worlds service and the worlds, as in every release (identity before the worlds).
+   **Turns and an identity from before part 4.** Part 4 writes turns (marks `t:{enqueuedAtMs}:{givenAtMs}` and
+   `t:{enqueuedAtMs}:{givenAtMs}:{endMs}:{unclaimedSinceMs}`), which an identity from before part 4 cannot read: its join of an account holding a turn fails with 503
+   `SERVICE_UNAVAILABLE`. So do not run identity pods from before part 4 beside part 4's: roll identity over without
+   overlap (stop the old pod, then start the new), or accept that 503 for the few seconds both run. Turns exist only on
+   a world with a limit, and no live world has one before part 5, so on today's worlds the overlap meets no turn.
 3. Check: `/game/worlds` and `GET /world` show places taken for a world with players, and identity's and the worlds
    service's logs carry no "could not read world ... places" Warning, and identity's carry no "Redis refused the expiry of
    a place ledger field" (the identity Redis user lacks `hpexpire`, or Redis is older than 7.4: check step 1).
@@ -516,7 +530,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 52, Skipped: 0` (the 51 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 54, Skipped: 0` (the 53 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary
