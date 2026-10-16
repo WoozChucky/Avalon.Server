@@ -228,8 +228,10 @@ return to town, teleport or read a town scroll, for as long as it stayed in the 
   (`TownReturn`: a respawn, a town scroll, a party's leave countdown) and an item's teleport (`MapTeleport`) take the
   path a failed build takes, which clears `RespawnInFlight`, and send the player, once, the system chat line "The way
   could not be opened. Please try again." (`InstanceBuildTimeoutException.PlayerMessage`), stamped with the time the
-  build was abandoned. Each logs the timeout at Warning, without the stack. A party's countdown return then retries as
-  for any failed return ([parties](parties.md)). A character select waiting on a town build is stopped, as before, by
+  build was abandoned. A party's leave countdown, which tries its return again itself as for any failed return
+  ([parties](parties.md), #700), sends "The way could not be opened. Trying again…"
+  (`InstanceBuildTimeoutException.RetryingMessage`, owner decision) instead. Each logs the timeout at Warning, without
+  the stack. A character select waiting on a town build is stopped, as before, by
   the stalled-select sweep (`Game:CharacterLoadTimeoutSeconds`, 15 s by default), and is told nothing more.
 - **Counted and logged as a server fault.** Each abandoned build adds one to `world.instance.build_timeouts`, tagged
   `map.type` ([instrumentation](instrumentation.md#instance-build-timeouts)), and writes one Error: the build's kind,

@@ -16,6 +16,12 @@ public sealed class InstanceBuildTimeoutException : TimeoutException
     /// <summary>The system line the player whose move waited on the build is sent, once, as the move ends.</summary>
     public const string PlayerMessage = "The way could not be opened. Please try again.";
 
+    /// <summary>
+    /// The line instead when the server tries the move again itself: a party leave countdown's return to town, which is
+    /// retried (#700, owner decision).
+    /// </summary>
+    public const string RetryingMessage = "The way could not be opened. Trying again…";
+
     public InstanceBuildTimeoutException(MapTemplateId templateId, TimeSpan deadline, DateTime timedOutAt)
         : base($"The build of an instance of map {templateId.Value} did not finish within {deadline.TotalSeconds:0} s; it was abandoned")
     {
@@ -41,16 +47,19 @@ public sealed class InstanceBuildTimeoutException : TimeoutException
     };
 
     /// <summary>
-    /// Sends the connection's player <see cref="PlayerMessage" /> as a system line when <paramref name="failure" /> is a
-    /// build timeout, and says whether it was one. On the tick, by the requester that ends the move, once: a character
-    /// has one move under way at a time.
+    /// Sends the connection's player <see cref="PlayerMessage" />, or <see cref="RetryingMessage" /> when
+    /// <paramref name="retrying" />, as a system line when <paramref name="failure" /> is a build timeout, and says
+    /// whether it was one. On the tick, by the requester that ends the move, once: a character has one move under way
+    /// at a time.
     /// </summary>
-    public static bool TellIfTimedOut(IWorldConnection connection, Exception? failure)
+    /// <param name="retrying">The server tries the move again itself (a party leave countdown's return to town).</param>
+    public static bool TellIfTimedOut(IWorldConnection connection, Exception? failure, bool retrying = false)
     {
         if (Of(failure) is not { } timeout)
             return false;
 
-        connection.Send(SChatMessagePacket.System(PlayerMessage, timeout.TimedOutAt, PacketEncoder.Shared));
+        connection.Send(SChatMessagePacket.System(retrying ? RetryingMessage : PlayerMessage, timeout.TimedOutAt,
+            PacketEncoder.Shared));
         return true;
     }
 }

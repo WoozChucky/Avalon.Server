@@ -28,7 +28,9 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
 
     /// <param name="failed">
     /// Called on the tick, once, with the failure, after RespawnInFlight is cleared; it then owns the logging. Never
-    /// called for a return that arrived or that was dropped because the character left the connection.
+    /// called for a return that arrived or that was dropped because the character left the connection. A caller that
+    /// passes it retries the return itself (the party leave countdown, #700), so a town build abandoned at its deadline
+    /// tells the player it is being tried again rather than to try again (#969).
     /// </param>
     public void Start(IWorldConnection connection, bool revive, bool dropEncounter, Action<Exception>? failed = null)
     {
@@ -104,12 +106,13 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
     /// </summary>
     private void Failed(IWorldConnection connection, ICharacter ch, Exception e, Action<Exception>? failed)
     {
-        // A town build abandoned at its deadline (#969) is told to the player, once, whoever started the return.
+        // A town build abandoned at its deadline (#969) is told to the player, once, whoever started the return: a
+        // caller with a failure handler of its own (the party leave countdown) tries the return again itself.
         bool timedOut = false;
         if (ReferenceEquals(connection.Character, ch))
         {
             connection.RespawnInFlight = false;
-            timedOut = InstanceBuildTimeoutException.TellIfTimedOut(connection, e);
+            timedOut = InstanceBuildTimeoutException.TellIfTimedOut(connection, e, retrying: failed is not null);
         }
 
         if (failed is null)
