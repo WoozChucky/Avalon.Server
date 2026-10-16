@@ -77,6 +77,7 @@ public static class CheckCommand
                 Fighter = fighter,
                 StepTimed = printStep,
                 Note = line => printNote(member + line),
+                RefreshWhileQueued = true, // check runs no context refresher
             };
         }
 

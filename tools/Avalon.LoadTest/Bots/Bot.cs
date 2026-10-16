@@ -197,6 +197,13 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// <summary>Called with each step's name and how long it took (for <c>check</c>).</summary>
     public Action<string, TimeSpan>? StepTimed { get; set; }
 
+    /// <summary>
+    /// Whether the bot refreshes its own game context while it waits in a full world's line (#967), for <c>check</c>,
+    /// which runs no <see cref="ContextRefresher"/>: a wait past the credential's 5 minutes would otherwise end in 401. A
+    /// ramp's refresher keeps every bot's context alive, waiting or not.
+    /// </summary>
+    public bool RefreshWhileQueued { get; init; }
+
     /// <summary>Called with a line about a failed attempt that will be retried (for <c>check</c>).</summary>
     public Action<string>? Note { get; set; }
 
@@ -552,6 +559,15 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
                 while (true)
                 {
                     await Task.Delay(wait, ct);
+                    if (RefreshWhileQueued && DateTimeOffset.UtcNow >= context.RenewAt)
+                    {
+                        await StepAsync("refresh", s_joinTimeout, async token =>
+                        {
+                            await api.RefreshAsync(context, token);
+                            return true;
+                        }, ct);
+                    }
+
                     QueueStatus status = await StepAsync("queue", s_joinTimeout, token => api.QueueStatusAsync(context, worldId, token), ct);
                     if (status.State is GameQueueStates.YourTurn or GameQueueStates.NotQueued) break;
                     wait = status.CheckInAfter;

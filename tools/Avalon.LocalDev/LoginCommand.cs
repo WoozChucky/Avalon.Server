@@ -79,12 +79,12 @@ public static class LoginCommand
         JsonNode context = await PostAsync(http, "client/auth/handoffs/redeem",
             new { attemptCredential = Required(attempt, "attemptCredential"), handoffTicket = ticket }, null, Guid.NewGuid(),
             cancellationToken);
-        string credential = Required(context, "gameContextCredential");
+        var game = new GameContext(context);
         Console.Error.WriteLine($"Game context: {context["state"]}, license source {context["licenseSource"]}.");
 
         try
         {
-            JsonArray worlds = (await PostAsync(http, "game/worlds", new { gameContextCredential = credential }, null, null,
+            JsonArray worlds = (await PostAsync(http, "game/worlds", new { gameContextCredential = game.Credential }, null, null,
                 cancellationToken)).AsArray();
             if (worlds.Count == 0)
             {
@@ -99,27 +99,59 @@ public static class LoginCommand
             }
 
             ushort chosen = world ?? worlds[0]!["worldId"]!.GetValue<ushort>();
-            JsonNode join = await JoinAsync(http, credential, chosen, cancellationToken);
+            JsonNode join = await JoinAsync(http, game, chosen, cancellationToken);
             Required(join, "joinTicket");
             Console.Error.WriteLine($"Join ticket issued for world {chosen}, until {join["expiresAt"]}.");
             return 0;
         }
         finally
         {
-            await PostAsync(http, "client/auth/game-context/logout", new { gameContextCredential = credential }, null, null,
+            // The newest credential: a wait in a full world's line may have refreshed the context.
+            await PostAsync(http, "client/auth/game-context/logout", new { gameContextCredential = game.Credential }, null, null,
                 CancellationToken.None, allowEmpty: true);
         }
     }
 
     /// <summary>
-    /// A join ticket; for a full world (#967), waits in its line, checking in as told, and asks again at its turn (or once
-    /// no longer queued). Ctrl+C leaves the line.
+    /// The game context the check signed in to: its credential lives 5 minutes, so a long wait in a full world's line
+    /// (#967) refreshes it a minute before it, or the authorization, runs out (<see cref="RefreshIfDueAsync"/>).
     /// </summary>
-    private static async Task<JsonNode> JoinAsync(HttpClient http, string credential, ushort world, CancellationToken cancellationToken)
+    private sealed class GameContext(JsonNode reply)
+    {
+        public string Credential { get; private set; } = Required(reply, "gameContextCredential");
+        private string _refreshToken = Required(reply, "gameContextRefreshToken");
+        private DateTimeOffset _renewAt = RenewAt(reply);
+
+        public async Task RefreshIfDueAsync(HttpClient http, CancellationToken cancellationToken)
+        {
+            if (DateTimeOffset.UtcNow < _renewAt) return;
+            JsonNode refreshed = await PostAsync(http, "client/auth/game-context/refresh",
+                new { gameContextRefreshToken = _refreshToken }, null, Guid.NewGuid(), cancellationToken);
+            if (!string.Equals(refreshed["state"]?.ToString(), "authorized", StringComparison.OrdinalIgnoreCase))
+                throw new LocalDevException($"The game context could not be refreshed: {refreshed["state"]} {refreshed["error"]}");
+            Credential = Required(refreshed, "gameContextCredential");
+            _refreshToken = Required(refreshed, "gameContextRefreshToken");
+            _renewAt = RenewAt(refreshed);
+            Console.Error.WriteLine("  game context refreshed");
+        }
+
+        private static DateTimeOffset RenewAt(JsonNode reply)
+        {
+            var context = DateTimeOffset.Parse(Required(reply, "contextExpiresAt"), CultureInfo.InvariantCulture);
+            var authorization = DateTimeOffset.Parse(Required(reply, "authorizationValidUntil"), CultureInfo.InvariantCulture);
+            return (context < authorization ? context : authorization) - TimeSpan.FromSeconds(60);
+        }
+    }
+
+    /// <summary>
+    /// A join ticket; for a full world (#967), waits in its line, checking in as told, and asks again at its turn (or once
+    /// no longer queued), refreshing the game context as it comes due. Ctrl+C leaves the line.
+    /// </summary>
+    private static async Task<JsonNode> JoinAsync(HttpClient http, GameContext game, ushort world, CancellationToken cancellationToken)
     {
         while (true)
         {
-            JsonNode join = await PostAsync(http, "game/join-tickets", new { gameContextCredential = credential, worldId = world },
+            JsonNode join = await PostAsync(http, "game/join-tickets", new { gameContextCredential = game.Credential, worldId = world },
                 null, Guid.NewGuid(), cancellationToken);
             if (join["position"] is null) return join;
 
@@ -130,8 +162,9 @@ public static class LoginCommand
                 while (true)
                 {
                     await Task.Delay(TimeSpan.FromSeconds(wait), cancellationToken);
+                    await game.RefreshIfDueAsync(http, cancellationToken);
                     JsonNode status = await PostAsync(http, "game/queue/status",
-                        new { gameContextCredential = credential, worldId = world }, null, null, cancellationToken);
+                        new { gameContextCredential = game.Credential, worldId = world }, null, null, cancellationToken);
                     string? state = status["state"]?.GetValue<string>();
                     if (state is "your_turn" or "not_queued") break;
                     Console.Error.WriteLine($"  {state} at position {status["position"]}");
@@ -140,7 +173,7 @@ public static class LoginCommand
             }
             catch (OperationCanceledException)
             {
-                await PostAsync(http, "game/queue/leave", new { gameContextCredential = credential, worldId = world }, null, null,
+                await PostAsync(http, "game/queue/leave", new { gameContextCredential = game.Credential, worldId = world }, null, null,
                     CancellationToken.None, allowEmpty: true);
                 throw;
             }
