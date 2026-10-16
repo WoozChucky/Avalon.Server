@@ -36,7 +36,13 @@ public readonly record struct TimeRange(TimeSpan Min, TimeSpan Max)
 /// A quitter's times (<c>--quit-after</c>, <c>--rejoin-after</c>): how long it stays in the world before it quits, and how
 /// long it stays out before it joins again, each drawn afresh for every quit.
 /// </summary>
-public sealed record QuitTimes(TimeRange Stay, TimeRange Away);
+public sealed record QuitTimes(TimeRange Stay, TimeRange Away)
+{
+    /// <summary>The times without <c>--quit-after</c> and <c>--rejoin-after</c>: 1 to 3 minutes in the world, 30 to 60 seconds out.</summary>
+    public static QuitTimes Default { get; } = new(
+        new TimeRange(TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(3)),
+        new TimeRange(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)));
+}
 
 /// <summary>The share of each behaviour in a run (<c>--mix idle=60,walker=30,churner=10</c>).</summary>
 public static class Mix

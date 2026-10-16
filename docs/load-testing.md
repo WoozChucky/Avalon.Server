@@ -208,8 +208,8 @@ This is the capacity run, described under [The ramp](#the-ramp).
 |---|---|---|
 | `--run ABC` | the only run kept | The run whose accounts are used |
 | `--mix SHARES` | `idle=60,walker=30,churner=10` | Behaviour weights: `name=weight` pairs of `idle`, `walker`, `churner`, `fighter`, `quitter`, each at most once, weights 0 to 1000, at least one above 0; a behaviour left out has weight 0 (for example `idle=40,walker=20,churner=10,fighter=30`) |
-| `--quit-after T[-T]` | none: needed with a quitter in the mix | A [quitter](#behaviours)'s stay in the world before it quits: `90s`, `2m` or plain seconds, or two joined by a dash, the shorter first (`2m-5m`), a stay drawn between them for every quit; above 0, at most 1 h. Refused when the mix gives quitters no weight |
-| `--rejoin-after T[-T]` | none: needed with a quitter in the mix | A quitter's time out of the world before it joins again, as `--quit-after`, 0 to 1 h (0: at once) |
+| `--quit-after T[-T]` | `1m-3m` | A [quitter](#behaviours)'s stay in the world before it quits: `90s`, `2m` or plain seconds, or two joined by a dash, the shorter first (`2m-5m`), a stay drawn between them for every quit; above 0, at most 1 h. Refused when the mix gives quitters no weight |
+| `--rejoin-after T[-T]` | `30s-60s` | A quitter's time out of the world before it joins again, as `--quit-after`, 0 to 1 h (0: at once); refused as `--quit-after` |
 | `--start N` | `50` | The first step's bots, 1 to 5,000 (cut to `--max`) |
 | `--step N` | `50` | Bots added each step, 1 to 5,000 |
 | `--hold T` | `90s` | How long each step holds: `90s`, `2m` or plain seconds, 50 s to 1 h. The judged window is its last 60 s (the whole hold less 30 s when shorter than 90 s); everything before it settles: 30 s, longer when the hold exceeds 90 s |
@@ -296,9 +296,9 @@ its session and its place; its reconnect, every fourth churn, says goodbye too a
 to join again at once. A [quitter](#behaviours) quits as a player does: the leave,
 the goodbye and the close, which releases its place at once; the head of the line takes it at its next check-in (every
 5 s in the first ten). After `--rejoin-after` out of the world, the quitter joins again without a takeover and queues
-behind the line. With Q quitters in the world and a mean stay S (`--quit-after`), about Q ÷ S places free each
-minute, which is how fast the line drains. Neither has a default: the test chooses them. No limit needs raising by
-hand to give turns.
+behind the line. With Q quitters in the world and a mean stay of S minutes (`--quit-after`), about Q ÷ S places free
+each minute, which is how fast the line drains: with the defaults (`1m-3m` in the world, a mean of 2 minutes, and
+`30s-60s` out), 60 quitters in the world free about 30 places a minute. No limit needs raising by hand to give turns.
 
 To test a limit on world 4 (no live world gets one before the 0.4.0 client is out and part 5 is deployed):
 
@@ -310,7 +310,7 @@ To test a limit on world 4 (no live world gets one before the 0.4.0 client is ou
    not churn or quit, or set identity's `Application__WorldPlaces__HeldPlaceSeconds` to 5 for the run and restore it
    after. From part 5 on, nothing is needed.
 3. Ramp past the limit with quitters in the mix, for example to 500 bots with
-   `--mix idle=60,walker=20,quitter=20 --quit-after <stay> --rejoin-after <away>`, directly
+   `--mix idle=60,walker=20,quitter=20 --quit-after 1m-3m --rejoin-after 30s-60s` (the defaults, written out), directly
    (`--dial 10.10.1.15 --proxy-header`) or through Caddy (`--dial 10.10.1.17`); 500 is far under both the world's and
    Caddy's capacity.
 4. Read: `avalon_world_places_taken{world="4"}` never above 300 (plus staff); the line drains in arrival order as the

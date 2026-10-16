@@ -114,7 +114,7 @@ public static class CommandLine
     /// <c>ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
     /// [--limit name=value]... [--dial HOST [--proxy-header]] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
     /// [--forest-time 5m] [--party-size 1] [--driver-loops N] [--quit-after T[-T] --rejoin-after T[-T]]</c>; the quit times
-    /// are needed when the mix gives quitters a weight, and refused when it gives them none.
+    /// default to <see cref="QuitTimes.Default"/> when the mix gives quitters a weight, and are refused when it gives them none.
     /// </summary>
     public static RampArguments ParseRamp(string[] args)
     {
@@ -177,10 +177,7 @@ public static class CommandLine
         QuitTimes? quits = null;
         if (quitters)
         {
-            // No default: how long a quitter stays and stays out is the test's to choose.
-            quits = quitAfter is { } stay && rejoinAfter is { } away
-                ? new QuitTimes(stay, away)
-                : throw new CommandLineException("A quitter in --mix needs --quit-after and --rejoin-after: how long it stays in the world, and out of it.");
+            quits = new QuitTimes(quitAfter ?? QuitTimes.Default.Stay, rejoinAfter ?? QuitTimes.Default.Away);
         }
         else if (quitAfter is not null || rejoinAfter is not null)
         {
