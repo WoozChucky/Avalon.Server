@@ -136,6 +136,16 @@ spec:
             - name: Game__AbandonedInstanceLifetimeMinutes
               value: {{ $lifetime | quote }}
             {{- end }}
+            {{- range $key, $env := dict "playerLimit" "Game__PlayerLimit" "playerLimitMarginPercent" "Game__PlayerLimitMarginPercent" "playerLimitMarginMinimum" "Game__PlayerLimitMarginMinimum" }}
+            {{- $value := index $.Values.server.game $key }}
+            {{- if and (kindIs "float64" $value) (eq $value (floor $value)) }}{{ $value = int64 $value }}{{ end }}
+            {{- $value = ternary "" (toString $value) (kindIs "invalid" $value) }}
+            {{- if ne $value "" }}
+            {{- if not (regexMatch "^(0|[1-9][0-9]*)$" $value) }}{{ fail (printf "server.game.%s must be a whole number, 0 or more, got %q" $key $value) }}{{ end }}
+            - name: {{ $env }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
             {{- $tickCpu := .Values.server.tickThread.cpu }}
             {{- if and (kindIs "float64" $tickCpu) (eq $tickCpu (floor $tickCpu)) }}{{ $tickCpu = int64 $tickCpu }}{{ end }}
             {{- $tickCpu = ternary "" (toString $tickCpu) (kindIs "invalid" $tickCpu) }}

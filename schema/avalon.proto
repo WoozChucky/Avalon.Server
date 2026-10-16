@@ -400,6 +400,7 @@ enum GameAdmissionResult {
    GameAdmissionResult_AuthorizationRequired = 2;
    GameAdmissionResult_ServiceUnavailable = 3;
    GameAdmissionResult_UnsupportedClient = 4;
+   GameAdmissionResult_WorldFull = 5;
 }
 enum HitResult {
    // this is a composite/flags enumeration

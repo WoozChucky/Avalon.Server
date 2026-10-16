@@ -135,6 +135,12 @@ public static class ServiceExtensions
             sp.GetRequiredService<IAccountRepository>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<WorldEntryGate>>()));
+        // The world's own ceiling on admitted connections (#967), from Game:PlayerLimit; checked in the admission work, off
+        // the tick. Built with the packet handlers as the world starts, when it logs the limit it was given.
+        services.AddSingleton(sp => new WorldBackstop(
+            sp.GetRequiredService<IOptions<GameConfiguration>>().Value,
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<WorldBackstop>>()));
         services.AddSingleton(sp => new WorldMaintenanceCoordinator(
             sp.GetRequiredService<IOptions<GameConfiguration>>().Value.WorldId,
             sp.GetRequiredService<IWorldMaintenanceRepository>(),

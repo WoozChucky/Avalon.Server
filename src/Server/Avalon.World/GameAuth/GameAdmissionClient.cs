@@ -233,7 +233,8 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
     /// The identity service's refusal as the admission handler maps it, when it is one the world knows; any other is
     /// "try later". The permanent ones a redemption names (#1053: the client too old, the context not allowed on the
     /// world, revoked, its account's standing, the character not the account's) pass through, so the client is not
-    /// told to retry them.
+    /// told to retry them. So does a world at its player limit (<c>WORLD_FULL</c>, #967): identity never answers it at
+    /// redemption today, and the pass-through keeps a future one readable.
     /// </summary>
     private static string SafeError(string? error) => error switch
     {
@@ -241,7 +242,7 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
             GameAuthErrors.WorldUnavailable or GameAuthErrors.WorldNotAllowed or GameAuthErrors.BarrierPending or
             GameAuthErrors.ClientOutdated or GameAuthErrors.UnsupportedProtocol or GameAuthErrors.ContextRevoked or
             GameAuthErrors.AccountBanned or GameAuthErrors.AccountDeactivated or GameAuthErrors.AccountConsolidating or
-            GameAuthErrors.CharacterNotFound => error,
+            GameAuthErrors.CharacterNotFound or GameAuthErrors.WorldFull => error,
         _ => GameAuthErrors.ServiceUnavailable
     };
 }
