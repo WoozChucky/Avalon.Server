@@ -71,12 +71,15 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         DateTime expires = Min(Now.Add(GameAuthPolicy.JoinTicketLifetime), context.CredentialExpiresAt, until);
         if (expires <= Now) return new(GameAuthErrors.AuthorizationRequired);
         // Capacity last (#967): every check above stands as it was, and a refusal above takes no place. The place lasts
-        // 15 s past the ticket, for a redemption in flight. Part 1 keeps the ledger and enforces nothing: no limit is asked.
-        // The ticket is known to the ledger by the id of the session it becomes, which redemption and activation carry.
+        // 15 s past the ticket, for a redemption in flight. Staff (the Admin flag) always get one, and an account holding
+        // its place (its own session, a held place) keeps it; anyone else is refused at the world's limit. No line yet
+        // (capacity 0). The ticket is known to the ledger by the id of the session it becomes, which redemption and
+        // activation carry. A refusal is answered before the ticket and its receipt are written, so it is never replayed.
         var sessionId = Guid.NewGuid();
         DateTime placeUntil = expires.Add(GameAuthPolicy.TicketPlaceMargin);
         PlaceDecision place = await places.EnterAsync(new PlaceRequest(worldId, accountId, placeUntil,
-            Limit: null, Staff: false, QueueCapacity: 0, Ticket: sessionId), cancellationToken);
+            destination.PlayerLimit, destination.Staff, QueueCapacity: 0, Ticket: sessionId), cancellationToken);
+        if (place.Outcome != PlaceOutcome.Admitted) return new(GameAuthErrors.WorldFull);
         // A place this ticket took, and only one it took, is given back if the ticket is known not to be issued.
         bool took = place is { Outcome: PlaceOutcome.Admitted, Source: PlaceSource.Taken };
         string ticket = GameAuthCryptography.NewToken();

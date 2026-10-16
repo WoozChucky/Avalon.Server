@@ -12,6 +12,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.Server.World.Handlers;
 using Avalon.Server.World.UnitTests.GameAuth;
 using Avalon.World;
+using Avalon.World.Configuration;
 using Avalon.World.GameAuth;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -127,7 +128,9 @@ public sealed class AdmissionKeyExchangeShould
         GameSessionLease lease = WorldAdmissionConnection.Lease();
         api.AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new WorldAdmissionResult(lease, null));
-        var admission = new GameAdmissionHandler(api, new AdmissionSourceBudget(new AdmissionSourceOptions()));
+        // A world with no player limit configured (#967): its backstop never refuses.
+        var admission = new GameAdmissionHandler(api, new AdmissionSourceBudget(new AdmissionSourceOptions()),
+            new WorldBackstop(new GameConfiguration(), TimeProvider.System, NullLogger<WorldBackstop>.Instance), server);
         // The server runs admission as it arrives, as ServerBase.CallListener does.
         ((IServerBase)server).CallListener(Arg.Any<IConnection>(), Arg.Any<NetworkPacketHeader>(), Arg.Any<Packet?>())
             .Returns(call => admission.ExecuteAsync(new WorldPacketContext<CGameAdmissionPacket>

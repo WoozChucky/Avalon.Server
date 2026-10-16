@@ -21,8 +21,16 @@ public sealed class WorldPlacesConfiguration
     [Range(1, 900)] public int BackTimeoutSeconds { get; set; } = 45;
     [Range(5, 300)] public int TurnWindowSeconds { get; set; } = 45;
 
+    /// <summary>
+    /// How long join tickets alone may keep a place no session claims (#967): from when the place became unclaimed (taken
+    /// by a ticket, or left by a session's end, a held place included) until a session's activation or heartbeat claims it
+    /// again. Past it, a further ticket is not kept on the place it has: it goes through the capacity step as a newcomer.
+    /// </summary>
+    [Range(1, 1440)] public int UnclaimedPlaceMinutes { get; set; } = 15;
+
     public TimeSpan HeldPlace => TimeSpan.FromSeconds(HeldPlaceSeconds);
     public TimeSpan TurnWindow => TimeSpan.FromSeconds(TurnWindowSeconds);
+    public TimeSpan UnclaimedPlace => TimeSpan.FromMinutes(UnclaimedPlaceMinutes);
 
     /// <summary>How soon a waiter at <paramref name="position"/> (from 1) is told to check in again.</summary>
     public TimeSpan CheckInAfter(int position) =>
@@ -34,4 +42,13 @@ public sealed class WorldPlacesConfiguration
 
     /// <summary>A waiter that checks in when told is never removed for it: each timeout is above its interval.</summary>
     public bool IsValid() => FrontTimeoutSeconds > FrontCheckInSeconds && BackTimeoutSeconds > BackCheckInSeconds;
+
+    /// <summary>
+    /// A place held after a drop keeps its whole grace and is never swept past the horizon (which locks its account out):
+    /// the unclaimed horizon is at least the held place's grace plus <see cref="HeldPlaceMargin"/>.
+    /// </summary>
+    public bool CoversHeldPlace() => UnclaimedPlace >= HeldPlace + HeldPlaceMargin;
+
+    /// <summary>The least the unclaimed horizon runs past the held place's grace.</summary>
+    public static readonly TimeSpan HeldPlaceMargin = TimeSpan.FromMinutes(1);
 }

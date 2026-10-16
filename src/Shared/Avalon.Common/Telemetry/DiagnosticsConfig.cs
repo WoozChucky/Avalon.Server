@@ -85,6 +85,15 @@ public static class DiagnosticsConfig
             "Admissions refused because their source was over its admission budget, by reason, answered ServiceUnavailable");
 
         /// <summary>
+        /// Admissions the world's backstop refused (#967): the world was over its player limit plus margin, and the
+        /// account not staff. Answered <c>WorldFull</c>. Any value above zero means identity's place ledger was wrong or
+        /// lost, or identity's stored limit is above the world's <c>Game:PlayerLimit</c>: docs/instrumentation.md. No tags.
+        /// </summary>
+        public static readonly Counter<long> BackstopRefusals = Meter.CreateCounter<long>(
+            "world.admission.backstop_refusals", "{admissions}",
+            "Admissions the world refused over its player limit plus margin: identity's place ledger was wrong or lost, or the limits differ");
+
+        /// <summary>
         /// Instance builds abandoned at their deadline (#969, <c>InstanceRegistry.BuildDeadline</c>), every requester
         /// answered with the failure, counted once per build on the tick. Tagged <c>map.type</c> (<c>Town</c> or
         /// <c>Normal</c>). A server fault: docs/instrumentation.md.

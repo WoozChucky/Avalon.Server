@@ -4,7 +4,17 @@ using ProtoBuf;
 
 namespace Avalon.Network.Packets.Auth;
 
-public enum GameAdmissionResult { Accepted = 0, InvalidRequest = 1, AuthorizationRequired = 2, ServiceUnavailable = 3, UnsupportedClient = 4 }
+public enum GameAdmissionResult
+{
+    Accepted = 0, InvalidRequest = 1, AuthorizationRequired = 2, ServiceUnavailable = 3, UnsupportedClient = 4,
+
+    /// <summary>
+    /// The world's backstop (#967): the world is over its player limit plus its margin. Sent only when identity's count
+    /// was wrong, or the world's own limit is below identity's; the connection is closed after it.
+    /// </summary>
+    WorldFull = 5,
+}
+
 [ProtoContract]
 public sealed class SGameAdmissionPacket : Packet
 {

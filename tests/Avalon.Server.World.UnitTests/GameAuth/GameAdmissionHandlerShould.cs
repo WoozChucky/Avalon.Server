@@ -1,16 +1,21 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Diagnostics.Metrics;
 using System.Net;
 using Microsoft.Extensions.Time.Testing;
 using Avalon.Common.Cryptography;
+using Avalon.Common.GameAuth;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.World.Handlers;
 using Avalon.World;
+using Avalon.World.Configuration;
 using Avalon.World.GameAuth;
 using Avalon.World.Persistence;
+using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ProtoBuf;
 
@@ -74,6 +79,46 @@ public sealed class GameAdmissionHandlerShould
             Assert.Empty(reply.PublicKey);
         }
     }
+    /// <summary>
+    /// #967 section 11: over the world's limit plus its margin, a non-staff admission is refused as WorldFull and its
+    /// session ended as a backstop, which removes its place (never the abandon's reasonless end, which would hold it);
+    /// staff pass; no limit, no check. One other admitted connection, another account's, but for the last row, where it
+    /// is the same account's (a takeover's old connection): an account counts once. Margin 0 for the test. Review Focus 7: a refused
+    /// admission publishes no lease and revokes the one identity gave, so a close's drain ends nothing a second time (the
+    /// one end is the backstop's own; the tracked task is internal to the world, so the public lease is read instead).
+    /// </summary>
+    [Theory]
+    [InlineData(1, (ushort)1, 43L, true)]
+    [InlineData(1, (ushort)5, 43L, false)]
+    [InlineData(2, (ushort)1, 43L, false)]
+    [InlineData(null, (ushort)1, 43L, false)]
+    [InlineData(1, (ushort)1, 42L, false)]
+    public async Task Refuse_a_non_staff_admission_over_the_ceiling_and_end_its_session(int? limit, ushort accessLevel,
+        long otherAccount, bool refused)
+    {
+        IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
+        using var other = WorldAdmissionConnection.Create(server);
+        other.PublishAdmission(WorldAdmissionConnection.Lease(accountId: otherAccount));
+        using var connection = WorldAdmissionConnection.Create(server);
+        server.Connections.Returns(ImmutableArray.Create<IWorldConnection>(other, connection));
+        // Decided 2026-10-16: the backstop's limit is the world's configuration (Game:PlayerLimit), not the auth database.
+        var backstop = new WorldBackstop(
+            new GameConfiguration { PlayerLimit = limit, PlayerLimitMarginPercent = 0, PlayerLimitMarginMinimum = 0 },
+            TimeProvider.System, NullLogger<WorldBackstop>.Instance);
+        GameSessionLease lease = WorldAdmissionConnection.Lease(accessLevel: accessLevel);
+        IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
+        api.AdmitAsync(Arg.Any<string>(), connection.Id, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(new WorldAdmissionResult(lease, null));
+
+        await Admit(new GameAdmissionHandler(api, new AdmissionSourceBudget(new AdmissionSourceOptions()), backstop, server), connection);
+        await FlushUntil(connection, () => connection.Sent.Count > 0);
+
+        Assert.Equal(refused ? GameAdmissionResult.WorldFull : GameAdmissionResult.Accepted, ReplyOf(connection));
+        Assert.Equal(refused, connection.IsClosing);
+        await api.Received(refused ? 1 : 0).EndAsync(Arg.Any<GameSessionLease>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await api.Received(refused ? 1 : 0).EndAsync(lease, GameSessionEndReasons.Backstop, Arg.Any<CancellationToken>());
+        Assert.Equal((refused, refused), (connection.GameSessionLease is null, lease.IsRevoked));
+    }
+
     [Fact]
     public async Task Reject_a_second_admission_before_spending_its_ticket()
     {
@@ -259,7 +304,7 @@ public sealed class GameAdmissionHandlerShould
         var redemption = new TaskCompletionSource<WorldAdmissionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
         IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
         api.AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(_ => redemption.Task);
-        var handler = new GameAdmissionHandler(api, sources);
+        var handler = new GameAdmissionHandler(api, sources, NoLimit(), Substitute.For<IWorldServer, IServerBase>());
         using SourceRefusals refusals = new();
 
         using var first = WorldAdmissionConnection.Create(source: flooder);
@@ -378,7 +423,7 @@ public sealed class GameAdmissionHandlerShould
         IGameAdmissionClient api = Substitute.For<IGameAdmissionClient>();
         api.AdmitAsync(Arg.Any<string>(), Arg.Any<Guid>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(new WorldAdmissionResult(null, "INVALID_TICKET"));
-        var handler = new GameAdmissionHandler(api, sources);
+        var handler = new GameAdmissionHandler(api, sources, NoLimit(), Substitute.For<IWorldServer, IServerBase>());
         using SourceRefusals refusals = new();
 
         // The flooder's four, the bot PC's three, a source elsewhere, and two more /64s of the flooder's /56.
@@ -456,7 +501,10 @@ public sealed class GameAdmissionHandlerShould
     }
 
     private static GameAdmissionHandler Handler(IGameAdmissionClient api) =>
-        new(api, new AdmissionSourceBudget(new AdmissionSourceOptions()));
+        new(api, new AdmissionSourceBudget(new AdmissionSourceOptions()), NoLimit(), Substitute.For<IWorldServer, IServerBase>());
+
+    /// <summary>A backstop on a world with no limit configured: it never refuses, and the other tests keep their meaning.</summary>
+    private static WorldBackstop NoLimit() => new(new GameConfiguration(), TimeProvider.System, NullLogger<WorldBackstop>.Instance);
 
     private static Task Admit(GameAdmissionHandler handler, WorldAdmissionConnection connection) =>
         handler.ExecuteAsync(new()

@@ -93,6 +93,22 @@ for bad in "server.game.abandonedInstanceLifetimeMinutes=-1" "server.game.abando
   fi
 done
 
+# The backstop's player limit and margin (#967): none renders unset; a limit (a values-file float too) and a margin render
+# as digits; anything but a whole number fails, naming the value.
+! grep -q "Game__PlayerLimit" <<<"$off"                                                        || { echo "player limit settings rendered when unset"; exit 1; }
+pl=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-json server.game.playerLimit=1000 --set server.game.playerLimitMarginPercent=10 --set server.game.playerLimitMarginMinimum=0)
+grep -A1 "name: Game__PlayerLimit$" <<<"$pl" | grep -q '"1000"'                                 || { echo "a player limit must render as digits"; exit 1; }
+grep -A1 "name: Game__PlayerLimitMarginPercent" <<<"$pl" | grep -q '"10"'                       || { echo "a margin percent must render"; exit 1; }
+grep -A1 "name: Game__PlayerLimitMarginMinimum" <<<"$pl" | grep -q '"0"'                        || { echo "a margin minimum of 0 must render"; exit 1; }
+for bad in "server.game.playerLimit=0" "server.game.playerLimit=100001" "server.game.playerLimit=1.5" "server.game.playerLimitMarginPercent=x" "server.game.playerLimitMarginMinimum=-1"; do
+  if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set "$bad" 2>&1); then
+    echo "rendering with $bad must fail"; exit 1
+  fi
+  grep -Fq "${bad%%=*} must be a whole number" <<<"$message"                                    || { echo "the $bad refusal must name the setting"; exit 1; }
+done
+pm=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.game.playerLimit=100000)
+grep -A1 "name: Game__PlayerLimit$" <<<"$pm" | grep -q '"100000"'                               || { echo "a player limit of 100000 must render"; exit 1; }
+
 # Tick thread placement (#1002): neither setting renders unset; a CPU (0 too, and a values-file float) renders as digits,
 # a GC CPU list as given; anything else fails.
 ! grep -q "Game__TickThreadCpu" <<<"$off"                                                      || { echo "tick thread CPU rendered when unset"; exit 1; }

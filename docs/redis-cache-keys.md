@@ -183,17 +183,18 @@ environment runs, and would not on a Redis Cluster.
 
 **Purpose:** The ledger. Every admitted account holds one place per world: in the world, at character select, holding
 a join ticket (until 15 s after its expiry), or held after a drop (from part 2). Activation removes the account's place
-in every other world.
+in every other world, and a join ticket admitted in one world removes the account's places that only a ticket holds
+in every other (#967).
 
 ### `world:{worldId}:places:marks`
 
 | Field | Value |
 |---|---|
 | **`CacheKeys` member** | `CacheKeys.WorldPlaceMarks(ushort worldId)` |
-| **Type** | Hash, two fields per account at most. `{accountId}`: the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold until then, the last ticket to enter, by the id of the session it becomes, N format), and no field for a place a session alone holds. `{accountId}:s`: the fencing token of the session that owns the place's lease (`{fence}`), or a tombstone of the session that ended there (`e:{fence}`), which Redis expires one lease after it is written (`HPEXPIRE`), kept when the place goes, so the session's late renewals cannot bring the place back. A ticket that took a place held after a drop marks it `j:{untilMs}:{ticket}:h`, so its withdrawal holds the place again. One field besides the accounts', `released`: the time (Unix ms) the world's held places were last released at a stop or a cutoff, at most once every 10 s |
+| **Type** | Hash, five fields per account at most. `{accountId}`: the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken from the line, not yet used), `j:{untilMs}:{ticket}` (a join ticket's hold until then, the last ticket to enter, by the id of the session it becomes, N format) or `r` (released by the account's ticket for another world while its own ticket's hold ran: counted until that hold ends, kept by no further ticket, renewed by that ticket's redemption), and no field for a place a session alone holds. `{accountId}:s`: the fencing token of the session that owns the place's lease (`{fence}`), or a tombstone of the session that ended there (`e:{fence}`), which Redis expires one lease after it is written (`HPEXPIRE`), kept when the place goes, so the session's late renewals cannot bring the place back. A ticket that took a place held after a drop marks it `j:{untilMs}:{ticket}:h`, so its withdrawal holds the place again. `{accountId}:f`: since when (Unix ms) no session has claimed the place (taken or kept by a ticket, or left by a session's end), deleted by the activation or a heartbeat of the session that owns it; past `Application:WorldPlaces:UnclaimedPlaceMinutes` a further ticket is not kept on the place. `{accountId}:l`: `1` while an account refused `WORLD_FULL` at its place's lapse is locked out of the world, expired by Redis 45 s after its place is free (`HPEXPIRE`), removed by an activation, left to expire when a place goes. `{accountId}:p`: the fencing token of a session redeemed and not yet activated, expired by Redis one lease after the redemption, removed by the activation, the owner's heartbeat, the session's end, or the place's removal; the place does not lapse while it lives and no lockout does. One field besides the accounts', `released`: the time (Unix ms) the world's held places were last released at a stop or a cutoff, at most once every 10 s |
 | **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
 | **Consumer** | API, identity: the scripts |
-| **TTL** | None on the key. The `{accountId}` field and a live `{accountId}:s` go with their place; a tombstone (`e:{fence}`) expires on its own, one lease after it was written, and outlives the place it was written for |
+| **TTL** | None on the key. The `{accountId}` and `{accountId}:f` fields and a live `{accountId}:s` go with their place; a tombstone (`e:{fence}`) expires on its own, one lease after it was written, and outlives the place it was written for; so do a lockout `{accountId}:l` (45 s after the place is free) and a pending marker `{accountId}:p` (one lease) |
 
 **Purpose:** Who holds each place, which a sorted set cannot say. It lets the scripts
 count held places, count a turn that expired unused, answer a returning or promoted account as such, and keep a

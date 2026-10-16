@@ -10,11 +10,12 @@ The feature ships in five parts. This page describes what is in place now and ma
 |---|---|---|
 | 1 | The `PlayerLimit` column and its endpoint; the ledger, kept with every session; true counts in the world lists | in place |
 | 2 | The reason a world gives for a session's end; the held place after a drop | in place |
-| 3 | Enforcement at the join (`WORLD_FULL`), the `Full` status, the world's backstop | from PR 3 |
+| 3 | Enforcement at the join (`WORLD_FULL`), the `Full` status, the world's backstop | in place |
 | 4 | The queue: the "queued" answer, the status and leave calls, their rate limit, the metrics | from PR 4 |
 | 5 | The goodbye opcode (`CMSG_LEAVE_WORLD`), so a quit frees its place at once | from PR 5 |
 
-Until part 3 nothing is enforced: every join is admitted as before, and the ledger only counts.
+A world with a limit refuses a newcomer once it is full ([enforcement](#enforcement)); until part 4 there is no line,
+so a full world answers `WORLD_FULL` rather than queueing.
 
 ## What the limit is
 
@@ -28,7 +29,7 @@ character select, holding a join ticket it has not redeemed yet, or holding its 
 account at character select holds a place but no character.
 
 Staff (accounts with the Admin flag, the flag that passes maintenance) are always given a place, so places taken can
-exceed the limit by the staff admitted (from part 3).
+exceed the limit by the staff admitted.
 
 ## Places
 
@@ -43,7 +44,8 @@ A stale call can at most keep a place counted a little longer (see the last poin
   the ticket's expiry (`GameAuthPolicy.TicketPlaceMargin`). The hold names the last ticket to enter, with the later of
   its end and the hold already there. The hold goes with the ticket's withdrawal, its own session's activation, or the
   place itself: the session's end when no hold runs any more, the sweep of an expired place, the activation of the
-  account's session in another world once the hold is over.
+  account's session in another world once the hold is over. A place released by the account's ticket for another world
+  (`r`) goes at once at that activation, its hold or not.
 - **The owning session.** The session that owns the place's lease, by its fencing token (`GameSessions.FencingToken`,
   which only grows for an account: a takeover's session has a larger one than the session it replaces). Redemption,
   activation and heartbeats make their session the owner; a session older than the owner renews and ends nothing.
@@ -59,7 +61,7 @@ A stale call can at most keep a place counted a little longer (see the last poin
 | The ticket's issue is known to have failed (its write was refused) | the ticket's hold is given back, best effort, and the place with it unless a live session owns it; nothing when another ticket entered since. An issue that threw (a cancellation, a timeout) gives nothing back: its write may have landed |
 | The same request is replayed (its `Idempotency-Key`) | while the ticket is unredeemed, its place, if still there, is extended (never shortened) and held by that ticket again. A replay never creates a place, so a used ticket's replay cannot take back a place given to another |
 | The world redeems the ticket | the pending session owns the place, to its lease |
-| The session is activated | renewed to the lease; it spends its own ticket's hold (never another ticket's); the account's place in every other world is removed, since a session is one per account, but for a ticket's hold still running there |
+| The session is activated | renewed to the lease; it spends its own ticket's hold (never another ticket's); the account's place in every other world is removed, since a session is one per account, but for a ticket's hold still running there (a place released by a ticket for another world, `r`, goes at once) |
 | Each heartbeat (every 15 s) | renewed to the lease's new end, or a ticket's later hold |
 | The session ends (identity answers `ended`) | removed, or held for the grace after a drop ([the held place](#the-held-place)), unless a ticket's hold still runs: then it stays until that hold ends. Never shortened, and never re-created when it is already gone |
 | The end or heartbeat of a session older than the owner, or of one that ended there (arriving late) | unchanged |
@@ -73,6 +75,50 @@ A stale call can at most keep a place counted a little longer (see the last poin
   the application, the allocator's non-disclosing refusals, the session rules) answers first and takes no place, so
   capacity never speaks for a world the context may not enter.
 - A ticket that is never redeemed holds its place until 15 s after its expiry, then the place lapses.
+- **Tickets alone keep an unclaimed place for 15 minutes at most** (`Application:WorldPlaces:UnclaimedPlaceMinutes`).
+  A place is unclaimed from the moment a ticket takes it, or a session's end leaves it (a held place after a drop
+  included), until a session claims it: its activation, or a heartbeat of the session that owns it (a redemption alone
+  does not). Asking a new join ticket every half minute would otherwise keep a place on a full world indefinitely
+  without ever playing. Past the horizon a further ticket is not kept on the place: it goes through the capacity step
+  as a newcomer's, its own place still counted. With room (a free place beyond its own, and nobody in the line), or
+  for staff, it is admitted and the place is its own again with a new horizon; otherwise the answer is a newcomer's
+  (`WORLD_FULL`, or from part 4 the line) and the place is released, but not while its last ticket's hold still runs:
+  that ticket may still be redeemed, and its session then finds the place it was counted for (the redemption renews it
+  as any other, never over the limit, and the unclaimed time stays until an activation). The place goes at its own
+  end: that hold's, or later when a session renewed it meanwhile. A live session's renewals are untouched: its
+  heartbeats claim the place every 15 s, so a takeover or a reconnect is never refused for it. A session redeemed and
+  not yet activated is marked pending on its place (`{accountId}:p`, its fencing token) for one lease at most, and its
+  place does not lapse while the mark lives and no lockout does; the activation, the owner's heartbeat, the session's
+  end or the place's removal removes it. A live owner field alone does not stop a lapse: a session replaced in
+  another world, whose end identity answers `SESSION_REPLACED` and never records here, would otherwise leave a fence
+  nobody renews and a place that never lapses.
+- **A lapsed place refused is not taken back at once.** An account whose unclaimed place lapsed and that is refused
+  `WORLD_FULL` (the world full and its line full, or no line, as in part 3) is locked out of that world for 45 s
+  (`GameAuthPolicy.WorldFullRetryAfterMin`, the shortest `Retry-After` the others are told), counted from when its
+  place is free: the place's own end, when it is kept for its last ticket's hold. Until then each of its joins is
+  `WORLD_FULL` again,
+  before any capacity check, so it cannot ask again a moment later and take back the place it was released from ahead
+  of the players told to come back. Anyone else can take that place meanwhile. The lockout is the marks hash's field
+  `{accountId}:l`, which Redis expires itself (`HPEXPIRE`); a place's removal leaves it to expire. Letting the place
+  run out instead and asking again at its end changes nothing: the sweep that removes a place unclaimed past the
+  horizon writes the same lockout, 45 s from then, so the account meets it as a newcomer. Only a place tickets alone
+  kept to the end can be swept unclaimed past the horizon: a live session's heartbeats claim the place, and a drop's
+  held place lasts the held grace, and startup requires the horizon to run at least a minute past it
+  (`UnclaimedPlaceMinutes` × 60 ≥ `HeldPlaceSeconds` + 60). A session's
+  activation removes it (the account is playing), and a session end while it lives gives the place no held grace (the
+  grace would outlast the lockout): the place stays only while a ticket's hold or the session's lease still runs. Should Redis refuse
+  the expiry, the field is not kept (see the Warning below), and the account can retake the place as before. A lapsed
+  account queued instead (from part 4, when the world's line has room) gets no lockout: it waits behind whoever is
+  already in the line.
+- **One place a ticket alone holds per account, across worlds.** A join ticket admitted in one world releases the
+  account's places in every other configured world that only a ticket holds: a ticket's mark, with no live session
+  owning the place. A place held after a drop (`h`), one a ticket returned to from a drop (`j:...:h`), one a live
+  session owns, and a turn from the line all stay. So one account cannot squat one world while it asks tickets for
+  another; the release is in the same script as the admission, over the other worlds' keys as an activation's is. A
+  released place whose ticket's hold still runs is not removed at once, since that ticket may still be redeemed: it
+  stays counted to the hold's end, marked released (`r`), so no further ticket keeps it (the account asks as a
+  newcomer) and no replay extends it, and a redemption of that ticket renews a place that never left the count, with
+  its unclaimed time, rather than putting one back over the limit.
 - A heartbeat of a session crossing its end in flight (the end first) changes nothing: the end's tombstone refuses
   it, whether the end removed the place or kept it, so a place given to another meanwhile is never taken back. The
   tombstone lasts one lease from the end, and a renewal still in flight at the end was sent within the session's lease,
@@ -82,8 +128,8 @@ A stale call can at most keep a place counted a little longer (see the last poin
   owner's fence, or an earlier tombstone the call was re-arming), so the account is left with no owner or tombstone
   there, never with a field that lasts forever. The end and the activation still do the rest, and only this protection
   is lost (a late heartbeat can then bring a removed place back for at most one lease, counting the account in, never
-  out). Identity logs the refusal at Warning, at most every 10 s: "Redis refused the expiry of an ended session's
-  tombstone". What remains: a replay that
+  out). Identity logs the refusal at Warning, at most every 10 s: "Redis refused the expiry of a place ledger field"
+  (the same line for a lockout or a pending marker, which are then not kept). What remains: a replay that
   extends a place just before its ticket is redeemed and its session ends keeps that place counted until the
   replayed hold ends, at most 45 s after the replay. That only ever counts the account in for longer, never out.
 
@@ -116,7 +162,7 @@ same `DisconnectReason` as before.
 | Banned or deactivated (`world:accounts:status`: `Banned`, `Deactivated`), any other `Kicked` close (none in the world today), or the entry check refused the account itself (no longer active, `WorldEntryDecision.AccountRefused`) | `kicked` | removed |
 | A maintenance cutoff in force (`Maintenance`: the cutoff's close; or an entry refused for the cutoff, `WorldEntryDecision.Cutoff`, or the cutoff or restart drain the world applies when it turns a non-Admin away at character select or the spawn, `WorldMaintenanceCoordinator.CutsOff`, whatever the gate's check said; only where the world applies no maintenance, an allowed decision that ended at the cutoff's deadline, `EndsAtCutoff`) | `maintenance` | removed, with every place the world holds after a drop |
 | The world stopped or restarted (`ServerShutdown`), the restart drain included | `shutdown` | removed, with every place the world holds after a drop |
-| The world's backstop refused the admission (from part 3) | `backstop` | removed |
+| The world's backstop refused the admission ([the backstop](#the-backstop)) | `backstop` | removed |
 
 - **Identity decides with the account's standing.** A reason that would hold the place holds it only for an account
   that is still active (not banned, deactivated or being consolidated, and not gone): identity reads the account at
@@ -156,7 +202,76 @@ same `DisconnectReason` as before.
   the grace.
 - **Change Character keeps the connection and the session**, so the place is untouched.
 - A held place exists only for an account that was admitted, for the grace, and gives nothing a player could not have
-  by staying connected. Until part 3 it only counts: it is enforced with the limit.
+  by staying connected. It counts against the limit, and a return within the grace is admitted however full the
+  world is.
+
+## Enforcement
+
+The capacity step is the join's last (`JoinTicketStore.IssueAsync`, `POST /game/join-tickets` and
+`/game/reconnect-tickets`): every refusal before it answers first and takes no place, so a full world is told only to a
+context that may enter it. The step asks the ledger for a place with the world's stored limit and the account's Admin
+flag:
+
+| The account | On a full world (places taken at or over the limit) |
+|---|---|
+| Holds a place in the world: its own session (a reconnect, a takeover), a ticket's hold, or a place held after a drop | kept; ticket as before |
+| Staff (the Admin flag, tested with `Allows`) | a place, over the limit if need be; ticket as before |
+| Anyone else | **503 `WORLD_FULL`** with `Retry-After` a whole number of seconds from 45 to 75, drawn at random so the players refused together do not all ask again at once (`GameAuthPolicy.WorldFullRetryAfterMin`, `Max`); no ticket, no place |
+
+- `WORLD_FULL` is one of the retryable 503s, beside `WORLD_UNAVAILABLE` and `SERVICE_UNAVAILABLE`
+  ([world refusals](api-authentication.md#world-refusals)). It is answered before the ticket and its `join-issue`
+  receipt are written, so the same `Idempotency-Key` asked again is decided again rather than replayed.
+- No limit set: no refusal, as before. Until part 4 there is no line (its capacity is 0): a full world refuses, it does
+  not queue.
+- **`Full` in the lists.** `WorldStatus` gains `Full` (appended, in the REST contract's enum and the domain's): a world
+  `Online` with a limit that places taken have reached. The order is `Maintenance`, then `Offline`, then `Full`, then
+  `Online` (`WorldReadiness.WithCapacity`, on top of `Resolve`, which keeps its three values). `GET /world`,
+  `GET /world/{id}` and identity's `POST /game/worlds` derive it from the ledger's count; `GET /world?sortBy=status`
+  orders `Full` after `Maintenance`, by the enum's number. A world listed only with `requiresUpdate` gets its status
+  the same way. The TCP auth server's world list is unchanged.
+
+## The backstop
+
+The world keeps a ceiling of its own on admitted accounts (`WorldBackstop`), which guards the pod if identity's
+ledger is wrong or was lost (a Redis flush, and the window before heartbeats put the places back). It should never fire.
+
+- **Its limit is the world's configuration**, `Game:PlayerLimit` (Helm `server.game.playerLimit`, rendered only when
+  set), 1 to 100,000; unset, no backstop. It reads nothing from the auth database. The ceiling is the limit plus a
+  margin: `Game:PlayerLimitMarginPercent` of the limit (5 by default, 0 to 100), at least
+  `Game:PlayerLimitMarginMinimum` accounts (32 by default, the admission lane's concurrency); at 1,000 that is 1,050.
+  Read once at startup, and logged
+  at Information at every start: `Player limit {Limit}, backstop ceiling {Ceiling}`, or `No player limit configured:
+  no backstop`.
+- **Where it runs.** In the admission's own work on the `Admission` lane, off the tick, after identity redeemed the
+  ticket and activated the session (so the account's access level is known), and only for an admission the per-source
+  budget let start. It counts accounts, not connections, over the server's connection snapshot: each account with a
+  lease not revoked, once, and this one's. A takeover's old connection keeps its lease until its next heartbeat is
+  refused (within 15 s), so counting connections would count that account twice and could refuse the takeover, and
+  cycling takeovers could inflate the count; counting accounts cannot. Staff (the Admin flag) are neither counted nor
+  refused. A lease is read without its lock or the clock (`IsRevoked`): the tick marks one that ran out within a tick,
+  which can only count an account a little longer. The accounts are gathered in a set the backstop reuses under a lock,
+  so a check allocates nothing once the set has grown.
+- **How far over it can go.** Two windows let admissions past the ceiling: admissions on the lane at once (at most 32,
+  `WorldDatabaseWork.AdmissionConcurrency`) do not see each other, and an admission the backstop passed counts for the
+  next only once the tick publishes it (the next tick, about 16 ms). The margin's minimum of 32 covers the first. The
+  second adds about the admissions that finish within one tick: with identity answering in a few milliseconds, the lane
+  can finish around a hundred a tick during a reconnect storm, all past the backstop before any is published. So in the
+  worst case a world can be over its ceiling by a little over a hundred accounts; at a limit of about 640 or more the
+  5% margin covers that, and below it the overshoot can pass the margin. The backstop bounds the damage of a ledger
+  fault roughly, not exactly; identity's own limit is the exact one.
+- **One account, several connections, counts once.** An account whose takeover connections overlap (the old one keeps
+  its lease until its next heartbeat is refused) counts as one account. That is the trade for never refusing a
+  takeover; how many connections one account can hold at once is bounded by the join ticket's rate limit and the
+  world's per-source admission budget, not by the backstop.
+- **A refusal.** Over the ceiling and not staff: the lease is revoked, the session is ended with reason `backstop`,
+  which removes the place (never the reasonless end of a failed admission, which would hold it), and the client is
+  answered `GameAdmissionResult.WorldFull` (5) and closed. The admission's result then carries no lease, so a close's
+  drain ends nothing a second time. The end holds the admission lane and the source's slot, so it is bounded to 2 s
+  (`WorldBackstop.EndTimeout`), as a failed admission's abandon is; an end that fails or times out leaves the session
+  to run out with its lease (within 45 s), and the place with it. Staff always pass.
+- **When it fires** it counts `world.admission.backstop_refusals` and logs at Error, at most once every 10 s with the
+  count left out. Any value above zero means identity's ledger was wrong or lost, or identity's stored limit is above
+  the world's `Game:PlayerLimit`: the homelab alerts on it.
 
 ## Setting a limit
 
@@ -176,14 +291,32 @@ same `DisconnectReason` as before.
   maintenance transition or a metadata edit written at the same time survives, and a metadata edit (`PUT /world/{id}`)
   never writes the limit.
 - Each change is logged at Information with who made it and the limit before and after.
-- It takes effect on identity's next join request (enforced from part 3). Lowering it below places taken removes
-  nobody: nobody new enters until places taken falls below it.
-- The world's backstop (from part 3) has its own limit, the world's configuration `Game:PlayerLimit` (Helm
-  `server.game.playerLimit`), which the operator sets to the same number.
+- It takes effect on identity's next join request. Lowering it below places taken removes nobody: nobody new enters
+  until places taken falls below it.
+- The world's backstop has its own limit, the world's configuration `Game:PlayerLimit` (Helm
+  `server.game.playerLimit`), which the operator sets to the same number. **A limit is always set in two steps, together:**
+  1. `PUT /world/{id}/player-limit` with the number: identity's limit, which refuses newcomers (`WORLD_FULL`) and, from
+     part 4, queues them. Effective on the next join.
+  2. The same number as the world's chart value `server.game.playerLimit` (removed, or empty, to lift it): the
+     backstop's limit. Effective when the pod rolls, which the change does: a restart, after which nobody holds a place
+     (decision 10). So change it in a maintenance window or before the world's players arrive.
+
+  The two can disagree, and that is accepted: a world value below identity's makes the backstop refuse admissions
+  identity granted, which shows as `world.admission.backstop_refusals` and its alert; a world value above identity's,
+  or none, leaves the pod a looser guard, or none, while identity still enforces its own. Check after a change that the
+  world logged `Player limit {Limit}, backstop ceiling {Ceiling}` at its start.
+
+  **A world value below identity's is a loop, not just a count.** Identity keeps issuing tickets up to its own limit;
+  the world refuses each admission past its ceiling with `WorldFull` and ends the session, which frees the place, so
+  identity issues the next ticket to someone else (or to the same client trying again), and the world refuses that too.
+  Players between the two limits are turned away at the world's door over and over, each costing a redemption and a
+  session end. The backstop alert (`world.admission.backstop_refusals` above zero) is the signal: on it, compare the two
+  limits first, and bring identity's down to the world's (`PUT /world/{id}/player-limit`, at once) before anything
+  else. A client should treat `WorldFull` as "back off a minute or more".
 
 The world lists show the counts: `GET /world` and `GET /world/{id}` fill `WorldDto.OnlineCount` with places taken and
-carry `playerLimit` and `queueLength`; each world of identity's `POST /game/worlds` carries `status` (`Online` or
-`Maintenance`), `playerCount`, `playerLimit` and `queueLength`, and a join reply's `destination` carries `status` and
+carry `playerLimit` and `queueLength`; each world of identity's `POST /game/worlds` carries `status` (`Online`, `Maintenance`
+or `Full`), `playerCount`, `playerLimit` and `queueLength`, and a join reply's `destination` carries `status` and
 `playerLimit` too. The counts read only entries still current (a place whose expiry, or a waiter whose check-in
 deadline, is still ahead), so what no script has swept yet is not shown. When Redis cannot be read the counts are 0;
 an error Redis answers (a missing permission, `NOPERM`) is also logged at Warning, at most every 10 s
@@ -196,7 +329,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | Key | Type | Content |
 |---|---|---|
 | `world:{worldId}:places` | sorted set | the ledger: member the account id, score the moment the place expires (Unix ms) |
-| `world:{worldId}:places:marks` | hash | per account two fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes). One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
+| `world:{worldId}:places:marks` | hash | per account five fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used), `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place) or `r` (released by the account's ticket for another world while its own ticket's hold ran: counted until that hold ends, kept by no ticket), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes); `{accountId}:f`, since when (Unix ms) no session has claimed the place, absent once one does, gone with the place; `{accountId}:l` (`1`), the lockout of an account refused when its unclaimed place lapsed, which Redis expires 45 s after its place is free, removed by an activation; `{accountId}:p`, the fencing token of a session redeemed and not yet activated, which Redis expires one lease after the redemption, removed by the activation, the owner's heartbeat, the session's end or the place's removal. One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
 | `world:{worldId}:queue` | sorted set | the line: member the account id, score its arrival number |
 | `world:{worldId}:queue:checkins` | sorted set | member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
 | `world:{worldId}:queue:arrivals` | string | the arrival counter |
@@ -219,8 +352,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 - **A lost ledger** (Redis emptied or replaced) is rebuilt by the heartbeats: every admitted account's next heartbeat
   puts its place back, within 15 s, over the limit if need be; an admitted player is never removed for capacity.
   Until a live session's next heartbeat (at most 15 s), its place is missing: new joins in that window see too few
-  places taken and can be admitted over the limit (from part 3, where the limit is enforced; the world's backstop
-  bounds it).
+  places taken and can be admitted over the limit (the world's backstop bounds it).
 - The identity service's Redis user needs the six patterns and the sorted-set commands its scripts call; the worlds
   service's user reads two of the keys (see [Redis users per API service](redis-cache-keys.md#redis-users-per-api-service)).
   Without them every join answers 503, the script failing with `NOPERM`.
@@ -236,13 +368,16 @@ Each step only after the one before is done:
    `world:*:queue:checkins`, and `zcount`; homelab#202: `api-identity` `hpexpire`, which an ended session's tombstone
    is written with, in place of the `hpexpireat` homelab#200 granted). Check on the cluster before the identity release
    rolls: `kubectl -n avalon exec avalon-redis-0 -- redis-cli -a "$PW" ACL GETUSER api-identity` (and `api-worlds`).
-   Deployed without homelab#199, every join answers 503. Without `hpexpire` (or on an older Redis) everything works
-   but the tombstones: the scripts catch the refused expiry and keep no tombstone, so an ended session's late heartbeat can
-   bring a removed place back for at most one lease.
+   Deployed without homelab#199, every join answers 503. Without `hpexpire` (or on an older Redis) joins, ends and
+   renewals still work, but every field that must expire on its own is dropped instead (the scripts catch the refused
+   expiry and delete the field): the tombstones, so an ended session's late heartbeat can bring a removed place back for
+   at most one lease; the lockout of a lapsed squatter, which can then take its place back at once; the pending marker
+   of a redeemed session, whose place can then lapse before its activation. Each refusal is the same Warning, "Redis
+   refused the expiry of a place ledger field".
 2. Identity, then the worlds service and the worlds, as in every release (identity before the worlds).
 3. Check: `/game/worlds` and `GET /world` show places taken for a world with players, and identity's and the worlds
    service's logs carry no "could not read world ... places" Warning, and identity's carry no "Redis refused the expiry of
-   an ended session's tombstone" (the identity Redis user lacks `hpexpire`, or Redis is older than 7.4: check step 1).
+   a place ledger field" (the identity Redis user lacks `hpexpire`, or Redis is older than 7.4: check step 1).
 
 ## Testing the scripts
 
@@ -263,7 +398,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 38, Skipped: 0` (the 37 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 47, Skipped: 0` (the 46 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary

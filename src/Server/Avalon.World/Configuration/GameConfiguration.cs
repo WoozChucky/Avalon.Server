@@ -27,6 +27,32 @@ public class GameConfiguration
     public int ScriptHotReloadIntervalSeconds { get; set; } = 5;
 
     /// <summary>
+    ///     The world's own player limit for its backstop (#967), 1 to 100,000; null (the default) for no backstop. Set
+    ///     to the same number as the world's stored limit (<c>PUT /world/{id}/player-limit</c>), which identity enforces
+    ///     with the queue and <c>WORLD_FULL</c>; this one only guards the pod if identity's place ledger is wrong or lost.
+    ///     Read at startup: a change rolls the pod.
+    /// </summary>
+    [Range(1, 100_000)]
+    public int? PlayerLimit { get; set; }
+
+    /// <summary>
+    ///     The backstop's margin over the world's player limit (#967), in percent of the limit; the margin is at least
+    ///     <see cref="PlayerLimitMarginMinimum" />. It absorbs staff and timing, so in normal operation it never fires.
+    /// </summary>
+    [Range(0, 100)]
+    public int PlayerLimitMarginPercent { get; set; } = 5;
+
+    /// <summary>
+    ///     The backstop's smallest margin over the player limit, in accounts (#967). By default the admission lane's
+    ///     concurrency (<see cref="Persistence.WorldDatabaseWork.AdmissionConcurrency" />, 32): admissions that run at
+    ///     once do not see each other. Admissions passed within one tick, before the tick publishes them, can add about a
+    ///     hundred more under a reconnect storm, which the percentage covers from a limit of about 640
+    ///     (docs/world-player-limit.md, the backstop).
+    /// </summary>
+    [Range(0, 100_000)]
+    public int PlayerLimitMarginMinimum { get; set; } = Persistence.WorldDatabaseWork.AdmissionConcurrency;
+
+    /// <summary>
     ///     Which implementation moves creatures. <see cref="CreatureLocomotionMode.Waypoint" /> is
     ///     what the world has always done; <see cref="CreatureLocomotionMode.Crowd" /> steers them
     ///     with DotRecast so they avoid each other.

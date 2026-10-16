@@ -68,6 +68,14 @@ server:
     # the same instance. 0 frees it on the next tick, so every entry builds a new one (a load-test world). Empty:
     # the world's default, 15.
     abandonedInstanceLifetimeMinutes: ""
+    # The world's own player limit for its backstop (#967): Game:PlayerLimit, 1 to 100000. Empty: no backstop. Set it to
+    # the same number as the world's stored limit (PUT /world/{id}/player-limit), which identity enforces with the
+    # queue; this one only guards the pod. A change rolls the pod.
+    playerLimit: ""
+    # The backstop's margin over that limit: Game:PlayerLimitMarginPercent, in percent of the limit, and
+    # Game:PlayerLimitMarginMinimum, in accounts; the larger applies. Empty: the world's defaults, 5 and 32.
+    playerLimitMarginPercent: ""
+    playerLimitMarginMinimum: ""
   # The per-packet session encryption (Network:PacketEncryption, #875): AES-GCM on every gameplay payload inside TLS.
   # false (the default): TLS alone. Read at startup: a change rolls the pod. true or false only.
   network:

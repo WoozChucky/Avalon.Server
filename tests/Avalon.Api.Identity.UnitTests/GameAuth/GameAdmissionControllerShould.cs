@@ -71,6 +71,31 @@ public sealed class GameAdmissionControllerShould
             || key.Contains(":join-issue:", StringComparison.Ordinal));
     }
 
+    /// <summary>#967: a world at its player limit is a retryable refusal, 503 <c>WORLD_FULL</c> with when to ask again, 45 to 75 s.</summary>
+    [Fact]
+    public async Task Answer_a_full_world_with_503_and_a_retry_after()
+    {
+        var h = new JoinHarness();
+        h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(
+            GameWorldAllocation.Admit(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost",
+                new string('A', 64), "0.0.1", "0.0.1", PlayerLimit: 1)));
+        await h.Places.RenewAsync(1, 8, 1, Guid.NewGuid(), h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45), false, default);
+        GameAuthReply auth = await h.Authenticate();
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        var controller = new GameAdmissionController(NullLogger<GameAdmissionController>.Instance, h.Authorization, h.Tickets,
+            h.Allocator, new GameApplicationAccessPolicy(Options.Create(h.Configuration)))
+        {
+            ControllerContext = new() { HttpContext = http },
+        };
+
+        ObjectResult result = Assert.IsType<ObjectResult>(await controller.Join(
+            new GameJoinRequest { GameContextCredential = auth.GameContextCredential!, WorldId = 1 }, Guid.NewGuid(), default));
+
+        Assert.Equal((503, "WORLD_FULL"), (result.StatusCode, Assert.IsType<GameJoinReply>(result.Value).Error));
+        Assert.InRange(int.Parse(http.Response.Headers.RetryAfter.ToString(), System.Globalization.CultureInfo.InvariantCulture), 45, 75);
+    }
+
     public enum WorldRefusal { Unavailable, ClientOutdated, BelowApiFloor, NotAllowed, Banned, CharacterGone }
 
     /// <summary>

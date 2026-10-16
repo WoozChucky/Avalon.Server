@@ -43,19 +43,19 @@ internal sealed class WorldAdmissionConnection : Avalon.World.WorldConnection
             typeof(Connection).GetField("_clientIPAddress", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(result, source);
         return result;
     }
-    public static GameSessionLease Lease(TimeProvider? clock = null)
+    public static GameSessionLease Lease(TimeProvider? clock = null, ushort accessLevel = 1, long accountId = 42)
     {
         clock ??= TimeProvider.System;
         return GameSessionLease.TryCreate(new()
         {
             State = "active",
-            AccountId = "42",
+            AccountId = accountId.ToString(System.Globalization.CultureInfo.InvariantCulture),
             GameSessionId = Guid.NewGuid().ToString("D"),
             GameContextId = Guid.NewGuid().ToString("D"),
             FencingToken = "7",
             ServerId = "world-one",
             WorldId = 1,
-            AccessLevel = 1,
+            AccessLevel = accessLevel,
             CredentialsVersion = 3,
             SessionEpoch = "9",
             LeaseUntil = clock.GetUtcNow().UtcDateTime.AddSeconds(44),
