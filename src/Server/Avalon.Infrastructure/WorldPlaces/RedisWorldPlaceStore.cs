@@ -17,7 +17,8 @@ namespace Avalon.Infrastructure.WorldPlaces;
 /// not yet used) or <see cref="TicketMark"/> (a join ticket's hold, the last ticket to enter). The field
 /// <c>{account}:s</c> is the fencing token of the session that owns the place's lease (<c>{fence}</c>), or of the session
 /// that ended there (<c>e:{fence}</c>, a tombstone Redis expires one lease after it was written, <c>HPEXPIRE</c>, whether the
-/// place was kept or removed); fencing tokens only grow for an account, so a smaller one is an older session's.
+/// place was kept or removed); fencing tokens only grow for an account, so a smaller one is an older session's. One more
+/// field, <c>released</c>, is the time the world's held places were last released (<see cref="ReleaseHeldAsync"/>).
 /// </para>
 /// </summary>
 public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldPlacesConfiguration> options,
@@ -287,6 +288,24 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         return {1, refused}
         """;
 
+    // KEYS: 1 places, 2 marks. ARGV: 1 now, 2 the window in ms. The marks hash's field 'released' (never an account's) is
+    // the last release's time.
+    // Returns how many held places were released.
+    private const string ReleaseHeld = Holders + """
+        local now = tonumber(ARGV[1])
+        local last = tonumber(redis.call('HGET', KEYS[2], 'released'))
+        if last and now >= last and now - last < tonumber(ARGV[2]) then return 0 end
+        redis.call('HSET', KEYS[2], 'released', ARGV[1])
+        local released = 0
+        for _, account in ipairs(redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', '+inf')) do
+          if redis.call('HGET', KEYS[2], account) == 'h' then
+            forget_place(KEYS[1], KEYS[2], account)
+            released = released + 1
+          end
+        end
+        return released
+        """;
+
     // KEYS: 1 places, 2 marks. ARGV: 1 account, 2 until, 3 the replayed ticket's id (N format).
     // Returns 1 when the place was there to extend, 0 when there is none: a replay never creates one.
     private const string Rejoin = Holders + """
@@ -402,6 +421,10 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         RedisResult[] r = await RunArrayAsync(script, keys, values, cancellationToken);
         if ((int)r[1] == 1) outage.ReportTombstoneRefused();
     }
+
+    public Task ReleaseHeldAsync(ushort worldId, CancellationToken cancellationToken) =>
+        RunAsync(ReleaseHeld, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
+            [Now, Ms(IWorldPlaceStore.HeldReleaseWindow)], cancellationToken);
 
     public Task RejoinAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken cancellationToken) =>
         RunAsync(Rejoin, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],

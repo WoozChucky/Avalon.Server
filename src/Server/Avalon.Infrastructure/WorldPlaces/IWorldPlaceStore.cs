@@ -85,6 +85,17 @@ public interface IWorldPlaceStore
     /// </summary>
     Task RejoinAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// The world stopped or reached a maintenance cutoff: after it everyone is equal, so every place held after a drop is
+    /// released (its tombstone stays). A place a ticket has taken since (a return within the grace) is a ticket's and
+    /// stays. At most once in <see cref="HeldReleaseWindow"/> for a world, so the burst of a stop's session ends releases
+    /// once; a later call after the window releases what dropped since.
+    /// </summary>
+    Task ReleaseHeldAsync(ushort worldId, CancellationToken cancellationToken);
+
+    /// <summary>How long after one release of a world's held places another is a no-op.</summary>
+    static readonly TimeSpan HeldReleaseWindow = TimeSpan.FromSeconds(10);
+
     /// <summary>A waiter checks in: its position, or its turn when the world is available and a place is free for it.</summary>
     Task<QueueCheckIn> CheckInAsync(ushort worldId, long accountId, int? limit, bool available, CancellationToken cancellationToken);
 

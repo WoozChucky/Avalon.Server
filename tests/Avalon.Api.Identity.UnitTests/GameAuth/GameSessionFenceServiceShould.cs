@@ -408,7 +408,11 @@ public sealed class GameSessionFenceServiceShould
         Assert.Equal(0, (await _h.Places.CountAsync(1, default)).Taken);
     }
 
-    /// <summary>#967: a drop, or an end with no reason (a world from before #967), holds the place for 90 s; every other reason removes it.</summary>
+    /// <summary>
+    /// #967: a drop, or an end with no reason (a world from before #967), holds the place for 90 s; every other reason
+    /// removes it. A stop or a maintenance cutoff also releases the places held for sessions that dropped before it, here
+    /// account 8's (decision 10).
+    /// </summary>
     [Theory]
     [InlineData(null, true)]
     [InlineData(GameSessionEndReasons.Drop, true)]
@@ -416,8 +420,8 @@ public sealed class GameSessionFenceServiceShould
     [InlineData(GameSessionEndReasons.Logout, false)]
     [InlineData(GameSessionEndReasons.Kicked, false)]
     [InlineData(GameSessionEndReasons.SelectTimeout, false)]
-    [InlineData(GameSessionEndReasons.Maintenance, false)]
-    [InlineData(GameSessionEndReasons.Shutdown, false)]
+    [InlineData(GameSessionEndReasons.Maintenance, false, AccountStatus.Active, true)]
+    [InlineData(GameSessionEndReasons.Shutdown, false, AccountStatus.Active, true)]
     [InlineData(GameSessionEndReasons.Backstop, false)]
     // A banned or deactivated account holds nothing, whatever the world says: the world reads a ban whose notice it
     // missed as a drop (its heartbeat refused), and a ban before the activation ends the pending session with no reason.
@@ -426,9 +430,12 @@ public sealed class GameSessionFenceServiceShould
     // The theory runs on the first "ended" path (guard and session ended). The other two call the same EndedAsync, where
     // the rule lives once.
     public async Task Hold_the_place_only_for_a_session_that_dropped(string? reason, bool held,
-        AccountStatus status = AccountStatus.Active)
+        AccountStatus status = AccountStatus.Active, bool releasesHeld = false)
     {
         await Arrange();
+        DateTime now = _h.Clock.GetUtcNow().UtcDateTime;
+        await _h.Places.RenewAsync(1, 8, 1, Guid.NewGuid(), now.AddSeconds(45), false, default);
+        await _h.Places.EndAsync(1, 8, 1, PlaceEnd.Hold, now.AddSeconds(90), default); // account 8 dropped earlier
         Assert.Null((await Activate()).Error);
         _h.Account.Status = status;
         _target.EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>()).Returns(true);
@@ -436,7 +443,8 @@ public sealed class GameSessionFenceServiceShould
 
         Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, reason, default)).State);
 
-        Assert.Equal(held ? (1, 1) : (0, 0), Taken(await _h.Places.CountAsync(1, default)));
+        int others = releasesHeld ? 0 : 1;
+        Assert.Equal(held ? (1 + others, 1 + others) : (others, others), Taken(await _h.Places.CountAsync(1, default)));
         _h.Clock.Advance(TimeSpan.FromSeconds(90));
         Assert.Equal((0, 0), Taken(await _h.Places.CountAsync(1, default)));
     }
@@ -484,6 +492,7 @@ internal sealed class FlakyPlaceStore(IWorldPlaceStore inner) : IWorldPlaceStore
         Up(inner).EndAsync(worldId, accountId, fence, end, heldUntil, ct);
     public Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, CancellationToken ct) =>
         Up(inner).WithdrawAsync(worldId, accountId, ticket, ct);
+    public Task ReleaseHeldAsync(ushort worldId, CancellationToken ct) => Up(inner).ReleaseHeldAsync(worldId, ct);
     public Task RejoinAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken ct) =>
         Up(inner).RejoinAsync(worldId, accountId, ticket, until, ct);
     public Task<QueueCheckIn> CheckInAsync(ushort worldId, long accountId, int? limit, bool available, CancellationToken ct) =>

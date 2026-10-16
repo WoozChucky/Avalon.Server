@@ -106,7 +106,23 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
             ? PlaceEnd.Hold
             : PlaceEnd.Remove;
         await ReleasePlaceAsync(worldId, accountId, fence, end, cancellationToken);
+        // A stop or a maintenance cutoff: after it everyone is equal, so the places held for sessions that dropped before
+        // it go too (decision 10). The first such end of the burst releases them; the store asks it at most once a window.
+        if (reason is GameSessionEndReasons.Shutdown or GameSessionEndReasons.Maintenance)
+            await ReleaseHeldPlacesAsync(worldId, cancellationToken);
         return new() { State = "ended" };
+    }
+
+    private async Task ReleaseHeldPlacesAsync(ushort worldId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await places.ReleaseHeldAsync(worldId, cancellationToken);
+        }
+        catch (Exception error) when (PlaceLedgerOutage.IsOutage(error))
+        {
+            outage.Report("held places' release", error);
+        }
     }
 
     /// <summary>

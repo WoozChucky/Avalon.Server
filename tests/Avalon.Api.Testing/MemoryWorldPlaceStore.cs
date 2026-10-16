@@ -28,6 +28,8 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         public readonly Dictionary<long, long> Arrival = [];     // account -> arrival
         public readonly Dictionary<long, long> Deadline = [];    // account -> removal deadline
         public long Arrivals;
+        public long? Released;                                   // the last release of the held places
+
         public int Rank(long account) => Arrival.TryGetValue(account, out long arrival) ? Line.IndexOfKey(arrival) : -1;
 
         /// <summary>ZADD GT: the place's end, never moved earlier; a missing place is added.</summary>
@@ -255,6 +257,22 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             w.Marks.Remove(accountId);
             if (owner is null or { Ended: true }) w.Places.Remove(accountId);
             if (owner is { Ended: true } ended) w.Tombstone(accountId, ended.Fence, now); // rearmed: the place is gone
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task ReleaseHeldAsync(ushort worldId, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            long now = Now;
+            WorldState w = World(worldId);
+            if (w.Released is { } last && now >= last && now - last < (long)IWorldPlaceStore.HeldReleaseWindow.TotalMilliseconds)
+                return Task.CompletedTask;
+            w.Released = now;
+            foreach (long account in w.Places.Keys.Where(a => w.Marks.TryGetValue(a, out string? m) && m == Held).ToList())
+                w.Forget(account);
         }
 
         return Task.CompletedTask;

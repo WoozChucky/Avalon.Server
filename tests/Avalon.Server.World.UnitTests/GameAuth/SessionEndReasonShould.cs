@@ -25,6 +25,7 @@ public sealed class SessionEndReasonShould
     [InlineData("account banned", null, GameSessionEndReasons.Kicked)]
     [InlineData("entry refused", null, GameSessionEndReasons.Maintenance)]
     [InlineData("entry check failed", null, GameSessionEndReasons.Drop)] // told maintenance, but the world's fault
+    [InlineData("entry refused for the account", null, GameSessionEndReasons.Kicked)] // no longer active: never a cutoff
     public void Report_why_the_world_closed_the_connection(string closedBy, DisconnectReason? reason, string expected)
     {
         using var connection = WorldAdmissionConnection.Create();
@@ -36,6 +37,9 @@ public sealed class SessionEndReasonShould
             case "account sessions ended": Avalon.World.WorldServer.CloseAccountSessions([connection], "42", NullLogger.Instance); break;
             case "account banned": Avalon.World.WorldServer.CloseBannedOrDeactivated([connection], "42|BANNED", NullLogger.Instance); break;
             case "entry refused": EntryRefusal.Close(connection, default, NullLogger.Instance); break;
+            case "entry refused for the account":
+                EntryRefusal.Close(connection, new WorldEntryDecision { AccountRefused = true }, NullLogger.Instance);
+                break;
             default: EntryRefusal.Close(connection, new WorldEntryDecision { Failed = true }, NullLogger.Instance); break;
         }
 

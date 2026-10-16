@@ -27,6 +27,12 @@ public readonly record struct WorldEntryDecision(bool Allowed, DateTime ValidUnt
     /// </summary>
     public bool Failed { get; init; }
 
+    /// <summary>
+    /// The account itself may not enter (no longer active, as after a ban): told maintenance, as before, but its session's
+    /// end is a kick, never a maintenance end, which would release the world's held places (#967). Never allowed.
+    /// </summary>
+    public bool AccountRefused { get; init; }
+
     public bool IsValidAt(DateTime nowUtc) => Allowed && nowUtc < ValidUntilUtc;
 }
 
@@ -123,7 +129,7 @@ public sealed class WorldEntryGate(
             if (state is null) return default;
 
             Account? account = await accounts.FindByIdAsync(accountId, false, ct);
-            if (account is not { Status: AccountStatus.Active }) return default;
+            if (account is not { Status: AccountStatus.Active }) return new WorldEntryDecision { AccountRefused = true };
             bool admin = (account.AccessLevel & AccountAccessLevel.Admin) != 0;
             if (state.IsCutoffActive((clock ?? TimeProvider.System).GetUtcNow().UtcDateTime) && !admin)
                 return default;
