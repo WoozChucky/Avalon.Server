@@ -579,8 +579,8 @@ to 0.4.0, so from its deploy identity refuses a 0.3.0 client at sign-in (400 `UN
 3. Raise each world's `MinVersion` to 0.4.0 (`PUT /world/{id}`): a game context signed in before step 2 is told
    `CLIENT_OUTDATED` (426, `requiredVersion` 0.4.0) at its next join, and the world's handshake refuses a 0.3.0 client
    with `ClientVersionTooOld`.
-4. Only then set a live limit ([setting a limit](#setting-a-limit)), after a load test with churning bots, which say
-   goodbye when they leave.
+4. Only then set a live limit ([setting a limit](#setting-a-limit)), after a load test with quitters ([load testing](load-testing.md#a-player-limit-test)),
+   which leave with the goodbye and join again behind the line.
 
 ## Testing the scripts
 

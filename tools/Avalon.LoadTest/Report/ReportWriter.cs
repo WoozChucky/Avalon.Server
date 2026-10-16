@@ -74,9 +74,25 @@ public static class ReportWriter
         File.Move(temporary, path, overwrite: true);
     }
 
-    /// <summary>The result in a line: <c>capacity 300 bots</c>, <c>bot PC saturated: capacity ≥ 450 bots</c>, ...</summary>
-    public static string ResultLine(RampResult result) => Verdict(result) +
+    /// <summary>
+    /// The result in a line: <c>capacity 300 bots</c>, <c>bot PC saturated: capacity ≥ 450 bots</c>, ...; with how many of
+    /// the last passing step's bots waited in a full world's line (#967) when any did.
+    /// </summary>
+    public static string ResultLine(RampResult result) => Verdict(result) + InLineText(result) +
         (result.DoesNotStandReason is { } reason ? $"; does not stand: {reason}" : "");
+
+    /// <summary>
+    /// <c> (100 of them waiting in the line)</c> when the step the result's count comes from (the last passing one) had
+    /// bots in a full world's line at its hold's end; empty otherwise.
+    /// </summary>
+    private static string InLineText(RampResult result)
+    {
+        StepRecord? counted = result.Capacity is null
+            ? null
+            : result.Steps.LastOrDefault(step => step.Decision.Action == RampAction.NextStep ||
+                step.Decision.Outcome == RampOutcome.NoLimitReached);
+        return counted is { InLine: > 0 } ? Invariant($" ({counted.InLine} of them waiting in the line)") : "";
+    }
 
     private static string Verdict(RampResult result) => result.Outcome switch
     {
@@ -101,6 +117,7 @@ public static class ReportWriter
         md.AppendLine(Invariant($"- Run: {run.RunId} ({run.Bots.Count} bots) through {run.Api}"));
         md.AppendLine($"- Mix: {options.Mix}");
         md.AppendLine($"- Fighters: {FightersText(options)}");
+        md.AppendLine($"- Quitters: {QuittersText(options)}");
         md.AppendLine($"- Packet encryption, as the world's admission replies named it: {BotMetrics.EncryptionText(result.Admissions)}");
         md.AppendLine($"- Queue: {BotMetrics.QueueText(result.Queue)}");
         md.AppendLine(Invariant(
@@ -133,8 +150,8 @@ public static class ReportWriter
         md.AppendLine();
         md.AppendLine("## Steps");
         md.AppendLine();
-        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter) | In world at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Slow kicks | Receive backlog | Send threads busy: cores (busiest thread) | Pending bytes p99 | Working set | GC stall | GC pause | Gen2 / min (not judged) | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Bot PC CPU | Driver lateness p95 (worst loop) | Driver busy: mean (busiest loop) | Verdict |");
-        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        md.AppendLine("| Step | Live bots (idle / walker / churner / fighter / quitter) | In world at hold end | In the line at hold end | Players online − start | Instances (all maps) | Tick p99 | TPS | Ack p50 / p95 / p99 | Slow kicks | Receive backlog | Send threads busy: cores (busiest thread) | Pending bytes p99 | Working set | GC stall | GC pause | Gen2 / min (not judged) | Save p95 | Admission: bots failing / tried | Entries / failed | Failures by kind | Leave failures (not admission) | Sign-in failures (not admission) | Disconnects | Quits / got in from the line | Bot PC CPU | Driver lateness p95 (worst loop) | Driver busy: mean (busiest loop) | Verdict |");
+        md.AppendLine("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
         foreach (StepRecord step in result.Steps)
         {
             ServerValues s = step.Server;
@@ -144,7 +161,7 @@ public static class ReportWriter
             string leaves = Kinds(c.LeaveFailures);
             string signIns = Kinds(c.SignInFailures);
             string bots = Invariant(
-                $"{step.Bots} ({step.ByBehaviour.GetValueOrDefault(BehaviourKind.Idle)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Walker)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Churner)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Fighter)})");
+                $"{step.Bots} ({step.ByBehaviour.GetValueOrDefault(BehaviourKind.Idle)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Walker)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Churner)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Fighter)} / {step.ByBehaviour.GetValueOrDefault(BehaviourKind.Quitter)})");
             string workingSet = s.WorkingSetMb is { } mb
                 ? Invariant($"{mb:0} MB ({Percent(s.WorkingSetFraction)})")
                 : "n/a";
@@ -152,6 +169,7 @@ public static class ReportWriter
                 "| " + step.Index.ToString(CultureInfo.InvariantCulture),
                 bots,
                 step.InWorld.ToString(CultureInfo.InvariantCulture),
+                step.InLine.ToString(CultureInfo.InvariantCulture),
                 step.PlayersOnlineAdded is { } added ? added.ToString(CultureInfo.InvariantCulture) : "n/a",
                 Number(s.Instances, "0"),
                 Ms(s.TickP99Ms, "0.0"),
@@ -172,6 +190,7 @@ public static class ReportWriter
                 leaves,
                 signIns,
                 c.Disconnects.ToString(CultureInfo.InvariantCulture),
+                Invariant($"{c.Quits} / {c.QueueEntries}"),
                 Percent(step.GeneratorCpu),
                 double.IsFinite(step.GeneratorLagP95Ms)
                     ? $"{Ms(step.GeneratorLagP95Ms, "0.0")} ({Ms(step.DriverWorstLoopLagP95Ms, "0.0")})"
@@ -268,6 +287,18 @@ public static class ReportWriter
             ? Invariant($"{settings}; a fighter's first trip (a party's, together) waits a random 0 to {Fighter.FirstTripJitter.TotalSeconds:0} s")
             : $"none in the mix ({settings})";
     }
+
+    /// <summary>
+    /// The header's quitter settings (<c>--quit-after</c>, <c>--rejoin-after</c>), or <c>none in the mix</c>.
+    /// </summary>
+    private static string QuittersText(RampOptions options) => options.Quits is { } quits
+        ? $"quit after {Span(quits.Stay)} in the world (--quit-after), join again after {Span(quits.Away)} out of it (--rejoin-after), each drawn afresh for every quit; the quit is the leave, the goodbye and the close, the return a join without a takeover, which waits in the line on a full world"
+        : "none in the mix";
+
+    /// <summary>A quitter's span: <c>90 s</c>, or <c>120 to 300 s</c> drawn between the two.</summary>
+    private static string Span(TimeRange range) => range.Min == range.Max
+        ? Invariant($"{range.Min.TotalSeconds:0} s")
+        : Invariant($"{range.Min.TotalSeconds:0} to {range.Max.TotalSeconds:0} s");
 
     /// <summary>
     /// Each step's fighters: how many, the instances the world ticked by map type, their forest entries (portal request
@@ -405,6 +436,13 @@ public static class ReportWriter
                 ForestTimeSeconds = options.ForestTime.TotalSeconds,
                 options.PartySize,
                 options.DriverLoops,
+                Quits = options.Quits is { } quits
+                    ? new
+                    {
+                        StaySeconds = new { Min = quits.Stay.Min.TotalSeconds, Max = quits.Stay.Max.TotalSeconds },
+                        AwaySeconds = new { Min = quits.Away.Min.TotalSeconds, Max = quits.Away.Max.TotalSeconds },
+                    }
+                    : null,
             },
             Limits = options.Limits.Select(limit => new { limit.Name, limit.CliName, limit.Threshold, limit.TripsAbove, limit.Unit }),
             BotPc = new { Cpu = cpu, Cores = Environment.ProcessorCount, ClockOffsetSeconds = result.ClockOffset.TotalSeconds },

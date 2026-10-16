@@ -6,7 +6,8 @@ namespace Avalon.LoadTest.Bots;
 
 /// <summary>
 /// What the bots measure on the client side, by window: input-to-ack latency, entry time (ticket to first ack), entry
-/// attempts and failures by kind, leave and sign-in failures by kind, sign-out failures and unexpected disconnects; and
+/// attempts and failures by kind, leave and sign-in failures by kind, sign-out failures and unexpected disconnects,
+/// quitters' quits and the bots that got in from a full world's line; and
 /// the fighters' trips: forest entry time (portal request to transition), trips completed, casts sent and refused by
 /// reason, kills seen, their own deaths and failed steps by kind, and their parties formed and failed by reason.
 /// <see cref="TakeWindow"/> closes the current window and opens the next. Every recording method is safe from any
@@ -193,10 +194,14 @@ public sealed class BotMetrics
     /// <summary>An entry attempt was told to wait in the world's line (#967).</summary>
     public void Queued() => Interlocked.Increment(ref _queued);
 
-    /// <summary>A bot that waited in the line got its ticket, <paramref name="waited"/> after it was first queued.</summary>
+    /// <summary>
+    /// A bot that waited in the line got its ticket, <paramref name="waited"/> after it was first queued: counted over the
+    /// run, and in the current window.
+    /// </summary>
     public void QueueEntered(TimeSpan waited)
     {
         Interlocked.Increment(ref _queueEntered);
+        Count(static window => ref window.QueueEntries);
         lock (_queueLock)
         {
             if (_queueWaits.Count < MaxQueueSamples) _queueWaits.Add(waited.TotalSeconds);
@@ -235,6 +240,9 @@ public sealed class BotMetrics
             Exit(window);
         }
     }
+
+    /// <summary>A quitter quit the world on purpose, with the goodbye (#967): not a disconnect.</summary>
+    public void Quit() => Count(static window => ref window.Quits);
 
     /// <summary>A fighter's request to enter the forest was answered with the forest, <paramref name="portalToTransition"/> after it was sent.</summary>
     public void ForestEntered(TimeSpan portalToTransition)
@@ -322,6 +330,8 @@ public sealed class BotMetrics
             FighterFailures = new Dictionary<string, int>(closed.FighterFailures, StringComparer.Ordinal),
             PartiesFormed = (int)Volatile.Read(ref closed.PartiesFormed),
             PartyFormFailures = new Dictionary<string, int>(closed.PartyFormFailures, StringComparer.Ordinal),
+            Quits = (int)Volatile.Read(ref closed.Quits),
+            QueueEntries = (int)Volatile.Read(ref closed.QueueEntries),
         };
     }
 
@@ -397,6 +407,10 @@ public sealed class BotMetrics
         public int Writers;
         public long SignOutFailures;
         public long Disconnects;
+        public long Quits;
+
+        /// <summary>Bots that waited in the line and got their ticket.</summary>
+        public long QueueEntries;
 
         /// <summary>The fighters' forest entry times, portal request to transition, in milliseconds.</summary>
         public readonly Reservoir ForestEntries = new(MaxEntrySamples);
@@ -560,6 +574,15 @@ public sealed record StepClientValues(
     /// (<see cref="BotMetrics.PartyFormFailed"/>).
     /// </summary>
     public IReadOnlyDictionary<string, int> PartyFormFailures { get; init; } = new Dictionary<string, int>(StringComparer.Ordinal);
+
+    /// <summary>Quitters' quits, with the goodbye (<see cref="BotMetrics.Quit"/>); not disconnects.</summary>
+    public int Quits { get; init; }
+
+    /// <summary>
+    /// Bots that waited in a full world's line and got their ticket (#967). A bot still waiting has no attempt that ended,
+    /// so it is neither tried nor failing.
+    /// </summary>
+    public int QueueEntries { get; init; }
 
     /// <summary>Bots that tried to enter in the window (an attempt of theirs ended there), each once.</summary>
     public int BotsTried => TriedBots.Count;

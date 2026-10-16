@@ -1,4 +1,5 @@
 using System.Globalization;
+using Avalon.LoadTest.Api;
 
 namespace Avalon.LoadTest.Bots;
 
@@ -16,6 +17,31 @@ public enum BehaviourKind
 
     /// <summary>Walks from town into a forest of its own, fights its creatures, walks out and repeats (<see cref="Bots.Fighter"/>).</summary>
     Fighter,
+
+    /// <summary>
+    /// Walks as a walker; after a while quits the world with the goodbye, which frees its place on a full world, stays
+    /// out a while and joins again, queueing behind the line there (<see cref="QuitTimes"/>, #967).
+    /// </summary>
+    Quitter,
+}
+
+/// <summary>A span drawn afresh, uniformly from <paramref name="Min"/> to <paramref name="Max"/>, each time it is used; equal for a fixed one.</summary>
+public readonly record struct TimeRange(TimeSpan Min, TimeSpan Max)
+{
+    /// <summary>One span of the range.</summary>
+    public TimeSpan Draw(Random rng) => Min + (Max - Min) * rng.NextDouble();
+}
+
+/// <summary>
+/// A quitter's times (<c>--quit-after</c>, <c>--rejoin-after</c>): how long it stays in the world before it quits, and how
+/// long it stays out before it joins again, each drawn afresh for every quit.
+/// </summary>
+public sealed record QuitTimes(TimeRange Stay, TimeRange Away)
+{
+    /// <summary>The times without <c>--quit-after</c> and <c>--rejoin-after</c>: 1 to 3 minutes in the world, 30 to 60 seconds out.</summary>
+    public static QuitTimes Default { get; } = new(
+        new TimeRange(TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(3)),
+        new TimeRange(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(60)));
 }
 
 /// <summary>The share of each behaviour in a run (<c>--mix idle=60,walker=30,churner=10</c>).</summary>
@@ -38,7 +64,7 @@ public static class Mix
             if (pair.Length != 2 || pair[0].Length == 0 || !pair[0].All(char.IsAsciiLetter) ||
                 !Enum.TryParse(pair[0], ignoreCase: true, out BehaviourKind kind))
             {
-                throw new CommandLineException($"--mix takes name=weight pairs of idle, walker, churner and fighter, not \"{part}\".");
+                throw new CommandLineException($"--mix takes name=weight pairs of idle, walker, churner, fighter and quitter, not \"{part}\".");
             }
 
             if (!int.TryParse(pair[1], NumberStyles.None, CultureInfo.InvariantCulture, out int weight) || weight > 1000)
@@ -140,9 +166,51 @@ public static class Heading
 }
 
 /// <summary>
+/// What a bot's life loop (<see cref="BotLife"/>) works with: a <see cref="Bot"/>, whose members these are.
+/// </summary>
+public interface ILivingBot
+{
+    /// <inheritdoc cref="Bot.Index"/>
+    int Index { get; }
+
+    /// <inheritdoc cref="Bot.State"/>
+    BotState State { get; }
+
+    /// <inheritdoc cref="Bot.Behaviour"/>
+    BehaviourKind Behaviour { get; }
+
+    /// <inheritdoc cref="Bot.Fighter"/>
+    Fighter? Fighter { get; }
+
+    /// <inheritdoc cref="Bot.Quits"/>
+    QuitTimes? Quits { get; }
+
+    /// <inheritdoc cref="Bot.Context"/>
+    GameContext? Context { get; }
+
+    /// <inheritdoc cref="Bot.GaveUp"/>
+    CancellationToken GaveUp { get; }
+
+    /// <inheritdoc cref="Bot.Closed"/>
+    Task Closed { get; }
+
+    /// <inheritdoc cref="Bot.Note"/>
+    Action<string>? Note { get; }
+
+    /// <inheritdoc cref="Bot.EnterAsync"/>
+    Task EnterAsync(bool takeover, CancellationToken ct, Action? queued = null);
+
+    /// <inheritdoc cref="Bot.ChangeCharacterAsync"/>
+    Task ChangeCharacterAsync(CancellationToken ct);
+
+    /// <inheritdoc cref="Bot.DisconnectAsync"/>
+    Task DisconnectAsync(CancellationToken ct);
+}
+
+/// <summary>
 /// What keeps a bot in the world after its first entry, besides the input driver: a churner's character changes and
-/// reconnects, a fighter's reconnect when it asks for one, and a reconnect after the connection closed unasked. One loop
-/// per bot entered by the runner.
+/// reconnects, a quitter's quits and returns, a fighter's reconnect when it asks for one, and a reconnect after the
+/// connection closed unasked. One loop per bot entered by the runner.
 /// </summary>
 public static class BotLife
 {
@@ -156,27 +224,44 @@ public static class BotLife
     private static readonly TimeSpan s_reentryPause = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// Starts <paramref name="bot"/>'s first entry and returns once it is settled for its step: in the world, failed with
+    /// every attempt spent, or waiting in a full world's line (#967), where it may wait for minutes. Returns the entry,
+    /// still running while the bot waits for its turn: hand it to <see cref="RunAsync"/>, which takes it over, so the bot
+    /// never has two entries at once. Never throws for the entry's failure; the entry's task carries it.
+    /// </summary>
+    public static async Task<Task> StartEntryAsync(ILivingBot bot, CancellationToken ct)
+    {
+        var inLine = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task entry = bot.EnterAsync(takeover: false, ct, queued: () => inLine.TrySetResult());
+        await Task.WhenAny(entry, inLine.Task);
+        return entry;
+    }
+
+    /// <summary>
     /// Runs until <paramref name="ct"/> is cancelled. A churner, in the world, waits a random 2 to 5 minutes, then
     /// changes character on its connection; every fourth churn it reconnects instead (closes, keeping its game context,
-    /// and enters again with a takeover). A fighter reconnects the same way when it asks to
-    /// (<see cref="Fighter.ReconnectAsked"/>: it could not find its way out of the forest). A connection that closes
-    /// while the bot is in the world and nothing asked for it is counted as a disconnect, and the bot enters again with
-    /// a takeover. A churn or a fighter's reconnect that fails, or an entry that fails all its attempts, is counted by
-    /// the bot and retried after a pause. When the bot gives up for good
+    /// and enters again with a takeover). A quitter, in the world, waits its stay (<see cref="QuitTimes.Stay"/>), then
+    /// quits: it leaves, says goodbye and closes, keeping its game context, stays out for <see cref="QuitTimes.Away"/>,
+    /// and joins again without a takeover, waiting in the line when the world is full. A fighter reconnects as a churner
+    /// does when it asks to (<see cref="Fighter.ReconnectAsked"/>: it could not find its way out of the forest). A
+    /// connection that closes while the bot is in the world and nothing asked for it is counted as a disconnect, and the
+    /// bot enters again with a takeover. A churn, a quitter's return or a fighter's reconnect that fails, or an entry
+    /// that fails all its attempts, is counted by the bot and retried after a pause. When the bot gives up for good
     /// (<see cref="Bot.GaveUp"/>, its context lost), its connection is closed and the loop ends. Cancel
     /// <paramref name="ct"/> and wait for this task before leaving the bot: a leave seen from here would pass for a
     /// disconnect.
     /// </summary>
-    /// <param name="pauseFirst">
-    /// The bot's first entry failed every attempt: it waits the same pause before entering again, as after any entry
-    /// that spent its retries, rather than adding a burst of attempts to a step that is already refusing them.
+    /// <param name="entering">
+    /// The bot's first entry, from <see cref="StartEntryAsync"/> on <paramref name="ct"/>, done or still waiting in the
+    /// line: the loop waits for it first. One that failed every attempt is followed by the same pause as any entry that
+    /// spent its retries, rather than a burst of attempts added to a step that is already refusing them.
     /// </param>
-    public static async Task RunAsync(Bot bot, BotMetrics metrics, CancellationToken ct, bool pauseFirst = false)
+    public static async Task RunAsync(ILivingBot bot, BotMetrics metrics, CancellationToken ct, Task? entering = null)
     {
         using var life = CancellationTokenSource.CreateLinkedTokenSource(ct, bot.GaveUp);
         try
         {
-            if (pauseFirst) await Task.Delay(s_reentryPause, life.Token);
+            if (entering is not null && !await EnteredAsync(entering)) await Task.Delay(s_reentryPause, life.Token);
             await LiveAsync(bot, metrics, life.Token);
         }
         catch (OperationCanceledException) when (life.IsCancellationRequested)
@@ -195,7 +280,21 @@ public static class BotLife
         }
     }
 
-    private static async Task LiveAsync(Bot bot, BotMetrics metrics, CancellationToken ct)
+    /// <summary>Whether the first entry got the bot in; a failure is the bot's to count, and a cancel stays one.</summary>
+    private static async Task<bool> EnteredAsync(Task entering)
+    {
+        try
+        {
+            await entering;
+            return true;
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task LiveAsync(ILivingBot bot, BotMetrics metrics, CancellationToken ct)
     {
         int churns = 0;
         while (!ct.IsCancellationRequested)
@@ -209,9 +308,14 @@ public static class BotLife
             Task closed = bot.Closed;
             Wake wake = bot.Fighter is { } fighter
                 ? await ReconnectAskedAsync(closed, fighter, ct)
-                : bot.Behaviour == BehaviourKind.Churner
-                    ? await ChurnDueAsync(closed, ct)
-                    : await WaitClosedAsync(closed, ct);
+                : bot.Behaviour switch
+                {
+                    BehaviourKind.Churner =>
+                        await DueAsync(closed, s_churnMin + (s_churnMax - s_churnMin) * Random.Shared.NextDouble(), Wake.Churn, ct),
+                    BehaviourKind.Quitter when bot.Quits is { } quits =>
+                        await DueAsync(closed, quits.Stay.Draw(Random.Shared), Wake.Quit, ct),
+                    _ => await WaitClosedAsync(closed, ct),
+                };
             if (ct.IsCancellationRequested) return;
 
             if (wake == Wake.Closed)
@@ -230,6 +334,12 @@ public static class BotLife
             {
                 // Out of the world already (not stepped): the entry ahead answers a fighter's ask.
                 bot.Fighter?.TakeReconnect();
+                continue;
+            }
+
+            if (wake == Wake.Quit)
+            {
+                await QuitAndReturnAsync(bot, metrics, bot.Quits!, ct);
                 continue;
             }
 
@@ -268,16 +378,39 @@ public static class BotLife
         }
     }
 
-    /// <summary>The churn when it is due, <see cref="Wake.Closed"/> when the connection closed first.</summary>
-    private static async Task<Wake> ChurnDueAsync(Task closed, CancellationToken ct)
+    /// <summary>
+    /// A quitter's quit: the leave (its logout save), the goodbye and the close, so the world ends the session as a
+    /// logout and identity frees the place at once (#967); the game context is kept, and refreshed while the bot is out.
+    /// Counted as a quit, never as a disconnect. Then, after its time away, it joins again as a player starting the game
+    /// does, without a takeover (the session the goodbye ended is gone), and on a full world waits in the line behind
+    /// those already in it. A return that fails every attempt is counted by the bot and tried again after a pause.
+    /// </summary>
+    private static async Task QuitAndReturnAsync(ILivingBot bot, BotMetrics metrics, QuitTimes quits, CancellationToken ct)
     {
-        TimeSpan stay = s_churnMin + (s_churnMax - s_churnMin) * Random.Shared.NextDouble();
+        await bot.DisconnectAsync(ct);
+        metrics.Quit();
+        await Task.Delay(quits.Away.Draw(Random.Shared), ct);
+        try
+        {
+            await bot.EnterAsync(takeover: false, ct);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            // Counted by the bot, which also closed what the attempt opened; the loop enters it again after the pause.
+            bot.Note?.Invoke($"Joining again failed: {Reason(error)}; next try in {s_reentryPause.TotalSeconds:0} s.");
+            await Task.Delay(s_reentryPause, ct);
+        }
+    }
+
+    /// <summary><paramref name="due"/> once <paramref name="stay"/> has passed, <see cref="Wake.Closed"/> when the connection closed first.</summary>
+    private static async Task<Wake> DueAsync(Task closed, TimeSpan stay, Wake due, CancellationToken ct)
+    {
         using var wait = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var due = Task.Delay(stay, wait.Token);
-        Task first = await Task.WhenAny(closed, due);
+        var delay = Task.Delay(stay, wait.Token);
+        Task first = await Task.WhenAny(closed, delay);
         // The delay is not left running for minutes after the connection closed.
         await wait.CancelAsync();
-        return first == due && !closed.IsCompleted ? Wake.Churn : Wake.Closed;
+        return first == delay && !closed.IsCompleted ? due : Wake.Closed;
     }
 
     /// <summary>
@@ -303,7 +436,7 @@ public static class BotLife
     /// Enters again with a takeover, the account's old session possibly still live; after a failure that spent every
     /// attempt, waits and tries again. False when the bot cannot enter at all (signed out).
     /// </summary>
-    private static async Task<bool> ReenterAsync(Bot bot, CancellationToken ct)
+    private static async Task<bool> ReenterAsync(ILivingBot bot, CancellationToken ct)
     {
         if (bot.Context is null || bot.State is BotState.Leaving or BotState.Stopped or BotState.SignedOut) return false;
 
@@ -332,6 +465,9 @@ public static class BotLife
 
         /// <summary>A churner's churn is due.</summary>
         Churn,
+
+        /// <summary>A quitter's quit is due.</summary>
+        Quit,
 
         /// <summary>A fighter asked for a reconnect.</summary>
         Reconnect,

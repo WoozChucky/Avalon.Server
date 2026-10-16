@@ -13,8 +13,11 @@ using Avalon.Network.Packets.Movement;
 
 namespace Avalon.LoadTest.Bots;
 
-/// <summary>Where a bot is on its way into the world and out of it.</summary>
-public enum BotState { SignedOut, SignedIn, Ticketed, Admitted, Handshaken, Selecting, Loaded, InWorld, Leaving, Stopped }
+/// <summary>
+/// Where a bot is on its way into the world and out of it. <see cref="Queued"/>: its join was told to wait in a full
+/// world's line (#967), and it checks in until its turn.
+/// </summary>
+public enum BotState { SignedOut, SignedIn, Queued, Ticketed, Admitted, Handshaken, Selecting, Loaded, InWorld, Leaving, Stopped }
 
 /// <summary>The last <c>SMSG_PLAYER_STATE_ACK</c> a bot's connection received: the input it answered and where it left the character.</summary>
 public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, float VelZ);
@@ -33,7 +36,7 @@ public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, flo
 /// <param name="signOuts">The ramp's sign-out breaker, shared by its bots and its refresher; null for one of the bot's own.</param>
 /// <param name="leaves">The ramp's leave breaker, shared by its bots; null for one of the bot's own.</param>
 public sealed class Bot(int index, string account, string password, ApiClient api, ushort worldId, string? dialHost,
-    bool proxyHeader, BotMetrics metrics, SignOutBreaker? signOuts = null, Breaker? leaves = null) : IPartyMember, IDisposable
+    bool proxyHeader, BotMetrics metrics, SignOutBreaker? signOuts = null, Breaker? leaves = null) : IPartyMember, ILivingBot, IDisposable
 {
     /// <summary>The version the handshake sends: the protocol the provider attempt names.</summary>
     public const string ClientVersion = ApiClient.ProtocolVersion;
@@ -172,6 +175,9 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// </summary>
     public PartyLink? Party { get; set; }
 
+    /// <summary>A quitter's times, set before the bot enters (with <see cref="Behaviour"/> <see cref="BehaviourKind.Quitter"/>); null otherwise.</summary>
+    public QuitTimes? Quits { get; set; }
+
     /// <summary>The guid of the bot's character in the world; 0 before its first select.</summary>
     public ulong CharacterGuid => Volatile.Read(ref _characterGuid);
 
@@ -273,9 +279,11 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// select, load report, and the first input answered. A failed attempt is counted by kind and retried up to three
     /// times after 1 s, 3 s and 9 s, the retries taking over any session the failed attempt left; the last failure is
     /// thrown as a <see cref="BotStepException"/>. <paramref name="takeover"/> lets the first attempt replace the
-    /// account's live world session.
+    /// account's live world session. On a full world the join waits in the line (<see cref="BotState.Queued"/>), for as
+    /// long as it takes: no attempt ends there, so none is counted.
     /// </summary>
-    public async Task EnterAsync(bool takeover, CancellationToken ct)
+    /// <param name="queued">Called when the join is told to wait in the line, once per attempt that waits.</param>
+    public async Task EnterAsync(bool takeover, CancellationToken ct, Action? queued = null)
     {
         if (Context is null) throw new InvalidOperationException($"Bot {index} is not signed in.");
 
@@ -285,7 +293,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         using var entry = CancellationTokenSource.CreateLinkedTokenSource(ct, _gaveUp.Token);
         try
         {
-            await EnterWithRetriesAsync(takeover, entry.Token);
+            await EnterWithRetriesAsync(takeover, queued, entry.Token);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested && _gaveUp.IsCancellationRequested)
         {
@@ -293,13 +301,13 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
     }
 
-    private async Task EnterWithRetriesAsync(bool takeover, CancellationToken ct)
+    private async Task EnterWithRetriesAsync(bool takeover, Action? queued, CancellationToken ct)
     {
         for (int attempt = 0; ; attempt++)
         {
             try
             {
-                await EnterOnceAsync(takeover || attempt > 0, ct);
+                await EnterOnceAsync(takeover || attempt > 0, queued, ct);
                 return;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
@@ -547,7 +555,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
     /// its turn (or once no longer queued). The wait is measured apart from the entry time, which starts at the ticket.
     /// A stop while queued leaves the line.
     /// </summary>
-    private async Task<JoinTicket> JoinThroughQueueAsync(GameContext context, bool takeover, CancellationToken ct)
+    private async Task<JoinTicket> JoinThroughQueueAsync(GameContext context, bool takeover, Action? queued, CancellationToken ct)
     {
         long queuedAt = 0;
         try
@@ -565,6 +573,8 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
                 {
                     queuedAt = Stopwatch.GetTimestamp();
                     metrics.Queued();
+                    _state = BotState.Queued;
+                    queued?.Invoke();
                 }
 
                 TimeSpan wait = answer.CheckInAfter;
@@ -607,7 +617,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         }
     }
 
-    private async Task EnterOnceAsync(bool takeover, CancellationToken ct)
+    private async Task EnterOnceAsync(bool takeover, Action? queued, CancellationToken ct)
     {
         GameContext? context = Context;
         if (context is null)
@@ -618,7 +628,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             throw new InvalidOperationException($"Bot {index} lost its game context while entering.");
         }
 
-        JoinTicket ticket = await JoinThroughQueueAsync(context, takeover, ct);
+        JoinTicket ticket = await JoinThroughQueueAsync(context, takeover, queued, ct);
         // The client asked for the run's world and checked the reply; a destination elsewhere is never dialled.
         if (ticket.Destination.WorldId != worldId)
             throw new BotStepException("join", "join:wrong-world", $"the ticket is for world {ticket.Destination.WorldId}");

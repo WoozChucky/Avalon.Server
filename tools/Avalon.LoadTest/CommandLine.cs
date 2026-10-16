@@ -113,7 +113,8 @@ public static class CommandLine
     /// <summary>
     /// <c>ramp [--run ABC] [--mix idle=60,walker=30,churner=10] [--start 50] [--step 50] [--hold 90s] [--max N]
     /// [--limit name=value]... [--dial HOST [--proxy-header]] [--prometheus URL] [--pod NAME] [--sign-in-concurrency 8]
-    /// [--forest-time 5m] [--party-size 1] [--driver-loops N]</c>.
+    /// [--forest-time 5m] [--party-size 1] [--driver-loops N] [--quit-after T[-T] --rejoin-after T[-T]]</c>; the quit times
+    /// default to <see cref="QuitTimes.Default"/> when the mix gives quitters a weight, and are refused when it gives them none.
     /// </summary>
     public static RampArguments ParseRamp(string[] args)
     {
@@ -132,6 +133,8 @@ public static class CommandLine
         TimeSpan forestTime = Fighter.DefaultForestTime;
         int partySize = 1;
         int driverLoops = InputDriver.DefaultLoops;
+        TimeRange? quitAfter = null;
+        TimeRange? rejoinAfter = null;
         foreach ((string option, string value) in Pairs(args))
         {
             switch (option)
@@ -163,13 +166,45 @@ public static class CommandLine
                 case "--forest-time": forestTime = ParseForestTime(value); break;
                 case "--party-size": partySize = ParseCount(option, value, BotParty.MaxSize); break;
                 case "--driver-loops": driverLoops = ParseCount(option, value, InputDriver.MaxLoops); break;
+                case "--quit-after": quitAfter = ParseTimeRange(option, value, zero: false); break;
+                case "--rejoin-after": rejoinAfter = ParseTimeRange(option, value, zero: true); break;
                 default: throw new CommandLineException($"Unknown option {option}.");
             }
         }
 
         RefuseProxyHeaderWithoutDial(proxyHeader, dial);
+        bool quitters = Mix.Parse(mix).Any(entry => entry.Kind == BehaviourKind.Quitter && entry.Weight > 0);
+        QuitTimes? quits = null;
+        if (quitters)
+        {
+            quits = new QuitTimes(quitAfter ?? QuitTimes.Default.Stay, rejoinAfter ?? QuitTimes.Default.Away);
+        }
+        else if (quitAfter is not null || rejoinAfter is not null)
+        {
+            throw new CommandLineException("--quit-after and --rejoin-after are a quitter's: give quitter a weight in --mix.");
+        }
+
         return new RampArguments(runId, mix, start, step, hold, max, Limits.WithOverrides(limits), dial, proxyHeader, prometheus,
-            pod, signIns, forestTime, partySize, driverLoops);
+            pod, signIns, forestTime, partySize, driverLoops, quits);
+    }
+
+    /// <summary>
+    /// A span of a quitter's (<c>--quit-after</c>, <c>--rejoin-after</c>): one duration (<c>90s</c>, <c>2m</c> or plain
+    /// seconds) or two joined by a dash, the shorter first (<c>2m-5m</c>), a span drawn between them each time; at most
+    /// 1 h, and above 0 unless <paramref name="zero"/>.
+    /// </summary>
+    private static TimeRange ParseTimeRange(string option, string value, bool zero)
+    {
+        string[] parts = value.Split('-');
+        // One duration is both ends: parts[^1] is parts[0].
+        if (parts.Length is 1 or 2 && TryParseDuration(parts[0], out TimeSpan min) &&
+            TryParseDuration(parts[^1], out TimeSpan max) && min <= max && (zero || min > TimeSpan.Zero))
+        {
+            return new TimeRange(min, max);
+        }
+
+        throw new CommandLineException(
+            $"{option} takes a duration such as 90s or 2m, or two joined by a dash, the shorter first (2m-5m); {(zero ? "0" : "above 0")} to 1 h.");
     }
 
     /// <summary>A hold: <c>90s</c>, <c>2m</c> or plain seconds; at least the settle and a 20 s judged window.</summary>
@@ -304,9 +339,11 @@ public sealed record CheckOptions(
 /// <param name="ForestTime">How long a fighter's trip stays in the forest.</param>
 /// <param name="PartySize">The fighters' party size, 1 (solo) to <see cref="BotParty.MaxSize"/>.</param>
 /// <param name="DriverLoops">The input driver's loops, 1 to <see cref="InputDriver.MaxLoops"/>.</param>
+/// <param name="Quits">The quitters' times; null when the mix has no quitter.</param>
 public sealed record RampArguments(
     string? RunId, string Mix, int Start, int Step, TimeSpan Hold, int? Max, IReadOnlyList<Limit> Limits, string? Dial,
-    bool ProxyHeader, Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops)
+    bool ProxyHeader, Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops,
+    QuitTimes? Quits)
 {
     /// <summary>
     /// The options against <paramref name="run"/>, loaded for its bots (<see cref="RunFile.Load"/>, so it lists at
@@ -319,7 +356,7 @@ public sealed record RampArguments(
             throw new CommandLineException($"Run {run.RunId} has {run.Bots.Count} bots: --max takes at most that.");
 
         return new RampOptions(Mix, Math.Min(Start, max), Step, Hold, max, Limits, Dial, ProxyHeader, Prometheus, Pod,
-            SignInConcurrency, ForestTime, PartySize, DriverLoops);
+            SignInConcurrency, ForestTime, PartySize, DriverLoops, Quits);
     }
 }
 
