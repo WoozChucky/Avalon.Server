@@ -18,7 +18,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
     GameProviderRegistry providers, GameLicenseAuthorityService licenseAuthority,
     IOptions<StoreAuthenticationConfiguration> options, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock,
     IGameAccountRegistration? registration = null, IGameContextRevocations? revocations = null,
-    ILogger<GameAuthorizationService>? logger = null)
+    ILogger<GameAuthorizationService>? logger = null, IGameCredentialIssued? issued = null)
 {
     private readonly ILogger _logger = logger ?? NullLogger<GameAuthorizationService>.Instance;
 
@@ -629,6 +629,7 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
             changes.Add(new(oldKey, old, GameAuthJson.Serialize(retired), context.AbsoluteExpiresAt));
         }
         if (!await store.CompareExchangeAsync(changes, cancellationToken)) return GameAuthReply.Failure(GameAuthErrors.ContextChanged);
+        issued?.Issued(credential, context.CredentialExpiresAt);
         if (replacing && previous!.AccountId is { } oldAccount)
             await PublishRevocationAsync(new AccountId(oldAccount), previous.Id);
         return reply;
@@ -752,7 +753,11 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
                 new(TokenKey(nextCredential), null, GameAuthJson.Serialize(new GameAuthTokenRecord(context.Id, GameAuthTokenKinds.Credential, next.Generation)), next.CredentialExpiresAt),
                 new(TokenKey(nextRefresh), null, GameAuthJson.Serialize(new GameAuthTokenRecord(context.Id, GameAuthTokenKinds.Refresh, next.Generation)), next.AbsoluteExpiresAt),
             };
-            if (await store.CompareExchangeAsync(changes, cancellationToken)) return reply;
+            if (await store.CompareExchangeAsync(changes, cancellationToken))
+            {
+                issued?.Issued(nextCredential, next.CredentialExpiresAt);
+                return reply;
+            }
         }
         return GameAuthReply.Failure(GameAuthErrors.InProgress);
     }

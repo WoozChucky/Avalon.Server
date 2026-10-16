@@ -81,7 +81,7 @@ public sealed class GameQueueControllerShould
         readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(ready);
         var queue = new GameQueueService(h.Places, new GameWorldAvailability(worlds, readiness, h.Clock), Options.Create(h.PlaceConfiguration),
             new WorldPlaceMetrics(new Meter("test-queue")));
-        var limiter = new QueueRateLimiter(Options.Create(new RateLimitingConfig()), Substitute.For<IExemptSources>());
+        var limiter = new QueueRateLimiter(Options.Create(new RateLimitingConfig()), Substitute.For<IExemptSources>(), h.Clock);
         var http = new DefaultHttpContext();
         http.Request.Scheme = "https";
         return new GameQueueController(NullLogger<GameQueueController>.Instance, h.Authorization, queue, limiter)

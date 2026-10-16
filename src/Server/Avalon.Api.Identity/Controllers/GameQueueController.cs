@@ -2,7 +2,6 @@ using System.Data.Common;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
-using System.Threading.RateLimiting;
 using Avalon.Api.Contract;
 using Avalon.Api.Identity.Authentication;
 using Avalon.Api.Identity.Services;
@@ -18,8 +17,8 @@ namespace Avalon.Api.Identity.Controllers;
 /// <summary>
 /// A full world's line (#967): a waiter checks in and leaves with its game context credential, checked on Redis alone.
 /// Out of the shared limiter (<see cref="DisableRateLimitingAttribute"/>), whose per-source partition would throttle the
-/// waiters behind one address, and limited instead by a bound per credential before it is read, a gate on the reads of a
-/// source that keeps failing, and a fair share per account (<see cref="QueueRateLimiter"/>). No
+/// waiters behind one address, and limited instead by a bound per credential identity knows, a gate on its source for any other
+/// credential, and a fair share per account (<see cref="QueueRateLimiter"/>). No
 /// <c>Idempotency-Key</c>: both calls are idempotent by nature.
 /// </summary>
 [ApiController, AllowAnonymous, DisableRateLimiting, Route("game/queue")]
@@ -51,24 +50,26 @@ public sealed class GameQueueController(ILogger<GameQueueController> logger, Gam
         CancellationToken cancellationToken)
     {
         if (!Request.IsHttps) return BadRequest(new GameQueueStatusReply { Error = GameAuthErrors.HttpsRequired });
+        string credential = request.GameContextCredential;
+        // Not a credential's shape: refused before any limiter or read, at no cost.
+        if (!GameAuthCryptography.IsToken(credential))
+            return Unauthorized(new GameQueueStatusReply { Error = GameAuthErrors.AuthorizationRequired });
         try
         {
             GameContextRecord? context;
-            // A source past its failures reads a few credentials at a time, never none, so a neighbour behind the same
-            // address cannot shut its honest waiters out; then each credential's own bound, before anything is read.
-            using (RateLimitLease? read = await limiter.StartCredentialReadAsync(HttpContext, cancellationToken))
-            {
-                if (read is null) return TooMany(QueueRateLimiter.Segment);
-                if (limiter.TryAcquireCredential(request.GameContextCredential) is { } credentialRetryAfter)
-                    return TooMany(credentialRetryAfter);
-                context = await authorization.GetCurrentContextAsync(request.GameContextCredential, cancellationToken);
-            }
+            // A credential identity knows is limited on its own; a stranger's goes through its source's gate.
+            QueueRead admission = await limiter.StartReadAsync(HttpContext, credential, cancellationToken);
+            if (admission.RetryAfter is { } readRetryAfter) return TooMany(readRetryAfter);
+            using (admission.Lease)
+                context = await authorization.GetCurrentContextAsync(credential, cancellationToken);
 
             if (context?.AccountId is not { } accountId)
             {
-                limiter.CredentialFailed(HttpContext);
+                limiter.CredentialFailed(HttpContext, credential);
                 return Unauthorized(new GameQueueStatusReply { Error = GameAuthErrors.AuthorizationRequired });
             }
+
+            limiter.CredentialCurrent(credential, context.CredentialExpiresAt);
 
             if (limiter.TryAcquire(accountId) is { } retryAfter) return TooMany(retryAfter);
             return Ok(await action(accountId));

@@ -107,6 +107,9 @@ public static class IdentityServiceRegistration
         services.AddSingleton<GameWorldAvailability>();
         services.AddScoped<GameQueueService>();
         services.AddSingleton<QueueRateLimiter>();
+        // Every credential identity issues is known to the queue's limiter at once, so a waiter's first check-in after a
+        // refresh is not taken for a stranger's.
+        services.AddSingleton<Avalon.Infrastructure.GameAuth.IGameCredentialIssued>(sp => sp.GetRequiredService<QueueRateLimiter>());
         // The gauges of places taken and held, line length and limit, sampled every 15 s (and the sweep with them).
         services.AddHostedService<WorldPlaceGauges>();
         // Places taken and line length for /game/worlds, which the worlds service reads too: registered once in a process.

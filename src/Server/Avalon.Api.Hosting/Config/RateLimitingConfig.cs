@@ -33,6 +33,13 @@ public class RateLimitingConfig
     public int QueuePermitsPerMinute { get; set; } = 30;
 
     /// <summary>
+    /// Queue calls with a credential identity has not yet seen current (#967), a minute per source, once that source has
+    /// presented 30 credentials in a minute that were not current: a flood of junk credentials is bounded in rate as well
+    /// as two at a time. A credential identity issued or read as current is not counted here. At least 1.
+    /// </summary>
+    public int QueueUnknownReadsPerMinute { get; set; } = 60;
+
+    /// <summary>
     /// Requests a minute per authenticated game server, including each player's lease heartbeat, for the workloads a
     /// service names (<see cref="Middlewares.IRateLimitWorkloads"/>). At least 1.
     /// </summary>

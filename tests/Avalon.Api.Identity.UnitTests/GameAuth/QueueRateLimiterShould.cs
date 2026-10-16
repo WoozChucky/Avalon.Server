@@ -1,63 +1,85 @@
 using System.Net;
-using System.Threading.RateLimiting;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Middlewares;
 using Avalon.Api.Identity.Authentication;
+using Avalon.Infrastructure.GameAuth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using Xunit;
 
 namespace Avalon.Api.Identity.UnitTests.GameAuth;
 
 /// <summary>
-/// #967: the queue's limits are never shared by the callers behind one address. A neighbour's spam, with a valid
-/// credential or junk, spends only its own credential's budget or slows its source's reads, and never refuses another
-/// credential's call; every refusal asks again within one segment, well inside a waiter's removal deadline.
+/// #967: a credential identity knows is served on its own budget whatever its source does; strangers' credentials are
+/// gated by their source, in flight and in rate, and leave no state of their own; every refusal asks again within one
+/// segment, well inside a waiter's removal deadline.
 /// </summary>
 public sealed class QueueRateLimiterShould
 {
-    private static readonly string s_neighbour = new('N', 43);
-    private static readonly string s_honest = new('H', 43);
+    private readonly FakeTimeProvider _clock = new(new DateTimeOffset(2026, 10, 16, 12, 0, 0, TimeSpan.Zero));
+    private readonly DefaultHttpContext _household = new();
+
+    public QueueRateLimiterShould() => _household.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.7");
+
+    private DateTime Expiry => _clock.GetUtcNow().UtcDateTime.AddMinutes(5);
 
     [Fact]
-    public void Bound_each_credential_and_account_on_its_own()
+    public async Task Serve_a_known_credential_while_its_source_is_flooded_with_junk_and_on_its_own_budget()
     {
-        using var limiter = new QueueRateLimiter(Options.Create(new RateLimitingConfig()), Substitute.For<IExemptSources>());
+        using QueueRateLimiter limiter = Limiter();
+        string honest = GameAuthCryptography.NewToken(), neighbour = GameAuthCryptography.NewToken();
+        limiter.Issued(honest, Expiry);
+        limiter.Issued(neighbour, Expiry);
+        for (int failure = 0; failure < QueueRateLimiter.FailedCredentialsPerMinute; failure++)
+            limiter.CredentialFailed(_household, GameAuthCryptography.NewToken());
 
-        // A neighbour spams with its own valid credential: refused past its budget, the honest waiter's untouched.
-        for (int call = 0; call < 30; call++) Assert.Null(limiter.TryAcquireCredential(s_neighbour));
-        Assert.InRange(limiter.TryAcquireCredential(s_neighbour)!.Value, TimeSpan.FromTicks(1), QueueRateLimiter.Segment);
-        Assert.Null(limiter.TryAcquireCredential(s_honest));
+        // Junk fills the source's gate: two reads in flight, the rest waiting.
+        var junk = new List<Task<QueueRead>>();
+        for (int read = 0; read < QueueRateLimiter.ReadsInFlight + QueueRateLimiter.ReadsWaiting; read++)
+            junk.Add(limiter.StartReadAsync(_household, GameAuthCryptography.NewToken(), default).AsTask());
+        Assert.NotNull((await limiter.StartReadAsync(_household, GameAuthCryptography.NewToken(), default)).RetryAfter);
 
-        for (int call = 0; call < 30; call++) Assert.Null(limiter.TryAcquire(7));
-        Assert.InRange(limiter.TryAcquire(7)!.Value, TimeSpan.FromTicks(1), QueueRateLimiter.Segment);
-        Assert.Null(limiter.TryAcquire(8));
+        QueueRead served = await limiter.StartReadAsync(_household, honest, default);
+        Assert.True(served.Lease!.IsAcquired);
+
+        // The neighbour spends its own credential's budget, never the honest one's.
+        for (int call = 0; call < 30; call++) Assert.Null((await limiter.StartReadAsync(_household, neighbour, default)).RetryAfter);
+        Assert.InRange((await limiter.StartReadAsync(_household, neighbour, default)).RetryAfter!.Value,
+            TimeSpan.FromTicks(1), QueueRateLimiter.Segment);
+        Assert.Null((await limiter.StartReadAsync(_household, honest, default)).RetryAfter);
         Assert.True(QueueRateLimiter.Segment < TimeSpan.FromSeconds(10)); // inside FrontTimeoutSeconds - FrontCheckInSeconds
+        foreach (Task<QueueRead> waiting in junk.Where(t => t.IsCompletedSuccessfully)) (await waiting).Lease?.Dispose();
     }
 
     [Fact]
-    public async Task Slow_a_source_that_keeps_failing_without_refusing_the_honest_calls_behind_it()
+    public async Task Refuse_strangers_past_their_source_rate_without_keeping_anything_of_their_credentials()
     {
-        using var limiter = new QueueRateLimiter(Options.Create(new RateLimitingConfig()), Substitute.For<IExemptSources>());
-        var household = new DefaultHttpContext();
-        household.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.7");
-
-        // A neighbour presents junk: each junk credential has a budget of its own, so it is the failures that bound it.
+        using QueueRateLimiter limiter = Limiter(new RateLimitingConfig { QueueUnknownReadsPerMinute = 3 });
         for (int failure = 0; failure < QueueRateLimiter.FailedCredentialsPerMinute; failure++)
+            limiter.CredentialFailed(_household, GameAuthCryptography.NewToken());
+
+        for (int read = 0; read < 3; read++)
         {
-            Assert.Null(limiter.TryAcquireCredential(Guid.NewGuid().ToString("N")));
-            limiter.CredentialFailed(household);
+            QueueRead admitted = await limiter.StartReadAsync(_household, GameAuthCryptography.NewToken(), default);
+            admitted.Lease!.Dispose();
         }
 
-        // Past them the source's reads go two at a time; the honest waiter's call waits its turn, it is not refused.
-        RateLimitLease first = (await limiter.StartCredentialReadAsync(household, default))!;
-        using RateLimitLease second = (await limiter.StartCredentialReadAsync(household, default))!;
-        ValueTask<RateLimitLease?> honest = limiter.StartCredentialReadAsync(household, default);
-        Assert.False(honest.IsCompleted);
-        first.Dispose();
-        using RateLimitLease served = (await honest)!;
-        Assert.True(served.IsAcquired);
-        Assert.Null(limiter.TryAcquireCredential(s_honest));
+        QueueRead refused = await limiter.StartReadAsync(_household, GameAuthCryptography.NewToken(), default);
+        Assert.Null(refused.Lease);
+        Assert.InRange(refused.RetryAfter!.Value, TimeSpan.FromTicks(1), QueueRateLimiter.Segment);
+        Assert.Equal(0, limiter.KnownCredentials);
     }
+
+    [Fact]
+    public void Keep_no_more_known_credentials_than_its_bound()
+    {
+        using var limiter = new QueueRateLimiter(Options.Create(new RateLimitingConfig()), Substitute.For<IExemptSources>(), _clock, 8);
+        for (int credential = 0; credential < 20; credential++) limiter.Issued(GameAuthCryptography.NewToken(), Expiry);
+        Assert.InRange(limiter.KnownCredentials, 1, 8);
+    }
+
+    private QueueRateLimiter Limiter(RateLimitingConfig? config = null) =>
+        new(Options.Create(config ?? new RateLimitingConfig()), Substitute.For<IExemptSources>(), _clock);
 }
