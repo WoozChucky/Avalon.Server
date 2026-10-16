@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -103,13 +104,21 @@ public sealed class TownReturn(ILogger logger, IWorld world, IRespawnTargetResol
     /// </summary>
     private void Failed(IWorldConnection connection, ICharacter ch, Exception e, Action<Exception>? failed)
     {
+        // A town build abandoned at its deadline (#969) is told to the player, once, whoever started the return.
+        bool timedOut = false;
         if (ReferenceEquals(connection.Character, ch))
+        {
             connection.RespawnInFlight = false;
+            timedOut = InstanceBuildTimeoutException.TellIfTimedOut(connection, e);
+        }
 
         if (failed is null)
         {
             if (e is WorldWorkUnavailableException)
                 logger.LogWarning("Return to town of {Name} failed: the database work queue is full", ch.Name);
+            else if (timedOut)
+                // The registry logged the timeout at Error, once for all its requesters.
+                logger.LogWarning("Return to town of {Name} failed: the town's instance was not built in time", ch.Name);
             else
                 logger.LogError(e, "Return to town of {Name} failed", ch.Name);
             return;

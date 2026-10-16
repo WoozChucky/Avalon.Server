@@ -207,6 +207,35 @@ again, once, through the same path (the party's instance for a member, the chara
 that. A second release in a row, which nothing is known to cause, answers `MapNotFound`. Towns are never released by
 expiry, so their arrivals never take this path.
 
+### Build deadline
+
+A build has 30 s (`InstanceRegistry.BuildDeadline`, #969, owner decision): long enough for the slowest forest bake
+under load (#924), short enough for a player waiting on a move. Without it a build that never finished (a bake that
+hangs, a task never completed) kept every requester's move under way, and so the character unable to take a portal,
+return to town, teleport or read a town scroll, for as long as it stayed in the world.
+
+- **Timed on the world's clock, acted on on the tick.** A build still running once it is started gets a timer on the
+  container's `TimeProvider`; when it fires it only queues the deadline beside the finished builds, and
+  `PublishFinished` acts on it on the tick. Nothing is scanned per tick: a tick with no deadline due and no build
+  finished costs what it did. The timer is disposed when the build's outcome is published.
+- **Abandoned, not cancelled.** At the deadline the build's pending entry is dropped, so the next request starts a new
+  build at once, and its task is faulted with an `InstanceBuildTimeoutException`. Nothing reaches into the bake, which
+  runs on; if it ever ends, its outcome is discarded where it would have been published: an instance it built is
+  disposed without ever being registered or indexed (one Warning naming it and how long the build took), and a
+  failure is logged at Warning. A deadline that fires while the build's outcome is already queued finds the requesters
+  answered and does nothing.
+- **Every requester ends its move through its failure path.** A portal entry's arrival, a return to town
+  (`TownReturn`: a respawn, a town scroll, a party's leave countdown) and an item's teleport (`MapTeleport`) take the
+  path a failed build takes, which clears `RespawnInFlight`, and send the player, once, the system chat line "The way
+  could not be opened. Please try again." (`InstanceBuildTimeoutException.PlayerMessage`), stamped with the time the
+  build was abandoned. Each logs the timeout at Warning, without the stack. A party's countdown return then retries as
+  for any failed return ([parties](parties.md)). A character select waiting on a town build is stopped, as before, by
+  the stalled-select sweep (`Game:CharacterLoadTimeoutSeconds`, 15 s by default), and is told nothing more.
+- **Counted and logged as a server fault.** Each abandoned build adds one to `world.instance.build_timeouts`, tagged
+  `map.type` ([instrumentation](instrumentation.md#instance-build-timeouts)), and writes one Error: the build's kind,
+  map and owner and how many requests were waiting on it (its instance id is not known yet; the Warning of a late
+  outcome names it).
+
 ---
 
 ## World Update
@@ -363,6 +392,7 @@ every path out of it; the one that does not (asking for the instance throws, so 
 | Released a second time | `MapNotFound` | cleared |
 | No longer in the party the instance is for, or the instance is full | `MapNotFound`, `InstanceFull` | cleared |
 | The instance could not be built (its request faulted or was cancelled) | nothing, as before; logged at Error by the arrival, on the tick, once, before any other check: also when the character died or left meanwhile, since nothing else logs a failed build | cleared, in the same `finally`: a log provider that throws does not keep it (for a character that left, as that row says) |
+| The build ran past its deadline and was abandoned (#969) | no transition; the system line "The way could not be opened. Please try again." (not to a character that left meanwhile); logged at Warning by the arrival, since the registry logged the timeout at Error | cleared, as for any failed build |
 | A step of the arrival throws (the transfer, a send) | whatever was sent before it | cleared; the throw is logged by the continuation drain |
 | Asking for the instance throws, before anything is queued | nothing; the throw is logged by the packet dispatch | cleared |
 | The character left the connection meanwhile | nothing | left alone: the connection cleared it as the character left (`ResetCharacterState`), and it may be the next character's |
@@ -379,8 +409,9 @@ the flush of the tick that published the build, and an entry asked for while the
 allocates no more than one whose instance already exists
 ([benchmarks](benchmarks.md#arrival-in-a-map--benchmarksarrivalbenchmarkscs-883)).
 
-A build that never finishes keeps the move under way until the character leaves the world, as it does for a return
-to town and a teleport: nothing times a build out (#969).
+A build that never finishes no longer keeps the move under way (#969): at its deadline, 30 s, the registry abandons
+it and hands every requester the failure, so the arrival ends the move as for any failed build, and the player is
+told with a system line ([Build deadline](#build-deadline)). The same holds for a return to town and a teleport.
 
 A party's leave countdown that runs out while a portal entry is under way finds the move in flight, as it does for
 a respawn: it is re-armed as a failed return (logged at Warning, "A return to town was already under way") and

@@ -84,6 +84,15 @@ public static class DiagnosticsConfig
             "world.admission.source_refusals", "{admissions}",
             "Admissions refused because their source was over its admission budget, by reason, answered ServiceUnavailable");
 
+        /// <summary>
+        /// Instance builds abandoned at their deadline (#969, <c>InstanceRegistry.BuildDeadline</c>), every requester
+        /// answered with the failure, counted once per build on the tick. Tagged <c>map.type</c> (<c>Town</c> or
+        /// <c>Normal</c>). A server fault: docs/instrumentation.md.
+        /// </summary>
+        public static readonly Counter<long> InstanceBuildTimeouts = Meter.CreateCounter<long>(
+            "world.instance.build_timeouts", "{builds}",
+            "Instance builds abandoned after their deadline, their requesters answered with a failure");
+
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
         public static ActivitySource Source = new(ServiceName);

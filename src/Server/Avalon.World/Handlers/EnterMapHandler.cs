@@ -283,9 +283,12 @@ public partial class EnterMapHandler(
         try
         {
             // A build that faulted or was cancelled is logged first, whatever else ends the request: the client is
-            // told nothing of it, as when the connection's drain logged it and dropped the arrival, and the character
-            // may ask again. Inside the try: a log that throws still ends the move.
+            // sent no transition for it, as when the connection's drain logged it and dropped the arrival, and the
+            // character may ask again. A build abandoned at its deadline (#969) is the one failure the player is told
+            // of, by a system line. Inside the try: a log that throws still ends the move.
             bool built = !LogIfFailed(request, character, targetMapId);
+            if (!built)
+                InstanceBuildTimeoutException.TellIfTimedOut(connection, request.Exception);
 
             // A character that died while its instance was being built is not moved: no transfer, no save, as an
             // item's teleport leaves one where it died (MapTeleport). The request ends as a dead character's does in
@@ -334,13 +337,22 @@ public partial class EnterMapHandler(
 
     /// <summary>
     /// Logs at Error, once, that <paramref name="request" />'s build faulted or was cancelled, and says whether it did:
-    /// nothing else logs it, since the registry only hands the failure to its requesters.
+    /// nothing else logs it, since the registry only hands the failure to its requesters. A build abandoned at its
+    /// deadline is the exception (#969): the registry logged that at Error, once for all its requesters, so here it is a
+    /// Warning, without the stack.
     /// </summary>
     private bool LogIfFailed(Task<IMapInstance> request, ICharacter character, MapId targetMapId)
     {
         if (request.IsCompletedSuccessfully)
         {
             return false;
+        }
+
+        if (InstanceBuildTimeoutException.Of(request.Exception) is not null)
+        {
+            logger.LogWarning("EnterMap: the instance of map {MapId} for {Name} was not built in time; the move failed",
+                targetMapId, character.Name);
+            return true;
         }
 
         logger.LogError(request.Exception, "EnterMap: the instance of map {MapId} could not be built for {Name}",
