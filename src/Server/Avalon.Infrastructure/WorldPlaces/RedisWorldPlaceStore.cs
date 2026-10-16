@@ -152,6 +152,21 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           if #silent > 0 then redis.call('ZREMRANGEBYSCORE', checkins, '-inf', now) end
           return turns, #silent
         end
+        -- Whether the account has a place here (present) and whether it lapsed. A place another world's ticket released
+        -- (r) is counted but not the account's to keep, so not present. A present place lapsed when no session has claimed
+        -- it for the horizon (only tickets kept it), unless a session redeemed there is pending (its marker lives and no
+        -- lockout does). Only a present place that has not lapsed is the account's own: a join keeps it, and a check-in
+        -- answers it as the account's turn.
+        local function standing(places, marks, account, now, horizon)
+          local present = redis.call('ZSCORE', places, account) and redis.call('HGET', marks, account) ~= 'r'
+          local lapsed = false
+          if present then
+            local since = tonumber(redis.call('HGET', marks, account .. ':f'))
+            local pending = redis.call('HGET', marks, account .. ':p') and not redis.call('HGET', marks, account .. ':l')
+            lapsed = since ~= nil and now - since >= tonumber(horizon) and not pending
+          end
+          return present, lapsed
+        end
 
         """;
 
@@ -208,13 +223,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         -- it back over the limit. A place a session redeemed and not yet activated (its pending marker, one lease at most)
         -- never lapses.
         -- A place another world's ticket released (r) is counted but not the account's to keep: it asks as a newcomer.
-        local present = redis.call('ZSCORE', KEYS[1], account) and redis.call('HGET', KEYS[2], account) ~= 'r'
-        local lapsed = false
-        if present then
-          local since = tonumber(redis.call('HGET', KEYS[2], account .. ':f'))
-          local pending = redis.call('HGET', KEYS[2], account .. ':p') and not redis.call('HGET', KEYS[2], account .. ':l')
-          lapsed = since ~= nil and now - since >= tonumber(ARGV[14]) and not pending
-        end
+        local present, lapsed = standing(KEYS[1], KEYS[2], account, now, ARGV[14])
         local function hold_end()
           local held = ticket(redis.call('HGET', KEYS[2], account))
           if held and held > now then return held end
@@ -453,7 +462,11 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     private const string CheckIn = Functions + """
         local account, now = ARGV[1], tonumber(ARGV[2])
         local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[2], ARGV[9], ARGV[10], ARGV[11], ARGV[12])
-        if redis.call('ZSCORE', KEYS[1], account) then return {3, 0, turns, silent, refused} end
+        -- The account's turn at once only for a place of its own, which its join keeps (a turn taken, a place held after
+        -- a drop, its session's, a ticket's hold not lapsed). A place that is not (released by another world's ticket,
+        -- or lapsed and kept only for its last ticket's hold) is counted but is no turn: the account waits its rank.
+        local present, lapsed = standing(KEYS[1], KEYS[2], account, now, ARGV[11])
+        if present and not lapsed then return {3, 0, turns, silent, refused} end
         local rank = redis.call('ZRANK', KEYS[3], account)
         if not rank then return {0, 0, turns, silent, refused} end
         local limit = tonumber(ARGV[3])
@@ -462,8 +475,11 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           redis.call('ZREM', KEYS[3], account)
           redis.call('ZREM', KEYS[4], account)
           forget(KEYS[5], ARGV[10])
-          redis.call('ZADD', KEYS[1], ARGV[8], account)
+          -- A place the account still has counted is never shortened (its last ticket's hold may still be redeemed), and
+          -- the turn is its own: no longer lapsed, so its join takes it.
+          redis.call('ZADD', KEYS[1], 'GT', ARGV[8], account)
           redis.call('HSET', KEYS[2], account, 't:' .. enqueued)
+          redis.call('HDEL', KEYS[2], account .. ':f')
           return {3, 0, turns, silent, refused}
         end
         local position = rank + 1

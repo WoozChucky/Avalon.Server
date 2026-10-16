@@ -96,7 +96,12 @@ public interface IWorldPlaceStore
     /// <summary>How long after one release of a world's held places another is a no-op.</summary>
     static readonly TimeSpan HeldReleaseWindow = TimeSpan.FromSeconds(10);
 
-    /// <summary>A waiter checks in: its position, or its turn when the world is available and a place is free for it.</summary>
+    /// <summary>
+    /// A waiter checks in: its position, or its turn when the world is available and a place is free for it. An account
+    /// holding a place of its own there (one its join keeps: a turn taken, a place held after a drop, its session's, a
+    /// ticket's hold not lapsed) is told its turn at once; a place that is not its own (released by another world's
+    /// ticket, or lapsed and kept only for its last ticket's hold) is counted but is no turn: it waits its rank.
+    /// </summary>
     Task<QueueCheckIn> CheckInAsync(ushort worldId, long accountId, int? limit, bool available, CancellationToken cancellationToken);
 
     /// <summary>Leaves the line, giving back a turn not yet used. Idempotent; true when something was removed.</summary>
