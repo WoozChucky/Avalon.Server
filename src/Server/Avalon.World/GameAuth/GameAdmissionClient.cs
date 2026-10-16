@@ -127,7 +127,7 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
     public async Task<SessionLeaseResponse> EndAsync(GameSessionLease lease, string reason, CancellationToken cancellationToken)
     {
         long now = clock.GetUtcNow().ToUnixTimeMilliseconds();
-        if (_identityRefusesReason)
+        if (Volatile.Read(ref _identityRefusesReason) == 1)
         {
             // Latched: ends go without the reason, one request each, but one in every probe interval, which asks again.
             long due = Interlocked.Read(ref _reasonProbeAt);
@@ -138,31 +138,35 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
         SessionLeaseResponse reply = await ControlAsync("end", lease, reason, cancellationToken);
         if (reply.Error != RefusedRequest)
         {
-            if (reply.Error is null) _identityRefusesReason = false; // identity takes the reason now
+            if (reply.Error is null) Volatile.Write(ref _identityRefusesReason, 0); // identity takes the reason now
             return reply;
         }
 
         // An identity from before #967 refuses the member it does not know (400): end the session anyway, without the
-        // reason, or the player's next join would meet ACTIVE_GAME_SESSION until the lease ran out. Remembered, so a
-        // stop's ends do not each cost two requests while that identity runs.
-        Interlocked.Exchange(ref _reasonProbeAt, now + ReasonProbeInterval);
-        if (!_identityRefusesReason)
+        // reason, or the player's next join would meet ACTIVE_GAME_SESSION until the lease ran out. Remembered only when
+        // the end without it succeeds, so it was the reason that was refused: a stop's ends then do not each cost two
+        // requests while that identity runs. One Warning, from the end that latches.
+        SessionLeaseResponse retry = await ControlAsync("end", lease, null, cancellationToken);
+        if (retry.Error is null)
         {
-            _identityRefusesReason = true;
-            logger?.LogWarning(
-                "Identity refused the reason of a game session end: it predates #967. Session ends are sent without it, and the reason is offered again every {Minutes} minutes",
-                ReasonProbeInterval / 60_000);
+            Interlocked.Exchange(ref _reasonProbeAt, now + ReasonProbeInterval);
+            if (Interlocked.CompareExchange(ref _identityRefusesReason, 1, 0) == 0)
+            {
+                logger?.LogWarning(
+                    "Identity refused the reason of a game session end: it predates #967. Session ends are sent without it, and the reason is offered again every {Minutes} minutes",
+                    ReasonProbeInterval / 60_000);
+            }
         }
 
-        return await ControlAsync("end", lease, null, cancellationToken);
+        return retry;
     }
 
     /// <summary>How often, in ms, an end offers its reason again once identity refused it.</summary>
     private const long ReasonProbeInterval = 5 * 60_000;
 
-    // Whether identity refused an end's reason (#967): ends then go without it until the next probe (_reasonProbeAt,
-    // Unix ms on the injected clock) finds an identity that takes it.
-    private volatile bool _identityRefusesReason;
+    // 1 when identity refused an end's reason (#967): ends then go without it until the next probe (_reasonProbeAt, Unix
+    // ms on the injected clock) finds an identity that takes it.
+    private int _identityRefusesReason;
     private long _reasonProbeAt;
 
     /// <summary>A 400 with no error of identity's own to a request that carried a reason: the request's shape was refused.</summary>
