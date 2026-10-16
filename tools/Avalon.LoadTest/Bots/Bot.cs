@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using Avalon.Common;
+using Avalon.Common.GameAuth;
 using Avalon.LoadTest.Api;
 using Avalon.LoadTest.World;
 using Avalon.Network.Packets.Abstractions;
@@ -522,6 +523,62 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         return packet;
     }
 
+    /// <summary>
+    /// A join ticket, waiting in a full world's line when the join says so (#967): checks in when told, and asks again at
+    /// its turn (or once no longer queued). The wait is measured apart from the entry time, which starts at the ticket.
+    /// A stop while queued leaves the line.
+    /// </summary>
+    private async Task<JoinTicket> JoinThroughQueueAsync(GameContext context, bool takeover, CancellationToken ct)
+    {
+        long queuedAt = 0;
+        try
+        {
+            while (true)
+            {
+                JoinAnswer answer = await StepAsync("join", s_joinTimeout, token => api.JoinAsync(context, worldId, takeover, token), ct);
+                if (answer.Ticket is { } ticket)
+                {
+                    if (queuedAt != 0) metrics.QueueEntered(Stopwatch.GetElapsedTime(queuedAt));
+                    return ticket;
+                }
+
+                if (queuedAt == 0)
+                {
+                    queuedAt = Stopwatch.GetTimestamp();
+                    metrics.Queued();
+                }
+
+                TimeSpan wait = answer.CheckInAfter;
+                while (true)
+                {
+                    await Task.Delay(wait, ct);
+                    QueueStatus status = await StepAsync("queue", s_joinTimeout, token => api.QueueStatusAsync(context, worldId, token), ct);
+                    if (status.State is GameQueueStates.YourTurn or GameQueueStates.NotQueued) break;
+                    wait = status.CheckInAfter;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested && queuedAt != 0)
+        {
+            await LeaveQueueQuietlyAsync(context);
+            throw;
+        }
+    }
+
+    /// <summary>Best effort, 5 s: a waiter that stops checking in leaves the line by itself within 45 s.</summary>
+    private async Task LeaveQueueQuietlyAsync(GameContext context)
+    {
+        using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        try
+        {
+            await api.LeaveQueueAsync(context, worldId, limit.Token);
+        }
+        catch (Exception error) when (error is ApiException or OperationCanceledException)
+        {
+            // The line removes a silent waiter by itself.
+        }
+    }
+
     private async Task EnterOnceAsync(bool takeover, CancellationToken ct)
     {
         GameContext? context = Context;
@@ -533,8 +590,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
             throw new InvalidOperationException($"Bot {index} lost its game context while entering.");
         }
 
-        JoinTicket ticket = await StepAsync("join", s_joinTimeout,
-            token => api.JoinTicketAsync(context, worldId, takeover, token), ct);
+        JoinTicket ticket = await JoinThroughQueueAsync(context, takeover, ct);
         // The client asked for the run's world and checked the reply; a destination elsewhere is never dialled.
         if (ticket.Destination.WorldId != worldId)
             throw new BotStepException("join", "join:wrong-world", $"the ticket is for world {ticket.Destination.WorldId}");

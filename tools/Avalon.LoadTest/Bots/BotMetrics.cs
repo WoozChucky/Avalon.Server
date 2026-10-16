@@ -183,6 +183,45 @@ public sealed class BotMetrics
             $"mixed: {sealedCount} admissions sealed, {plainCount} plain (the world changed mode in between)"),
     };
 
+    /// <summary>How many queue waits the run keeps for its percentiles; the counts go on past it.</summary>
+    private const int MaxQueueSamples = 10_000;
+    private long _queued;
+    private long _queueEntered;
+    private readonly Lock _queueLock = new();
+    private readonly List<double> _queueWaits = [];
+
+    /// <summary>An entry attempt was told to wait in the world's line (#967).</summary>
+    public void Queued() => Interlocked.Increment(ref _queued);
+
+    /// <summary>A bot that waited in the line got its ticket, <paramref name="waited"/> after it was first queued.</summary>
+    public void QueueEntered(TimeSpan waited)
+    {
+        Interlocked.Increment(ref _queueEntered);
+        lock (_queueLock)
+        {
+            if (_queueWaits.Count < MaxQueueSamples) _queueWaits.Add(waited.TotalSeconds);
+        }
+    }
+
+    /// <summary>Every wait in the line so far: how many were queued, how many got in, and the wait's p50 and p95 in seconds.</summary>
+    public QueueTotals Queue
+    {
+        get
+        {
+            double[] waits;
+            lock (_queueLock) waits = [.. _queueWaits];
+            Array.Sort(waits);
+            return new QueueTotals(Interlocked.Read(ref _queued), Interlocked.Read(ref _queueEntered),
+                waits.Length == 0 ? null : Percentile(waits, 0.50), waits.Length == 0 ? null : Percentile(waits, 0.95));
+        }
+    }
+
+    /// <summary>The run's queue line, as the ramp report and <c>check</c> print it.</summary>
+    public static string QueueText(QueueTotals queue) => queue.Queued == 0
+        ? "no entry was queued"
+        : FormattableString.Invariant(
+            $"{queue.Queued} entries queued, {queue.Entered} got in; wait p50 {queue.WaitP50:0} s, p95 {queue.WaitP95:0} s");
+
     /// <summary>A bot in the world lost its connection without asking to.</summary>
     public void Disconnected(int bot)
     {
@@ -531,3 +570,6 @@ public sealed record StepClientValues(
     /// </summary>
     public int BotsFailing => TriedBots.Count(bot => !GotInBots.Contains(bot));
 }
+
+/// <summary>The bots' waits in a full world's line over a run (#967); the percentiles are null with no wait.</summary>
+public readonly record struct QueueTotals(long Queued, long Entered, double? WaitP50, double? WaitP95);

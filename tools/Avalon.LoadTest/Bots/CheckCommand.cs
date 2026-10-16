@@ -112,6 +112,7 @@ public static class CheckCommand
             Console.WriteLine(Invariant(
                 $"  driver     lateness p95 {Ms(lateness.P95Ms)} over {lateness.Loops} loops, worst loop {Ms(lateness.WorstLoopP95Ms)}"));
             Console.WriteLine($"  encryption {BotMetrics.EncryptionText(metrics.Admissions)}");
+            Console.WriteLine($"  queue      {BotMetrics.QueueText(metrics.Queue)}");
             if (options.Behaviour == BehaviourKind.Fighter) PrintTrip(values);
             if (values.AckSamples == 0)
                 throw new BotStepException(step, $"{step}:no-acks", "no input was answered");
