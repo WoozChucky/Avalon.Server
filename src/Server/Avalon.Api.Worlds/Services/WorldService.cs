@@ -121,6 +121,7 @@ public class WorldService : IWorldService
             Version = request.Version,
             Type = (Avalon.Domain.Auth.WorldType)request.Type,
             AccessLevelRequired = (Avalon.Common.Accounts.AccountAccessLevel)request.AccessLevelRequired,
+            Lore = NormalizeLore(request.Lore),
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -141,6 +142,7 @@ public class WorldService : IWorldService
         if (request.Version is not null) world.Version = request.Version;
         if (request.Type.HasValue) world.Type = (Avalon.Domain.Auth.WorldType)request.Type.Value;
         if (request.AccessLevelRequired.HasValue) world.AccessLevelRequired = (Avalon.Common.Accounts.AccountAccessLevel)request.AccessLevelRequired.Value;
+        if (request.Lore is not null) world.Lore = NormalizeLore(request.Lore);
 
         world.UpdatedAt = DateTime.UtcNow;
 
@@ -163,12 +165,12 @@ public class WorldService : IWorldService
         return world is null ? null : await ToDtoAsync(world, cancellationToken, _time.GetUtcNow().UtcDateTime);
     }
 
+    /// <summary>Blank lore is no lore.</summary>
+    private static string? NormalizeLore(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
     private async Task<WorldDto> ToDtoAsync(WorldEntity w, CancellationToken ct, DateTime nowUtc)
     {
-        bool ready = await _readiness.IsReadyAsync(w.Id.Value, ct);
-        WorldOccupancy occupancy = await _occupancy.ReadAsync(w.Id.Value, ct);
-        var state = new WorldMaintenanceState(w.MaintenanceEnabled, w.MaintenanceRevision,
-            w.MaintenanceDeadlineUtc);
+        WorldLiveState live = await WorldLiveState.ReadAsync(_readiness, _occupancy, w, nowUtc, ct);
         return new WorldDto
         {
             Id = w.Id.Value,
@@ -177,16 +179,16 @@ public class WorldService : IWorldService
             AccessLevelRequired = (Avalon.Api.Contract.AccountAccessLevel)w.AccessLevelRequired,
             Host = w.Host,
             Port = w.Port,
+            Lore = w.Lore,
             MinVersion = w.MinVersion,
             Version = w.Version,
-            Status = (Avalon.Api.Contract.WorldStatus)WorldReadiness.WithCapacity(WorldReadiness.Resolve(state, ready, nowUtc),
-                w.PlayerLimit, occupancy.PlayerCount),
-            Ready = ready,
+            Status = (Avalon.Api.Contract.WorldStatus)live.Status,
+            Ready = live.Ready,
             CreatedAt = w.CreatedAt,
             UpdatedAt = w.UpdatedAt,
-            OnlineCount = occupancy.PlayerCount,
+            OnlineCount = live.Occupancy.PlayerCount,
             PlayerLimit = w.PlayerLimit,
-            QueueLength = occupancy.QueueLength,
+            QueueLength = live.Occupancy.QueueLength,
             Configured = _databases.TryGet(w.Id, out _),
             Available = _databases.IsAvailable(w.Id),
         };

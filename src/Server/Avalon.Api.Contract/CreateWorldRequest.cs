@@ -9,6 +9,8 @@ public sealed class CreateWorldRequest
     [Required] public int Port { get; set; }
     [Required] public string MinVersion { get; set; } = "";
     [Required] public string Version { get; set; } = "";
+    /// <summary>A short text about the world, at most 280 characters; blank for none.</summary>
+    [StringLength(280)] public string? Lore { get; set; }
     public WorldType Type { get; set; } = WorldType.PvE;
     public AccountAccessLevel AccessLevelRequired { get; set; } = AccountAccessLevel.Player;
 }

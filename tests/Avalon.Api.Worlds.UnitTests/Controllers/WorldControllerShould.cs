@@ -171,4 +171,38 @@ public class WorldControllerShould
         await service.Received(status == 200 ? 1 : 0).SetPlayerLimitAsync(Arg.Any<ushort>(), Arg.Any<int?>(), Arg.Any<string>(),
             Arg.Any<CancellationToken>());
     }
+
+    /// <summary>Lore is at most 280 characters, on create and on update; a longer one is a 400 and writes nothing.</summary>
+    [Theory]
+    [InlineData("POST", "/world", 280, 201)]
+    [InlineData("POST", "/world", 281, 400)]
+    [InlineData("PATCH", "/world/1", 280, 200)]
+    [InlineData("PATCH", "/world/1", 281, 400)]
+    public async Task Accept_lore_up_to_280_characters(string method, string path, int length, int status)
+    {
+        IWorldService service = Substitute.For<IWorldService>();
+        service.CreateAsync(Arg.Any<CreateWorldRequest>(), Arg.Any<CancellationToken>()).Returns(new WorldDto { Id = 1 });
+        service.UpdateAsync(1, Arg.Any<UpdateWorldRequest>(), Arg.Any<CancellationToken>()).Returns(new WorldDto { Id = 1 });
+        await using ApiTestHost host = await ApiTestHost.StartAsync(configure: services => services.AddSingleton(service));
+        Account admin = ApiTestHost.MakeAccount(Avalon.Common.Accounts.AccountAccessLevel.Player | Avalon.Common.Accounts.AccountAccessLevel.Admin);
+        host.AccountNowIs(admin);
+        string lore = new('x', length);
+        string body = method == "POST"
+            ? $"{{\"name\":\"N\",\"host\":\"h\",\"port\":1,\"minVersion\":\"0.0.1\",\"version\":\"0.0.1\",\"lore\":\"{lore}\"}}"
+            : $"{{\"lore\":\"{lore}\"}}";
+        using var request = new HttpRequestMessage(new HttpMethod(method), path)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiTestHost.Mint(admin));
+
+        using HttpResponseMessage response = await host.Client.SendAsync(request);
+
+        Assert.Equal(status, (int)response.StatusCode);
+        int writes = status is 200 or 201 ? 1 : 0;
+        if (method == "POST")
+            await service.Received(writes).CreateAsync(Arg.Any<CreateWorldRequest>(), Arg.Any<CancellationToken>());
+        else
+            await service.Received(writes).UpdateAsync(Arg.Any<ushort>(), Arg.Any<UpdateWorldRequest>(), Arg.Any<CancellationToken>());
+    }
 }

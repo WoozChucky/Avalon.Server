@@ -10,6 +10,8 @@ public sealed class WorldDto
     public int Port { get; set; }
     public string MinVersion { get; set; } = "";
     public string Version { get; set; } = "";
+    /// <summary>A short text about the world; null for none.</summary>
+    public string? Lore { get; set; }
     public WorldStatus Status { get; set; }
     /// <summary>Whether the world has a fresh runtime ready heartbeat.</summary>
     public bool Ready { get; set; }

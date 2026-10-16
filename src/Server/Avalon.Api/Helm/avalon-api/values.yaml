@@ -195,6 +195,11 @@ loadTest:
 # caller may read.
 publicWorldId:
 
+# The head count a world with no player limit needs to read as busy on the public realm list
+# (Application:PublicPopulationReference): a third of it reads Medium, two thirds High. Left empty, such a
+# world shows no population; worlds with a player limit are unaffected.
+publicPopulationReference:
+
 # The public website's base URL (Application:PublicSiteUrl), e.g. https://avalon.example: the address link
 # previews name as a page's og:url. Left empty, previews leave og:url out and link relatively.
 publicSiteUrl: ""

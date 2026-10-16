@@ -193,11 +193,11 @@ outside `/world/{worldId}/`.
 
 ## Public routes
 
-`[PublicWorldScoped]` is the anonymous-friendly variant, for the public site's item and ability tooltips:
+`[PublicWorldScoped]` is the anonymous-friendly variant, for the public site's item and ability tooltips and the public realm board:
 
 | Route | Answer |
 |---|---|
-| `GET /public/world` | `{ defaultWorldId, worlds: [{ id, name }] }`: the configured, available worlds the caller may read, in id order. `Cache-Control: private, no-cache`, since the list depends on the caller |
+| `GET /public/world` | `{ defaultWorldId, worlds: [{ id, name, type, status, population, queueLength, maintenanceDeadlineUtc, lore }] }`: the configured, available worlds the caller may read, in id order, each with its live state. `Cache-Control: private, no-cache`, since the list depends on the caller |
 | `GET /public/world/{worldId}/item/{id}` | `PublicItemDto` |
 | `GET /public/world/{worldId}/ability/{id}` | `PublicAbilityDto` |
 
@@ -208,6 +208,16 @@ outside `/world/{worldId}/`.
 - **Caching:** an answer from a world every player may enter is `Cache-Control: public, max-age=300`; one from a
   world only this caller may enter is `private, max-age=300` (the middleware stores which in
   `HttpContext.Items[PublicWorldScopedAttribute.OpenToEveryoneItem]`).
+- **Live fields** (`GET /public/world`): `status` and `queueLength` come from the same `WorldLiveState` read as the
+  admin list. `population` is a band (`Low`, `Medium`, `High`, `Full`), never a count: `Full` iff the status is
+  Full, null when the world is Offline, in Maintenance or has no capacity, where capacity is the world's player
+  limit, else `Application:PublicPopulationReference`. `maintenanceDeadlineUtc` is set only while maintenance is
+  enabled (a scheduled cut-off shows with the status still Online); a stale deadline on a world whose maintenance
+  is off is null. `lore` is the world's lore text. Null properties are omitted from the JSON. If Redis cannot be
+  read, every world reads Offline with `queueLength` 0 and the answer is still 200.
+- **What it never returns:** host, port, `MinVersion`, `Version`, the exact online count, the player limit or the
+  maintenance revision. The endpoint is anonymous, so these stay in the Player-only `GET /world`. Live state is read
+  only for worlds the caller may read, so a staff-only world (Development, PTR) leaks nothing to anonymous callers.
 - **The default world** (`PublicWorlds.DefaultOf`) is `Application:PublicWorldId` when the caller may read it, else
   the first readable world, else none.
 - **GET only:** every `[PublicWorldScoped]` endpoint is a single-verb GET under `public/world/`
@@ -333,6 +343,7 @@ or distribution ignores `worlds`, and the checks below apply to the parts a rele
 | Key | Default | Description |
 |---|---|---|
 | `Application:PublicWorldId` | none (`null`) | The default world of `GET /public/world` and of the link previews. Helm `publicWorldId`, rendered only when set |
+| `Application:PublicPopulationReference` | none (`null`) | The head count that reads as busy for a world with no player limit, which the public realm list bands its population against; unset shows no population for such a world. Must be positive, else startup stops, naming the setting. Helm `publicPopulationReference`, rendered only when set |
 | `Application:PublicSiteUrl` | none (blank) | The public site's base URL, e.g. `https://avalon.example`: an absolute http or https URL with no query or fragment, trailing slash dropped (`PublicSiteSettings.Create`); anything else stops startup, naming the setting. Helm `publicSiteUrl`; the AppHost sets `http://localhost:5173` |
 | `Application:Previews:SiteName` | `Avalon` | `og:site_name` and the not-found title; left out when empty |
 | `Application:Previews:AbilityColour` | `#BC8A4E` | An ability's `theme-color` |

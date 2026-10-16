@@ -34,6 +34,11 @@ grep -A1 "ASPNETCORE_ENVIRONMENT" <<<"$out" | grep -q 'Production'    || { echo 
 pw=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicWorldId=2)
 grep -A1 "name: Application__PublicWorldId" <<<"$pw" | grep -q 'value: "2"' || { echo "publicWorldId must render as Application__PublicWorldId"; exit 1; }
 
+# The head count a limitless world's population is read against: only when set.
+! grep -q "Application__PublicPopulationReference" <<<"$out"           || { echo "publicPopulationReference must not render unset"; exit 1; }
+pp=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}" --set publicPopulationReference=40)
+grep -A1 "name: Application__PublicPopulationReference" <<<"$pp" | grep -q 'value: "40"' || { echo "publicPopulationReference must render as Application__PublicPopulationReference"; exit 1; }
+
 # The plaintext refusal's kill switch: only when set, so the API's default (on outside Development) applies otherwise.
 ! grep -q "Application__ForwardedHeaders__RefusePlaintext" <<<"$out"   || { echo "forwardedHeaders.refusePlaintext must not render unset"; exit 1; }
 rp=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=avalon-api "${W1[@]}" --set forwardedHeaders.refusePlaintext=false)
@@ -303,7 +308,7 @@ owners() {
     Application__StoreAuthentication__*|Application__Email__*|Application__Notification__*|Application__SteamWebLink__*|Application__GameWorkloads__*|Kestrel__Endpoints__GameInternal__*|Application__RateLimiting__ClientAuthPermitsPerMinute|Application__LoadTest__*) echo identity ;;
     Application__Authentication__SigningKey|Application__Authentication__SigningKeyId|Application__GameAuth__*) echo identity ;;
     Database__Worlds__*__Characters__*) echo "identity worlds" ;;
-    Database__Worlds__*__World__*|Application__Templates__*|Application__MapAssets__*|Application__Balance__*|Application__PublicWorldId|Application__PublicSiteUrl) echo worlds ;;
+    Database__Worlds__*__World__*|Application__Templates__*|Application__MapAssets__*|Application__Balance__*|Application__PublicWorldId|Application__PublicPopulationReference|Application__PublicSiteUrl) echo worlds ;;
     Application__Commerce__*) echo commerce ;;
     Application__Distribution__*) echo distribution ;;
     Application__Cache__*) echo "identity worlds commerce" ;;
