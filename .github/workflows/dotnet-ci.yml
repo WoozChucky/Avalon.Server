@@ -37,6 +37,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Cache NuGet packages
+        # Not on the k3s runners: their NuGet folder persists (/cache/nuget, homelab docs/ci-runners.md), and this cache is 1.9 GB to download.
+        if: vars.CI_RUNNER == ''
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
@@ -79,7 +81,8 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with: { dotnet-version: 10.0.x }
       # build's cache, read only: build saves it, so two jobs never race to save the same key.
-      - uses: actions/cache/restore@v6
+      - if: vars.CI_RUNNER == ''   # see build's NuGet cache step
+        uses: actions/cache/restore@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', 'global.json') }}
