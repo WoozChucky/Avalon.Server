@@ -138,7 +138,7 @@ public static class ServiceExtensions
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<WorldEntryGate>>()));
         // The world's own ceiling on admitted accounts (#967), from Game:PlayerLimit; checked in the admission work, off
-        // the tick. Built with the packet handlers as the world starts, when it logs the limit it was given.
+        // the tick. Built at startup (WorldStartup.PrepareAsync), when it logs the limit it was given.
         services.AddSingleton(sp => new WorldBackstop(
             sp.GetRequiredService<IOptions<GameConfiguration>>().Value,
             sp.GetRequiredService<TimeProvider>(),
