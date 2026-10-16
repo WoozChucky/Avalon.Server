@@ -404,7 +404,7 @@ public static class WorldPlaceScenarios
             h.Advance(60);
             Assert.Equal(1, (await h.Sizes()).Taken);
         },
-        ["tickets alone keep an unclaimed place up to the horizon, not past it on a full world"] = async h =>
+        ["tickets alone keep an unclaimed place up to the horizon, not past it on a full world, nor take it back at once"] = async h =>
         {
             // Account 1 takes a place with a ticket and never redeems one, asking a new ticket every 40 s; account 2 plays.
             Assert.Equal(PlaceSource.Taken, (await h.Join(1, limit: 2, cap: 0)).Source);
@@ -421,7 +421,31 @@ public static class WorldPlaceScenarios
             await h.Renew(2);
             Assert.Equal(PlaceOutcome.WorldFull, (await h.Join(1, limit: 2, cap: 0)).Outcome);
             Assert.Equal((1, 0, 0), await h.Sizes()); // released, as a newcomer has none
+            // Asked again at once, the place free: still refused, for the lockout. Another newcomer takes the place.
+            Assert.Equal(PlaceOutcome.WorldFull, (await h.Join(1, limit: 2, cap: 0)).Outcome);
             Assert.Equal(PlaceSource.Taken, (await h.Join(3, limit: 2, cap: 0)).Source);
+        },
+        ["a place another world's ticket released keeps its unclaimed time when its old ticket is redeemed"] = async h =>
+        {
+            Assert.Equal(PlaceSource.Taken, (await h.Join(1, limit: 2, cap: 0)).Source);
+            await h.Admitted(2, limit: 2);
+            for (int i = 0; i < 22; i++) // tickets alone, to 880 s
+            {
+                h.Advance(40);
+                await h.Renew(2);
+                Assert.Equal(PlaceOutcome.Admitted, (await h.Join(1, limit: 2, cap: 0)).Outcome);
+            }
+
+            Guid last = h.Ticket(1);
+            h.Advance(10);
+            Assert.Equal(PlaceOutcome.Admitted, (await h.Join(1, limit: null, world: 2)).Outcome); // releases world 1's place
+            Assert.Equal(1, (await h.Sizes()).Taken);
+            h.Advance(5);
+            await h.Renew(1, session: last); // world 1's last ticket, still valid, redeemed: the place is back
+            h.Advance(5);
+            await h.End(1, PlaceEnd.Hold); // and drops before its activation, at 900 s
+            h.Advance(5);
+            Assert.Equal(PlaceOutcome.WorldFull, (await h.Join(1, limit: 2, cap: 0)).Outcome); // unclaimed since 0 s
         },
         ["an activation claims the place again, and a held place's horizon runs from its end"] = async h =>
         {

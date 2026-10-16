@@ -21,8 +21,12 @@ namespace Avalon.Infrastructure.WorldPlaces;
 /// place was kept or removed); fencing tokens only grow for an account, so a smaller one is an older session's. The field
 /// <c>{account}:f</c> is when the place became unclaimed (Unix ms): taken or kept by a join ticket, or left by a session's
 /// end, with no session's activation or heartbeat since; past <see cref="WorldPlacesConfiguration.UnclaimedPlace"/> a
-/// further ticket is not kept on it (<see cref="EnterAsync"/>). One more field, <c>released</c>, is the time the world's
-/// held places were last released (<see cref="ReleaseHeldAsync"/>).
+/// further ticket is not kept on it (<see cref="EnterAsync"/>). It outlives a place another world's ticket released, for
+/// one horizon (<c>HPEXPIRE</c>), so redeeming that place's old ticket starts no new horizon. The field
+/// <c>{account}:l</c> (<c>1</c>) is a lockout: an account refused <c>WORLD_FULL</c> when its unclaimed place lapsed is
+/// refused again, without a place, until Redis expires it (<see cref="GameAuthPolicy.WorldFullRetryAfterMin"/>), so it
+/// cannot take back at once the place it was just released from; a place's removal leaves it to expire. One more field,
+/// <c>released</c>, is the time the world's held places were last released (<see cref="ReleaseHeldAsync"/>).
 /// </para>
 /// </summary>
 public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldPlacesConfiguration> options,
@@ -46,7 +50,8 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     /// <c>tombstone</c>, which always sets it to expire one lease from now on Redis's clock (<c>HPEXPIRE</c>), so it refuses that
     /// session's late renewals whether or not the place is still there, and never outlives them. (A plain <c>HSET</c> of a
     /// newer session's live fence clears the expiry, as it should: the field then lives with the place.) A refused expiry
-    /// sets <c>refused</c>, which the scripts that write tombstones return beside their result, so it is logged.
+    /// (a tombstone's, an orphaned unclaimed time's, a lockout's) deletes the field and sets <c>refused</c>, which the
+    /// scripts that expire fields return beside their result, so it is logged.
     /// </summary>
     private const string Holders = """
         local refused = 0
@@ -84,17 +89,22 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         local function unclaimed(marks, account, now)
           if not redis.call('HGET', marks, account .. ':f') then redis.call('HSET', marks, account .. ':f', now) end
         end
-        -- An ended session's tombstone, expiring one lease (ttl ms) from now on Redis's own clock, so no clock skew between
-        -- identity and Redis can cut it short. Should the expiry fail (HPEXPIRE refused, or a Redis before 7.4), the field
-        -- is removed rather than left without one, whatever it held before (an earlier tombstone too): never a field that
-        -- lasts forever. The refusal is returned, and logged by the caller.
-        local function tombstone(marks, account, fence, ttl)
-          redis.call('HSET', marks, account .. ':s', 'e:' .. fence)
-          local armed = redis.pcall('HPEXPIRE', marks, ttl, 'FIELDS', 1, account .. ':s')
+        -- A field that expires ttl ms from now on Redis's own clock, so no clock skew between identity and Redis can cut
+        -- it short. Should the expiry fail (HPEXPIRE refused, or a Redis before 7.4), the field is removed rather than
+        -- left without one, whatever it held before: never a field that lasts forever. The refusal is returned, and
+        -- logged by the caller.
+        local function expire_field(marks, field, ttl)
+          local armed = redis.pcall('HPEXPIRE', marks, ttl, 'FIELDS', 1, field)
           if type(armed) == 'table' and armed.err then
-            redis.call('HDEL', marks, account .. ':s')
+            redis.call('HDEL', marks, field)
             refused = 1
           end
+        end
+        -- An ended session's tombstone, expiring one lease (ttl ms) after it is written (an earlier tombstone too is
+        -- rearmed).
+        local function tombstone(marks, account, fence, ttl)
+          redis.call('HSET', marks, account .. ':s', 'e:' .. fence)
+          expire_field(marks, account .. ':s', ttl)
         end
 
         """;
@@ -137,8 +147,8 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     //       each other world.
     // ARGV: 1 account, 2 now, 3 until, 4 limit ('' for none), 5 staff ('1'/'0'), 6 queue capacity, 7 front positions,
     //       8 front timeout ms, 9 back timeout ms, 10 waiting-key prefix, 11 world id, 12 waiting-key lifetime s,
-    //       13 the ticket's id (N format), 14 the unclaimed horizon in ms.
-    // Returns {outcome, source, position, waited ms, turns expired, waiters timed out}.
+    //       13 the ticket's id (N format), 14 the unclaimed horizon in ms, 15 the lockout of a lapsed place refused in ms.
+    // Returns {outcome, source, position, waited ms, turns expired, waiters timed out, 1 when a field's expiry was refused}.
     private const string Enter = Functions + """
         local account, now = ARGV[1], tonumber(ARGV[2])
         local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[2], ARGV[10], ARGV[11])
@@ -148,12 +158,18 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         -- One place a ticket alone holds per account: a ticket admitted here releases the account's places that only a
         -- ticket holds in every other world (a ticket's mark, no live session owning it). Never a place held after a drop,
         -- nor one a ticket returned to from a drop (j:...:h), nor one a live session owns, nor a turn.
+        -- Its unclaimed time stays, for one horizon: redeeming the released place's old ticket puts the place back with
+        -- the time it was unclaimed since, not a new one.
         local function release_elsewhere()
           for i = 7, #KEYS, 2 do
             local _, id, was = ticket(redis.call('HGET', KEYS[i + 1], account))
             if id and not was then
               local current, ended = owner(KEYS[i + 1], account)
-              if not current or ended then forget_place(KEYS[i], KEYS[i + 1], account) end
+              if not current or ended then
+                redis.call('ZREM', KEYS[i], account)
+                redis.call('HDEL', KEYS[i + 1], account)
+                if redis.call('HGET', KEYS[i + 1], account .. ':f') then expire_field(KEYS[i + 1], account .. ':f', ARGV[14]) end
+              end
             end
           end
         end
@@ -162,7 +178,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           redis.call('HSET', KEYS[2], account, ticket_mark(ARGV[3], ARGV[13], was))
           unclaimed(KEYS[2], account, ARGV[2])
           release_elsewhere()
-          return {0, source, 0, waited, turns, silent}
+          return {0, source, 0, waited, turns, silent, refused}
         end
         local function leave_line()
           redis.call('ZREM', KEYS[3], account)
@@ -171,12 +187,14 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         end
         -- A place no session has claimed for the horizon (only tickets have kept it) is not kept again: the request goes
         -- through the capacity step as a newcomer's, its place still counted. Admitted, the place is its own again with a
-        -- new horizon; refused or queued, the place is released, as a newcomer has none.
+        -- new horizon; refused or queued, the place is released, as a newcomer has none. A place a live session owns (a
+        -- pending one, redeemed and not yet activated) never lapses: its owner field is not the ticket's to remove.
         local present = redis.call('ZSCORE', KEYS[1], account)
         local lapsed = false
         if present then
           local since = tonumber(redis.call('HGET', KEYS[2], account .. ':f'))
-          lapsed = since ~= nil and now - since >= tonumber(ARGV[14])
+          local current, ended = owner(KEYS[2], account)
+          lapsed = since ~= nil and now - since >= tonumber(ARGV[14]) and not (current and not ended)
         end
         local function readmit()
           if lapsed then redis.call('HDEL', KEYS[2], account .. ':f') end
@@ -198,7 +216,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           redis.call('HSET', KEYS[2], account, ticket_mark(string.format('%d', ends), ARGV[13], was))
           unclaimed(KEYS[2], account, ARGV[2])
           release_elsewhere()
-          return {0, 1, 0, 0, turns, silent}
+          return {0, 1, 0, 0, turns, silent, refused}
         end
         local rank = redis.call('ZRANK', KEYS[3], account)
         local limit = tonumber(ARGV[4])
@@ -217,12 +235,21 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           end
           release()
           redis.call('ZADD', KEYS[4], now + timeout(rank + 1, front, front_ms, back_ms), account)
-          return {1, 0, rank + 1, 0, turns, silent}
+          return {1, 0, rank + 1, 0, turns, silent, refused}
         end
+        -- Refused at its lapse a moment ago: refused again until the lockout expires, so it cannot take back at once
+        -- the place it was released from, ahead of the players told to come back in 45 to 75 s.
+        if redis.call('HGET', KEYS[2], account .. ':l') then return {2, 0, 0, 0, turns, silent, refused} end
         local waiting = redis.call('ZCARD', KEYS[3])
         if waiting == 0 and taken < limit then return readmit() end
         release()
-        if waiting >= tonumber(ARGV[6]) then return {2, 0, 0, 0, turns, silent} end
+        if waiting >= tonumber(ARGV[6]) then
+          if lapsed then
+            redis.call('HSET', KEYS[2], account .. ':l', '1')
+            expire_field(KEYS[2], account .. ':l', ARGV[15])
+          end
+          return {2, 0, 0, 0, turns, silent, refused}
+        end
         local previous = redis.call('GET', KEYS[6])
         local other = previous and string.match(previous, '^(%d+):')
         if other and other ~= ARGV[11] then
@@ -233,7 +260,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         local position = redis.call('ZRANK', KEYS[3], account) + 1
         redis.call('ZADD', KEYS[4], now + timeout(position, front, front_ms, back_ms), account)
         redis.call('SET', KEYS[6], ARGV[11] .. ':' .. ARGV[2], 'EX', ARGV[12])
-        return {1, 0, position, 0, turns, silent}
+        return {1, 0, position, 0, turns, silent, refused}
         """;
 
     // KEYS: 1 places, 2 marks of the world, then places and marks of each other world (an activation only).
@@ -437,7 +464,9 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
             request.QueueCapacity, WorldPlacesConfiguration.FrontPositions, Ms(c.TimeoutAt(1)),
             Ms(c.TimeoutAt(WorldPlacesConfiguration.FrontPositions + 1)), CacheKeys.WorldQueueWaitingPrefix,
             (int)request.WorldId, WaitingKeySeconds, request.Ticket.ToString("N"), Ms(c.UnclaimedPlace),
+            Ms(GameAuthPolicy.WorldFullRetryAfterMin),
         ], cancellationToken);
+        if ((int)r[6] == 1) outage.ReportExpiryRefused();
         return new((PlaceOutcome)(int)r[0], (PlaceSource)(int)r[1], (int)r[2], TimeSpan.FromMilliseconds((long)r[3]),
             new((int)r[4], (int)r[5]));
     }
@@ -465,7 +494,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     private async Task RunTombstoningAsync(string script, RedisKey[] keys, RedisValue[] values, CancellationToken cancellationToken)
     {
         RedisResult[] r = await RunArrayAsync(script, keys, values, cancellationToken);
-        if ((int)r[1] == 1) outage.ReportTombstoneRefused();
+        if ((int)r[1] == 1) outage.ReportExpiryRefused();
     }
 
     public async Task ReleaseHeldAsync(ushort worldId, CancellationToken cancellationToken)

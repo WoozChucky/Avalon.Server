@@ -17,7 +17,7 @@ public sealed class MemoryWorldPlaceStoreShould
     [Theory]
     [MemberData(nameof(WorldPlaceScenarios.Names), MemberType = typeof(WorldPlaceScenarios))]
     public Task Keep_the_place_and_queue_rules(string scenario) =>
-        WorldPlaceScenarios.RunAsync(scenario, (clock, config) => new MemoryWorldPlaceStore(clock, config), new PlaceIds(1, 1));
+        WorldPlaceScenarios.RunAsync(scenario, (clock, config) => new MemoryWorldPlaceStore(clock, config, [1, 2]), new PlaceIds(1, 1));
 }
 
 /// <summary>

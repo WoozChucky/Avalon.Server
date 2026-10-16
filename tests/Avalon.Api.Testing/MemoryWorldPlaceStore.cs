@@ -8,8 +8,11 @@ namespace Avalon.Api.Testing;
 /// <summary>
 /// <see cref="IWorldPlaceStore"/> in memory, every operation under one lock: the reference the Redis scripts are held to by
 /// <c>WorldPlaceScenarios</c>. The same steps, in the same order, as <c>RedisWorldPlaceStore</c>'s scripts.
+/// <paramref name="configuredWorlds"/> are the worlds an activation or a ticket reaches beyond its own, as the Redis store's
+/// configured workloads are; none given, every world the store has seen.
 /// </summary>
-public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfiguration config) : IWorldPlaceStore
+public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfiguration config,
+    IReadOnlyCollection<ushort>? configuredWorlds = null) : IWorldPlaceStore
 {
     private const string Held = "h";
     private const string TurnPrefix = "t:";
@@ -24,8 +27,11 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         public readonly Dictionary<long, string> Marks = [];     // account -> "h", "t:{enqueuedAt}" or a ticket's hold mark
         // account -> the owning session, or the one that ended there (a tombstone, until its expiry)
         public readonly Dictionary<long, (long Fence, long? TombstoneUntil)> Owners = [];
-        // account -> since when no session claims its place (the field {account}:f)
-        public readonly Dictionary<long, long> Unclaimed = [];
+        // account -> since when no session claims its place (the field {account}:f), and when that field expires, if it
+        // does (one a released place left behind)
+        public readonly Dictionary<long, (long Since, long? Until)> Unclaimed = [];
+        // account -> when its lockout (the field {account}:l) expires
+        public readonly Dictionary<long, long> Lockouts = [];
         public readonly SortedList<long, long> Line = [];        // arrival -> account
         public readonly Dictionary<long, long> Arrival = [];     // account -> arrival
         public readonly Dictionary<long, long> Deadline = [];    // account -> removal deadline
@@ -49,7 +55,32 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         }
 
         /// <summary>Since when no session claims the place, recorded once: the earliest moment stands until a claim.</summary>
-        public void MarkUnclaimed(long account, long now) => Unclaimed.TryAdd(account, now);
+        public void MarkUnclaimed(long account, long now)
+        {
+            if (UnclaimedSince(account, now) is null) Unclaimed[account] = (now, null);
+        }
+
+        /// <summary>The unclaimed time as the scripts read it: absent once its expiry has passed.</summary>
+        public long? UnclaimedSince(long account, long now)
+        {
+            if (!Unclaimed.TryGetValue(account, out (long Since, long? Until) field)) return null;
+            if (field.Until <= now)
+            {
+                Unclaimed.Remove(account);
+                return null;
+            }
+
+            return field.Since;
+        }
+
+        /// <summary>Whether the account's lockout is still running.</summary>
+        public bool LockedOut(long account, long now)
+        {
+            if (!Lockouts.TryGetValue(account, out long until)) return false;
+            if (until > now) return true;
+            Lockouts.Remove(account);
+            return false;
+        }
 
         /// <summary>The owner field as the scripts read it: absent once a tombstone has expired.</summary>
         public (long Fence, bool Ended)? Owner(long account, long now)
@@ -110,8 +141,8 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             // A place no session has claimed for the horizon is not kept again: the request is a newcomer's, its place
             // still counted; admitted, the place is its own again with a new horizon; refused or queued, it is released.
             bool present = w.Places.ContainsKey(account);
-            bool lapsed = present && w.Unclaimed.TryGetValue(account, out long since) &&
-                now - since >= (long)config.UnclaimedPlace.TotalMilliseconds;
+            bool lapsed = present && w.UnclaimedSince(account, now) is { } since &&
+                now - since >= (long)config.UnclaimedPlace.TotalMilliseconds && w.Owner(account, now) is null or { Ended: true };
             PlaceDecision Readmit(PlaceSource source, long waited)
             {
                 if (lapsed) w.Unclaimed.Remove(account);
@@ -161,10 +192,16 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
                 return Task.FromResult(Queued(rank + 1));
             }
 
+            // Refused at its lapse a moment ago: refused again until the lockout expires.
+            if (w.LockedOut(account, now))
+                return Task.FromResult(new PlaceDecision(PlaceOutcome.WorldFull, PlaceSource.Taken, 0, TimeSpan.Zero, sweep));
             if (w.Line.Count == 0 && w.Places.Count < limit) return Task.FromResult(Readmit(PlaceSource.Taken, 0));
             Release();
             if (w.Line.Count >= request.QueueCapacity)
+            {
+                if (lapsed) w.Lockouts[account] = now + (long)GameAuthPolicy.WorldFullRetryAfterMin.TotalMilliseconds;
                 return Task.FromResult(new PlaceDecision(PlaceOutcome.WorldFull, PlaceSource.Taken, 0, TimeSpan.Zero, sweep));
+            }
 
             if (_waiting.TryGetValue(account, out (ushort World, long EnqueuedAt) other) && other.World != request.WorldId)
                 RemoveFromLine(other.World, World(other.World), account);
@@ -208,7 +245,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             w.Places[accountId] = expiry;
             w.Owners[accountId] = (fence, null);
             if (!activation) return Task.CompletedTask;
-            foreach ((ushort id, WorldState other) in _worlds)
+            foreach ((ushort id, WorldState other) in OtherWorlds(worldId))
             {
                 // The older sessions there are ended, place or not (lost, swept); a place there goes, but for a running hold.
                 if (id == worldId || (other.Owner(accountId, now) is { } owner && owner.Fence > fence)) continue;
@@ -388,12 +425,21 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
     /// </summary>
     private void ReleaseElsewhere(ushort worldId, long account, long now)
     {
-        foreach ((ushort id, WorldState other) in _worlds)
+        foreach ((_, WorldState other) in OtherWorlds(worldId))
         {
-            if (id == worldId || other.Ticket(account) is not { WasHeld: false }) continue;
-            if (other.Owner(account, now) is null or { Ended: true }) other.Forget(account);
+            if (other.Ticket(account) is not { WasHeld: false } || other.Owner(account, now) is { Ended: false }) continue;
+            other.Places.Remove(account);
+            other.Marks.Remove(account);
+            // Its unclaimed time stays for one horizon, so redeeming the released place's old ticket starts no new one.
+            if (other.UnclaimedSince(account, now) is { } since)
+                other.Unclaimed[account] = (since, now + (long)config.UnclaimedPlace.TotalMilliseconds);
         }
     }
+
+    /// <summary>The worlds an activation or a ticket reaches beyond <paramref name="worldId"/>.</summary>
+    private List<(ushort Id, WorldState World)> OtherWorlds(ushort worldId) => configuredWorlds is null
+        ? [.. _worlds.Where(w => w.Key != worldId).Select(w => (w.Key, w.Value))]
+        : [.. configuredWorlds.Distinct().Where(id => id != worldId).Select(id => (id, World(id)))];
 
     private PlaceSweep Sweep(ushort worldId, WorldState w, long now)
     {

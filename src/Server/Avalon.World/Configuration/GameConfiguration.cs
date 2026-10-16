@@ -45,7 +45,9 @@ public class GameConfiguration
     /// <summary>
     ///     The backstop's smallest margin over the player limit, in accounts (#967). By default the admission lane's
     ///     concurrency (<see cref="Persistence.WorldDatabaseWork.AdmissionConcurrency" />, 32): admissions that run at
-    ///     once do not count each other until the tick publishes them.
+    ///     once do not see each other. Admissions passed within one tick, before the tick publishes them, can add about a
+    ///     hundred more under a reconnect storm, which the percentage covers from a limit of about 640
+    ///     (docs/world-player-limit.md, the backstop).
     /// </summary>
     [Range(0, 100_000)]
     public int PlayerLimitMarginMinimum { get; set; } = Persistence.WorldDatabaseWork.AdmissionConcurrency;
