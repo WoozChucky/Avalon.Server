@@ -100,12 +100,14 @@ pl=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --se
 grep -A1 "name: Game__PlayerLimit$" <<<"$pl" | grep -q '"1000"'                                 || { echo "a player limit must render as digits"; exit 1; }
 grep -A1 "name: Game__PlayerLimitMarginPercent" <<<"$pl" | grep -q '"10"'                       || { echo "a margin percent must render"; exit 1; }
 grep -A1 "name: Game__PlayerLimitMarginMinimum" <<<"$pl" | grep -q '"0"'                        || { echo "a margin minimum of 0 must render"; exit 1; }
-for bad in "server.game.playerLimit=1.5" "server.game.playerLimitMarginPercent=x" "server.game.playerLimitMarginMinimum=-1"; do
+for bad in "server.game.playerLimit=0" "server.game.playerLimit=100001" "server.game.playerLimit=1.5" "server.game.playerLimitMarginPercent=x" "server.game.playerLimitMarginMinimum=-1"; do
   if message=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set "$bad" 2>&1); then
     echo "rendering with $bad must fail"; exit 1
   fi
   grep -Fq "${bad%%=*} must be a whole number" <<<"$message"                                    || { echo "the $bad refusal must name the setting"; exit 1; }
 done
+pm=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.game.playerLimit=100000)
+grep -A1 "name: Game__PlayerLimit$" <<<"$pm" | grep -q '"100000"'                               || { echo "a player limit of 100000 must render"; exit 1; }
 
 # Tick thread placement (#1002): neither setting renders unset; a CPU (0 too, and a values-file float) renders as digits,
 # a GC CPU list as given; anything else fails.

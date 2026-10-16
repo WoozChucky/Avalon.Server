@@ -162,16 +162,18 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission, Admissi
     /// Off the tick, on the admission lane: identity's redemption and activation, then the world's backstop (#967). A
     /// refused admission's lease is revoked and its session ended here as <c>backstop</c>, which removes its place at
     /// identity (not the abandon of a failed admission, whose end carries no reason and would hold it); the result then
-    /// carries no lease, so the continuation answers <c>WorldFull</c> and a close's drain ends nothing again. The end is
-    /// bounded by the admission client's transport timeout, as any session control call is; one that fails leaves the
-    /// session to run out with its lease, and its place with it.
+    /// carries no lease, so the continuation answers <c>WorldFull</c> and a close's drain ends nothing again. The end
+    /// holds the admission lane and the source's slot, so it is bounded as a failed admission's abandon is
+    /// (<see cref="WorldBackstop.EndTimeout" />, 2 s); one that fails or times out leaves the session to run out with its
+    /// lease (within 45 s), and its place with it.
     /// </summary>
     private async Task<WorldAdmissionResult> AdmitAsync(WorldConnection connection, string ticket, CancellationToken token)
     {
         WorldAdmissionResult result = await admission.AdmitAsync(ticket, connection.Id, Guid.NewGuid(), token);
         if (result.Lease is not { IsActive: true } lease || !backstop.Refuses(lease, server.Connections, connection)) return result;
         lease.Revoke();
-        await admission.EndAsync(lease, GameSessionEndReasons.Backstop, CancellationToken.None);
+        using (CancellationTokenSource bound = backstop.EndDeadline())
+            await admission.EndAsync(lease, GameSessionEndReasons.Backstop, bound.Token);
         return new WorldAdmissionResult(null, GameAuthErrors.WorldFull);
     }
 

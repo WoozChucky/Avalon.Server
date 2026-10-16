@@ -42,9 +42,13 @@ public class GameConfiguration
     [Range(0, 100)]
     public int PlayerLimitMarginPercent { get; set; } = 5;
 
-    /// <summary>The backstop's smallest margin over the player limit, in connections (#967).</summary>
+    /// <summary>
+    ///     The backstop's smallest margin over the player limit, in accounts (#967). By default the admission lane's
+    ///     concurrency (<see cref="Persistence.WorldDatabaseWork.AdmissionConcurrency" />, 32): admissions that run at
+    ///     once do not count each other until the tick publishes them.
+    /// </summary>
     [Range(0, 100_000)]
-    public int PlayerLimitMarginMinimum { get; set; } = 20;
+    public int PlayerLimitMarginMinimum { get; set; } = Persistence.WorldDatabaseWork.AdmissionConcurrency;
 
     /// <summary>
     ///     Which implementation moves creatures. <see cref="CreatureLocomotionMode.Waypoint" /> is

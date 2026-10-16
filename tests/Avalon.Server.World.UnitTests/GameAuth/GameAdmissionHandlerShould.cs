@@ -82,20 +82,23 @@ public sealed class GameAdmissionHandlerShould
     /// <summary>
     /// #967 section 11: over the world's limit plus its margin, a non-staff admission is refused as WorldFull and its
     /// session ended as a backstop, which removes its place (never the abandon's reasonless end, which would hold it);
-    /// staff pass; no limit, no check. One other admitted connection; margin 0 for the test. Review Focus 7: a refused
+    /// staff pass; no limit, no check. One other admitted connection, another account's, but for the last row, where it
+    /// is the same account's (a takeover's old connection): an account counts once. Margin 0 for the test. Review Focus 7: a refused
     /// admission publishes no lease and revokes the one identity gave, so a close's drain ends nothing a second time (the
     /// one end is the backstop's own; the tracked task is internal to the world, so the public lease is read instead).
     /// </summary>
     [Theory]
-    [InlineData(1, (ushort)1, true)]
-    [InlineData(1, (ushort)5, false)]
-    [InlineData(2, (ushort)1, false)]
-    [InlineData(null, (ushort)1, false)]
-    public async Task Refuse_a_non_staff_admission_over_the_ceiling_and_end_its_session(int? limit, ushort accessLevel, bool refused)
+    [InlineData(1, (ushort)1, 43L, true)]
+    [InlineData(1, (ushort)5, 43L, false)]
+    [InlineData(2, (ushort)1, 43L, false)]
+    [InlineData(null, (ushort)1, 43L, false)]
+    [InlineData(1, (ushort)1, 42L, false)]
+    public async Task Refuse_a_non_staff_admission_over_the_ceiling_and_end_its_session(int? limit, ushort accessLevel,
+        long otherAccount, bool refused)
     {
         IWorldServer server = Substitute.For<IWorldServer, IServerBase>();
         using var other = WorldAdmissionConnection.Create(server);
-        other.PublishAdmission(WorldAdmissionConnection.Lease());
+        other.PublishAdmission(WorldAdmissionConnection.Lease(accountId: otherAccount));
         using var connection = WorldAdmissionConnection.Create(server);
         server.Connections.Returns(ImmutableArray.Create<IWorldConnection>(other, connection));
         // Decided 2026-10-16: the backstop's limit is the world's configuration (Game:PlayerLimit), not the auth database.

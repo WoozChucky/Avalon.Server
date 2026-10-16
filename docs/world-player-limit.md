@@ -187,7 +187,7 @@ flag:
 |---|---|
 | Holds a place in the world: its own session (a reconnect, a takeover), a ticket's hold, or a place held after a drop | kept; ticket as before |
 | Staff (the Admin flag, tested with `Allows`) | a place, over the limit if need be; ticket as before |
-| Anyone else | **503 `WORLD_FULL`** with `Retry-After: 60` (`GameAuthPolicy.WorldFullRetryAfter`); no ticket, no place |
+| Anyone else | **503 `WORLD_FULL`** with `Retry-After` a whole number of seconds from 45 to 75, drawn at random so the players refused together do not all ask again at once (`GameAuthPolicy.WorldFullRetryAfterMin`, `Max`); no ticket, no place |
 
 - `WORLD_FULL` is one of the retryable 503s, beside `WORLD_UNAVAILABLE` and `SERVICE_UNAVAILABLE`
   ([world refusals](api-authentication.md#world-refusals)). It is answered before the ticket and its `join-issue`
@@ -203,25 +203,35 @@ flag:
 
 ## The backstop
 
-The world keeps a ceiling of its own on admitted connections (`WorldBackstop`), which guards the pod if identity's
+The world keeps a ceiling of its own on admitted accounts (`WorldBackstop`), which guards the pod if identity's
 ledger is wrong or was lost (a Redis flush, and the window before heartbeats put the places back). It should never fire.
 
 - **Its limit is the world's configuration**, `Game:PlayerLimit` (Helm `server.game.playerLimit`, rendered only when
   set), 1 to 100,000; unset, no backstop. It reads nothing from the auth database. The ceiling is the limit plus a
   margin: `Game:PlayerLimitMarginPercent` of the limit (5 by default, 0 to 100), at least
-  `Game:PlayerLimitMarginMinimum` connections (20 by default); at 1,000 that is 1,050. Read once at startup, and logged
+  `Game:PlayerLimitMarginMinimum` accounts (32 by default, the admission lane's concurrency); at 1,000 that is 1,050.
+  Read once at startup, and logged
   at Information at every start: `Player limit {Limit}, backstop ceiling {Ceiling}`, or `No player limit configured:
   no backstop`.
 - **Where it runs.** In the admission's own work on the `Admission` lane, off the tick, after identity redeemed the
   ticket and activated the session (so the account's access level is known), and only for an admission the per-source
-  budget let start. It counts the connections in the process holding an active lease, this one included, over the
-  server's connection snapshot, with a loop that allocates nothing. Admissions redeemed but not yet published on the
-  tick are not counted; the margin absorbs them (the lane runs at most 32 at once).
+  budget let start. It counts accounts, not connections, over the server's connection snapshot: each account with a
+  lease not revoked, once, and this one's. A takeover's old connection keeps its lease until its next heartbeat is
+  refused (within 15 s), so counting connections would count that account twice and could refuse the takeover, and
+  cycling takeovers could inflate the count; counting accounts cannot. Staff (the Admin flag) are neither counted nor
+  refused. A lease is read without its lock or the clock (`IsRevoked`): the tick marks one that ran out within a tick,
+  which can only count an account a little longer. The accounts are gathered in a set the backstop reuses under a lock,
+  so a check allocates nothing once the set has grown.
+- **How far over it can go.** Two windows let admissions past the ceiling, and the margin covers both: admissions on the
+  lane at once (at most 32, `WorldDatabaseWork.AdmissionConcurrency`) do not see each other, and an admission the
+  backstop passed counts for the next only once the tick publishes it (the next tick, about 16 ms). Hence the margin's
+  minimum of 32.
 - **A refusal.** Over the ceiling and not staff: the lease is revoked, the session is ended with reason `backstop`,
   which removes the place (never the reasonless end of a failed admission, which would hold it), and the client is
   answered `GameAdmissionResult.WorldFull` (5) and closed. The admission's result then carries no lease, so a close's
-  drain ends nothing a second time. An end that fails (identity unreachable) leaves the session to run out with its
-  lease, and the place with it. Staff always pass.
+  drain ends nothing a second time. The end holds the admission lane and the source's slot, so it is bounded to 2 s
+  (`WorldBackstop.EndTimeout`), as a failed admission's abandon is; an end that fails or times out leaves the session
+  to run out with its lease (within 45 s), and the place with it. Staff always pass.
 - **When it fires** it counts `world.admission.backstop_refusals` and logs at Error, at most once every 10 s with the
   count left out. Any value above zero means identity's ledger was wrong or lost, or identity's stored limit is above
   the world's `Game:PlayerLimit`: the homelab alerts on it.
@@ -258,6 +268,14 @@ ledger is wrong or was lost (a Redis flush, and the window before heartbeats put
   identity granted, which shows as `world.admission.backstop_refusals` and its alert; a world value above identity's,
   or none, leaves the pod a looser guard, or none, while identity still enforces its own. Check after a change that the
   world logged `Player limit {Limit}, backstop ceiling {Ceiling}` at its start.
+
+  **A world value below identity's is a loop, not just a count.** Identity keeps issuing tickets up to its own limit;
+  the world refuses each admission past its ceiling with `WorldFull` and ends the session, which frees the place, so
+  identity issues the next ticket to someone else (or to the same client trying again), and the world refuses that too.
+  Players between the two limits are turned away at the world's door over and over, each costing a redemption and a
+  session end. The backstop alert (`world.admission.backstop_refusals` above zero) is the signal: on it, compare the two
+  limits first, and bring identity's down to the world's (`PUT /world/{id}/player-limit`, at once) before anything
+  else. A client should treat `WorldFull` as "back off a minute or more".
 
 The world lists show the counts: `GET /world` and `GET /world/{id}` fill `WorldDto.OnlineCount` with places taken and
 carry `playerLimit` and `queueLength`; each world of identity's `POST /game/worlds` carries `status` (`Online`, `Maintenance`
@@ -340,7 +358,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 40, Skipped: 0` (the 39 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 41, Skipped: 0` (the 40 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary

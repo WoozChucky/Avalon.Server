@@ -14,8 +14,14 @@ public static class GameAuthPolicy
     public static readonly TimeSpan JoinReceiptRetention = TimeSpan.FromSeconds(45);
     /// <summary>How long after its ticket's expiry the place a join ticket took is kept, for a redemption in flight (#967).</summary>
     public static readonly TimeSpan TicketPlaceMargin = TimeSpan.FromSeconds(15);
-    /// <summary>The Retry-After of a <c>WORLD_FULL</c> join (#967).</summary>
-    public static readonly TimeSpan WorldFullRetryAfter = TimeSpan.FromSeconds(60);
+    /// <summary>
+    /// The Retry-After of a <c>WORLD_FULL</c> join (#967): a whole number of seconds drawn from this range, so the
+    /// players a full world refused together do not all ask again in the same second.
+    /// </summary>
+    public static readonly TimeSpan WorldFullRetryAfterMin = TimeSpan.FromSeconds(45);
+
+    /// <summary>The longest Retry-After of a <c>WORLD_FULL</c> join (#967), inclusive.</summary>
+    public static readonly TimeSpan WorldFullRetryAfterMax = TimeSpan.FromSeconds(75);
     public static readonly TimeSpan RefreshReceiptLifetime = TimeSpan.FromSeconds(30);
     /// <summary>How long a refresh receipt is kept from each answer that met a license outage, within the context's absolute expiry.</summary>
     public static readonly TimeSpan OutageReceiptLifetime = TimeSpan.FromMinutes(5);

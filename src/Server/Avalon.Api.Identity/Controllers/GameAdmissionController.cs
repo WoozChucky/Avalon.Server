@@ -105,10 +105,15 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
         }
     }
 
-    /// <summary>503 <c>WORLD_FULL</c> with when to ask again (#967).</summary>
+    /// <summary>
+    /// 503 <c>WORLD_FULL</c> with when to ask again (#967), jittered between 45 and 75 s so the players refused together
+    /// spread their retries. Not a secret: the shared pseudo-random source is enough.
+    /// </summary>
     private ObjectResult WorldFull(GameJoinReply reply)
     {
-        Response.Headers.RetryAfter = ((int)GameAuthPolicy.WorldFullRetryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+        int seconds = Random.Shared.Next((int)GameAuthPolicy.WorldFullRetryAfterMin.TotalSeconds,
+            (int)GameAuthPolicy.WorldFullRetryAfterMax.TotalSeconds + 1);
+        Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
         return StatusCode(StatusCodes.Status503ServiceUnavailable, reply);
     }
 

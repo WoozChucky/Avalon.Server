@@ -136,7 +136,15 @@ spec:
             - name: Game__AbandonedInstanceLifetimeMinutes
               value: {{ $lifetime | quote }}
             {{- end }}
-            {{- range $key, $env := dict "playerLimit" "Game__PlayerLimit" "playerLimitMarginPercent" "Game__PlayerLimitMarginPercent" "playerLimitMarginMinimum" "Game__PlayerLimitMarginMinimum" }}
+            {{- $playerLimit := .Values.server.game.playerLimit }}
+            {{- if and (kindIs "float64" $playerLimit) (eq $playerLimit (floor $playerLimit)) }}{{ $playerLimit = int64 $playerLimit }}{{ end }}
+            {{- $playerLimit = ternary "" (toString $playerLimit) (kindIs "invalid" $playerLimit) }}
+            {{- if ne $playerLimit "" }}
+            {{- if or (not (regexMatch "^[1-9][0-9]*$" $playerLimit)) (gt (len $playerLimit) 6) (gt (atoi $playerLimit) 100000) }}{{ fail (printf "server.game.playerLimit must be a whole number from 1 to 100000, got %q" $playerLimit) }}{{ end }}
+            - name: Game__PlayerLimit
+              value: {{ $playerLimit | quote }}
+            {{- end }}
+            {{- range $key, $env := dict "playerLimitMarginPercent" "Game__PlayerLimitMarginPercent" "playerLimitMarginMinimum" "Game__PlayerLimitMarginMinimum" }}
             {{- $value := index $.Values.server.game $key }}
             {{- if and (kindIs "float64" $value) (eq $value (floor $value)) }}{{ $value = int64 $value }}{{ end }}
             {{- $value = ternary "" (toString $value) (kindIs "invalid" $value) }}

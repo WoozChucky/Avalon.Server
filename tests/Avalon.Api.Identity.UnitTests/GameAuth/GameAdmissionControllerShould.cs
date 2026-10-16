@@ -71,7 +71,7 @@ public sealed class GameAdmissionControllerShould
             || key.Contains(":join-issue:", StringComparison.Ordinal));
     }
 
-    /// <summary>#967: a world at its player limit is a retryable refusal, 503 <c>WORLD_FULL</c> with when to ask again.</summary>
+    /// <summary>#967: a world at its player limit is a retryable refusal, 503 <c>WORLD_FULL</c> with when to ask again, 45 to 75 s.</summary>
     [Fact]
     public async Task Answer_a_full_world_with_503_and_a_retry_after()
     {
@@ -93,7 +93,7 @@ public sealed class GameAdmissionControllerShould
             new GameJoinRequest { GameContextCredential = auth.GameContextCredential!, WorldId = 1 }, Guid.NewGuid(), default));
 
         Assert.Equal((503, "WORLD_FULL"), (result.StatusCode, Assert.IsType<GameJoinReply>(result.Value).Error));
-        Assert.Equal("60", http.Response.Headers.RetryAfter.ToString());
+        Assert.InRange(int.Parse(http.Response.Headers.RetryAfter.ToString(), System.Globalization.CultureInfo.InvariantCulture), 45, 75);
     }
 
     public enum WorldRefusal { Unavailable, ClientOutdated, BelowApiFloor, NotAllowed, Banned, CharacterGone }

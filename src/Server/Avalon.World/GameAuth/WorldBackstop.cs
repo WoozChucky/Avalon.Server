@@ -8,7 +8,7 @@ using Microsoft.Extensions.Logging;
 namespace Avalon.World.GameAuth;
 
 /// <summary>
-/// The world's own ceiling on admitted connections (#967): identity decides who enters, and this guards the pod if its
+/// The world's own ceiling on admitted accounts (#967): identity decides who enters, and this guards the pod if its
 /// place ledger is wrong or was lost. The limit is the world's configuration (<c>Game:PlayerLimit</c>), set to the same
 /// number as the world's stored limit; none configured, no backstop. Runs in the admission work, off the tick, after
 /// identity activated the session. Should never fire: when it does, it logs at Error (at most once per
@@ -21,6 +21,10 @@ public sealed partial class WorldBackstop
     private readonly TimeProvider _clock;
     private readonly ILogger<WorldBackstop> _logger;
     private readonly FailureLogThrottle _refusalLog = new();
+
+    // The accounts one check counts, reused under its lock so a check allocates nothing once the set has grown.
+    private readonly Lock _countGate = new();
+    private readonly HashSet<long> _accounts = [];
 
     public WorldBackstop(GameConfiguration config, TimeProvider clock, ILogger<WorldBackstop> logger)
     {
@@ -39,22 +43,45 @@ public sealed partial class WorldBackstop
         limit + Math.Max(config.PlayerLimitMarginMinimum, (int)Math.Ceiling(limit * config.PlayerLimitMarginPercent / 100.0));
 
     /// <summary>
-    /// Whether <paramref name="admitting" />, whose session identity just activated, takes the world over its ceiling:
-    /// the connections in <paramref name="connections" /> holding an active lease, and this one, counted with a plain loop
-    /// that allocates nothing. Staff (the Admin flag) always pass. A refusal is counted and logged here.
+    /// How long the backstop's session end may hold the admission lane and the source's slot (#967), as a failed
+    /// admission's abandon does: past it the end is given up, and the session runs out with its lease (within 45 s), its
+    /// place with it.
+    /// </summary>
+    public static readonly TimeSpan EndTimeout = TimeSpan.FromSeconds(2);
+
+    /// <summary>A cancellation that bounds the backstop's session end by <see cref="EndTimeout" />, on this world's clock.</summary>
+    public CancellationTokenSource EndDeadline() => new(EndTimeout, _clock);
+
+    /// <summary>
+    /// Whether <paramref name="admitting" />, whose session identity just activated, takes the world over its ceiling.
+    /// It counts accounts, not connections: each account with a lease not revoked on a connection in
+    /// <paramref name="connections" />, once, and this one's. So a takeover's old connection, whose lease stays until its
+    /// next heartbeat is refused, never counts its account twice, and cycling takeovers cannot inflate the count. Staff
+    /// (the Admin flag) are neither counted nor refused. A lease is read by <see cref="GameSessionLease.IsRevoked" />
+    /// alone, with no lock and no clock: the tick marks a lease that ran out within one tick, which can only count an
+    /// account a little longer. The set of accounts is reused under a lock, so a check allocates nothing once it has
+    /// grown. A refusal is counted and logged here.
     /// </summary>
     public bool Refuses(GameSessionLease lease, ImmutableArray<IWorldConnection> connections, IWorldConnection admitting)
     {
         if (Ceiling is not { } ceiling || AccountAccessLevel.Admin.Allows(lease.AccessLevel)) return false;
 
-        int admitted = 1;
-        foreach (IWorldConnection connection in connections)
+        int admitted;
+        lock (_countGate)
         {
-            if (!ReferenceEquals(connection, admitting) && connection is WorldConnection world &&
-                world.GameSessionLease?.IsActive == true)
+            _accounts.Clear();
+            _accounts.Add(lease.Authority.AccountId.Value);
+            foreach (IWorldConnection connection in connections)
             {
-                admitted++;
+                if (!ReferenceEquals(connection, admitting) &&
+                    connection is WorldConnection { GameSessionLease: { IsRevoked: false } other } &&
+                    !AccountAccessLevel.Admin.Allows(other.AccessLevel))
+                {
+                    _accounts.Add(other.Authority.AccountId.Value);
+                }
             }
+
+            admitted = _accounts.Count;
         }
 
         if (admitted <= ceiling) return false;
@@ -72,6 +99,6 @@ public sealed partial class WorldBackstop
     private static partial void NotConfigured(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Error,
-        Message = "The backstop refused account {AccountId}: {Admitted} admitted connections, over the player limit {Limit} plus its margin ({Ceiling}). Identity's place ledger is wrong or was lost, or its stored limit is above this world's Game:PlayerLimit. {Suppressed} earlier refusals were not logged")]
+        Message = "The backstop refused account {AccountId}: {Admitted} admitted accounts, over the player limit {Limit} plus its margin ({Ceiling}). Identity's place ledger is wrong or was lost, or its stored limit is above this world's Game:PlayerLimit. {Suppressed} earlier refusals were not logged")]
     private static partial void Refused(ILogger logger, long accountId, int admitted, int limit, int ceiling, int suppressed);
 }

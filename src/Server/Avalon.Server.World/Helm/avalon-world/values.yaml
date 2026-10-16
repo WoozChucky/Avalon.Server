@@ -73,7 +73,7 @@ server:
     # queue; this one only guards the pod. A change rolls the pod.
     playerLimit: ""
     # The backstop's margin over that limit: Game:PlayerLimitMarginPercent, in percent of the limit, and
-    # Game:PlayerLimitMarginMinimum, in connections; the larger applies. Empty: the world's defaults, 5 and 20.
+    # Game:PlayerLimitMarginMinimum, in accounts; the larger applies. Empty: the world's defaults, 5 and 32.
     playerLimitMarginPercent: ""
     playerLimitMarginMinimum: ""
   # The per-packet session encryption (Network:PacketEncryption, #875): AES-GCM on every gameplay payload inside TLS.
