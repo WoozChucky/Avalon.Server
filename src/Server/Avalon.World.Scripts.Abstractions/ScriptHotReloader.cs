@@ -105,10 +105,11 @@ public class ScriptHotReloader : IScriptHotReloader
     }
 
     /// <summary>
-    /// Warns, once for <paramref name="scriptType" />, when a public constructor of it takes a service closed over the
-    /// script's own type (<c>ILogger&lt;TScript&gt;</c>, <c>IOptions&lt;Settings&lt;TScript&gt;&gt;</c>, ...): the
-    /// container keeps what it resolved for the life of the process, and with it the type and its whole compile, so
-    /// the generation is never collected. The script still loads and runs.
+    /// Warns, once for <paramref name="scriptType" />, when a public constructor of it takes a service closed over a
+    /// type of its own compile (<c>ILogger&lt;TScript&gt;</c>, <c>ILogger&lt;HelperInTheSameFile&gt;</c>,
+    /// <c>IOptions&lt;Settings&lt;TScript&gt;&gt;</c>, ...): the container keeps what it resolved for the life of the
+    /// process, and with it that type and its whole compile, so the generation is never collected. The script still
+    /// loads and runs.
     /// </summary>
     private void WarnIfPinned(Type scriptType)
     {
@@ -116,33 +117,39 @@ public class ScriptHotReloader : IScriptHotReloader
         {
             foreach (ParameterInfo parameter in constructor.GetParameters())
             {
-                if (!ClosesOver(parameter.ParameterType, scriptType))
+                if (ClosedOverTypeOf(parameter.ParameterType, scriptType.Assembly) is not { } compiledType)
                     continue;
 
                 // Names only: a log record that held the types would hold the compile too, until it is written.
                 _logger.LogWarning(
-                    "Hot-reloaded script {Script} takes {ParameterType}, a service closed over its own type: the " +
-                    "container keeps it for the life of the process, and with it this compile, which is never " +
-                    "unloaded. Take ILoggerFactory (or a non-generic service) instead",
-                    scriptType.FullName, parameter.ParameterType.ToString());
+                    "Hot-reloaded script {Script} takes {ParameterType}, a service closed over {CompiledType} of its " +
+                    "own compile: the container keeps it for the life of the process, and with it this compile, " +
+                    "which is never unloaded. Take ILoggerFactory (or a non-generic service) instead",
+                    scriptType.FullName, parameter.ParameterType.ToString(), compiledType.ToString());
                 return;
             }
         }
     }
 
-    /// <summary>Whether <paramref name="type" />'s generic arguments, at any depth, include <paramref name="scriptType" />.</summary>
-    private static bool ClosesOver(Type type, Type scriptType)
+    /// <summary>
+    /// The first of <paramref name="type" />'s generic arguments, at any depth, that <paramref name="compiled" />
+    /// defines; null when none is.
+    /// </summary>
+    private static Type? ClosedOverTypeOf(Type type, Assembly compiled)
     {
         if (!type.IsConstructedGenericType)
-            return false;
+            return null;
 
         foreach (Type argument in type.GenericTypeArguments)
         {
-            if (argument == scriptType || ClosesOver(argument, scriptType))
-                return true;
+            if (argument.Assembly == compiled)
+                return argument;
+
+            if (ClosedOverTypeOf(argument, compiled) is { } nested)
+                return nested;
         }
 
-        return false;
+        return null;
     }
 
     private List<Type> FindScriptTypes<TBaseType>(Assembly assembly)

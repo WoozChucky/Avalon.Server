@@ -150,9 +150,11 @@ public class ScriptGenerationsShould
     }
 
     [Theory]
-    [InlineData("ILogger<PinProbeScript> logger", true)] // the container keeps ILogger<T>, and with it the compile
-    [InlineData("ILoggerFactory loggerFactory", false)]
-    public void Warn_once_about_a_script_that_takes_a_service_closed_over_its_own_type(string parameter, bool pins)
+    [InlineData("ILogger<PinProbeScript> logger", "PinProbeScript")] // the container keeps ILogger<T>, and the compile
+    [InlineData("ILogger<PinProbeHelper> logger", "PinProbeHelper")] // any type of the compile pins it alike
+    [InlineData("ILoggerFactory loggerFactory", null)]
+    public void Warn_once_about_a_script_that_takes_a_service_closed_over_a_type_of_its_compile(string parameter,
+        string? closedOver)
     {
         var compiler = new HandCompiler();
         var logs = new RecordingLoggerFactory();
@@ -161,6 +163,8 @@ public class ScriptGenerationsShould
         CompiledScripts compiled = ScriptCompiler.Compile([$$"""
             using Avalon.World.Public.Instances;
             using Avalon.World.Public.Scripts;
+
+            public sealed class PinProbeHelper;
 
             public sealed class PinProbeScript(ICreature creature, ISimulationContext context, {{parameter}})
                 : AiScript(creature, context)
@@ -177,10 +181,16 @@ public class ScriptGenerationsShould
             compiler.Raise(compiled);
 
             List<string> warnings = [.. logs.Entries.Where(e => e.Level == LogLevel.Warning).Select(e => e.Message)];
-            if (pins)
-                Assert.Contains("PinProbeScript", Assert.Single(warnings), StringComparison.Ordinal);
+            if (closedOver is not null)
+            {
+                string warning = Assert.Single(warnings);
+                Assert.Contains("PinProbeScript", warning, StringComparison.Ordinal);
+                Assert.Contains(closedOver, warning, StringComparison.Ordinal);
+            }
             else
+            {
                 Assert.Empty(warnings);
+            }
         }
         finally
         {
