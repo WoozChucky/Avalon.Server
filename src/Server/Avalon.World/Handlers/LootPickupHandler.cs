@@ -24,6 +24,10 @@ public class LootPickupHandler(
     TimeProvider time,
     QuestService? quests = null) : WorldPacketHandler<CLootPickupPacket>
 {
+    // The one drop a pickup despawns, kept for every pickup (#973): the handler is built once, runs on the tick only,
+    // and the despawn packet copies the guids before it is encoded, so nothing holds this array past the call.
+    private readonly ObjectGuid[] _despawned = new ObjectGuid[1];
+
     public override void Execute(IWorldConnection connection, CLootPickupPacket packet)
     {
         // 1. Alive. No result code exists for this, and every in-map handler drops a dead
@@ -45,7 +49,8 @@ public class LootPickupHandler(
 
         if (outcome.Removed)
         {
-            host!.BroadcastLootDespawned([lootGuid]);
+            _despawned[0] = lootGuid;
+            host!.BroadcastLootDespawned(_despawned);
         }
     }
 }
