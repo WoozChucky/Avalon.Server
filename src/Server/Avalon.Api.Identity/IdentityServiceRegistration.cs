@@ -107,6 +107,8 @@ public static class IdentityServiceRegistration
         services.AddSingleton<GameWorldAvailability>();
         services.AddScoped<GameQueueService>();
         services.AddSingleton<QueueRateLimiter>();
+        // The gauges of places taken and held, line length and limit, sampled every 15 s (and the sweep with them).
+        services.AddHostedService<WorldPlaceGauges>();
         // Places taken and line length for /game/worlds, which the worlds service reads too: registered once in a process.
         services.TryAddSingleton<Avalon.Infrastructure.WorldPlaces.IWorldOccupancy, Avalon.Infrastructure.WorldPlaces.RedisWorldOccupancy>();
         services.AddOptions<Avalon.Configuration.GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads")
