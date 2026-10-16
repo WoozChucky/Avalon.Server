@@ -10,11 +10,12 @@ The feature ships in five parts. This page describes what is in place now and ma
 |---|---|---|
 | 1 | The `PlayerLimit` column and its endpoint; the ledger, kept with every session; true counts in the world lists | in place |
 | 2 | The reason a world gives for a session's end; the held place after a drop | in place |
-| 3 | Enforcement at the join (`WORLD_FULL`), the `Full` status, the world's backstop | from PR 3 |
+| 3 | Enforcement at the join (`WORLD_FULL`), the `Full` status, the world's backstop | in place |
 | 4 | The queue: the "queued" answer, the status and leave calls, their rate limit, the metrics | from PR 4 |
 | 5 | The goodbye opcode (`CMSG_LEAVE_WORLD`), so a quit frees its place at once | from PR 5 |
 
-Until part 3 nothing is enforced: every join is admitted as before, and the ledger only counts.
+A world with a limit refuses a newcomer once it is full ([enforcement](#enforcement)); until part 4 there is no line,
+so a full world answers `WORLD_FULL` rather than queueing.
 
 ## What the limit is
 
@@ -28,7 +29,7 @@ character select, holding a join ticket it has not redeemed yet, or holding its 
 account at character select holds a place but no character.
 
 Staff (accounts with the Admin flag, the flag that passes maintenance) are always given a place, so places taken can
-exceed the limit by the staff admitted (from part 3).
+exceed the limit by the staff admitted.
 
 ## Places
 
@@ -116,7 +117,7 @@ same `DisconnectReason` as before.
 | Banned or deactivated (`world:accounts:status`: `Banned`, `Deactivated`), any other `Kicked` close (none in the world today), or the entry check refused the account itself (no longer active, `WorldEntryDecision.AccountRefused`) | `kicked` | removed |
 | A maintenance cutoff in force (`Maintenance`: the cutoff's close; or an entry refused for the cutoff, `WorldEntryDecision.Cutoff`, or the cutoff or restart drain the world applies when it turns a non-Admin away at character select or the spawn, `WorldMaintenanceCoordinator.CutsOff`, whatever the gate's check said; only where the world applies no maintenance, an allowed decision that ended at the cutoff's deadline, `EndsAtCutoff`) | `maintenance` | removed, with every place the world holds after a drop |
 | The world stopped or restarted (`ServerShutdown`), the restart drain included | `shutdown` | removed, with every place the world holds after a drop |
-| The world's backstop refused the admission (from part 3) | `backstop` | removed |
+| The world's backstop refused the admission ([the backstop](#the-backstop)) | `backstop` | removed |
 
 - **Identity decides with the account's standing.** A reason that would hold the place holds it only for an account
   that is still active (not banned, deactivated or being consolidated, and not gone): identity reads the account at
@@ -156,7 +157,58 @@ same `DisconnectReason` as before.
   the grace.
 - **Change Character keeps the connection and the session**, so the place is untouched.
 - A held place exists only for an account that was admitted, for the grace, and gives nothing a player could not have
-  by staying connected. Until part 3 it only counts: it is enforced with the limit.
+  by staying connected. It counts against the limit, and a return within the grace is admitted however full the
+  world is.
+
+## Enforcement
+
+The capacity step is the join's last (`JoinTicketStore.IssueAsync`, `POST /game/join-tickets` and
+`/game/reconnect-tickets`): every refusal before it answers first and takes no place, so a full world is told only to a
+context that may enter it. The step asks the ledger for a place with the world's stored limit and the account's Admin
+flag:
+
+| The account | On a full world (places taken at or over the limit) |
+|---|---|
+| Holds a place in the world: its own session (a reconnect, a takeover), a ticket's hold, or a place held after a drop | kept; ticket as before |
+| Staff (the Admin flag, tested with `Allows`) | a place, over the limit if need be; ticket as before |
+| Anyone else | **503 `WORLD_FULL`** with `Retry-After: 60` (`GameAuthPolicy.WorldFullRetryAfter`); no ticket, no place |
+
+- `WORLD_FULL` is one of the retryable 503s, beside `WORLD_UNAVAILABLE` and `SERVICE_UNAVAILABLE`
+  ([world refusals](api-authentication.md#world-refusals)). It is answered before the ticket and its `join-issue`
+  receipt are written, so the same `Idempotency-Key` asked again is decided again rather than replayed.
+- No limit set: no refusal, as before. Until part 4 there is no line (its capacity is 0): a full world refuses, it does
+  not queue.
+- **`Full` in the lists.** `WorldStatus` gains `Full` (appended, in the REST contract's enum and the domain's): a world
+  `Online` with a limit that places taken have reached. The order is `Maintenance`, then `Offline`, then `Full`, then
+  `Online` (`WorldReadiness.WithCapacity`, on top of `Resolve`, which keeps its three values). `GET /world`,
+  `GET /world/{id}` and identity's `POST /game/worlds` derive it from the ledger's count; `GET /world?sortBy=status`
+  orders `Full` after `Maintenance`, by the enum's number. A world listed only with `requiresUpdate` gets its status
+  the same way. The TCP auth server's world list is unchanged.
+
+## The backstop
+
+The world keeps a ceiling of its own on admitted connections (`WorldBackstop`), which guards the pod if identity's
+ledger is wrong or was lost (a Redis flush, and the window before heartbeats put the places back). It should never fire.
+
+- **Its limit is the world's configuration**, `Game:PlayerLimit` (Helm `server.game.playerLimit`, rendered only when
+  set), 1 to 100,000; unset, no backstop. It reads nothing from the auth database. The ceiling is the limit plus a
+  margin: `Game:PlayerLimitMarginPercent` of the limit (5 by default, 0 to 100), at least
+  `Game:PlayerLimitMarginMinimum` connections (20 by default); at 1,000 that is 1,050. Read once at startup, and logged
+  at Information at every start: `Player limit {Limit}, backstop ceiling {Ceiling}`, or `No player limit configured:
+  no backstop`.
+- **Where it runs.** In the admission's own work on the `Admission` lane, off the tick, after identity redeemed the
+  ticket and activated the session (so the account's access level is known), and only for an admission the per-source
+  budget let start. It counts the connections in the process holding an active lease, this one included, over the
+  server's connection snapshot, with a loop that allocates nothing. Admissions redeemed but not yet published on the
+  tick are not counted; the margin absorbs them (the lane runs at most 32 at once).
+- **A refusal.** Over the ceiling and not staff: the lease is revoked, the session is ended with reason `backstop`,
+  which removes the place (never the reasonless end of a failed admission, which would hold it), and the client is
+  answered `GameAdmissionResult.WorldFull` (5) and closed. The admission's result then carries no lease, so a close's
+  drain ends nothing a second time. An end that fails (identity unreachable) leaves the session to run out with its
+  lease, and the place with it. Staff always pass.
+- **When it fires** it counts `world.admission.backstop_refusals` and logs at Error, at most once every 10 s with the
+  count left out. Any value above zero means identity's ledger was wrong or lost, or identity's stored limit is above
+  the world's `Game:PlayerLimit`: the homelab alerts on it.
 
 ## Setting a limit
 
@@ -176,14 +228,24 @@ same `DisconnectReason` as before.
   maintenance transition or a metadata edit written at the same time survives, and a metadata edit (`PUT /world/{id}`)
   never writes the limit.
 - Each change is logged at Information with who made it and the limit before and after.
-- It takes effect on identity's next join request (enforced from part 3). Lowering it below places taken removes
-  nobody: nobody new enters until places taken falls below it.
-- The world's backstop (from part 3) has its own limit, the world's configuration `Game:PlayerLimit` (Helm
-  `server.game.playerLimit`), which the operator sets to the same number.
+- It takes effect on identity's next join request. Lowering it below places taken removes nobody: nobody new enters
+  until places taken falls below it.
+- The world's backstop has its own limit, the world's configuration `Game:PlayerLimit` (Helm
+  `server.game.playerLimit`), which the operator sets to the same number. **A limit is always set in two steps, together:**
+  1. `PUT /world/{id}/player-limit` with the number: identity's limit, which refuses newcomers (`WORLD_FULL`) and, from
+     part 4, queues them. Effective on the next join.
+  2. The same number as the world's chart value `server.game.playerLimit` (removed, or empty, to lift it): the
+     backstop's limit. Effective when the pod rolls, which the change does: a restart, after which nobody holds a place
+     (decision 10). So change it in a maintenance window or before the world's players arrive.
+
+  The two can disagree, and that is accepted: a world value below identity's makes the backstop refuse admissions
+  identity granted, which shows as `world.admission.backstop_refusals` and its alert; a world value above identity's,
+  or none, leaves the pod a looser guard, or none, while identity still enforces its own. Check after a change that the
+  world logged `Player limit {Limit}, backstop ceiling {Ceiling}` at its start.
 
 The world lists show the counts: `GET /world` and `GET /world/{id}` fill `WorldDto.OnlineCount` with places taken and
-carry `playerLimit` and `queueLength`; each world of identity's `POST /game/worlds` carries `status` (`Online` or
-`Maintenance`), `playerCount`, `playerLimit` and `queueLength`, and a join reply's `destination` carries `status` and
+carry `playerLimit` and `queueLength`; each world of identity's `POST /game/worlds` carries `status` (`Online`, `Maintenance`
+or `Full`), `playerCount`, `playerLimit` and `queueLength`, and a join reply's `destination` carries `status` and
 `playerLimit` too. The counts read only entries still current (a place whose expiry, or a waiter whose check-in
 deadline, is still ahead), so what no script has swept yet is not shown. When Redis cannot be read the counts are 0;
 an error Redis answers (a missing permission, `NOPERM`) is also logged at Warning, at most every 10 s
@@ -219,8 +281,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 - **A lost ledger** (Redis emptied or replaced) is rebuilt by the heartbeats: every admitted account's next heartbeat
   puts its place back, within 15 s, over the limit if need be; an admitted player is never removed for capacity.
   Until a live session's next heartbeat (at most 15 s), its place is missing: new joins in that window see too few
-  places taken and can be admitted over the limit (from part 3, where the limit is enforced; the world's backstop
-  bounds it).
+  places taken and can be admitted over the limit (the world's backstop bounds it).
 - The identity service's Redis user needs the six patterns and the sorted-set commands its scripts call; the worlds
   service's user reads two of the keys (see [Redis users per API service](redis-cache-keys.md#redis-users-per-api-service)).
   Without them every join answers 503, the script failing with `NOPERM`.
