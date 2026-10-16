@@ -61,7 +61,8 @@ public class CharacterSelectHandler(
     TickThreadGuard? tickThread = null,
     IWorldEntryGate? entryGate = null,
     ICharacterAuraRepository? auraRepository = null,
-    IWorldDatabaseWork? databaseWork = null) : WorldPacketHandler<CCharacterSelectedPacket>
+    IWorldDatabaseWork? databaseWork = null,
+    WorldMaintenanceCoordinator? maintenance = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private readonly IWorldDatabaseWork _databaseWork = databaseWork ?? WorldDatabaseWork.ThreadPool;
     private Activity? _parentActivity;
@@ -179,7 +180,7 @@ public class CharacterSelectHandler(
 
             if (!decision.IsValidAt(Clock.GetUtcNow().UtcDateTime))
             {
-                EntryRefusal.Close(connection, decision, logger);
+                EntryRefusal.Close(connection, decision, logger, maintenance);
                 return;
             }
 

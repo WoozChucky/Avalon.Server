@@ -55,7 +55,7 @@ public static class CharacterReadinessBarrier
                 if (!maintenance.RunIfEntryAllowed(connection, decision,
                         () => released = Release(connection, world, logger)))
                 {
-                    EntryRefusal.Close(connection, decision, logger, maintenance.CutsOff(connection));
+                    EntryRefusal.Close(connection, decision, logger, maintenance);
                     return;
                 }
             }

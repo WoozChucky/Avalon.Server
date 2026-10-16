@@ -19,12 +19,19 @@ public static class EntryRefusal
 {
     public const string Message = "World is under maintenance";
 
-    /// <param name="cutoffApplied">The world's own applied cutoff, or its restart drain's, turned the connection away.</param>
-    public static void Close(IWorldConnection connection, WorldEntryDecision decision, ILogger logger, bool cutoffApplied = false)
+    /// <param name="maintenance">
+    /// The world's maintenance coordinator, when it has one: then a cutoff is the gate's verdict or the cutoff (or restart
+    /// drain) the world applies now (<see cref="WorldMaintenanceCoordinator.CutsOff" />), never a decision's deadline alone,
+    /// which an operator may have lifted or moved since. Without one, an allowed decision that ended at the deadline is the
+    /// cutoff's.
+    /// </param>
+    public static void Close(IWorldConnection connection, WorldEntryDecision decision, ILogger logger,
+        WorldMaintenanceCoordinator? maintenance = null)
     {
+        bool cutoff = decision.Cutoff ||
+            (maintenance is not null ? maintenance.CutsOff(connection) : decision.Allowed && decision.EndsAtCutoff);
         if (decision.AccountRefused) SessionEndReasons.Note(connection, GameSessionEndReasons.Kicked);
-        else if (!(cutoffApplied || decision.Cutoff || (decision.Allowed && decision.EndsAtCutoff)))
-            SessionEndReasons.Note(connection, GameSessionEndReasons.Drop);
+        else if (!cutoff) SessionEndReasons.Note(connection, GameSessionEndReasons.Drop);
 #pragma warning disable MA0045 // a tick-thread caller; the close finishes on its own
         GracefulShutdownHelper.NotifyAndClose(connection, Message, DisconnectReason.Maintenance, logger);
 #pragma warning restore MA0045

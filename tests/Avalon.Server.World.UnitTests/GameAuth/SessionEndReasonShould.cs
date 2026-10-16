@@ -2,8 +2,14 @@ using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Generic;
+using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
+using Avalon.World.Configuration;
 using Avalon.World.Maintenance;
+using Avalon.World.Persistence;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.GameAuth;
 
@@ -27,6 +33,10 @@ public sealed class SessionEndReasonShould
     [InlineData("entry refused at a cutoff", null, GameSessionEndReasons.Maintenance)]
     [InlineData("entry allowed until a cutoff that has passed", null, GameSessionEndReasons.Maintenance)]
     [InlineData("entry refused, not for a cutoff", null, GameSessionEndReasons.Drop)] // a failed or slow check, no row, expired
+    // Where the world applies maintenance, its applied cutoff decides: a deadline lifted since is no cutoff, and a check
+    // that failed during the applied cutoff (or restart drain) is the cutoff's.
+    [InlineData("entry allowed until a cutoff the world no longer applies", null, GameSessionEndReasons.Drop)]
+    [InlineData("entry check failed during the world's applied cutoff", null, GameSessionEndReasons.Maintenance)]
     [InlineData("entry refused for the account", null, GameSessionEndReasons.Kicked)] // no longer active: never a cutoff
     public void Report_why_the_world_closed_the_connection(string closedBy, DisconnectReason? reason, string expected)
     {
@@ -47,9 +57,27 @@ public sealed class SessionEndReasonShould
             case "entry refused for the account":
                 EntryRefusal.Close(connection, new WorldEntryDecision { AccountRefused = true }, NullLogger.Instance);
                 break;
+            case "entry allowed until a cutoff the world no longer applies":
+                EntryRefusal.Close(connection, new WorldEntryDecision(true, DateTime.UnixEpoch) { EndsAtCutoff = true },
+                    NullLogger.Instance, Maintenance(new WorldMaintenanceState(false, 2, null)));
+                break;
+            case "entry check failed during the world's applied cutoff":
+                EntryRefusal.Close(connection, default, NullLogger.Instance,
+                    Maintenance(new WorldMaintenanceState(true, 1, DateTime.UtcNow.AddMinutes(-1))));
+                break;
             default: EntryRefusal.Close(connection, default, NullLogger.Instance); break;
         }
 
         Assert.Equal(expected, connection.SessionEndReason);
+    }
+
+    /// <summary>A world's maintenance coordinator that has applied <paramref name="state" />.</summary>
+    private static WorldMaintenanceCoordinator Maintenance(WorldMaintenanceState state)
+    {
+        var coordinator = new WorldMaintenanceCoordinator(new WorldId(1), Substitute.For<IWorldMaintenanceRepository>(),
+            Substitute.For<ICharacterSaver>(), TimeProvider.System, NullLogger<WorldMaintenanceCoordinator>.Instance,
+            Options.Create(new WorldShutdownConfiguration { SaveMargin = TimeSpan.FromMinutes(1) }));
+        coordinator.ApplyCommitted(state);
+        return coordinator;
     }
 }
