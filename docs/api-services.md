@@ -17,7 +17,7 @@ run one service per process, each with only its own settings, secrets, database 
 
 | Service | Library | Owns | Needs |
 |---|---|---|---|
-| `identity` | `Avalon.Api.Identity` | Accounts and credentials, MFA, personal access tokens, web and launcher sessions and the tokens they are issued (the only service that mints them), store and Steam sign-in, account links and consolidation, game contexts, join tickets, game admission with its workload listener and session fences, the [world place ledger](world-player-limit.md) (#967), email verification and change, push devices, [load-test accounts](#load-test-accounts) | Redis; the Characters database of every world; it owns the auth schema and migrates it |
+| `identity` | `Avalon.Api.Identity` | Accounts and credentials, MFA, personal access tokens, web and launcher sessions and the tokens they are issued (the only service that mints them), store and Steam sign-in, account links and consolidation, game contexts, join tickets, game admission with its workload listener and session fences, the [world place ledger and queue](world-player-limit.md) (#967), email verification and change, push devices, [load-test accounts](#load-test-accounts) | Redis; the Characters database of every world; it owns the auth schema and migrates it |
 | `worlds` | `Avalon.Api.Worlds` | The world registry, its maintenance and its [player limit](world-player-limit.md) (`PUT /world/{id}/player-limit`, #967), world content and [live template editing](live-template-editing.md), characters, the views across worlds (`/character`, presence), public tooltips and link previews, the balance workbench's proxy | Redis; the World and Characters databases of every world; the world routes (`/world/{worldId}/...`) |
 | `commerce` | `Avalon.Api.Commerce` | Checkout, purchase and licence status, the admin purchase tools, payment notifications and the reconciliation worker ([Commerce](commerce-configuration.md)) | Redis; no world database |
 | `distribution` | `Avalon.Api.Distribution` | The launcher installer and its update feed, releases, the changelog, channels and their manifests, read from the build store | No Redis and no world database |
@@ -27,9 +27,11 @@ descriptor (`IdentityApi.Service`, `WorldsApi.Service`, `CommerceApi.Service`, `
 these needs as an `ApiServiceNeeds`, and a process provides the union of the needs of the services it runs.
 
 The place ledger and queue of each world (#967, [World player limit](world-player-limit.md)) live in Redis: identity
-is their only writer, taking a place at a join ticket's issue and keeping it with the session, and the worlds service
-reads only their sizes, for its world lists (`IWorldOccupancy`, registered once in a process that runs both). The
-limit itself is a column of the world's auth row, written by the worlds service and read by identity on each join.
+is their only writer, taking a place at a join ticket's issue and keeping it with the session, queueing a join to a
+full world and answering its waiters' check-ins and leaves (`POST /game/queue/status`, `/game/queue/leave`, under
+identity's `/game` prefix), and the worlds service reads only their sizes, for its world lists (`IWorldOccupancy`,
+registered once in a process that runs both). The limit itself is a column of the world's auth row, written by the
+worlds service and read by identity on each join and, cached 5 s, at each check-in.
 
 The cuts follow state: each service owns its tables, its secrets and its external providers (Steam, Resend and web
 push for identity, the balance service for worlds, Stripe for commerce, the S3 build store for distribution), and

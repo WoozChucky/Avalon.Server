@@ -301,6 +301,27 @@ What the duration costs per packet with the SDK listening, measured for #977: ab
 
 The span starts once the batch stops waiting behind an earlier save of the same character, so the queue is not in it, and covers the despawn row preparation and the repository write ([inventory and saves](inventory-and-saves.md)).
 
+## World places and the queue (identity)
+
+Identity's metrics of each world's places and line (#967, [world player limit](world-player-limit.md#metrics)), on the
+API's meter (`avalon-api`), each tagged `world`. The gauges are sampled every 15 s for each configured world by
+identity's `WorldPlaceGauges`, which sweeps what expired as it does; a world whose sample fails is left out until one
+succeeds.
+
+| Metric | Prometheus | Meaning |
+|---|---|---|
+| `avalon.world.places.taken` | `avalon_world_places_taken` | Gauge: places taken (in the world, at character select, holding a ticket or a turn, held after a drop). Not `avalon.world.players.online`, which counts characters in the world |
+| `avalon.world.places.held` | `avalon_world_places_held` | Gauge: places held after a dropped connection |
+| `avalon.world.queue.length` | `avalon_world_queue_length` | Gauge: accounts waiting in the line |
+| `avalon.world.places.limit` | `avalon_world_places_limit` | Gauge: the stored player limit, only for a world that has one |
+| `avalon.world.queue.outcomes` | `avalon_world_queue_outcomes_total` | Counter, tag `reason`: `entered`, `cancelled`, `timed_out`, `turn_expired`, `refused_at_cap` |
+| `avalon.world.queue.wait` | `avalon_world_queue_wait_seconds_bucket` | Histogram: seconds in the line of those who entered |
+
+On a world with a limit, `places.taken` at the limit with `queue.length` above zero is a full world working as meant;
+`outcomes{reason="timed_out"}` rising fast means waiters stop checking in (a client that does not poll), and
+`refused_at_cap` that the line is at `Application:WorldPlaces:QueueCapacity`. The world's own
+`world.admission.backstop_refusals` is above, beside the world's admission counters.
+
 ## Correlated tick phase traces
 
 For bounded, opt-in visibility, tracking and replication phase records correlated with individual slow ticks, see [tick phase traces](tick-profiling.md).

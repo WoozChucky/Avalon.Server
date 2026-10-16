@@ -149,7 +149,8 @@ answered input), sends input at 60 Hz for 10 seconds through the same input driv
 signs out. It prints each step's duration, the input-to-ack latency (p50, p95 and p99), the driver's lateness p95
 over its loops and the worst loop's own, the packet encryption the admission replies named (#875: `encryption on
 (sealed inside TLS, ...)`, `encryption off (TLS alone)`, or `mixed` with the counts, as the [report](#the-report) says
-it), and for a walker how far it walked from the spawn point. Run it before the first ramp of a run, and after
+it), the bot's wait in a full world's line (`queue`: `no entry was queued`, or the entries queued and the wait, #967),
+and for a walker how far it walked from the spawn point. Run it before the first ramp of a run, and after
 anything changed on the server or the network: it is the quickest way to see that the whole chain works.
 
 | Option | Default | Meaning |
@@ -263,6 +264,32 @@ dotnet run -c Release --project tools/Avalon.LoadTest -- check --dial 10.10.1.15
 dotnet run -c Release --project tools/Avalon.LoadTest -- ramp --start 200 --step 200 --dial 10.10.1.15 --proxy-header
 ```
 
+### A player limit test
+
+The bots understand a full world (#967, [world player limit](world-player-limit.md)): a join answered 202 waits in
+the line, checking in as told, and asks again at its turn ([entry and retries](#entry-and-retries)); a `WORLD_FULL`
+(the line at its cap) is an entry failure of its kind, `join:WORLD_FULL`, retried as any. The report's `Queue` line
+says how many entries were queued and how long they waited. To test a limit on world 4 (no live world gets one before
+the goodbye opcode and its client release are out):
+
+1. Set identity's limit: `PUT /world/4/player-limit` with `{ "playerLimit": 300 }` (Admin), and world 4's own backstop
+   limit to the same number, the chart value `server.game.playerLimit: 300` in the homelab's world values. The chart
+   value rolls world 4's pod, so set it before the ramp, and wait for the last dev image to roll before starting.
+2. Until the goodbye opcode ships (part 5 of #967), a bot that leaves holds its place for the held grace (90 s), as a
+   dropped player does, and a churning profile then reads as a full world it is not. Run profiles that do not churn,
+   or set identity's `Application__WorldPlaces__HeldPlaceSeconds` to 5 for the run (no live world has a limit, so it
+   changes nothing else) and restore it after.
+3. Ramp past the limit, for example to 500 bots, directly (`--dial 10.10.1.15 --proxy-header`) or through Caddy
+   (`--dial 10.10.1.17`); 500 is far under both the world's and Caddy's capacity.
+4. Read: `avalon_world_places_taken{world="4"}` never above 300 (plus staff); the line drains in arrival order (the
+   report's queue waits, `avalon_world_queue_outcomes_total` with `entered` and no unexpected `timed_out`);
+   `avalon_world_queue_wait_seconds`; the world's tick p99 and TPS against the last ramp at 300; identity's CPU and
+   request latency under the check-ins (about 15 a second for 200 waiters: 10 every 5 s, 190 every 15 s);
+   `world_admission_backstop_refusals_total` at 0; `world.session_ends.skipped` and
+   `world.work.refusals{lane="admission"}` unmoved.
+5. Remove both limits after: `{ "playerLimit": null }`, and the chart value. Stop the watchers and check the process
+   list ([stopping](#stopping)).
+
 ### cleanup
 
 ```bash
@@ -350,7 +377,8 @@ Entering is the client's sequence. Each step has its own timeout:
 
 | Step | Timeout | Notes |
 |---|---|---|
-| `join` | 60 s | The join ticket. A timeout, a 5xx or `CONTEXT_CHANGED` is retried twice under the same idempotency key. A reply for any world but the run's is refused (`join:wrong-world`) and never dialled |
+| `join` | 60 s | The join ticket. A timeout, a 5xx or `CONTEXT_CHANGED` is retried twice under the same idempotency key. A reply for any world but the run's is refused (`join:wrong-world`) and never dialled. A full world's 202 (#967) is not a failure: the bot waits in the line (below) and asks again at its turn |
+| `queue` | 60 s per check-in | Only while queued: `POST /game/queue/status` after the interval each reply gives (5 s in the first ten positions, 15 s further back), until `your_turn` or `not_queued`, then `join` again. The wait is not part of the entry time, which starts at the ticket. A stop while queued leaves the line (`/game/queue/leave`, best effort within 5 s) |
 | `connect` | 10 s | TCP and TLS, pinned to the SHA-256 of the certificate the join reply names |
 | `admission` | 20 s | The join ticket and the client's public key, in the clear. The reply's `PacketEncryption` (#875) sets the connection's mode, as the game client is to follow it (Avalon.Client#213): on, the bot keys its session from the reply's key and seals every packet it sends after it, but the pong, which the world takes plain; off, the reply has no key (#878), the bot keys nothing and sends them plain inside TLS. Either way it opens what the world sends by each packet's header |
 | `handshake` | 10 s | The client version, the tools' one (`tools/Shared/ToolClientVersion.cs`, also what sign-in names) |
@@ -779,7 +807,9 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   `none in the mix` when the mix gives fighters no weight), the packet encryption the world's admission replies named
   over the ramp (#875: `on (sealed inside TLS, Network:PacketEncryption)`, `off (TLS alone)`, or `mixed` with the
   sealed and plain admissions counted when the world changed mode during the ramp; `packetEncryption.sealed` and
-  `packetEncryption.plain` in the JSON), the ramp settings (start, step, hold and judged window, max, sign-in
+  `packetEncryption.plain` in the JSON), the queue (#967: `Queue: no entry was queued`, or `N entries queued, M got in;
+wait p50 X s, p95 Y s` over the whole ramp, the wait from a bot's first queued join to its ticket; `queue.queued`,
+`queue.entered`, `queue.waitP50Seconds` and `queue.waitP95Seconds` in the JSON), the ramp settings (start, step, hold and judged window, max, sign-in
   concurrency, the input driver's loops), Prometheus, the pod, `--dial` (`dialling HOST`, or `dialling HOST directly
   with a PROXY v2 header` under `--proxy-header`; `ramp.dial` and `ramp.proxyHeader` in the JSON), the bot PC's CPU model and logical cores, its
   clock's offset from Prometheus's at the start (by which every query's time was corrected), and the limits, each
