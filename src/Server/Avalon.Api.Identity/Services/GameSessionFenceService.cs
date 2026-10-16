@@ -18,7 +18,8 @@ namespace Avalon.Api.Identity.Services;
 /// <summary>Resumes durable pending transitions; no cross-database transaction is assumed.</summary>
 public sealed class GameSessionFenceService(IGameSessionRepository sessions, GameAuthorizationService authorization,
     IWorldRepositories worlds, IAccountRepository accounts, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock,
-    GameApplicationAccessPolicy applications, IWorldPlaceStore places, PlaceLedgerOutage outage)
+    GameApplicationAccessPolicy applications, IWorldPlaceStore places, PlaceLedgerOutage outage,
+    IOptions<WorldPlacesConfiguration> placeOptions)
 {
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     public async Task<GameSessionLeaseReply> HeartbeatAsync(string serverId, AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken)
@@ -46,7 +47,12 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         await KeepPlaceAsync(current.Head, active.LeaseUntil!.Value, false, "heartbeat", cancellationToken);
         return active;
     }
-    public async Task<GameSessionLeaseReply> EndAsync(string serverId, AccountId accountId, Guid sessionId, long fence, CancellationToken cancellationToken)
+    /// <summary>
+    /// The world ended the session for <paramref name="reason"/> (a <see cref="GameSessionEndReasons"/> value, or none
+    /// from a world before #967), which decides whether its place is held (#967).
+    /// </summary>
+    public async Task<GameSessionLeaseReply> EndAsync(string serverId, AccountId accountId, Guid sessionId, long fence, string? reason,
+        CancellationToken cancellationToken)
     {
         // Cleanup needs no live context: logout/recovery/ownership loss are reasons to flush and end.
         GameServerDefinition? definition = workloads.Value.Servers.SingleOrDefault(s => s.ServerId == serverId);
@@ -62,7 +68,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         if (await guard.EndAsync(authority, cancellationToken))
         {
             if (await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken))
-                return await EndedAsync(head.WorldId, accountId, fence, cancellationToken);
+                return await EndedAsync(head.WorldId, accountId, fence, reason, cancellationToken);
             return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
         }
 
@@ -72,7 +78,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         {
             // An activation still in flight may have reached the guard since: block it now, so it cannot activate there.
             await guard.EndAsync(authority, cancellationToken);
-            return await EndedAsync(head.WorldId, accountId, fence, cancellationToken);
+            return await EndedAsync(head.WorldId, accountId, fence, reason, cancellationToken);
         }
 
         // The head changed since it was read: replaced, or made active by an activation in flight, which ends as any
@@ -83,18 +89,20 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         if (!await guard.EndAsync(authority, cancellationToken))
             return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
         if (await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken))
-            return await EndedAsync(head.WorldId, accountId, fence, cancellationToken);
+            return await EndedAsync(head.WorldId, accountId, fence, reason, cancellationToken);
         return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
     }
 
     /// <summary>
-    /// The session (fencing token <paramref name="fence"/>) ended: its place is released (#967), unless a newer session
-    /// owns it or a ticket's hold still runs, and the answer is "ended".
+    /// The session (fencing token <paramref name="fence"/>) ended, and the answer is "ended": a drop (or no reason) holds
+    /// its place for the grace, every other reason releases it (#967), unless a newer session owns it or a ticket's hold
+    /// still runs.
     /// </summary>
-    private async Task<GameSessionLeaseReply> EndedAsync(ushort worldId, AccountId accountId, long fence,
+    private async Task<GameSessionLeaseReply> EndedAsync(ushort worldId, AccountId accountId, long fence, string? reason,
         CancellationToken cancellationToken)
     {
-        await ReleasePlaceAsync(worldId, accountId, fence, PlaceEnd.Remove, cancellationToken);
+        await ReleasePlaceAsync(worldId, accountId, fence,
+            GameSessionEndReasons.HoldsPlace(reason) ? PlaceEnd.Hold : PlaceEnd.Remove, cancellationToken);
         return new() { State = "ended" };
     }
 
@@ -118,7 +126,7 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
     {
         try
         {
-            await places.EndAsync(worldId, accountId.Value, fence, end, Now, cancellationToken);
+            await places.EndAsync(worldId, accountId.Value, fence, end, Now.Add(placeOptions.Value.HeldPlace), cancellationToken);
         }
         catch (Exception error) when (PlaceLedgerOutage.IsOutage(error))
         {

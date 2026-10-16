@@ -108,7 +108,7 @@ public sealed class AvalonGameAuthorizationShould
         var heartbeats = new GameSessionFenceService(sessions, Service(), worlds, _accounts,
             Options.Create(new GameWorkloadConfiguration { Servers = [new() { ServerId = "world-1", WorldId = 1 }] }),
             _clock, new(_options), new MemoryWorldPlaceStore(_clock, new WorldPlacesConfiguration()),
-            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _clock));
+            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _clock), Options.Create(new WorldPlacesConfiguration()));
         Assert.Null((await heartbeats.HeartbeatAsync("world-1", _account.Id, worldSession.GameSessionId, 1, default)).Error);
         const string Subject = "76561198000000001";
         _identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns(new ExternalIdentity

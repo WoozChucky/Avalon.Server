@@ -18,19 +18,21 @@ public sealed partial class InternalGameAdmissionController
     [HttpPost("sessions/activate", Name = "ActivateGameSession")]
     [ProducesResponseType(typeof(GameSessionLeaseReply), StatusCodes.Status200OK)]
     public Task<IActionResult> Activate(GameSessionControlRequest request, [FromServices] GameSessionFenceService sessions,
-        CancellationToken cancellationToken) => SessionAction(request, sessions.ActivateAsync, cancellationToken);
+        CancellationToken cancellationToken) => SessionAction(request, "activate", sessions.ActivateAsync, cancellationToken);
 
     [HttpPost("sessions/heartbeat", Name = "RenewGameSession")]
     [ProducesResponseType(typeof(GameSessionLeaseReply), StatusCodes.Status200OK)]
     public Task<IActionResult> Heartbeat(GameSessionControlRequest request, [FromServices] GameSessionFenceService sessions,
-        CancellationToken cancellationToken) => SessionAction(request, sessions.HeartbeatAsync, cancellationToken);
+        CancellationToken cancellationToken) => SessionAction(request, "heartbeat", sessions.HeartbeatAsync, cancellationToken);
 
     [HttpPost("sessions/end", Name = "EndGameSession")]
     [ProducesResponseType(typeof(GameSessionLeaseReply), StatusCodes.Status200OK)]
     public Task<IActionResult> End(GameSessionControlRequest request, [FromServices] GameSessionFenceService sessions,
-        CancellationToken cancellationToken) => SessionAction(request, sessions.EndAsync, cancellationToken);
+        CancellationToken cancellationToken) => SessionAction(request, "end",
+        (server, account, session, fence, token) => sessions.EndAsync(server, account, session, fence, request.Reason, token),
+        cancellationToken);
 
-    private async Task<IActionResult> SessionAction(GameSessionControlRequest request,
+    private async Task<IActionResult> SessionAction(GameSessionControlRequest request, string name,
         Func<string, AccountId, Guid, long, CancellationToken, Task<GameSessionLeaseReply>> action, CancellationToken cancellationToken)
     {
         string? serverId = User.FindFirst(GameServerAuthHandler.ServerIdClaim)?.Value;
@@ -56,7 +58,7 @@ public sealed partial class InternalGameAdmissionController
         }
         catch (Exception error) when (error is DbException or RedisException or JsonException or CryptographicException)
         {
-            logger.LogError(error, "An error occurred while performing a game session action '{Action}'", action.Method.Name);
+            logger.LogError(error, "An error occurred while performing a game session action '{Action}'", name);
             return StatusCode(503, GameSessionLeaseReply.Failure(GameAuthErrors.ServiceUnavailable));
         }
     }

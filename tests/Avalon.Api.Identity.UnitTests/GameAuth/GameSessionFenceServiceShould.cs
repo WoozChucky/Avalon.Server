@@ -60,7 +60,8 @@ public sealed class GameSessionFenceServiceShould
         IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.FindByIdAsync(_h.Account.Id, false, Arg.Any<CancellationToken>()).Returns(_h.Account);
         _service = new(_h.Sessions, _h.Authorization, _worlds, accounts, Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] }), _h.Clock, new GameApplicationAccessPolicy(Options.Create(_h.Configuration)),
-            places ?? _h.Places, new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _h.Clock));
+            places ?? _h.Places, new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _h.Clock),
+            Options.Create(new WorldPlacesConfiguration()));
     }
 
     [Theory]
@@ -258,7 +259,7 @@ public sealed class GameSessionFenceServiceShould
     public async Task Reject_an_old_session_end_after_replacement_without_ending_the_new_session()
     {
         await Arrange();
-        Assert.NotNull((await _service.EndAsync("world-1", _head.AccountId, Guid.NewGuid(), 1, CancellationToken.None)).Error);
+        Assert.NotNull((await _service.EndAsync("world-1", _head.AccountId, Guid.NewGuid(), 1, null, CancellationToken.None)).Error);
         await _target.DidNotReceive().EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>());
         await _h.Sessions.DidNotReceive().TryEndAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
         Assert.Equal(GameSessionState.Pending, _head.State);
@@ -313,11 +314,11 @@ public sealed class GameSessionFenceServiceShould
             return true;
         });
 
-        Assert.NotNull((await _service.EndAsync("world-3", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None)).Error);
+        Assert.NotNull((await _service.EndAsync("world-3", _head.AccountId, _head.GameSessionId, 2, null, CancellationToken.None)).Error);
         await _h.Sessions.DidNotReceive().TryEndAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
         await _h.Sessions.DidNotReceive().TryExpirePendingAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<CancellationToken>());
 
-        Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None)).State);
+        Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, null, CancellationToken.None)).State);
         // The head never ends while its guard could still let this session write.
         Assert.All(guardWhenHeadEnded, mode => Assert.Equal(GameplayFenceMode.Blocked, mode));
         Assert.Equal(guardReached is "advanced" or "raced-active", guardWhenHeadEnded.Count == 1);
@@ -367,7 +368,7 @@ public sealed class GameSessionFenceServiceShould
         _order.Clear();
         _target.EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("guard-ended"); return true; });
         _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(_ => { _order.Add("sql-ended"); return true; });
-        GameSessionLeaseReply reply = await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None);
+        GameSessionLeaseReply reply = await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, null, CancellationToken.None);
         Assert.Null(reply.Error);
         Assert.Equal("ended", reply.State);
         Assert.Equal(new[] { "guard-ended", "sql-ended" }, _order);
@@ -378,14 +379,14 @@ public sealed class GameSessionFenceServiceShould
         await Arrange();
         Assert.Null((await Activate()).Error);
         _target.EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>()).Returns(false);
-        Assert.Equal("BARRIER_PENDING", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None)).Error);
+        Assert.Equal("BARRIER_PENDING", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, null, CancellationToken.None)).Error);
         await _h.Sessions.DidNotReceive().TryEndAsync(Arg.Any<Avalon.Common.ValueObjects.AccountId>(), Arg.Any<Guid>(), Arg.Any<long>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
         _target.EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>()).Returns(true);
         _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
-        Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None)).State);
+        Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, null, CancellationToken.None)).State);
     }
 
-    /// <summary>#967: the place follows the session: activation renews it and frees the other world's, heartbeats renew it, the end removes it.</summary>
+    /// <summary>#967: the place follows the session: activation renews it and frees the other world's, heartbeats renew it, a logout removes it.</summary>
     [Fact]
     public async Task Keep_the_place_with_the_session_and_remove_it_at_its_end()
     {
@@ -403,9 +404,38 @@ public sealed class GameSessionFenceServiceShould
 
         _target.EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>()).Returns(true);
         _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
-        Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, default)).State);
+        Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, GameSessionEndReasons.Logout, default)).State);
         Assert.Equal(0, (await _h.Places.CountAsync(1, default)).Taken);
     }
+
+    /// <summary>#967: a drop, or an end with no reason (a world from before #967), holds the place for 90 s; every other reason removes it.</summary>
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData(GameSessionEndReasons.Drop, true)]
+    [InlineData("a-reason-from-a-newer-world", true)]
+    [InlineData(GameSessionEndReasons.Logout, false)]
+    [InlineData(GameSessionEndReasons.Kicked, false)]
+    [InlineData(GameSessionEndReasons.SelectTimeout, false)]
+    [InlineData(GameSessionEndReasons.Maintenance, false)]
+    [InlineData(GameSessionEndReasons.Shutdown, false)]
+    [InlineData(GameSessionEndReasons.Backstop, false)]
+    // The theory runs on the first "ended" path (guard and session ended). The other two call the same EndedAsync, where
+    // the rule lives once.
+    public async Task Hold_the_place_only_for_a_session_that_dropped(string? reason, bool held)
+    {
+        await Arrange();
+        Assert.Null((await Activate()).Error);
+        _target.EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>()).Returns(true);
+        _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, reason, default)).State);
+
+        Assert.Equal(held ? (1, 1) : (0, 0), Taken(await _h.Places.CountAsync(1, default)));
+        _h.Clock.Advance(TimeSpan.FromSeconds(90));
+        Assert.Equal((0, 0), Taken(await _h.Places.CountAsync(1, default)));
+    }
+
+    private static (int Taken, int Held) Taken(WorldPlaceCounts counts) => (counts.Taken, counts.Held);
 
     /// <summary>Review Focus 1: the ledger unreachable never costs a session; the first renewal that reaches it puts the place back.</summary>
     [Fact]

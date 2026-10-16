@@ -40,7 +40,7 @@ public sealed class GameSessionControlShould
         var service = new GameSessionFenceService(sessions, h.Authorization, Substitute.For<IWorldRepositories>(),
             Substitute.For<IAccountRepository>(), Options.Create(new GameWorkloadConfiguration()), h.Clock,
             new Avalon.Infrastructure.GameAuth.GameApplicationAccessPolicy(Options.Create(h.Configuration)), h.Places,
-            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, h.Clock));
+            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, h.Clock), Options.Create(new WorldPlacesConfiguration()));
         var http = new DefaultHttpContext();
         http.Request.Scheme = https ? "https" : "http";
         if (server) http.User = new(new ClaimsIdentity([new Claim(GameServerAuthHandler.ServerIdClaim, "world-1")], GameServerAuthHandler.Scheme));
