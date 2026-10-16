@@ -44,7 +44,8 @@ A stale call can at most keep a place counted a little longer (see the last poin
   the ticket's expiry (`GameAuthPolicy.TicketPlaceMargin`). The hold names the last ticket to enter, with the later of
   its end and the hold already there. The hold goes with the ticket's withdrawal, its own session's activation, or the
   place itself: the session's end when no hold runs any more, the sweep of an expired place, the activation of the
-  account's session in another world once the hold is over.
+  account's session in another world once the hold is over. A place released by the account's ticket for another world
+  (`r`) goes at once at that activation, its hold or not.
 - **The owning session.** The session that owns the place's lease, by its fencing token (`GameSessions.FencingToken`,
   which only grows for an account: a takeover's session has a larger one than the session it replaces). Redemption,
   activation and heartbeats make their session the owner; a session older than the owner renews and ends nothing.
@@ -60,7 +61,7 @@ A stale call can at most keep a place counted a little longer (see the last poin
 | The ticket's issue is known to have failed (its write was refused) | the ticket's hold is given back, best effort, and the place with it unless a live session owns it; nothing when another ticket entered since. An issue that threw (a cancellation, a timeout) gives nothing back: its write may have landed |
 | The same request is replayed (its `Idempotency-Key`) | while the ticket is unredeemed, its place, if still there, is extended (never shortened) and held by that ticket again. A replay never creates a place, so a used ticket's replay cannot take back a place given to another |
 | The world redeems the ticket | the pending session owns the place, to its lease |
-| The session is activated | renewed to the lease; it spends its own ticket's hold (never another ticket's); the account's place in every other world is removed, since a session is one per account, but for a ticket's hold still running there |
+| The session is activated | renewed to the lease; it spends its own ticket's hold (never another ticket's); the account's place in every other world is removed, since a session is one per account, but for a ticket's hold still running there (a place released by a ticket for another world, `r`, goes at once) |
 | Each heartbeat (every 15 s) | renewed to the lease's new end, or a ticket's later hold |
 | The session ends (identity answers `ended`) | removed, or held for the grace after a drop ([the held place](#the-held-place)), unless a ticket's hold still runs: then it stays until that hold ends. Never shortened, and never re-created when it is already gone |
 | The end or heartbeat of a session older than the owner, or of one that ended there (arriving late) | unchanged |
@@ -98,7 +99,11 @@ A stale call can at most keep a place counted a little longer (see the last poin
   `WORLD_FULL` again,
   before any capacity check, so it cannot ask again a moment later and take back the place it was released from ahead
   of the players told to come back. Anyone else can take that place meanwhile. The lockout is the marks hash's field
-  `{accountId}:l`, which Redis expires itself (`HPEXPIRE`); a place's removal leaves it to expire. A session's
+  `{accountId}:l`, which Redis expires itself (`HPEXPIRE`); a place's removal leaves it to expire. Letting the place
+  run out instead and asking again at its end changes nothing: the sweep that removes a place unclaimed past the
+  horizon writes the same lockout, 45 s from then, so the account meets it as a newcomer. Only a place tickets alone
+  kept to the end can be swept unclaimed past the horizon: a live session's heartbeats claim the place, and a drop's
+  held place lasts the held grace, which the horizon is at least. A session's
   activation removes it (the account is playing), and a session end while it lives gives the place no held grace (the
   grace would outlast the lockout): the place stays only while a ticket's hold or the session's lease still runs. Should Redis refuse
   the expiry, the field is not kept (see the Warning below), and the account can retake the place as before. A lapsed
@@ -392,7 +397,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 46, Skipped: 0` (the 45 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 47, Skipped: 0` (the 46 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary

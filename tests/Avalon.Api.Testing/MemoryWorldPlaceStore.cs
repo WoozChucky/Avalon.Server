@@ -28,9 +28,8 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         public readonly Dictionary<long, string> Marks = [];     // account -> "h", "t:{enqueuedAt}" or a ticket's hold mark
         // account -> the owning session, or the one that ended there (a tombstone, until its expiry)
         public readonly Dictionary<long, (long Fence, long? TombstoneUntil)> Owners = [];
-        // account -> since when no session claims its place (the field {account}:f), and when that field expires, if it
-        // does (one a released place left behind)
-        public readonly Dictionary<long, (long Since, long? Until)> Unclaimed = [];
+        // account -> since when no session claims its place (the field {account}:f)
+        public readonly Dictionary<long, long> Unclaimed = [];
         // account -> when its lockout (the field {account}:l) expires
         public readonly Dictionary<long, long> Lockouts = [];
         // account -> when the pending marker of a session redeemed and not yet activated (the field {account}:p) expires
@@ -58,11 +57,8 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
                 Owners.Remove(account);
         }
 
-        /// <summary>
-        /// Since when no session claims the place, recorded once: the earliest moment stands until a claim. Written back
-        /// either way, which clears an expiry a release by another world's ticket left on it.
-        /// </summary>
-        public void MarkUnclaimed(long account, long now) => Unclaimed[account] = (UnclaimedSince(account, now) ?? now, null);
+        /// <summary>Since when no session claims the place, recorded once: the earliest moment stands until a claim.</summary>
+        public void MarkUnclaimed(long account, long now) => Unclaimed.TryAdd(account, now);
 
         /// <summary>Whether a session redeemed and not yet activated is pending on the place.</summary>
         public bool IsPending(long account, long now)
@@ -73,18 +69,8 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             return false;
         }
 
-        /// <summary>The unclaimed time as the scripts read it: absent once its expiry has passed.</summary>
-        public long? UnclaimedSince(long account, long now)
-        {
-            if (!Unclaimed.TryGetValue(account, out (long Since, long? Until) field)) return null;
-            if (field.Until <= now)
-            {
-                Unclaimed.Remove(account);
-                return null;
-            }
-
-            return field.Since;
-        }
+        /// <summary>Since when no session claims the place, if none has since it was taken or left.</summary>
+        public long? UnclaimedSince(long account) => Unclaimed.TryGetValue(account, out long since) ? since : null;
 
         /// <summary>Whether the account's lockout is still running.</summary>
         public bool LockedOut(long account, long now)
@@ -156,7 +142,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             // A place another world's ticket released is counted but not the account's to keep.
             bool present = w.Places.ContainsKey(account) && !(w.Marks.TryGetValue(account, out string? kind) && kind == Released);
             bool pending = w.IsPending(account, now) && !w.LockedOut(account, now);
-            bool lapsed = present && w.UnclaimedSince(account, now) is { } since &&
+            bool lapsed = present && w.UnclaimedSince(account) is { } since &&
                 now - since >= (long)config.UnclaimedPlace.TotalMilliseconds && !pending;
             long? HoldEnd() => w.Ticket(account) is { } t && t.Until > now ? t.Until : null;
             PlaceDecision Readmit(PlaceSource source, long waited)
@@ -485,6 +471,9 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         foreach (long account in w.Places.Where(p => p.Value <= now).Select(p => p.Key).ToList())
         {
             if (w.Marks.TryGetValue(account, out string? mark) && mark.StartsWith(TurnPrefix, StringComparison.Ordinal)) turns++;
+            // Expired unclaimed past the horizon: kept by tickets alone to the end, so locked out as at a lapse.
+            if (w.UnclaimedSince(account) is { } since && now - since >= (long)config.UnclaimedPlace.TotalMilliseconds)
+                w.Lockouts[account] = now + (long)GameAuthPolicy.WorldFullRetryAfterMin.TotalMilliseconds;
             w.Forget(account);
         }
 

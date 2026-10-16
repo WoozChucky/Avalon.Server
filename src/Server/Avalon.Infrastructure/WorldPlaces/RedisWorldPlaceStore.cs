@@ -53,7 +53,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     /// <c>tombstone</c>, which always sets it to expire one lease from now on Redis's clock (<c>HPEXPIRE</c>), so it refuses that
     /// session's late renewals whether or not the place is still there, and never outlives them. (A plain <c>HSET</c> of a
     /// newer session's live fence clears the expiry, as it should: the field then lives with the place.) A refused expiry
-    /// (a tombstone's, an orphaned unclaimed time's, a lockout's) deletes the field and sets <c>refused</c>, which the
+    /// (a tombstone's, a pending marker's, a lockout's) deletes the field and sets <c>refused</c>, which the
     /// scripts that expire fields return beside their result, so it is logged.
     /// </summary>
     private const string Holders = """
@@ -127,12 +127,20 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           if position <= front then return front_ms end
           return back_ms
         end
-        local function sweep(places, marks, queue, checkins, now, prefix, world)
+        -- A place that expires unclaimed past the horizon was kept by tickets alone to the end (no session claimed it
+        -- for that long, and a drop's held place lasts the held grace, which the horizon covers): its account is locked
+        -- out as at a lapse (lockout ms), so it cannot let the place run out and take it back at once as a newcomer.
+        local function sweep(places, marks, queue, checkins, now, prefix, world, horizon, lockout)
           local turns = 0
           local expired = redis.call('ZRANGEBYSCORE', places, '-inf', now)
           for _, account in ipairs(expired) do
             local mark = redis.call('HGET', marks, account)
             if mark and string.sub(mark, 1, 2) == 't:' then turns = turns + 1 end
+            local since = tonumber(redis.call('HGET', marks, account .. ':f'))
+            if since and tonumber(now) - since >= tonumber(horizon) then
+              redis.call('HSET', marks, account .. ':l', '1')
+              expire_field(marks, account .. ':l', lockout)
+            end
             forget_fields(marks, account)
           end
           if #expired > 0 then redis.call('ZREMRANGEBYSCORE', places, '-inf', now) end
@@ -155,7 +163,7 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
     // Returns {outcome, source, position, waited ms, turns expired, waiters timed out, 1 when a field's expiry was refused}.
     private const string Enter = Functions + """
         local account, now = ARGV[1], tonumber(ARGV[2])
-        local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[2], ARGV[10], ARGV[11])
+        local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[2], ARGV[10], ARGV[11], ARGV[14], ARGV[15])
         -- Every place a ticket is admitted to is never shortened (a held place's grace, a turn, an owner's lease), and is
         -- the ticket's to hold. The owner field is left as it is: on a new place it can only be an ended session's
         -- tombstone, which keeps refusing that session's late renewals until it expires.
@@ -439,14 +447,15 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
 
     // KEYS: 1 places, 2 marks, 3 queue, 4 checkins, 5 the account's waiting key.
     // ARGV: 1 account, 2 now, 3 limit ('' for none), 4 available ('1'/'0'), 5 front positions, 6 front timeout ms,
-    //       7 back timeout ms, 8 the turn's end, 9 waiting-key prefix, 10 world id.
-    // Returns {state, position, turns expired, waiters timed out}.
+    //       7 back timeout ms, 8 the turn's end, 9 waiting-key prefix, 10 world id, 11 the unclaimed horizon in ms, 12 the
+    //       lockout in ms.
+    // Returns {state, position, turns expired, waiters timed out, 1 when a field's expiry was refused}.
     private const string CheckIn = Functions + """
         local account, now = ARGV[1], tonumber(ARGV[2])
-        local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[2], ARGV[9], ARGV[10])
-        if redis.call('ZSCORE', KEYS[1], account) then return {3, 0, turns, silent} end
+        local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[2], ARGV[9], ARGV[10], ARGV[11], ARGV[12])
+        if redis.call('ZSCORE', KEYS[1], account) then return {3, 0, turns, silent, refused} end
         local rank = redis.call('ZRANK', KEYS[3], account)
-        if not rank then return {0, 0, turns, silent} end
+        if not rank then return {0, 0, turns, silent, refused} end
         local limit = tonumber(ARGV[3])
         if ARGV[4] == '1' and (not limit or rank < limit - redis.call('ZCARD', KEYS[1])) then
           local enqueued = enqueued_at(KEYS[5], ARGV[2])
@@ -455,12 +464,12 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
           forget(KEYS[5], ARGV[10])
           redis.call('ZADD', KEYS[1], ARGV[8], account)
           redis.call('HSET', KEYS[2], account, 't:' .. enqueued)
-          return {3, 0, turns, silent}
+          return {3, 0, turns, silent, refused}
         end
         local position = rank + 1
         redis.call('ZADD', KEYS[4], now + timeout(position, tonumber(ARGV[5]), tonumber(ARGV[6]), tonumber(ARGV[7])), account)
-        if ARGV[4] == '1' then return {1, position, turns, silent} end
-        return {2, position, turns, silent}
+        if ARGV[4] == '1' then return {1, position, turns, silent, refused} end
+        return {2, position, turns, silent, refused}
         """;
 
     // KEYS: 1 places, 2 marks, 3 queue, 4 checkins, 5 the account's waiting key. ARGV: 1 account, 2 world id.
@@ -476,15 +485,16 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         return removed
         """;
 
-    // KEYS: 1 places, 2 marks, 3 queue, 4 checkins. ARGV: 1 now, 2 waiting-key prefix, 3 world id.
-    // Returns {taken, queued, held, turns expired, waiters timed out}.
+    // KEYS: 1 places, 2 marks, 3 queue, 4 checkins. ARGV: 1 now, 2 waiting-key prefix, 3 world id, 4 the unclaimed horizon
+    //       in ms, 5 the lockout in ms.
+    // Returns {taken, queued, held, turns expired, waiters timed out, 1 when a field's expiry was refused}.
     private const string Count = Functions + """
-        local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[1], ARGV[2], ARGV[3])
+        local turns, silent = sweep(KEYS[1], KEYS[2], KEYS[3], KEYS[4], ARGV[1], ARGV[2], ARGV[3], ARGV[4], ARGV[5])
         local held = 0
         for _, mark in ipairs(redis.call('HVALS', KEYS[2])) do
           if mark == 'h' then held = held + 1 end
         end
-        return {redis.call('ZCARD', KEYS[1]), redis.call('ZCARD', KEYS[3]), held, turns, silent}
+        return {redis.call('ZCARD', KEYS[1]), redis.call('ZCARD', KEYS[3]), held, turns, silent, refused}
         """;
 
     public async Task<PlaceDecision> EnterAsync(PlaceRequest request, CancellationToken cancellationToken)
@@ -563,8 +573,10 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         [
             accountId, now, Limit(limit), available ? "1" : "0", WorldPlacesConfiguration.FrontPositions,
             Ms(c.TimeoutAt(1)), Ms(c.TimeoutAt(WorldPlacesConfiguration.FrontPositions + 1)),
-            now + Ms(c.TurnWindow), CacheKeys.WorldQueueWaitingPrefix, (int)worldId,
+            now + Ms(c.TurnWindow), CacheKeys.WorldQueueWaitingPrefix, (int)worldId, Ms(c.UnclaimedPlace),
+            Ms(GameAuthPolicy.WorldFullRetryAfterMin),
         ], cancellationToken);
+        if ((int)r[4] == 1) outage.ReportExpiryRefused();
         return new((QueueState)(int)r[0], (int)r[1], new((int)r[2], (int)r[3]));
     }
 
@@ -579,8 +591,10 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
 
     public async Task<WorldPlaceCounts> CountAsync(ushort worldId, CancellationToken cancellationToken)
     {
-        RedisResult[] r = await RunArrayAsync(Count, WorldKeys(worldId), [Now, CacheKeys.WorldQueueWaitingPrefix, (int)worldId],
+        RedisResult[] r = await RunArrayAsync(Count, WorldKeys(worldId),
+            [Now, CacheKeys.WorldQueueWaitingPrefix, (int)worldId, Ms(options.Value.UnclaimedPlace), Ms(GameAuthPolicy.WorldFullRetryAfterMin)],
             cancellationToken);
+        if ((int)r[5] == 1) outage.ReportExpiryRefused();
         return new((int)r[0], (int)r[1], (int)r[2], new((int)r[3], (int)r[4]));
     }
 

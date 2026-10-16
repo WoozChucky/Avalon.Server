@@ -454,6 +454,22 @@ public static class WorldPlaceScenarios
             await h.Renew(2);
             Assert.Equal((1, 0, 0), await h.Sizes());
         },
+        ["a place tickets alone kept past the horizon and let run out is not taken back at its end"] = async h =>
+        {
+            Assert.Equal(PlaceSource.Taken, (await h.Join(1, limit: 2, cap: 0)).Source);
+            await h.Admitted(2, limit: 2);
+            for (int i = 0; i < 22; i++) // tickets alone, to 880 s
+            {
+                h.Advance(40);
+                await h.Renew(2);
+                Assert.Equal(PlaceOutcome.Admitted, (await h.Join(1, limit: 2, cap: 0)).Outcome);
+            }
+
+            h.Advance(45); // no further ticket: the 880 s ticket's place runs out at 925 s
+            await h.Renew(2);
+            Assert.Equal(PlaceOutcome.WorldFull, (await h.Join(1, limit: 2, cap: 0)).Outcome); // asked at its end
+            Assert.Equal(PlaceOutcome.Admitted, (await h.Join(3, limit: 2, cap: 0)).Outcome); // a newcomer takes it
+        },
         ["an activation lifts the lockout of an account that went on to play"] = async h =>
         {
             Assert.Equal(PlaceSource.Taken, (await h.Join(1, limit: 2, cap: 0)).Source);
