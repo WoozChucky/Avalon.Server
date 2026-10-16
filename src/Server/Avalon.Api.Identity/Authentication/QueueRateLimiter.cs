@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.RateLimiting;
 using Avalon.Api.Hosting.Config;
 using Avalon.Api.Hosting.Middlewares;
@@ -9,21 +11,23 @@ namespace Avalon.Api.Identity.Authentication;
 /// <summary>
 /// The queue's own limits (#967), in memory as the shared limiter is (identity runs as one replica), in a window of one
 /// minute in thirty segments, so a refusal's <c>Retry-After</c> is at most <see cref="Segment"/> (2 s), well inside the
-/// shortest gap a waiter has between its check-in interval and its removal (10 s by default):
+/// shortest gap a waiter has between its check-in interval and its removal (10 s by default). No limit is shared by the
+/// callers behind one address, so a neighbour can never spend an honest waiter's budget:
 /// <list type="bullet">
-/// <item>a ceiling per source, <see cref="RateLimitingConfig.QueueSourcePermitsPerMinute"/>, on every call before anything
-/// is read, so no source makes unbounded Redis reads (<see cref="TryAdmitSource"/>);</item>
-/// <item>a source that has presented <see cref="FailedCredentialsPerMinute"/> credentials that were not current is never
-/// shut out, so a neighbour behind the same address cannot push honest waiters out of the line: its credential reads go
-/// through at most <see cref="ReadsInFlightPastFailures"/> at once, the rest waiting their turn
-/// (<see cref="StartCredentialReadAsync"/>);</item>
-/// <item>the fair share per account, <see cref="RateLimitingConfig.QueuePermitsPerMinute"/> (<see cref="TryAcquire"/>).</item>
+/// <item>before anything is read, each credential (by its SHA-256) has <see cref="RateLimitingConfig.QueuePermitsPerMinute"/>
+/// calls a minute (<see cref="TryAcquireCredential"/>), so one credential cannot make unbounded Redis reads;</item>
+/// <item>a source that has presented <see cref="FailedCredentialsPerMinute"/> credentials that were not current reads
+/// them at most <see cref="ReadsInFlightPastFailures"/> at a time, the others waiting their turn
+/// (<see cref="StartCredentialReadAsync"/>): slowed, never shut out, and its junk credentials bounded by that gate;</item>
+/// <item>after the read, each account has <see cref="RateLimitingConfig.QueuePermitsPerMinute"/> calls a minute, its fair
+/// share across the credentials it rotates through (<see cref="TryAcquire"/>).</item>
 /// </list>
-/// An exempt source (<see cref="IExemptSources"/>) is bounded by none of the per-source limits.
+/// An exempt source (<see cref="IExemptSources"/>) is not gated for its failures. Every partition is dropped by the
+/// limiter once it has been idle (its window replenished), as the shared limiter's are.
 /// </summary>
 public sealed class QueueRateLimiter : IDisposable
 {
-    /// <summary>Credentials that were not current one source may present in a minute before its reads are capped. Not a setting.</summary>
+    /// <summary>Credentials that were not current one source may present in a minute before its reads are gated. Not a setting.</summary>
     public const int FailedCredentialsPerMinute = 30;
 
     /// <summary>A source past its failures reads this many credentials at once; the others wait.</summary>
@@ -41,7 +45,7 @@ public sealed class QueueRateLimiter : IDisposable
 
     private readonly bool _enabled;
     private readonly IExemptSources _exempt;
-    private readonly PartitionedRateLimiter<string> _sources;
+    private readonly PartitionedRateLimiter<string> _credentials;
     private readonly PartitionedRateLimiter<string> _accounts;
     private readonly PartitionedRateLimiter<string> _failures;
     private readonly PartitionedRateLimiter<string> _reads = PartitionedRateLimiter.Create<string, string>(
@@ -56,22 +60,14 @@ public sealed class QueueRateLimiter : IDisposable
     {
         _enabled = config.Value.Enabled;
         _exempt = exempt;
-        _sources = Window(config.Value.QueueSourcePermitsPerMinute);
+        _credentials = Window(config.Value.QueuePermitsPerMinute);
         _accounts = Window(config.Value.QueuePermitsPerMinute);
         _failures = Window(FailedCredentialsPerMinute);
     }
 
-    /// <summary>Null when the source may make another call; otherwise how long until it may.</summary>
-    public TimeSpan? TryAdmitSource(HttpContext context)
-    {
-        if (!_enabled || _exempt.IsExempt(context.Connection.RemoteIpAddress)) return null;
-        using RateLimitLease lease = _sources.AttemptAcquire(ApiRateLimiting.SourceOf(context));
-        return lease.IsAcquired ? null : RetryAfter(lease);
-    }
-
     /// <summary>
     /// A lease to hold while the call's credential is read, or null when the source is past its failures and has as many
-    /// reads waiting as it may (refuse for <see cref="Segment"/>). Under its failures, or exempt, the read is not bounded.
+    /// reads waiting as it may (refuse for <see cref="Segment"/>). Under its failures, or exempt, the read is not gated.
     /// </summary>
     public async ValueTask<RateLimitLease?> StartCredentialReadAsync(HttpContext context, CancellationToken cancellationToken)
     {
@@ -86,6 +82,18 @@ public sealed class QueueRateLimiter : IDisposable
         if (read.IsAcquired) return read;
         read.Dispose();
         return null;
+    }
+
+    /// <summary>
+    /// Null when a call presenting <paramref name="credential"/> may read it; otherwise how long until it may. Keyed by the
+    /// credential's SHA-256, never the credential itself, and shared with nobody else's calls.
+    /// </summary>
+    public TimeSpan? TryAcquireCredential(string credential)
+    {
+        if (!_enabled) return null;
+        string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(credential)));
+        using RateLimitLease lease = _credentials.AttemptAcquire(key);
+        return lease.IsAcquired ? null : RetryAfter(lease);
     }
 
     /// <summary>Spends one of the source's failures, for a credential that was not current.</summary>
@@ -105,7 +113,7 @@ public sealed class QueueRateLimiter : IDisposable
 
     public void Dispose()
     {
-        _sources.Dispose();
+        _credentials.Dispose();
         _accounts.Dispose();
         _failures.Dispose();
         _reads.Dispose();
@@ -125,7 +133,7 @@ public sealed class QueueRateLimiter : IDisposable
             AutoReplenishment = true,
         }), StringComparer.Ordinal);
 
-    /// <summary>The lease of a read no in-flight bound applies to.</summary>
+    /// <summary>The lease of a read no gate applies to.</summary>
     private sealed class FreeLease : RateLimitLease
     {
         public override bool IsAcquired => true;

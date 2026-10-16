@@ -11,37 +11,53 @@ using Xunit;
 namespace Avalon.Api.Identity.UnitTests.GameAuth;
 
 /// <summary>
-/// #967: the queue's limits. Each account has its own share, so the waiters behind one address do not throttle each
-/// other; a source that keeps failing is slowed to a few reads at a time but never shut out, so a neighbour cannot push
-/// honest waiters out of the line; every source has a ceiling before anything is read; and every refusal asks again
-/// within one segment, well inside a waiter's removal deadline.
+/// #967: the queue's limits are never shared by the callers behind one address. A neighbour's spam, with a valid
+/// credential or junk, spends only its own credential's budget or slows its source's reads, and never refuses another
+/// credential's call; every refusal asks again within one segment, well inside a waiter's removal deadline.
 /// </summary>
 public sealed class QueueRateLimiterShould
 {
+    private static readonly string s_neighbour = new('N', 43);
+    private static readonly string s_honest = new('H', 43);
+
     [Fact]
-    public async Task Give_each_account_its_share_and_bound_a_source_without_shutting_it_out()
+    public void Bound_each_credential_and_account_on_its_own()
     {
-        using var limiter = new QueueRateLimiter(Options.Create(new RateLimitingConfig { QueueSourcePermitsPerMinute = 40 }),
-            Substitute.For<IExemptSources>());
-        var household = new DefaultHttpContext();
-        household.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.7");
+        using var limiter = new QueueRateLimiter(Options.Create(new RateLimitingConfig()), Substitute.For<IExemptSources>());
+
+        // A neighbour spams with its own valid credential: refused past its budget, the honest waiter's untouched.
+        for (int call = 0; call < 30; call++) Assert.Null(limiter.TryAcquireCredential(s_neighbour));
+        Assert.InRange(limiter.TryAcquireCredential(s_neighbour)!.Value, TimeSpan.FromTicks(1), QueueRateLimiter.Segment);
+        Assert.Null(limiter.TryAcquireCredential(s_honest));
 
         for (int call = 0; call < 30; call++) Assert.Null(limiter.TryAcquire(7));
         Assert.InRange(limiter.TryAcquire(7)!.Value, TimeSpan.FromTicks(1), QueueRateLimiter.Segment);
-        Assert.Null(limiter.TryAcquire(8)); // another account behind the same address is not throttled by 7's calls
+        Assert.Null(limiter.TryAcquire(8));
+        Assert.True(QueueRateLimiter.Segment < TimeSpan.FromSeconds(10)); // inside FrontTimeoutSeconds - FrontCheckInSeconds
+    }
 
-        // A neighbour presents credentials that are not current: the source's reads go on, two at a time.
-        for (int failure = 0; failure < QueueRateLimiter.FailedCredentialsPerMinute; failure++) limiter.CredentialFailed(household);
+    [Fact]
+    public async Task Slow_a_source_that_keeps_failing_without_refusing_the_honest_calls_behind_it()
+    {
+        using var limiter = new QueueRateLimiter(Options.Create(new RateLimitingConfig()), Substitute.For<IExemptSources>());
+        var household = new DefaultHttpContext();
+        household.Connection.RemoteIpAddress = IPAddress.Parse("203.0.113.7");
+
+        // A neighbour presents junk: each junk credential has a budget of its own, so it is the failures that bound it.
+        for (int failure = 0; failure < QueueRateLimiter.FailedCredentialsPerMinute; failure++)
+        {
+            Assert.Null(limiter.TryAcquireCredential(Guid.NewGuid().ToString("N")));
+            limiter.CredentialFailed(household);
+        }
+
+        // Past them the source's reads go two at a time; the honest waiter's call waits its turn, it is not refused.
         RateLimitLease first = (await limiter.StartCredentialReadAsync(household, default))!;
         using RateLimitLease second = (await limiter.StartCredentialReadAsync(household, default))!;
-        ValueTask<RateLimitLease?> third = limiter.StartCredentialReadAsync(household, default);
-        Assert.False(third.IsCompleted);
+        ValueTask<RateLimitLease?> honest = limiter.StartCredentialReadAsync(household, default);
+        Assert.False(honest.IsCompleted);
         first.Dispose();
-        using RateLimitLease served = (await third)!;
+        using RateLimitLease served = (await honest)!;
         Assert.True(served.IsAcquired);
-
-        for (int call = 0; call < 40; call++) Assert.Null(limiter.TryAdmitSource(household));
-        Assert.InRange(limiter.TryAdmitSource(household)!.Value, TimeSpan.FromTicks(1), QueueRateLimiter.Segment);
-        Assert.True(QueueRateLimiter.Segment < TimeSpan.FromSeconds(10)); // inside FrontTimeoutSeconds - FrontCheckInSeconds
+        Assert.Null(limiter.TryAcquireCredential(s_honest));
     }
 }

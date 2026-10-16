@@ -81,8 +81,6 @@ public static class ApiRateLimiting
                 $"{Section}:{nameof(RateLimitingConfig.ClientAuthPermitsPerMinute)} must be at least 1.")
             .Validate(c => c.QueuePermitsPerMinute >= 1,
                 $"{Section}:{nameof(RateLimitingConfig.QueuePermitsPerMinute)} must be at least 1.")
-            .Validate(c => c.QueueSourcePermitsPerMinute >= 1,
-                $"{Section}:{nameof(RateLimitingConfig.QueueSourcePermitsPerMinute)} must be at least 1.")
             .Validate(c => c.WorkloadPermitsPerMinute >= 1,
                 $"{Section}:{nameof(RateLimitingConfig.WorkloadPermitsPerMinute)} must be at least 1.")
             .ValidateOnStart();

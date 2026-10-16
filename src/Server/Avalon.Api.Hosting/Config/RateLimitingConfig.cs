@@ -26,17 +26,11 @@ public class RateLimitingConfig
     public int ClientAuthPermitsPerMinute { get; set; } = 20;
 
     /// <summary>
-    /// A full world's queue check-ins and leaves (<c>/game/queue</c>, #967) a minute per account, outside the limits
-    /// above: the waiters behind one address are not throttled by each other. At least 1.
+    /// A full world's queue check-ins and leaves (<c>/game/queue</c>, #967) a minute per credential, before it is read,
+    /// and again per account after, outside the limits above: the waiters behind one address are not throttled by each
+    /// other, and no neighbour can spend another's budget. At least 1.
     /// </summary>
     public int QueuePermitsPerMinute { get; set; } = 30;
-
-    /// <summary>
-    /// The ceiling on those same calls a minute per source (#967), counted on every call before its credential is read, so
-    /// one source cannot make unbounded Redis reads: generous, since a household's waiters share it (40 waiters checking
-    /// in every 5 s fit). An exempt source is not bounded. At least 1.
-    /// </summary>
-    public int QueueSourcePermitsPerMinute { get; set; } = 600;
 
     /// <summary>
     /// Requests a minute per authenticated game server, including each player's lease heartbeat, for the workloads a
