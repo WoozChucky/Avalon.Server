@@ -339,6 +339,8 @@ public class AuthDbContext : DbContext
                 v => new WorldId(v)
             ).IsRequired();
 
+        // PlayerLimit: the first live player limit (#967), 1,000 accounts per world. Each world's own backstop is the same
+        // number in its configuration (server.game.playerLimit); later changes go through PUT /world/{id}/player-limit.
         builder.HasData(new Domain.Auth.World
         {
             Id = 1,
@@ -349,6 +351,7 @@ public class AuthDbContext : DbContext
             MinVersion = "0.0.1",
             Version = "0.0.1",
             AccessLevelRequired = AccountAccessLevel.Admin,
+            PlayerLimit = 1000,
             CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         }, new Domain.Auth.World
@@ -361,6 +364,7 @@ public class AuthDbContext : DbContext
             MinVersion = "0.0.1",
             Version = "0.0.1",
             AccessLevelRequired = AccountAccessLevel.Player,
+            PlayerLimit = 1000,
             CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         }, new Domain.Auth.World
@@ -373,6 +377,7 @@ public class AuthDbContext : DbContext
             MinVersion = "0.0.1",
             Version = "0.0.1",
             AccessLevelRequired = AccountAccessLevel.PTR,
+            PlayerLimit = 1000,
             CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
