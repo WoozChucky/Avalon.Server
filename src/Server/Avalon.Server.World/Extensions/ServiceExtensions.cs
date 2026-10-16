@@ -102,6 +102,8 @@ public static class ServiceExtensions
             sp.GetRequiredService<ILoggerFactory>(),
             sp.GetRequiredService<TimeProvider>(),
             new NetworkSendMetrics(DiagnosticsConfig.World.Meter)));
+        // The world's tick count (#1066), the send threads' own, so the instances' broadcasts and the pings read one count.
+        services.AddSingleton(sp => sp.GetRequiredService<NetworkSendScheduler>().Ticks);
         services.AddSingleton(sp => new ReceiveQueueLimit(
             sp.GetRequiredService<IOptions<NetworkConfiguration>>().Value.MaxReceiveQueueDepth,
             DiagnosticsConfig.World.Meter));
@@ -136,7 +138,7 @@ public static class ServiceExtensions
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<WorldEntryGate>>()));
         // The world's own ceiling on admitted accounts (#967), from Game:PlayerLimit; checked in the admission work, off
-        // the tick. Built with the packet handlers as the world starts, when it logs the limit it was given.
+        // the tick. Built at startup (WorldStartup.PrepareAsync), when it logs the limit it was given.
         services.AddSingleton(sp => new WorldBackstop(
             sp.GetRequiredService<IOptions<GameConfiguration>>().Value,
             sp.GetRequiredService<TimeProvider>(),

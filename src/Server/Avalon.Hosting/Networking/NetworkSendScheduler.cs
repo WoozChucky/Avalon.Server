@@ -34,10 +34,12 @@ public sealed class NetworkSendScheduler : IDisposable
     private int _started;
     private volatile bool _stopping;
 
+    /// <param name="ticks">The world's tick count (<see cref="Ticks" />); a new one, from 0, when omitted.</param>
     public NetworkSendScheduler(NetworkConfiguration options, ILoggerFactory loggerFactory, TimeProvider time,
-        NetworkSendMetrics metrics, PacketEncoder? encoder = null)
+        NetworkSendMetrics metrics, PacketEncoder? encoder = null, WorldTicks? ticks = null)
     {
         ArgumentNullException.ThrowIfNull(options);
+        Ticks = ticks ?? new WorldTicks();
         _logger = loggerFactory.CreateLogger<NetworkSendScheduler>();
         _time = time;
         Metrics = metrics;
@@ -57,6 +59,12 @@ public sealed class NetworkSendScheduler : IDisposable
     /// built from <see cref="NetworkConfiguration" />; a connection passes its session, or none, to <see cref="CreateSender" />.
     /// </summary>
     public bool PacketEncryption { get; }
+
+    /// <summary>
+    /// The world's tick count (#1066), which each sender reads as it stamps a time-sync ping: the world's one count, which
+    /// the world server advances and the container hands to the instances.
+    /// </summary>
+    public WorldTicks Ticks { get; }
 
     /// <summary>True from <see cref="Start" /> until <see cref="Stop" />.</summary>
     public bool IsRunning => Volatile.Read(ref _started) == 1 && !_stopping;

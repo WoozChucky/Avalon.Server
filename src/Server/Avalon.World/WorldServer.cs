@@ -235,7 +235,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             "Ensure the method is non-public, static, and not overloaded.");
 
     // Tick scheduling
-    private static readonly long s_ticksPerFrame = Stopwatch.Frequency / 60; // 60Hz
+    private static readonly long s_ticksPerFrame = Stopwatch.Frequency / WorldTicks.PerSecond; // 60Hz
     private static readonly long s_spinThresholdTicks = Stopwatch.Frequency / 1000; // 1ms
 
     private Thread? _tickThread;
@@ -290,11 +290,18 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     // on the tick only; the rate gauge reads the last closed window's figure from the meter's thread.
     private TickWindow _tickWindow = new(Stopwatch.Frequency);
 
-    private long _completedTicks;
+    // The world's tick count (#1066): the send scheduler's, which every ping reads, and the container's, which every
+    // instance's broadcast reads. Advanced as each tick ends.
+    private readonly WorldTicks _ticks;
     private volatile bool _isListening;
 
     public bool IsListening => _isListening;
-    public long CompletedTicks => Interlocked.Read(ref _completedTicks);
+
+    /// <summary>
+    /// The ticks completed (<see cref="WorldTicks.Completed" />): the number every state broadcast and time-sync ping
+    /// carries (#1066), and the ready heartbeat's sign that the tick moves. A tick that throws is not counted.
+    /// </summary>
+    public long CompletedTicks => _ticks.Completed;
 
     /// <inheritdoc />
     public uint MeanTickMicros => _tickWindow.MeanMicros;
@@ -367,6 +374,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // #875. From the container; the tests that build a WorldServer from a bare provider get one with the defaults.
         _sendScheduler = serviceProvider.GetService<NetworkSendScheduler>()
             ?? new NetworkSendScheduler(new NetworkConfiguration(), loggerFactory, _time, NetworkSendMetrics.Disabled);
+        _ticks = _sendScheduler.Ticks;
         // #927. From the container, as the scheduler is; a bare provider gets the default depth.
         _receiveQueueLimit = serviceProvider.GetService<ReceiveQueueLimit>() ?? ReceiveQueueLimit.Default;
         _maintenanceErrors = new ThrottledErrorLog(_logger,
@@ -695,10 +703,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                     _deadlineOvershootHist.Record((long)overshootUs);
                     _deadlineOvershoot.Record(overshootUs);
 
+                    // The tick count moves at the end of Update (UpdateCore); the tick rate (world.tick.rate) comes from the
+                    // tick's own window there too, with no clock read.
                     Update(deltaTime, tickStart);
-
-                    // The tick rate (world.tick.rate) comes from the tick's own window (UpdateCore), with no clock read.
-                    Interlocked.Increment(ref _completedTicks);
                 }
                 catch (Exception e)
                 {
@@ -954,6 +961,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // From the two timestamps the tick's duration was just measured with (#1016): no clock read of its own. A tick
         // that threw is in no window, as it is in no tick histogram.
         _tickWindow.Add(tickStart, tickEnd);
+
+        // Last (#1066): every packet this tick built names it, and a ping stamped from here on names the next one. A tick
+        // that threw is not counted.
+        _ticks.Advance();
     }
 
     /// <summary>Records the stage that began at <paramref name="start" /> under its tag; returns now, the next stage's start.</summary>

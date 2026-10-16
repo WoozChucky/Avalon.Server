@@ -15,6 +15,10 @@ namespace Avalon.Benchmarking.Benchmarks;
 [MemoryDiagnoser]
 public class PacketEncoderBenchmarks
 {
+    // A world up for some two and a half years at 60 Hz (#1066): the state packets' tick a 5-byte varint, as a long-running
+    // world sends it, not tick 0, which protobuf-net leaves off the wire.
+    private const long LongUptime = 5_000_000_000;
+
     private readonly PacketEncoder _encoder = new(new PayloadSegmentPool());
     private readonly PooledArrayBufferWriter _burst = new();
     private IAvalonCryptoSession _session = null!;
@@ -44,7 +48,7 @@ public class PacketEncoderBenchmarks
     [Benchmark(Description = "Encode a state update into a segment (tick)")]
     public int Encode()
     {
-        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, _encoder);
+        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, LongUptime, _encoder);
         int length = packet.PayloadLength;
         packet.Release();
         return length;
@@ -54,7 +58,7 @@ public class PacketEncoderBenchmarks
     public int EncodeSealFrame()
     {
         _burst.Reset();
-        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, _encoder);
+        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, LongUptime, _encoder);
         int written = PacketEnvelope.Append(_burst, packet, _session);
         packet.Release();
         return written;
@@ -64,7 +68,7 @@ public class PacketEncoderBenchmarks
     public int EncodeFramePlain()
     {
         _burst.Reset();
-        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, _encoder);
+        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, LongUptime, _encoder);
         int written = PacketEnvelope.Append(_burst, packet, sealer: null);
         packet.Release();
         return written;

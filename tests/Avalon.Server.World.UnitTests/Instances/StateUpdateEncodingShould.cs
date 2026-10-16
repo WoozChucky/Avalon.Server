@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
@@ -28,13 +29,17 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// <summary>
 /// #980: every player's state adds and updates are put together from entries each encoded once per broadcast, and must
 /// be byte for byte the packets the per-recipient encoding wrote: the recipient's described list, encoded whole by
-/// <see cref="SInstanceStateAddPacket.Create" /> or <see cref="SInstanceStateUpdatePacket.Create" />. Character ids
-/// 980_1xx and creature ids 980_9xx are this class's.
+/// <see cref="SInstanceStateAddPacket.Create" /> or <see cref="SInstanceStateUpdatePacket.Create" />, with the world
+/// tick it was built on (#1066). Character ids 980_1xx and creature ids 980_9xx are this class's.
 /// </summary>
 public class StateUpdateEncodingShould
 {
     // 166,666 TimeSpan ticks, a hair under 1/60 s: an instance built outside the registry broadcasts on ticks 7, 13, 19, 25.
     private static readonly TimeSpan s_tick = TimeSpan.FromSeconds(1d / 60d);
+
+    // A world up for some two and a half years at 60 Hz: past where a 32-bit count would have wrapped, and a 5-byte
+    // varint, so the tick is never a default left off the wire.
+    private const long LongUptime = 5_000_000_000;
 
     public static TheoryData<string> Broadcasts =>
         ["town", "forest", "self", "listed-and-changed", "out-of-view", "arrivals", "projectiles", "solo", "pair"];
@@ -49,13 +54,15 @@ public class StateUpdateEncodingShould
     /// one flying into a recipient's view mid-flight and one finishing in flight; and a solo player and a pair among
     /// creatures that move, are hurt and come into and out of view, the first encoded whole (fewer recipients than
     /// <see cref="StatePacketAssembler.MinRecipientsToShare" />) and the second from shared entries. Every recipient's add
-    /// and update of every tick, or their absence, is compared.
+    /// and update of every tick, or their absence, is compared, and each names the world tick it was built on (#1066), as
+    /// the client decodes it: the world's count as the instance ticked, which moves on after each tick.
     /// </summary>
     [Theory]
     [MemberData(nameof(Broadcasts))]
     public void Be_byte_for_byte_the_per_recipient_encoding(string broadcast)
     {
-        using MapInstance instance = Casting(out CastAbilityHandler handler);
+        var worldTicks = new WorldTicks(LongUptime);
+        using MapInstance instance = Casting(out CastAbilityHandler handler, worldTicks);
         var characters = new List<MapInstanceClient>();
         var creatures = new List<Creature>();
         Action<int> change = Setup(broadcast, instance, handler, characters, creatures);
@@ -68,15 +75,22 @@ public class StateUpdateEncodingShould
             foreach (MapInstanceClient client in characters)
                 client.Sent.Clear();
             change(tick);
+            long worldTick = worldTicks.Completed;
             instance.Update(s_tick);
 
             foreach (MapInstanceClient recipient in characters)
             {
                 adds += Compare(recipient, NetworkPacketType.SMSG_WORLD_STATE_ADD, SInstanceStateAddPacket.Flags,
-                    PerRecipientAdds(recipient.Character, instance, characters, creatures, encoder));
+                    PerRecipientAdds(recipient.Character, instance, characters, creatures, worldTick, encoder));
                 updates += Compare(recipient, NetworkPacketType.SMSG_WORLD_STATE_UPDATE, SInstanceStateUpdatePacket.Flags,
-                    PerRecipientUpdates(recipient.Character, instance, characters, creatures, encoder));
+                    PerRecipientUpdates(recipient.Character, instance, characters, creatures, worldTick, encoder));
+                Assert.All(recipient.Read<SInstanceStateAddPacket>(NetworkPacketType.SMSG_WORLD_STATE_ADD),
+                    p => Assert.Equal(worldTick, p.WorldTick));
+                Assert.All(recipient.Read<SInstanceStateUpdatePacket>(NetworkPacketType.SMSG_WORLD_STATE_UPDATE),
+                    p => Assert.Equal(worldTick, p.WorldTick));
             }
+
+            worldTicks.Advance(); // the tick's end, as the world server's
         }
 
         Assert.True(adds > 0 && updates > 0, $"Compared {adds} adds and {updates} updates");
@@ -87,7 +101,7 @@ public class StateUpdateEncodingShould
     /// unreachable while every recipient is sent an entity with the fields its snapshot marked, but what a way of
     /// finding watchers that tracks fields per recipient (#981, #982) would rely on. Three recipients ask for one
     /// character, with motion, with motion and health, then with motion again; each packet is compared with its entry
-    /// encoded whole by <see cref="SInstanceStateUpdatePacket.Create" />.
+    /// encoded whole by <see cref="SInstanceStateUpdatePacket.Create" />, each with the broadcast's one tick after it.
     /// </summary>
     [Fact]
     public void Keep_an_entry_for_each_field_set_an_entity_is_asked_for()
@@ -100,7 +114,7 @@ public class StateUpdateEncodingShould
         const GameEntityFields Hurt = Motion | GameEntityFields.CurrentHealth;
         var encoder = new PacketEncoder(new PayloadSegmentPool());
         var updates = StatePacketAssembler.ForUpdates();
-        updates.BeginBroadcast();
+        updates.BeginBroadcast(LongUptime);
 
         foreach (GameEntityFields fields in new[] { Motion, Hurt, Motion })
         {
@@ -110,7 +124,7 @@ public class StateUpdateEncodingShould
 
             OutboundPacket assembled = updates.Finish(encoder);
             OutboundPacket whole = SInstanceStateUpdatePacket.Create(
-                [ObjectStateWriter.From((ICharacter)character, fields)], encoder);
+                [ObjectStateWriter.From((ICharacter)character, fields)], LongUptime, encoder);
             Assert.Equal(whole.PayloadMemory.ToArray(), assembled.PayloadMemory.ToArray());
             assembled.Release();
             whole.Release();
@@ -295,7 +309,7 @@ public class StateUpdateEncodingShould
     /// character's motion left out for itself), the list encoded whole.
     /// </summary>
     private static byte[]? PerRecipientAdds(CharacterEntity recipient, MapInstance instance,
-        List<MapInstanceClient> characters, List<Creature> creatures, PacketEncoder encoder)
+        List<MapInstanceClient> characters, List<Creature> creatures, long worldTick, PacketEncoder encoder)
     {
         var adds = new List<ObjectState>();
         foreach (ObjectGuid guid in recipient.CharacterGameState.NewObjects)
@@ -318,7 +332,7 @@ public class StateUpdateEncodingShould
         if (adds.Count == 0)
             return null;
 
-        OutboundPacket packet = SInstanceStateAddPacket.Create(adds, encoder);
+        OutboundPacket packet = SInstanceStateAddPacket.Create(adds, worldTick, encoder);
         byte[] bytes = packet.PayloadMemory.ToArray();
         packet.Release();
         return bytes;
@@ -331,7 +345,7 @@ public class StateUpdateEncodingShould
     /// plus its death and maximum health when marked), the list encoded whole.
     /// </summary>
     private static byte[]? PerRecipientUpdates(CharacterEntity recipient, MapInstance instance,
-        List<MapInstanceClient> characters, List<Creature> creatures, PacketEncoder encoder)
+        List<MapInstanceClient> characters, List<Creature> creatures, long worldTick, PacketEncoder encoder)
     {
         var updates = new List<ObjectState>();
         foreach ((ObjectGuid guid, GameEntityFields fields) in recipient.CharacterGameState.UpdatedObjects)
@@ -357,7 +371,7 @@ public class StateUpdateEncodingShould
         if (updates.Count == 0)
             return null;
 
-        OutboundPacket packet = SInstanceStateUpdatePacket.Create(updates, encoder);
+        OutboundPacket packet = SInstanceStateUpdatePacket.Create(updates, worldTick, encoder);
         byte[] bytes = packet.PayloadMemory.ToArray();
         packet.Release();
         return bytes;
@@ -370,14 +384,14 @@ public class StateUpdateEncodingShould
     /// An instance the real cast handler reaches, whose projectiles are <see cref="FlyingProjectileScript" />s, over a
     /// navigator that lets every ray through.
     /// </summary>
-    private static MapInstance Casting(out CastAbilityHandler handler)
+    private static MapInstance Casting(out CastAbilityHandler handler, WorldTicks worldTicks)
     {
         IScriptManager scripts = Substitute.For<IScriptManager>();
         scripts.GetAbilityScript("ProjectileAbilityScript").Returns(typeof(FlyingProjectileScript));
         IMapNavigator navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         IWorld world = NewWorld();
-        MapInstance instance = TestMapInstances.Build(world, scripts, navigator);
+        MapInstance instance = TestMapInstances.Build(world, scripts, navigator, worldTicks: worldTicks);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
         handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(),
             TimeProvider.System);

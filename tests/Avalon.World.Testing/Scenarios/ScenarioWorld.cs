@@ -89,6 +89,9 @@ public sealed class ScenarioWorld : IDisposable
     // 20 m it walks in five windows.
     private const float MinimumWalk = 0.5f;
 
+    // Some two and a half years at 60 Hz: where the world's tick count starts (#1066).
+    private const long LongUptime = 5_000_000_000;
+
     // Added to the world's seed for the loot rolls, so they are not the combat rolls' own sequence over again.
     private const int LootSeedOffset = 7919;
 
@@ -131,9 +134,10 @@ public sealed class ScenarioWorld : IDisposable
     {
         configuration ??= new GameConfiguration();
         Clock = new FakeTimeProvider(s_start);
-        // One send thread, never started: Tick runs its pass inline, on the measured thread (#875).
+        // One send thread, never started: Tick runs its pass inline, on the measured thread (#875). Its tick count starts
+        // at a long uptime, so every state packet carries the 5-byte tick a long-running world sends (#1066).
         Scheduler = new NetworkSendScheduler(new NetworkConfiguration { SendThreads = 1 }, NullLoggerFactory.Instance,
-            Clock, NetworkSendMetrics.Disabled);
+            Clock, NetworkSendMetrics.Disabled, ticks: new WorldTicks(LongUptime));
 
         var services = new ServiceCollection();
         services.AddSingleton<TimeProvider>(Clock);
@@ -145,6 +149,8 @@ public sealed class ScenarioWorld : IDisposable
         services.AddSingleton(reference?.Chunks ?? new AnyChunkLibrary());
         services.AddSingleton<ICombatRandom>(new CombatRandom(new Random(seed)));
         services.AddSingleton(new PvpToggle(Options.Create(configuration), Clock));
+        // The world's tick count, the scheduler's, as production registers it: every state packet names its tick (#1066).
+        services.AddSingleton(Scheduler.Ticks);
         if (reference is not null)
             AddReferenceServices(services, reference, configuration, seed);
         _services = services.BuildServiceProvider();
@@ -341,6 +347,8 @@ public sealed class ScenarioWorld : IDisposable
             Scheduler.SignalAll();
             Scheduler.RunAllPasses();
 
+            // The tick's end, as WorldServer's: the count moves on, then the clock.
+            Scheduler.Ticks.Advance();
             Clock.Advance(delta);
         }
         finally

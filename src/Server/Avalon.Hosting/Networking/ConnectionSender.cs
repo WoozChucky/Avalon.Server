@@ -258,7 +258,8 @@ public sealed class ConnectionSender : IOutbox
 
     /// <summary>
     /// Queues a time-sync ping. Its server timestamp is taken by the owner send thread as the ping's burst is written
-    /// (#875), so the round trip measured from it holds no queueing or tick wait, and is kept until a pong echoes it
+    /// (#875), with the world's tick beside it (#1066, <see cref="NetworkSendScheduler.Ticks" />), so the round trip
+    /// measured from it holds no queueing or tick wait, and is kept until a pong echoes it
     /// (<see cref="TryTakePingStamp" />, #892). A second ping queued before the first went out carries the latest
     /// values. A ping still queued when the connection closes, or found too slow, is dropped unstamped, and none follows
     /// a disconnect notice.
@@ -505,9 +506,12 @@ public sealed class ConnectionSender : IOutbox
     {
         try
         {
+            // The world's tick in the same step as the server time (#1066): the pair a client turns ticks into time with.
             long serverTicks = _time.GetUtcNow().UtcTicks;
+            long worldTick = _scheduler.Ticks.Completed;
             OutboundPacket stamped = SPingPacket.Create(serverTicks, Volatile.Read(ref _pingRoundTrip),
-                Volatile.Read(ref _pingOffset), Volatile.Read(ref _pingTickMicros), _encoder);
+                Volatile.Read(ref _pingOffset), Volatile.Read(ref _pingTickMicros), worldTick, WorldTicks.PerSecond,
+                _encoder);
             int size = stamped.Size; // read before the release gives the payload back
             try
             {

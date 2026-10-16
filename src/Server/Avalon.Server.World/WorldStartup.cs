@@ -4,6 +4,7 @@ using Avalon.Database.World.Seeding;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Serialization;
+using Avalon.World.GameAuth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -35,6 +36,11 @@ public static class WorldStartup
         // serializer built (#883), so neither is left to the first packet of the type, which a world sends on the
         // tick. A packet that cannot be encoded stops the start.
         PacketEncoder.PrepareServerPackets();
+
+        // The backstop (#967) is built here, and logs the player limit that guards this world as it is. Left to the
+        // container, it was built by the first admission's handler, so a world that admitted nobody never said its
+        // limit, and one that did said it at that admission rather than at its start.
+        _ = host.Services.GetRequiredService<WorldBackstop>();
 
         ILogger logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(Program));
         await using AsyncServiceScope scope = host.Services.CreateAsyncScope();

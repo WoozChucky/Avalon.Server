@@ -31,7 +31,7 @@ public class WorldStateDecodeShould
             Unit(nearCreature, 5, 0, 5, health: 50, dead: false),
             Unit(farCreature, 20, 0, 0, health: 80, dead: false),
             Unit(otherPlayer, 1, 0, 1, health: 120, dead: false),
-        ], PacketEncoder.Shared), server), codec);
+        ], 0, PacketEncoder.Shared), server), codec);
 
         Assert.Equal(3, table.Count);
         Assert.True(table.TryNearestLiveCreature(0, 0, 60, out TrackedObject target));
@@ -43,7 +43,7 @@ public class WorldStateDecodeShould
         [
             new ObjectState { Guid = farCreature, Position = new Vec3 { X = 3, Y = 1, Z = 4 } },
             new ObjectState { Guid = nearCreature, CurrentHealth = 0, IsDead = true },
-        ], PacketEncoder.Shared), server), codec);
+        ], 0, PacketEncoder.Shared), server), codec);
 
         Assert.True(table.TryGet(nearCreature, out TrackedObject corpse));
         Assert.Equal(new TrackedObject(nearCreature, 2, 5, 0, 5, true, 0), corpse);

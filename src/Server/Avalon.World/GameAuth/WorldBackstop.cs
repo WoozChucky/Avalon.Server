@@ -30,7 +30,8 @@ public sealed partial class WorldBackstop
     {
         (_limit, _clock, _logger) = (config.PlayerLimit, clock, logger);
         Ceiling = config.PlayerLimit is { } limit ? CeilingOf(limit, config) : null;
-        // Built with the packet handlers as the world starts: every start says which limit guards it.
+        // Built as the world starts (WorldStartup.PrepareAsync), before the port opens: every start says which limit
+        // guards it.
         if (_limit is { } configured) Configured(logger, configured, Ceiling!.Value);
         else NotConfigured(logger);
     }

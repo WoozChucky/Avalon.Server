@@ -21,6 +21,10 @@ public class PacketSerializationAllocationShould
 
     private static readonly DateTime s_when = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
+    // A world up for some two and a half years at 60 Hz (#1066): the state packets' tick a 5-byte varint, as a long-running
+    // world sends it, not tick 0, which protobuf-net leaves off the wire.
+    private const long LongUptime = 5_000_000_000;
+
     private static List<ObjectState> States(int count, string name)
     {
         var states = new List<ObjectState>(count);
@@ -47,7 +51,7 @@ public class PacketSerializationAllocationShould
     public void Serialize_nested_messages_without_allocating_per_message()
     {
         var packet = new SInstanceStateUpdatePacket { Updates = States(100, "Bench Wolf") };
-        SInstanceStateUpdatePacket.Create(packet.Updates, s_encoder).Release();
+        SInstanceStateUpdatePacket.Create(packet.Updates, LongUptime, s_encoder).Release();
 
         // The fewest bytes over three windows, as WaypointRepathAllocationShould takes them.
         long fewest = long.MaxValue;
@@ -55,7 +59,7 @@ public class PacketSerializationAllocationShould
         {
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int create = 0; create < 10; create++)
-                SInstanceStateUpdatePacket.Create(packet.Updates, s_encoder).Release();
+                SInstanceStateUpdatePacket.Create(packet.Updates, LongUptime, s_encoder).Release();
 
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
@@ -77,11 +81,15 @@ public class PacketSerializationAllocationShould
     [MemberData(nameof(Shapes))]
     public void Write_the_bytes_a_buffer_writer_writes(int count, int nameLength)
     {
-        var packet = new SInstanceStateUpdatePacket { Updates = States(count, new string('w', nameLength)) };
+        var packet = new SInstanceStateUpdatePacket
+        {
+            Updates = States(count, new string('w', nameLength)),
+            WorldTick = LongUptime,
+        };
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        OutboundPacket written = SInstanceStateUpdatePacket.Create(packet.Updates, s_encoder);
+        OutboundPacket written = SInstanceStateUpdatePacket.Create(packet.Updates, LongUptime, s_encoder);
 
         Assert.Equal(reference.WrittenSpan.ToArray(), written.PayloadMemory.ToArray());
         written.Release();
@@ -153,14 +161,14 @@ public class PacketSerializationAllocationShould
     [Fact]
     public void Start_each_packet_afresh_after_a_larger_one()
     {
-        SInstanceStateUpdatePacket.Create(States(400, new string('w', 200)), s_encoder).Release();
+        SInstanceStateUpdatePacket.Create(States(400, new string('w', 200)), LongUptime, s_encoder).Release();
 
         List<ObjectState> small = States(1, "Wolf");
-        var packet = new SInstanceStateUpdatePacket { Updates = small };
+        var packet = new SInstanceStateUpdatePacket { Updates = small, WorldTick = LongUptime };
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        OutboundPacket written = SInstanceStateUpdatePacket.Create(small, s_encoder);
+        OutboundPacket written = SInstanceStateUpdatePacket.Create(small, LongUptime, s_encoder);
 
         Assert.Equal(reference.WrittenSpan.ToArray(), written.PayloadMemory.ToArray());
         written.Release();

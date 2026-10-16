@@ -1,6 +1,7 @@
 using Avalon.Combat;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Serialization;
 using Avalon.World;
 using Avalon.World.Auras;
@@ -81,12 +82,14 @@ internal static class TestMapInstances
     /// <param name="auraScripts">Runs the auras' scripts; none runs when omitted.</param>
     /// <param name="encoder">What the instance encodes its world-state and aura packets with; the process's own when omitted.</param>
     /// <param name="layout">The instance's layout; one 30 m chunk at the origin when omitted.</param>
+    /// <param name="worldTicks">The world's tick count its state packets name (#1066); none when omitted, so tick 0.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
         MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
         PartyId? ownerPartyId = null, MapTemplateId? templateId = null, PartyService? parties = null,
         QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null,
-        AuraScripts? auraScripts = null, PacketEncoder? encoder = null, ChunkLayout? layout = null)
+        AuraScripts? auraScripts = null, PacketEncoder? encoder = null, ChunkLayout? layout = null,
+        WorldTicks? worldTicks = null)
     {
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -127,6 +130,10 @@ internal static class TestMapInstances
         if (encoder is not null)
         {
             serviceProvider.GetService(typeof(PacketEncoder)).Returns(encoder);
+        }
+        if (worldTicks is not null)
+        {
+            serviceProvider.GetService(typeof(WorldTicks)).Returns(worldTicks);
         }
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);

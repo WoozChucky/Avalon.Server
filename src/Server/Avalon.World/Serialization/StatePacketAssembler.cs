@@ -13,9 +13,11 @@ namespace Avalon.World.Serialization;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Both packets have one member, a repeated message, and their payload is its entries one after another
-/// (<see cref="SInstanceStateAddPacket.WriteEntry" />, <see cref="SInstanceStateUpdatePacket.WriteEntry" />), so a
-/// packet copied together from entries is byte for byte the one the packet's <c>Create</c> writes for the same list.
+/// Both packets have two members, a repeated message and the world tick, and their payload is the entries one after
+/// another (<see cref="SInstanceStateAddPacket.WriteEntry" />, <see cref="SInstanceStateUpdatePacket.WriteEntry" />),
+/// then the tick (<see cref="SInstanceStateUpdatePacket.WriteTick" />, #1066), so a packet copied together from entries,
+/// with the broadcast's tick after them, is byte for byte the one the packet's <c>Create</c> writes for the same list
+/// and tick. The tick is the same for every packet of a broadcast, so it is encoded once, by the first packet finished.
 /// An entity's entry depends on the entity and the fields it is described with, which are the same for every
 /// recipient but one: a character's add or update to its own client, whose motion is left out and which alone carries
 /// its experience (<c>MapInstance.MaskForRecipient</c>, #993), and which the caller describes and appends for that
@@ -59,6 +61,12 @@ public sealed class StatePacketAssembler
     // The packet being put together.
     private readonly MemoryStream _packet = new(1024);
 
+    // This broadcast's world tick (#1066), and its encoding once the first packet of the broadcast has been finished: a
+    // tag and a varint, at most eleven bytes.
+    private readonly MemoryStream _tick = new(16);
+    private long _worldTick;
+    private bool _tickWritten;
+
     private StatePacketAssembler(bool adds) => _adds = adds;
 
     /// <summary>Whether the packet begun has no entry: nothing to send.</summary>
@@ -70,11 +78,16 @@ public sealed class StatePacketAssembler
     /// <summary>An assembler of <c>SMSG_WORLD_STATE_UPDATE</c> packets.</summary>
     public static StatePacketAssembler ForUpdates() => new(adds: false);
 
-    /// <summary>A new broadcast: the entries of the last one are forgotten.</summary>
-    public void BeginBroadcast()
+    /// <summary>
+    /// A new broadcast, of the state of world tick <paramref name="worldTick" />, which every packet of it carries: the
+    /// entries and the tick of the last one are forgotten.
+    /// </summary>
+    public void BeginBroadcast(long worldTick)
     {
         _entries.SetLength(0);
         _index.Clear();
+        _worldTick = worldTick;
+        _tickWritten = false;
     }
 
     /// <summary>A new recipient's packet, empty.</summary>
@@ -120,9 +133,23 @@ public sealed class StatePacketAssembler
     /// <summary>Encodes <paramref name="state" /> into this packet alone: the recipient's own character.</summary>
     public void AppendOwn(ObjectState state) => Write(state, _packet);
 
-    /// <summary>The packet put together since <see cref="BeginPacket" />, in a segment of <paramref name="encoder" />'s pool.</summary>
+    /// <summary>
+    /// The packet put together since <see cref="BeginPacket" />, its entries then the broadcast's tick, in a segment of
+    /// <paramref name="encoder" />'s pool.
+    /// </summary>
     public OutboundPacket Finish(PacketEncoder encoder)
     {
+        if (!_tickWritten)
+        {
+            _tick.SetLength(0);
+            if (_adds)
+                SInstanceStateAddPacket.WriteTick(_worldTick, _tick);
+            else
+                SInstanceStateUpdatePacket.WriteTick(_worldTick, _tick);
+            _tickWritten = true;
+        }
+
+        _packet.Write(_tick.GetBuffer(), 0, (int)_tick.Length);
         var payload = new ReadOnlySpan<byte>(_packet.GetBuffer(), 0, (int)_packet.Length);
         return _adds
             ? encoder.FromPayload(payload, SInstanceStateAddPacket.PacketType, SInstanceStateAddPacket.Flags,

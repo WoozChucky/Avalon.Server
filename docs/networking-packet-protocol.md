@@ -143,8 +143,9 @@ and releases its own references when the pass ends, also when it throws (#980). 
 (`SInstanceStateAdd/Update/Remove`) and the aura list stay per recipient: each recipient hears its own set of units.
 An add's and an update's payload, though, is copied together from entries each encoded once per broadcast
 (`SInstanceStateAddPacket.WriteEntry`, `SInstanceStateUpdatePacket.WriteEntry`, `PacketEncoder.FromPayload`): a
-repeated message field is its entries one after another, so the bytes are those `Create` writes for the same list
-([world simulation](world-simulation.md)).
+repeated message field is its entries one after another, and protobuf-net writes the packet's other member, the world
+tick (#1066), after them, so the entries followed by the broadcast's tick, encoded once per broadcast
+(`WriteTick`), are the bytes `Create` writes for the same list and tick ([world simulation](world-simulation.md)).
 
 Nor a message object per packet. `Create` fills the calling thread's instance of its message type
 (`PacketEncoder.Scratch<T>()`) and encodes it before it returns, so one instance per thread serves every packet of that
@@ -285,6 +286,8 @@ Every time is in UTC ticks (100 ns, counted from year 1).
 | | `Rtt` (3) | The last network round trip the server measured |
 | | `Offset` (4) | Server time minus client time, from that same exchange: a client adds it to its own clock to read the server's |
 | | `TickMicros` (5) | The world's mean tick time in microseconds; 0, not reported (below) |
+| | `WorldTick` (6) | The world's tick count as `ServerTimestamp` was read, in the same step: the anchor of the state broadcast's ticks (below) |
+| | `WorldTickRate` (7) | The rate the world's loop is scheduled at, in ticks a second: 60; 0 from a server that does not send it |
 | `CPongPacket` | `LastServerTimestamp` (1) | The `ServerTimestamp` of the ping it answers, echoed exactly |
 | | `ClientReceivedTimestamp` (2) | When the client received the ping, on its own clock: t2 |
 | | `ClientSentTimestamp` (3) | When the client sent the pong, on the same clock: t3 |
@@ -351,6 +354,23 @@ figure it holds, which is at most one window old. **0 means not reported**: no w
 on a world's first second, the handshake ping of a world that just started), or a server from before this field; a
 measured mean is never 0. A client keeps its dash for 0. The field costs 2 to 4 bytes per ping for any mean under
 2.1 s (2,000 µs is 3 bytes, 16,667 µs is 4), 5 or 6 bytes for a stall longer than that, and nothing when 0.
+
+**The world's tick, and its anchor (#1066).** Every `SInstanceStateAddPacket` and `SInstanceStateUpdatePacket` carries
+`WorldTick` (field 2): the number of the world loop's tick that built it, the first being 0. It is the world's count
+of completed ticks (`WorldServer.CompletedTicks`, kept in `WorldTicks`), read once per instance as its broadcast
+begins, after the tick's simulation; the count moves on as the tick ends. One field per packet, not per object: every
+object in a packet was simulated in that tick. So a client can tell which step a position belongs to, and, since the
+count is exact and moves by one, a gap or a duplicate. The ping's `WorldTick` is the same count, read by the send
+thread in the same step as `ServerTimestamp` as it stamps the ping: the number of the tick running then, or of the
+next one between ticks (so within one tick of the instant). With the ping's time, and the client's clock offset, it
+turns a broadcast's tick into server time: `server time of tick T ≈ ServerTimestamp + (T - WorldTick) / WorldTickRate`.
+A fresh pair comes every ping, so the client never counts forward from an old one across ticks that ran long or the
+loop's resync after a stall, which leave the count short of 60 a second. `WorldTickRate` is the loop's scheduled rate
+(`WorldTicks.PerSecond`, the constant the loop's period is derived from), so a client does not hard-code 60. A tick
+that throws is not counted, so the tick after it carries the same number. Both fields are `int64`, the type of the
+count: a varint of 1 to 5 bytes for any uptime under some eighteen years (3 bytes past 4.5 minutes, 4 past 9.7 hours,
+5 past 52 days), plus the tag, which a `uint32` would match byte for byte while wrapping after 2.27 years; tick 0 is
+left off the wire.
 
 **What a client must do.** Echo `ServerTimestamp` unchanged, answer each ping once, and send no other pong: a pong
 that echoes anything else uses up that ping's one answer, and the true echo sent after it is dropped. Answer every

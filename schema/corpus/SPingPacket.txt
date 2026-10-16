@@ -20,6 +20,8 @@ variant absent
   field 3 Rtt : long = 0
   field 4 Offset : long = 0
   field 5 TickMicros : uint = 0
+  field 6 WorldTick : long = 0
+  field 7 WorldTickRate : uint = 0
   bytes 0
 
 variant empty
@@ -27,6 +29,8 @@ variant empty
   field 3 Rtt : long = 0
   field 4 Offset : long = 0
   field 5 TickMicros : uint = 0
+  field 6 WorldTick : long = 0
+  field 7 WorldTickRate : uint = 0
   bytes 0
 
 variant populated
@@ -34,18 +38,23 @@ variant populated
   field 3 Rtt : long = 5000000000
   field 4 Offset : long = -262144
   field 5 TickMicros : uint = 4000000000
-  bytes 25
+  field 6 WorldTick : long = 19
+  field 7 WorldTickRate : uint = 42
+  bytes 29
     08 13 18 80 e4 97 d0 12 20 80 80 f0 ff ff ff ff
-    ff ff 01 28 80 d0 ac f3 0e
+    ff ff 01 28 80 d0 ac f3 0e 30 13 38 2a
 
 variant maxima
   field 1 ServerTimestamp : long = 9223372036854775807
   field 3 Rtt : long = 9223372036854775807
   field 4 Offset : long = 9223372036854775807
   field 5 TickMicros : uint = 4294967295
-  bytes 36
+  field 6 WorldTick : long = 9223372036854775807
+  field 7 WorldTickRate : uint = 4294967295
+  bytes 52
     08 ff ff ff ff ff ff ff ff 7f 18 ff ff ff ff ff
     ff ff ff 7f 20 ff ff ff ff ff ff ff ff 7f 28 ff
+    ff ff ff 0f 30 ff ff ff ff ff ff ff ff 7f 38 ff
     ff ff ff 0f
 
 variant minima
@@ -53,16 +62,20 @@ variant minima
   field 3 Rtt : long = -9223372036854775808
   field 4 Offset : long = -9223372036854775808
   field 5 TickMicros : uint = 0
-  bytes 33
+  field 6 WorldTick : long = -9223372036854775808
+  field 7 WorldTickRate : uint = 0
+  bytes 44
     08 80 80 80 80 80 80 80 80 80 01 18 80 80 80 80
     80 80 80 80 80 01 20 80 80 80 80 80 80 80 80 80
-    01
+    01 30 80 80 80 80 80 80 80 80 80 01
 
 variant varint-edges
   field 1 ServerTimestamp : long = 34359738367
   field 3 Rtt : long = 16383
   field 4 Offset : long = 34359738368
   field 5 TickMicros : uint = 2097151
-  bytes 20
+  field 6 WorldTick : long = 2097151
+  field 7 WorldTickRate : uint = 2097152
+  bytes 29
     08 ff ff ff ff 7f 18 ff 7f 20 80 80 80 80 80 01
-    28 ff ff 7f
+    28 ff ff 7f 30 ff ff 7f 38 80 80 80 01
