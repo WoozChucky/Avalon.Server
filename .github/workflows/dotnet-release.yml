@@ -20,7 +20,7 @@ jobs:
   # from, among the nightly images the registry still keeps (the last 14 days, and always the newest ten).
   # A pushed annotated tag whose message contains [hotfix] skips the check, with a warning.
   resolve:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions: { contents: write, packages: read }   # contents: write to push the tag a manual run creates
     outputs:
       tag: ${{ steps.pick.outputs.tag }}
@@ -81,7 +81,7 @@ jobs:
   release:
     needs: resolve
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 45
     permissions:
       contents: write   # create the GitHub release
@@ -150,7 +150,7 @@ jobs:
   # Its own job, so a failure is re-run alone ("Re-run failed jobs"), not with the images and charts.
   changelog:
     needs: [resolve, release]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       pull-requests: read
@@ -177,7 +177,7 @@ jobs:
   # away instead of the previous version's number on the same code (#686).
   dev-build:
     needs: release
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions: { actions: write }
     steps:
       - run: gh workflow run dotnet-ci.yml -R "$GITHUB_REPOSITORY" -f ref=main

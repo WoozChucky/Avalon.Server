@@ -7,7 +7,7 @@ permissions: {}
 jobs:
   pr-check:
     name: Title and player note
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: WoozChucky/avalon-release-notes/pr-check@e50cee08fadcb9f8eef30319cf394f86a10970f6 # v0.4.0
         with:

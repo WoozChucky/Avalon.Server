@@ -6,7 +6,7 @@ on:
 concurrency: { group: server-nightly, cancel-in-progress: false }
 jobs:
   promote:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions: { contents: read, packages: write }
     outputs:
       promote: ${{ steps.pick.outputs.promote }}
@@ -55,7 +55,7 @@ jobs:
   changelog:
     needs: promote
     if: needs.promote.outputs.promote == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions: { contents: read, pull-requests: read }
     steps:
       - uses: actions/setup-python@v7
