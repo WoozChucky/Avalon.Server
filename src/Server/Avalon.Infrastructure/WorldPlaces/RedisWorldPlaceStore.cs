@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
@@ -422,9 +423,21 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         if ((int)r[1] == 1) outage.ReportTombstoneRefused();
     }
 
-    public Task ReleaseHeldAsync(ushort worldId, CancellationToken cancellationToken) =>
-        RunAsync(ReleaseHeld, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
-            [Now, Ms(IWorldPlaceStore.HeldReleaseWindow)], cancellationToken);
+    public Task ReleaseHeldAsync(ushort worldId, CancellationToken cancellationToken)
+    {
+        // The burst of a stop's ends asks it once: inside the window this replica does not ask Redis at all, and the
+        // script's own field holds the window across replicas.
+        long now = Now;
+        if (_lastRelease.TryGetValue(worldId, out long last) && now >= last && now - last < s_releaseWindow)
+            return Task.CompletedTask;
+        _lastRelease[worldId] = now;
+        return RunAsync(ReleaseHeld, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
+            [now, s_releaseWindow], cancellationToken);
+    }
+
+    // The last release this replica asked of each world, Unix ms on the injected clock.
+    private readonly ConcurrentDictionary<ushort, long> _lastRelease = new();
+    private static readonly long s_releaseWindow = Ms(IWorldPlaceStore.HeldReleaseWindow);
 
     public Task RejoinAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken cancellationToken) =>
         RunAsync(Rejoin, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
