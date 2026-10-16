@@ -201,7 +201,8 @@ public sealed class GameAdmissionClientShould
     }
     /// <summary>
     /// #967: an identity from before the session-end reason refuses the unknown member with 400. The world must still end
-    /// the session, or the player's next join meets ACTIVE_GAME_SESSION until the lease runs out.
+    /// the session, or the player's next join meets ACTIVE_GAME_SESSION until the lease runs out; and it remembers, so
+    /// the next ends cost one request each, offering the reason again only after the probe interval.
     /// </summary>
     [Fact]
     public async Task End_the_session_without_the_reason_when_identity_refuses_it()
@@ -210,14 +211,22 @@ public sealed class GameAdmissionClientShould
             ? new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = JsonContent.Create(new { title = "One or more validation errors occurred." }) }
             : Json(new SessionLeaseResponse { State = "ended" }));
         using var http = new HttpClient(handler);
-        var client = new GameAdmissionClient(http, Options(), TimeProvider.System);
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var client = new GameAdmissionClient(http, Options(), clock);
 
-        SessionLeaseResponse reply = await client.EndAsync(WorldAdmissionConnection.Lease(), GameSessionEndReasons.Drop, default);
+        SessionLeaseResponse reply = await client.EndAsync(WorldAdmissionConnection.Lease(clock), GameSessionEndReasons.Drop, default);
 
         Assert.Equal("ended", reply.State);
         Assert.Equal(2, handler.Paths.Count);
         Assert.Contains("\"reason\":\"drop\"", handler.Bodies[0], StringComparison.Ordinal);
         Assert.DoesNotContain("reason", handler.Bodies[1], StringComparison.OrdinalIgnoreCase);
+
+        await client.EndAsync(WorldAdmissionConnection.Lease(clock), GameSessionEndReasons.Drop, default); // latched: one request
+        clock.Advance(TimeSpan.FromMinutes(5));
+        await client.EndAsync(WorldAdmissionConnection.Lease(clock), GameSessionEndReasons.Drop, default); // the probe
+        Assert.Equal(4, handler.Paths.Count);
+        Assert.DoesNotContain("reason", handler.Bodies[2], StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"reason\":\"drop\"", handler.Bodies[3], StringComparison.Ordinal);
     }
 
     private static HttpResponseMessage Json<T>(T value, HttpStatusCode status = HttpStatusCode.OK) => new(status) { Content = JsonContent.Create(value) };

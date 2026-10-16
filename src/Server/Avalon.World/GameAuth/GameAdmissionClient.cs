@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Avalon.Common.GameAuth;
 using Avalon.Infrastructure.GameAuth;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.GameAuth;
 
@@ -33,7 +34,8 @@ public interface IGameAdmissionClient
 }
 
 /// <summary>Bounded, fixed-origin workload requests. The transport supplies mTLS; credentials never enter logs.</summary>
-public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions options, TimeProvider clock) : IGameAdmissionClient
+public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions options, TimeProvider clock,
+    ILogger<GameAdmissionClient>? logger = null) : IGameAdmissionClient
 {
     private static readonly JsonSerializerOptions s_json = new(JsonSerializerDefaults.Web);
     private Uri Endpoint(string path) => new(new Uri(options.ApiUrl), "internal/game/" + path);
@@ -124,12 +126,44 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
 
     public async Task<SessionLeaseResponse> EndAsync(GameSessionLease lease, string reason, CancellationToken cancellationToken)
     {
+        long now = clock.GetUtcNow().ToUnixTimeMilliseconds();
+        if (_identityRefusesReason)
+        {
+            // Latched: ends go without the reason, one request each, but one in every probe interval, which asks again.
+            long due = Interlocked.Read(ref _reasonProbeAt);
+            if (now < due || Interlocked.CompareExchange(ref _reasonProbeAt, now + ReasonProbeInterval, due) != due)
+                return await ControlAsync("end", lease, null, cancellationToken);
+        }
+
         SessionLeaseResponse reply = await ControlAsync("end", lease, reason, cancellationToken);
+        if (reply.Error != RefusedRequest)
+        {
+            if (reply.Error is null) _identityRefusesReason = false; // identity takes the reason now
+            return reply;
+        }
+
         // An identity from before #967 refuses the member it does not know (400): end the session anyway, without the
-        // reason, which it reads as a drop. Otherwise the player's next join would meet ACTIVE_GAME_SESSION until the
-        // lease ran out.
-        return reply.Error == RefusedRequest ? await ControlAsync("end", lease, null, cancellationToken) : reply;
+        // reason, or the player's next join would meet ACTIVE_GAME_SESSION until the lease ran out. Remembered, so a
+        // stop's ends do not each cost two requests while that identity runs.
+        Interlocked.Exchange(ref _reasonProbeAt, now + ReasonProbeInterval);
+        if (!_identityRefusesReason)
+        {
+            _identityRefusesReason = true;
+            logger?.LogWarning(
+                "Identity refused the reason of a game session end: it predates #967. Session ends are sent without it, and the reason is offered again every {Minutes} minutes",
+                ReasonProbeInterval / 60_000);
+        }
+
+        return await ControlAsync("end", lease, null, cancellationToken);
     }
+
+    /// <summary>How often, in ms, an end offers its reason again once identity refused it.</summary>
+    private const long ReasonProbeInterval = 5 * 60_000;
+
+    // Whether identity refused an end's reason (#967): ends then go without it until the next probe (_reasonProbeAt,
+    // Unix ms on the injected clock) finds an identity that takes it.
+    private volatile bool _identityRefusesReason;
+    private long _reasonProbeAt;
 
     /// <summary>A 400 with no error of identity's own to a request that carried a reason: the request's shape was refused.</summary>
     private const string RefusedRequest = "REQUEST_REFUSED";
