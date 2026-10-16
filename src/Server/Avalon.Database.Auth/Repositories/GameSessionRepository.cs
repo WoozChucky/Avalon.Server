@@ -141,17 +141,21 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
     /// The lease end of a pending session that was ended (#1013): a fixed point every clock has passed, so no API replica,
     /// however far its clock lags, can still activate it (activation requires a lease end after its own time).
     /// </summary>
-    private static readonly DateTime s_endedPending = DateTime.UnixEpoch;
+    public static readonly DateTime EndedPendingLeaseUntil = DateTime.UnixEpoch;
+    private static readonly DateTime s_endedPending = EndedPendingLeaseUntil;
 
     /// <summary>
     /// Ends the session: an active one at <paramref name="now" />. A session that never became active was never the
-    /// writer, so it stays pending with its reservation run out (#1013, see <see cref="TryExpirePendingAsync" />).
+    /// writer, so it stays pending with its reservation run out (#1013, see <see cref="TryExpirePendingAsync" />). False
+    /// when the head is not this session, or this session was already ended (#967: a repeated end changes nothing, so
+    /// its caller can tell it from the end that did it).
     /// </summary>
     public async Task<bool> TryEndAsync(AccountId accountId, Guid sessionId, long fence, DateTime now,
         CancellationToken cancellationToken = default)
     {
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
-        return await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId && x.FencingToken == fence)
+        return await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId && x.FencingToken == fence &&
+                x.State != GameSessionState.Ended && !(x.State == GameSessionState.Pending && x.LeaseUntil == s_endedPending))
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.State, x => x.State == GameSessionState.Pending ? GameSessionState.Pending : GameSessionState.Ended)
                 .SetProperty(x => x.LeaseUntil, x => x.State == GameSessionState.Pending ? s_endedPending : now), cancellationToken) == 1;
     }
@@ -160,14 +164,14 @@ public sealed partial class GameSessionRepository(IDbContextFactory<AuthDbContex
     /// Ends the session only while it is still pending (#1013): its reservation runs out and it stays pending, so the
     /// next reservation keeps the last active ancestor for its save barrier, as after a pending reservation that ran out
     /// by itself. False when the head is no longer this pending session, for instance an activation in flight made it
-    /// active: that one ends as an active session, its guard blocked first.
+    /// active: that one ends as an active session, its guard blocked first. False too when it was already ended (#967).
     /// </summary>
     public async Task<bool> TryExpirePendingAsync(AccountId accountId, Guid sessionId, long fence,
         CancellationToken cancellationToken = default)
     {
         await using AuthDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         return await db.GameSessions.Where(x => x.AccountId == accountId && x.GameSessionId == sessionId && x.FencingToken == fence &&
-                x.State == GameSessionState.Pending)
+                x.State == GameSessionState.Pending && x.LeaseUntil != s_endedPending)
             .ExecuteUpdateAsync(u => u.SetProperty(x => x.LeaseUntil, s_endedPending), cancellationToken) == 1;
     }
 

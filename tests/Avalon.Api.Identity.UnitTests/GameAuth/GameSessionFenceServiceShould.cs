@@ -427,10 +427,13 @@ public sealed class GameSessionFenceServiceShould
     // missed as a drop (its heartbeat refused), and a ban before the activation ends the pending session with no reason.
     [InlineData(GameSessionEndReasons.Drop, false, AccountStatus.Banned)]
     [InlineData(null, false, AccountStatus.Deactivated)]
+    // The world repeats the end once the session's tombstone has expired (its first reply lost): "ended", and the hold is
+    // where the first end put it.
+    [InlineData(GameSessionEndReasons.Drop, true, AccountStatus.Active, false, true)]
     // The theory runs on the first "ended" path (guard and session ended). The other two call the same EndedAsync, where
     // the rule lives once.
     public async Task Hold_the_place_only_for_a_session_that_dropped(string? reason, bool held,
-        AccountStatus status = AccountStatus.Active, bool releasesHeld = false)
+        AccountStatus status = AccountStatus.Active, bool releasesHeld = false, bool repeated = false)
     {
         await Arrange();
         DateTime now = _h.Clock.GetUtcNow().UtcDateTime;
@@ -445,7 +448,19 @@ public sealed class GameSessionFenceServiceShould
 
         int others = releasesHeld ? 0 : 1;
         Assert.Equal(held ? (1 + others, 1 + others) : (others, others), Taken(await _h.Places.CountAsync(1, default)));
-        _h.Clock.Advance(TimeSpan.FromSeconds(90));
+        if (repeated)
+        {
+            _h.Clock.Advance(TimeSpan.FromSeconds(47));
+            _head.State = GameSessionState.Ended;
+            _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(false);
+            Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, reason, default)).State);
+            _h.Clock.Advance(TimeSpan.FromSeconds(43));
+        }
+        else
+        {
+            _h.Clock.Advance(TimeSpan.FromSeconds(90));
+        }
+
         Assert.Equal((0, 0), Taken(await _h.Places.CountAsync(1, default)));
     }
 

@@ -70,7 +70,8 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
         {
             if (await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken))
                 return await EndedAsync(head.WorldId, accountId, fence, reason, cancellationToken);
-            return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
+            return await RepeatedEndAsync(accountId, sessionId, fence, cancellationToken) ??
+                GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
         }
 
         if (!await NeverReachedItsGuardAsync(guard, head, cancellationToken))
@@ -82,6 +83,8 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
             return await EndedAsync(head.WorldId, accountId, fence, reason, cancellationToken);
         }
 
+        if (await RepeatedEndAsync(accountId, sessionId, fence, cancellationToken) is { } repeated) return repeated;
+
         // The head changed since it was read: replaced, or made active by an activation in flight, which ends as any
         // active session does, its guard blocked before the head ends.
         GameSession? current = await sessions.FindAsync(accountId, cancellationToken);
@@ -91,7 +94,23 @@ public sealed class GameSessionFenceService(IGameSessionRepository sessions, Gam
             return GameSessionLeaseReply.Failure(GameAuthErrors.BarrierPending);
         if (await sessions.TryEndAsync(accountId, sessionId, fence, Now, cancellationToken))
             return await EndedAsync(head.WorldId, accountId, fence, reason, cancellationToken);
-        return GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
+        return await RepeatedEndAsync(accountId, sessionId, fence, cancellationToken) ??
+            GameSessionLeaseReply.Failure(GameAuthErrors.SessionReplaced);
+    }
+
+    /// <summary>
+    /// "ended" when this session was already ended (#967): an end repeated (the world retried, its first reply lost) is
+    /// answered as before, but changes no place, so it can neither move a held place's grace nor bring one back once the
+    /// session's tombstone has expired. Null when the head is not this session's ended one.
+    /// </summary>
+    private async Task<GameSessionLeaseReply?> RepeatedEndAsync(AccountId accountId, Guid sessionId, long fence,
+        CancellationToken cancellationToken)
+    {
+        GameSession? current = await sessions.FindAsync(accountId, cancellationToken);
+        bool ended = current is not null && current.GameSessionId == sessionId && current.FencingToken == fence &&
+            (current.State == GameSessionState.Ended ||
+             (current.State == GameSessionState.Pending && current.LeaseUntil == GameSessionRepository.EndedPendingLeaseUntil));
+        return ended ? new() { State = "ended" } : null;
     }
 
     /// <summary>
