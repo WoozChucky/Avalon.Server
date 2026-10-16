@@ -47,7 +47,7 @@ public class PacketSerializationAllocationShould
     public void Serialize_nested_messages_without_allocating_per_message()
     {
         var packet = new SInstanceStateUpdatePacket { Updates = States(100, "Bench Wolf") };
-        SInstanceStateUpdatePacket.Create(packet.Updates, s_encoder).Release();
+        SInstanceStateUpdatePacket.Create(packet.Updates, 0, s_encoder).Release();
 
         // The fewest bytes over three windows, as WaypointRepathAllocationShould takes them.
         long fewest = long.MaxValue;
@@ -55,7 +55,7 @@ public class PacketSerializationAllocationShould
         {
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int create = 0; create < 10; create++)
-                SInstanceStateUpdatePacket.Create(packet.Updates, s_encoder).Release();
+                SInstanceStateUpdatePacket.Create(packet.Updates, 0, s_encoder).Release();
 
             fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
@@ -81,7 +81,7 @@ public class PacketSerializationAllocationShould
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        OutboundPacket written = SInstanceStateUpdatePacket.Create(packet.Updates, s_encoder);
+        OutboundPacket written = SInstanceStateUpdatePacket.Create(packet.Updates, 0, s_encoder);
 
         Assert.Equal(reference.WrittenSpan.ToArray(), written.PayloadMemory.ToArray());
         written.Release();
@@ -153,14 +153,14 @@ public class PacketSerializationAllocationShould
     [Fact]
     public void Start_each_packet_afresh_after_a_larger_one()
     {
-        SInstanceStateUpdatePacket.Create(States(400, new string('w', 200)), s_encoder).Release();
+        SInstanceStateUpdatePacket.Create(States(400, new string('w', 200)), 0, s_encoder).Release();
 
         List<ObjectState> small = States(1, "Wolf");
         var packet = new SInstanceStateUpdatePacket { Updates = small };
         using var reference = new PooledArrayBufferWriter();
         Serializer.Serialize(reference, packet);
 
-        OutboundPacket written = SInstanceStateUpdatePacket.Create(small, s_encoder);
+        OutboundPacket written = SInstanceStateUpdatePacket.Create(small, 0, s_encoder);
 
         Assert.Equal(reference.WrittenSpan.ToArray(), written.PayloadMemory.ToArray());
         written.Release();

@@ -688,7 +688,7 @@ public sealed class ConnectionSenderShould
     }
 
     /// <summary>A plain packet that carries a number: an SPing's client timestamp.</summary>
-    private OutboundPacket Numbered(long stamp) => SPingPacket.Create(0, stamp, 0, 0, _encoder);
+    private OutboundPacket Numbered(long stamp) => SPingPacket.Create(0, stamp, 0, 0, 0, 0, _encoder);
 
     private OutboundPacket Payload(int length) =>
         new(new NetworkPacketHeader { Type = NetworkPacketType.SMSG_WORLD_STATE_UPDATE, Protocol = NetworkProtocol.Tcp },

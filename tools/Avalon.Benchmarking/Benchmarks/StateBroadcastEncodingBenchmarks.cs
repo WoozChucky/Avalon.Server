@@ -96,7 +96,7 @@ public class StateBroadcastEncodingBenchmarks
                     _list.Add(_moved[entity]);
             }
 
-            OutboundPacket packet = SInstanceStateUpdatePacket.Create(_list, _encoder);
+            OutboundPacket packet = SInstanceStateUpdatePacket.Create(_list, 0, _encoder);
             bytes += packet.PayloadLength;
             packet.Release();
         }
@@ -107,7 +107,7 @@ public class StateBroadcastEncodingBenchmarks
     private int UpdatesAssembled()
     {
         int bytes = 0;
-        _updates.BeginBroadcast();
+        _updates.BeginBroadcast(0);
         for (int recipient = 0; recipient < Players; recipient++)
         {
             _updates.BeginPacket();
@@ -134,7 +134,7 @@ public class StateBroadcastEncodingBenchmarks
             for (int entity = 0; entity < Entities; entity++)
                 _list.Add(entity == recipient ? _own[entity] : _full[entity]);
 
-            OutboundPacket packet = SInstanceStateAddPacket.Create(_list, _encoder);
+            OutboundPacket packet = SInstanceStateAddPacket.Create(_list, 0, _encoder);
             bytes += packet.PayloadLength;
             packet.Release();
         }
@@ -145,7 +145,7 @@ public class StateBroadcastEncodingBenchmarks
     private int AddsAssembled()
     {
         int bytes = 0;
-        _adds.BeginBroadcast();
+        _adds.BeginBroadcast(0);
         for (int recipient = 0; recipient < Players; recipient++)
         {
             _adds.BeginPacket();

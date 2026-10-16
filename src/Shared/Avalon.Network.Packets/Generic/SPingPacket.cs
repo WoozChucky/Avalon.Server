@@ -52,13 +52,31 @@ public class SPingPacket : Packet
     /// </summary>
     [ProtoMember(5)] public uint TickMicros { get; set; }
 
-    public static OutboundPacket Create(long serverTicks, long rtt, long offset, uint tickMicros, PacketEncoder encoder)
+    /// <summary>
+    /// The world's tick as <see cref="ServerTimestamp" /> was read (#1066), read in the same step: the count of the world
+    /// loop's ticks completed then, so the number of the tick running, or of the next one between ticks. The same count
+    /// the state broadcast carries (<c>SInstanceStateUpdatePacket.WorldTick</c>), so with this ping's time it anchors a
+    /// broadcast's tick to server time: a fresh pair every ping, without the drift of ticks that ran long. 0 for the
+    /// first tick, and from a server that does not send it.
+    /// </summary>
+    [ProtoMember(6)] public long WorldTick { get; set; }
+
+    /// <summary>
+    /// The rate the world's loop is scheduled at, in ticks a second (#1066): 60. What a client steps a tick from the
+    /// anchor by, rather than a rate of its own. 0 from a server that does not send it.
+    /// </summary>
+    [ProtoMember(7)] public uint WorldTickRate { get; set; }
+
+    public static OutboundPacket Create(long serverTicks, long rtt, long offset, uint tickMicros, long worldTick,
+        uint worldTickRate, PacketEncoder encoder)
     {
         SPingPacket message = PacketEncoder.Scratch<SPingPacket>();
         message.ServerTimestamp = serverTicks;
         message.Rtt = rtt;
         message.Offset = offset;
         message.TickMicros = tickMicros;
+        message.WorldTick = worldTick;
+        message.WorldTickRate = worldTickRate;
         return encoder.Encode(message, PacketType, NetworkPacketFlags.None, Protocol);
     }
 }

@@ -51,7 +51,7 @@ public class FighterShould
 
         // The forest, 300 ms after the request: the fighter starts at its entry spawn and sees a creature 55 m north.
         wizard.Transition(Fighter.ForestMapId, _now + Stopwatch.Frequency * 3 / 10);
-        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true), Creature(_north, 15f, 70f)], PacketEncoder.Shared));
+        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true), Creature(_north, 15f, 70f)], 0, PacketEncoder.Shared));
 
         // It walks into reach and casts its basic ability at the creature's position, standing.
         step = wizard.RunUntil(s => s.Action != FighterAction.None);
@@ -69,16 +69,16 @@ public class FighterShould
         Assert.InRange(steps, 50, 52);
 
         // The creature it cast at dies (a kill) as another comes into view to the east: the fighter turns east to it.
-        wizard.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _north, CurrentHealth = 0, IsDead = true }],
+        wizard.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _north, CurrentHealth = 0, IsDead = true }], 0,
             PacketEncoder.Shared));
-        wizard.Apply(SInstanceStateAddPacket.Create([Creature(_east, 60f, 51f)], PacketEncoder.Shared));
+        wizard.Apply(SInstanceStateAddPacket.Create([Creature(_east, 60f, 51f)], 0, PacketEncoder.Shared));
         step = wizard.RunUntil(s => s.Action != FighterAction.None);
         Assert.Equal((60f, 51f), (step.AimX, step.AimZ));
         Assert.Equal(41f, wizard.X, 0.5f);
 
         // That one dies too. With nothing else in sight it walks on north until its 20 s in the forest are up, then
         // back the way it came, never into the wall, by the entry spawn to the portal at (15, 5).
-        wizard.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _east, CurrentHealth = 0, IsDead = true }],
+        wizard.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _east, CurrentHealth = 0, IsDead = true }], 0,
             PacketEncoder.Shared));
         wizard.RunUntil(s => s.Action != FighterAction.None || wizard.Fighter.State == FighterState.ToExit);
         Assert.Equal(FighterState.ToExit, wizard.Fighter.State);
@@ -105,7 +105,7 @@ public class FighterShould
         // step, with the table still showing it alive. Again every 5 s, and it is in town once moved.
         wizard.RunUntil(s => s.Action == FighterAction.EnterForest);
         wizard.Transition(Fighter.ForestMapId, _now);
-        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true)], PacketEncoder.Shared));
+        wizard.Apply(SInstanceStateAddPacket.Create([Self(alive: true)], 0, PacketEncoder.Shared));
         wizard.Step();
         wizard.Hit(SCharacterDamagePacket.Create(_north, _self, currentHealth: 40, damage: 80, abilityId: null, PacketEncoder.Shared));
         for (int i = 0; i < 12; i++) wizard.Step();
@@ -152,14 +152,14 @@ public class FighterShould
         var warrior = new Sim(this, new Fighter(0, _metrics, TimeSpan.FromSeconds(20), firstTripJitter: TimeSpan.Zero));
         warrior.RunUntil(s => s.Action == FighterAction.EnterForest);
         warrior.Transition(Fighter.ForestMapId, _now);
-        warrior.Apply(SInstanceStateAddPacket.Create([Self(alive: true), Creature(_north, 15f, 30f)], PacketEncoder.Shared));
+        warrior.Apply(SInstanceStateAddPacket.Create([Self(alive: true), Creature(_north, 15f, 30f)], 0, PacketEncoder.Shared));
         step = warrior.RunUntil(s => s.Action != FighterAction.None);
         Assert.Equal(FighterAction.Cast, step.Action);
         Assert.Equal(200u, warrior.Fighter.AbilityId);
         Assert.InRange(warrior.Distance(15f, 30f), 1.9f, 2f);
 
         // The table stays the fallback for a death: one it shows is seen within a look, six steps.
-        warrior.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _self, CurrentHealth = 0, IsDead = true }],
+        warrior.Apply(SInstanceStateUpdatePacket.Create([new ObjectState { Guid = _self, CurrentHealth = 0, IsDead = true }], 0,
             PacketEncoder.Shared));
         steps = 0;
         Assert.Equal(FighterAction.Respawn, warrior.RunUntil(s => s.Action != FighterAction.None, () => steps++).Action);

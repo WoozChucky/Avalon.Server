@@ -102,6 +102,8 @@ public static class ServiceExtensions
             sp.GetRequiredService<ILoggerFactory>(),
             sp.GetRequiredService<TimeProvider>(),
             new NetworkSendMetrics(DiagnosticsConfig.World.Meter)));
+        // The world's tick count (#1066), the send threads' own, so the instances' broadcasts and the pings read one count.
+        services.AddSingleton(sp => sp.GetRequiredService<NetworkSendScheduler>().Ticks);
         services.AddSingleton(sp => new ReceiveQueueLimit(
             sp.GetRequiredService<IOptions<NetworkConfiguration>>().Value.MaxReceiveQueueDepth,
             DiagnosticsConfig.World.Meter));

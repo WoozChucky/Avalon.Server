@@ -58,6 +58,12 @@ public sealed class NetworkSendScheduler : IDisposable
     /// </summary>
     public bool PacketEncryption { get; }
 
+    /// <summary>
+    /// The world's tick count (#1066), which each sender reads as it stamps a time-sync ping: the world's one count, which
+    /// the world server advances and the container hands to the instances.
+    /// </summary>
+    public WorldTicks Ticks { get; } = new();
+
     /// <summary>True from <see cref="Start" /> until <see cref="Stop" />.</summary>
     public bool IsRunning => Volatile.Read(ref _started) == 1 && !_stopping;
 

@@ -992,12 +992,14 @@ message SIgnoreListPacket {
 }
 message SInstanceStateAddPacket {
    repeated ObjectState Adds = 1;
+   int64 WorldTick = 2;
 }
 message SInstanceStateRemovePacket {
    repeated uint64 Removes = 1 [packed = false];
 }
 message SInstanceStateUpdatePacket {
    repeated ObjectState Updates = 1;
+   int64 WorldTick = 2;
 }
 message SInventorySnapshotPacket {
    repeated ItemSlotDto Items = 1;
@@ -1084,6 +1086,8 @@ message SPingPacket {
    int64 Rtt = 3;
    int64 Offset = 4;
    uint32 TickMicros = 5;
+   int64 WorldTick = 6;
+   uint32 WorldTickRate = 7;
    reserved 2;
    reserved "ClientTimestamp";
 }

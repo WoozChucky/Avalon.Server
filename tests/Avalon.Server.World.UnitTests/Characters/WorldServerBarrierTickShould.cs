@@ -353,19 +353,56 @@ public class WorldServerBarrierTickShould : IDisposable
         connection.SendTimeSyncPing(); // the next ping, as the tick queues it
         server.SendScheduler.RunAllPasses();
 
-        var pings = new List<uint>();
+        List<uint> pings = (await PingsWritten(wire)).ConvertAll(p => p.TickMicros);
+
+        Assert.Equal(2, pings.Count);
+        Assert.Equal(0u, pings[0]);
+        Assert.InRange(pings[1], 1_000_000u, 10_000_000u); // the one tick of the window: a second, and its own work
+    }
+
+    /// <summary>
+    /// The time-sync ping names the world's tick beside its server time (#1066), both read by the send thread as it
+    /// stamps the ping, so the pair is one instant a client can anchor the state broadcast's ticks to; and the rate the
+    /// loop runs at. Queued by the first tick (tick 0, the start burst's first ping) and written only after three ticks
+    /// and 50 ms of the clock, it carries the count and the time of its writing, not those it was queued at: tick 3, the
+    /// count the next broadcast names, and the clock 50 ms on.
+    /// </summary>
+    [Fact]
+    public async Task Stamp_the_ping_with_the_world_tick_and_the_server_time_it_is_written_at()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 16, 12, 0, 0, TimeSpan.Zero));
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build(clock: clock);
+        var wire = new MemoryStream();
+        connection.InitOutboxForTest(new PacketStream(wire));
+
+        connection.RequestInitialTimeSyncPing();
+        server.Tick();
+        server.Tick();
+        server.Tick();
+        clock.Advance(TimeSpan.FromMilliseconds(50));
+        server.SendScheduler.RunAllPasses();
+
+        SPingPacket ping = Assert.Single(await PingsWritten(wire));
+        Assert.Equal(3, server.CompletedTicks);
+        Assert.Equal(3, ping.WorldTick);
+        Assert.Equal(clock.GetUtcNow().UtcTicks, ping.ServerTimestamp);
+        Assert.Equal(60u, ping.WorldTickRate);
+    }
+
+    /// <summary>Every time-sync ping written to <paramref name="wire" />, decoded, oldest first.</summary>
+    private static async Task<List<SPingPacket>> PingsWritten(MemoryStream wire)
+    {
+        var pings = new List<SPingPacket>();
         using var guard = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         await foreach (ReadOnlyMemory<byte> raw in new PacketStream(new MemoryStream(wire.ToArray()))
             .EnumerateRawFramesAsync(256, int.MaxValue, guard.Token))
         {
             var frame = InboundPacketFrame.ParseFrame(raw);
             if (frame.Header.Type == NetworkPacketType.SMSG_PING)
-                pings.Add(ProtoBuf.Serializer.Deserialize<SPingPacket>(frame.Payload).TickMicros);
+                pings.Add(ProtoBuf.Serializer.Deserialize<SPingPacket>(frame.Payload));
         }
 
-        Assert.Equal(2, pings.Count);
-        Assert.Equal(0u, pings[0]);
-        Assert.InRange(pings[1], 1_000_000u, 10_000_000u); // the one tick of the window: a second, and its own work
+        return pings;
     }
 
     /// <summary>

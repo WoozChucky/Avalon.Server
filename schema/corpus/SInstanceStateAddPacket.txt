@@ -17,10 +17,12 @@ message SInstanceStateAddPacket
 
 variant absent
   field 1 Adds : List<ObjectState> = null
+  field 2 WorldTick : long = 0
   bytes 0
 
 variant empty
   field 1 Adds : List<ObjectState> = 0 elements
+  field 2 WorldTick : long = 0
   bytes 0
 
 variant populated
@@ -89,7 +91,8 @@ variant populated
       field 23 Class : CharacterClass? = Warrior (1)
       field 24 Gender : CharacterGender? = Female (1)
       field 25 DisplayId : uint? = 65535
-  bytes 248
+  field 2 WorldTick : long = 5000000000
+  bytes 254
     0a 70 08 07 12 0f 0d db 0f 49 40 15 cd cc cc 3d
     1d db 0f 49 40 1a 0f 0d db 0f 49 40 15 cd cc cc
     3d 1d db 0f 49 40 25 f9 02 15 50 28 02 30 07 38
@@ -105,7 +108,7 @@ variant populated
     22 71 75 6f 74 65 64 22 20 61 6e 64 20 5c 62 61
     63 6b 73 6c 61 73 68 5c 8d 01 db 0f 49 40 90 01
     2a 98 01 2a a0 01 01 a8 01 01 b0 01 03 b8 01 01
-    c0 01 01 c8 01 ff ff 03
+    c0 01 01 c8 01 ff ff 03 10 80 e4 97 d0 12
 
 variant maxima
   field 1 Adds : List<ObjectState> = 3 elements
@@ -205,7 +208,8 @@ variant maxima
       field 23 Class : CharacterClass? = Healer (4)
       field 24 Gender : CharacterGender? = Female (1)
       field 25 DisplayId : uint? = 4294967295
-  bytes 879
+  field 2 WorldTick : long = 9223372036854775807
+  bytes 889
     0a a2 02 08 ff ff ff ff ff ff ff ff ff 01 12 0f
     0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 1a
     0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f
@@ -260,7 +264,8 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 8d 01 ff ff 7f 7f
     90 01 ff ff 03 98 01 ff 01 a0 01 01 a8 01 01 b0
-    01 03 b8 01 04 c0 01 01 c8 01 ff ff ff ff 0f
+    01 03 b8 01 04 c0 01 01 c8 01 ff ff ff ff 0f 10
+    ff ff ff ff ff ff ff ff 7f
 
 variant minima
   field 1 Adds : List<ObjectState> = 1 element
@@ -296,14 +301,15 @@ variant minima
       field 23 Class : CharacterClass? = None (0)
       field 24 Gender : CharacterGender? = Male (0)
       field 25 DisplayId : uint? = 0
-  bytes 97
+  field 2 WorldTick : long = -9223372036854775808
+  bytes 108
     0a 5f 12 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff
     ff 7f ff 1a 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d
     ff ff 7f ff 25 ff ff 7f ff 28 00 30 00 38 00 40
     00 48 00 50 00 58 00 60 00 68 00 70 00 78 00 82
     01 01 00 8d 01 ff ff 7f ff 90 01 00 98 01 00 a0
     01 00 a8 01 00 b0 01 00 b8 01 00 c0 01 00 c8 01
-    00
+    00 10 80 80 80 80 80 80 80 80 80 01
 
 variant varint-edges
   field 1 Adds : List<ObjectState> = 2 elements
@@ -371,7 +377,8 @@ variant varint-edges
       field 23 Class : CharacterClass? = <not a declared member> (5)
       field 24 Gender : CharacterGender? = <not a declared member> (2)
       field 25 DisplayId : uint? = 2097152
-  bytes 500
+  field 2 WorldTick : long = 2097152
+  bytes 505
     0a f7 01 08 ff ff 7f 12 0f 0d 00 00 80 00 15 00
     00 80 00 1d 00 00 80 00 1a 0f 0d 00 00 80 00 15
     00 00 80 00 1d 00 00 80 00 25 00 00 80 00 28 04
@@ -403,7 +410,7 @@ variant varint-edges
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 8d 01 01 00 80 00 90 01 ff 7f 98 01 7f a0
     01 01 a8 01 01 b0 01 04 b8 01 05 c0 01 02 c8 01
-    80 80 80 01
+    80 80 80 01 10 80 80 80 01
 
 variant float-specials
   field 1 Adds : List<ObjectState> = 2 elements
@@ -471,7 +478,8 @@ variant float-specials
       field 23 Class : CharacterClass? = Warrior (1)
       field 24 Gender : CharacterGender? = Female (1)
       field 25 DisplayId : uint? = 65535
-  bytes 248
+  field 2 WorldTick : long = 5000000000
+  bytes 254
     0a 70 08 07 12 0f 0d ff ff 7f 00 15 ff ff 7f 7f
     1d 00 00 c0 ff 1a 0f 0d ff ff 7f 00 15 ff ff 7f
     7f 1d 00 00 c0 ff 25 01 00 c0 7f 28 02 30 07 38
@@ -487,4 +495,4 @@ variant float-specials
     22 71 75 6f 74 65 64 22 20 61 6e 64 20 5c 62 61
     63 6b 73 6c 61 73 68 5c 8d 01 00 00 80 ff 90 01
     2a 98 01 2a a0 01 01 a8 01 01 b0 01 03 b8 01 01
-    c0 01 01 c8 01 ff ff 03
+    c0 01 01 c8 01 ff ff 03 10 80 e4 97 d0 12

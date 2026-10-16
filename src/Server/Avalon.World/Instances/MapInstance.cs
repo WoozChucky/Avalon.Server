@@ -4,6 +4,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auras;
@@ -147,6 +148,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     // Whether this tick's broadcast puts its adds and updates together from shared entries: only with at least
     // StatePacketAssembler.MinRecipientsToShare characters here; with fewer, each list is encoded whole (#980).
     private bool _shareStateEntries;
+
+    /// <summary>
+    /// The world's tick count (#1066), from the container: every add and update names the tick that built it. Null in an
+    /// instance built without one (tests), whose packets carry tick 0.
+    /// </summary>
+    private readonly WorldTicks? _worldTicks;
+
+    // The tick this tick's adds and updates carry, read once as the broadcast begins.
+    private long _stateTick;
 
     // One recipient's described adds or updates, encoded whole when nothing is shared, reused for every packet (#980).
     private readonly List<ObjectState> _described = new(32);
@@ -303,6 +313,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraDeathFailures = new ThrottledErrorLog(_logger, _time, $"Ending the auras of a unit on its death in instance {InstanceId}");
         _broadcastFailures = new ThrottledErrorLog(_logger, _time, $"A client's state broadcast in instance {InstanceId}");
         _replicationEncoder = serviceProvider.GetService<PacketEncoder>() ?? PacketEncoder.Shared;
+        _worldTicks = serviceProvider.GetService<WorldTicks>();
         _auraWire = new AuraWire();
         _auraUpdates = new SharedAuraUpdates(_auraWire, _replicationEncoder);
 
@@ -1519,9 +1530,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             DecideViews(objectAbilities);
 
             // Step 6: Broadcast instance state to each character. Each entity's add and update is encoded once for all
-            // of them (#980); the last broadcast's encodings are forgotten first, also when it threw.
-            _stateAdds.BeginBroadcast();
-            _stateUpdates.BeginBroadcast();
+            // of them (#980); the last broadcast's encodings are forgotten first, also when it threw. Every packet names
+            // the world tick it was built on (#1066), read once here: one load, the simulation of this tick done.
+            _stateTick = _worldTicks?.Completed ?? 0;
+            _stateAdds.BeginBroadcast(_stateTick);
+            _stateUpdates.BeginBroadcast(_stateTick);
             _shareStateEntries = _characters.Count >= StatePacketAssembler.MinRecipientsToShare;
             foreach (ICharacter character in _characters.Values)
             {
@@ -1809,8 +1822,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         SendStatePacket(connection, adds
-            ? SInstanceStateAddPacket.Create(_described, _replicationEncoder)
-            : SInstanceStateUpdatePacket.Create(_described, _replicationEncoder), start);
+            ? SInstanceStateAddPacket.Create(_described, _stateTick, _replicationEncoder)
+            : SInstanceStateUpdatePacket.Create(_described, _stateTick, _replicationEncoder), start);
     }
 
     /// <summary>

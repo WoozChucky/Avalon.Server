@@ -145,6 +145,8 @@ public sealed class ScenarioWorld : IDisposable
         services.AddSingleton(reference?.Chunks ?? new AnyChunkLibrary());
         services.AddSingleton<ICombatRandom>(new CombatRandom(new Random(seed)));
         services.AddSingleton(new PvpToggle(Options.Create(configuration), Clock));
+        // The world's tick count, the scheduler's, as production registers it: every state packet names its tick (#1066).
+        services.AddSingleton(Scheduler.Ticks);
         if (reference is not null)
             AddReferenceServices(services, reference, configuration, seed);
         _services = services.BuildServiceProvider();
@@ -341,6 +343,8 @@ public sealed class ScenarioWorld : IDisposable
             Scheduler.SignalAll();
             Scheduler.RunAllPasses();
 
+            // The tick's end, as WorldServer's: the count moves on, then the clock.
+            Scheduler.Ticks.Advance();
             Clock.Advance(delta);
         }
         finally

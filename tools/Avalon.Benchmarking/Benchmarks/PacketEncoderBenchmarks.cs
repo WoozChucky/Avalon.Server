@@ -44,7 +44,7 @@ public class PacketEncoderBenchmarks
     [Benchmark(Description = "Encode a state update into a segment (tick)")]
     public int Encode()
     {
-        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, _encoder);
+        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, 0, _encoder);
         int length = packet.PayloadLength;
         packet.Release();
         return length;
@@ -54,7 +54,7 @@ public class PacketEncoderBenchmarks
     public int EncodeSealFrame()
     {
         _burst.Reset();
-        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, _encoder);
+        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, 0, _encoder);
         int written = PacketEnvelope.Append(_burst, packet, _session);
         packet.Release();
         return written;
@@ -64,7 +64,7 @@ public class PacketEncoderBenchmarks
     public int EncodeFramePlain()
     {
         _burst.Reset();
-        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, _encoder);
+        OutboundPacket packet = SInstanceStateUpdatePacket.Create(_updates, 0, _encoder);
         int written = PacketEnvelope.Append(_burst, packet, sealer: null);
         packet.Release();
         return written;
