@@ -3692,7 +3692,7 @@ with the committed figure, in every build (Debug and Release, see below) and for
 - **Detection floor.** `town-idle`, `town-walk` and `many-instances` read 0 since `75a16697` (#875: none of them
   allocates on the tick thread since server packets are built in per-thread messages; the file was regenerated at
   `2ca42aff` for `town-social`'s first entry, #972, at `ae2ed357` for #973's chat and party fixes, and at `2e947609`
-  for #973's closing cleanup, and `forest-combat`'s figure lowered by #980 and #973 between), so the 256 B floor decides in every scenario:
+  and `249898c3` for #973's closing cleanup, and `forest-combat`'s figure lowered by #980 and #973 between), so the 256 B floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails every steady scenario (the smallest, 24 B, is 1,440 B
   per window).
@@ -3702,14 +3702,14 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,002 B per window since #973's closing cleanup: quest markers are worked out
-  again only when what a marker reads changes, not for every kill credit, 64 B, and a pickup's despawn makes no list,
-  72 B, both measured in Release and Debug alike; 14,138 B from #973 building each party roster once, which its one
+  `forest-combat` is the largest figure (13,905 B per window since #973's closing cleanup: quest markers are worked out
+  again only when what a marker reads changes, not for every kill credit, 64 B, a pickup's despawn makes no list,
+  72 B, and a marker run and an equip allocate nothing of their own, 97 B, all measured in Release and Debug alike; 14,138 B from #973 building each party roster once, which its one
   level-up of the minute sends, [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15); 14,176 B from
   #980, which shared the aura updates and reused their entries,
   [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
-  10,357 B before), and at that size the 256 B floor decides for it too (1% is 140 B): it fails above 14,258 B, a little
+  10,357 B before), and at that size the 256 B floor decides for it too (1% is 139 B): it fails above 14,161 B, a little
   over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
   figure again since #981 (#973): from #972 it read 68 B above Release, because each item destroy in the measured
   minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
