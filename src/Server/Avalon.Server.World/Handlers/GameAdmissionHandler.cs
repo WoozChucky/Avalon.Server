@@ -135,13 +135,18 @@ public sealed class GameAdmissionHandler(IGameAdmissionClient admission, Admissi
     /// <summary>
     /// The refusal a redemption without an active lease is answered with. The identity service's answers that mean
     /// "try later" (unreachable or overloaded, a session barrier still pending, the world in maintenance or without a
-    /// fresh heartbeat) are <c>ServiceUnavailable</c>; every other is <c>AuthorizationRequired</c>, the context's
-    /// application not allowed on this world (<c>WORLD_NOT_ALLOWED</c>) among them.
+    /// fresh heartbeat) are <c>ServiceUnavailable</c>; a client too old for this world or for the API
+    /// (<c>CLIENT_OUTDATED</c>, <c>UNSUPPORTED_PROTOCOL</c>, #1053) is <c>UnsupportedClient</c>; every other is
+    /// <c>AuthorizationRequired</c>: the context not allowed on this world (<c>WORLD_NOT_ALLOWED</c>), revoked, its
+    /// account's standing, the character not the account's among them.
     /// </summary>
-    private static GameAdmissionResult Refusal(string? error) =>
-        error is GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending or GameAuthErrors.WorldUnavailable
-            ? GameAdmissionResult.ServiceUnavailable
-            : GameAdmissionResult.AuthorizationRequired;
+    private static GameAdmissionResult Refusal(string? error) => error switch
+    {
+        GameAuthErrors.ServiceUnavailable or GameAuthErrors.BarrierPending or GameAuthErrors.WorldUnavailable
+            => GameAdmissionResult.ServiceUnavailable,
+        GameAuthErrors.ClientOutdated or GameAuthErrors.UnsupportedProtocol => GameAdmissionResult.UnsupportedClient,
+        _ => GameAdmissionResult.AuthorizationRequired,
+    };
 
     /// <summary>
     /// Gives back the admission's source slot once the redemption has ended, whatever its end (#1052), then keys the

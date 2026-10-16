@@ -37,8 +37,8 @@ public sealed class JoinTicketStoreShould
     public async Task Playtest_cannot_issue_other_worlds_or_replay_receipts_after_restriction_changes()
     {
         _h.Account.AccessLevel |= Avalon.Common.Accounts.AccountAccessLevel.Admin;
-        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 3, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(new GameWorldDestination(3, "world-3", "PTR", "localhost", 21000, "localhost", new string('A', 64), "0.2.0", "0.2.0"));
-        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 2, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(new GameWorldDestination(2, "world-2", "Asthoria", "localhost", 21000, "localhost", new string('A', 64), "0.2.0", "0.2.0"));
+        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 3, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(GameWorldAllocation.Admit(new GameWorldDestination(3, "world-3", "PTR", "localhost", 21000, "localhost", new string('A', 64), "0.2.0", "0.2.0")));
+        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 2, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(GameWorldAllocation.Admit(new GameWorldDestination(2, "world-2", "Asthoria", "localhost", 21000, "localhost", new string('A', 64), "0.2.0", "0.2.0")));
         GameAuthReply auth = await _h.Authenticate(2514590);
         foreach (ushort world in new ushort[] { 1, 2 })
             Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, world, null, Guid.NewGuid(), false, false, default)).Error);
@@ -159,9 +159,9 @@ public sealed class JoinTicketStoreShould
     public async Task Never_issue_for_an_unassigned_world_or_invalid_character_selection()
     {
         GameAuthReply auth = await _h.Authenticate();
-        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 2, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns((GameWorldDestination?)null);
+        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 2, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(GameWorldAllocation.Refuse(GameWorldRefusal.Unavailable));
         Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 2, null, Guid.NewGuid(), false, false, CancellationToken.None)).Error);
-        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, 999, Arg.Any<CancellationToken>()).Returns((GameWorldDestination?)null);
+        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, 999, Arg.Any<CancellationToken>()).Returns(GameWorldAllocation.Refuse(GameWorldRefusal.CharacterNotFound));
         Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, 999, Guid.NewGuid(), false, false, CancellationToken.None)).Error);
     }
 }
@@ -193,7 +193,7 @@ internal sealed class JoinHarness
         families.IsLiveLauncherFamilyAsync(Account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
         Authorization = TestGameAuthorization.Create(Store, new AuthAttemptStore(Store, crypto, options, Clock), crypto, accounts,
             families, identities, Substitute.For<ILicenseObservationRepository>(), verifier, ownership, options, Clock);
-        Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost", new string('A', 64), "0.0.1", "0.0.1"));
+        Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(GameWorldAllocation.Admit(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost", new string('A', 64), "0.0.1", "0.0.1")));
         Sessions.TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             GameSessionReservation r = call.Arg<GameSessionReservation>();

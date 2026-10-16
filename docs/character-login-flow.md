@@ -104,7 +104,8 @@ by the close of the connection, and binds nothing: no account, no lease, no char
 |---|---|
 | `InvalidRequest` (1) | Refused before the ticket is spent: no TLS, a ticket that is not one, a public key of the wrong length on a world that seals, a second admission on the connection. Also a key of the right length that is not a P-256 point, found after the redemption (its lease is revoked, `bad_public_key`) |
 | `ServiceUnavailable` (3) | Try later. The identity service answered so (unreachable or overloaded, a session barrier still pending, or the world in maintenance or without a fresh heartbeat, `WORLD_UNAVAILABLE`), or the world could not redeem the ticket itself: its admission work queue was full, or the redemption threw (#1050). Also, before the ticket is redeemed, an admission whose source is over its budget (#1052): `World:Admission:MaxInFlightPerSource` (16) in flight, its IPv6 /56's `MaxInFlightPerIPv6Block` (32), or `MaxPerSourcePerMinute` (120) started in the last minute, its /56's `MaxPerIPv6BlockPerMinute` (480) |
-| `AuthorizationRequired` (2) | Every other answer: a ticket expired, spent or for another world, a session revoked, replaced or in conflict, the game context's application not allowed on this world (`WORLD_NOT_ALLOWED`), or an answer from the identity service the world could not trust (`INVALID_ADMISSION`) |
+| `UnsupportedClient` (4) | The client is too old (#1053): the version its game context states is below this world's `MinVersion` (`CLIENT_OUTDATED`) or below the API's floor (`UNSUPPORTED_PROTOCOL`). Final for this build: the client shows "update required" and does not retry. The REST join ticket answers the same case 426 with the version required ([world refusals](api-authentication.md#world-refusals)) |
+| `AuthorizationRequired` (2) | Every other answer: a ticket expired, spent or for another world, a session revoked, replaced or in conflict, the game context revoked (`CONTEXT_REVOKED`), not allowed on this world (`WORLD_NOT_ALLOWED`: its application, or the account's access level), its account banned, deactivated or being consolidated, the character not the account's (`CHARACTER_NOT_FOUND`), or an answer from the identity service the world could not trust (`INVALID_ADMISSION`) |
 
 **One source cannot fill the admission lane (#1052).** Any client that completes the world's TLS and sends a
 well-formed join ticket, real or made up, takes a place in the lane and costs one redemption at the identity service,
@@ -140,7 +141,14 @@ admission queue holds back no live player: lease heartbeats run on a lane of the
 
 Before #1050 a redemption answered `WORLD_UNAVAILABLE` was refused `AuthorizationRequired`. It covered a refusal no
 retry changes too, the context's application not allowed on the world, which the redemption now answers
-`WORLD_NOT_ALLOWED` (the REST join-ticket issue still answers `WORLD_UNAVAILABLE` for it). No value was added to the wire.
+`WORLD_NOT_ALLOWED` (the REST join-ticket issue answered `WORLD_UNAVAILABLE` for it until #1053, and now answers 403
+`WORLD_NOT_ALLOWED`). No value was added to the wire.
+
+Before #1053 the admission client turned every refusal it did not know into `SERVICE_UNAVAILABLE`, so an account's
+standing and a revoked context were answered "try later", and nothing answered `UnsupportedClient`. The
+redemption now names the allocator's reason, and the client passes the client-version, standing, revoked-context and
+character refusals through (`GameAdmissionClient`), which the world maps as the table says. No value was added to
+the wire: `UnsupportedClient` was declared already.
 
 **A character select the world cannot load is closed at once (#1050, owner decision).** Every read and the one write of
 the select chain, the town lookup for a character saved outside a town included, and the world entry check before it,
@@ -165,7 +173,10 @@ oldest wire any client may speak is not the world's to judge (#949): the API's g
 client below `Application:GameWorkloads:MinClientVersion` before it is given a join ticket
 ([configuration reference](configuration-reference.md#rest-api-game-client-version)). That floor judges the version the
 client stated at sign-in; the handshake's is a separate statement, compared with `MinVersion` alone (binding the two
-would need the context's version carried in the redemption receipt). Before #949 the world also held a
+would need the context's version carried in the redemption receipt). Since #1053 the API also compares the version
+stated at sign-in with the world's `MinVersion` before it issues a join ticket (426 `CLIENT_OUTDATED`, and
+`UnsupportedClient` at the admission), so this handshake refusal is the backstop for a client whose two statements
+differ. Before #949 the world also held a
 compiled-in floor of its own, 0.3.0, and required the higher of the two.
 
 | Field | Type | Meaning |

@@ -165,9 +165,19 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
         return result;
     }
     private static bool Positive(string? text) => long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out long value) && value > 0 && value.ToString(CultureInfo.InvariantCulture) == text;
+    /// <summary>
+    /// The identity service's refusal as the admission handler maps it, when it is one the world knows; any other is
+    /// "try later". The permanent ones a redemption names (#1053: the client too old, the context not allowed on the
+    /// world, revoked, its account's standing, the character not the account's) pass through, so the client is not
+    /// told to retry them.
+    /// </summary>
     private static string SafeError(string? error) => error switch
     {
-        GameAuthErrors.SessionRevoked or GameAuthErrors.SessionConflict or GameAuthErrors.SessionReplaced or GameAuthErrors.InvalidTicket or GameAuthErrors.WorldUnavailable or GameAuthErrors.WorldNotAllowed or GameAuthErrors.BarrierPending => error,
+        GameAuthErrors.SessionRevoked or GameAuthErrors.SessionConflict or GameAuthErrors.SessionReplaced or GameAuthErrors.InvalidTicket or
+            GameAuthErrors.WorldUnavailable or GameAuthErrors.WorldNotAllowed or GameAuthErrors.BarrierPending or
+            GameAuthErrors.ClientOutdated or GameAuthErrors.UnsupportedProtocol or GameAuthErrors.ContextRevoked or
+            GameAuthErrors.AccountBanned or GameAuthErrors.AccountDeactivated or GameAuthErrors.AccountConsolidating or
+            GameAuthErrors.CharacterNotFound => error,
         _ => GameAuthErrors.ServiceUnavailable
     };
 }

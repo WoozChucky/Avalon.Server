@@ -24,7 +24,8 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         if (standing.AccountRefusal is { } refusal) return new(refusal);
         GameContextRecord? context = standing.Context;
         if (context?.AccountId is not { } accountId) return new(GameAuthErrors.AuthorizationRequired);
-        if (!applications.AllowsWorld(context.ApplicationKey, worldId)) return new(GameAuthErrors.WorldUnavailable);
+        // Permanent, so not WorldUnavailable, which means "try later" (#1053): the allocator answers it the same way.
+        if (!applications.AllowsWorld(context.ApplicationKey, worldId)) return new(GameAuthErrors.WorldNotAllowed);
         string issueKey = Key("join-issue", context.Id.ToString("N") + ":" + requestId.ToString("N"));
         string binding = crypto.Binding("join-issue", requestId, GameAuthCryptography.Digest($"{context.Generation}:{worldId}:{characterId}:{confirmTakeover}:{reconnect}"));
         JoinIssueReceipt? prior = GameAuthJson.Deserialize<JoinIssueReceipt>(await store.ReadAsync(issueKey, cancellationToken));
@@ -34,8 +35,9 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             GameJoinReply? replay = GameAuthJson.Deserialize<GameJoinReply>(crypto.UnprotectText(prior.Envelope, issueKey + ":" + binding));
             return replay?.ExpiresAt > Now ? replay : new(GameAuthErrors.TicketExpired);
         }
-        GameWorldDestination? destination = await allocator.FindAsync(context, worldId, characterId, cancellationToken);
-        if (destination is null) return new(GameAuthErrors.WorldUnavailable);
+        GameWorldAllocation allocation = await allocator.FindAsync(context, worldId, characterId, cancellationToken);
+        // Why, so a client retries only what a retry may change (#1053); a client too old is told the version it needs.
+        if (allocation.Destination is not { } destination) return new(allocation.IssueError, RequiredVersion: allocation.RequiredVersion);
         GameSession? head = await sessions.FindAsync(new AccountId(accountId), cancellationToken);
         if (reconnect && (head is null || head.GameContextId != context.Id || head.WorldId != worldId)) return new(GameAuthErrors.ReconnectUnavailable);
         // A confirmed takeover (a join) replaces a live session, pending or active (#1013); a reconnect only an active
@@ -120,8 +122,11 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
             if (grant.ExpiresAt <= Now || grant.AuthorizationUntil <= Now || context.Generation != grant.ContextGeneration)
                 return JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired);
             if (grant.WorkerUntil > Now) return JoinRedemptionReceipt.Failure(GameAuthErrors.InProgress);
-            GameWorldDestination? destination = await allocator.FindAsync(context, grant.WorldId, grant.CharacterId, cancellationToken);
-            if (destination?.ServerId != serverId) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldUnavailable);
+            GameWorldAllocation allocation = await allocator.FindAsync(context, grant.WorldId, grant.CharacterId, cancellationToken);
+            // The allocator's reason, which the world maps onto its client's refusal (#1053); a world reassigned to
+            // another workload since the issue is "try later".
+            if (allocation.Destination is not { } destination) return JoinRedemptionReceipt.Failure(allocation.RedemptionError);
+            if (destination.ServerId != serverId) return JoinRedemptionReceipt.Failure(GameAuthErrors.WorldUnavailable);
             JoinTicketGrant claimed = grant with { Binding = binding, WorkerUntil = Min(Now.Add(GameAuthPolicy.MutationClaimLifetime), grant.ExpiresAt) };
             string claimedRaw = GameAuthJson.Serialize(claimed);
             if (!await store.CompareExchangeAsync([new(key, raw, claimedRaw, grant.ExpiresAt.Add(GameAuthPolicy.JoinReceiptRetention))], cancellationToken)) continue;

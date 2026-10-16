@@ -131,7 +131,7 @@ public sealed class GameAdmissionHandlerShould
             Assert.False(lease.IsActive);
         }
     }
-    public enum Redemption { Overloaded, Faulted, WorldUnavailable, WorldNotAllowed, InvalidTicket }
+    public enum Redemption { Overloaded, Faulted, WorldUnavailable, WorldNotAllowed, InvalidTicket, ClientOutdated, UnsupportedProtocol, AccountBanned, CharacterNotFound }
 
     /// <summary>
     /// A redemption that admits no one is answered and closed, and nothing is bound. One the world cannot redeem, because
@@ -139,8 +139,9 @@ public sealed class GameAdmissionHandlerShould
     /// like the identity service's own "try later", and counted (#1050); before, its continuation faulted, so the client
     /// got no reply and the world an Error with a stack per connection. A full queue is answered at once, without a
     /// redemption, writes nothing at Error and no stack, and leaves live players' heartbeats their own lane. A world in
-    /// maintenance is "try later" too; a ticket refused, or an application never allowed on the world, is
-    /// <c>AuthorizationRequired</c>.
+    /// maintenance is "try later" too; a ticket refused, an application never allowed on the world, an account that may
+    /// not play or a character not the account's is <c>AuthorizationRequired</c>; a client too old for the world or the
+    /// API is <c>UnsupportedClient</c> (#1053), so it is told to update rather than to retry.
     /// </summary>
     [Theory]
     [InlineData(Redemption.Overloaded, GameAdmissionResult.ServiceUnavailable, "world.work.refusals lane=admission")]
@@ -148,6 +149,10 @@ public sealed class GameAdmissionHandlerShould
     [InlineData(Redemption.WorldUnavailable, GameAdmissionResult.ServiceUnavailable, null)]
     [InlineData(Redemption.WorldNotAllowed, GameAdmissionResult.AuthorizationRequired, null)]
     [InlineData(Redemption.InvalidTicket, GameAdmissionResult.AuthorizationRequired, null)]
+    [InlineData(Redemption.ClientOutdated, GameAdmissionResult.UnsupportedClient, null)]
+    [InlineData(Redemption.UnsupportedProtocol, GameAdmissionResult.UnsupportedClient, null)]
+    [InlineData(Redemption.AccountBanned, GameAdmissionResult.AuthorizationRequired, null)]
+    [InlineData(Redemption.CharacterNotFound, GameAdmissionResult.AuthorizationRequired, null)]
     public async Task Answer_and_close_a_redemption_that_admits_no_one(Redemption redemption, GameAdmissionResult expected,
         string? counted)
     {
@@ -159,6 +164,10 @@ public sealed class GameAdmissionHandlerShould
             Redemption.Faulted => Task.FromException<WorldAdmissionResult>(new InvalidOperationException("a defect")),
             Redemption.WorldUnavailable => Task.FromResult(new WorldAdmissionResult(null, "WORLD_UNAVAILABLE")),
             Redemption.WorldNotAllowed => Task.FromResult(new WorldAdmissionResult(null, "WORLD_NOT_ALLOWED")),
+            Redemption.ClientOutdated => Task.FromResult(new WorldAdmissionResult(null, "CLIENT_OUTDATED")),
+            Redemption.UnsupportedProtocol => Task.FromResult(new WorldAdmissionResult(null, "UNSUPPORTED_PROTOCOL")),
+            Redemption.AccountBanned => Task.FromResult(new WorldAdmissionResult(null, "ACCOUNT_BANNED")),
+            Redemption.CharacterNotFound => Task.FromResult(new WorldAdmissionResult(null, "CHARACTER_NOT_FOUND")),
             _ => Task.FromResult(new WorldAdmissionResult(null, "INVALID_TICKET")),
         });
         var counts = new ConcurrentQueue<string>();

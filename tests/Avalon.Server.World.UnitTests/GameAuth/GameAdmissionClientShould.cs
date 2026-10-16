@@ -84,6 +84,28 @@ public sealed class GameAdmissionClientShould
         Assert.Null(result.Lease); Assert.Equal("INVALID_ADMISSION", result.Error);
         Assert.Single(handler.Paths);
     }
+    /// <summary>
+    /// A redemption the identity service refuses keeps its reason when the world maps it (#1053): a permanent refusal
+    /// turned into "try later" would have the client retry what never changes. One the world does not know is "try later".
+    /// </summary>
+    [Theory]
+    [InlineData("CLIENT_OUTDATED", "CLIENT_OUTDATED")]
+    [InlineData("UNSUPPORTED_PROTOCOL", "UNSUPPORTED_PROTOCOL")]
+    [InlineData("WORLD_NOT_ALLOWED", "WORLD_NOT_ALLOWED")]
+    [InlineData("ACCOUNT_BANNED", "ACCOUNT_BANNED")]
+    [InlineData("ACCOUNT_DEACTIVATED", "ACCOUNT_DEACTIVATED")]
+    [InlineData("ACCOUNT_CONSOLIDATING", "ACCOUNT_CONSOLIDATING")]
+    [InlineData("CONTEXT_REVOKED", "CONTEXT_REVOKED")]
+    [InlineData("CHARACTER_NOT_FOUND", "CHARACTER_NOT_FOUND")]
+    [InlineData("WORLD_UNAVAILABLE", "WORLD_UNAVAILABLE")]
+    [InlineData("SOMETHING_NEW", "SERVICE_UNAVAILABLE")]
+    public async Task Keep_the_reason_of_a_refused_redemption(string refusal, string expected)
+    {
+        using var handler = new RecordingHandler((_, _) => Json(JoinRedemptionReceipt.Failure(refusal), HttpStatusCode.Unauthorized));
+        using var http = new HttpClient(handler);
+        WorldAdmissionResult result = await new GameAdmissionClient(http, Options(), TimeProvider.System).AdmitAsync(GameAuthCryptography.NewToken(), Guid.NewGuid(), Guid.NewGuid(), CancellationToken.None);
+        Assert.Null(result.Lease); Assert.Equal(expected, result.Error); Assert.Single(handler.Paths);
+    }
     [Fact]
     public async Task Reject_success_shaped_http_error_and_oversized_body_and_redirect()
     {

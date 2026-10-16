@@ -138,7 +138,9 @@ Updated clients use CGameAdmissionPacket/SGameAdmissionPacket (0x201E/0x301E) in
 version handshake, sealed only on a world with `Network:PacketEncryption` on (a world with it off exchanges no key,
 #878). The oldest client version game sign-in and world allocation accept is
 `Application:GameWorkloads:MinClientVersion` (#949, [configuration reference](configuration-reference.md#rest-api-game-client-version));
-the world's handshake compares against the world's own `MinVersion` alone. Retired
+world allocation also compares the version the client stated at sign-in with each world's own `MinVersion` (#1053:
+the world list marks a world it is too old for `requiresUpdate`, and a join ticket for it is refused 426
+`CLIENT_OUTDATED`), and the world's handshake compares against that `MinVersion` alone. Retired
 TCP handoff, world-select and world-key opcodes 0x200F, 0x201B/0x301B and 0x201C/0x301C are unassigned.
 The launcher handoff issuer and inherited-stdin contract remain; updated clients redeem the handoff
 through `/client/auth` for a restricted context and separately request licensed world admission.
