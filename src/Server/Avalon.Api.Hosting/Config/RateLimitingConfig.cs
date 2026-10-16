@@ -32,6 +32,13 @@ public class RateLimitingConfig
     public int QueuePermitsPerMinute { get; set; } = 30;
 
     /// <summary>
+    /// The ceiling on those same calls a minute per source (#967), counted on every call before its credential is read, so
+    /// one source cannot make unbounded Redis reads: generous, since a household's waiters share it (40 waiters checking
+    /// in every 5 s fit). An exempt source is not bounded. At least 1.
+    /// </summary>
+    public int QueueSourcePermitsPerMinute { get; set; } = 600;
+
+    /// <summary>
     /// Requests a minute per authenticated game server, including each player's lease heartbeat, for the workloads a
     /// service names (<see cref="Middlewares.IRateLimitWorkloads"/>). At least 1.
     /// </summary>
