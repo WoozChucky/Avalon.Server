@@ -32,6 +32,8 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
         public readonly Dictionary<long, (long Since, long? Until)> Unclaimed = [];
         // account -> when its lockout (the field {account}:l) expires
         public readonly Dictionary<long, long> Lockouts = [];
+        // account -> when the pending marker of a session redeemed and not yet activated (the field {account}:p) expires
+        public readonly Dictionary<long, long> Pending = [];
         public readonly SortedList<long, long> Line = [];        // arrival -> account
         public readonly Dictionary<long, long> Arrival = [];     // account -> arrival
         public readonly Dictionary<long, long> Deadline = [];    // account -> removal deadline
@@ -50,14 +52,24 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             Places.Remove(account);
             Marks.Remove(account);
             Unclaimed.Remove(account);
+            Pending.Remove(account);
             if (Owners.TryGetValue(account, out (long Fence, long? TombstoneUntil) owner) && owner.TombstoneUntil is null)
                 Owners.Remove(account);
         }
 
-        /// <summary>Since when no session claims the place, recorded once: the earliest moment stands until a claim.</summary>
-        public void MarkUnclaimed(long account, long now)
+        /// <summary>
+        /// Since when no session claims the place, recorded once: the earliest moment stands until a claim. Written back
+        /// either way, which clears an expiry a release by another world's ticket left on it.
+        /// </summary>
+        public void MarkUnclaimed(long account, long now) => Unclaimed[account] = (UnclaimedSince(account, now) ?? now, null);
+
+        /// <summary>Whether a session redeemed and not yet activated is pending on the place.</summary>
+        public bool IsPending(long account, long now)
         {
-            if (UnclaimedSince(account, now) is null) Unclaimed[account] = (now, null);
+            if (!Pending.TryGetValue(account, out long until)) return false;
+            if (until > now) return true;
+            Pending.Remove(account);
+            return false;
         }
 
         /// <summary>The unclaimed time as the scripts read it: absent once its expiry has passed.</summary>
@@ -142,16 +154,18 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             // still counted; admitted, the place is its own again with a new horizon; refused or queued, it is released.
             bool present = w.Places.ContainsKey(account);
             bool lapsed = present && w.UnclaimedSince(account, now) is { } since &&
-                now - since >= (long)config.UnclaimedPlace.TotalMilliseconds && w.Owner(account, now) is null or { Ended: true };
+                now - since >= (long)config.UnclaimedPlace.TotalMilliseconds && !w.IsPending(account, now);
+            long? HoldEnd() => w.Ticket(account) is { } t && t.Until > now ? t.Until : null;
             PlaceDecision Readmit(PlaceSource source, long waited)
             {
                 if (lapsed) w.Unclaimed.Remove(account);
                 return Admit(source, waited);
             }
 
+            // Not while its last ticket's hold runs: that ticket may still be redeemed.
             void Release()
             {
-                if (lapsed) w.Forget(account);
+                if (lapsed && HoldEnd() is null) w.Forget(account);
             }
 
             if (present && !lapsed)
@@ -196,10 +210,12 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             if (w.LockedOut(account, now))
                 return Task.FromResult(new PlaceDecision(PlaceOutcome.WorldFull, PlaceSource.Taken, 0, TimeSpan.Zero, sweep));
             if (w.Line.Count == 0 && w.Places.Count < limit) return Task.FromResult(Readmit(PlaceSource.Taken, 0));
+            long? running = lapsed ? HoldEnd() : null;
             Release();
             if (w.Line.Count >= request.QueueCapacity)
             {
-                if (lapsed) w.Lockouts[account] = now + (long)GameAuthPolicy.WorldFullRetryAfterMin.TotalMilliseconds;
+                // Counted from when its place is free: its last ticket's hold, when that still runs.
+                if (lapsed) w.Lockouts[account] = (running ?? now) + (long)GameAuthPolicy.WorldFullRetryAfterMin.TotalMilliseconds;
                 return Task.FromResult(new PlaceDecision(PlaceOutcome.WorldFull, PlaceSource.Taken, 0, TimeSpan.Zero, sweep));
             }
 
@@ -227,8 +243,19 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             if (w.Owner(accountId, now) is { } current && (current.Fence > fence || (current.Ended && current.Fence >= fence)))
                 return Task.CompletedTask;
 
-            // Claimed at an activation, and at each heartbeat of the session that owns the place; not at a redemption alone.
-            if (activation || w.Owner(accountId, now) is { Ended: false } live && live.Fence == fence) w.Unclaimed.Remove(accountId);
+            // Claimed at an activation, and at each heartbeat of the session that owns the place; not at a redemption alone,
+            // which marks the session pending for one lease and keeps the place's unclaimed time for good.
+            if (activation || w.Owner(accountId, now) is { Ended: false } live && live.Fence == fence)
+            {
+                w.Unclaimed.Remove(accountId);
+                w.Pending.Remove(accountId);
+            }
+            else
+            {
+                w.Pending[accountId] = now + (long)GameAuthPolicy.SessionLeaseLifetime.TotalMilliseconds;
+                if (w.UnclaimedSince(accountId, now) is { } since) w.Unclaimed[accountId] = (since, null);
+            }
+
             w.Marks.TryGetValue(accountId, out string? mark);
             (long Until, string Id, bool WasHeld)? held = w.Ticket(accountId);
             if (held is { } own && activation && own.Id == sessionId.ToString("N"))
@@ -260,6 +287,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
                         other.Places.Remove(accountId);
                         other.Marks.Remove(accountId);
                         other.Unclaimed.Remove(accountId);
+                        other.Pending.Remove(accountId);
                     }
                 }
 
@@ -280,6 +308,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             if (w.Owner(accountId, now) is { } current && (current.Fence > fence || (current.Ended && current.Fence == fence)))
                 return Task.CompletedTask; // a newer session owns it, or this session's end was already taken (a retry)
             w.Tombstone(accountId, fence, now); // whatever the end does to the place, the session is ended there
+            w.Pending.Remove(accountId);
             if (!w.Places.TryGetValue(accountId, out long expiry)) return Task.CompletedTask; // an end never creates a place
             if (expiry <= now)
             {

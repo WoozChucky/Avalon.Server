@@ -80,18 +80,26 @@ A stale call can at most keep a place counted a little longer (see the last poin
   does not). Asking a new join ticket every half minute would otherwise keep a place on a full world indefinitely
   without ever playing. Past the horizon a further ticket is not kept on the place: it goes through the capacity step
   as a newcomer's, its own place still counted. With room (a free place beyond its own, and nobody in the line), or
-  for staff, it is admitted and the place is its own again with a new horizon; otherwise the place is released and the
-  answer is a newcomer's (`WORLD_FULL`, or from part 4 the line). A live session's renewals are untouched: its
-  heartbeats claim the place every 15 s, so a takeover or a reconnect is never refused for it, and a place a live
-  session owns (a pending one, redeemed and not yet activated, included) never lapses.
-- **A lapsed place refused is not taken back at once.** An account refused `WORLD_FULL` because its unclaimed place
-  lapsed on a full world is locked out of that world for 45 s (`GameAuthPolicy.WorldFullRetryAfterMin`, the shortest
-  `Retry-After` the others are told): until then each of its joins is `WORLD_FULL` again, before any capacity check,
-  so it cannot ask again a moment later and take back the place it was released from ahead of the players told to come
-  back. Anyone else can take that place meanwhile. The lockout is the marks hash's field `{accountId}:l`, which Redis
-  expires itself (`HPEXPIRE`); a place's removal leaves it to expire. Should Redis refuse the expiry, the field is not
-  kept (see the Warning below), and the account can retake the place as before. With the line (part 4) a lapsed account
-  is queued behind whoever waits instead, and no lockout is written.
+  for staff, it is admitted and the place is its own again with a new horizon; otherwise the answer is a newcomer's
+  (`WORLD_FULL`, or from part 4 the line) and the place is released, but not while its last ticket's hold still runs:
+  that ticket may still be redeemed, and its session then finds the place it was counted for (the redemption renews it
+  as any other, never over the limit, and the unclaimed time stays until an activation). The place goes when that hold
+  ends. A live session's renewals are untouched: its heartbeats claim the place every 15 s, so a takeover or a
+  reconnect is never refused for it. A session redeemed and not yet activated is marked pending on its place
+  (`{accountId}:p`, its fencing token) for one lease at most, and its place does not lapse while the mark lives; the
+  activation or the session's end removes it. A live owner field alone does not stop a lapse: a session replaced in
+  another world, whose end identity answers `SESSION_REPLACED` and never records here, would otherwise leave a fence
+  nobody renews and a place that never lapses.
+- **A lapsed place refused is not taken back at once.** An account whose unclaimed place lapsed and that is refused
+  `WORLD_FULL` (the world full and its line full, or no line, as in part 3) is locked out of that world for 45 s
+  (`GameAuthPolicy.WorldFullRetryAfterMin`, the shortest `Retry-After` the others are told), counted from when its
+  place is free: its last ticket's hold, when that still runs. Until then each of its joins is `WORLD_FULL` again,
+  before any capacity check, so it cannot ask again a moment later and take back the place it was released from ahead
+  of the players told to come back. Anyone else can take that place meanwhile. The lockout is the marks hash's field
+  `{accountId}:l`, which Redis expires itself (`HPEXPIRE`); a place's removal leaves it to expire. Should Redis refuse
+  the expiry, the field is not kept (see the Warning below), and the account can retake the place as before. A lapsed
+  account queued instead (from part 4, when the world's line has room) gets no lockout: it waits behind whoever is
+  already in the line.
 - **One place a ticket alone holds per account, across worlds.** A join ticket admitted in one world releases the
   account's places in every other configured world that only a ticket holds: a ticket's mark, with no live session
   owning the place. A place held after a drop (`h`), one a ticket returned to from a drop (`j:...:h`), one a live
@@ -309,7 +317,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | Key | Type | Content |
 |---|---|---|
 | `world:{worldId}:places` | sorted set | the ledger: member the account id, score the moment the place expires (Unix ms) |
-| `world:{worldId}:places:marks` | hash | per account four fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes); `{accountId}:f`, since when (Unix ms) no session has claimed the place, absent once one does, gone with the place but for one another world's ticket released (then expiring one horizon later); `{accountId}:l` (`1`), the lockout of an account refused when its unclaimed place lapsed, which Redis expires 45 s after it is written. One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
+| `world:{worldId}:places:marks` | hash | per account five fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes); `{accountId}:f`, since when (Unix ms) no session has claimed the place, absent once one does, gone with the place but for one another world's ticket released (then expiring one horizon later); `{accountId}:l` (`1`), the lockout of an account refused when its unclaimed place lapsed, which Redis expires 45 s after its place is free; `{accountId}:p`, the fencing token of a session redeemed and not yet activated, which Redis expires one lease after the redemption, removed by the activation or the session's end. One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
 | `world:{worldId}:queue` | sorted set | the line: member the account id, score its arrival number |
 | `world:{worldId}:queue:checkins` | sorted set | member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
 | `world:{worldId}:queue:arrivals` | string | the arrival counter |
@@ -348,9 +356,13 @@ Each step only after the one before is done:
    `world:*:queue:checkins`, and `zcount`; homelab#202: `api-identity` `hpexpire`, which an ended session's tombstone
    is written with, in place of the `hpexpireat` homelab#200 granted). Check on the cluster before the identity release
    rolls: `kubectl -n avalon exec avalon-redis-0 -- redis-cli -a "$PW" ACL GETUSER api-identity` (and `api-worlds`).
-   Deployed without homelab#199, every join answers 503. Without `hpexpire` (or on an older Redis) everything works
-   but the tombstones: the scripts catch the refused expiry and keep no tombstone, so an ended session's late heartbeat can
-   bring a removed place back for at most one lease.
+   Deployed without homelab#199, every join answers 503. Without `hpexpire` (or on an older Redis) joins, ends and
+   renewals still work, but every field that must expire on its own is dropped instead (the scripts catch the refused
+   expiry and delete the field): the tombstones, so an ended session's late heartbeat can bring a removed place back for
+   at most one lease; the lockout of a lapsed squatter, which can then take its place back at once; the pending marker
+   of a redeemed session, whose place can then lapse before its activation; and the unclaimed time a place keeps when
+   another world's ticket releases it, so redeeming that place's old ticket starts a new horizon. Each refusal is the
+   same Warning, "Redis refused the expiry of a place ledger field".
 2. Identity, then the worlds service and the worlds, as in every release (identity before the worlds).
 3. Check: `/game/worlds` and `GET /world` show places taken for a world with players, and identity's and the worlds
    service's logs carry no "could not read world ... places" Warning, and identity's carry no "Redis refused the expiry of
@@ -375,7 +387,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 42, Skipped: 0` (the 41 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 45, Skipped: 0` (the 44 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary
