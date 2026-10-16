@@ -68,6 +68,15 @@ public static class DiagnosticsConfig
         public static readonly Counter<long> AdmissionFailures = Meter.CreateCounter<long>(
             "world.admission.failures", "{admissions}", "Admissions whose redemption threw, answered ServiceUnavailable");
 
+        /// <summary>
+        /// Admissions refused before their ticket was redeemed because their source already had
+        /// <c>World:Admission:MaxInFlightPerSource</c> in flight (#1052): answered <c>ServiceUnavailable</c>. No tags:
+        /// nothing a client sends, and no address, becomes one.
+        /// </summary>
+        public static readonly Counter<long> AdmissionSourceRefusals = Meter.CreateCounter<long>(
+            "world.admission.source_refusals", "{admissions}",
+            "Admissions refused because their source had its most admissions in flight, answered ServiceUnavailable");
+
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
         public static ActivitySource Source = new(ServiceName);

@@ -80,7 +80,15 @@ Everything here has to be in place, or the run fails early or measures the wrong
    towards its next 60 Hz step on a high-resolution waitable timer on Windows 10 1803 and later, and with
    `Thread.Sleep` where that timer is missing (older Windows, Linux, macOS); on every system it yields its thread
    through the last millisecond of each step.
-9. **Asthoria is quiet.** See [Cautions](#cautions): check its player count first.
+9. **The bot PC's address is exempt from world 4's admission budget.** The world lets one source have
+   `World:Admission:MaxInFlightPerSource` admissions in flight (default 16, #1052), and refuses the rest with
+   `ServiceUnavailable` before their tickets are redeemed. A ramp step admits its bots from one address at once, far
+   past 16, so world 4 lists the bot PC in `World:Admission:ExemptSources` (Helm `server.admission.exemptSources`,
+   `[10.10.1.21/32]`, in the homelab's world values for the load-test release only)
+   ([configuration](configuration-reference.md#world-admission-budget)). The world sees that address through Caddy
+   and when [dialled directly](#dialling-the-world-directly), so one entry covers both paths. Without it, the bots past
+   the 16th in flight are answered `ServiceUnavailable` and `world_admission_source_refusals_total` rises.
+10. **Asthoria is quiet.** See [Cautions](#cautions): check its player count first.
 
 ## Commands
 
@@ -950,6 +958,8 @@ with `does not stand: the restart check was partial (...)`.
   live sign-ins matter more than the ramp's pace.
 - **The exempt address is a hole in the per-source limits.** While it is listed, anyone at that address can guess
   passwords without the per-source budget. Remove it from `exemptSources` when load testing stops.
+  World 4's admission exemption is the same kind of hole, on a LAN-only world: anyone at the bot PC's address can
+  hold any number of admissions there.
 - **Bots can enter any PTR world.** They hold `Player | PTR`, so the API would admit them to PTR as well. The tool
   enters only the run's world, and refuses a join reply for any other. Provision a run with `--world` set to the
   load-test world only.

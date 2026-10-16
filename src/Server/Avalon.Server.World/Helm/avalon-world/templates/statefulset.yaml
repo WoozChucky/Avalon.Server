@@ -58,6 +58,18 @@ spec:
                   key: {{ required "server.admission.apiCertificateKey is required" .Values.server.admission.apiCertificateKey | quote }}
             - name: World__Admission__ServerId
               value: {{ required "server.admission.serverId is required" .Values.server.admission.serverId | quote }}
+            {{- $perSource := .Values.server.admission.maxInFlightPerSource }}
+            {{- if and (kindIs "float64" $perSource) (eq $perSource (floor $perSource)) }}{{ $perSource = int64 $perSource }}{{ end }}
+            {{- $perSource = ternary "" (toString $perSource) (kindIs "invalid" $perSource) }}
+            {{- if ne $perSource "" }}
+            {{- if not (regexMatch "^[1-9][0-9]*$" $perSource) }}{{ fail (printf "server.admission.maxInFlightPerSource must be a whole number, 1 or more, got %q" $perSource) }}{{ end }}
+            - name: World__Admission__MaxInFlightPerSource
+              value: {{ $perSource | quote }}
+            {{- end }}
+            {{- range $i, $source := .Values.server.admission.exemptSources }}
+            - name: World__Admission__ExemptSources__{{ $i }}
+              value: {{ $source | quote }}
+            {{- end }}
             - name: World__Admission__ClientCertificatePath
               value: "/run/avalon-auth/workload.pfx"
             - name: World__Admission__ClientCertificatePassword

@@ -25,6 +25,7 @@ Hosts: **API** is `Avalon.Api`, with the API services that read the class in par
 | `HostingSecurity`           | `Avalon.Server.Auth.Configuration` | `Hosting:Security` | Auth | `ValidateOnStart` (`CertificatePath` required) |
 | `WorldHostingSecurity`      | `Avalon.World.GameAuth`            | `Hosting:Security` | World | `ValidateOnStart` (`CertificatePath` required: the world's TLS certificate, a current leaf with its private key, loaded before it listens) |
 | `GameAdmissionOptions`      | `Avalon.World.GameAuth`            | `World:Admission` (`ApiUrl`, `ServerId`, `ClientCertificatePath`, `ClientCertificatePassword`, `ApiCertificateSha256`; `WorldId` from `Game:WorldId`) | World | `ValidateOnStart`: a fixed HTTPS origin, a server id, the workload client certificate and the API leaf's SHA-256 pin. See [game server admission](steam-authentication-workloads.md#world-transport-and-coordinated-protocol-cutover) |
+| `AdmissionSourceOptions`    | `Avalon.World.GameAuth`            | `World:Admission` (`MaxInFlightPerSource`, `ExemptSources`), the per-source budget on admissions (#1052) | World | `ValidateOnStart`: the cap 1 to 128; each exempt entry by `AdmissionSourceValidation`. See [World Admission Budget](#world-admission-budget) |
 | `AuthConfiguration`         | `Avalon.Server.Auth.Configuration` | `Application` | Auth | `ValidateOnStart` |
 | `GameConfiguration`         | `Avalon.World.Configuration`       | `Game` | World | `ValidateOnStart` (`WorldId` also required by a post-configure step) |
 | `RegenConfiguration`        | `Avalon.World.Configuration`       | `Regen` | World | `ValidateOnStart` |
@@ -148,6 +149,35 @@ Section in `appsettings.json`: `"Network"` (world server). Read once at startup 
 | `PacketEncryption` | bool | `false` | Seal every gameplay payload with the session layer (AES-GCM) inside TLS. Off: TLS alone, and no key exchange: no key pair or session per connection, an empty public key in the admission reply, and a packet flagged `Encrypted` closes the connection (#878). Read at startup; each connection keeps the mode it was created and admitted under. Helm: `server.network.packetEncryption` |
 
 **Validation rules:** `SendThreads` 1 to 64; `MaxPendingBytes` 65536 to 67108864; `MaxWriteStall` 1 s to 5 min; `MaxReceiveQueueDepth` 64 to 65536 (it cannot be switched off). Checked at startup, which names the setting. Only `PacketEncryption` is a Helm value; the others are set through the environment (`Network__MaxReceiveQueueDepth`).
+
+---
+
+## World Admission Budget
+
+Section `World:Admission` (world server), beside the admission's own settings (`GameAdmissionOptions`), bound as
+`AdmissionSourceOptions` (#1052). Read once at startup.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `MaxInFlightPerSource` | int | `16` | Admissions (`CMSG_GAME_ADMISSION`) one source may have in flight, from the moment the world takes one to redeem until its redemption has ended, whatever the end. One past it is answered `ServiceUnavailable` and closed at once, before its ticket is redeemed, counted in `world.admission.source_refusals` ([character login flow](character-login-flow.md#sgameadmissionpacket-refusals)). A client has at most one admission in flight, so the default leaves a household behind one address room to spare. Helm: `server.admission.maxInFlightPerSource` |
+| `ExemptSources` | string[] | `[]` | Sources the budget does not count, for load machines: IP addresses or networks in CIDR form. Helm: `server.admission.exemptSources` |
+
+A source is the client's address as the world resolves it: the peer's own, or the one a trusted proxy's PROXY v2
+header names (`Hosting:ProxyProtocol`), so players behind Caddy are counted each at their own address. It is counted
+as the login budgets count it: an IPv4 address, or an IPv6 /64, which one host is normally given whole. A connection
+that closes before its redemption has ended keeps its slot until the redemption ends, since the redemption still runs
+and still costs the identity service; the admission client's own timeout bounds it. The budget counts admissions in
+flight only: an admitted player holds no slot. It runs on the read loops and the thread pool, never on the tick.
+
+**Validation rules:** `MaxInFlightPerSource` 1 to 128, the admission lane's whole backlog
+(`WorldDatabaseWork.AdmissionOutstandingLimit`), past which no source can go anyway: the budget cannot be switched
+off. Each `ExemptSources` entry is read as the REST API's [exempt sources](#exempt-sources) are, by the same parser
+(`ExemptNetwork`), and startup refuses, naming the entry (`World:Admission:ExemptSources has ...`) and why, one that does not
+read exactly as written, one wider than /24 (IPv4) or /64 (IPv6), one covering loopback, and one overlapping a
+network `Hosting:ProxyProtocol:TrustedProxies` lists: a trusted proxy's connection that names no client (a PROXY v2
+LOCAL header) keeps the proxy's own address, so exempting the proxy would exempt each of those. List each load
+machine on its own (`/32`): on the homelab, the load-test world exempts the bot PC, 10.10.1.21/32
+([load testing](load-testing.md#before-a-run)), which it sees at that address through Caddy and when dialled directly.
 
 ---
 

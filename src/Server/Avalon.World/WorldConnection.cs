@@ -675,6 +675,26 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
 
     private static readonly FailureLogThrottle s_overloadedAdmissions = new();
     private static readonly FailureLogThrottle s_failedAdmissions = new();
+    private static readonly FailureLogThrottle s_overBudgetAdmissions = new();
+
+    /// <summary>
+    /// This connection's source already had <paramref name="maxInFlight" /> admissions in flight (#1052,
+    /// <see cref="AdmissionSourceBudget" />), so its admission is answered <c>ServiceUnavailable</c> and closed at once,
+    /// on the receive path that delivered it, before its ticket is redeemed. Counted under
+    /// <c>world.admission.source_refusals</c>. A Warning naming the source as it is counted (an IPv4 address, an IPv6
+    /// /64), without an exception, at most once per <see cref="FailureLogThrottle.Interval" /> for the whole world,
+    /// with how many more were refused since: a flood from one source writes one line every 10 s, not one per try.
+    /// </summary>
+    public void ReportAdmissionOverSourceBudget(int maxInFlight)
+    {
+        DiagnosticsConfig.World.AdmissionSourceRefusals.Add(1);
+        if (s_overBudgetAdmissions.TryTake(_time, out int suppressed))
+        {
+            ReceiveLog.AdmissionOverSourceBudget(_logger,
+                ClientIPAddress is { } address ? Avalon.Infrastructure.Login.RemoteAddress.SourceOf(address) : ClientAddress,
+                maxInFlight, suppressed);
+        }
+    }
 
     /// <summary>
     /// The admission work queue refused to redeem this connection's join ticket (#1050), which the admission answers
@@ -721,6 +741,10 @@ public partial class WorldConnection : Connection, IWorldConnection, IAccessLeve
         [LoggerMessage(Level = LogLevel.Warning,
             Message = "Answered an admission ServiceUnavailable: the world's admission work queue is full ({Outstanding} outstanding); {Suppressed} more were refused since the last line")]
         public static partial void AdmissionOverloaded(ILogger logger, int outstanding, int suppressed);
+
+        [LoggerMessage(Level = LogLevel.Warning,
+            Message = "Answered an admission ServiceUnavailable: its source {ClientSource} already has {MaxInFlight} admissions in flight (World:Admission:MaxInFlightPerSource); {Suppressed} more were refused since the last line")]
+        public static partial void AdmissionOverSourceBudget(ILogger logger, string clientSource, int maxInFlight, int suppressed);
 
         [LoggerMessage(Level = LogLevel.Error,
             Message = "Answered an admission ServiceUnavailable: its redemption threw {ExceptionType}; {Suppressed} more failed since the last line")]

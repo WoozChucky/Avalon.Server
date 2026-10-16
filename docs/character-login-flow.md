@@ -103,8 +103,22 @@ by the close of the connection, and binds nothing: no account, no lease, no char
 | `Result` | When |
 |---|---|
 | `InvalidRequest` (1) | Refused before the ticket is spent: no TLS, a ticket that is not one, a public key of the wrong length on a world that seals, a second admission on the connection. Also a key of the right length that is not a P-256 point, found after the redemption (its lease is revoked, `bad_public_key`) |
-| `ServiceUnavailable` (3) | Try later. The identity service answered so (unreachable or overloaded, a session barrier still pending, or the world in maintenance or without a fresh heartbeat, `WORLD_UNAVAILABLE`), or the world could not redeem the ticket itself: its admission work queue was full, or the redemption threw (#1050) |
+| `ServiceUnavailable` (3) | Try later. The identity service answered so (unreachable or overloaded, a session barrier still pending, or the world in maintenance or without a fresh heartbeat, `WORLD_UNAVAILABLE`), or the world could not redeem the ticket itself: its admission work queue was full, or the redemption threw (#1050). Also, before the ticket is redeemed, an admission whose source already has `World:Admission:MaxInFlightPerSource` (16) in flight (#1052) |
 | `AuthorizationRequired` (2) | Every other answer: a ticket expired, spent or for another world, a session revoked, replaced or in conflict, the game context's application not allowed on this world (`WORLD_NOT_ALLOWED`), or an answer from the identity service the world could not trust (`INVALID_ADMISSION`) |
+
+**One source cannot fill the admission lane (#1052).** Any client that completes the world's TLS and sends a
+well-formed join ticket, real or made up, takes a place in the lane and costs one redemption at the identity service,
+so each source may have at most `World:Admission:MaxInFlightPerSource` (default 16) admissions in flight
+([configuration](configuration-reference.md#world-admission-budget)). The source is the client's address as the world
+resolves it (after a trusted proxy's PROXY v2 header), an IPv4 address or an IPv6 /64. The check comes after the
+refusals that cost nothing (`InvalidRequest` above) and before the redemption is queued; one over the budget is
+answered `ServiceUnavailable` and closed at once, on the receive path that delivered it, counted under
+`world.admission.source_refusals` with one Warning at most every 10 s naming the source
+([instrumentation](instrumentation.md#work-queue-refusals-and-unserved-admissions)). Its slot is given back exactly
+once: at once when the lane refuses the redemption, otherwise when the redemption ends, however it ends (admitted,
+refused, faulted, cancelled). A connection that closes first keeps its slot until then, since its redemption still
+runs. Sources listed in `World:Admission:ExemptSources` (a load-test bot PC) are not counted. No value was added to
+the wire.
 
 **An admission the world cannot redeem is answered, not dropped (#1050).** The world has at most 128 redemptions
 outstanding, 32 of them running (`WorldDatabaseWork.Admission`); a reconnect storm past that is refused as it arrives,

@@ -113,6 +113,19 @@ for bad in "server.tickThread.cpu=-1""server.tickThread.cpu=1.5" "server.tickThr
   fi
 done
 
+# The per-source admission budget (#1052): neither setting renders unset; a cap (a values-file float too) renders as
+# digits, each exempt source as given; a cap that is not a whole number of at least 1 fails.
+! grep -q "World__Admission__MaxInFlightPerSource" <<<"$off"                                   || { echo "admission cap rendered when unset"; exit 1; }
+! grep -q "World__Admission__ExemptSources" <<<"$off"                                          || { echo "exempt sources rendered when unset"; exit 1; }
+ad=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set-json server.admission.maxInFlightPerSource=32 --set 'server.admission.exemptSources[0]=10.10.1.21/32')
+grep -A1 "name: World__Admission__MaxInFlightPerSource" <<<"$ad" | grep -q '"32"'               || { echo "admission cap must render as digits"; exit 1; }
+grep -A1 "name: World__Admission__ExemptSources__0" <<<"$ad" | grep -q '"10.10.1.21/32"'        || { echo "exempt source must render"; exit 1; }
+for bad in "server.admission.maxInFlightPerSource=0" "server.admission.maxInFlightPerSource=-1" "server.admission.maxInFlightPerSource=1.5" "server.admission.maxInFlightPerSource=many"; do
+  if helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set "$bad" >/dev/null 2>&1; then
+    echo "rendering with $bad must fail"; exit 1
+  fi
+done
+
 # Packet encryption (#875): false unless set; true renders; anything but a boolean fails.
 grep -A1 "name: Network__PacketEncryption" <<<"$off" | grep -q '"false"'                       || { echo "packet encryption must default to false"; exit 1; }
 pe=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x --set server.network.packetEncryption=true)
