@@ -59,11 +59,11 @@ public class PendingLinkStoreShould
     {
         var runId = Guid.NewGuid();
         string challenge = Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(_verifier))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        AuthAttemptReply handoffAttempt = (await _auth.CreateAttemptAsync("avalon", "1", runId, challenge, null, null, CancellationToken.None))!;
+        AuthAttemptReply handoffAttempt = (await _auth.CreateAttemptAsync("avalon", GameClientTestData.ClientVersion, runId, challenge, null, null, CancellationToken.None))!;
         string handoff = GameAuthCryptography.NewToken();
         _store.Seed(RedisGameTicketStore.Key(handoff), $"7|{_family:D}|0|0|production");
         GameAuthReply inherited = await _auth.RedeemHandoffAsync(handoffAttempt.AttemptCredential, handoff, Guid.NewGuid(), CancellationToken.None);
-        AuthAttemptReply attempt = (await _auth.CreateAttemptAsync("steam", "1", runId, challenge, inherited.GameContextCredential, null, CancellationToken.None))!;
+        AuthAttemptReply attempt = (await _auth.CreateAttemptAsync("steam", GameClientTestData.ClientVersion, runId, challenge, inherited.GameContextCredential, null, CancellationToken.None))!;
         return await _auth.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
     }
 
@@ -141,11 +141,11 @@ public class PendingLinkStoreShould
         _families.IsLiveLauncherFamilyAsync(_account.Id, _family, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
         var run = Guid.NewGuid();
         string challenge = Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(_verifier))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        AuthAttemptReply attempt = (await _auth.CreateAttemptAsync("avalon", "1", run, challenge, null, null, CancellationToken.None))!;
+        AuthAttemptReply attempt = (await _auth.CreateAttemptAsync("avalon", GameClientTestData.ClientVersion, run, challenge, null, null, CancellationToken.None))!;
         string handoff = GameAuthCryptography.NewToken();
         _store.Seed(RedisGameTicketStore.Key(handoff), $"7|{_family:D}|0|0|production");
         GameAuthReply restricted = await _auth.RedeemHandoffAsync(attempt.AttemptCredential, handoff, Guid.NewGuid(), CancellationToken.None);
-        AuthAttemptReply proofAttempt = (await _auth.CreateAttemptAsync("steam", "1", run, challenge, restricted.GameContextCredential, null, CancellationToken.None))!;
+        AuthAttemptReply proofAttempt = (await _auth.CreateAttemptAsync("steam", GameClientTestData.ClientVersion, run, challenge, restricted.GameContextCredential, null, CancellationToken.None))!;
         GameAuthReply pending = await _auth.AuthenticateSteamAsync(proofAttempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
         await _links.ConfirmAsync(Guid.ParseExact(pending.PendingLinkId!, "N"), _account.Id, 0, 0, null, Guid.NewGuid(), CancellationToken.None);
         LinkProposalReply proposal = await _links.ProposalAsync(pending.GameContextCredential!, _verifier, CancellationToken.None);

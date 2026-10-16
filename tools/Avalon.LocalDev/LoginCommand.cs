@@ -19,7 +19,8 @@ namespace Avalon.LocalDev;
 /// </summary>
 public static class LoginCommand
 {
-    private const string ProtocolVersion = "0.3.0";
+    /// <summary>What the provider attempt names: sign-in accepts it at or above <c>Application:GameWorkloads:MinClientVersion</c>.</summary>
+    private const string ProtocolVersion = Avalon.Tools.ToolClientVersion.Current;
     private const string ApplicationKey = "avalon.base";
     private const string TicketVariable = "AVALON_GAME_TICKET_STDIN";
 

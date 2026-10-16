@@ -1,5 +1,6 @@
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Identity.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
@@ -26,7 +27,7 @@ public sealed class GameServerAllocatorShould
     private readonly ICharacterRepository _characters = Substitute.For<ICharacterRepository>();
     private readonly Account _account = new() { Id = new AccountId(7), Username = "PLAYER", Email = "p@example.test", Salt = [1], Verifier = [2], JoinDate = DateTime.UnixEpoch };
     private readonly Avalon.Domain.Auth.World _world = new() { Id = new WorldId(1), Name = "World", Host = "world.example.test", Port = 21000, MinVersion = "0.2.0", Version = "0.2.0", MaintenanceRevision = 1 };
-    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), SteamAppId = 480, ApplicationKey = "steam.main", AccountId = 7, ProtocolVersion = GameWorkloadConfiguration.ClientProtocolVersion, Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
+    private readonly GameContextRecord _context = new() { Id = Guid.NewGuid(), SteamAppId = 480, ApplicationKey = "steam.main", AccountId = 7, ProtocolVersion = GameClientTestData.ClientVersion, Environment = "production", State = "authorized", CredentialDigest = "digest", RefreshDigest = "digest" };
     private readonly GameServerAllocator _allocator;
 
     [Fact]
@@ -36,7 +37,7 @@ public sealed class GameServerAllocatorShould
         _worlds.FindByIdAsync(ptr.Id, false, Arg.Any<CancellationToken>()).Returns(ptr);
         _databases.IsAvailable(ptr.Id).Returns(true);
         _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
-        IOptions<GameWorkloadConfiguration> workload = Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] });
+        IOptions<GameWorkloadConfiguration> workload = GameClientTestData.Workloads(new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 });
         var config = new StoreAuthenticationConfiguration { SteamAppId = 480, SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
         var allocator = new GameServerAllocator(_worlds, _accounts, _databases, _readiness, _repositories, workload, _clock, new GameApplicationAccessPolicy(Options.Create(config)));
         GameContextRecord context = _context with { SteamAppId = 2514590, ApplicationKey = "steam.playtest" };
@@ -78,7 +79,7 @@ public sealed class GameServerAllocatorShould
         _readiness.IsReadyAsync(1, Arg.Any<CancellationToken>()).Returns(true);
         _repositories.Characters(_world.Id).Returns(_characters);
         _allocator = new(_worlds, _accounts, _databases, _readiness, _repositories,
-            Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1, TlsServerName = "world.example.test", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = new string('B', 64) }] }), _clock, new GameApplicationAccessPolicy(Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 480 })));
+            GameClientTestData.Workloads(new GameServerDefinition { ServerId = "world-1", WorldId = 1, TlsServerName = "world.example.test", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = new string('B', 64) }), _clock, new GameApplicationAccessPolicy(Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 480 })));
     }
     private Task<GameWorldDestination?> Find(GameContextRecord? context = null, uint? character = null) => _allocator.FindAsync(context ?? _context, 1, character, CancellationToken.None);
 
@@ -101,6 +102,8 @@ public sealed class GameServerAllocatorShould
         Assert.Null(await Find(_context with { ProtocolVersion = "1" }));
         Assert.Null(await Find(_context with { ProtocolVersion = "0.1.0" }));
         Assert.Null(await Find(_context with { ProtocolVersion = "0.2.0" }));
+        // A floor, not one version (#949): a client newer than the services is allocated.
+        Assert.NotNull(await Find(_context with { ProtocolVersion = "0.4.0" }));
         Assert.Null(await Find(_context with { SessionEpoch = 1 }));
         // A consolidating account is frozen; a password lock is not asked (#882).
         _account.GameplayConsolidationId = Guid.NewGuid();

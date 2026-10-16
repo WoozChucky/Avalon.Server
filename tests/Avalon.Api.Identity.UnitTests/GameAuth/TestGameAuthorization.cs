@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Avalon.Api.Testing;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
@@ -23,7 +24,7 @@ internal static class TestGameAuthorization
         var registry = new GameProviderRegistry([new SteamIdentityProvider(proof, options, clock)],
             [new SteamLicenseProvider(ownership), new AvalonLicenseProvider(gameLicenses ?? Licenses(store))]);
         return new(store, attempts, crypto, accounts, families, identities, registry,
-            new GameLicenseAuthorityService(registry, gameLicenses ?? Licenses(store), observations, options, clock), options, clock, registration, revocations);
+            new GameLicenseAuthorityService(registry, gameLicenses ?? Licenses(store), observations, options, clock), options, GameClientTestData.Workloads(), clock, registration, revocations);
     }
 }
 

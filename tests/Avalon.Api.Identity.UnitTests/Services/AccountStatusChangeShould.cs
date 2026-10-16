@@ -131,7 +131,7 @@ public class AccountStatusChangeShould : IDisposable
         GameAuthorizationService authorization = TestGameAuthorization.Create(store, new(store, crypto, options, TimeProvider.System), crypto,
             accounts, families, Substitute.For<IExternalIdentityRepository>(), Substitute.For<ILicenseObservationRepository>(),
             Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(), options, TimeProvider.System, gameLicenses: licenses);
-        AuthAttemptReply attempt = (await authorization.CreateAttemptAsync("avalon", "1", Guid.NewGuid(), new string('A', 43), null, null, default))!;
+        AuthAttemptReply attempt = (await authorization.CreateAttemptAsync("avalon", GameClientTestData.ClientVersion, Guid.NewGuid(), new string('A', 43), null, null, default))!;
         string ticket = GameAuthCryptography.NewToken();
         store.Seed(RedisGameTicketStore.Key(ticket), $"{account.Id.Value}|{family:D}|{account.CredentialsVersion}|{account.SessionEpoch}|production");
         GameAuthReply signedIn = await authorization.RedeemHandoffAsync(attempt.AttemptCredential, ticket, Guid.NewGuid(), default);

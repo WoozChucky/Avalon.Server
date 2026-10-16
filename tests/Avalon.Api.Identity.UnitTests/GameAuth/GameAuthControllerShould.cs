@@ -43,12 +43,12 @@ public class GameAuthControllerShould
         GameAuthorizationService service = TestGameAuthorization.Create(store, new(store, crypto, config, TimeProvider.System), crypto,
             Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
             Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(), config, TimeProvider.System);
-        var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        var controller = new GameAuthController(service, GameClientTestData.Workloads()) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         controller.Request.Scheme = scheme;
         IActionResult result = await controller.ProviderAttempt(new GameProviderAttemptRequest
         {
             ApplicationKey = application,
-            ProtocolVersion = GameWorkloadConfiguration.ClientProtocolVersion,
+            ProtocolVersion = GameClientTestData.ClientVersion,
             ClientRunId = Guid.NewGuid(),
             LinkChallenge = new string('A', 43)
         }, default);
@@ -78,9 +78,9 @@ public class GameAuthControllerShould
         GameAuthorizationService service = TestGameAuthorization.Create(store, new AuthAttemptStore(store, crypto, config, TimeProvider.System), crypto,
             Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
             Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(), config, TimeProvider.System);
-        var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        var controller = new GameAuthController(service, GameClientTestData.Workloads()) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         controller.Request.Scheme = "https";
-        IActionResult result = await controller.ProviderAttempt(new GameProviderAttemptRequest { ApplicationKey = application, ProtocolVersion = GameWorkloadConfiguration.ClientProtocolVersion, ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, default);
+        IActionResult result = await controller.ProviderAttempt(new GameProviderAttemptRequest { ApplicationKey = application, ProtocolVersion = GameClientTestData.ClientVersion, ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, default);
         if (accepted)
         {
             Assert.IsType<OkObjectResult>(result);
@@ -98,7 +98,7 @@ public class GameAuthControllerShould
             Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
             Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(),
             config, TimeProvider.System);
-        var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        var controller = new GameAuthController(service, GameClientTestData.Workloads()) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         IActionResult result = await controller.ProviderAttempt(new GameProviderAttemptRequest
         {
             ApplicationKey = "steam.main",
@@ -110,11 +110,26 @@ public class GameAuthControllerShould
         Assert.Empty(store.Entries);
     }
 
+    /// <summary>
+    /// #949: sign-in accepts a client at or above the configured floor (0.3.0 here), so a client can ship before the
+    /// services. One below it, or whose version is not three whole numbers, is refused before an attempt is stored.
+    /// </summary>
     [Theory]
-    [InlineData("1")]
-    [InlineData("0.1.0")]
-    [InlineData("99")]
-    public async Task Refuse_unsupported_protocols_before_allocating_an_attempt(string version)
+    [InlineData("0.3.0", true)]
+    [InlineData("0.3.1", true)]
+    [InlineData("0.10.0", true)]
+    [InlineData("1.0.0", true)]
+    [InlineData("0.2.9", false)]
+    [InlineData("0.1.0", false)]
+    [InlineData("1", false)]
+    [InlineData("99", false)]
+    [InlineData("0.4", false)]
+    [InlineData("0.4.0-beta", false)]
+    [InlineData(" 0.4.0", false)]
+    [InlineData("+0.4.0", false)]
+    [InlineData("256.0.0", false)]
+    [InlineData("", false)]
+    public async Task Accept_only_clients_at_or_above_the_configured_floor(string version, bool accepted)
     {
         var store = new AtomicAuthStore();
         var crypto = new GameAuthCryptography(new byte[32]);
@@ -123,11 +138,17 @@ public class GameAuthControllerShould
             Substitute.For<IAccountRepository>(), Substitute.For<IRefreshTokenRepository>(), Substitute.For<IExternalIdentityRepository>(),
             Substitute.For<ILicenseObservationRepository>(), Substitute.For<ISteamProofVerifier>(), Substitute.For<ISteamOwnershipClient>(),
             config, TimeProvider.System);
-        var controller = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        var controller = new GameAuthController(service, GameClientTestData.Workloads()) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         controller.Request.Scheme = "https";
-        BadRequestObjectResult result = Assert.IsType<BadRequestObjectResult>(await controller.ProviderAttempt(new GameProviderAttemptRequest
-        { ApplicationKey = "steam.main", ProtocolVersion = version, ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, CancellationToken.None));
-        Assert.Equal("UNSUPPORTED_PROTOCOL", Assert.IsType<GameAuthReply>(result.Value).Error);
+        IActionResult result = await controller.ProviderAttempt(new GameProviderAttemptRequest
+        { ApplicationKey = "steam.main", ProtocolVersion = version, ClientRunId = Guid.NewGuid(), LinkChallenge = new string('A', 43) }, CancellationToken.None);
+        if (accepted)
+        {
+            Assert.IsType<ProviderAuthAttemptReply>(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.NotEmpty(store.Entries);
+            return;
+        }
+        Assert.Equal("UNSUPPORTED_PROTOCOL", Assert.IsType<GameAuthReply>(Assert.IsType<BadRequestObjectResult>(result).Value).Error);
         Assert.Empty(store.Entries);
     }
 

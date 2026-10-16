@@ -94,7 +94,11 @@ public static class IdentityServiceRegistration
         services.AddScoped<AccountConsolidationService>();
         services.AddScoped<Avalon.Infrastructure.GameAuth.IGameServerAllocator, GameServerAllocator>();
         services.AddOptions<Avalon.Configuration.GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads")
-            .Validate(c => { c.Validate(); return true; });
+            .Validate(c => { c.Validate(); return true; })
+            // The sign-in floor (#949): appsettings.json holds the default, so a value missing or unreadable stops startup.
+            .Validate(c => Avalon.Infrastructure.GameAuth.ClientVersionFloor.IsValid(c.MinClientVersion),
+                Avalon.Infrastructure.GameAuth.ClientVersionFloor.Refusal)
+            .ValidateOnStart();
         services.AddOptions<LoadTestOptions>().BindConfiguration(LoadTestOptions.Section)
             .Validate(o => o.MaxAccounts >= 1,
                 $"{LoadTestOptions.Section}:{nameof(LoadTestOptions.MaxAccounts)} must be at least 1.")

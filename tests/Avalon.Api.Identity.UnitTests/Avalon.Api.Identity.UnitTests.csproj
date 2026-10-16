@@ -42,4 +42,9 @@
     <ProjectReference Include="..\..\src\Server\Avalon.Api.Identity\Avalon.Api.Identity.csproj"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The client version the tools state, checked against the API's default floor (#949, ToolClientVersionShould). -->
+    <Compile Include="..\..\tools\Shared\ToolClientVersion.cs" Link="GameAuth\ToolClientVersion.cs"/>
+  </ItemGroup>
+
 </Project>

@@ -10,6 +10,8 @@
   <ItemGroup>
     <!-- The same three leaves the Aspire AppHost makes on every run: one implementation for both local paths. -->
     <Compile Include="..\..\src\Server\Avalon\LocalCertificates.cs" Link="LocalCertificates.cs"/>
+    <!-- The client version it states, shared with Avalon.LoadTest (#949). -->
+    <Compile Include="..\Shared\ToolClientVersion.cs" Link="ToolClientVersion.cs"/>
   </ItemGroup>
 
 </Project>

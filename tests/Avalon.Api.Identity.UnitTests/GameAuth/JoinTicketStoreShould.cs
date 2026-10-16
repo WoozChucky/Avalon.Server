@@ -220,7 +220,7 @@ internal sealed class JoinHarness
     }
     public async Task<GameAuthReply> Authenticate(uint? appId = null)
     {
-        AuthAttemptReply attempt = (await Authorization.CreateAttemptAsync("steam", "1", Guid.NewGuid(), new string('A', 43), null, appId, CancellationToken.None))!;
+        AuthAttemptReply attempt = (await Authorization.CreateAttemptAsync("steam", GameClientTestData.ClientVersion, Guid.NewGuid(), new string('A', 43), null, appId, CancellationToken.None))!;
         return await Authorization.AuthenticateSteamAsync(attempt.AttemptCredential, "ABCD", Guid.NewGuid(), CancellationToken.None);
     }
     public async Task<GameAuthReply> AuthenticateAvalon()
@@ -237,7 +237,7 @@ internal sealed class JoinHarness
             AuthorityKind = Avalon.Common.GameAuth.LicenseAuthorityKind.StoredGrant,
             GrantedAt = Clock.GetUtcNow().UtcDateTime
         });
-        AuthAttemptReply attempt = (await Authorization.CreateAttemptAsync("avalon", "1", Guid.NewGuid(), new string('A', 43), null, null, default))!;
+        AuthAttemptReply attempt = (await Authorization.CreateAttemptAsync("avalon", GameClientTestData.ClientVersion, Guid.NewGuid(), new string('A', 43), null, null, default))!;
         string ticket = GameAuthCryptography.NewToken();
         Store.Seed(Avalon.Infrastructure.GameTickets.RedisGameTicketStore.Key(ticket), $"7|{_family:D}|0|0|production");
         return await Authorization.RedeemHandoffAsync(attempt.AttemptCredential, ticket, Guid.NewGuid(), default);

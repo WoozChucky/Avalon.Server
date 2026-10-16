@@ -16,7 +16,8 @@ namespace Avalon.Infrastructure.GameAuth;
 public sealed partial class GameAuthorizationService(IGameContextStore store, AuthAttemptStore attempts, GameAuthCryptography crypto,
     IAccountRepository accounts, IRefreshTokenRepository refreshTokens, IExternalIdentityRepository identities,
     GameProviderRegistry providers, GameLicenseAuthorityService licenseAuthority,
-    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, IGameAccountRegistration? registration = null, IGameContextRevocations? revocations = null,
+    IOptions<StoreAuthenticationConfiguration> options, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock,
+    IGameAccountRegistration? registration = null, IGameContextRevocations? revocations = null,
     ILogger<GameAuthorizationService>? logger = null)
 {
     private readonly ILogger _logger = logger ?? NullLogger<GameAuthorizationService>.Instance;
@@ -48,6 +49,8 @@ public sealed partial class GameAuthorizationService(IGameContextStore store, Au
     public async Task<ProviderAttemptResult> CreateProviderAttemptAsync(string applicationKey, string protocolVersion, Guid clientRunId,
         string linkChallenge, string? contextCredential, uint legacySteamAppId, CancellationToken cancellationToken)
     {
+        // Every attempt is made here, so none is made for a client below the sign-in floor (#949), whichever form asked.
+        if (!workloads.Value.Admits(protocolVersion)) return default;
         GameApplicationSelection? application = options.Value.ResolveApplication(applicationKey);
         if (application is null) return default;
         IGameIdentityProvider? identityProvider = providers.Identity(application.Provider);

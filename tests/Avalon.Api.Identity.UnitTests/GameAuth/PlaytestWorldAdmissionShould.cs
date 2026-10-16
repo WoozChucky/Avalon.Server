@@ -2,6 +2,7 @@ using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Identity.Controllers;
 using Avalon.Api.Identity.Services;
 using Avalon.Api.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.Accounts;
 using Avalon.Common.GameAuth;
 using Avalon.Common.ValueObjects;
@@ -270,6 +271,7 @@ public sealed class PlaytestWorldAdmissionShould
             IWorldRepositories repositories = Substitute.For<IWorldRepositories>();
             IOptions<GameWorkloadConfiguration> workloads = Options.Create(new GameWorkloadConfiguration
             {
+                MinClientVersion = GameClientTestData.MinClientVersion,
                 Servers = [new GameServerDefinition { ServerId = "world-3", WorldId = 3, TlsServerName = "ptr.example.test", TlsCertificateSha256 = new string('A', 64) }],
             });
             Allocator = new(worlds, accounts, databases, readiness, repositories, workloads, _clock, applications);
@@ -324,7 +326,7 @@ public sealed class PlaytestWorldAdmissionShould
 
         public async Task<GameAuthReply> Authenticate(uint appId, string expectedState = GameAuthStates.Authorized)
         {
-            AuthAttemptReply attempt = (await Authorization.CreateAttemptAsync("steam", GameWorkloadConfiguration.ClientProtocolVersion,
+            AuthAttemptReply attempt = (await Authorization.CreateAttemptAsync("steam", GameClientTestData.ClientVersion,
                 Guid.NewGuid(), new string('A', 43), null, appId, default))!;
             GameAuthReply reply = await Authorization.AuthenticateSteamAsync(attempt.AttemptCredential,
                 (++_proof).ToString("X4", System.Globalization.CultureInfo.InvariantCulture), Guid.NewGuid(), default, "127.0.0.1");

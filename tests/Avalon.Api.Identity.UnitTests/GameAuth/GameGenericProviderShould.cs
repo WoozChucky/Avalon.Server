@@ -1,3 +1,4 @@
+using Avalon.Api.Testing;
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
@@ -31,8 +32,10 @@ public sealed class GameGenericProviderShould
         var store = new AtomicAuthStore();
         var crypto = new GameAuthCryptography(new byte[32]);
         var service = new GameAuthorizationService(store, new(store, crypto, config, clock), crypto, accounts,
-            Substitute.For<IRefreshTokenRepository>(), links, registry, new(registry, licenses, Substitute.For<ILicenseObservationRepository>(), config, clock), config, clock);
-        AuthAttemptReply attempt = (await service.CreateProviderAttemptAsync("future.main", "1", Guid.NewGuid(), new string('A', 43), null, 0, default)).Attempt!;
+            Substitute.For<IRefreshTokenRepository>(), links, registry, new(registry, licenses, Substitute.For<ILicenseObservationRepository>(), config, clock), config, GameClientTestData.Workloads(), clock);
+        // The floor holds wherever an attempt is made, not only at the controller (#949).
+        Assert.Null((await service.CreateProviderAttemptAsync("future.main", "0.2.9", Guid.NewGuid(), new string('A', 43), null, 0, default)).Attempt);
+        AuthAttemptReply attempt = (await service.CreateProviderAttemptAsync("future.main", GameClientTestData.ClientVersion, Guid.NewGuid(), new string('A', 43), null, 0, default)).Attempt!;
         Assert.Equal("future-challenge", attempt.ExpectedSteamIdentity);
         GameAuthReply result = await service.AuthenticateProviderAsync("test-store", attempt.AttemptCredential, "opaque-proof", Guid.NewGuid(), default);
         Assert.Equal("authorized", result.State);

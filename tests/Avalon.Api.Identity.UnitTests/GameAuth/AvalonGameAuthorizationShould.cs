@@ -2,6 +2,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Worlds;
 using Avalon.Api.Identity.Controllers;
 using Avalon.Api.Identity.Services;
+using Avalon.Api.Testing;
 using Avalon.Common.GameAuth;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
@@ -47,7 +48,8 @@ public sealed class AvalonGameAuthorizationShould
         IGameLicenseRepository licenses = repository ?? _licenses;
         var registry = new GameProviderRegistry([], [new AvalonLicenseProvider(licenses)]);
         return new(_store, new(_store, _crypto, _options, _clock), _crypto, _accounts, _families, _identities,
-            registry, new(registry, licenses, _observations, _options, _clock), _options, _clock, revocations: _revocations);
+            registry, new(registry, licenses, _observations, _options, _clock), _options, GameClientTestData.Workloads(), _clock,
+            revocations: _revocations);
     }
     private GameLicense Grant(DateTime? expires = null, string provider = "avalon")
     {
@@ -67,7 +69,7 @@ public sealed class AvalonGameAuthorizationShould
         _licenses.Rows.Add(row); return row;
     }
     private async Task<(GameAuthReply Reply, string Attempt, string Ticket, Guid Request)> Handoff(GameAuthorizationService? service = null,
-        string protocol = "1")
+        string protocol = GameClientTestData.ClientVersion)
     {
         service ??= Service();
         AuthAttemptReply attempt = (await service.CreateAttemptAsync("avalon", protocol, _run, new string('A', 43), null, null, default))!;
@@ -117,7 +119,7 @@ public sealed class AvalonGameAuthorizationShould
             .Returns(new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, Now, Now.AddMinutes(5)));
         GameAuthorizationService service = TestGameAuthorization.Create(_store, new(_store, _crypto, _options, _clock), _crypto,
             _accounts, _families, _identities, _observations, proof, ownership, _options, _clock, gameLicenses: _licenses);
-        AuthAttemptReply attempt = (await service.CreateProviderAttemptAsync("steam.main", "1", _run, new string('A', 43),
+        AuthAttemptReply attempt = (await service.CreateProviderAttemptAsync("steam.main", GameClientTestData.ClientVersion, _run, new string('A', 43),
             initial.GameContextCredential, 2499460, default)).Attempt!;
         GameAuthReply switched = await service.AuthenticateProviderAsync("steam", attempt.AttemptCredential, "ABCD", Guid.NewGuid(), default);
         GameContextRecord replacement = (await service.GetContextAsync(switched.GameContextCredential!, true, default))!;
@@ -379,7 +381,7 @@ public sealed class AvalonGameAuthorizationShould
             .Returns(_ => new SteamOwnershipResult(SteamOwnershipStatus.Owned, Subject, Now, Now.AddMinutes(5)));
         GameAuthorizationService service = TestGameAuthorization.Create(_store, new(_store, _crypto, _options, _clock), _crypto,
             _accounts, _families, _identities, _observations, proof, ownership, _options, _clock, revocations: _revocations, gameLicenses: _licenses);
-        var auth = new GameAuthController(service) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
+        var auth = new GameAuthController(service, GameClientTestData.Workloads()) { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         auth.Request.Scheme = "https";
         var policy = new GameApplicationAccessPolicy(_options);
         IGameServerAllocator allocator = Substitute.For<IGameServerAllocator>();
@@ -392,7 +394,7 @@ public sealed class AvalonGameAuthorizationShould
         admission.Request.Scheme = "https";
 
         // A context signed in before the change, for the routes that present one.
-        const string Protocol = GameWorkloadConfiguration.ClientProtocolVersion;
+        const string Protocol = GameClientTestData.ClientVersion;
         GameAuthReply? context = route is "refresh" or "attempt" or "worlds" or "join" or "steam-carried"
             ? (await Handoff(service, Protocol)).Reply : null;
         if (change == "banned-after-logout") await service.LogoutAsync(context!.GameContextCredential!, default);
@@ -452,8 +454,8 @@ public sealed class AvalonGameAuthorizationShould
     {
         var registry = new GameProviderRegistry([], []);
         var service = new GameAuthorizationService(_store, new(_store, _crypto, _options, _clock), _crypto, _accounts, _families, _identities,
-            registry, new(registry, _licenses, _observations, _options, _clock), _options, _clock);
-        Assert.Null((await service.CreateProviderAttemptAsync("avalon.base", "1", _run, new string('A', 43), null, 0, default)).Attempt);
+            registry, new(registry, _licenses, _observations, _options, _clock), _options, GameClientTestData.Workloads(), _clock);
+        Assert.Null((await service.CreateProviderAttemptAsync("avalon.base", GameClientTestData.ClientVersion, _run, new string('A', 43), null, 0, default)).Attempt);
     }
 
     [Fact]

@@ -489,3 +489,21 @@ manage, so it needs existingSecret, and it must be a valid key name that no othe
 {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- /*
+gameAdmission.minClientVersion (#949), checked for every release, identity's or not: three whole numbers,
+major.minor.patch, major and minor at most 255 and patch at most 65535, as identity requires at startup.
+*/}}
+{{- define "avalon-api.validateMinClientVersion" -}}
+{{- with (.Values.gameAdmission | default dict).minClientVersion }}
+{{- $version := toString . }}
+{{- $refusal := printf "gameAdmission.minClientVersion is %q: the oldest client game sign-in accepts is three whole numbers, major.minor.patch, major and minor at most 255 and patch at most 65535, e.g. 1.2.3." $version }}
+{{- if not (regexMatch "^[0-9]{1,5}\\.[0-9]{1,5}\\.[0-9]{1,5}$" $version) }}
+{{- fail $refusal }}
+{{- end }}
+{{- $parts := splitList "." $version }}
+{{- if or (gt (atoi (index $parts 0)) 255) (gt (atoi (index $parts 1)) 255) (gt (atoi (index $parts 2)) 65535) }}
+{{- fail $refusal }}
+{{- end }}
+{{- end }}
+{{- end -}}
