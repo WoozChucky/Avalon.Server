@@ -4,7 +4,7 @@ Each world may be given a limit on the accounts it admits (#967). The limit is e
 by the identity service, which keeps per world a ledger of the places it has given out and, for a full world, a line
 of the accounts waiting for one. The world keeps a backstop of its own. A world with no limit behaves as before.
 
-The feature ships in five parts. This page describes what is in place now and marks the rest:
+The feature shipped in five parts, all in place:
 
 | Part | What it adds | State |
 |---|---|---|
@@ -12,7 +12,7 @@ The feature ships in five parts. This page describes what is in place now and ma
 | 2 | The reason a world gives for a session's end; the held place after a drop | in place |
 | 3 | Enforcement at the join (`WORLD_FULL`), the `Full` status, the world's backstop | in place |
 | 4 | The queue: the "queued" answer, the status and leave calls, their rate limit, the metrics | in place |
-| 5 | The goodbye opcode (`CMSG_LEAVE_WORLD`), so a quit frees its place at once | from PR 5 |
+| 5 | The goodbye opcode (`CMSG_LEAVE_WORLD`), so a quit frees its place at once; the client floor 0.4.0 | in place |
 
 A world with a limit queues a newcomer once it is full ([enforcement](#enforcement), [the queue](#the-queue)), and
 answers `WORLD_FULL` only once its line is at its cap.
@@ -155,7 +155,7 @@ same `DisconnectReason` as before.
 
 | The world closed the connection, or saw it close, because | `reason` | The place |
 |---|---|---|
-| The client said goodbye (`CMSG_LEAVE_WORLD`, from part 5) | `logout` | removed |
+| The client said goodbye (`CMSG_LEAVE_WORLD`, [the goodbye](#the-goodbye)) | `logout` | removed |
 | The peer closed it, or it was lost, with no goodbye | `drop` | held |
 | The liveness rule closed it: no pong for 60 s (#1061) | `drop` | held |
 | A slow connection (`SlowConnection`), the receive queue's cap, a failed character save (`CharacterSaveFailed`), a lease that ran out or was revoked | `drop` | held |
@@ -211,6 +211,50 @@ same `DisconnectReason` as before.
 - A held place exists only for an account that was admitted, for the grace, and gives nothing a player could not have
   by staying connected. It counts against the limit, and a return within the grace is admitted however full the
   world is.
+
+## The goodbye
+
+A client that quits on purpose, to the desktop or back to the launcher, sends `CMSG_LEAVE_WORLD` (0x201F, no payload,
+sealed as any gameplay packet when the world seals) and then closes the connection
+([packet protocol](networking-packet-protocol.md#the-goodbye-cmsg_leave_world)). The world ends the session as a
+`logout`, and identity releases the place at once. Every other close without a world reason is a drop, which holds the
+place for the grace: so a crash, a lost connection or a killed client keeps the place, and a quit frees it.
+
+- **Noted as it arrives.** The read loop notes the end's reason the moment the goodbye arrives
+  (`WorldConnection.OnReceive`, `NoteGoodbye`), because the client closes right after it and the close's despawn runs
+  on the tick before any session packet would be dispatched. The handler (`LeaveWorldHandler`) closes a connection the
+  client left open. The first reason noted wins (`SessionEndReasons.Note`), so no close after the goodbye, the
+  client's or the world's (a slow connection, a failed save), turns it into a drop; a reason the world noted before
+  it, as it was already closing the connection, stands (a kick, a cutoff, a stop all release the place too; a
+  world-side drop noted in the same instant holds it for the grace).
+- **Before admission, or blocked by maintenance,** it is dropped as every gameplay packet is: a connection maintenance
+  blocked is closed with its own reason, which releases the place anyway.
+- **Change Character** keeps the connection and the session, and sends no goodbye: the place is untouched.
+- **Only its own session.** The goodbye ends the session of the connection it arrives on and nothing else: a client
+  can release only its own place.
+- **An identity from before part 2** knows no reason: it removes the place at every end, so a goodbye changes nothing
+  there (identity is deployed before the worlds). A world that met such an identity sends its ends without the reason
+  until identity takes it again, offered at most every 5 minutes ([the held place](#the-held-place)): in that window a
+  newer identity reads a goodbye's end as a drop and holds the place for the grace.
+
+### The client's side
+
+The game client (Avalon.Client) implements, from 0.4.0:
+
+- its version 0.4.0, in the provider attempt and in the world handshake;
+- the goodbye: `CMSG_LEAVE_WORLD` before closing on a deliberate quit or a return to the launcher, never on Change
+  Character;
+- the join's new answers: **202** `{ position, checkInAfterSeconds }` with no ticket (queued), and **503** `WORLD_FULL`
+  with `Retry-After`;
+- a queue screen showing the position, with a cancel; `POST /game/queue/status` (the game context credential and the
+  world id) at the interval each reply gives, `state` one of `queued`, `paused`, `your_turn`, `not_queued`
+  (`estimatedWaitSeconds` always null for now); on `your_turn` the ordinary join-ticket call within 45 s; on
+  `not_queued` a new join; `POST /game/queue/leave` on cancel (safe to repeat); both calls limited to 30 a minute per
+  account; the game context refreshed while it waits;
+- a message for `GameAdmissionResult.WorldFull` (5) at the world's door ("back off a minute or more");
+- in the world picker, `status` (`Online`, `Maintenance`, `Full`), `playerCount`, `playerLimit` and `queueLength` from
+  `POST /game/worlds`;
+- the wire schema re-vendored.
 
 ## Enforcement
 
@@ -519,6 +563,19 @@ Each step only after the one before is done:
 3. Check: `/game/worlds` and `GET /world` show places taken for a world with players, and identity's and the worlds
    service's logs carry no "could not read world ... places" Warning, and identity's carry no "Redis refused the expiry of
    a place ledger field" (the identity Redis user lacks `hpexpire`, or Redis is older than 7.4: check step 1).
+
+**Part 5, the client first.** Part 5 raises the API's default client floor (`Application:GameWorkloads:MinClientVersion`)
+to 0.4.0, so from its deploy identity refuses a 0.3.0 client at sign-in (400 `UNSUPPORTED_PROTOCOL`). In this order:
+
+1. Publish the 0.4.0 client against the services as they are: their floor is "at or above" (#949), so they take it; its
+   goodbye is an opcode a world before part 5 drops, with one Warning per connection (#897).
+2. Deploy part 5, identity first, then the worlds. Merge it only when this step is next: any deploy after the merge
+   raises the floor.
+3. Raise each world's `MinVersion` to 0.4.0 (`PUT /world/{id}`): a game context signed in before step 2 is told
+   `CLIENT_OUTDATED` (426, `requiredVersion` 0.4.0) at its next join, and the world's handshake refuses a 0.3.0 client
+   with `ClientVersionTooOld`.
+4. Only then set a live limit ([setting a limit](#setting-a-limit)), after a load test with churning bots, which say
+   goodbye when they leave.
 
 ## Testing the scripts
 

@@ -269,16 +269,19 @@ dotnet run -c Release --project tools/Avalon.LoadTest -- ramp --start 200 --step
 The bots understand a full world (#967, [world player limit](world-player-limit.md)): a join answered 202 waits in
 the line, checking in as told, and asks again at its turn ([entry and retries](#entry-and-retries)); a `WORLD_FULL`
 (the line at its cap) is an entry failure of its kind, `join:WORLD_FULL`, retried as any. The report's `Queue` line
-says how many entries were queued and how long they waited. To test a limit on world 4 (no live world gets one before
-the goodbye opcode and its client release are out):
+says how many entries were queued and how long they waited. A bot that leaves the world says goodbye
+(`CMSG_LEAVE_WORLD`, #967) before it closes, on a reconnect as on a leave for good, so its place is released at once
+and churn holds no places; a bot whose connection was lost, or whose goodbye could not be sent within 2 s, holds its
+place for the grace, as a dropped player does. To test a limit on world 4 (no live world gets one before the 0.4.0
+client is out and part 5 is deployed):
 
 1. Set identity's limit: `PUT /world/4/player-limit` with `{ "playerLimit": 300 }` (Admin), and world 4's own backstop
    limit to the same number, the chart value `server.game.playerLimit: 300` in the homelab's world values. The chart
    value rolls world 4's pod, so set it before the ramp, and wait for the last dev image to roll before starting.
-2. Until the goodbye opcode ships (part 5 of #967), a bot that leaves holds its place for the held grace (90 s), as a
-   dropped player does, and a churning profile then reads as a full world it is not. Run profiles that do not churn,
-   or set identity's `Application__WorldPlaces__HeldPlaceSeconds` to 5 for the run (no live world has a limit, so it
-   changes nothing else) and restore it after.
+2. Against a world from before part 5 of #967, which drops the goodbye, a bot that leaves holds its place for the held
+   grace (90 s), and a churning profile then reads as a full world it is not: there, run profiles that do not churn, or
+   set identity's `Application__WorldPlaces__HeldPlaceSeconds` to 5 for the run and restore it after. From part 5 on,
+   nothing is needed.
 3. Ramp past the limit, for example to 500 bots, directly (`--dial 10.10.1.15 --proxy-header`) or through Caddy
    (`--dial 10.10.1.17`); 500 is far under both the world's and Caddy's capacity.
 4. Read: `avalon_world_places_taken{world="4"}` never above 300 (plus staff); the line drains in arrival order (the
@@ -386,6 +389,7 @@ Entering is the client's sequence. Each step has its own timeout:
 | `spawn` | 35 s from the select reply | Inputs start only after the first world-state frame, the sign the character has spawned |
 | `first-ack` | 10 s | An idle input repeated every 50 ms until one is answered: the bot is in the world. These probes are not ack-latency samples |
 | `leave` | 20 s | Waits for the world's logout save |
+| goodbye | 2 s | `CMSG_LEAVE_WORLD` (#967), after the leave, whatever became of it, and before the close, on any connection past its handshake that is still open. Not answered and not counted: one not sent in time leaves the place held for the grace |
 
 A failed entry is counted by kind (`<step>:<code>`, for example `join:ACTIVE_GAME_SESSION`, `admission:<result>`,
 `spawn:timeout`, `connect:tls`) and retried up to three times, after 1, 3 and 9 seconds, each retry taking over any

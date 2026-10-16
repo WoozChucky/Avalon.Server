@@ -231,6 +231,31 @@ The floor's default in the API's `appsettings.json` is 0.4.0 since #967, the fir
 sign-in (400 `UNSUPPORTED_PROTOCOL`). The floor is "at or above" (#949), so the 0.4.0 client ships first, against
 services whose floor is still 0.3.0.
 
+## The goodbye: `CMSG_LEAVE_WORLD`
+
+`CMSG_LEAVE_WORLD` (0x201F, client to server, no payload, #967) says the player quits on purpose: to the desktop, or
+back to the launcher. The client sends it, sealed as any gameplay packet when the world seals, then closes the
+connection. It is never sent for Change Character (`CMSG_CHARACTER_LEAVE`), which keeps the connection and the session.
+Nothing answers it.
+
+- **What it does.** The world ends the session as a `logout`, and identity releases the account's place on the world at
+  once ([world player limit](world-player-limit.md#the-goodbye)). A close without it is a drop: the place is held for
+  the grace (90 s), so a player who lost the connection can come back.
+- **Noted as it arrives.** The read loop notes the session's end as a logout the moment the goodbye arrives
+  (`WorldConnection.OnReceive`), not when the tick dispatches it: the client closes right after it, and the close's
+  despawn runs on the tick before any session packet would. The first reason noted for a connection wins, so a close
+  after the goodbye, the client's own or the world's, does not change it; a reason the world noted before it, as it was
+  already closing the connection, stands. Noted only for an admitted connection whose version handshake was accepted
+  and that maintenance has not blocked; any other drops it as it drops every gameplay packet. A plain goodbye on a world
+  that seals closes the connection before it is noted (#875), a drop.
+- **Its handler** (`LeaveWorldHandler`, on the tick) closes a connection the client left open, which saves and despawns
+  the character as any close does.
+- **Accepted in every state** by `WorldSessionFilter`, before a character and in a map ([packet handlers](packet-handlers.md)).
+- **It ends only its own session.** A goodbye is the connection's own statement, read on the connection it arrives on:
+  a client can release only its own place, as it could by playing on and then quitting.
+- **A world from before #967's part 5** has no packet type for it: the read loop drops it, with one Warning on the
+  connection (#897), and the close that follows is a drop. So a 0.4.0 client works against such a world.
+
 ## Time Sync: `SMSG_PING` and `CMSG_PONG`
 
 A world connection's first ping is the **start burst** (#1034), right after its version handshake: one ping on the next
