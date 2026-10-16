@@ -10,8 +10,9 @@ using NSubstitute;
 namespace Avalon.Server.World.UnitTests.Abilities;
 
 /// <summary>
-/// Run alone: a test that scans every loaded assembly for scripts at the wrong moment (any that loads a ScriptManager
-/// or builds a world host) holds the emitted type while it scans, and the type would be found alive.
+/// Run alone: a test that scans the loaded assemblies for scripts at the wrong moment (any that loads a ScriptManager
+/// or builds a world host) holds every assembly in the process while it scans, the emitted one among them, though it
+/// skips it (#930), and the type would be found alive.
 /// </summary>
 [CollectionDefinition(nameof(AbilityScriptActivatorShould), DisableParallelization = true)]
 public sealed class AbilityScriptActivatorCollection;
@@ -140,8 +141,9 @@ public class AbilityScriptActivatorShould
     }
 
     /// <summary>
-    /// The emitted type's base, counting what was built. Deliberately not an AbilityScript: a ScriptManager that
-    /// another test loads meanwhile scans every assembly, and would name the emitted type and keep it alive.
+    /// The emitted type's base, counting what was built. Not an AbilityScript, although a ScriptManager would not name
+    /// one now: its scan skips dynamic and collectible assemblies (#930). The activator binds any type with the cast's
+    /// constructor, so the test needs no more.
     /// </summary>
     public class Built
     {
