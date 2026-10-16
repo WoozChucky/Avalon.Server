@@ -28,7 +28,15 @@ public sealed class WorldPlacesConfiguration
     /// </summary>
     [Range(1, 1440)] public int UnclaimedPlaceMinutes { get; set; } = 15;
 
+    /// <summary>
+    /// How long after it was given an unused turn is kept at most while the world is not available (#967): a check-in
+    /// then restarts the turn's window, never past this from when the turn was given, so a turn survives a stop or a
+    /// maintenance window of that length but readiness that comes and goes cannot keep it for ever.
+    /// </summary>
+    [Range(1, 1440)] public int PausedTurnMinutes { get; set; } = 30;
+
     public TimeSpan HeldPlace => TimeSpan.FromSeconds(HeldPlaceSeconds);
+    public TimeSpan PausedTurn => TimeSpan.FromMinutes(PausedTurnMinutes);
     public TimeSpan TurnWindow => TimeSpan.FromSeconds(TurnWindowSeconds);
     public TimeSpan UnclaimedPlace => TimeSpan.FromMinutes(UnclaimedPlaceMinutes);
 

@@ -674,6 +674,30 @@ public static class WorldPlaceScenarios
             await h.Expect(QueueState.YourTurn, 0, account: 2, limit: 1);
             Assert.Equal(PlaceSource.Turn, (await h.Join(2, limit: 1)).Source);
         },
+        ["a paused turn is kept no longer than the paused bound from when it was given"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            await h.Queued(2, limit: 1, position: 1);
+            await h.End(1, PlaceEnd.Remove);
+            await h.Expect(QueueState.YourTurn, 0, account: 2, limit: 1);
+            for (int i = 0; i < 44; i++) // to 1,760 s, the world unavailable: kept, never past 1,800 s (30 minutes)
+            {
+                h.Advance(40);
+                await h.Expect(QueueState.Paused, 1, account: 2, limit: 1, available: false);
+            }
+
+            h.Advance(41); // 1,801 s: the turn is gone
+            await h.Expect(QueueState.NotQueued, 0, account: 2, limit: 1, available: false);
+        },
+        ["a ticket for another world never releases a place held after a drop that a ticket's hold still runs on"] = async h =>
+        {
+            await h.Admitted(1, limit: 9);
+            Assert.Equal(PlaceSource.Kept, (await h.Join(1, limit: 9)).Source); // a takeover's ticket, its hold running
+            await h.End(1, PlaceEnd.Hold); // the old session drops: held for 90 s
+            Assert.Equal(PlaceOutcome.Admitted, (await h.Join(1, limit: null, world: 2)).Outcome);
+            h.Advance(60); // past the ticket's hold, within the grace
+            Assert.Equal(1, (await h.Sizes()).Taken);
+        },
         ["a takeover keeps the same place"] = async h =>
         {
             await h.Admitted(1, limit: 1);

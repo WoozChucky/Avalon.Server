@@ -303,12 +303,16 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
                 return Task.CompletedTask;
             }
 
-            long? held = w.Ticket(accountId)?.Until;
+            (long Until, string Id, bool WasHeld)? ticket = w.Ticket(accountId);
+            long? held = ticket?.Until;
             if (held <= now) held = null;
             if (end == PlaceEnd.Hold && !w.LockedOut(accountId, now)) // no held grace while a lockout lives
             {
                 w.Extend(accountId, Ms(heldUntil));
-                if (held is null) w.Marks[accountId] = Held;
+                // A running ticket's hold keeps its mark, marked as taken over a drop: the place is held after a drop.
+                w.Marks[accountId] = held is { } hold
+                    ? RedisWorldPlaceStore.TicketMark(hold, Guid.ParseExact(ticket!.Value.Id, "N"), true)
+                    : Held;
                 w.MarkUnclaimed(accountId, now);
             }
             else if (held is { } running)
@@ -400,9 +404,10 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             {
                 // A place of its own needs no position; an unused turn is kept while the world is not available.
                 if (rank >= 0) RemoveFromLine(worldId, w, accountId);
-                if (!available && w.Marks.TryGetValue(accountId, out string? own) && Turn(own) is not null)
+                if (!available && w.Marks.TryGetValue(accountId, out string? own) && Turn(own) is { } paused)
                 {
-                    w.Extend(accountId, turnEnd);
+                    // Never past the paused bound from when the turn was given.
+                    w.Extend(accountId, Math.Min(turnEnd, paused.Given + (long)config.PausedTurn.TotalMilliseconds));
                     return Task.FromResult(new QueueCheckIn(QueueState.Paused, 1, sweep));
                 }
 
@@ -416,7 +421,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
                 RemoveFromLine(worldId, w, accountId);
                 // A place still counted is never shortened, and its end and unclaimed time are recorded so a turn given
                 // back returns it; the turn is its own: no longer lapsed.
-                string mark = TurnPrefix + enqueuedAt.ToString(CultureInfo.InvariantCulture);
+                string mark = string.Create(CultureInfo.InvariantCulture, $"{TurnPrefix}{enqueuedAt}:{now}");
                 if (w.Places.TryGetValue(accountId, out long kept))
                     mark += string.Create(CultureInfo.InvariantCulture, $":{kept}:{w.UnclaimedSince(accountId) ?? 0}");
                 w.Extend(accountId, turnEnd);
@@ -459,17 +464,14 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
     }
 
     /// <summary>
-    /// A turn's mark: when the account joined the line and, for a turn given over a place it still had counted, that
-    /// place's end and unclaimed time (0 for none); null for any other mark.
+    /// A turn's mark: when the account joined the line, when the turn was given and, for a turn given over a place it
+    /// still had counted, that place's end and unclaimed time (0 for none); null for any other mark.
     /// </summary>
-    private static (long Enqueued, long? Ends, long Since)? Turn(string? mark)
+    private static (long Enqueued, long Given, long? Ends, long Since)? Turn(string? mark)
     {
         if (mark is null || !mark.StartsWith(TurnPrefix, StringComparison.Ordinal)) return null;
-        string[] parts = mark[2..].Split(':');
-        long enqueued = long.Parse(parts[0], CultureInfo.InvariantCulture);
-        return parts.Length == 3
-            ? (enqueued, long.Parse(parts[1], CultureInfo.InvariantCulture), long.Parse(parts[2], CultureInfo.InvariantCulture))
-            : (enqueued, null, 0);
+        long[] parts = [.. mark[2..].Split(':').Select(part => long.Parse(part, CultureInfo.InvariantCulture))];
+        return parts.Length == 4 ? (parts[0], parts[1], parts[2], parts[3]) : (parts[0], parts[1], null, 0);
     }
 
     /// <summary>
@@ -510,7 +512,7 @@ public sealed class MemoryWorldPlaceStore(TimeProvider clock, WorldPlacesConfigu
             if (hold.Until > now)
             {
                 // Its ticket may still be redeemed: counted to the hold's end, released, kept by no further ticket.
-                other.Places[account] = hold.Until;
+                other.Places[account] = Math.Max(other.Places.GetValueOrDefault(account), hold.Until); // never shortened
                 other.Marks[account] = Released;
             }
             else
