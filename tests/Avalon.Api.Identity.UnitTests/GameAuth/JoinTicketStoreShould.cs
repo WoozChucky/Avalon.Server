@@ -179,6 +179,38 @@ public sealed class JoinTicketStoreShould
         _h.Clock.Advance(TimeSpan.FromSeconds(1));
         Assert.Equal(0, (await _h.Places.CountAsync(1, default)).Taken);
     }
+
+    /// <summary>
+    /// #967 section 6: capacity last. A full world refuses a newcomer, and writes no ticket or receipt for it; staff, and
+    /// an account holding its place (here held after a drop), still get a ticket.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false, "WORLD_FULL")]
+    [InlineData(true, false, null)]
+    [InlineData(false, true, null)]
+    public async Task Refuse_a_newcomer_to_a_full_world_but_never_staff_or_an_account_holding_its_place(bool staff, bool holdsPlace,
+        string? expected)
+    {
+        _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(
+            GameWorldAllocation.Admit(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost",
+                new string('A', 64), "0.0.1", "0.0.1", PlayerLimit: 1, Staff: staff)));
+        DateTime until = _h.Clock.GetUtcNow().UtcDateTime.AddSeconds(45);
+        await _h.Places.RenewAsync(1, 8, 1, Guid.NewGuid(), until, false, default); // another account holds the one place
+        if (holdsPlace)
+        {
+            // Account 7 dropped a moment ago and holds its place for the grace, over the limit.
+            await _h.Places.RenewAsync(1, 7, 1, Guid.NewGuid(), until, false, default);
+            await _h.Places.EndAsync(1, 7, 1, PlaceEnd.Hold, until.AddSeconds(45), default);
+        }
+        GameAuthReply auth = await _h.Authenticate();
+
+        GameJoinReply reply = await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), false, false, default);
+
+        Assert.Equal(expected, reply.Error);
+        Assert.Equal(expected is null, reply.JoinTicket is not null);
+        Assert.Equal(expected is null, _h.Store.Entries.Keys.Any(key => key.Contains(":join-issue:", StringComparison.Ordinal)));
+        Assert.Equal(expected is null ? 2 : 1, (await _h.Places.CountAsync(1, default)).Taken);
+    }
 }
 
 internal sealed class JoinHarness

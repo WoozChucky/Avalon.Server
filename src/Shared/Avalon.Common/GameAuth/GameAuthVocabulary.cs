@@ -92,6 +92,14 @@ public static class GameAuthErrors
     public const string CharacterNotFound = "CHARACTER_NOT_FOUND";
 
     /// <summary>
+    /// The world is at its player limit and its line is full or there is none (#967): try again later. Retryable, as
+    /// <see cref="WorldUnavailable" /> is (#1053): the REST join and reconnect tickets answer it 503 with
+    /// <c>Retry-After</c>, decided after every other check, so it is told only of a world the context may enter. The
+    /// world's backstop answers its client <c>GameAdmissionResult.WorldFull</c>.
+    /// </summary>
+    public const string WorldFull = "WORLD_FULL";
+
+    /// <summary>
     /// Whether <paramref name="error"/> names the account's standing (banned, deactivated, consolidating), answered
     /// 403: the caller proved who they are and the account is refused.
     /// </summary>

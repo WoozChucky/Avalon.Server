@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalon.Api.Contract;
@@ -79,7 +80,8 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
                 request.CharacterId,
                 requestId, request.ConfirmTakeover, reconnect, cancellationToken);
             // A retryable refusal (503) apart from a permanent one (#1053): a client too old is told to update (426,
-            // with the version required), one the world will never take is refused (403, 404, 400).
+            // with the version required), one the world will never take is refused (403, 404, 400). A world at its
+            // player limit is a retryable one too, with when to ask again (#967).
             return reply.Error switch
             {
                 null => Ok(reply),
@@ -87,6 +89,7 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
                 GameAuthErrors.ActiveGameSession or GameAuthErrors.IdempotencyConflict or GameAuthErrors.ContextChanged
                     => Conflict(reply),
                 GameAuthErrors.WorldUnavailable => StatusCode(StatusCodes.Status503ServiceUnavailable, reply),
+                GameAuthErrors.WorldFull => WorldFull(reply),
                 GameAuthErrors.ClientOutdated => UpgradeRequired(reply),
                 GameAuthErrors.WorldNotAllowed => StatusCode(StatusCodes.Status403Forbidden, reply),
                 GameAuthErrors.CharacterNotFound => NotFound(reply),
@@ -100,6 +103,13 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
             logger.LogError(error, "An error occurred while issuing a game join ticket");
             return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable));
         }
+    }
+
+    /// <summary>503 <c>WORLD_FULL</c> with when to ask again (#967).</summary>
+    private ObjectResult WorldFull(GameJoinReply reply)
+    {
+        Response.Headers.RetryAfter = ((int)GameAuthPolicy.WorldFullRetryAfter.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+        return StatusCode(StatusCodes.Status503ServiceUnavailable, reply);
     }
 
     /// <summary>
