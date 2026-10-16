@@ -23,8 +23,10 @@ public sealed class SessionEndReasonShould
     // A password, email or role change, an MFA reset, a refresh-token reuse: told Kicked, held (owner decision).
     [InlineData("account sessions ended", null, GameSessionEndReasons.Drop)]
     [InlineData("account banned", null, GameSessionEndReasons.Kicked)]
-    [InlineData("entry refused", null, GameSessionEndReasons.Maintenance)]
-    [InlineData("entry check failed", null, GameSessionEndReasons.Drop)] // told maintenance, but the world's fault
+    // An entry refusal is told maintenance; identity hears maintenance only for a cutoff in force.
+    [InlineData("entry refused at a cutoff", null, GameSessionEndReasons.Maintenance)]
+    [InlineData("entry allowed until a cutoff that has passed", null, GameSessionEndReasons.Maintenance)]
+    [InlineData("entry refused, not for a cutoff", null, GameSessionEndReasons.Drop)] // a failed or slow check, no row, expired
     [InlineData("entry refused for the account", null, GameSessionEndReasons.Kicked)] // no longer active: never a cutoff
     public void Report_why_the_world_closed_the_connection(string closedBy, DisconnectReason? reason, string expected)
     {
@@ -36,11 +38,16 @@ public sealed class SessionEndReasonShould
             case "notice": GracefulShutdownHelper.NotifyAndClose(connection, "closing", reason!.Value); break;
             case "account sessions ended": Avalon.World.WorldServer.CloseAccountSessions([connection], "42", NullLogger.Instance); break;
             case "account banned": Avalon.World.WorldServer.CloseBannedOrDeactivated([connection], "42|BANNED", NullLogger.Instance); break;
-            case "entry refused": EntryRefusal.Close(connection, default, NullLogger.Instance); break;
+            case "entry refused at a cutoff":
+                EntryRefusal.Close(connection, new WorldEntryDecision { Cutoff = true }, NullLogger.Instance);
+                break;
+            case "entry allowed until a cutoff that has passed":
+                EntryRefusal.Close(connection, new WorldEntryDecision(true, DateTime.UnixEpoch) { EndsAtCutoff = true }, NullLogger.Instance);
+                break;
             case "entry refused for the account":
                 EntryRefusal.Close(connection, new WorldEntryDecision { AccountRefused = true }, NullLogger.Instance);
                 break;
-            default: EntryRefusal.Close(connection, new WorldEntryDecision { Failed = true }, NullLogger.Instance); break;
+            default: EntryRefusal.Close(connection, default, NullLogger.Instance); break;
         }
 
         Assert.Equal(expected, connection.SessionEndReason);

@@ -22,10 +22,18 @@ public readonly record struct WorldEntryDecision(bool Allowed, DateTime ValidUnt
     public bool Busy { get; init; }
 
     /// <summary>
-    /// The check failed (it threw, or took more than 5 s): a refusal, but a fault of the world's, not a maintenance
-    /// verdict, so the session's end holds the account's place (#967). Never allowed.
+    /// Refused for a maintenance cutoff in force (#967): the one refusal whose session's end is a maintenance end, which
+    /// releases the place and the world's held places. Every other refusal (the check failed or took more than 5 s, no
+    /// maintenance row, a decision that expired before it was applied) is the world's fault and ends as a drop, holding
+    /// the place. Never allowed.
     /// </summary>
-    public bool Failed { get; init; }
+    public bool Cutoff { get; init; }
+
+    /// <summary>
+    /// An allowed decision whose validity ends at a maintenance deadline (#967): once it has expired, the refusal is that
+    /// cutoff's.
+    /// </summary>
+    public bool EndsAtCutoff { get; init; }
 
     /// <summary>
     /// The account itself may not enter (no longer active, as after a ban): told maintenance, as before, but its session's
@@ -78,7 +86,7 @@ public static class WorldEntryGateExtensions
         catch (Exception e)
         {
             s_failures.Report(logger, "The world entry check", e);
-            return new WorldEntryDecision { Failed = true };
+            return default;
         }
     }
 }
@@ -132,17 +140,18 @@ public sealed class WorldEntryGate(
             if (account is not { Status: AccountStatus.Active }) return new WorldEntryDecision { AccountRefused = true };
             bool admin = (account.AccessLevel & AccountAccessLevel.Admin) != 0;
             if (state.IsCutoffActive((clock ?? TimeProvider.System).GetUtcNow().UtcDateTime) && !admin)
-                return default;
+                return new WorldEntryDecision { Cutoff = true };
 
             DateTime validUntilUtc = readAtUtc.AddSeconds(5);
+            bool endsAtCutoff = false;
             if (state.Enabled && !admin && state.DeadlineUtc is { } deadline && deadline < validUntilUtc)
-                validUntilUtc = deadline;
-            return new WorldEntryDecision(true, validUntilUtc);
+                (validUntilUtc, endsAtCutoff) = (deadline, true);
+            return new WorldEntryDecision(true, validUntilUtc) { EndsAtCutoff = endsAtCutoff };
         }
         catch (Exception e)
         {
             _failures.Report(logger ?? (ILogger)NullLogger.Instance, "Reading the maintenance state or the account", e);
-            return new WorldEntryDecision { Failed = true };
+            return default;
         }
     }
 }
