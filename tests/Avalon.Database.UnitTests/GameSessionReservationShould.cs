@@ -50,6 +50,9 @@ public sealed class GameSessionReservationShould
                 ? await repo.TryEndAsync(account.Id, pending!.GameSessionId, 2, s_now.AddSeconds(1))
                 : await repo.TryExpirePendingAsync(account.Id, pending!.GameSessionId, 2));
             Assert.False(await repo.TryActivateAsync(account.Id, pending.GameSessionId, 2, s_now, s_now.AddSeconds(30)));
+            // A repeat of either end is told apart from the end that did it (#967): it changes nothing.
+            Assert.False(await repo.TryEndAsync(account.Id, pending.GameSessionId, 2, s_now.AddSeconds(1)));
+            Assert.False(await repo.TryExpirePendingAsync(account.Id, pending.GameSessionId, 2));
             next = s_now.AddSeconds(2);
         }
         GameSession? replacement = await repo.TryReserveAsync(StoreAuthenticationModelShould.Reservation(account.Id, 2) with { WorldId = 3, ServerId = "world-3" }, next);

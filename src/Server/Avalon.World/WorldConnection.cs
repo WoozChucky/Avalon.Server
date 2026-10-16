@@ -29,7 +29,7 @@ namespace Avalon.World;
 
 public partial class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable, ICharacterLeaveControl,
     ISettledContinuations,
-    IMaintenanceBlockable
+    IMaintenanceBlockable, IDisconnectReasonNote
 {
     private readonly ConcurrentQueue<IContinuation> _continuationQueue = new();
 

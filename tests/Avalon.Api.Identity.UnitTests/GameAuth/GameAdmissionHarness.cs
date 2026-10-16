@@ -192,7 +192,8 @@ internal sealed class GameAdmissionHarness
         Places = new MemoryWorldPlaceStore(_clock, new WorldPlacesConfiguration());
         var outage = new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _clock);
         Tickets = new(store, crypto, Authorization, sessions, Allocator, options, _clock, applications, Places, outage);
-        _fences = new(sessions, Authorization, repositories, accounts, workloads, _clock, applications, Places, outage);
+        _fences = new(sessions, Authorization, repositories, accounts, workloads, _clock, applications, Places, outage,
+            Options.Create(new WorldPlacesConfiguration()));
     }
 
     public async Task<GameAuthReply> Authenticate(uint appId, string expectedState = GameAuthStates.Authorized)

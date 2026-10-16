@@ -119,7 +119,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (pendingAdmission is not null)
             try { await pendingAdmission.ConfigureAwait(false); } catch (Exception) { }
         GameSessionLease? lease = connection.GameSessionLease ?? (pendingAdmission is { IsCompletedSuccessfully: true } ? pendingAdmission.Result.Lease : null);
-        return lease is null ? null : new SessionEnd(lease, connection.RenewalUnaccounted);
+        // Why the session ended is read once, here, as the end is built; the lane only carries it (#967).
+        return lease is null ? null : new SessionEnd(lease, connection.RenewalUnaccounted, connection.SessionEndReason);
     }
 
     // Bounded (#1051): a stop drains every connection at once, and identity must not receive every end together. This
@@ -154,11 +155,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             return s_notSent;
         }
 
-        return await AdmissionClient.EndAsync(end.Lease, stop).ConfigureAwait(false);
+        return await AdmissionClient.EndAsync(end.Lease, end.Reason, stop).ConfigureAwait(false);
     }
 
-    /// <summary>What a session's end needs: the lease, and whether a renewal asked for was never applied to it.</summary>
-    private readonly record struct SessionEnd(GameSessionLease Lease, bool RenewalUnaccounted);
+    /// <summary>
+    /// What a session's end needs: the lease, whether a renewal asked for was never applied to it, and why it ended
+    /// (a <c>GameSessionEndReasons</c> value, #967).
+    /// </summary>
+    private readonly record struct SessionEnd(GameSessionLease Lease, bool RenewalUnaccounted, string Reason);
 
     /// <summary>
     /// How long past its end a lease must be before its end is not sent (#1051): the clocks of the world, identity and
@@ -1108,11 +1112,19 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
 
         logger.LogInformation("Disconnecting account {AccountId}", id);
-        return CloseAll(connections, new AccountId(id), SessionEndedMessage, DisconnectReason.Kicked, logger);
+        // Everything on this channel ends the account's sessions for its credentials or its security (a ban or a
+        // deactivation has a channel of its own), not as a sanction: the place is held, as after a drop (#967, owner
+        // decision). Should a ban come here (its status notice could not be published), identity removes the place
+        // anyway: it reads the account's standing at the end.
+        return CloseAll(connections, new AccountId(id), SessionEndedMessage, DisconnectReason.Kicked, logger,
+            GameSessionEndReasons.Drop);
     }
 
+    /// <param name="sessionEnd">
+    /// What identity is told when the session ends, when it is not what <paramref name="reason"/> maps to (#967).
+    /// </param>
     private static int CloseAll(IEnumerable<IWorldConnection> connections, AccountId accountId, string text,
-        DisconnectReason reason, ILogger logger)
+        DisconnectReason reason, ILogger logger, string? sessionEnd = null)
     {
         int closed = 0;
         // A snapshot: closing a connection can change the collection it came from.
@@ -1120,6 +1132,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             try
             {
+                if (sessionEnd is not null) SessionEndReasons.Note(connection, sessionEnd);
 #pragma warning disable MA0045 // a cache subscription callback, and the process stays up to finish the close
                 GracefulShutdownHelper.NotifyAndClose(connection, text, reason, logger);
 #pragma warning restore MA0045

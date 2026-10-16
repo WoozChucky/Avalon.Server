@@ -85,6 +85,18 @@ public sealed class WorldMaintenanceCoordinator(
         return true;
     }
 
+    /// <summary>
+    /// Whether the cutoff this world has applied, or its restart drain's, turns <paramref name="connection" /> away now:
+    /// a non-Admin while either is active (#967: a refusal for it is a maintenance end). On the tick, as
+    /// <see cref="RunIfEntryAllowed" />.
+    /// </summary>
+    public bool CutsOff(IWorldConnection connection)
+    {
+        tickThread?.AssertOnTick("WorldMaintenanceCoordinator.CutsOff");
+        return _state is { } state && (state.IsCutoffActive(clock.GetUtcNow().UtcDateTime) || _restartCutoff) &&
+            (connection.AccessLevel & AccountAccessLevel.Admin) == 0;
+    }
+
     public void SetDrainObserver(Func<bool> disconnectsProcessed)
         => _disconnectsProcessed = disconnectsProcessed;
 

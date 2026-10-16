@@ -74,7 +74,8 @@ public static class ServiceExtensions
         services.AddSingleton<IPacketHandlerLayer, GamePacketHandlerLayer>();
         services.AddSingleton<IGameAdmissionClient>(sp => new GameAdmissionClient(
             sp.GetRequiredService<IHttpClientFactory>().CreateClient("AvalonGameWorkload"),
-            sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value, sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<IOptions<GameAdmissionOptions>>().Value, sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<GameAdmissionClient>>()));
         services
             .AddOptions<GameConfiguration>()
             .BindConfiguration("Game")

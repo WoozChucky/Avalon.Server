@@ -1,8 +1,10 @@
 using System.Globalization;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Avalon.Common.GameAuth;
 using Avalon.Infrastructure.GameAuth;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.GameAuth;
 
@@ -26,11 +28,14 @@ public interface IGameAdmissionClient
 {
     Task<WorldAdmissionResult> AdmitAsync(string ticket, Guid connectionId, Guid redemptionId, CancellationToken cancellationToken);
     Task<SessionLeaseResponse> HeartbeatAsync(GameSessionLease lease, CancellationToken cancellationToken);
-    Task<SessionLeaseResponse> EndAsync(GameSessionLease lease, CancellationToken cancellationToken);
+
+    /// <summary>Ends the session, telling identity why (<see cref="GameSessionEndReasons"/>, #967).</summary>
+    Task<SessionLeaseResponse> EndAsync(GameSessionLease lease, string reason, CancellationToken cancellationToken);
 }
 
 /// <summary>Bounded, fixed-origin workload requests. The transport supplies mTLS; credentials never enter logs.</summary>
-public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions options, TimeProvider clock) : IGameAdmissionClient
+public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions options, TimeProvider clock,
+    ILogger<GameAdmissionClient>? logger = null) : IGameAdmissionClient
 {
     private static readonly JsonSerializerOptions s_json = new(JsonSerializerDefaults.Web);
     private Uri Endpoint(string path) => new(new Uri(options.ApiUrl), "internal/game/" + path);
@@ -116,53 +121,112 @@ public sealed class GameAdmissionClient(HttpClient http, GameAdmissionOptions op
         }
         return new(null, error);
     }
-    public Task<SessionLeaseResponse> HeartbeatAsync(GameSessionLease lease, CancellationToken cancellationToken) => ControlAsync("heartbeat", lease, cancellationToken);
-    public Task<SessionLeaseResponse> EndAsync(GameSessionLease lease, CancellationToken cancellationToken) => ControlAsync("end", lease, cancellationToken);
-    private Task<SessionLeaseResponse> ControlAsync(string action, GameSessionLease lease, CancellationToken cancellationToken) =>
-        SessionControlAsync(action, lease.Authority.AccountId.Value.ToString(CultureInfo.InvariantCulture), lease.Authority.GameSessionId,
-            lease.Authority.FencingToken.ToString(CultureInfo.InvariantCulture), cancellationToken);
-    private async Task<SessionLeaseResponse> SessionControlAsync(string action, string accountId, Guid gameSessionId, string fencingToken,
-        CancellationToken cancellationToken)
+    public Task<SessionLeaseResponse> HeartbeatAsync(GameSessionLease lease, CancellationToken cancellationToken) =>
+        ControlAsync("heartbeat", lease, null, cancellationToken);
+
+    public async Task<SessionLeaseResponse> EndAsync(GameSessionLease lease, string reason, CancellationToken cancellationToken)
     {
+        long now = clock.GetUtcNow().ToUnixTimeMilliseconds();
+        if (Volatile.Read(ref _identityRefusesReason) == 1)
+        {
+            // Latched: ends go without the reason, one request each, but one in every probe interval, which asks again.
+            long due = Interlocked.Read(ref _reasonProbeAt);
+            if (now < due || Interlocked.CompareExchange(ref _reasonProbeAt, now + ReasonProbeInterval, due) != due)
+                return await ControlAsync("end", lease, null, cancellationToken);
+        }
+
+        SessionLeaseResponse reply = await ControlAsync("end", lease, reason, cancellationToken);
+        if (reply.Error != RefusedRequest)
+        {
+            if (reply.Error is null) Volatile.Write(ref _identityRefusesReason, 0); // identity takes the reason now
+            return reply;
+        }
+
+        // An identity from before #967 refuses the member it does not know (400): end the session anyway, without the
+        // reason, or the player's next join would meet ACTIVE_GAME_SESSION until the lease ran out. Remembered only when
+        // the end without it succeeds, so it was the reason that was refused: a stop's ends then do not each cost two
+        // requests while that identity runs. One Warning, from the end that latches.
+        SessionLeaseResponse retry = await ControlAsync("end", lease, null, cancellationToken);
+        if (retry.Error is null)
+        {
+            Interlocked.Exchange(ref _reasonProbeAt, now + ReasonProbeInterval);
+            if (Interlocked.CompareExchange(ref _identityRefusesReason, 1, 0) == 0)
+            {
+                logger?.LogWarning(
+                    "Identity refused the reason of a game session end: it predates #967. Session ends are sent without it, and the reason is offered again every {Minutes} minutes",
+                    ReasonProbeInterval / 60_000);
+            }
+        }
+
+        return retry;
+    }
+
+    /// <summary>How often, in ms, an end offers its reason again once identity refused it.</summary>
+    private const long ReasonProbeInterval = 5 * 60_000;
+
+    // 1 when identity refused an end's reason (#967): ends then go without it until the next probe (_reasonProbeAt, Unix
+    // ms on the injected clock) finds an identity that takes it.
+    private int _identityRefusesReason;
+    private long _reasonProbeAt;
+
+    /// <summary>A 400 with no error of identity's own to a request that carried a reason: the request's shape was refused.</summary>
+    private const string RefusedRequest = "REQUEST_REFUSED";
+
+    private Task<SessionLeaseResponse> ControlAsync(string action, GameSessionLease lease, string? reason,
+        CancellationToken cancellationToken) =>
+        SessionControlAsync(action, lease.Authority.AccountId.Value.ToString(CultureInfo.InvariantCulture), lease.Authority.GameSessionId,
+            lease.Authority.FencingToken.ToString(CultureInfo.InvariantCulture), cancellationToken, reason);
+
+    private async Task<SessionLeaseResponse> SessionControlAsync(string action, string accountId, Guid gameSessionId, string fencingToken,
+        CancellationToken cancellationToken, string? reason = null)
+    {
+        object body = reason is null
+            ? new { AccountId = accountId, GameSessionId = gameSessionId, FencingToken = fencingToken }
+            : new { AccountId = accountId, GameSessionId = gameSessionId, FencingToken = fencingToken, Reason = reason };
         try
         {
-            return await PostAsync<SessionLeaseResponse>("sessions/" + action, new
-            {
-                AccountId = accountId,
-                GameSessionId = gameSessionId,
-                FencingToken = fencingToken
-            }, cancellationToken) ?? new() { Error = GameAuthErrors.ServiceUnavailable };
+            (HttpStatusCode status, SessionLeaseResponse? reply) = await PostWithStatusAsync<SessionLeaseResponse>(
+                "sessions/" + action, body, cancellationToken);
+            // Only a request that carried a reason is told apart: every other refusal reads as it always has.
+            if (reason is not null && status == HttpStatusCode.BadRequest && reply?.Error is null) return new() { Error = RefusedRequest };
+            return reply ?? new() { Error = GameAuthErrors.ServiceUnavailable };
         }
         catch (Exception error) when (error is HttpRequestException or OperationCanceledException or JsonException or IOException)
         { return new() { Error = GameAuthErrors.ServiceUnavailable }; }
     }
-    private async Task<T?> PostAsync<T>(string path, object body, CancellationToken cancellationToken)
+
+    private async Task<T?> PostAsync<T>(string path, object body, CancellationToken cancellationToken) =>
+        (await PostWithStatusAsync<T>(path, body, cancellationToken)).Result;
+
+    private async Task<(HttpStatusCode Status, T? Result)> PostWithStatusAsync<T>(string path, object body,
+        CancellationToken cancellationToken)
     {
         using var transportTimeout = new CancellationTokenSource(GameAuthPolicy.TransportTimeout, clock);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, transportTimeout.Token);
         using var request = new HttpRequestMessage(HttpMethod.Post, Endpoint(path)) { Content = JsonContent.Create(body) };
         using HttpResponseMessage response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-        if (response.StatusCode is System.Net.HttpStatusCode.Redirect or System.Net.HttpStatusCode.MovedPermanently or System.Net.HttpStatusCode.TemporaryRedirect or System.Net.HttpStatusCode.PermanentRedirect)
-            return default;
-        if (response.Content.Headers.ContentLength is > GameAuthPolicy.MaximumBodyBytes) return default;
+        HttpStatusCode status = response.StatusCode;
+        if (status is HttpStatusCode.Redirect or HttpStatusCode.MovedPermanently or HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect)
+            return (status, default);
+        if (response.Content.Headers.ContentLength is > GameAuthPolicy.MaximumBodyBytes) return (status, default);
         await using Stream stream = await response.Content.ReadAsStreamAsync(timeout.Token);
         using var bytes = new MemoryStream();
         byte[] buffer = new byte[4096];
         int read;
         while ((read = await stream.ReadAsync(buffer, timeout.Token)) != 0)
         {
-            if (bytes.Length + read > GameAuthPolicy.MaximumBodyBytes) return default;
+            if (bytes.Length + read > GameAuthPolicy.MaximumBodyBytes) return (status, default);
             bytes.Write(buffer, 0, read);
         }
-        if (bytes.Length == 0) return default;
+        if (bytes.Length == 0) return (status, default);
         T? result = JsonSerializer.Deserialize<T>(bytes.GetBuffer().AsSpan(0, (int)bytes.Length), s_json);
         // A success-shaped error response must never become authority.
         if (!response.IsSuccessStatusCode)
         {
             if (result is SessionLeaseResponse lease && lease.Error is null || result is JoinRedemptionReceipt redemption && redemption.Error is null)
-                return default;
+                return (status, default);
         }
-        return result;
+        return (status, result);
     }
     private static bool Positive(string? text) => long.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out long value) && value > 0 && value.ToString(CultureInfo.InvariantCulture) == text;
     /// <summary>

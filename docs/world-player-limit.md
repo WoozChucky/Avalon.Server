@@ -9,7 +9,7 @@ The feature ships in five parts. This page describes what is in place now and ma
 | Part | What it adds | State |
 |---|---|---|
 | 1 | The `PlayerLimit` column and its endpoint; the ledger, kept with every session; true counts in the world lists | in place |
-| 2 | The reason a world gives for a session's end; the held place after a drop | from PR 2 |
+| 2 | The reason a world gives for a session's end; the held place after a drop | in place |
 | 3 | Enforcement at the join (`WORLD_FULL`), the `Full` status, the world's backstop | from PR 3 |
 | 4 | The queue: the "queued" answer, the status and leave calls, their rate limit, the metrics | from PR 4 |
 | 5 | The goodbye opcode (`CMSG_LEAVE_WORLD`), so a quit frees its place at once | from PR 5 |
@@ -23,8 +23,8 @@ constraint `CK_Worlds_PlayerLimit`); null means no limit. Identity reads it from
 passes it to the ledger's script; it is never copied into Redis.
 
 What the limit counts is **places taken**: every account holding a place in the world, whether it is in the world, at
-character select, holding a join ticket it has not redeemed yet, or (from part 2) holding its place after a dropped
-connection. This is not the gauge `avalon.world.players.online`, which counts only the characters in the world: an
+character select, holding a join ticket it has not redeemed yet, or holding its place after a dropped connection
+([the held place](#the-held-place)). This is not the gauge `avalon.world.players.online`, which counts only the characters in the world: an
 account at character select holds a place but no character.
 
 Staff (accounts with the Admin flag, the flag that passes maintenance) are always given a place, so places taken can
@@ -61,7 +61,7 @@ A stale call can at most keep a place counted a little longer (see the last poin
 | The world redeems the ticket | the pending session owns the place, to its lease |
 | The session is activated | renewed to the lease; it spends its own ticket's hold (never another ticket's); the account's place in every other world is removed, since a session is one per account, but for a ticket's hold still running there |
 | Each heartbeat (every 15 s) | renewed to the lease's new end, or a ticket's later hold |
-| The session ends (identity answers `ended`) | removed (from part 2, held for the grace after a drop), unless a ticket's hold still runs: then it stays until that hold ends. Never shortened, and never re-created when it is already gone |
+| The session ends (identity answers `ended`) | removed, or held for the grace after a drop ([the held place](#the-held-place)), unless a ticket's hold still runs: then it stays until that hold ends. Never shortened, and never re-created when it is already gone |
 | The end or heartbeat of a session older than the owner, or of one that ended there (arriving late) | unchanged |
 | The session's end is refused as `SESSION_REPLACED` or `BARRIER_PENDING` | unchanged |
 | The world cannot report (a crash) | expires with the lease, within 45 s |
@@ -86,6 +86,77 @@ A stale call can at most keep a place counted a little longer (see the last poin
   tombstone". What remains: a replay that
   extends a place just before its ticket is redeemed and its session ends keeps that place counted until the
   replayed hold ends, at most 45 s after the replay. That only ever counts the account in for longer, never out.
+
+## The held place
+
+A player whose connection drops keeps their place for a grace, `Application:WorldPlaces:HeldPlaceSeconds` (identity,
+90 s by default): a join within it finds the place and goes straight in; after it the place expires and counts no
+more. A deliberate quit, a kick, a ban, a maintenance cutoff or a restart releases the place at once.
+
+The world says why each session ended: `sessions/end` carries an optional `reason`
+([game server admission](steam-authentication-workloads.md#session-activation-and-durable-save-authority)), and
+identity holds the place or removes it by it (`GameSessionEndReasons.HoldsPlace`). The world knows why a connection
+closed only when it closed it itself, which it always does through `GracefulShutdownHelper` with a `DisconnectReason`;
+the connection notes the first reason (`IDisconnectReasonNote`, mapped by `SessionEndReasons.For`), and the drain
+reads it once, as it builds the session's end (`WorldConnection.SessionEndReason`), before the end waits in the
+`SessionEnds` lane. Where the client is told one thing and identity another, the world notes the end's reason itself
+before the close (`SessionEndReasons.Note`); the first noted wins. Nothing on the wire changed: the client is told the
+same `DisconnectReason` as before.
+
+| The world closed the connection, or saw it close, because | `reason` | The place |
+|---|---|---|
+| The client said goodbye (`CMSG_LEAVE_WORLD`, from part 5) | `logout` | removed |
+| The peer closed it, or it was lost, with no goodbye | `drop` | held |
+| The liveness rule closed it: no pong for 60 s (#1061) | `drop` | held |
+| A slow connection (`SlowConnection`), the receive queue's cap, a failed character save (`CharacterSaveFailed`), a lease that ran out or was revoked | `drop` | held |
+| A select the world could not finish (`SelectTimeout`: the stalled-select sweep, or a full work queue, #1050): the world failed the player, who is told to log in again | `drop` | held |
+| The world entry check at character select or at the spawn refused the entry for anything but a cutoff or the account: it threw or took more than 5 s, the world has no maintenance row, or an allowed decision expired before the tick applied it. The client is told `Maintenance`, as before (`EntryRefusal`) | `drop` | held |
+| An account-wide session end for the account's credentials or security (`world:accounts:disconnect`: a password, email or role change, an MFA reset or removal, a refresh-token reuse); the client is told `Kicked`, as before | `drop` | held |
+| Another login took the session over (`DuplicateLogin`) | `drop` | unchanged: the old session's end is answered `SESSION_REPLACED` and changes nothing |
+| Banned or deactivated (`world:accounts:status`: `Banned`, `Deactivated`), any other `Kicked` close (none in the world today), or the entry check refused the account itself (no longer active, `WorldEntryDecision.AccountRefused`) | `kicked` | removed |
+| A maintenance cutoff in force (`Maintenance`: the cutoff's close; or an entry refused for the cutoff, `WorldEntryDecision.Cutoff`, or the cutoff or restart drain the world applies when it turns a non-Admin away at character select or the spawn, `WorldMaintenanceCoordinator.CutsOff`, whatever the gate's check said; only where the world applies no maintenance, an allowed decision that ended at the cutoff's deadline, `EndsAtCutoff`) | `maintenance` | removed, with every place the world holds after a drop |
+| The world stopped or restarted (`ServerShutdown`), the restart drain included | `shutdown` | removed, with every place the world holds after a drop |
+| The world's backstop refused the admission (from part 3) | `backstop` | removed |
+
+- **Identity decides with the account's standing.** A reason that would hold the place holds it only for an account
+  that is still active (not banned, deactivated or being consolidated, and not gone): identity reads the account at
+  the end (`GameSessionFenceService.MayHoldAPlaceAsync`). So a ban whose notice the world missed (the world then sees
+  its heartbeat refused and closes as a drop), or a ban between the ticket and the activation (the failed admission's
+  end has no reason), still removes the place. A moved session epoch alone does not remove it: a credential change
+  moves it too, and those hold. When the account cannot be read, the reason decides.
+- **No reason is a drop.** A world from before part 2 sends none, and a failed admission's pending session, which the
+  world abandons (#1013), is ended without one: identity reads both as a drop and holds the place (for an active
+  account), so the client's next join finds it. A reason identity does not know (a newer world's) is a drop too.
+  `select_timeout` is in the vocabulary and removes the place, but no world sends it: a `SelectTimeout` close is a drop.
+- **Identity is deployed first.** An identity from before part 2 knows no held place: it removes the place at every
+  end, and it refuses the unknown member (400, the body rejects unknown members). The world then sends the end again
+  without the reason, so the session ends anyway. When that end succeeds, the world remembers it: until identity takes
+  the reason, ends go without it, one request each, offering it again at most every 5 minutes (one Warning when it
+  starts). An end refused for anything else, with or without the reason, remembers nothing.
+- **A repeated end changes nothing.** The world may send the same end again (a retry, its first reply lost): identity
+  answers `ended` again but touches no place (`GameSessions` tells the end that did it from a repeat, and the end's
+  tombstone refuses one within its lease), so a repeat neither extends a held place nor brings one back. An end never
+  brings back a place whose time has passed, swept or not.
+- **A return that fails holds the place again.** A join within the grace takes the held place as its ticket's
+  (`j:{untilMs}:{ticket}:h`); should that ticket's issue fail, its withdrawal holds the place again, to the end it has,
+  rather than removing it.
+- **After a stop or a maintenance cutoff nobody holds a place** (decision 10): everyone is equal and joins the line with
+  everybody else. The world's ends tell identity when: the first `shutdown` or `maintenance` end of the world releases
+  every place it holds after a drop (`IWorldPlaceStore.ReleaseHeldAsync`; their tombstones stay). A stop's ends come in
+  a burst, so the release runs at most once every 10 s for a world (`IWorldPlaceStore.HeldReleaseWindow`: each identity
+  replica asks Redis at most once in it, and the marks hash's field `released` holds it across replicas). The release
+  scans the world's places, at most once in the window: tracking the held ones apart would need a key the identity
+  Redis user's patterns do not grant. A drop whose end lands within those 10 s keeps its place until the next `shutdown` or
+  `maintenance` end after them, or its grace. A place a ticket has taken since (a return within the grace) is that
+  ticket's and stays: the ticket is already issued. A stop or a cutoff that ends no session (no player left, or Admins
+  only) sends no such end, and the places held there run out with their grace, within 90 s.
+- **An end that is not sent holds nothing.** An end skipped in the `SessionEnds` lane (the stop's deadline passed, or
+  the lease ran out more than 5 s ago with no renewal outstanding, #1051, counted on `world.session_ends.skipped`)
+  never reaches identity, and the place runs out with the lease identity renewed last, within 45 s, never held for
+  the grace.
+- **Change Character keeps the connection and the session**, so the place is untouched.
+- A held place exists only for an account that was admitted, for the grace, and gives nothing a player could not have
+  by staying connected. Until part 3 it only counts: it is enforced with the limit.
 
 ## Setting a limit
 
@@ -125,7 +196,7 @@ Six keys, all named in `CacheKeys` and described in [Redis cache keys](redis-cac
 | Key | Type | Content |
 |---|---|---|
 | `world:{worldId}:places` | sorted set | the ledger: member the account id, score the moment the place expires (Unix ms) |
-| `world:{worldId}:places:marks` | hash | per account two fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes) |
+| `world:{worldId}:places:marks` | hash | per account two fields at most: `{accountId}`, the kind of place, `h` (held after a drop), `t:{enqueuedAtMs}` (a turn taken, not yet used) or `j:{untilMs}:{ticket}` (a join ticket's hold, the last ticket to enter, by its session id; `j:{untilMs}:{ticket}:h` when it took a held place), and none for a place a session alone holds; `{accountId}:s`, the fencing token of the session that owns the place (`{fence}`), or a tombstone of the one that ended there (`e:{fence}`, expiring one lease after it was written, kept when the place goes). One field more, `released`: when the world's held places were last released (a stop or a cutoff) |
 | `world:{worldId}:queue` | sorted set | the line: member the account id, score its arrival number |
 | `world:{worldId}:queue:checkins` | sorted set | member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
 | `world:{worldId}:queue:arrivals` | string | the arrival counter |
@@ -192,7 +263,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 34, Skipped: 0` (the 33 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 38, Skipped: 0` (the 37 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary
