@@ -423,16 +423,17 @@ public sealed class RedisWorldPlaceStore(IReplicatedCache cache, IOptions<WorldP
         if ((int)r[1] == 1) outage.ReportTombstoneRefused();
     }
 
-    public Task ReleaseHeldAsync(ushort worldId, CancellationToken cancellationToken)
+    public async Task ReleaseHeldAsync(ushort worldId, CancellationToken cancellationToken)
     {
         // The burst of a stop's ends asks it once: inside the window this replica does not ask Redis at all, and the
-        // script's own field holds the window across replicas.
+        // script's own field holds the window across replicas. Recorded only once the script ran: a release that failed
+        // or was cancelled leaves the next end to ask again (two at once are harmless, the field guards them).
         long now = Now;
         if (_lastRelease.TryGetValue(worldId, out long last) && now >= last && now - last < s_releaseWindow)
-            return Task.CompletedTask;
-        _lastRelease[worldId] = now;
-        return RunAsync(ReleaseHeld, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
+            return;
+        await RunAsync(ReleaseHeld, [CacheKeys.WorldPlaces(worldId), CacheKeys.WorldPlaceMarks(worldId)],
             [now, s_releaseWindow], cancellationToken);
+        _lastRelease[worldId] = now;
     }
 
     // The last release this replica asked of each world, Unix ms on the injected clock.
