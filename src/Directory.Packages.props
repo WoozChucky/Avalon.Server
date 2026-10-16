@@ -17,7 +17,7 @@
     <PackageVersion Include="WebPush" Version="1.0.13" />
     <PackageVersion Include="Aspire.Hosting.AppHost" Version="13.6.1" />
     <!-- Aspire.Hosting 13.6.1 brings MessagePack 2.5.302 (GHSA-qhrr-8q5h-9q3h); the AppHost pins the patched one. -->
-    <PackageVersion Include="MessagePack" Version="2.5.307" />
+    <PackageVersion Include="MessagePack" Version="3.1.12" />
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0" />
     <PackageVersion Include="Serilog" Version="4.4.0" />
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
