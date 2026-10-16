@@ -212,6 +212,32 @@ public static class WorldPlaceScenarios
             await h.Expect(QueueState.YourTurn, 0, account: 2, limit: 1);
             await h.Queued(1, limit: 1, position: 1);
         },
+        ["a repeated end never extends a held place"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            await h.End(1, PlaceEnd.Hold); // held for 90 s
+            h.Advance(30); // within the session's tombstone, as a retry is
+            await h.End(1, PlaceEnd.Hold); // the same end again
+            h.Advance(60);
+            Assert.Equal((0, 0, 0), await h.Sizes());
+        },
+        ["an end never brings back a place whose time passed before a sweep"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            h.Advance(46); // its lease ran out unrenewed; no script has swept it yet
+            await h.End(1, PlaceEnd.Hold);
+            Assert.Equal((0, 0, 0), await h.Sizes());
+        },
+        ["a failed issue on a held place holds it again"] = async h =>
+        {
+            await h.Admitted(1, limit: 1);
+            await h.End(1, PlaceEnd.Hold); // held for 90 s
+            Assert.Equal(PlaceSource.Returned, (await h.Join(1, limit: 1)).Source);
+            await h.Withdraw(1, h.Ticket(1)); // the ticket's write failed
+            Assert.Equal((1, 0, 1), await h.Sizes());
+            h.Advance(89);
+            Assert.Equal(PlaceSource.Returned, (await h.Join(1, limit: 1)).Source); // still held: the return goes in
+        },
         ["a goodbye frees the place at once"] = async h =>
         {
             await h.Admitted(1, limit: 1);
