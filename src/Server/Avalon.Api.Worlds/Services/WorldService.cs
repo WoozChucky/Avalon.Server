@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Exceptions;
 using Avalon.Api.Hosting.Worlds;
@@ -6,6 +7,7 @@ using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.WorldPlaces;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
 
@@ -29,6 +31,13 @@ public interface IWorldService
 
     Task<WorldDto> CreateAsync(CreateWorldRequest request, CancellationToken cancellationToken = default);
     Task<WorldDto?> UpdateAsync(ushort id, UpdateWorldRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets the world's player limit (#967), by column, and logs who changed it from what to what. Null when the world does
+    /// not exist. Effective on identity's next join request. The world's backstop has its own limit, Game:PlayerLimit,
+    /// which the operator sets to the same number.
+    /// </summary>
+    Task<WorldDto?> SetPlayerLimitAsync(ushort id, int? limit, string actor, CancellationToken cancellationToken = default);
 }
 
 public class WorldService : IWorldService
@@ -36,14 +45,18 @@ public class WorldService : IWorldService
     private readonly IWorldRepository _repository;
     private readonly IWorldDatabases _databases;
     private readonly IWorldReadiness _readiness;
+    private readonly IWorldOccupancy _occupancy;
+    private readonly ILogger<WorldService> _logger;
     private readonly TimeProvider _time;
 
     public WorldService(IWorldRepository repository, IWorldDatabases databases, IWorldReadiness readiness,
-        TimeProvider? time = null)
+        IWorldOccupancy occupancy, ILogger<WorldService> logger, TimeProvider? time = null)
     {
         _repository = repository;
         _databases = databases;
         _readiness = readiness;
+        _occupancy = occupancy;
+        _logger = logger;
         _time = time ?? TimeProvider.System;
     }
 
@@ -135,9 +148,25 @@ public class WorldService : IWorldService
         return await ToDtoAsync(world, cancellationToken, _time.GetUtcNow().UtcDateTime);
     }
 
+    public async Task<WorldDto?> SetPlayerLimitAsync(ushort id, int? limit, string actor,
+        CancellationToken cancellationToken = default)
+    {
+        PlayerLimitChange? change = await _repository.SetPlayerLimitAsync(new WorldId(id), limit, _time.GetUtcNow().UtcDateTime,
+            cancellationToken);
+        if (change is null) return null;
+        _logger.LogInformation("World {WorldId} player limit changed from {Previous} to {Current} by {Actor}", id,
+            change.Previous?.ToString(CultureInfo.InvariantCulture) ?? "none",
+            change.Current?.ToString(CultureInfo.InvariantCulture) ?? "none", actor);
+        // The row as written, as UpdateAsync answers: the write succeeded, so the reply is never a 404 (an admin endpoint,
+        // not the caller-visibility lookup of GetAsync).
+        WorldEntity? world = await _repository.FindByIdAsync(new WorldId(id), track: false, cancellationToken);
+        return world is null ? null : await ToDtoAsync(world, cancellationToken, _time.GetUtcNow().UtcDateTime);
+    }
+
     private async Task<WorldDto> ToDtoAsync(WorldEntity w, CancellationToken ct, DateTime nowUtc)
     {
         bool ready = await _readiness.IsReadyAsync(w.Id.Value, ct);
+        WorldOccupancy occupancy = await _occupancy.ReadAsync(w.Id.Value, ct);
         var state = new WorldMaintenanceState(w.MaintenanceEnabled, w.MaintenanceRevision,
             w.MaintenanceDeadlineUtc);
         return new WorldDto
@@ -154,7 +183,9 @@ public class WorldService : IWorldService
             Ready = ready,
             CreatedAt = w.CreatedAt,
             UpdatedAt = w.UpdatedAt,
-            OnlineCount = 0,
+            OnlineCount = occupancy.PlayerCount,
+            PlayerLimit = w.PlayerLimit,
+            QueueLength = occupancy.QueueLength,
             Configured = _databases.TryGet(w.Id, out _),
             Available = _databases.IsAvailable(w.Id),
         };

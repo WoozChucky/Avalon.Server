@@ -1,7 +1,10 @@
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Claims;
+using System.Text;
 using Avalon.Api.Contract;
 using Avalon.Api.Hosting.Authentication;
+using Avalon.Api.Testing;
 using Avalon.Api.Worlds.Controllers;
 using Avalon.Api.Worlds.Services;
 using Avalon.Database.Auth.Repositories;
@@ -11,6 +14,7 @@ using Avalon.Infrastructure.WorldMaintenance;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using NSubstitute;
 using Xunit;
 
@@ -129,11 +133,42 @@ public class WorldControllerShould
     [InlineData(nameof(WorldController.GetMaintenance))]
     [InlineData(nameof(WorldController.EnableMaintenance))]
     [InlineData(nameof(WorldController.DisableMaintenance))]
-    public void Maintenance_actions_require_admin_policy(string action)
+    [InlineData(nameof(WorldController.SetPlayerLimit))]
+    public void Maintenance_and_player_limit_actions_require_admin_policy(string action)
     {
         MethodInfo method = typeof(WorldController).GetMethod(action)!;
         AuthorizeAttribute attribute = Assert.Single(method.GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute),
             false).Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>());
         Assert.Equal(AvalonRoles.Admin, attribute.Policy);
+    }
+
+    /// <summary>
+    /// #967: through the API's own pipeline, the limit must be present (null included, so an empty body is never read as
+    /// "no limit") and within 1 to 100,000; a refused body writes nothing.
+    /// </summary>
+    [Theory]
+    [InlineData("{}", 400)]
+    [InlineData("{\"playerLimit\":0}", 400)]
+    [InlineData("{\"playerLimit\":100001}", 400)]
+    [InlineData("{\"playerLimit\":null}", 200)]
+    [InlineData("{\"playerLimit\":300}", 200)]
+    public async Task Accept_only_a_player_limit_that_is_present_and_in_range(string body, int status)
+    {
+        IWorldService service = Substitute.For<IWorldService>();
+        service.SetPlayerLimitAsync(1, Arg.Any<int?>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(new WorldDto { Id = 1 });
+        await using ApiTestHost host = await ApiTestHost.StartAsync(configure: services => services.AddSingleton(service));
+        Account admin = ApiTestHost.MakeAccount(Avalon.Common.Accounts.AccountAccessLevel.Player | Avalon.Common.Accounts.AccountAccessLevel.Admin);
+        host.AccountNowIs(admin);
+        using var request = new HttpRequestMessage(HttpMethod.Put, "/world/1/player-limit")
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json"),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiTestHost.Mint(admin));
+
+        using HttpResponseMessage response = await host.Client.SendAsync(request);
+
+        Assert.Equal(status, (int)response.StatusCode);
+        await service.Received(status == 200 ? 1 : 0).SetPlayerLimitAsync(Arg.Any<ushort>(), Arg.Any<int?>(), Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
     }
 }

@@ -15,6 +15,7 @@ using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.StoreAuth;
+using Avalon.Infrastructure.WorldPlaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -66,6 +67,8 @@ internal sealed class GameAdmissionHarness
     public GameAuthorizationService Authorization { get; }
     public GameServerAllocator Allocator { get; }
     public JoinTicketStore Tickets { get; }
+    /// <summary>The place ledger (#967) the ticket store and the fence service share.</summary>
+    public IWorldPlaceStore Places { get; }
     /// <summary>World 3's auth row, as the allocator reads it.</summary>
     public Avalon.Domain.Auth.World World { get; }
     public IWorldReadiness Readiness { get; } = Substitute.For<IWorldReadiness>();
@@ -139,7 +142,8 @@ internal sealed class GameAdmissionHarness
         IWorldRepositories repositories = Substitute.For<IWorldRepositories>();
         repositories.Characters(world.Id).Returns(Characters);
         IOptions<GameWorkloadConfiguration> workloads = Options.Create(Workloads);
-        Allocator = new(WorldRows, accounts, Databases, Readiness, repositories, workloads, _clock, applications, NullLogger<GameServerAllocator>.Instance);
+        Allocator = new(WorldRows, accounts, Databases, Readiness, repositories, workloads, _clock, applications, NullLogger<GameServerAllocator>.Instance,
+            Substitute.For<IWorldOccupancy>());
 
         IGameSessionRepository sessions = Substitute.For<IGameSessionRepository>();
         sessions.FindAsync(Account.Id, Arg.Any<CancellationToken>()).Returns(_ => _head);
@@ -185,8 +189,10 @@ internal sealed class GameAdmissionHarness
         gameplay.AdvanceAsync(Arg.Any<GameplayWriteAuthority>(), false, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => call.ArgAt<DateTime>(2));
         gameplay.ActivateAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => call.ArgAt<DateTime>(1));
         gameplay.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => call.ArgAt<DateTime>(1));
-        Tickets = new(store, crypto, Authorization, sessions, Allocator, options, _clock, applications);
-        _fences = new(sessions, Authorization, repositories, accounts, workloads, _clock, applications);
+        Places = new MemoryWorldPlaceStore(_clock, new WorldPlacesConfiguration());
+        var outage = new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _clock);
+        Tickets = new(store, crypto, Authorization, sessions, Allocator, options, _clock, applications, Places, outage);
+        _fences = new(sessions, Authorization, repositories, accounts, workloads, _clock, applications, Places, outage);
     }
 
     public async Task<GameAuthReply> Authenticate(uint appId, string expectedState = GameAuthStates.Authorized)

@@ -185,8 +185,9 @@ The map, item, ability, creature, aura and quest template lists are paged with `
 (`WorldRoutesOpenApiShould.Mark_worldId_a_required_path_parameter` pins it route by route).
 
 Routes that span worlds, or read only the auth database, take no `worldId`: `GET /character`, `GET /world`,
-`GET /world/{id}` (the auth world lookup, which shares the prefix but is not world-scoped), the world create, update
-and maintenance endpoints, `GET /observability/online` and `GET /observability/instance/{instanceId}`.
+`GET /world/{id}` (the auth world lookup, which shares the prefix but is not world-scoped), the world create, update,
+maintenance and player limit (`PUT /world/{id}/player-limit`, [World player limit](world-player-limit.md)) endpoints,
+`GET /observability/online` and `GET /observability/instance/{instanceId}`.
 `WorldRoutesOpenApiShould.Leave_no_world_content_route_outside_a_world` fails if a world content route reappears
 outside `/world/{worldId}/`.
 

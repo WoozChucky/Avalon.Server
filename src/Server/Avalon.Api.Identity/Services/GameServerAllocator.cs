@@ -8,6 +8,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.GameAuth;
+using Avalon.Infrastructure.WorldPlaces;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Identity.Services;
@@ -19,7 +20,7 @@ namespace Avalon.Api.Identity.Services;
 /// </summary>
 public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccountRepository accounts, IWorldDatabases databases,
     IWorldReadiness readiness, IWorldRepositories repositories, IOptions<GameWorkloadConfiguration> workloads, TimeProvider clock,
-    GameApplicationAccessPolicy applications, ILogger<GameServerAllocator> logger) : IGameServerAllocator
+    GameApplicationAccessPolicy applications, ILogger<GameServerAllocator> logger, IWorldOccupancy occupancy) : IGameServerAllocator
 {
     /// <summary>The unreadable <c>MinVersion</c> last reported per world, so each is logged once, not per request.</summary>
     private static readonly ConcurrentDictionary<ushort, string> s_unreadableMinVersions = new();
@@ -34,7 +35,10 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
         {
             Checked world = await CheckWorldAsync(context, root, definition.WorldId, null, cancellationToken);
             // A world the client is only too old for stays listed, marked, so the player is told to update (#1053).
-            if ((world.Allocation.Destination ?? world.Outdated) is { } destination) result.Add(destination);
+            if ((world.Allocation.Destination ?? world.Outdated) is not { } destination) continue;
+            // Places taken and the line's length, the ones marked RequiresUpdate included (#967).
+            WorldOccupancy counts = await occupancy.ReadAsync(definition.WorldId, cancellationToken);
+            result.Add(destination with { PlayerCount = counts.PlayerCount, QueueLength = counts.QueueLength });
         }
         return result.OrderBy(x => x.WorldId).ToArray();
     }
@@ -95,8 +99,10 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
             return Refuse(GameWorldRefusal.Unavailable);
         }
 
-        if (new WorldMaintenanceState(world.MaintenanceEnabled, world.MaintenanceRevision, world.MaintenanceDeadlineUtc)
-                .IsCutoffActive(clock.GetUtcNow().UtcDateTime) && (root.AccessLevel & AccountAccessLevel.Admin) == 0)
+        bool admin = AccountAccessLevel.Admin.Allows(root.AccessLevel);
+        bool cutoff = new WorldMaintenanceState(world.MaintenanceEnabled, world.MaintenanceRevision, world.MaintenanceDeadlineUtc)
+            .IsCutoffActive(clock.GetUtcNow().UtcDateTime);
+        if (cutoff && !admin)
         {
             return Refuse(GameWorldRefusal.Unavailable);
         }
@@ -110,7 +116,9 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
         }
 
         var destination = new GameWorldDestination(worldId, server.ServerId, world.Name, world.Host, world.Port, server.TlsServerName,
-            server.TlsCertificateSha256, world.MinVersion, world.Version);
+            server.TlsCertificateSha256, world.MinVersion, world.Version,
+            Status: (cutoff ? WorldStatus.Maintenance : WorldStatus.Online).ToString(), PlayerLimit: world.PlayerLimit,
+            Staff: admin);
         // The API floor above has already read the context's version.
         if (!ClientVersionFloor.TryParse(context.ProtocolVersion, out uint version) || version < required)
             return new(GameWorldAllocation.Outdated(ClientVersionFloor.Format(required)), destination with { RequiresUpdate = true });

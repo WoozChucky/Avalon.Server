@@ -6,6 +6,7 @@ using Avalon.Api.Identity.Controllers;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Infrastructure.GameAuth;
+using Avalon.Infrastructure.WorldPlaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -45,6 +46,29 @@ public sealed class GameAdmissionControllerShould
         Assert.IsType<BadRequestObjectResult>(await controller.Join(new GameJoinRequest { GameContextCredential = new string('A', 43), WorldId = 1 }, Guid.NewGuid(), CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await controller.Worlds(new GameContextCredentialRequest { GameContextCredential = new string('A', 43) }, CancellationToken.None));
         Assert.Empty(h.Store.Entries);
+    }
+
+    /// <summary>Review Focus 1 (#967): the place ledger unreachable at the join fails it closed, and nothing is issued.</summary>
+    [Fact]
+    public async Task Answer_service_unavailable_and_issue_nothing_when_the_place_ledger_is_unreachable()
+    {
+        var h = new JoinHarness(new FlakyPlaceStore(Substitute.For<IWorldPlaceStore>()) { Down = true });
+        GameAuthReply auth = await h.Authenticate();
+        var http = new DefaultHttpContext();
+        http.Request.Scheme = "https";
+        var controller = new GameAdmissionController(NullLogger<GameAdmissionController>.Instance, h.Authorization, h.Tickets,
+            h.Allocator, new GameApplicationAccessPolicy(Options.Create(h.Configuration)))
+        {
+            ControllerContext = new() { HttpContext = http },
+        };
+
+        IActionResult result = await controller.Join(new GameJoinRequest { GameContextCredential = auth.GameContextCredential!, WorldId = 1 },
+            Guid.NewGuid(), default);
+
+        ObjectResult refused = Assert.IsType<ObjectResult>(result);
+        Assert.Equal((503, "SERVICE_UNAVAILABLE"), (refused.StatusCode, Assert.IsType<GameJoinReply>(refused.Value).Error));
+        Assert.DoesNotContain(h.Store.Entries.Keys, key => key.Contains(":join-ticket:", StringComparison.Ordinal)
+            || key.Contains(":join-issue:", StringComparison.Ordinal));
     }
 
     public enum WorldRefusal { Unavailable, ClientOutdated, BelowApiFloor, NotAllowed, Banned, CharacterGone }

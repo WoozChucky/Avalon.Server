@@ -9,9 +9,11 @@ using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.WorldPlaces;
 using Avalon.Infrastructure.WorldMaintenance;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
@@ -60,7 +62,7 @@ public sealed class WorldVisibilityShould : IDisposable
 
     private WorldController MakeSut(AccountAccessLevel level) =>
         new(new WorldService(new WorldRepository(_database), new Avalon.Api.Hosting.Worlds.WorldDatabases([]),
-                Substitute.For<IWorldReadiness>()),
+                Substitute.For<IWorldReadiness>(), Substitute.For<IWorldOccupancy>(), NullLogger<WorldService>.Instance),
             Substitute.For<IWorldMaintenanceRepository>(), Substitute.For<IWorldMaintenanceControl>(),
             Substitute.For<IWorldReadiness>())
         {
@@ -166,7 +168,8 @@ public sealed class WorldVisibilityShould : IDisposable
         IWorldReadiness readiness = Substitute.For<IWorldReadiness>();
         readiness.IsReadyAsync(PlayerWorld, Arg.Any<CancellationToken>()).Returns(true);
         var service = new WorldService(new WorldRepository(_database),
-            new Avalon.Api.Hosting.Worlds.WorldDatabases([]), readiness);
+            new Avalon.Api.Hosting.Worlds.WorldDatabases([]), readiness, Substitute.For<IWorldOccupancy>(),
+            NullLogger<WorldService>.Instance);
 
         PagedResult<WorldDto> first = await service.ListAsync(AccountAccessLevel.Admin, 1, 1,
             sortBy: "status", sortDirection: SortDirection.Ascending);

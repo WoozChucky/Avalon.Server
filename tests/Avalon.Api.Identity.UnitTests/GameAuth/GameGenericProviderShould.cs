@@ -5,6 +5,8 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.StoreAuth;
+using Avalon.Infrastructure.WorldPlaces;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -66,7 +68,9 @@ public sealed class GameGenericProviderShould
                 LicenseUntil = reservation.LicenseUntil
             };
         });
-        var tickets = new JoinTicketStore(store, crypto, service, sessions, allocator, config, clock, new(config));
+        var tickets = new JoinTicketStore(store, crypto, service, sessions, allocator, config, clock, new(config),
+            new MemoryWorldPlaceStore(clock, new WorldPlacesConfiguration()),
+            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, clock));
         GameJoinReply issued = await tickets.IssueAsync(refreshed.GameContextCredential!, 1, null, Guid.NewGuid(), false, false, default);
         Assert.Null(issued.Error);
         Assert.Null((await tickets.RedeemAsync(issued.JoinTicket!, "world-1", Guid.NewGuid(), Guid.NewGuid(), default)).Error);

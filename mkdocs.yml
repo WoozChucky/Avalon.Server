@@ -109,6 +109,7 @@ nav:
     - Client Combat Protocol: client-combat-protocol-migration.md
   - Operations:
     - World Maintenance: world-maintenance.md
+    - World Player Limit: world-player-limit.md
     - Instrumentation: instrumentation.md
     - Balance: balance.md
     - Benchmarks: benchmarks.md

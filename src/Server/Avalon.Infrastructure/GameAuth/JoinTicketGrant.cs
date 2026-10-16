@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Avalon.Common.GameAuth;
 
 namespace Avalon.Infrastructure.GameAuth;
@@ -6,9 +7,13 @@ namespace Avalon.Infrastructure.GameAuth;
 /// A world a game context may enter, as the world list and a join ticket name it. <see cref="RequiresUpdate"/> is true
 /// only in the world list, on a world the client is too old for and otherwise eligible for (#1053): the player is told
 /// to update to <see cref="MinVersion"/>, and a join ticket for it is refused <c>CLIENT_OUTDATED</c>.
+/// <see cref="Status"/>, <see cref="PlayerCount"/>, <see cref="PlayerLimit"/> and <see cref="QueueLength"/> are the world
+/// list's (#967); <see cref="Staff"/> (the Admin flag) is for the join's capacity step and never leaves the server.
 /// </summary>
 public sealed record GameWorldDestination(ushort WorldId, string ServerId, string Name, string Host, int Port,
-    string TlsServerName, string TlsCertificateSha256, string MinVersion, string Version, bool RequiresUpdate = false);
+    string TlsServerName, string TlsCertificateSha256, string MinVersion, string Version, bool RequiresUpdate = false,
+    string? Status = null, int? PlayerCount = null, int? PlayerLimit = null, int? QueueLength = null,
+    [property: JsonIgnore] bool Staff = false);
 
 public interface IGameServerAllocator
 {
@@ -102,7 +107,11 @@ public sealed record GameJoinReply(string? Error = null, string? JoinTicket = nu
     public override string ToString() => $"Game admission ticket, error: {Error} (ticket redacted)";
 }
 
-internal sealed record JoinIssueReceipt(string Binding, string Envelope);
+/// <summary>
+/// A join ticket's issue, kept for its idempotent replay. <see cref="Ticket"/> is the ticket's id in the place ledger (its
+/// grant's <c>GameSessionId</c>, #967), so a replay re-enters the place as that ticket's; null on a receipt written before.
+/// </summary>
+internal sealed record JoinIssueReceipt(string Binding, string Envelope, Guid? Ticket = null);
 internal sealed record JoinTicketGrant
 {
     public Guid TicketId { get; init; }

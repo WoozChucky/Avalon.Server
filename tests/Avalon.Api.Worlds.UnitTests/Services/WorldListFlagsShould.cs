@@ -7,6 +7,8 @@ using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.WorldPlaces;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
@@ -51,7 +53,7 @@ public sealed class WorldListFlagsShould : IDisposable
     };
 
     private WorldService Sut() => new(new WorldRepository(_database), _databases,
-        Substitute.For<IWorldReadiness>());
+        Substitute.For<IWorldReadiness>(), Substitute.For<IWorldOccupancy>(), NullLogger<WorldService>.Instance);
 
     [Fact]
     public async Task Metadata_update_preserves_a_concurrent_maintenance_transition()
@@ -76,6 +78,30 @@ public sealed class WorldListFlagsShould : IDisposable
         Assert.Equal("Renamed", actual.Name);
         Assert.True(actual.MaintenanceEnabled);
         Assert.Equal(1, actual.MaintenanceRevision);
+    }
+
+    /// <summary>#967: the limit is written by column. A metadata edit read before it, and a maintenance transition, both survive.</summary>
+    [Fact]
+    public async Task Write_the_player_limit_by_column()
+    {
+        var repository = new WorldRepository(_database);
+        WorldEntity stale = (await repository.FindByIdAsync(new WorldId(101)))!;
+        using (AuthDbContext context = _database.CreateDbContext())
+        {
+            WorldEntity persisted = context.Worlds.Single(w => w.Id == new WorldId(101));
+            persisted.MaintenanceEnabled = true;
+            persisted.MaintenanceRevision = 1;
+            context.SaveChanges();
+        }
+
+        Assert.Equal(new PlayerLimitChange(null, 300), await repository.SetPlayerLimitAsync(new WorldId(101), 300, DateTime.UtcNow, default));
+        stale.Name = "Renamed";
+        await repository.UpdateMetadataAsync(stale, default);
+
+        using AuthDbContext check = _database.CreateDbContext();
+        WorldEntity actual = check.Worlds.Single(w => w.Id == new WorldId(101));
+        Assert.Equal(("Renamed", 300, true), (actual.Name, actual.PlayerLimit, actual.MaintenanceEnabled));
+        Assert.Null(await repository.SetPlayerLimitAsync(new WorldId(999), 5, DateTime.UtcNow, default));
     }
 
     [Fact]
@@ -112,7 +138,8 @@ public sealed class WorldListFlagsShould : IDisposable
         }
         IWorldReadiness readiness = Substitute.For<IWorldReadiness>();
         readiness.IsReadyAsync(101, Arg.Any<CancellationToken>()).Returns(true);
-        var service = new WorldService(new WorldRepository(_database), _databases, readiness);
+        var service = new WorldService(new WorldRepository(_database), _databases, readiness, Substitute.For<IWorldOccupancy>(),
+            NullLogger<WorldService>.Instance);
 
         WorldDto? worldDto = await service.GetAsync(101, AccountAccessLevel.Player);
 

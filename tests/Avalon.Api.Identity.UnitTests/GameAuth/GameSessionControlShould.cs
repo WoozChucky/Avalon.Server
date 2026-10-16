@@ -7,6 +7,7 @@ using Avalon.Api.Identity.Controllers;
 using Avalon.Api.Identity.Services;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Infrastructure.WorldPlaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -38,7 +39,8 @@ public sealed class GameSessionControlShould
         IGameSessionRepository sessions = Substitute.For<IGameSessionRepository>();
         var service = new GameSessionFenceService(sessions, h.Authorization, Substitute.For<IWorldRepositories>(),
             Substitute.For<IAccountRepository>(), Options.Create(new GameWorkloadConfiguration()), h.Clock,
-            new Avalon.Infrastructure.GameAuth.GameApplicationAccessPolicy(Options.Create(h.Configuration)));
+            new Avalon.Infrastructure.GameAuth.GameApplicationAccessPolicy(Options.Create(h.Configuration)), h.Places,
+            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, h.Clock));
         var http = new DefaultHttpContext();
         http.Request.Scheme = https ? "https" : "http";
         if (server) http.User = new(new ClaimsIdentity([new Claim(GameServerAuthHandler.ServerIdClaim, "world-1")], GameServerAuthHandler.Scheme));

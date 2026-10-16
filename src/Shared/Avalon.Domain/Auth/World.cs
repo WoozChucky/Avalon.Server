@@ -27,6 +27,16 @@ public class World : IDbEntity<WorldId>
 
     public DateTime? MaintenanceDeadlineUtc { get; set; }
 
+    /// <summary>The highest limit a world may be given (#967).</summary>
+    public const int MaxPlayerLimit = 100_000;
+
+    /// <summary>
+    /// How many accounts the world admits (#967), from 1 to <see cref="MaxPlayerLimit"/>; null for no limit. Read on each
+    /// join request by identity (the world's backstop has its own, <c>Game:PlayerLimit</c>, set to the same number); written
+    /// only by <c>IWorldRepository.SetPlayerLimitAsync</c>, by column.
+    /// </summary>
+    public int? PlayerLimit { get; set; }
+
     [Required] public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [Required] public DateTime UpdatedAt { get; set; }

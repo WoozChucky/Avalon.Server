@@ -7,6 +7,7 @@ using Avalon.Api.Worlds.Services;
 using Avalon.Api.Worlds.Templates;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Extensions;
+using Avalon.Infrastructure.WorldPlaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -58,6 +59,8 @@ public static class WorldsServiceRegistration
         services.AddScoped<IObservabilityService, ObservabilityService>();
         // A world's ready heartbeat, which identity's game admission reads too: registered once in a process.
         services.TryAddSingleton<IWorldReadiness, WorldReadiness>();
+        // A world's places taken and line length (#967), which identity's world list reads too: registered once in a process.
+        services.TryAddSingleton<IWorldOccupancy, RedisWorldOccupancy>();
         services.AddWorldMaintenanceControl();
 
         // A character's owner, or a game master to read it and an admin to write it.

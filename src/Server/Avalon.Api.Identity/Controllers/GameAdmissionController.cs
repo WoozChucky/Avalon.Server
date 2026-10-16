@@ -41,7 +41,7 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
 
             return Ok(await allocator.ListAsync(context, cancellationToken));
         }
-        catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
+        catch (Exception error) when (error is RedisException or RedisTimeoutException or JsonException or CryptographicException)
         {
             logger.LogError(error, "An error occurred while retrieving the game worlds");
             return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable));
@@ -95,7 +95,7 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
                 _ => Unauthorized(reply),
             };
         }
-        catch (Exception error) when (error is RedisException or JsonException or CryptographicException)
+        catch (Exception error) when (error is RedisException or RedisTimeoutException or JsonException or CryptographicException)
         {
             logger.LogError(error, "An error occurred while issuing a game join ticket");
             return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable));

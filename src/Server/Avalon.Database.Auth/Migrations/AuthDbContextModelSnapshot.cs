@@ -17,7 +17,7 @@ namespace Avalon.Database.Auth.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -854,6 +854,9 @@ namespace Avalon.Database.Auth.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("PlayerLimit")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Port")
                         .HasColumnType("integer");
 
@@ -869,7 +872,10 @@ namespace Avalon.Database.Auth.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Worlds");
+                    b.ToTable("Worlds", t =>
+                        {
+                            t.HasCheckConstraint("CK_Worlds_PlayerLimit", "\"PlayerLimit\" IS NULL OR (\"PlayerLimit\" >= 1 AND \"PlayerLimit\" <= 100000)");
+                        });
 
                     b.HasData(
                         new

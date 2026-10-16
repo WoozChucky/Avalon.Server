@@ -5,6 +5,8 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.StoreAuth;
+using Avalon.Infrastructure.WorldPlaces;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
@@ -164,6 +166,19 @@ public sealed class JoinTicketStoreShould
         _h.Allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, 999, Arg.Any<CancellationToken>()).Returns(GameWorldAllocation.Refuse(GameWorldRefusal.CharacterNotFound));
         Assert.NotNull((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, 999, Guid.NewGuid(), false, false, CancellationToken.None)).Error);
     }
+
+    /// <summary>#967: a ticket that is never redeemed holds its place until 15 s after the ticket's expiry, and no longer.</summary>
+    [Fact]
+    public async Task Take_a_place_with_the_ticket_that_lasts_until_shortly_after_it()
+    {
+        GameAuthReply auth = await _h.Authenticate();
+        Assert.Null((await _h.Tickets.IssueAsync(auth.GameContextCredential!, 1, null, Guid.NewGuid(), false, false, default)).Error);
+        Assert.Equal(1, (await _h.Places.CountAsync(1, default)).Taken);
+        _h.Clock.Advance(TimeSpan.FromSeconds(44)); // the ticket lived 30 s; its place 15 s more
+        Assert.Equal(1, (await _h.Places.CountAsync(1, default)).Taken);
+        _h.Clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(0, (await _h.Places.CountAsync(1, default)).Taken);
+    }
 }
 
 internal sealed class JoinHarness
@@ -177,8 +192,11 @@ internal sealed class JoinHarness
     public GameAuthorizationService Authorization { get; }
     public JoinTicketStore Tickets { get; }
     public StoreAuthenticationConfiguration Configuration { get; } = new() { SteamAppId = StoreAuthenticationTestData.SteamAppId, SteamPublisherKey = "test-only", SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
-    public JoinHarness()
+    /// <summary>The place ledger (#967) the ticket store keeps: the in-memory one unless a test gives another.</summary>
+    public IWorldPlaceStore Places { get; }
+    public JoinHarness(IWorldPlaceStore? places = null)
     {
+        Places = places ?? new MemoryWorldPlaceStore(Clock, new WorldPlacesConfiguration());
         IAccountRepository accounts = Substitute.For<IAccountRepository>();
         IExternalIdentityRepository identities = Substitute.For<IExternalIdentityRepository>();
         ISteamProofVerifier verifier = Substitute.For<ISteamProofVerifier>();
@@ -216,7 +234,8 @@ internal sealed class JoinHarness
             Sessions.FindAsync(Account.Id, Arg.Any<CancellationToken>()).Returns(head);
             return head;
         });
-        Tickets = new(Store, crypto, Authorization, Sessions, Allocator, options, Clock, new GameApplicationAccessPolicy(options));
+        Tickets = new(Store, crypto, Authorization, Sessions, Allocator, options, Clock, new GameApplicationAccessPolicy(options),
+            Places, new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, Clock));
     }
     public async Task<GameAuthReply> Authenticate(uint? appId = null)
     {

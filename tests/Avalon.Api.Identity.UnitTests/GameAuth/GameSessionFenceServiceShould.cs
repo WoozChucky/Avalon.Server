@@ -9,8 +9,11 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Infrastructure.GameAuth;
+using Avalon.Infrastructure.WorldPlaces;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using StackExchange.Redis;
 using Xunit;
 
 namespace Avalon.Api.Identity.UnitTests.GameAuth;
@@ -24,7 +27,7 @@ public sealed class GameSessionFenceServiceShould
     private readonly List<string> _order = [];
     private GameSession _head = null!;
     private GameSessionFenceService _service = null!;
-    private async Task Arrange(uint? appId = null, ushort worldId = 1, bool native = false)
+    private async Task Arrange(uint? appId = null, ushort worldId = 1, bool native = false, IWorldPlaceStore? places = null)
     {
         GameAuthReply auth = native ? await _h.AuthenticateAvalon() : await _h.Authenticate(appId);
         GameContextRecord context = (await _h.Authorization.GetContextAsync(auth.GameContextCredential!, true, CancellationToken.None))!;
@@ -56,7 +59,8 @@ public sealed class GameSessionFenceServiceShould
         _target.ActivateAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => { _order.Add("target-active"); return call.ArgAt<DateTime>(1); });
         IAccountRepository accounts = Substitute.For<IAccountRepository>();
         accounts.FindByIdAsync(_h.Account.Id, false, Arg.Any<CancellationToken>()).Returns(_h.Account);
-        _service = new(_h.Sessions, _h.Authorization, _worlds, accounts, Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] }), _h.Clock, new GameApplicationAccessPolicy(Options.Create(_h.Configuration)));
+        _service = new(_h.Sessions, _h.Authorization, _worlds, accounts, Options.Create(new GameWorkloadConfiguration { Servers = [new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 }] }), _h.Clock, new GameApplicationAccessPolicy(Options.Create(_h.Configuration)),
+            places ?? _h.Places, new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _h.Clock));
     }
 
     [Theory]
@@ -380,4 +384,74 @@ public sealed class GameSessionFenceServiceShould
         _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
         Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, CancellationToken.None)).State);
     }
+
+    /// <summary>#967: the place follows the session: activation renews it and frees the other world's, heartbeats renew it, the end removes it.</summary>
+    [Fact]
+    public async Task Keep_the_place_with_the_session_and_remove_it_at_its_end()
+    {
+        await Arrange();
+        DateTime now = _h.Clock.GetUtcNow().UtcDateTime;
+        await _h.Places.RenewAsync(2, 7, 1, Guid.NewGuid(), now.AddSeconds(45), false, default); // an older session's place left in world 2
+        Assert.Null((await Activate()).Error);
+        Assert.Equal((1, 0), ((await _h.Places.CountAsync(1, default)).Taken, (await _h.Places.CountAsync(2, default)).Taken));
+
+        RenewAs(_head);
+        _h.Clock.Advance(TimeSpan.FromSeconds(40));
+        Assert.Null((await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, default)).Error);
+        _h.Clock.Advance(TimeSpan.FromSeconds(10)); // past the activation's lease: only the heartbeat keeps the place
+        Assert.Equal(1, (await _h.Places.CountAsync(1, default)).Taken);
+
+        _target.EndAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<CancellationToken>()).Returns(true);
+        _h.Sessions.TryEndAsync(_head.AccountId, _head.GameSessionId, 2, Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(true);
+        Assert.Equal("ended", (await _service.EndAsync("world-1", _head.AccountId, _head.GameSessionId, 2, default)).State);
+        Assert.Equal(0, (await _h.Places.CountAsync(1, default)).Taken);
+    }
+
+    /// <summary>Review Focus 1: the ledger unreachable never costs a session; the first renewal that reaches it puts the place back.</summary>
+    [Fact]
+    public async Task Keep_the_session_when_the_place_ledger_is_unreachable_and_put_the_place_back()
+    {
+        var ledger = new FlakyPlaceStore(new MemoryWorldPlaceStore(_h.Clock, new WorldPlacesConfiguration())) { Down = true };
+        await Arrange(places: ledger);
+        Assert.Null((await Activate()).Error);
+        RenewAs(_head);
+        Assert.Null((await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, default)).Error);
+        Assert.Equal(0, (await ledger.Inner.CountAsync(1, default)).Taken);
+
+        ledger.Down = false;
+        Assert.Null((await _service.HeartbeatAsync("world-1", _head.AccountId, _head.GameSessionId, 2, default)).Error);
+        Assert.Equal(1, (await ledger.Inner.CountAsync(1, default)).Taken);
+    }
+
+    /// <summary>Heartbeats succeed and move the head's lease as the repository would.</summary>
+    private void RenewAs(GameSession head)
+    {
+        _h.Sessions.TryRenewAsync(head.AccountId, head.GameSessionId, 2, "world-1", 0, 0,
+            Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
+            { head.LeaseUntil = call.ArgAt<DateTime>(7); head.LicenseUntil = call.ArgAt<DateTime>(8); return true; });
+        // The guard answers the end it holds, capped on its own clock (#1009).
+        _target.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(call => call.ArgAt<DateTime>(1));
+    }
+}
+
+/// <summary>A place store that fails as Redis does when <see cref="Down"/>, and otherwise is <see cref="Inner"/>.</summary>
+internal sealed class FlakyPlaceStore(IWorldPlaceStore inner) : IWorldPlaceStore
+{
+    public IWorldPlaceStore Inner => inner;
+    public bool Down { get; set; }
+    private T Up<T>(T value) => Down ? throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, CommandFlags.CommandRetryNever, "down") : value;
+    public Task<PlaceDecision> EnterAsync(PlaceRequest request, CancellationToken ct) => Up(inner).EnterAsync(request, ct);
+    public Task RenewAsync(ushort worldId, long accountId, long fence, Guid sessionId, DateTime until, bool activation,
+        CancellationToken ct) => Up(inner).RenewAsync(worldId, accountId, fence, sessionId, until, activation, ct);
+    public Task EndAsync(ushort worldId, long accountId, long fence, PlaceEnd end, DateTime heldUntil, CancellationToken ct) =>
+        Up(inner).EndAsync(worldId, accountId, fence, end, heldUntil, ct);
+    public Task WithdrawAsync(ushort worldId, long accountId, Guid ticket, CancellationToken ct) =>
+        Up(inner).WithdrawAsync(worldId, accountId, ticket, ct);
+    public Task RejoinAsync(ushort worldId, long accountId, Guid ticket, DateTime until, CancellationToken ct) =>
+        Up(inner).RejoinAsync(worldId, accountId, ticket, until, ct);
+    public Task<QueueCheckIn> CheckInAsync(ushort worldId, long accountId, int? limit, bool available, CancellationToken ct) =>
+        Up(inner).CheckInAsync(worldId, accountId, limit, available, ct);
+    public Task<bool> LeaveAsync(ushort worldId, long accountId, CancellationToken ct) => Up(inner).LeaveAsync(worldId, accountId, ct);
+    public Task<WorldPlaceCounts> CountAsync(ushort worldId, CancellationToken ct) => Up(inner).CountAsync(worldId, ct);
 }

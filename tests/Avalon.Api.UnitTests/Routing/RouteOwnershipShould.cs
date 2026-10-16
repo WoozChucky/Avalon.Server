@@ -122,6 +122,7 @@ public sealed class RouteOwnershipShould
         ["GET /world/{id}/maintenance"] = Worlds,
         ["POST /world/{id}/maintenance"] = Worlds,
         ["DELETE /world/{id}/maintenance"] = Worlds,
+        ["PUT /world/{id}/player-limit"] = Worlds,
         ["GET /world/{worldId:int}/item-template"] = Worlds,
         ["GET /world/{worldId:int}/item-template/{id:long}"] = Worlds,
         ["PUT /world/{worldId:int}/item-template/{id:long}"] = Worlds,

@@ -12,6 +12,8 @@ public static class GameAuthPolicy
     public static readonly TimeSpan LinkConsentLifetime = TimeSpan.FromSeconds(60);
     public static readonly TimeSpan JoinTicketLifetime = TimeSpan.FromSeconds(30);
     public static readonly TimeSpan JoinReceiptRetention = TimeSpan.FromSeconds(45);
+    /// <summary>How long after its ticket's expiry the place a join ticket took is kept, for a redemption in flight (#967).</summary>
+    public static readonly TimeSpan TicketPlaceMargin = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan RefreshReceiptLifetime = TimeSpan.FromSeconds(30);
     /// <summary>How long a refresh receipt is kept from each answer that met a license outage, within the context's absolute expiry.</summary>
     public static readonly TimeSpan OutageReceiptLifetime = TimeSpan.FromMinutes(5);

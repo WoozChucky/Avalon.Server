@@ -17,14 +17,19 @@ run one service per process, each with only its own settings, secrets, database 
 
 | Service | Library | Owns | Needs |
 |---|---|---|---|
-| `identity` | `Avalon.Api.Identity` | Accounts and credentials, MFA, personal access tokens, web and launcher sessions and the tokens they are issued (the only service that mints them), store and Steam sign-in, account links and consolidation, game contexts, join tickets, game admission with its workload listener and session fences, email verification and change, push devices, [load-test accounts](#load-test-accounts) | Redis; the Characters database of every world; it owns the auth schema and migrates it |
-| `worlds` | `Avalon.Api.Worlds` | The world registry and maintenance, world content and [live template editing](live-template-editing.md), characters, the views across worlds (`/character`, presence), public tooltips and link previews, the balance workbench's proxy | Redis; the World and Characters databases of every world; the world routes (`/world/{worldId}/...`) |
+| `identity` | `Avalon.Api.Identity` | Accounts and credentials, MFA, personal access tokens, web and launcher sessions and the tokens they are issued (the only service that mints them), store and Steam sign-in, account links and consolidation, game contexts, join tickets, game admission with its workload listener and session fences, the [world place ledger](world-player-limit.md) (#967), email verification and change, push devices, [load-test accounts](#load-test-accounts) | Redis; the Characters database of every world; it owns the auth schema and migrates it |
+| `worlds` | `Avalon.Api.Worlds` | The world registry, its maintenance and its [player limit](world-player-limit.md) (`PUT /world/{id}/player-limit`, #967), world content and [live template editing](live-template-editing.md), characters, the views across worlds (`/character`, presence), public tooltips and link previews, the balance workbench's proxy | Redis; the World and Characters databases of every world; the world routes (`/world/{worldId}/...`) |
 | `commerce` | `Avalon.Api.Commerce` | Checkout, purchase and licence status, the admin purchase tools, payment notifications and the reconciliation worker ([Commerce](commerce-configuration.md)) | Redis; no world database |
 | `distribution` | `Avalon.Api.Distribution` | The launcher installer and its update feed, releases, the changelog, channels and their manifests, read from the build store | No Redis and no world database |
 
 Every service reads the auth database: each request's credential is checked against its account there. Each
 descriptor (`IdentityApi.Service`, `WorldsApi.Service`, `CommerceApi.Service`, `DistributionApi.Service`) states
 these needs as an `ApiServiceNeeds`, and a process provides the union of the needs of the services it runs.
+
+The place ledger and queue of each world (#967, [World player limit](world-player-limit.md)) live in Redis: identity
+is their only writer, taking a place at a join ticket's issue and keeping it with the session, and the worlds service
+reads only their sizes, for its world lists (`IWorldOccupancy`, registered once in a process that runs both). The
+limit itself is a column of the world's auth row, written by the worlds service and read by identity on each join.
 
 The cuts follow state: each service owns its tables, its secrets and its external providers (Steam, Resend and web
 push for identity, the balance service for worlds, Stripe for commerce, the S3 build store for distribution), and
@@ -186,7 +191,7 @@ owns each path:
   (`RouteOwnershipShould`, `EveryRouteReachableShould`) and the smoke check's coverage test (`SmokeCoverageShould`).
 
 Every endpoint has exactly one owner. The table that decides it is `RouteOwnershipShould`'s: 62 endpoints for
-identity (4 of them the internal game workload routes), 48 for worlds, 8 for commerce and 6 for distribution, plus the
+identity (4 of them the internal game workload routes), 49 for worlds, 8 for commerce and 6 for distribution, plus the
 Steam OpenID callback (`/account/links/steam/callback`, answered by identity's middleware rather than an endpoint).
 Every process also maps `/health` and `/alive`, and the API docs where they are served, which through the ingress
 reach identity.
