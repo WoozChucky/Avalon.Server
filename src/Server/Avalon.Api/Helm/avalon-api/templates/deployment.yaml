@@ -3,6 +3,7 @@ The API process (#794): the services listed in services, or all four when it is 
 service's values reach the pod only when it is listed (design D9.2), so a pod reads only the
 settings and Secret keys of its own services. A routes release renders no pod.
 */}}
+{{- include "avalon-api.validateMinClientVersion" . }}
 {{- $services := include "avalon-api.services" . | fromJsonArray }}
 {{- if $services }}
 {{- $identity := has "identity" $services }}
@@ -203,11 +204,8 @@ spec:
                   name: {{ $.Values.gameAdmission.bindingsExistingSecret | quote }}
                   key: {{ printf "%s-client-sha256" $server.serverId | quote }}
             {{- end }}
-            {{- /* Only when set, so the API's appsettings.json default applies otherwise (#949). */}}
+            {{- /* Only when set, so the API's appsettings.json default applies otherwise (#949); checked at the top. */}}
             {{- with .Values.gameAdmission.minClientVersion }}
-            {{- if not (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+$" (toString .)) }}
-            {{- fail "gameAdmission.minClientVersion is a version of three whole numbers, major.minor.patch, e.g. 1.2.3: the oldest client game sign-in accepts." }}
-            {{- end }}
             - name: Application__GameWorkloads__MinClientVersion
               value: {{ . | toString | quote }}
             {{- end }}

@@ -147,7 +147,9 @@ The world's answer to `CWorldHandshakePacket(Version)`, the first packet after a
 The client's version must be at least the world's `MinVersion` (the auth `Worlds` row), the world's only floor. The
 oldest wire any client may speak is not the world's to judge (#949): the API's game sign-in and world allocation refuse a
 client below `Application:GameWorkloads:MinClientVersion` before it is given a join ticket
-([configuration reference](configuration-reference.md#rest-api-game-client-version)). Before #949 the world also held a
+([configuration reference](configuration-reference.md#rest-api-game-client-version)). That floor judges the version the
+client stated at sign-in; the handshake's is a separate statement, compared with `MinVersion` alone (binding the two
+would need the context's version carried in the redemption receipt). Before #949 the world also held a
 compiled-in floor of its own, 0.3.0, and required the higher of the two.
 
 | Field | Type | Meaning |

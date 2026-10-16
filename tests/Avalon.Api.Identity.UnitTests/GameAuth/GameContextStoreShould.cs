@@ -53,7 +53,7 @@ public class GameContextStoreShould
         gameLicenses: TestGameAuthorization.Licenses(_store));
 
     private Task<AuthAttemptReply?> Attempt(string channel, string? context = null, uint? appId = null) =>
-        Service().CreateAttemptAsync(channel, "1", Guid.Parse("11111111-1111-1111-1111-111111111111"), new string('A', 43), context, appId, CancellationToken.None);
+        Service().CreateAttemptAsync(channel, GameClientTestData.ClientVersion, Guid.Parse("11111111-1111-1111-1111-111111111111"), new string('A', 43), context, appId, CancellationToken.None);
 
     [Fact]
     public async Task Steam_authorization_binds_the_shared_license_revision_and_configured_application()

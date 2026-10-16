@@ -13,8 +13,10 @@ namespace Avalon.Server.World.Handlers;
 /// <see cref="WorldHandshakeRefusal.ClientVersionTooOld" /> and the oldest version the world accepts, and the connection
 /// is closed after it (the close flushes the outbox, so the reply goes out first). Every other refusal (no active
 /// admission, a second handshake, a world whose own <c>MinVersion</c> does not parse) closes without a reply. The world
-/// keeps no floor of its own (#949): the oldest wire any client may speak is the API's sign-in floor
-/// (<c>Application:GameWorkloads:MinClientVersion</c>), which refuses an older client before it reaches a world.
+/// keeps no floor of its own (#949): the API's sign-in floor (<c>Application:GameWorkloads:MinClientVersion</c>) gates
+/// the version the client stated at sign-in, not the one it states here, and this handshake compares only against the
+/// world's own <c>MinVersion</c>. The two are separate values; binding them would need the context's version carried to
+/// the world in the redemption receipt, which it is not.
 /// </summary>
 public sealed partial class WorldHandshakeHandler(IWorld world, ILogger<WorldHandshakeHandler> logger)
     : IWorldPacketHandler<CWorldHandshakePacket>

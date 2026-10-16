@@ -1,7 +1,7 @@
 using Avalon.Common.Utils;
 using Avalon.Configuration;
 
-namespace Avalon.Api.Identity.Services;
+namespace Avalon.Infrastructure.GameAuth;
 
 /// <summary>
 /// The oldest client game sign-in and world allocation accept, <see cref="GameWorkloadConfiguration.MinClientVersion"/>

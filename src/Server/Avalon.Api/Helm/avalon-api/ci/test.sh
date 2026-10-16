@@ -182,6 +182,7 @@ grep -A1 "name: Application__GameWorkloads__MinClientVersion" <<<"$mcv" | grep -
 nomcv=$(helm template t . "${AUTHENTICATION[@]}" $CACHE --set existingSecret=x "${W1[@]}" --set-json 'services=["worlds"]' --set gameAdmission.minClientVersion=0.4.0)
 ! grep -q "Application__GameWorkloads__MinClientVersion" <<<"$nomcv"                                  || { echo "gameAdmission.minClientVersion rendered for worlds, which does not sign in"; exit 1; }
 must_fail "a gameAdmission.minClientVersion that is not major.minor.patch must fail" --set existingSecret=x "${W1[@]}" --set gameAdmission.minClientVersion=0.4
+must_fail "a gameAdmission.minClientVersion out of range must fail, whatever the services" --set existingSecret=x "${W1[@]}" --set-json 'services=["worlds"]' --set gameAdmission.minClientVersion=0.256.0
 # Balance service (admin /balance proxy): the URL renders only when set; the secret is always a
 # secretKeyRef, optional, so an unset key leaves the admin endpoints answering 503.
 ! grep -q "Application__Balance__Url" <<<"$out"                                                || { echo "balance url rendered without a value"; exit 1; }

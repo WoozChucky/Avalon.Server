@@ -96,7 +96,8 @@ public static class IdentityServiceRegistration
         services.AddOptions<Avalon.Configuration.GameWorkloadConfiguration>().BindConfiguration("Application:GameWorkloads")
             .Validate(c => { c.Validate(); return true; })
             // The sign-in floor (#949): appsettings.json holds the default, so a value missing or unreadable stops startup.
-            .Validate(c => ClientVersionFloor.IsValid(c.MinClientVersion), ClientVersionFloor.Refusal)
+            .Validate(c => Avalon.Infrastructure.GameAuth.ClientVersionFloor.IsValid(c.MinClientVersion),
+                Avalon.Infrastructure.GameAuth.ClientVersionFloor.Refusal)
             .ValidateOnStart();
         services.AddOptions<LoadTestOptions>().BindConfiguration(LoadTestOptions.Section)
             .Validate(o => o.MaxAccounts >= 1,
