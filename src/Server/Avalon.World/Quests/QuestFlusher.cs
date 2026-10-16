@@ -113,7 +113,7 @@ public static class QuestFlusher
         return !log.LogSent || log.ClientChanges.Count > 0 || log.PendingLines.Count > 0
                || log.ScriptsInstance != instance
                || log.MarkersInstance != instance || log.MarkersLevel != character.Level
-               || log.MarkersVersion != log.Version || !ReferenceEquals(log.MarkersCatalog, catalog);
+               || log.MarkersVersion != log.MarkerVersion || !ReferenceEquals(log.MarkersCatalog, catalog);
     }
 
     private static bool TouchedTheBag(InventoryClientChanges changes)

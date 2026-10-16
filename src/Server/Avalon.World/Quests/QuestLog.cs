@@ -75,8 +75,14 @@ public sealed class QuestLog(SaveStateTracker save)
 
     public int ActiveCount => _active.Count;
 
-    /// <summary>Raised by every change, so the markers know when to look again.</summary>
-    public int Version { get; private set; }
+    /// <summary>
+    /// Raised by every change a quest marker can see, so the markers know when to look again (#973): which quests are
+    /// held or turned in (an accept, an abandon, a turn-in, a load) and a held quest's state (ready to turn in or not).
+    /// A count or a stage that leaves the state as it is leaves it alone: a marker reads neither (see
+    /// <see cref="QuestService.MarkerFor" />), and a crediting kill or a Bag recount would otherwise make every
+    /// character it touched walk every creature of its instance for a list equal to the one sent.
+    /// </summary>
+    public int MarkerVersion { get; private set; }
 
     /// <summary>
     /// Raised only when which quests are held or turned in changes (an accept, an abandon, a turn-in, a load), the two
@@ -151,12 +157,34 @@ public sealed class QuestLog(SaveStateTracker save)
     /// <summary>The locale this session's lines are written in; set at select from the connection. Never saved.</summary>
     public Avalon.Common.Accounts.AccountLocale Locale { get; set; }
 
-    // The markers last sent (QuestFlusher), and what they were computed from. Never saved.
+    // The markers last sent (QuestFlusher), and what they were computed from (MarkersVersion is the MarkerVersion they
+    // were worked out at). Never saved.
     public Guid? MarkersInstance { get; set; }
     public ushort MarkersLevel { get; set; }
     public int MarkersVersion { get; set; } = -1;
     public object? MarkersCatalog { get; set; }
-    public IReadOnlyList<(ulong Creature, byte Marker)>? MarkersSent { get; set; }
+    /// <summary>The markers last sent; the log reuses this list, so it is valid only until the next send.</summary>
+    internal IReadOnlyList<(ulong Creature, byte Marker)>? MarkersSent => _markersSent;
+
+    // The markers last sent, and the list the next working-out fills (#973): the two trade places when a list is sent,
+    // so working the markers out allocates no list once both have grown.
+    private List<(ulong Creature, byte Marker)>? _markersSent;
+    private List<(ulong Creature, byte Marker)>? _markersSpare;
+
+    /// <summary>An empty list for QuestService to work the markers out into: never the one last sent.</summary>
+    internal List<(ulong Creature, byte Marker)> MarkersWorking()
+    {
+        List<(ulong Creature, byte Marker)> working = _markersSpare ??= [];
+        working.Clear();
+        return working;
+    }
+
+    /// <summary><paramref name="markers" />, from <see cref="MarkersWorking" />, has been sent: it is the last sent now.</summary>
+    internal void MarkersWereSent(List<(ulong Creature, byte Marker)> markers)
+    {
+        _markersSpare = _markersSent;
+        _markersSent = markers;
+    }
 
     /// <summary>
     /// The quest catalog generation this session's held quests were last settled against (#738): set by the select
@@ -203,6 +231,7 @@ public sealed class QuestLog(SaveStateTracker save)
             _completed[row.QuestId] = row.CompletedAt;
 
         HeldVersion++;
+        MarkerVersion++;
         FlushOwed = true;
     }
 
@@ -211,6 +240,7 @@ public sealed class QuestLog(SaveStateTracker save)
         var quest = new ActiveQuest(questId, now);
         _active[questId] = quest;
         HeldVersion++;
+        MarkerVersion++;
         Changed(questId, QuestClientChange.Accepted);
         return quest;
     }
@@ -237,6 +267,7 @@ public sealed class QuestLog(SaveStateTracker save)
             return;
 
         quest.State = state;
+        MarkerVersion++;
         Changed(quest.QuestId, QuestClientChange.Progress);
     }
 
@@ -247,6 +278,7 @@ public sealed class QuestLog(SaveStateTracker save)
             return false;
 
         HeldVersion++;
+        MarkerVersion++;
         Changed(questId, QuestClientChange.Removed);
         return true;
     }
@@ -260,6 +292,7 @@ public sealed class QuestLog(SaveStateTracker save)
         _active.Remove(questId);
         _completed.TryAdd(questId, now);
         HeldVersion++;
+        MarkerVersion++;
         Changed(questId, QuestClientChange.Completed);
     }
 
@@ -285,7 +318,6 @@ public sealed class QuestLog(SaveStateTracker save)
         }
 
         save.QuestChanged(questId);
-        Version++;
         FlushOwed = true;
     }
 }

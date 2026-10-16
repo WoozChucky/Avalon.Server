@@ -73,11 +73,19 @@ public sealed class QuestService(
     // What quest scripts are built from (#738): a logger factory, loggers and the clock, never a service that writes.
     private readonly QuestScriptServices _scriptServices = new(services);
 
+    // The markers' packet entries and the list they go out in, refilled for each send (#973). Tick thread only.
+    private readonly List<QuestMarkerDto> _markerDtoPool = [];
+    private readonly List<QuestMarkerDto> _markerDtos = [];
+
+    // The script check Availability hands on, made once (#973): a lambda over the quest and the character made a
+    // closure and a delegate per call, and the markers ask once per quest of each quest NPC.
+    private Func<QuestView, CharacterEntity, bool>? _scriptAllows;
+
     /// <summary>The generation of quests this tick reads. One reference per call site.</summary>
     public QuestCatalog Catalog => world.Data.Quests;
 
     public QuestResult Availability(CharacterEntity character, QuestView quest) =>
-        QuestAvailability.Check(quest, character, world.Configuration.MaxActiveQuests, () => ScriptAllows(quest, character));
+        QuestAvailability.Check(quest, character, world.Configuration.MaxActiveQuests, _scriptAllows ??= ScriptAllows);
 
     public static QuestStageView? CurrentStage(QuestView quest, ActiveQuest active) =>
         active.Stage >= 0 && active.Stage < quest.Stages.Count ? quest.Stages[active.Stage] : null;
@@ -1192,7 +1200,8 @@ public sealed class QuestService(
 
     /// <summary>
     /// SMSG_QUEST_MARKERS (#433): every quest NPC in the character's instance with its marker for this character,
-    /// worked out again only when the instance, the level, the quest log or the catalog generation changed since the
+    /// worked out again only when the instance, the level, what the log holds or a held quest's state
+    /// (<see cref="QuestLog.MarkerVersion" />, never a mere count, #973) or the catalog generation changed since the
     /// last time, and sent only when the list differs from the one last sent.
     /// </summary>
     public void FlushMarkers(IWorldConnection connection, CharacterEntity character)
@@ -1200,7 +1209,7 @@ public sealed class QuestService(
         QuestLog log = character.Quests;
         QuestCatalog catalog = Catalog;
         if (log.MarkersInstance == character.InstanceId && log.MarkersLevel == character.Level
-            && log.MarkersVersion == log.Version && ReferenceEquals(log.MarkersCatalog, catalog))
+            && log.MarkersVersion == log.MarkerVersion && ReferenceEquals(log.MarkersCatalog, catalog))
         {
             return;
         }
@@ -1210,24 +1219,72 @@ public sealed class QuestService(
 
         log.MarkersInstance = character.InstanceId;
         log.MarkersLevel = character.Level;
-        log.MarkersVersion = log.Version;
+        log.MarkersVersion = log.MarkerVersion;
         log.MarkersCatalog = catalog;
 
-        List<(ulong Creature, byte Marker)> markers = [];
-        foreach (ICreature creature in instance.Creatures.Values)
+        // The log's spare list, so a run allocates no list once both have grown (#973); it becomes the sent one below.
+        List<(ulong Creature, byte Marker)> markers = log.MarkersWorking();
+        if (instance.Creatures is Dictionary<ObjectGuid, ICreature> creatures)
         {
-            if (catalog.IsQuestNpc(creature.Metadata.Id))
-                markers.Add((creature.Guid.RawValue, (byte)MarkerFor(character, creature.Metadata.Id)));
+            // The concrete collection's struct enumerator: through the interface it was a boxed one per run.
+            foreach (ICreature creature in creatures.Values)
+                AddMarker(markers, catalog, character, creature);
+        }
+        else
+        {
+            foreach (ICreature creature in instance.Creatures.Values)
+                AddMarker(markers, catalog, character, creature);
         }
 
         markers.Sort();
-        if (log.MarkersSent is { } sent && sent.SequenceEqual(markers))
+        if (log.MarkersSent is { } sent && SameMarkers(sent, markers))
             return;
 
-        log.MarkersSent = markers;
-        connection.Send(SQuestMarkersPacket.Create(
-            markers.Select(m => new QuestMarkerDto { CreatureGuid = m.Creature, Marker = (QuestMarker)m.Marker }).ToList(),
-            PacketEncoder.Shared));
+        log.MarkersWereSent(markers);
+        connection.Send(SQuestMarkersPacket.Create(MarkerDtos(markers), PacketEncoder.Shared));
+    }
+
+    private void AddMarker(List<(ulong Creature, byte Marker)> markers, QuestCatalog catalog, CharacterEntity character,
+        ICreature creature)
+    {
+        if (catalog.IsQuestNpc(creature.Metadata.Id))
+            markers.Add((creature.Guid.RawValue, (byte)MarkerFor(character, creature.Metadata.Id)));
+    }
+
+    private static bool SameMarkers(IReadOnlyList<(ulong Creature, byte Marker)> sent, List<(ulong Creature, byte Marker)> markers)
+    {
+        if (sent.Count != markers.Count)
+            return false;
+
+        for (int i = 0; i < markers.Count; i++)
+        {
+            if (sent[i] != markers[i])
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The markers as the packet's entries, in this service's own list and entries, filled again for each send (#973):
+    /// the packet is encoded before <see cref="SQuestMarkersPacket.Create" /> returns, so nothing reads them after it.
+    /// Tick thread only.
+    /// </summary>
+    private List<QuestMarkerDto> MarkerDtos(List<(ulong Creature, byte Marker)> markers)
+    {
+        while (_markerDtoPool.Count < markers.Count)
+            _markerDtoPool.Add(new QuestMarkerDto());
+
+        _markerDtos.Clear();
+        for (int i = 0; i < markers.Count; i++)
+        {
+            QuestMarkerDto dto = _markerDtoPool[i];
+            dto.CreatureGuid = markers[i].Creature;
+            dto.Marker = (QuestMarker)markers[i].Marker;
+            _markerDtos.Add(dto);
+        }
+
+        return _markerDtos;
     }
 
     /// <summary>A ready turn-in outranks an available quest; a quest refused only by a full log still shows as available.</summary>

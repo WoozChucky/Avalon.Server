@@ -94,17 +94,18 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChar
 
         try
         {
-            // A character that died while the instance built is not moved: no transfer, no save.
-            if (character.IsDead)
+            // Read first, so a build that failed is logged whatever became of the character meanwhile (#973).
+            if (!built.IsCompletedSuccessfully)
             {
-                logger.LogDebug("Teleport of {Name} to map {Map} dropped: the character died before it arrived",
+                logger.LogError(built.Exception, "Teleport of {Name} to map {Map} failed: its instance could not be built",
                     character.Name, template.Id.Value);
                 return;
             }
 
-            if (!built.IsCompletedSuccessfully)
+            // A character that died while the instance built is not moved: no transfer, no save.
+            if (character.IsDead)
             {
-                logger.LogError(built.Exception, "Teleport of {Name} to map {Map} failed: its instance could not be built",
+                logger.LogDebug("Teleport of {Name} to map {Map} dropped: the character died before it arrived",
                     character.Name, template.Id.Value);
                 return;
             }

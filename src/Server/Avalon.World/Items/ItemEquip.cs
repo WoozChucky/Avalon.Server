@@ -40,12 +40,13 @@ public static class ItemEquip
         IReadOnlyList<byte> slots = EquipmentSlots.SlotsFor(template.Slot);
         CharacterInventoryContainer equipment = character.Container(InventoryType.Equipment);
 
+        // By index: a foreach through the interface boxed an enumerator per equip (#973).
         byte target = slots[0];
-        foreach (byte slot in slots)
+        for (int i = 0; i < slots.Count; i++)
         {
-            if (!equipment.TryGet(slot, out _))
+            if (!equipment.TryGet(slots[i], out _))
             {
-                target = slot;
+                target = slots[i];
                 break;
             }
         }

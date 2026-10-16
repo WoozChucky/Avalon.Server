@@ -18,6 +18,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Respawn;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -231,17 +232,24 @@ public class MapTeleportShould
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
     }
 
-    [Fact]
-    public void Log_and_clear_the_move_when_the_instance_cannot_be_built()
+    /// <summary>The failure is logged at Error even when the character died while the instance built (#973).</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Log_and_clear_the_move_when_the_instance_cannot_be_built(bool diedMeanwhile)
     {
+        ILogger<MapTeleport> logger = Substitute.For<ILogger<MapTeleport>>();
+        var teleport = new MapTeleport(logger, _world, _saver);
         _registry.GetOrCreateTownInstanceAsync(s_town, Arg.Any<ushort>())
             .Returns(Task.FromException<IMapInstance>(new InvalidOperationException("database down")));
 
-        Assert.True(_teleport.Start(_connection, s_town, null));
+        Assert.True(teleport.Start(_connection, s_town, null));
+        _character.IsDead = diedMeanwhile;
         RunContinuations();
 
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
         Assert.False(_connection.RespawnInFlight);
+        Assert.Single(logger.ReceivedCalls(), call => call.GetArguments() is [LogLevel.Error, ..]);
     }
 
     /// <summary>A character that died while the instance built stays where it died; the item that started it stays used.</summary>

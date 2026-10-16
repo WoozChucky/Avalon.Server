@@ -40,11 +40,9 @@ public class QuestLogShould
         ActiveQuest quest = c.Quests.Start(5, s_now);
         c.Quests.SetProgress(quest, 51, 2);
         c.Quests.ClearClientChanges();
-        int version = c.Quests.Version;
 
         Assert.False(c.Quests.SetProgress(quest, 51, 2));
         Assert.Empty(c.Quests.ClientChanges);
-        Assert.Equal(version, c.Quests.Version);
     }
 
     /// <summary>The saved row keeps the first completion time (an insert that skips an existing row), so memory does too.</summary>

@@ -47,8 +47,18 @@ public static class EquipmentSlots
     public static bool Accepts(byte slot, ItemSlotType? itemSlot) =>
         itemSlot is { } type && TypeOf(slot) == type;
 
+    // One list per answer, made once (#973): a collection expression in the switch made a list per item use.
     private static readonly byte[] s_noSlots = [];
+    private static readonly byte[] s_head = [Head];
+    private static readonly byte[] s_neck = [Neck];
+    private static readonly byte[] s_shoulder = [Shoulder];
+    private static readonly byte[] s_chest = [Chest];
+    private static readonly byte[] s_hands = [Hands];
+    private static readonly byte[] s_legs = [Legs];
+    private static readonly byte[] s_feet = [Feet];
     private static readonly byte[] s_fingers = [Finger1, Finger2];
+    private static readonly byte[] s_mainHand = [MainHand];
+    private static readonly byte[] s_offHand = [OffHand];
 
     /// <summary>
     /// The slots an item whose template Slot is <paramref name="type" /> is worn in, in the order a use fills them
@@ -56,16 +66,16 @@ public static class EquipmentSlots
     /// </summary>
     public static IReadOnlyList<byte> SlotsFor(ItemSlotType? type) => type switch
     {
-        ItemSlotType.Head => [Head],
-        ItemSlotType.Neck => [Neck],
-        ItemSlotType.Shoulder => [Shoulder],
-        ItemSlotType.Chest => [Chest],
-        ItemSlotType.Hands => [Hands],
-        ItemSlotType.Legs => [Legs],
-        ItemSlotType.Feet => [Feet],
+        ItemSlotType.Head => s_head,
+        ItemSlotType.Neck => s_neck,
+        ItemSlotType.Shoulder => s_shoulder,
+        ItemSlotType.Chest => s_chest,
+        ItemSlotType.Hands => s_hands,
+        ItemSlotType.Legs => s_legs,
+        ItemSlotType.Feet => s_feet,
         ItemSlotType.Finger => s_fingers,
-        ItemSlotType.MainHand => [MainHand],
-        ItemSlotType.OffHand => [OffHand],
+        ItemSlotType.MainHand => s_mainHand,
+        ItemSlotType.OffHand => s_offHand,
         _ => s_noSlots,
     };
 }

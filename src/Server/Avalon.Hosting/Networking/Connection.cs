@@ -529,9 +529,10 @@ public abstract partial class Connection : BackgroundService, IConnection, IConn
                         _logger.LogDebug("IN: {Type}", frame.Header.Type);
                     }
 
+                    // A bit test: Enum.HasFlag boxes while this code still runs unoptimised (#973).
                     Packet? payload = _packetReader.Read(
                         frame,
-                        frame.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? _decrypt : null);
+                        (frame.Header.Flags & NetworkPacketFlags.Encrypted) != 0 ? _decrypt : null);
 
                     int packetSize = frame.Size;
                     Interlocked.Add(ref BytesReceivedCount, packetSize);
