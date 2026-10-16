@@ -690,7 +690,8 @@ Section: `Application:RateLimiting`, read by every API service (#561)
 | `AnonymousPermitsPerMinute`     | int  | `60`    | Requests a minute per source for a caller that is not signed in |
 | `AuthenticatedPermitsPerMinute` | int  | `300`   | Requests a minute per account for a caller with a valid access token or personal access token |
 | `ClientAuthPermitsPerMinute`    | int  | `20`    | Identity: launcher sign-in requests (`client/auth`: code, token, refresh, revoke) a minute per source, on top of the above (#591) |
-| `QueuePermitsPerMinute`         | int  | `30`    | Identity: a full world's queue check-ins and leaves (`/game/queue/status`, `/game/queue/leave`, #967) a minute per credential (by its SHA-256), counted before the credential is read, and again per account after it, instead of the limits above, which those two calls are out of; no budget is shared by the callers behind one address. A source that has presented 30 credentials in a minute that were not current reads them two at a time from then on (never refused for that alone; only when 64 reads already wait). The queue's refusals ask again within 2 s ([the queue](world-player-limit.md#the-queue)) |
+| `QueuePermitsPerMinute`         | int  | `30`    | Identity: a full world's queue check-ins and leaves (`/game/queue/status`, `/game/queue/leave`, #967), counted instead of the limits above, which those two calls are out of: a minute per credential identity knows (one it issued, or read current, until it expires), before the credential is read and past no gate of its source; and again per account after the read ([the queue](world-player-limit.md#the-queue)). The queue's refusals ask again within 2 s |
+| `QueueUnknownReadsPerMinute`    | int  | `60`    | Identity: queue calls with a credential identity does not know, a minute per source, once that source has presented 30 credentials in a minute that were not current. Such reads also go two at a time per source (refused once 64 wait), whatever the failures; a known credential is never counted here |
 | `WorkloadPermitsPerMinute`      | int  | `16384` | Identity: requests a minute per authenticated game server on the game workload listener, every player's lease heartbeat included, counted instead of the limits above ([game server admission](steam-authentication-workloads.md)) |
 | `ExemptSources`                 | string[] | `[]` | Sources exempt from every per-source limit, for load machines: IP addresses or networks in CIDR form. See [Exempt sources](#exempt-sources) below |
 
@@ -727,8 +728,8 @@ Application__RateLimiting__ClientAuthPermitsPerMinute=20
 
 The Helm chart passes `rateLimiting.enabled`, `rateLimiting.anonymousPermitsPerMinute`,
 `rateLimiting.authenticatedPermitsPerMinute` and `rateLimiting.clientAuthPermitsPerMinute` (the last only to a
-release that runs identity), each only when set, and `rateLimiting.exemptSources` (below); empty, the API's defaults apply. `WorkloadPermitsPerMinute`
-and `QueuePermitsPerMinute` have no chart value.
+release that runs identity), each only when set, and `rateLimiting.exemptSources` (below); empty, the API's defaults apply. `WorkloadPermitsPerMinute`,
+`QueuePermitsPerMinute` and `QueueUnknownReadsPerMinute` have no chart value.
 
 The launcher sign-in endpoints (`client/auth/*`, #591) also carry the named policy `client-auth`: a
 separate sliding window per source (the same source rule), counted in addition to the limits above, so a
@@ -837,7 +838,7 @@ Section: `Application:WorldPlaces`, read by identity (#967, [world player limit]
 | `BackCheckInSeconds` | int | `15` | How often a waiter further back is told to check in, from 1 to 300 |
 | `BackTimeoutSeconds` | int | `45` | How long a waiter further back stays in the line without checking in, from 1 to 900 |
 | `TurnWindowSeconds` | int | `45` | How long a waiter's turn holds its place for the join that follows, from 5 to 300; unused, the turn expires and the next in line takes it |
-| `PausedTurnMinutes` | int | `30` | How long after it was given an unused turn is kept at most while the world is not available (a stop, a maintenance cutoff): each check-in then restarts its window, never past this, from 1 to 1440 |
+| `PausedTurnMinutes` | int | `30` | How long after it was given an unused turn is kept at most while the world is not available (a stop, a maintenance cutoff): each check-in then restarts its window, never past this, from 1 to 1440, and at least `TurnWindowSeconds` (startup refuses less) |
 
 Validated at startup: a value out of its range stops identity, naming the setting, and so does a timeout not above its
 interval (`FrontTimeoutSeconds` must exceed `FrontCheckInSeconds`, and `BackTimeoutSeconds` `BackCheckInSeconds`), so a

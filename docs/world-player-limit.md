@@ -199,8 +199,9 @@ same `DisconnectReason` as before.
   replica asks Redis at most once in it, and the marks hash's field `released` holds it across replicas). The release
   scans the world's places, at most once in the window: tracking the held ones apart would need a key the identity
   Redis user's patterns do not grant. A drop whose end lands within those 10 s keeps its place until the next `shutdown` or
-  `maintenance` end after them, or its grace. A place a ticket has taken since (a return within the grace) is that
-  ticket's and stays: the ticket is already issued. A stop or a cutoff that ends no session (no player left, or Admins
+  `maintenance` end after them, or its grace. A place held after a drop that a ticket's hold runs on (a return within the
+  grace, or a drop while a takeover's ticket was out, `j:...:h`) loses its grace too but stays that ticket's to its
+  hold's end, since the ticket is already issued and may still be redeemed; a hold already over goes with the place. A stop or a cutoff that ends no session (no player left, or Admins
   only) sends no such end, and the places held there run out with their grace, within 90 s.
 - **An end that is not sent holds nothing.** An end skipped in the `SessionEnds` lane (the stop's deadline passed, or
   the lease ran out more than 5 s ago with no renewal outstanding, #1051, counted on `world.session_ends.skipped`)
@@ -318,18 +319,23 @@ knows nothing of it.
   waits; LocalDev's `check` and the load-test bots do.
 - **Their limits.** The two calls are out of the shared request limiter (`[DisableRateLimiting]`): its anonymous
   partition, 60 a minute per source, would throttle the waiters of a household behind one address. `QueueRateLimiter`
-  limits them instead, in memory as the shared limiter is, in a one-minute window of thirty segments, with no budget
-  shared by the callers behind one address, so a neighbour can never spend an honest waiter's:
-  - each credential (by its SHA-256) has `Application:RateLimiting:QueuePermitsPerMinute` (30) calls a minute, counted
-    before it is read, so one credential cannot make unbounded Redis reads;
-  - a source that has presented 30 credentials in a minute that were not current is slowed, never shut out: its
-    credential reads go two at a time, the others waiting their turn, which also bounds a flood of junk credentials (each
-    has a budget of its own). Only when 64 reads already wait is a call refused;
-  - each account has `Application:RateLimiting:QueuePermitsPerMinute` (30) calls a minute after the read, its fair share
-    across the credentials it rotates through.
+  limits them instead, in memory as the shared limiter is, in a one-minute window of thirty segments:
+  - **A credential identity knows** (it issued it, at a sign-in, a link or a refresh, or read it current at a check-in,
+    until it expires) has `Application:RateLimiting:QueuePermitsPerMinute` (30) calls a minute of its own, counted
+    before it is read, and goes through no gate of its source: nothing another caller behind its address does slows or
+    refuses it. It is still read on every call, so a revocation answers at once. The known credentials are a bounded
+    cache (100,000, by the first 16 bytes of each one's SHA-256); one not remembered for the bound is a stranger's.
+  - **Any other credential is a stranger's.** Its reads from one source go two at a time, the others waiting their turn
+    (refused once 64 wait), and once the source has presented 30 credentials in a minute that were not current, at most
+    `Application:RateLimiting:QueueUnknownReadsPerMinute` (60) a minute. Nothing is kept per stranger's credential, so a
+    flood of junk costs only its source's limiter state. Such a source can delay or refuse a waiter identity does not
+    know yet behind the same address (after an identity restart emptied the cache, say), never one it knows.
+  - **Each account** has `QueuePermitsPerMinute` (30) calls a minute after the read, its fair share across the
+    credentials it rotates through.
+  - A credential not of a credential's shape is refused (401) before any of this, at no cost.
 
-  An exempt source is not gated for its failures. Each budget is dropped by the limiter once it has been idle a window,
-  as the shared limiter's are. A refusal is 429 with `{ "error": "LOCKED" }` and a
+  An exempt source is not gated. Each limiter partition is dropped once it has been idle a window, as the shared
+  limiter's are. A refusal is 429 with `{ "error": "LOCKED" }` and a
   `Retry-After` of at most 2 s (one segment), well inside the time a waiter has between its check-in interval and its
   removal (10 s by default), so a waiter refused once and asking again when told keeps its position.
 - **No `Idempotency-Key`**: both calls are idempotent by nature and bind none. A successful check-in's request line is
@@ -438,7 +444,7 @@ Identity's, on the API's meter (`avalon-api`), each tagged `world`:
 | Metric | Kind | Meaning |
 |---|---|---|
 | `avalon.world.places.taken` | gauge | Places taken: every admitted account, in the world, at character select, holding an unredeemed ticket or a turn, or held after a drop. Not `avalon.world.players.online` (the world's gauge), which counts only characters in the world |
-| `avalon.world.places.held` | gauge | Places held after a dropped connection |
+| `avalon.world.places.held` | gauge | Places held after a dropped connection, a ticket's hold on one (a return within the grace) included |
 | `avalon.world.queue.length` | gauge | Accounts waiting in the line |
 | `avalon.world.places.limit` | gauge | The stored player limit, only for a world that has one |
 | `avalon.world.queue.outcomes` | counter, tag `reason` | How waits ended: `entered` (the join after a turn issued its ticket), `cancelled` (a leave that removed something), `timed_out` (a waiter removed for not checking in), `turn_expired` (a turn not used within its window), `refused_at_cap` (a join answered `WORLD_FULL`, the line at its cap), `refused_locked_out` (a join answered `WORLD_FULL` for the account's lockout: its unclaimed place lapsed and was refused a moment ago) |
@@ -530,7 +536,7 @@ docker stop avalon-redis-967
 ```
 
 PowerShell: `$env:AVALON_TEST_REDIS = '127.0.0.1:56379'` before the `dotnet test` line, `Remove-Item Env:AVALON_TEST_REDIS`
-after. Expected: `Passed!  - Failed: 0, Passed: 54, Skipped: 0` (the 53 scenarios and the world list's count). A
+after. Expected: `Passed!  - Failed: 0, Passed: 55, Skipped: 0` (the 54 scenarios and the world list's count). A
 scenario that passes in memory and fails against Redis is a script bug: the memory store is the reference. Every row
 uses the same world and account ids (worlds 40001 and 40002) and deletes their keys before it starts, so it needs no
 empty Redis and a reused container is fine; what a run leaves behind is only those ids' keys. The PR carries the summary

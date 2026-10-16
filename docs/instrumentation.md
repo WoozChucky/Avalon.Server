@@ -311,7 +311,7 @@ succeeds.
 | Metric | Prometheus | Meaning |
 |---|---|---|
 | `avalon.world.places.taken` | `avalon_world_places_taken` | Gauge: places taken (in the world, at character select, holding a ticket or a turn, held after a drop). Not `avalon.world.players.online`, which counts characters in the world |
-| `avalon.world.places.held` | `avalon_world_places_held` | Gauge: places held after a dropped connection |
+| `avalon.world.places.held` | `avalon_world_places_held` | Gauge: places held after a dropped connection, a ticket's hold on one (a return within the grace) included |
 | `avalon.world.queue.length` | `avalon_world_queue_length` | Gauge: accounts waiting in the line |
 | `avalon.world.places.limit` | `avalon_world_places_limit` | Gauge: the stored player limit, only for a world that has one |
 | `avalon.world.queue.outcomes` | `avalon_world_queue_outcomes_total` | Counter, tag `reason`: `entered`, `cancelled`, `timed_out`, `turn_expired`, `refused_at_cap`, `refused_locked_out` (a lapsed place's lockout, not the cap) |
