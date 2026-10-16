@@ -110,11 +110,11 @@ same `DisconnectReason` as before.
 | The liveness rule closed it: no pong for 60 s (#1061) | `drop` | held |
 | A slow connection (`SlowConnection`), the receive queue's cap, a failed character save (`CharacterSaveFailed`), a lease that ran out or was revoked | `drop` | held |
 | A select the world could not finish (`SelectTimeout`: the stalled-select sweep, or a full work queue, #1050): the world failed the player, who is told to log in again | `drop` | held |
-| The world entry check at character select or at the spawn failed (it threw, or took more than 5 s, `WorldEntryDecision.Failed`); the client is told `Maintenance`, as before | `drop` | held |
+| The world entry check at character select or at the spawn refused the entry for anything but a cutoff or the account: it threw or took more than 5 s, the world has no maintenance row, or an allowed decision expired before the tick applied it. The client is told `Maintenance`, as before (`EntryRefusal`) | `drop` | held |
 | An account-wide session end for the account's credentials or security (`world:accounts:disconnect`: a password, email or role change, an MFA reset or removal, a refresh-token reuse); the client is told `Kicked`, as before | `drop` | held |
 | Another login took the session over (`DuplicateLogin`) | `drop` | unchanged: the old session's end is answered `SESSION_REPLACED` and changes nothing |
 | Banned or deactivated (`world:accounts:status`: `Banned`, `Deactivated`), any other `Kicked` close (none in the world today), or the entry check refused the account itself (no longer active, `WorldEntryDecision.AccountRefused`) | `kicked` | removed |
-| A maintenance cutoff (`Maintenance`: the cutoff's close, or the entry check's cutoff verdict) | `maintenance` | removed, with every place the world holds after a drop |
+| A maintenance cutoff in force (`Maintenance`: the cutoff's close; or an entry refused for the cutoff, `WorldEntryDecision.Cutoff`, an allowed decision that ended at the cutoff's deadline, `EndsAtCutoff`, or the world's applied cutoff or restart drain turning a non-Admin away at the spawn, `WorldMaintenanceCoordinator.CutsOff`) | `maintenance` | removed, with every place the world holds after a drop |
 | The world stopped or restarted (`ServerShutdown`), the restart drain included | `shutdown` | removed, with every place the world holds after a drop |
 | The world's backstop refused the admission (from part 3) | `backstop` | removed |
 
@@ -130,19 +130,23 @@ same `DisconnectReason` as before.
   `select_timeout` is in the vocabulary and removes the place, but no world sends it: a `SelectTimeout` close is a drop.
 - **Identity is deployed first.** An identity from before part 2 knows no held place: it removes the place at every
   end, and it refuses the unknown member (400, the body rejects unknown members). The world then sends the end again
-  without the reason, so the session ends anyway, and remembers it: until identity takes the reason, ends go without
-  it, one request each, offering it again at most every 5 minutes (one Warning when it starts).
-- **A repeated end changes nothing.** The world may send the same end again (a retry): the first one decided the place,
-  and a repeat neither extends a held place nor brings one back. An end never brings back a place whose time has passed,
-  swept or not.
+  without the reason, so the session ends anyway. When that end succeeds, the world remembers it: until identity takes
+  the reason, ends go without it, one request each, offering it again at most every 5 minutes (one Warning when it
+  starts). An end refused for anything else, with or without the reason, remembers nothing.
+- **A repeated end changes nothing.** The world may send the same end again (a retry, its first reply lost): identity
+  answers `ended` again but touches no place (`GameSessions` tells the end that did it from a repeat, and the end's
+  tombstone refuses one within its lease), so a repeat neither extends a held place nor brings one back. An end never
+  brings back a place whose time has passed, swept or not.
 - **A return that fails holds the place again.** A join within the grace takes the held place as its ticket's
   (`j:{untilMs}:{ticket}:h`); should that ticket's issue fail, its withdrawal holds the place again, to the end it has,
   rather than removing it.
 - **After a stop or a maintenance cutoff nobody holds a place** (decision 10): everyone is equal and joins the line with
   everybody else. The world's ends tell identity when: the first `shutdown` or `maintenance` end of the world releases
   every place it holds after a drop (`IWorldPlaceStore.ReleaseHeldAsync`; their tombstones stay). A stop's ends come in
-  a burst, so the release runs at most once every 10 s for a world (`IWorldPlaceStore.HeldReleaseWindow`, the marks
-  hash's field `released`); a drop whose end lands within those 10 s keeps its place until the next `shutdown` or
+  a burst, so the release runs at most once every 10 s for a world (`IWorldPlaceStore.HeldReleaseWindow`: each identity
+  replica asks Redis at most once in it, and the marks hash's field `released` holds it across replicas). The release
+  scans the world's places, at most once in the window: tracking the held ones apart would need a key the identity
+  Redis user's patterns do not grant. A drop whose end lands within those 10 s keeps its place until the next `shutdown` or
   `maintenance` end after them, or its grace. A place a ticket has taken since (a return within the grace) is that
   ticket's and stays: the ticket is already issued. A stop or a cutoff that ends no session (no player left, or Admins
   only) sends no such end, and the places held there run out with their grace, within 90 s.
