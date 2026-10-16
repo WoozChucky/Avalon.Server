@@ -120,6 +120,10 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     // Written by a build's last step, on whichever thread it ends on; read only by PublishFinished, on the tick.
     private readonly ConcurrentQueue<FinishedBuild> _finished = new();
 
+    // Builds abandoned at their deadline whose outcome has not come yet (#969): their bakes still hold a thread-pool
+    // thread or a bake's memory. Written on the tick; read by the gauge on the exporter's thread.
+    private int _abandonedRunning;
+
     private readonly ILogger<InstanceRegistry> _logger;
     private readonly IAvalonMapManager _mapManager;
     private readonly IChunkLayoutInstanceFactory _chunkLayoutFactory;
@@ -152,6 +156,13 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     }
 
     public IReadOnlyCollection<IMapInstance> ActiveInstances => _instances.Values.ToList();
+
+    /// <summary>
+    /// Builds abandoned at their deadline that are still running (#969): nothing cancels a bake, so under load
+    /// abandonments can stack. Any thread; the gauge <c>world.instance.builds_abandoned_running</c> reads it. On the
+    /// concrete registry, never on the modding API's <see cref="IInstanceRegistry" />.
+    /// </summary>
+    public int AbandonedBuildsRunning => Volatile.Read(ref _abandonedRunning);
 
     /// <summary>
     /// The live instances for <c>World.Update</c> to tick, in the order they were published (#851). The same array tick
@@ -442,6 +453,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             return; // published (or failed) before the deadline was acted on
 
         pending.Abandoned = true;
+        int stillRunning = Interlocked.Increment(ref _abandonedRunning);
         pending.Deadline?.Dispose();
         Forget(pending);
         pending.Done.TrySetException(
@@ -451,8 +463,9 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         // No instance id: the build has not made its instance yet. Discard names it if it ever does.
         _logger.LogError(
             "The {Kind} build of map {TemplateId} (owner {OwnerId}) did not finish within {DeadlineSeconds} s: abandoned, " +
-            "and its {Requesters} requester(s) answered with a failure",
-            pending.Kind, pending.TemplateId, pending.OwnerId, BuildDeadline.TotalSeconds, pending.Requesters);
+            "and its {Requesters} requester(s) answered with a failure; {AbandonedRunning} abandoned build(s) still running",
+            pending.Kind, pending.TemplateId, pending.OwnerId, BuildDeadline.TotalSeconds, pending.Requesters,
+            stillRunning);
     }
 
     /// <summary>
@@ -462,6 +475,8 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     /// </summary>
     private void Discard(PendingBuild pending, Task<MapInstance> outcome)
     {
+        // First: it has stopped running, whatever follows.
+        Interlocked.Decrement(ref _abandonedRunning);
         TimeSpan took = _time.GetElapsedTime(pending.StartedAt);
         if (outcome.IsCompletedSuccessfully)
         {

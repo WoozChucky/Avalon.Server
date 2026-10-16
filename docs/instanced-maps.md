@@ -233,8 +233,10 @@ return to town, teleport or read a town scroll, for as long as it stayed in the 
   the stalled-select sweep (`Game:CharacterLoadTimeoutSeconds`, 15 s by default), and is told nothing more.
 - **Counted and logged as a server fault.** Each abandoned build adds one to `world.instance.build_timeouts`, tagged
   `map.type` ([instrumentation](instrumentation.md#instance-build-timeouts)), and writes one Error: the build's kind,
-  map and owner and how many requests were waiting on it (its instance id is not known yet; the Warning of a late
-  outcome names it).
+  map and owner, how many requests were waiting on it and how many abandoned builds are still running (its instance id
+  is not known yet; the Warning of a late outcome names it). That running count is also the gauge
+  `world.instance.builds_abandoned_running` (`InstanceRegistry.AbandonedBuildsRunning`): up at each abandonment, down
+  when the late outcome arrives, so bakes that never end show as a count that keeps climbing.
 
 ---
 

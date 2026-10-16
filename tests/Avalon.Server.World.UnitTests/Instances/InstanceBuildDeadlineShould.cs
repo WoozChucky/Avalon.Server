@@ -119,6 +119,7 @@ public class InstanceBuildDeadlineShould
         Assert.False(client.Connection.RespawnInFlight);
         Assert.Equal([InstanceBuildTimeoutException.PlayerMessage], client.Lines());
         Assert.Equal(1, timeouts.Count);
+        Assert.Equal(1, _registry.AbandonedBuildsRunning);
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
 
         // Asked again: a new build, not the abandoned one.
@@ -131,6 +132,7 @@ public class InstanceBuildDeadlineShould
         Complete(1, late);
         await Flush();
         Assert.Null(_registry.GetInstanceById(late.InstanceId));
+        Assert.Equal(0, _registry.AbandonedBuildsRunning);
         _world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
 
         MapInstance fresh = Instance(move);
