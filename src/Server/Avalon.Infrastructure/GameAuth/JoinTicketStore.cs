@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure.WorldPlaces;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Infrastructure.GameAuth;
@@ -11,7 +12,8 @@ namespace Avalon.Infrastructure.GameAuth;
 /// <summary>Atomic Redis claims plus durable SQL reservation recovery, with no cross-store transaction assumption.</summary>
 public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptography crypto,
     GameAuthorizationService authorization, IGameSessionRepository sessions, IGameServerAllocator allocator,
-    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, GameApplicationAccessPolicy applications)
+    IOptions<StoreAuthenticationConfiguration> options, TimeProvider clock, GameApplicationAccessPolicy applications,
+    IWorldPlaceStore places, PlaceLedgerOutage outage)
 {
     private DateTime Now => clock.GetUtcNow().UtcDateTime;
     private string Key(string kind, string id) => CacheKeys.GameAuth(options.Value.Environment, kind, id);
@@ -52,6 +54,10 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         DateTime until = GameContextAuthorizationWindow.Deadline(context)!.Value;
         DateTime expires = Min(Now.Add(GameAuthPolicy.JoinTicketLifetime), context.CredentialExpiresAt, until);
         if (expires <= Now) return new(GameAuthErrors.AuthorizationRequired);
+        // Capacity last (#967): every check above stands as it was, and a refusal above takes no place. The place lasts
+        // 15 s past the ticket, for a redemption in flight. Part 1 keeps the ledger and enforces nothing: no limit is asked.
+        _ = await places.EnterAsync(new PlaceRequest(worldId, accountId, expires.Add(GameAuthPolicy.TicketPlaceMargin),
+            Limit: null, Staff: false, QueueCapacity: 0), cancellationToken);
         string ticket = GameAuthCryptography.NewToken();
         string ticketKey = Key("join-ticket", GameAuthCryptography.Digest(ticket));
         var grant = new JoinTicketGrant
@@ -134,6 +140,7 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
                 serverId, grant.WorldId, grant.Environment, grant.CredentialsVersion, grant.SessionEpoch, grant.AuthorizationUntil, grant.Takeover)
             { GameContextId = grant.ContextId, AdmissionExpiresAt = grant.ExpiresAt, Reconnect = grant.Reconnect };
             GameSession? head = await sessions.TryReserveAsync(reservation, Now, cancellationToken);
+            if (head is not null) await KeepPlaceAsync(grant.WorldId, grant.AccountId, head.LeaseUntil, cancellationToken);
             JoinRedemptionReceipt reply = head is null ? JoinRedemptionReceipt.Failure(GameAuthErrors.SessionConflict) :
                 grant.ExpiresAt <= Now ? JoinRedemptionReceipt.Failure(GameAuthErrors.TicketExpired) : new JoinRedemptionReceipt
                 {
@@ -158,5 +165,19 @@ public sealed class JoinTicketStore(IGameContextStore store, GameAuthCryptograph
         }
         return JoinRedemptionReceipt.Failure(GameAuthErrors.InProgress);
     }
+
+    /// <summary>Renews the account's place to the pending session's lease; Redis down changes nothing for the session (#967).</summary>
+    private async Task KeepPlaceAsync(ushort worldId, long accountId, DateTime until, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await places.RenewAsync(worldId, accountId, until, leaveOtherWorlds: false, cancellationToken);
+        }
+        catch (Exception error) when (PlaceLedgerOutage.IsOutage(error))
+        {
+            outage.Report("redemption", error);
+        }
+    }
+
     private static DateTime Min(params DateTime[] values) => values.Min();
 }

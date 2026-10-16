@@ -9,6 +9,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.GameAuth;
+using Avalon.Infrastructure.WorldPlaces;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
@@ -40,7 +41,7 @@ public sealed class GameServerAllocatorShould
         _readiness.IsReadyAsync(3, Arg.Any<CancellationToken>()).Returns(true);
         IOptions<GameWorkloadConfiguration> workload = GameClientTestData.Workloads(new GameServerDefinition { ServerId = "world-1", WorldId = 1 }, new GameServerDefinition { ServerId = "world-2", WorldId = 2 }, new GameServerDefinition { ServerId = "world-3", WorldId = 3 });
         var config = new StoreAuthenticationConfiguration { SteamAppId = 480, SteamPlaytest = new() { Enabled = true, AppId = 2514590, AllowedWorldIds = [3] } };
-        var allocator = new GameServerAllocator(_worlds, _accounts, _databases, _readiness, _repositories, workload, _clock, new GameApplicationAccessPolicy(Options.Create(config)), NullLogger<GameServerAllocator>.Instance);
+        var allocator = new GameServerAllocator(_worlds, _accounts, _databases, _readiness, _repositories, workload, _clock, new GameApplicationAccessPolicy(Options.Create(config)), NullLogger<GameServerAllocator>.Instance, Substitute.For<IWorldOccupancy>());
         GameContextRecord context = _context with { SteamAppId = 2514590, ApplicationKey = "steam.playtest" };
         _account.AccessLevel |= AccountAccessLevel.Admin;
         Assert.Equal((ushort)3, Assert.Single(await allocator.ListAsync(context, default)).WorldId);
@@ -81,7 +82,7 @@ public sealed class GameServerAllocatorShould
         _repositories.Characters(_world.Id).Returns(_characters);
         _allocator = new(_worlds, _accounts, _databases, _readiness, _repositories,
             GameClientTestData.Workloads(new GameServerDefinition { ServerId = "world-1", WorldId = 1, TlsServerName = "world.example.test", TlsCertificateSha256 = new string('A', 64), ClientCertificateSha256 = new string('B', 64) }), _clock, new GameApplicationAccessPolicy(Options.Create(new StoreAuthenticationConfiguration { SteamAppId = 480 })),
-            NullLogger<GameServerAllocator>.Instance);
+            NullLogger<GameServerAllocator>.Instance, Substitute.For<IWorldOccupancy>());
     }
     private async Task<GameWorldRefusal?> Find(GameContextRecord? context = null, uint? character = null) =>
         Refused(await _allocator.FindAsync(context ?? _context, 1, character, CancellationToken.None));

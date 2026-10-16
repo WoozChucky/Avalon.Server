@@ -11,6 +11,7 @@ using Avalon.Domain.Auth;
 using Avalon.Infrastructure.GameAuth;
 using Avalon.Infrastructure.GameTickets;
 using Avalon.Infrastructure.StoreAuth;
+using Avalon.Infrastructure.WorldPlaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -106,7 +107,8 @@ public sealed class AvalonGameAuthorizationShould
         fence.RenewAsync(Arg.Any<GameplayWriteAuthority>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call => call.ArgAt<DateTime>(1));
         var heartbeats = new GameSessionFenceService(sessions, Service(), worlds, _accounts,
             Options.Create(new GameWorkloadConfiguration { Servers = [new() { ServerId = "world-1", WorldId = 1 }] }),
-            _clock, new(_options));
+            _clock, new(_options), new MemoryWorldPlaceStore(_clock, new WorldPlacesConfiguration()),
+            new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _clock));
         Assert.Null((await heartbeats.HeartbeatAsync("world-1", _account.Id, worldSession.GameSessionId, 1, default)).Error);
         const string Subject = "76561198000000001";
         _identities.FindAsync("steam", Subject, Arg.Any<CancellationToken>()).Returns(new ExternalIdentity
@@ -386,7 +388,8 @@ public sealed class AvalonGameAuthorizationShould
         var policy = new GameApplicationAccessPolicy(_options);
         IGameServerAllocator allocator = Substitute.For<IGameServerAllocator>();
         allocator.ListAsync(Arg.Any<GameContextRecord>(), Arg.Any<CancellationToken>()).Returns([]);
-        var tickets = new JoinTicketStore(_store, _crypto, service, Substitute.For<IGameSessionRepository>(), allocator, _options, _clock, policy);
+        var tickets = new JoinTicketStore(_store, _crypto, service, Substitute.For<IGameSessionRepository>(), allocator, _options, _clock, policy,
+            new MemoryWorldPlaceStore(_clock, new WorldPlacesConfiguration()), new PlaceLedgerOutage(NullLogger<PlaceLedgerOutage>.Instance, _clock));
         var admission = new GameAdmissionController(NullLogger<GameAdmissionController>.Instance, service, tickets, allocator, policy)
         {
             ControllerContext = new() { HttpContext = new DefaultHttpContext() },
