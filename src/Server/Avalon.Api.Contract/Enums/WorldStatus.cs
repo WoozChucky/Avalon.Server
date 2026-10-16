@@ -7,5 +7,8 @@ public enum WorldStatus : ushort
 {
     Offline,
     Online,
-    Maintenance
+    Maintenance,
+
+    /// <summary>Online, with a player limit that places taken have reached (#967). Derived where places taken are known.</summary>
+    Full
 }

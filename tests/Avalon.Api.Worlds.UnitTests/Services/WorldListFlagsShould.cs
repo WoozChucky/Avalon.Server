@@ -12,6 +12,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
+using ContractStatus = Avalon.Api.Contract.WorldStatus;
 using WorldEntity = Avalon.Domain.Auth.World;
 
 namespace Avalon.Api.Worlds.UnitTests.Services;
@@ -144,6 +145,38 @@ public sealed class WorldListFlagsShould : IDisposable
         WorldDto? worldDto = await service.GetAsync(101, AccountAccessLevel.Player);
 
         Assert.Equal(Avalon.Api.Contract.WorldStatus.Online, worldDto!.Status);
+    }
+
+    /// <summary>#967: the order is Maintenance, then Offline, then Full, then Online; the counts are the ledger's.</summary>
+    [Theory]
+    [InlineData(true, false, 300, 300, ContractStatus.Full)]
+    [InlineData(true, false, 300, 301, ContractStatus.Full)]
+    [InlineData(true, false, 300, 299, ContractStatus.Online)]
+    [InlineData(true, false, null, 5000, ContractStatus.Online)]
+    [InlineData(true, true, 300, 300, ContractStatus.Maintenance)]
+    [InlineData(false, false, 300, 300, ContractStatus.Offline)]
+    public async Task Show_a_world_at_its_limit_as_full_below_maintenance_and_offline(bool ready, bool cutoff, int? limit, int taken,
+        ContractStatus expected)
+    {
+        using (AuthDbContext context = _database.CreateDbContext())
+        {
+            WorldEntity world = context.Worlds.Single(w => w.Id == new WorldId(101));
+            world.PlayerLimit = limit;
+            world.MaintenanceEnabled = cutoff;
+            world.MaintenanceRevision = cutoff ? 1 : 0;
+            world.MaintenanceDeadlineUtc = cutoff ? DateTime.UtcNow.AddMinutes(-1) : null;
+            context.SaveChanges();
+        }
+        IWorldReadiness readiness = Substitute.For<IWorldReadiness>();
+        readiness.IsReadyAsync(101, Arg.Any<CancellationToken>()).Returns(ready);
+        IWorldOccupancy occupancy = Substitute.For<IWorldOccupancy>();
+        occupancy.ReadAsync(101, Arg.Any<CancellationToken>()).Returns(new WorldOccupancy(taken, 12));
+        var service = new WorldService(new WorldRepository(_database), _databases, readiness, occupancy,
+            NullLogger<WorldService>.Instance);
+
+        WorldDto listed = (await service.GetAsync(101, AccountAccessLevel.Player))!;
+
+        Assert.Equal((expected, taken, limit, 12), (listed.Status, listed.OnlineCount, listed.PlayerLimit, listed.QueueLength));
     }
 
     [Fact]

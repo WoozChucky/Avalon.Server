@@ -36,9 +36,16 @@ public sealed partial class GameServerAllocator(IWorldRepository worlds, IAccoun
             Checked world = await CheckWorldAsync(context, root, definition.WorldId, null, cancellationToken);
             // A world the client is only too old for stays listed, marked, so the player is told to update (#1053).
             if ((world.Allocation.Destination ?? world.Outdated) is not { } destination) continue;
-            // Places taken and the line's length, the ones marked RequiresUpdate included (#967).
+            // Places taken and the line's length, the ones marked RequiresUpdate included (#967), and Full for a world
+            // online whose places taken reached its limit.
             WorldOccupancy counts = await occupancy.ReadAsync(definition.WorldId, cancellationToken);
-            result.Add(destination with { PlayerCount = counts.PlayerCount, QueueLength = counts.QueueLength });
+            WorldStatus status = Enum.Parse<WorldStatus>(destination.Status!);
+            result.Add(destination with
+            {
+                PlayerCount = counts.PlayerCount,
+                QueueLength = counts.QueueLength,
+                Status = WorldReadiness.WithCapacity(status, destination.PlayerLimit, counts.PlayerCount).ToString(),
+            });
         }
         return result.OrderBy(x => x.WorldId).ToArray();
     }
