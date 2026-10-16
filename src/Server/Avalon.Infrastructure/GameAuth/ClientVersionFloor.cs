@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Common.Utils;
 using Avalon.Configuration;
 
@@ -28,11 +29,16 @@ public static class ClientVersionFloor
 
     /// <summary>
     /// Reads <c>major.minor.patch</c>, digits and two dots only (no sign, space or other character the number parser
-    /// would forgive), packed by <see cref="SemVerPacker"/>, whose order is the versions' order.
+    /// would forgive), packed by <see cref="SemVerPacker"/>, whose order is the versions' order. The world allocation
+    /// reads a world's <c>MinVersion</c> with it too (#1053).
     /// </summary>
-    private static bool TryParse(string? version, out uint packed)
+    public static bool TryParse(string? version, out uint packed)
     {
         packed = 0;
         return version is not null && version.All(c => c is >= '0' and <= '9' or '.') && SemVerPacker.TryPack(version, out packed);
     }
+
+    /// <summary>A packed version written as the plain <c>major.minor.patch</c> it was compared as (<c>01.00.0</c> is <c>1.0.0</c>).</summary>
+    public static string Format(uint packed) =>
+        string.Create(CultureInfo.InvariantCulture, $"{packed >> 24}.{(packed >> 16) & 0xFF}.{packed & 0xFFFF}");
 }

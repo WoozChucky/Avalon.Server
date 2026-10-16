@@ -48,7 +48,7 @@ public sealed class GameGenericProviderShould
         IGameSessionRepository sessions = Substitute.For<IGameSessionRepository>();
         IGameServerAllocator allocator = Substitute.For<IGameServerAllocator>();
         allocator.FindAsync(Arg.Any<GameContextRecord>(), 1, null, Arg.Any<CancellationToken>())
-            .Returns(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost", new string('A', 64), "1", "1"));
+            .Returns(GameWorldAllocation.Admit(new GameWorldDestination(1, "world-1", "Avalon", "localhost", 21000, "localhost", new string('A', 64), "1", "1")));
         sessions.TryReserveAsync(Arg.Any<GameSessionReservation>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             GameSessionReservation reservation = call.Arg<GameSessionReservation>();

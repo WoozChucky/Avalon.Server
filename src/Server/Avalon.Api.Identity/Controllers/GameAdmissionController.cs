@@ -53,6 +53,9 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status426UpgradeRequired)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status503ServiceUnavailable)]
     public Task<IActionResult> Join(GameJoinRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Issue(request, requestId, false, cancellationToken);
 
@@ -61,6 +64,9 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status426UpgradeRequired)]
+    [ProducesResponseType(typeof(GameJoinReply), StatusCodes.Status503ServiceUnavailable)]
     public Task<IActionResult> Reconnect(GameJoinRequest request, [FromHeader(Name = "Idempotency-Key")] Guid requestId,
         CancellationToken cancellationToken) => Issue(request, requestId, true, cancellationToken);
 
@@ -72,13 +78,18 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
             GameJoinReply reply = await tickets.IssueAsync(request.GameContextCredential, request.WorldId,
                 request.CharacterId,
                 requestId, request.ConfirmTakeover, reconnect, cancellationToken);
+            // A retryable refusal (503) apart from a permanent one (#1053): a client too old is told to update (426,
+            // with the version required), one the world will never take is refused (403, 404, 400).
             return reply.Error switch
             {
                 null => Ok(reply),
-                GameAuthErrors.InvalidRequest => BadRequest(reply),
+                GameAuthErrors.InvalidRequest or GameAuthErrors.UnsupportedProtocol => BadRequest(reply),
                 GameAuthErrors.ActiveGameSession or GameAuthErrors.IdempotencyConflict or GameAuthErrors.ContextChanged
                     => Conflict(reply),
-                GameAuthErrors.WorldUnavailable => StatusCode(503, reply),
+                GameAuthErrors.WorldUnavailable => StatusCode(StatusCodes.Status503ServiceUnavailable, reply),
+                GameAuthErrors.ClientOutdated => UpgradeRequired(reply),
+                GameAuthErrors.WorldNotAllowed => StatusCode(StatusCodes.Status403Forbidden, reply),
+                GameAuthErrors.CharacterNotFound => NotFound(reply),
                 _ when GameAuthErrors.IsAccountStanding(reply.Error) => StatusCode(StatusCodes.Status403Forbidden,
                     reply),
                 _ => Unauthorized(reply),
@@ -89,5 +100,15 @@ public sealed class GameAdmissionController(ILogger<GameAdmissionController> log
             logger.LogError(error, "An error occurred while issuing a game join ticket");
             return StatusCode(503, new GameJoinReply(GameAuthErrors.ServiceUnavailable));
         }
+    }
+
+    /// <summary>
+    /// 426 with the advisory <c>Upgrade</c> header the status calls for, naming the client version required as a
+    /// product token (<c>avalon-client/1.0.0</c>); the body's <c>requiredVersion</c> says the same.
+    /// </summary>
+    private ObjectResult UpgradeRequired(GameJoinReply reply)
+    {
+        if (reply.RequiredVersion is { } required) Response.Headers.Upgrade = "avalon-client/" + required;
+        return StatusCode(StatusCodes.Status426UpgradeRequired, reply);
     }
 }

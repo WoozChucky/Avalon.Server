@@ -31,7 +31,9 @@ public sealed partial class InternalGameAdmissionController(ILogger<InternalGame
                 null => Ok(receipt),
                 GameAuthErrors.InProgress or GameAuthErrors.SessionConflict => Conflict(receipt),
                 GameAuthErrors.WorldUnavailable => StatusCode(503, receipt),
-                _ => Unauthorized(receipt),
+                // A refusal of the ticket or its player, never of the workload (#1053): a 401 here means only that the
+                // world's certificate was not accepted. The world reads the body's error, not the status.
+                _ => StatusCode(StatusCodes.Status403Forbidden, receipt),
             };
         }
         catch (Exception error) when (error is RedisException or JsonException or CryptographicException)

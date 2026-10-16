@@ -71,11 +71,25 @@ public static class GameAuthErrors
     public const string WorldUnavailable = "WORLD_UNAVAILABLE";
 
     /// <summary>
-    /// The game context's application is not allowed on the world (#1050): a refusal no retry changes, unlike
-    /// <see cref="WorldUnavailable" />, which a world answers its client as "try later". Only the redemption of a join
-    /// ticket answers it, to the world server; the REST join-ticket issue answers <see cref="WorldUnavailable" /> as before.
+    /// The game context may not enter the world (#1050, #1053): its application is not allowed on it, or its account's
+    /// access level is below the world's, one answer for both so neither is told apart. A refusal no retry changes,
+    /// unlike <see cref="WorldUnavailable" />, which means "try later". The REST join and reconnect tickets answer it
+    /// 403; the redemption answers it to the world server, which refuses its client <c>AuthorizationRequired</c>.
     /// </summary>
     public const string WorldNotAllowed = "WORLD_NOT_ALLOWED";
+
+    /// <summary>
+    /// The client is older than the world accepts (#1053): the version its game context states is below the world's
+    /// <c>MinVersion</c>. Permanent for this build: the REST join and reconnect tickets answer it 426 with the version
+    /// required (<c>requiredVersion</c>), and a client shows "update required" rather than trying again.
+    /// </summary>
+    public const string ClientOutdated = "CLIENT_OUTDATED";
+
+    /// <summary>
+    /// The character asked for does not exist on the world or is not the account's (#1053), one answer for both.
+    /// The REST join and reconnect tickets answer it 404.
+    /// </summary>
+    public const string CharacterNotFound = "CHARACTER_NOT_FOUND";
 
     /// <summary>
     /// Whether <paramref name="error"/> names the account's standing (banned, deactivated, consolidating), answered
