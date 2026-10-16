@@ -94,9 +94,13 @@ public class World : IWorld
     private readonly ThrottledErrorLog _publishErrors;
     private readonly TickThreadGuard? _tick;
 
-    // Every AI script type hot reloaded so far, by name (the latest of each), applied on the tick. An instance whose build
-    // was in flight during a reload is brought up to date with it when it is published (#639).
+    // The AI script types of the latest hot-reload generation applied on the tick, by name. An instance whose build was
+    // in flight during a reload is brought up to date with it when it is published (#639). The latest generation only:
+    // one kept from before would keep that generation's load context in memory for good (#930).
     private readonly Dictionary<string, Type> _hotReloaded = new(StringComparer.InvariantCultureIgnoreCase);
+
+    // The types of that generation whose constructor threw, logged once each; emptied with it.
+    private readonly HashSet<Type> _unbuildableHotReloaded = [];
 
     private InstanceRegistry? _registry;
 
@@ -738,22 +742,28 @@ public class World : IWorld
 
     private void ApplyScriptsHotReload(List<Type> aiScriptTypes)
     {
-        var scriptTypeDict =
-            aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
-        foreach ((string name, Type type) in scriptTypeDict)
-            _hotReloaded[name] = type;
+        // By the indexer, the last of a name winning, as ScriptManager.RegisterHotReloaded does: two types of one name
+        // in a compile (another namespace, or a name that differs in case only) are no reason to stop the tick.
+        _hotReloaded.Clear();
+        _unbuildableHotReloaded.Clear();
+        foreach (Type type in aiScriptTypes)
+            _hotReloaded[type.Name] = type;
 
         IServiceProvider serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
 
         foreach (IMapInstance instance in InstanceRegistry.ActiveInstances)
-            ReattachScripts(instance, scriptTypeDict, serviceProvider, onlyOutdated: false);
+            ReattachScripts(instance, _hotReloaded, serviceProvider, onlyOutdated: false);
     }
 
     /// <param name="onlyOutdated">
     /// Only a creature whose script is not already of the named type: for an instance built while the reload was in
     /// flight, which may have attached the new types already.
     /// </param>
-    private static void ReattachScripts(IMapInstance instance, IReadOnlyDictionary<string, Type> scriptTypes,
+    /// <remarks>
+    /// Each script is built before its creature leaves the instance to take it. A constructor that throws leaves its
+    /// creature in place with the script it had, is logged once per script per reload, and stops nothing else.
+    /// </remarks>
+    private void ReattachScripts(IMapInstance instance, IReadOnlyDictionary<string, Type> scriptTypes,
         IServiceProvider serviceProvider, bool onlyOutdated)
     {
         List<(ICreature creature, Type scriptType)> toUpdate = [];
@@ -777,9 +787,23 @@ public class World : IWorld
 
         foreach ((ICreature entity, Type scriptType) in toUpdate)
         {
+            AiScript? script;
+            try
+            {
+                script = ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, instance) as AiScript;
+            }
+            catch (Exception e)
+            {
+                if (_unbuildableHotReloaded.Add(scriptType))
+                {
+                    _logger.LogError(e, "Hot reloaded AI script {ScriptName} could not be built in instance {InstanceId}; " +
+                        "its creatures keep the script they had", entity.ScriptName, instance.InstanceId);
+                }
+
+                continue;
+            }
+
             instance.RemoveCreature(entity);
-            var script =
-                ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, instance) as AiScript;
             entity.Script = script;
             instance.AddCreature(entity);
         }

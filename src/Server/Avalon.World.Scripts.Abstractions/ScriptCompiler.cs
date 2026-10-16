@@ -11,7 +11,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Abstractions;
 
-public delegate void ScriptCompiledEventHandler(Assembly assembly);
+/// <summary>One compile of the hot-reload scripts: the assembly and the collectible context it alone is loaded into (#930).</summary>
+public sealed record CompiledScripts(Assembly Assembly, ScriptAssemblyLoadContext Context);
+
+public delegate void ScriptCompiledEventHandler(CompiledScripts scripts);
 
 public interface IScriptCompiler
 {
@@ -28,20 +31,22 @@ public class ScriptCompiler : IScriptCompiler
     private const string ScriptExtension = ".cs";
     private const int DebounceDelayMs = 500; // Delay in milliseconds to wait before compiling the script
 
-    private static readonly List<MetadataReference> s_references =
+    // Made at the first compile: the server's own assemblies, the ones a script may use. Only those on disk; an
+    // assembly loaded from memory (an earlier compile among them) has no file to reference.
+    private static readonly Lazy<MetadataReference[]> s_references = new(() =>
     [
-        MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(Console).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(AiScript).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(Vector3).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(ILoggerFactory).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(IMapNavigator).Assembly.Location),
-        MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
-        MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
-        MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(TimeSpan).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(ValueType).Assembly.Location)
-    ];
+        .. new[]
+            {
+                typeof(object).Assembly, typeof(Console).Assembly, typeof(AiScript).Assembly, typeof(Vector3).Assembly,
+                typeof(ILoggerFactory).Assembly, typeof(IMapNavigator).Assembly, Assembly.Load("System.Runtime"),
+                Assembly.Load("netstandard"), typeof(Task).Assembly, typeof(TimeSpan).Assembly, typeof(ValueType).Assembly
+            }
+            .Concat(AppDomain.CurrentDomain.GetAssemblies())
+            .Where(a => !a.IsDynamic && !a.IsCollectible && !string.IsNullOrEmpty(a.Location))
+            .Select(a => a.Location)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(location => MetadataReference.CreateFromFile(location))
+    ]);
 
     private static readonly List<string> s_defaultUsings =
     [
@@ -82,12 +87,12 @@ public class ScriptCompiler : IScriptCompiler
         _watcher.Created += OnScriptChanged;
         _watcher.Deleted += OnScriptChanged;
         _watcher.Renamed += OnScriptChanged;
-
-        s_references.AddRange(AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic) // Only include non-dynamic assemblies
-            .Select(a => MetadataReference.CreateFromFile(a.Location)));
     }
 
+    /// <summary>
+    /// Raised with every successful compile, on a pool thread. The receiver owns the context it is handed: it unloads
+    /// it once it has replaced or refused it.
+    /// </summary>
     public event ScriptCompiledEventHandler? ScriptCompiled;
 
     public void Start() => _watcher.EnableRaisingEvents = true;
@@ -113,9 +118,9 @@ public class ScriptCompiler : IScriptCompiler
         {
             _debounceDictionary.TryRemove(path, out _);
 
-            Assembly? assembly = await Task.Run(async () => await GenerateAssemblyAsync());
+            CompiledScripts? scripts = await Task.Run(async () => await GenerateAssemblyAsync());
 
-            if (assembly == null)
+            if (scripts == null)
             {
                 _logger.LogDebug("Failed to compile script {Path}", path);
                 return;
@@ -123,20 +128,44 @@ public class ScriptCompiler : IScriptCompiler
 
             _logger.LogInformation("Script {Path} has been compiled", path);
 
-            ScriptCompiled?.Invoke(assembly);
+            if (ScriptCompiled is { } compiled)
+                compiled(scripts);
+            else
+                scripts.Context.Unload();
         }
     }
 
-    private async Task<Assembly?> GenerateAssemblyAsync()
+    private async Task<CompiledScripts?> GenerateAssemblyAsync()
     {
         var sw = Stopwatch.StartNew();
         string[] files = Directory.GetFiles(ScriptsPath, $"*{ScriptExtension}", SearchOption.AllDirectories);
-        List<SyntaxTree> syntaxTrees = [];
+        List<string> sources = [];
 
         foreach (string file in files)
         {
-            string code = await File.ReadAllTextAsync(file, CancellationToken.None);
+            sources.Add(await File.ReadAllTextAsync(file, CancellationToken.None));
+        }
 
+        CompiledScripts? scripts = Compile(sources, _logger);
+
+        sw.Stop();
+        _logger.LogDebug("Compiled scripts in {Elapsed}ms", sw.ElapsedMilliseconds);
+
+        return scripts;
+    }
+
+    /// <summary>
+    /// Compiles <paramref name="sources" /> into one assembly, loaded into a context of its own: a new generation of the
+    /// hot-reload scripts (#930). Null, with each error logged, when the sources do not compile. The caller owns the
+    /// context: nothing else unloads it.
+    /// </summary>
+    public static CompiledScripts? Compile(IEnumerable<string> sources, ILogger logger)
+    {
+        List<SyntaxTree> syntaxTrees = [];
+
+        foreach (string source in sources)
+        {
+            string code = source;
             foreach (string defaultUsing in s_defaultUsings)
             {
                 if (!code.Contains($"using {defaultUsing};", StringComparison.Ordinal))
@@ -145,14 +174,14 @@ public class ScriptCompiler : IScriptCompiler
                 }
             }
 
-            SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(code, cancellationToken: CancellationToken.None);
-            syntaxTrees.Add(syntaxTree);
+            syntaxTrees.Add(CSharpSyntaxTree.ParseText(code, cancellationToken: CancellationToken.None));
         }
 
+        string name = $"Scripts_{Guid.NewGuid()}";
         var compilation = CSharpCompilation.Create(
-            $"Scripts_{Guid.NewGuid()}",
+            name,
             syntaxTrees,
-            s_references,
+            s_references.Value,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
         );
 
@@ -165,7 +194,7 @@ public class ScriptCompiler : IScriptCompiler
             {
                 if (diagnostic.Severity == DiagnosticSeverity.Error)
                 {
-                    _logger.LogError("Error {Error} in script {File}", diagnostic.GetMessage(),
+                    logger.LogError("Error {Error} in script {File}", diagnostic.GetMessage(),
                         diagnostic.Location.GetLineSpan().ToString());
                 }
             }
@@ -174,11 +203,15 @@ public class ScriptCompiler : IScriptCompiler
         }
 
         ms.Seek(0, SeekOrigin.Begin);
-        var assembly = Assembly.Load(ms.ToArray());
-
-        sw.Stop();
-        _logger.LogDebug("Compiled scripts in {Elapsed}ms", sw.ElapsedMilliseconds);
-
-        return assembly;
+        var context = new ScriptAssemblyLoadContext(name);
+        try
+        {
+            return new CompiledScripts(context.LoadFromStream(ms), context);
+        }
+        catch
+        {
+            context.Unload();
+            throw;
+        }
     }
 }

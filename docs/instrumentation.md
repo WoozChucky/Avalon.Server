@@ -273,6 +273,10 @@ Every handler run records `avalon.packet.handler.duration` (ms, tagged `avalon.p
 
 What the duration costs per packet with the SDK listening, measured for #977: about 190 to 290 ns per input on a developer machine while it also carried `avalon.outcome`, almost all of it the SDK finding the series of a measurement with two tags (one tag costs about 36 ns, none about 13). The owner dropped the outcome tag from the duration (#977), which brought a dispatched input to about 80 ns; before it, the histogram had an `ok` and an `error` series per type, merged since. The sent-packet counters (`network.out.packets`, `network.out.bytes`) cost about 20 ns per packet sent; the ways to make them cheaper are a design choice, recorded in [benchmarks](benchmarks.md#per-connection-work-every-tick--connectiontickbenchmarkscs-questflushbenchmarkscs-packetmetricsbenchmarkscs-977).
 
+### Script load contexts
+
+`avalon.world.scripts.load_contexts` (`{contexts}`, Prometheus `avalon_world_scripts_load_contexts`) is an observable gauge of the hot-reload script load contexts still in memory (#930), one per compile of the hot-reload scripts ([world simulation](world-simulation.md)). It reports two series, tagged `state`: `current`, the contexts not unloaded (the generation in use, and for a moment a compile not yet handed over), and `unloaded`, the replaced ones the runtime has not collected yet. It is read on the metrics exporter's thread, counting weak references under their own lock, never on the tick. `current` is 0 before the first hot reload and 1 after it. `unloaded` rises at each reload and falls back once the old generation's scripts stop running and a collection runs; one that never falls is a generation something still holds, which the world-simulation page lists the usual holders of.
+
 ### Character saves
 
 `world.character.save.duration` (`ms`, Prometheus `world_character_save_duration_milliseconds_bucket`) times one save batch with buckets `5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000`. It is tagged:

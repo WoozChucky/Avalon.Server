@@ -126,8 +126,10 @@ instance construction, so a throw would make the map unenterable for everyone.
 ### Binding by name
 
 A template's `ScriptName` names an `AiScript` subclass. At `Load()`, `ScriptManager` finds every
-concrete `AiScript` subclass and keys it by its type name. So a grep for the class name proves
-nothing about whether a script is used.
+concrete `AiScript` subclass of the assemblies the process was built with (none loaded at runtime)
+and keys it by its type name; a hot-reloaded generation is laid over them by name
+([world simulation](world-simulation.md), #930). So a grep for the class name proves nothing about
+whether a script is used.
 
 `CreaturePlacementService.AttachScript` looks the name up and builds the script:
 
