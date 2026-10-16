@@ -59,6 +59,21 @@ public class ScriptHotReloader : IScriptHotReloader
             return;
         }
 
+        // A diagnostic only: a signature that fails to resolve skips the warning and never stops the reload, which this
+        // compiler event (an async void) would otherwise end the process with.
+        foreach (Type type in types)
+        {
+            try
+            {
+                WarnIfPinned(type);
+            }
+            catch (Exception e)
+            {
+                _logger.LogDebug(e, "Could not check hot-reloaded script {Script} for services that keep its compile",
+                    type.FullName);
+            }
+        }
+
         // One generation at a time: two compiles finishing together replace each other in turn, and only the last
         // stays current.
         lock (_generation)
@@ -97,6 +112,54 @@ public class ScriptHotReloader : IScriptHotReloader
             scriptTypes = [.. _scriptTypes];
             _scriptTypes.Clear();
         }
+    }
+
+    /// <summary>
+    /// Warns, once for <paramref name="scriptType" />, when a public constructor of it takes a service closed over a
+    /// type of its own compile (<c>ILogger&lt;TScript&gt;</c>, <c>ILogger&lt;HelperInTheSameFile&gt;</c>,
+    /// <c>IOptions&lt;Settings&lt;TScript&gt;&gt;</c>, ...): the container keeps what it resolved for the life of the
+    /// process, and with it that type and its whole compile, so the generation is never collected. The script still
+    /// loads and runs.
+    /// </summary>
+    private void WarnIfPinned(Type scriptType)
+    {
+        foreach (ConstructorInfo constructor in scriptType.GetConstructors())
+        {
+            foreach (ParameterInfo parameter in constructor.GetParameters())
+            {
+                if (ClosedOverTypeOf(parameter.ParameterType, scriptType.Assembly) is not { } compiledType)
+                    continue;
+
+                // Names only: a log record that held the types would hold the compile too, until it is written.
+                _logger.LogWarning(
+                    "Hot-reloaded script {Script} takes {ParameterType}, a service closed over {CompiledType} of its " +
+                    "own compile: the container keeps it for the life of the process, and with it this compile, " +
+                    "which is never unloaded. Take ILoggerFactory (or a non-generic service) instead",
+                    scriptType.FullName, parameter.ParameterType.ToString(), compiledType.ToString());
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The first of <paramref name="type" />'s generic arguments, at any depth, that <paramref name="compiled" />
+    /// defines; null when none is.
+    /// </summary>
+    private static Type? ClosedOverTypeOf(Type type, Assembly compiled)
+    {
+        if (!type.IsConstructedGenericType)
+            return null;
+
+        foreach (Type argument in type.GenericTypeArguments)
+        {
+            if (argument.Assembly == compiled)
+                return argument;
+
+            if (ClosedOverTypeOf(argument, compiled) is { } nested)
+                return nested;
+        }
+
+        return null;
     }
 
     private List<Type> FindScriptTypes<TBaseType>(Assembly assembly)
