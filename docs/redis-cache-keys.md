@@ -33,8 +33,8 @@ process uses all of them.
 
 | Service | Keys it reads and writes | Channels |
 |---|---|---|
-| identity | the login and registration budgets (`auth:source:{source}:failedLogins`, `auth:username:{sha256}:failedLogins`, `auth:source:{source}:accountsCreated`), MFA state (`auth:account:{accountId}:mfa`, `auth:mfa:hash:{sha256}`), email change (`auth:emailChange:{sha256}`, `auth:account:{accountId}:emailChangePending`, `auth:account:{accountId}:emailChangeSends`, `auth:email:{sha256}:emailChangeSends`), the email-verification send budgets (`email-verification:*`), launcher codes (`auth:launcherCode:{hash}`), game tickets (`auth:gameTicket:{hash}`, `auth:gameTicketIssue:{familyId}`), the game-auth records (`game-auth:{environment}:*`), the Steam web link's transactions and nonces (`steam-web:transaction:{id}`, `steam-web:nonce:{sha256}`); reads `world:{worldId}:ready` | publishes `world:accounts:disconnect`, `world:accounts:status` and `world:game-context:revoke` |
-| worlds | reads `world:{worldId}:ready`, `world:{worldId}:presence`, `presence:world:{worldId}:character:{characterId}` and `world:{worldId}:scripts` | publishes `world:{worldId}:maintenance` and `world:{worldId}:reload`; subscribes to `world:{worldId}:reload:result` |
+| identity | the login and registration budgets (`auth:source:{source}:failedLogins`, `auth:username:{sha256}:failedLogins`, `auth:source:{source}:accountsCreated`), MFA state (`auth:account:{accountId}:mfa`, `auth:mfa:hash:{sha256}`), email change (`auth:emailChange:{sha256}`, `auth:account:{accountId}:emailChangePending`, `auth:account:{accountId}:emailChangeSends`, `auth:email:{sha256}:emailChangeSends`), the email-verification send budgets (`email-verification:*`), launcher codes (`auth:launcherCode:{hash}`), game tickets (`auth:gameTicket:{hash}`, `auth:gameTicketIssue:{familyId}`), the game-auth records (`game-auth:{environment}:*`), the Steam web link's transactions and nonces (`steam-web:transaction:{id}`, `steam-web:nonce:{sha256}`), the world places and queue (`world:{worldId}:places`, `world:{worldId}:places:marks`, `world:{worldId}:queue`, `world:{worldId}:queue:checkins`, `world:{worldId}:queue:arrivals`, `world-queue:account:{accountId}`, #967); reads `world:{worldId}:ready` | publishes `world:accounts:disconnect`, `world:accounts:status` and `world:game-context:revoke` |
+| worlds | reads `world:{worldId}:ready`, `world:{worldId}:presence`, `presence:world:{worldId}:character:{characterId}`, `world:{worldId}:scripts`, and for the world list `world:{worldId}:places` and `world:{worldId}:queue:checkins` (#967) | publishes `world:{worldId}:maintenance` and `world:{worldId}:reload`; subscribes to `world:{worldId}:reload:result` |
 | commerce | the checkout budget (`commerce:{environment}:checkout:*`) | none |
 | distribution | none: it runs without `Application:Cache` and holds no Redis password | none |
 
@@ -50,14 +50,21 @@ servers sign in as the default user, with full access; the balance service uses 
 
 | User | Keys | Channels | Commands |
 |---|---|---|---|
-| `api-identity` | read and write `auth:source:*`, `auth:username:*`, `auth:account:*`, `auth:mfa:hash:*`, `auth:emailChange:*`, `auth:email:*`, `auth:launcherCode:*`, `auth:gameTicket:*`, `auth:gameTicketIssue:*`, `email-verification:*`, `game-auth:*`, `steam-web:*`; read `world:*:ready` | `world:accounts:disconnect`, `world:accounts:status`, `world:game-context:revoke` | `get set setex psetex getdel del unlink exists expire pexpire incr decr hget hset hmset hincrby multi exec discard eval evalsha script\|load publish` |
-| `api-worlds` | read `world:*:ready`, `world:*:presence`, `world:*:scripts`, `presence:world:*` | `world:*:maintenance`, `world:*:reload`, `world:*:reload:result` | `get publish subscribe unsubscribe` |
+| `api-identity` | read and write `auth:source:*`, `auth:username:*`, `auth:account:*`, `auth:mfa:hash:*`, `auth:emailChange:*`, `auth:email:*`, `auth:launcherCode:*`, `auth:gameTicket:*`, `auth:gameTicketIssue:*`, `email-verification:*`, `game-auth:*`, `steam-web:*`, `world:*:places`, `world:*:places:marks`, `world:*:queue`, `world:*:queue:checkins`, `world:*:queue:arrivals`, `world-queue:account:*`; read `world:*:ready` | `world:accounts:disconnect`, `world:accounts:status`, `world:game-context:revoke` | `get set setex psetex getdel del unlink exists expire pexpire incr decr hget hset hdel hvals hmset hincrby zadd zrem zscore zrank zcard zcount zrangebyscore zremrangebyscore multi exec discard eval evalsha script\|load publish` |
+| `api-worlds` | read `world:*:ready`, `world:*:presence`, `world:*:scripts`, `presence:world:*`, `world:*:places`, `world:*:queue:checkins` | `world:*:maintenance`, `world:*:reload`, `world:*:reload:result` | `get zcount publish subscribe unsubscribe` |
 | `api-commerce` | read and write `commerce:*` | none | `eval evalsha script\|load exists get incr expire set` |
 
 Every user also has the connection commands the client runs (`hello auth ping echo select client|setname
 client|setinfo client|id`) and nothing else: no `KEYS`, `SCAN`, `INFO`, `CONFIG`, `FLUSH*` or `ACL`. The commands the
 services' Lua scripts call are checked against the same rules. A key, channel or command added to a service needs its
 user's rules widened in the same change, or the service gets `NOPERM`.
+
+The world places and queue (#967) need the identity rules above before the identity release that writes them is
+deployed: without them its place script fails with `NOPERM` and every join answers 503. Their scripts call `GET SET
+DEL INCR HGET HSET HDEL HVALS ZADD ZREM ZSCORE ZRANK ZCARD ZRANGEBYSCORE ZREMRANGEBYSCORE`, and identity's own
+`/game/worlds` counts read with `ZCOUNT`, as the worlds service's lists do; a `NOPERM` on those reads is not an error
+the caller sees, only counts of 0. The scripts also touch another world's line keys (`world:{id}:queue` and
+`world:{id}:queue:checkins`) named from the waiting key, which the patterns above cover.
 
 ---
 
@@ -148,6 +155,98 @@ client must submit the hash back with a valid TOTP code within the TTL window. T
 
 ---
 
+## World places and queue (#967)
+
+The places each world has given out and the line of a full world ([World player limit](world-player-limit.md)).
+Identity is their only writer, and only through the Lua scripts of `RedisWorldPlaceStore`, each one atomic step; the
+scripts take "now" from identity's `TimeProvider` as an argument and never call Redis `TIME`. An entry whose time has
+passed does not count and is removed by the next script that runs for its world. The worlds service and identity's
+`/game/worlds` read the counts with `ZCOUNT` over the entries still current (`RedisWorldOccupancy`).
+
+**One Redis instance only.** Joining a line leaves the account's line in another world, which the script names from
+the account's waiting key rather than from its declared keys (spelled as `CacheKeys` spells them), and an activation
+removes the account's place in every configured world in one call. That holds on a single Redis instance, which every
+environment runs, and would not on a Redis Cluster.
+
+### `world:{worldId}:places`
+
+| Field | Value |
+|---|---|
+| **`CacheKeys` member** | `CacheKeys.WorldPlaces(ushort worldId)` |
+| **Type** | Sorted set: member the account id, score the moment the place expires (Unix ms) |
+| **Owner (writer)** | API, identity: `RedisWorldPlaceStore` (a ticket's issue, the session's redemption, activation, heartbeats and end) |
+| **Consumer** | API, identity (the scripts, and `RedisWorldOccupancy` for `/game/worlds`); API, worlds: `RedisWorldOccupancy` (`WorldDto.OnlineCount`) |
+| **TTL** | None on the key; each member expires by its score |
+
+**Purpose:** The ledger. Every admitted account holds one place per world: in the world, at character select, holding
+a join ticket (until 15 s after its expiry), or held after a drop (from part 2). Activation removes the account's place
+in every other world.
+
+### `world:{worldId}:places:marks`
+
+| Field | Value |
+|---|---|
+| **`CacheKeys` member** | `CacheKeys.WorldPlaceMarks(ushort worldId)` |
+| **Type** | Hash: account id to `h` (a place held after a drop) or `t:{enqueuedAtMs}` (a turn taken from the line, not yet used) |
+| **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
+| **Consumer** | API, identity: the scripts |
+| **TTL** | None; a field goes with its place |
+
+**Purpose:** The kind of each place, which a sorted set cannot hold: an ordinary place has no field. It lets the scripts
+count held places, count a turn that expired unused, and answer a returning or promoted account as such.
+
+### `world:{worldId}:queue`
+
+| Field | Value |
+|---|---|
+| **`CacheKeys` member** | `CacheKeys.WorldQueue(ushort worldId)` |
+| **Type** | Sorted set: member the account id, score its arrival number (the priority band, always 0, in the high bits) |
+| **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
+| **Consumer** | API, identity: the scripts |
+| **TTL** | None; a waiter leaves it with its check-in deadline |
+
+**Purpose:** A full world's line, in strict arrival order (from part 4).
+
+### `world:{worldId}:queue:checkins`
+
+| Field | Value |
+|---|---|
+| **`CacheKeys` member** | `CacheKeys.WorldQueueCheckIns(ushort worldId)` |
+| **Type** | Sorted set: member the account id, score the moment the waiter leaves the line unless it checks in again (Unix ms) |
+| **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
+| **Consumer** | API, identity (the scripts, and `RedisWorldOccupancy`); API, worlds: `RedisWorldOccupancy` (`WorldDto.QueueLength`) |
+| **TTL** | None; each member expires by its score |
+
+**Purpose:** Removes a waiter that stopped checking in, so the line never stalls. It stores the removal deadline, not
+the last check-in, so a waiter told "every 15 s" keeps the 45 s it was given when the line moves it into the first ten.
+
+### `world:{worldId}:queue:arrivals`
+
+| Field | Value |
+|---|---|
+| **`CacheKeys` member** | `CacheKeys.WorldQueueArrivals(ushort worldId)` |
+| **Type** | String (an `INCR` counter) |
+| **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
+| **Consumer** | API, identity: the scripts |
+| **TTL** | None |
+
+**Purpose:** The arrival number that orders the line.
+
+### `world-queue:account:{accountId}`
+
+| Field | Value |
+|---|---|
+| **`CacheKeys` member** | `CacheKeys.WorldQueueWaiting(long accountId)` (prefix `CacheKeys.WorldQueueWaitingPrefix`) |
+| **Type** | String: `{worldId}:{enqueuedAtMs}` |
+| **Owner (writer)** | API, identity: `RedisWorldPlaceStore` |
+| **Consumer** | API, identity: the scripts |
+| **TTL** | 24 hours, as garbage collection only; the key goes when the account leaves the line |
+
+**Purpose:** One line per account: the world the account waits for and since when. Joining another world's line
+leaves the first, and a turn's wait is measured from it.
+
+---
+
 ## Pub/Sub Channels
 
 Pub/Sub channels carry event notifications between services. There is no persistence — a message is only received by
@@ -235,6 +334,12 @@ API-layer invalidation of cached account state.
 | `auth:launcherCode:{hash}` | String | 60 s | API identity / `LauncherAuthCodes` | API identity / `LauncherAuthCodes` |
 | `auth:gameTicket:{hash}` | String | 60 s | API identity / `RedisGameTicketStore` | API identity / `GameAuthorizationService` |
 | `game-auth:{env}:*` | String | per record | API identity / `RedisGameContextStore` | API identity |
+| `world:{id}:places` | Sorted set | per member (score) | API identity / `RedisWorldPlaceStore` | API identity; API worlds / `RedisWorldOccupancy` |
+| `world:{id}:places:marks` | Hash | with its place | API identity / `RedisWorldPlaceStore` | API identity |
+| `world:{id}:queue` | Sorted set | with its check-in | API identity / `RedisWorldPlaceStore` | API identity |
+| `world:{id}:queue:checkins` | Sorted set | per member (score) | API identity / `RedisWorldPlaceStore` | API identity; API worlds / `RedisWorldOccupancy` |
+| `world:{id}:queue:arrivals` | String | — | API identity / `RedisWorldPlaceStore` | API identity |
+| `world-queue:account:{id}` | String | 24 h | API identity / `RedisWorldPlaceStore` | API identity |
 | `world:accounts:disconnect` | Pub/Sub channel | — | Auth / `GameLoginCompletion`; API identity; `MFAService` | World / `WorldServer`; Auth / `AuthServer` |
 | `world:accounts:status` | Pub/Sub channel | — | API identity / `AccountService` | World / `WorldServer`; Auth / `AuthServer` |
 | `auth:accounts:online` | Pub/Sub channel | — | Auth / `GameLoginCompletion` | *(reserved)* |
