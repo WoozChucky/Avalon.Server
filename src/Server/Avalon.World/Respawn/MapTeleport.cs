@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
 using Avalon.World.Entities;
+using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
@@ -97,6 +98,15 @@ public sealed class MapTeleport(ILogger<MapTeleport> logger, IWorld world, IChar
             // Read first, so a build that failed is logged whatever became of the character meanwhile (#973).
             if (!built.IsCompletedSuccessfully)
             {
+                // A build abandoned at its deadline (#969) was logged at Error by the registry, once for all its
+                // requesters; here the player is told, and the move ends.
+                if (InstanceBuildTimeoutException.TellIfTimedOut(connection, built.Exception))
+                {
+                    logger.LogWarning("Teleport of {Name} to map {Map} failed: its instance was not built in time",
+                        character.Name, template.Id.Value);
+                    return;
+                }
+
                 logger.LogError(built.Exception, "Teleport of {Name} to map {Map} failed: its instance could not be built",
                     character.Name, template.Id.Value);
                 return;

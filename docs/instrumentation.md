@@ -212,9 +212,23 @@ what shows them:
 - **`unknown_map` and `no_portal`** are requests no client's interface makes.
 - **`no_instance` and `instance_released`** are the server's own: each also writes an Error or a Warning.
 
-Not counted: a portal entry whose instance could not be built (no reply; logged at Error), one whose character left
+Not counted: a portal entry whose instance could not be built (no reply; logged at Error, or, for a build abandoned at
+its deadline, a system line and a Warning, counted under `world.instance.build_timeouts`), one whose character left
 the connection before it arrived, and the refusals of the other moves: an item's teleport (`MapTeleport`) answers
 through its own code, and a return to town refuses nothing by a reply.
+
+### Instance build timeouts
+
+| Metric | Prometheus | Measures |
+|---|---|---|
+| `world.instance.build_timeouts` | `world_instance_build_timeouts_total` | Instance builds abandoned at their 30 s deadline (#969, `InstanceRegistry.BuildDeadline`, [instanced maps](instanced-maps.md#build-deadline)), every request waiting on one answered with the failure. Tagged `map.type` (`Town` or `Normal`; a party's instance is `Normal`). On the world's meter (`world-server`) |
+| `world.instance.builds_abandoned_running` | `world_instance_builds_abandoned_running` | Observable gauge (`{builds}`): builds abandoned at their deadline whose bake has not ended yet. Nothing cancels a bake (owner decision), so each still holds a thread-pool thread or a bake's memory; under load abandonments can stack. Up by one at each abandonment, down by one when its late outcome arrives (an instance discarded or a failure), read on the exporter's thread. No tags. On the world's meter (`world-server`) |
+
+A server fault, never a player's: a build that hangs (a navmesh bake, #924, or the thread pool it shares, #960). Any
+count is worth an alert, and a `builds_abandoned_running` that keeps climbing is bakes that never end, piling up. Each is counted once, on the tick, and writes one Error (`Avalon.World.Instances.InstanceRegistry`)
+naming the build's kind, map and owner, how many requests were waiting and how many abandoned builds are still running
+(that one included); a build that ends after it was abandoned
+writes a Warning naming the instance it discarded, or its failure, and how long it took.
 
 ### Work queue refusals and unserved admissions
 

@@ -497,7 +497,7 @@ public class World : IWorld
         IChunkLayoutInstanceFactory chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
         _abandonedInstanceLifetime = TimeSpan.FromMinutes(_configuration.Value.AbandonedInstanceLifetimeMinutes);
         var registry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory, _tick,
-            _abandonedInstanceLifetime, _instanceTicker.Broadcasts);
+            _abandonedInstanceLifetime, _instanceTicker.Broadcasts, _serviceProvider.GetService<TimeProvider>());
         _registry = registry;
         InstanceRegistry = registry;
         PartyInstances = registry;

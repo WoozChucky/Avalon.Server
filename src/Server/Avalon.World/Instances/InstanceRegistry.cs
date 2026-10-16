@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
@@ -35,6 +36,15 @@ namespace Avalon.World.Instances;
 /// requesters arriving while it runs share it rather than baking a second copy.
 /// </para>
 /// <para>
+/// <b>A build has a deadline (#969).</b> One still running <see cref="BuildDeadline" /> after it started is abandoned
+/// on the tick: a timer on the world's clock queues the deadline beside the finished builds, and
+/// <see cref="PublishFinished" /> drops the pending entry, so the next request starts a new build, and hands every
+/// requester an <see cref="InstanceBuildTimeoutException" />, which each answers through the failure path it takes for
+/// any failed build, ending its move. It is counted (<c>world.instance.build_timeouts</c>) and logged at Error, once
+/// per build. Nothing is cancelled: the bake runs on, and if it ever ends its outcome is discarded where it is
+/// published (an instance it built is disposed, never registered). Nothing is added to a tick that has no deadline due.
+/// </para>
+/// <para>
 /// Tick thread only, except <see cref="ActiveInstances" />, <see cref="GetInstanceById" /> and
 /// <see cref="IsPartyInstance" />, which read the instance list, a concurrent dictionary, so telemetry may read it
 /// from its own thread. The writers assert the tick thread while <see cref="TickThreadGuard" /> is enabled (#639).
@@ -64,6 +74,24 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     public static readonly TimeSpan DefaultAbandonedInstanceLifetime =
         TimeSpan.FromMinutes(GameConfiguration.DefaultAbandonedInstanceLifetimeMinutes);
 
+    /// <summary>
+    /// How long a build may run before it is abandoned and its requesters answered with an
+    /// <see cref="InstanceBuildTimeoutException" /> (#969, owner decision): long enough for the slowest forest bake under
+    /// load (#924), short enough for a player waiting on a move.
+    /// </summary>
+    public static readonly TimeSpan BuildDeadline = TimeSpan.FromSeconds(30);
+
+    private static readonly KeyValuePair<string, object?> s_townTag = new("map.type", nameof(MapType.Town));
+    private static readonly KeyValuePair<string, object?> s_normalTag = new("map.type", nameof(MapType.Normal));
+
+    // A build's deadline passed: queued beside the finished builds, so it is acted on by PublishFinished, on the tick.
+    // Runs on whichever thread the clock's timer fires on.
+    private static readonly TimerCallback s_deadlinePassed = static state =>
+    {
+        (InstanceRegistry registry, PendingBuild pending) = ((InstanceRegistry, PendingBuild))state!;
+        registry._finished.Enqueue(new FinishedBuild(pending, Outcome: null));
+    };
+
     // The re-entry window for an abandoned instance; World passes the same value to ProcessExpiredInstances.
     private readonly TimeSpan _abandonedLifetime;
 
@@ -92,24 +120,31 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     // Written by a build's last step, on whichever thread it ends on; read only by PublishFinished, on the tick.
     private readonly ConcurrentQueue<FinishedBuild> _finished = new();
 
+    // Builds abandoned at their deadline whose outcome has not come yet (#969): their bakes still hold a thread-pool
+    // thread or a bake's memory. Written on the tick; read by the gauge on the exporter's thread.
+    private int _abandonedRunning;
+
     private readonly ILogger<InstanceRegistry> _logger;
     private readonly IAvalonMapManager _mapManager;
     private readonly IChunkLayoutInstanceFactory _chunkLayoutFactory;
     private readonly TickThreadGuard? _tick;
     private readonly BroadcastSchedule? _broadcasts;
+    private readonly TimeProvider _time;
 
     /// <param name="broadcasts">
     /// The world's broadcast schedule (#975, <see cref="InstanceTicker.Broadcasts" />): each instance published takes the
     /// slot with the fewest live instances, and frees it when it is removed or expires. Without one, every instance starts
     /// its broadcast clock at 0.
     /// </param>
+    /// <param name="time">The world's clock, which times each build's <see cref="BuildDeadline" />; the system clock when none is given.</param>
     public InstanceRegistry(
         ILoggerFactory loggerFactory,
         IAvalonMapManager mapManager,
         IChunkLayoutInstanceFactory chunkLayoutFactory,
         TickThreadGuard? tickThread = null,
         TimeSpan? abandonedInstanceLifetime = null,
-        BroadcastSchedule? broadcasts = null)
+        BroadcastSchedule? broadcasts = null,
+        TimeProvider? time = null)
     {
         _logger = loggerFactory.CreateLogger<InstanceRegistry>();
         _abandonedLifetime = abandonedInstanceLifetime ?? DefaultAbandonedInstanceLifetime;
@@ -117,9 +152,17 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         _chunkLayoutFactory = chunkLayoutFactory;
         _tick = tickThread;
         _broadcasts = broadcasts;
+        _time = time ?? TimeProvider.System;
     }
 
     public IReadOnlyCollection<IMapInstance> ActiveInstances => _instances.Values.ToList();
+
+    /// <summary>
+    /// Builds abandoned at their deadline that are still running (#969): nothing cancels a bake, so under load
+    /// abandonments can stack. Any thread; the gauge <c>world.instance.builds_abandoned_running</c> reads it. On the
+    /// concrete registry, never on the modding API's <see cref="IInstanceRegistry" />.
+    /// </summary>
+    public int AbandonedBuildsRunning => Volatile.Read(ref _abandonedRunning);
 
     /// <summary>
     /// The live instances for <c>World.Update</c> to tick, in the order they were published (#851). The same array tick
@@ -156,7 +199,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             return Task.FromResult<IMapInstance>(candidate);
 
         if (_pendingTownBuilds.TryGetValue(templateId, out PendingBuild? pending))
-            return pending.Done.Task;
+            return pending.Join();
 
         _logger.LogInformation("All Town instances for map {TemplateId} are at capacity; creating a new one", templateId);
         pending = new PendingBuild(PendingKind.Town, 0, templateId);
@@ -202,7 +245,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             return Task.FromResult<IMapInstance>(existing);
 
         if (_pendingNormalBuilds.TryGetValue((characterId, templateId), out PendingBuild? pending))
-            return pending.Done.Task;
+            return pending.Join();
 
         pending = new PendingBuild(PendingKind.Normal, characterId, templateId);
         _pendingNormalBuilds[(characterId, templateId)] = pending;
@@ -236,7 +279,7 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             return Task.FromResult<IMapInstance>(existing);
 
         if (_pendingPartyBuilds.TryGetValue((party.Value, templateId), out PendingBuild? pending))
-            return pending.Done.Task;
+            return pending.Join();
 
         pending = new PendingBuild(PendingKind.Party, party.Value, templateId);
         _pendingPartyBuilds[(party.Value, templateId)] = pending;
@@ -332,8 +375,10 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
     /// <summary>
     /// Publishes every build that has finished since the last call: registers the instance, writes its index entry,
     /// drops the pending entry, then completes the task its requesters hold (a failed build hands them its failure
-    /// instead). Tick thread only; <c>World.Update</c> calls it first thing. Returns the instances it registered, for
-    /// the world to bring up to date with the script hot reloads applied while they were building.
+    /// instead). A build whose deadline passed first is abandoned here (<see cref="Abandon" />), and its outcome, if it
+    /// ever comes, discarded (<see cref="Discard" />). Tick thread only; <c>World.Update</c> calls it first thing.
+    /// Returns the instances it registered, for the world to bring up to date with the script hot reloads applied while
+    /// they were building.
     /// </summary>
     public IReadOnlyList<MapInstance> PublishFinished()
     {
@@ -351,19 +396,33 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             // the failure), and the builds behind it are still published.
             try
             {
-                // First, so whatever follows, the next request finds the instance or starts afresh, never this entry.
-                Forget(pending);
-
-                if (!done.Outcome.IsCompletedSuccessfully)
+                if (done.Outcome is not { } outcome)
                 {
-                    if (done.Outcome.IsCanceled)
-                        pending.Done.TrySetCanceled(CancellationToken.None);
-                    else
-                        pending.Done.TrySetException(done.Outcome.Exception!.InnerExceptions);
+                    Abandon(pending);
                     continue;
                 }
 
-                MapInstance instance = done.Outcome.Result;
+                // Its outcome is here, so its deadline no longer matters; one that fired meanwhile finds it answered.
+                pending.Deadline?.Dispose();
+                if (pending.Abandoned)
+                {
+                    Discard(pending, outcome);
+                    continue;
+                }
+
+                // First, so whatever follows, the next request finds the instance or starts afresh, never this entry.
+                Forget(pending);
+
+                if (!outcome.IsCompletedSuccessfully)
+                {
+                    if (outcome.IsCanceled)
+                        pending.Done.TrySetCanceled(CancellationToken.None);
+                    else
+                        pending.Done.TrySetException(outcome.Exception!.InnerExceptions);
+                    continue;
+                }
+
+                MapInstance instance = outcome.Result;
                 Track(instance);
                 Index(pending, instance);
 
@@ -380,6 +439,60 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
         }
 
         return published;
+    }
+
+    /// <summary>
+    /// The build's deadline passed (#969). Unless its outcome was published first, the build is abandoned: its pending
+    /// entry dropped, so the next request starts a new build, and every requester handed an
+    /// <see cref="InstanceBuildTimeoutException" />, then the timeout counted and logged at Error, once. The build itself
+    /// runs on; <see cref="Discard" /> takes its outcome if it ever comes.
+    /// </summary>
+    private void Abandon(PendingBuild pending)
+    {
+        if (pending.Done.Task.IsCompleted)
+            return; // published (or failed) before the deadline was acted on
+
+        pending.Abandoned = true;
+        int stillRunning = Interlocked.Increment(ref _abandonedRunning);
+        pending.Deadline?.Dispose();
+        Forget(pending);
+        pending.Done.TrySetException(
+            new InstanceBuildTimeoutException(pending.TemplateId, BuildDeadline, _time.GetUtcNow().UtcDateTime));
+
+        DiagnosticsConfig.World.InstanceBuildTimeouts.Add(1, pending.Kind == PendingKind.Town ? s_townTag : s_normalTag);
+        // No instance id: the build has not made its instance yet. Discard names it if it ever does.
+        _logger.LogError(
+            "The {Kind} build of map {TemplateId} (owner {OwnerId}) did not finish within {DeadlineSeconds} s: abandoned, " +
+            "and its {Requesters} requester(s) answered with a failure; {AbandonedRunning} abandoned build(s) still running",
+            pending.Kind, pending.TemplateId, pending.OwnerId, BuildDeadline.TotalSeconds, pending.Requesters,
+            stillRunning);
+    }
+
+    /// <summary>
+    /// The outcome of a build abandoned at its deadline: never published. Its requesters were answered at the deadline
+    /// and its pending entry is gone, so an instance it built is disposed, as a removed one is, without ever having been
+    /// registered or indexed; a failure is only logged, since no requester is left to log it.
+    /// </summary>
+    private void Discard(PendingBuild pending, Task<MapInstance> outcome)
+    {
+        // First: it has stopped running, whatever follows.
+        Interlocked.Decrement(ref _abandonedRunning);
+        TimeSpan took = _time.GetElapsedTime(pending.StartedAt);
+        if (outcome.IsCompletedSuccessfully)
+        {
+#pragma warning disable MA0045 // the task has completed successfully: reading its result does not block
+            MapInstance late = outcome.Result;
+#pragma warning restore MA0045
+            late.Dispose();
+            _logger.LogWarning(
+                "The abandoned {Kind} build of map {TemplateId} finished after {Seconds:0.0} s; its instance {InstanceId} was discarded",
+                pending.Kind, pending.TemplateId, took.TotalSeconds, late.InstanceId);
+            return;
+        }
+
+        _logger.LogWarning(outcome.Exception,
+            "The abandoned {Kind} build of map {TemplateId} ended after {Seconds:0.0} s without an instance",
+            pending.Kind, pending.TemplateId, took.TotalSeconds);
     }
 
     /// <summary>
@@ -418,10 +531,12 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 
     /// <summary>
     /// Starts the build. Its synchronous start (the template lookup and the factory's first step) runs here, as it
-    /// always has; the rest runs wherever the factory's awaits take it, and its last step only queues the outcome.
+    /// always has; the rest runs wherever the factory's awaits take it, and its last step only queues the outcome. A
+    /// build still running here gets its deadline (#969): a timer on the world's clock, whose firing only queues it.
     /// </summary>
     private void StartBuild(PendingBuild pending, uint? ownerCharacterId, PartyId? ownerParty)
     {
+        pending.StartedAt = _time.GetTimestamp();
         Task<MapInstance> build;
         try
         {
@@ -437,12 +552,19 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             build = Task.FromException<MapInstance>(e);
         }
 
+        // One box for both callbacks' state.
+        object state = (this, pending);
+
+        // Set on the tick, before the outcome can be published (on the tick too), which disposes it.
+        if (!build.IsCompleted)
+            pending.Deadline = _time.CreateTimer(s_deadlinePassed, state, BuildDeadline, Timeout.InfiniteTimeSpan);
+
         _ = build.ContinueWith(static (outcome, state) =>
             {
                 (InstanceRegistry? registry, PendingBuild? pendingBuild) = ((InstanceRegistry, PendingBuild))state!;
                 registry._finished.Enqueue(new FinishedBuild(pendingBuild, outcome));
             },
-            (this, pending), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            state, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     private void Forget(PendingBuild pending)
@@ -529,7 +651,27 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
 
         /// <summary>The party was forgotten while this built: its instance is registered but not indexed.</summary>
         public bool Forgotten { get; set; }
+
+        /// <summary>How many requests were handed <see cref="Done" />'s task: the one that started the build, and every one that joined it.</summary>
+        public int Requesters { get; private set; } = 1;
+
+        /// <summary>When the build started, as the world clock's timestamp.</summary>
+        public long StartedAt { get; set; }
+
+        /// <summary>The timer of its <see cref="BuildDeadline" />, while it runs; disposed once it is published or abandoned.</summary>
+        public ITimer? Deadline { get; set; }
+
+        /// <summary>Its deadline passed first (#969): its requesters were answered with the timeout, and its outcome is discarded.</summary>
+        public bool Abandoned { get; set; }
+
+        /// <summary>A request joining the build in flight: it waits on the same task.</summary>
+        public Task<IMapInstance> Join()
+        {
+            Requesters++;
+            return Done.Task;
+        }
     }
 
-    private readonly record struct FinishedBuild(PendingBuild Build, Task<MapInstance> Outcome);
+    /// <param name="Outcome">The build's task, ended; null when it is the build's deadline that passed.</param>
+    private readonly record struct FinishedBuild(PendingBuild Build, Task<MapInstance>? Outcome);
 }

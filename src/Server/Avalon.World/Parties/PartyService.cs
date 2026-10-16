@@ -422,7 +422,8 @@ public sealed class PartyService(IOptions<GameConfiguration> options, TimeProvid
     /// A countdown's return to town failed (#700). Retried after <c>PartyReturnRetrySeconds</c>, logged at Warning,
     /// while the character is still online, still inside the instance its countdown was for, and not back in that
     /// party; at most <see cref="MaxReturnRetries" /> times, and the last failure is logged at Error and given up, as
-    /// is a failure that will not be retried. A retry says nothing to the player: its countdown already reached zero.
+    /// is a failure that will not be retried. A retry says nothing to the player: its countdown already reached zero
+    /// (a town build abandoned at its deadline has had <c>TownReturn</c> send its own line, #969).
     /// </summary>
     public void ReturnFailed(uint characterId, Exception failure)
     {

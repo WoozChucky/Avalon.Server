@@ -152,7 +152,7 @@ public sealed class ScenarioWorld : IDisposable
         // The registry places each instance it publishes on the ticker's broadcast schedule, as World's does (#975).
         _ticker = new InstanceTicker(_failures, _meter, Clock);
         _registry = new InstanceRegistry(NullLoggerFactory.Instance, new ScenarioMapManager(_templates), _factory,
-            broadcasts: _ticker.Broadcasts);
+            broadcasts: _ticker.Broadcasts, time: Clock);
         _world = new ScenarioWorldHost(configuration, reference?.Data, _templates, _registry);
 
         _reference = reference;

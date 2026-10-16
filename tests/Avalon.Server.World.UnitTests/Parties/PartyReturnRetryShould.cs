@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World;
+using Avalon.World.Instances;
 using Avalon.World.Parties;
 using Avalon.World.Public;
 using Avalon.World.Public.Enums;
@@ -32,6 +33,7 @@ public class PartyReturnRetryShould
     private readonly TownReturn _town;
     private int _lookups;
     private int _failuresLeft;
+    private int _buildTimeoutsLeft;
 
     public PartyReturnRetryShould()
     {
@@ -48,7 +50,11 @@ public class PartyReturnRetryShould
 
         _townInstance.InstanceId.Returns(Guid.NewGuid());
         IInstanceRegistry registry = Substitute.For<IInstanceRegistry>();
-        registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(Task.FromResult(_townInstance));
+        registry.GetOrCreateTownInstanceAsync(Arg.Any<MapTemplateId>(), Arg.Any<ushort>()).Returns(_ =>
+            _buildTimeoutsLeft-- > 0
+                ? Task.FromException<IMapInstance>(new InstanceBuildTimeoutException(s_townMap, InstanceRegistry.BuildDeadline,
+                    DateTime.UnixEpoch))
+                : Task.FromResult(_townInstance));
         _world.InstanceRegistry.Returns(registry);
         _world.MapTemplates.Returns(new List<MapTemplate>
         {
@@ -83,10 +89,19 @@ public class PartyReturnRetryShould
     private IEnumerable<(LogLevel Level, Exception? Exception, string Message)> Warnings =>
         _log.Entries.Where(e => e.Level == LogLevel.Warning);
 
-    [Fact]
-    public void Retry_a_failed_return_after_the_retry_delay()
+    /// <param name="buildTimedOut">
+    /// The failure is the town build abandoned at its deadline (#969) rather than the town lookup: the player is told
+    /// once that the return is being tried again, since the countdown retries it.
+    /// </param>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Retry_a_failed_return_after_the_retry_delay(bool buildTimedOut)
     {
-        _failuresLeft = 1;
+        if (buildTimedOut)
+            _buildTimeoutsLeft = 1;
+        else
+            _failuresLeft = 1;
         _w.Parties.Leave(_c.Id);
         _c.Clear();
 
@@ -96,7 +111,7 @@ public class PartyReturnRetryShould
         Assert.Equal(s_partyInstance, _c.Character.InstanceId);
         Assert.False(_c.Connection.RespawnInFlight);
         Assert.True(_w.Parties.InCountdown(_c.Id));
-        Assert.Contains(Warnings, e => e.Exception is InvalidOperationException);
+        Assert.Contains(Warnings, e => e.Exception is InvalidOperationException or InstanceBuildTimeoutException);
         Assert.Empty(_log.Errors);
 
         After(4);
@@ -110,7 +125,8 @@ public class PartyReturnRetryShould
         Assert.False(_c.Connection.RespawnInFlight);
         Assert.False(_w.Parties.InCountdown(_c.Id));
         Assert.Empty(_log.Errors);
-        Assert.Empty(_c.Lines()); // a retry says nothing: the countdown already reached zero
+        // A retry says nothing: the countdown already reached zero. A timed-out build has said it is trying again.
+        Assert.Equal(buildTimedOut ? [InstanceBuildTimeoutException.RetryingMessage] : [], _c.Lines());
 
         After(60);
         Assert.Equal(2, _lookups);
