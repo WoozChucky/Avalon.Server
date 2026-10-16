@@ -314,12 +314,12 @@ succeeds.
 | `avalon.world.places.held` | `avalon_world_places_held` | Gauge: places held after a dropped connection |
 | `avalon.world.queue.length` | `avalon_world_queue_length` | Gauge: accounts waiting in the line |
 | `avalon.world.places.limit` | `avalon_world_places_limit` | Gauge: the stored player limit, only for a world that has one |
-| `avalon.world.queue.outcomes` | `avalon_world_queue_outcomes_total` | Counter, tag `reason`: `entered`, `cancelled`, `timed_out`, `turn_expired`, `refused_at_cap` |
+| `avalon.world.queue.outcomes` | `avalon_world_queue_outcomes_total` | Counter, tag `reason`: `entered`, `cancelled`, `timed_out`, `turn_expired`, `refused_at_cap`, `refused_locked_out` (a lapsed place's lockout, not the cap) |
 | `avalon.world.queue.wait` | `avalon_world_queue_wait_seconds_bucket` | Histogram: seconds in the line of those who entered |
 
 On a world with a limit, `places.taken` at the limit with `queue.length` above zero is a full world working as meant;
 `outcomes{reason="timed_out"}` rising fast means waiters stop checking in (a client that does not poll), and
-`refused_at_cap` that the line is at `Application:WorldPlaces:QueueCapacity`. The world's own
+`refused_at_cap` that the line is at `Application:WorldPlaces:QueueCapacity` (`refused_locked_out` counts the lockout of a lapsed place apart). The world's own
 `world.admission.backstop_refusals` is above, beside the world's admission counters.
 
 ## Correlated tick phase traces

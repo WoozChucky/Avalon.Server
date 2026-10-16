@@ -690,7 +690,8 @@ Section: `Application:RateLimiting`, read by every API service (#561)
 | `AnonymousPermitsPerMinute`     | int  | `60`    | Requests a minute per source for a caller that is not signed in |
 | `AuthenticatedPermitsPerMinute` | int  | `300`   | Requests a minute per account for a caller with a valid access token or personal access token |
 | `ClientAuthPermitsPerMinute`    | int  | `20`    | Identity: launcher sign-in requests (`client/auth`: code, token, refresh, revoke) a minute per source, on top of the above (#591) |
-| `QueuePermitsPerMinute`         | int  | `30`    | Identity: a full world's queue check-ins and leaves (`/game/queue/status`, `/game/queue/leave`, #967) a minute per account, counted instead of the limits above, which those two calls are out of ([the queue](world-player-limit.md#the-queue)); a source may also present at most 30 credentials a minute that are not current |
+| `QueuePermitsPerMinute`         | int  | `30`    | Identity: a full world's queue check-ins and leaves (`/game/queue/status`, `/game/queue/leave`, #967) a minute per account, counted instead of the limits above, which those two calls are out of ([the queue](world-player-limit.md#the-queue)) |
+| `QueueSourcePermitsPerMinute`   | int  | `600`   | Identity: the same calls a minute per source, counted on every call before its credential is read, so no source makes unbounded Redis reads; generous, since a household's waiters share it (40 waiters checking in every 5 s fit). A source that has presented 30 credentials in a minute that were not current is not refused for it: its reads go two at a time. Exempt sources are not bounded. The queue's refusals ask again within 2 s |
 | `WorkloadPermitsPerMinute`      | int  | `16384` | Identity: requests a minute per authenticated game server on the game workload listener, every player's lease heartbeat included, counted instead of the limits above ([game server admission](steam-authentication-workloads.md)) |
 | `ExemptSources`                 | string[] | `[]` | Sources exempt from every per-source limit, for load machines: IP addresses or networks in CIDR form. See [Exempt sources](#exempt-sources) below |
 
@@ -727,8 +728,8 @@ Application__RateLimiting__ClientAuthPermitsPerMinute=20
 
 The Helm chart passes `rateLimiting.enabled`, `rateLimiting.anonymousPermitsPerMinute`,
 `rateLimiting.authenticatedPermitsPerMinute` and `rateLimiting.clientAuthPermitsPerMinute` (the last only to a
-release that runs identity), each only when set, and `rateLimiting.exemptSources` (below); empty, the API's defaults apply. `WorkloadPermitsPerMinute` and
-`QueuePermitsPerMinute` have no chart value.
+release that runs identity), each only when set, and `rateLimiting.exemptSources` (below); empty, the API's defaults apply. `WorkloadPermitsPerMinute`,
+`QueuePermitsPerMinute` and `QueueSourcePermitsPerMinute` have no chart value.
 
 The launcher sign-in endpoints (`client/auth/*`, #591) also carry the named policy `client-auth`: a
 separate sliding window per source (the same source rule), counted in addition to the limits above, so a
