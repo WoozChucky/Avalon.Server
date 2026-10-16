@@ -26,10 +26,12 @@ public readonly record struct BotAck(uint Seq, float X, float Z, float VelX, flo
 /// which sends through it as an <see cref="IPartyMember"/>. Disposed once nothing uses it any more: after its leave,
 /// its life loop and the refresher are done.
 /// </summary>
+/// <param name="dialHost">The host to dial instead of the join reply's, or null.</param>
+/// <param name="proxyHeader">Each world connection starts with a PROXY v2 header (<c>--proxy-header</c>); never the REST calls.</param>
 /// <param name="signOuts">The ramp's sign-out breaker, shared by its bots and its refresher; null for one of the bot's own.</param>
 /// <param name="leaves">The ramp's leave breaker, shared by its bots; null for one of the bot's own.</param>
 public sealed class Bot(int index, string account, string password, ApiClient api, ushort worldId, string? dialHost,
-    BotMetrics metrics, SignOutBreaker? signOuts = null, Breaker? leaves = null) : IPartyMember, IDisposable
+    bool proxyHeader, BotMetrics metrics, SignOutBreaker? signOuts = null, Breaker? leaves = null) : IPartyMember, IDisposable
 {
     /// <summary>The version the handshake sends: the protocol the provider attempt names.</summary>
     public const string ClientVersion = ApiClient.ProtocolVersion;
@@ -541,7 +543,7 @@ public sealed class Bot(int index, string account, string password, ApiClient ap
         _state = BotState.Ticketed;
 
         WorldConnection connection = await StepAsync("connect", s_connectTimeout,
-            token => WorldConnection.ConnectAsync(ticket.Destination, dialHost, token), ct);
+            token => WorldConnection.ConnectAsync(ticket.Destination, dialHost, proxyHeader, token), ct);
         _seq = 0;
         lock (_ackLock)
             _lastAck = default;

@@ -47,7 +47,7 @@ public static class CheckCommand
                 : $"Run {run.RunId} has {run.Bots.Count} bots: a party of {size} from --bot takes 0 to {run.Bots.Count - size}.");
         }
 
-        string dialling = options.Dial is null ? "" : $", dialling {options.Dial}";
+        string dialling = CommandLine.DiallingText(options.Dial, options.ProxyHeader) is { } text ? $", {text}" : "";
         string who = size == 1
             ? $"Bot {options.Bot} ({run.Bots[options.Bot]})"
             : $"Bots {options.Bot} to {options.Bot + size - 1} ({string.Join(", ", run.Bots.Skip(options.Bot).Take(size))}), one party,";
@@ -71,7 +71,7 @@ public static class CheckCommand
                     Note = line => printNote(member + line),
                 }
                 : null;
-            bots[i] = new Bot(index, run.Bots[index], run.BotPassword, api, run.WorldId, options.Dial, metrics)
+            bots[i] = new Bot(index, run.Bots[index], run.BotPassword, api, run.WorldId, options.Dial, options.ProxyHeader, metrics)
             {
                 Behaviour = options.Behaviour,
                 Fighter = fighter,

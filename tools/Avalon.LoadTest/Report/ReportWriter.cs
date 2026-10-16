@@ -104,7 +104,7 @@ public static class ReportWriter
         md.AppendLine($"- Packet encryption, as the world's admission replies named it: {BotMetrics.EncryptionText(result.Admissions)}");
         md.AppendLine(Invariant(
             $"- Ramp: start {options.Start}, step {options.Step}, hold {options.Hold.TotalSeconds:0} s (judged on the last {RampRunner.JudgedWindow(options.Hold).TotalSeconds:0} s), max {options.Max}, {options.SignInConcurrency} sign-ins at once, input driven by {options.DriverLoops} loops (--driver-loops)"));
-        md.AppendLine($"- Prometheus: {options.Prometheus} (pod {options.Pod}){(options.Dial is { } dial ? $"; dialling {dial}" : "")}");
+        md.AppendLine($"- Prometheus: {options.Prometheus} (pod {options.Pod}){(CommandLine.DiallingText(options.Dial, options.ProxyHeader) is { } dialling ? $"; {dialling}" : "")}");
         md.AppendLine(Invariant($"- Bot PC: {cpu}, {Environment.ProcessorCount} logical cores; its clock {RampRunner.ClockOffsetText(result.ClockOffset)} Prometheus's at the start (query times corrected by it)"));
         md.AppendLine();
         md.AppendLine("| Limit | Trips when | |");
@@ -398,6 +398,7 @@ public static class ReportWriter
                 options.Max,
                 options.SignInConcurrency,
                 options.Dial,
+                options.ProxyHeader,
                 Prometheus = options.Prometheus.ToString(),
                 options.Pod,
                 ForestTimeSeconds = options.ForestTime.TotalSeconds,

@@ -14,6 +14,7 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="Hold">How long each step holds: a settle (30 s, longer for a hold above 90 s), then the judged window (<see cref="RampRunner.JudgedWindow"/>).</param>
 /// <param name="Max">The most bots, at most the run's size.</param>
 /// <param name="Dial">The host to dial instead of the join reply's, or null.</param>
+/// <param name="ProxyHeader">Each world connection starts with a PROXY v2 header (<c>--proxy-header</c>); only with <paramref name="Dial"/>.</param>
 /// <param name="Prometheus">The Prometheus HTTP API's origin.</param>
 /// <param name="Pod">The world server's pod, for its memory limit.</param>
 /// <param name="SignInConcurrency">Sign-ins at once, the runner's and the refresher's together.</param>
@@ -21,8 +22,8 @@ namespace Avalon.LoadTest.Ramp;
 /// <param name="PartySize">The fighters' party size (<c>--party-size</c>), 1 (solo) to <see cref="BotParty.MaxSize"/>.</param>
 /// <param name="DriverLoops">The input driver's loops (<c>--driver-loops</c>), each on its own thread, sharing the bots out.</param>
 public sealed record RampOptions(
-    string Mix, int Start, int Step, TimeSpan Hold, int Max, IReadOnlyList<Limit> Limits, string? Dial, Uri Prometheus,
-    string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops);
+    string Mix, int Start, int Step, TimeSpan Hold, int Max, IReadOnlyList<Limit> Limits, string? Dial, bool ProxyHeader,
+    Uri Prometheus, string Pod, int SignInConcurrency, TimeSpan ForestTime, int PartySize, int DriverLoops);
 
 /// <summary>One held step: what was there, what was measured, and the decision on it.</summary>
 /// <param name="Index">The step's number from 1; a re-hold is a step of its own at the same count.</param>
@@ -964,7 +965,7 @@ public sealed class RampRunner(RunFile run, RampOptions options)
             for (int i = 0; i < round; i++, _nextIndex++)
             {
                 bots[i] = new Bot(_nextIndex, run.Bots[_nextIndex], run.BotPassword, api, run.WorldId, options.Dial,
-                    metrics, _signOuts, _leaves);
+                    options.ProxyHeader, metrics, _signOuts, _leaves);
             }
 
             long start = Stopwatch.GetTimestamp();

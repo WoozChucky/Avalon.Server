@@ -52,6 +52,7 @@ Everything here has to be in place, or the run fails early or measures the wrong
    (`C:\Windows\System32\drivers\etc\hosts`, or `/etc/hosts`), or pass `--dial 10.10.1.17` to `check` and `ramp`.
    With `--dial` the bots connect to that address, but TLS still sends the join reply's server name and checks the
    certificate against the pin from the join reply, so nothing is trusted that would not be trusted otherwise.
+   To ramp past Caddy instead, see [Dialling the world directly](#dialling-the-world-directly).
 4. **World 4 exports metrics every 10 seconds.** The world chart's `otel.metricExportIntervalMs` is `10000` on the
    load-test release ([World metrics export](configuration-reference.md#world-metrics-export)). The SDK's default is
    60 seconds, which gives a 60-second judged window one sample of each series. A rate needs two, so tick time, GC
@@ -87,7 +88,7 @@ Everything here has to be in place, or the run fails early or measures the wrong
 dotnet run -c Release --project tools/Avalon.LoadTest -- <command> [options]
 ```
 
-Every option takes a value (`--run ABC`, not `--run=ABC`). A command line the tool cannot run prints the usage and
+Every option takes a value (`--run ABC`, not `--run=ABC`), except `--proxy-header`, which takes none. A command line the tool cannot run prints the usage and
 exits 2; so does a run file that cannot be read, and, for `check` and `ramp`, a run that lists no bots (a provision
 that saved none: clean it up and provision again), has no bot password or names world 0 (`cleanup` deletes such a
 run all the same). A REST or Prometheus failure that ends a command prints its reason and exits 1.
@@ -147,6 +148,7 @@ anything changed on the server or the network: it is the quickest way to see tha
 |---|---|---|
 | `--run ABC` | the only run kept | The run whose account is used |
 | `--dial HOST` | the join reply's host | A host name or address to connect to instead; TLS still names and pins the reply's server |
+| `--proxy-header` | off | No value; only with `--dial`, refused without it. Each world connection starts with a PROXY v2 header naming the bot PC: see [Dialling the world directly](#dialling-the-world-directly) |
 | `--bot N` | `0` | The account's index in the run |
 | `--behaviour idle\|walker\|fighter` | `idle` | What the bot does: idle or walk for 10 seconds, or make forest trips until one completes (3 at most) |
 | `--forest-time T` | `5m` | A fighter's time in the forest: `90s`, `5m` or plain seconds, above 0, at most 1 h |
@@ -203,6 +205,7 @@ This is the capacity run, described under [The ramp](#the-ramp).
 | `--max N` | the run's size | The most bots, 1 to the run's size |
 | `--limit name=value` | the [defaults](#the-limits) | Overrides one limit, in its unit; repeat for more |
 | `--dial HOST` | the join reply's host | As for `check` |
+| `--proxy-header` | off | As for `check` |
 | `--prometheus URL` | `http://10.10.1.15:30090/` | Prometheus's http(s) origin |
 | `--pod NAME` | `avalon-world-loadtest-0` | The world server's pod, for its memory limit |
 | `--sign-in-concurrency N` | `8` | Sign-ins at once, 1 to 64: the ramp's and the context refresher's together |
@@ -210,14 +213,46 @@ This is the capacity run, described under [The ramp](#the-ramp).
 | `--party-size N` | `1` | The fighters' [party](#parties) size, 1 (solo) to 6 |
 | `--driver-loops N` | 8, or the bot PC's logical cores when fewer | The [input driver](#the-input-driver)'s loops, 1 to 64, each on its own thread, sharing the in-world bots out |
 
-The console first prints the ramp's settings in one line (the run, the world, start, step, max, hold, `--dial` and the
-input driver's loops), then one line per step, then the result and the report's path. A step's line gives the
+The console first prints the ramp's settings in one line (the run, the world, start, step, max, hold, `--dial` (with
+`directly with a PROXY v2 header` under `--proxy-header`) and the input driver's loops), then one line per step, then the result and the report's path. A step's line gives the
 driver's lateness p95 over every loop's steps (`gen-lag`) and the worst loop's own in brackets. A step with fighters
 adds their count, the forest instances the world ticked per tick and the trips completed:
 
 ```text
 step 3  bots 150  tick p99 4.2 ms  ack p95 31 ms  ws 22%  lag 0.4 ms (worst loop 0.9)  → pass
 step 4  bots 200  tick p99 9.8 ms  ack p95 35 ms  ws 31%  lag 0.5 ms (worst loop 1.1)  fighters 60  forest 41.2  trips 18  → pass
+```
+
+### Dialling the world directly
+
+By default the bots reach world 4 as players do: through Caddy on the edge VM (10.10.1.17), a layer-4 TCP proxy that
+writes a PROXY v2 header naming the player before passing the connection on. Caddy also carries every other game
+connection and every public site, on two vCPUs. On 2026-10-15 it saturated at about 1,450 load-test players: a ramp
+through it then measures Caddy rather than the world, and slows the public sites while it runs.
+
+`--dial 10.10.1.15 --proxy-header` takes Caddy out of the path. The bots connect to the k3s node at the join reply's port
+(world 4's 21004), and each world connection writes the PROXY v2 header itself as its first bytes, before TLS: version 2,
+command PROXY, TCP over IPv4 or IPv6 as the socket is, the connection's own end on the bot PC as the source and the
+dialled end as the destination. It is written once per connection, on every entry and re-entry. The REST calls
+never carry it. TLS still names and pins the join reply's server, as with `--dial` alone.
+
+The header is needed because the node's load balancer (k3s ServiceLB) hands the world every connection from a
+pod-network address, and world 4 trusts that range (`proxyProtocol.trustedProxies`, 10.42.0.0/16) to send a header.
+A direct connection without one is dropped after the header timeout. With one, the world sees the bot PC's address,
+as it does through Caddy. `--proxy-header` without `--dial` is refused: through Caddy the world would read the bot's
+header after Caddy's own and drop the connection.
+
+Before the first direct run, the bot PC's address (10.10.1.21/32) has to be in world 4's `loadBalancerSourceRanges`
+in the homelab's world values. Without it the node refuses the connection, and every bot fails at `connect`. Run
+`check --dial 10.10.1.15 --proxy-header` first.
+
+Use it for capacity ramps, where the question is what the world holds. Players always come through Caddy, so a
+direct ramp measures the world and not the edge, and its capacity is not what players would get through Caddy at
+that load. The report's header says which path a run took.
+
+```bash
+dotnet run -c Release --project tools/Avalon.LoadTest -- check --dial 10.10.1.15 --proxy-header
+dotnet run -c Release --project tools/Avalon.LoadTest -- ramp --start 200 --step 200 --dial 10.10.1.15 --proxy-header
 ```
 
 ### cleanup
@@ -737,7 +772,8 @@ the exit code still follows the verdict, and is 1 whenever the run does not stan
   over the ramp (#875: `on (sealed inside TLS, Network:PacketEncryption)`, `off (TLS alone)`, or `mixed` with the
   sealed and plain admissions counted when the world changed mode during the ramp; `packetEncryption.sealed` and
   `packetEncryption.plain` in the JSON), the ramp settings (start, step, hold and judged window, max, sign-in
-  concurrency, the input driver's loops), Prometheus, the pod, `--dial`, the bot PC's CPU model and logical cores, its
+  concurrency, the input driver's loops), Prometheus, the pod, `--dial` (`dialling HOST`, or `dialling HOST directly
+  with a PROXY v2 header` under `--proxy-header`; `ramp.dial` and `ramp.proxyHeader` in the JSON), the bot PC's CPU model and logical cores, its
   clock's offset from Prometheus's at the start (by which every query's time was corrected), and the limits, each
   marked when overridden.
 - **Result**: one of `capacity N bots`, `no limit reached up to N bots`, `bot PC saturated: capacity ≥ N bots`,
