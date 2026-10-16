@@ -14,8 +14,13 @@
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost"/>
-    <!-- Pinned above the Aspire packages' 2.5.302 (GHSA-qhrr-8q5h-9q3h); drop it once Aspire brings 2.5.303 or later. -->
-    <PackageReference Include="MessagePack"/>
+  </ItemGroup>
+
+  <!-- Aspire.Hosting 13.6.1 brings MessagePack 2.5.302 (GHSA-qhrr-8q5h-9q3h: a crash on hostile nested arrays). This host
+       only exchanges MessagePack with the local Aspire processes it starts, so the advisory is suppressed here alone;
+       any other advisory still fails the restore. Drop it once Aspire brings MessagePack 2.5.303 or later. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-qhrr-8q5h-9q3h"/>
   </ItemGroup>
 
   <ItemGroup>
