@@ -136,7 +136,7 @@ public static class TownPieces
         s.Prop("Prop_Crate", "Crates (general goods)", "crate 1", 10.5f, 25f, 0);
         s.Prop("avalon_barrel", "Barrels (general goods)", "barrel", 10.5f, 23.3f, 0);
         s.Prop("avalon_bench", "Benches", "bench market", 5f, 10f, 90);
-        s.LampPost("lamp post 1", 5.5f, 19f);
+        s.LampPost("lamp post 1", 4.5f, 19.5f);
         s.LampPost("lamp post 2", 14f, 20.5f);
     }
 
