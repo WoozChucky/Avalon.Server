@@ -98,6 +98,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Cache NuGet packages
+        # Not on the k3s runners: their NuGet folder persists (/cache/nuget, homelab docs/ci-runners.md), and this cache is 1.9 GB to download.
+        if: vars.CI_RUNNER == ''
         uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
