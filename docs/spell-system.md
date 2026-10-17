@@ -78,7 +78,8 @@ loads. A character holding a refused skill simply does not get it at character s
 
 ## 3. Cast flow
 
-A client casts with `CMSG_CAST_ABILITY` (`CCastAbilityPacket { AbilityId, GroundPos? }`).
+A client casts with `CMSG_CAST_ABILITY` (`CCastAbilityPacket { AbilityId, GroundPos?, ViewTick }`;
+`ViewTick`, the world tick the client was drawing other units at, is lag compensation's, §4, #1082).
 `CastAbilityHandler` checks, in this order, and answers the first refusal with exactly one
 `SAbilityNotReadyPacket` naming a `CastRejectReason` (#512). A connection with no character is the one
 silent case.
@@ -116,7 +117,8 @@ script reads the caster's *position* only when it fires, never when it is built.
 - **Cast-time**: the script is built, the cast joins the queue, the skill is marked `Casting` and the
   cost paid, in that order, so a refused cast spends nothing and never leaves `Casting` set (#521
   item 1). The cast system then sends every client in the instance `SUnitStartCastPacket`, which carries the
-  `AbilityId` (#521 item 9), the cast's `CastId` and the `Footprint` it will land on (#648). Each
+  `AbilityId` (#521 item 9), the cast's `CastId`, the `Footprint` it will land on (#648) and the
+  `WorldTick` it was taken on (#1082, §6). Each
   tick the cast timer runs down. Moving interrupts it (`SCharacterInterruptedCastPacket`; the cost is
   not refunded). When the timer runs out the cast leaves the queue and fires; a caster who died during
   the cast fires nothing and is free to cast again. The queue is never changed while it is walked
@@ -164,6 +166,64 @@ refused: its cost and cooldown are spent all the same.
   keeps what it has, #548), never heals a dead unit, and adds heal threat from
   `HealThreatPerHp` when the healed unit is in an encounter. Heal threat counts the health actually
   restored, so overheal adds none (#531).
+- **Whose screen judges a hit (lag compensation, #1082).** Every hit is positional, and each side of a
+  fight sees the other late: a client draws other units its render delay (about 120 ms) plus half its
+  round trip behind the server, and what it does reaches the server half a round trip later. The rule:
+  **an instant cast and a projectile are judged by the attacker's screen; a hostile telegraph by the
+  target's screen.** A creature has no screen: its own casts are always judged on the server's present.
+  So in PvE a player's instant shots and the creatures' telegraphs are both judged by that player's
+  screen (a creature's instant attack is judged on the present), and in PvP the attacker wins an instant
+  shot and the dodger a telegraph. The limits are in `LagCompensation` (`Avalon.World/Abilities`).
+- **Rewound hits (the attacker's screen).** A player's instant cast names the tick its client was
+  drawing (`CCastAbilityPacket.ViewTick`, its render clock turned back into a tick through the ping's
+  anchor, see [the packet protocol](networking-packet-protocol.md)), and its hits are rewound by
+  `now - ViewTick` ticks, at most `LagCompensation.MaxRewindTicks` (15, 250 ms). 0 (not sent: a client
+  from before #1082) or a tick at or ahead of now rewinds nothing. The cap is the only trust boundary: a
+  client may always claim all of it. `CastAbilityHandler` fires an instant cast through the instance's
+  `IPlayerCastHost` (internal, World-side), which fixes the cast's `CastView` as it is taken. While the
+  cast system runs that cast's `Prepare` it sets the ambient pair `IAbilityArena.HitRewindTicks` and
+  `HitRewindExempt` (the caster), and puts back what it found after, so once a cast fired inside another's hit
+  returns, the outer cast has its own back. Under a rewind `IHitQuery` tests, and sorts, every unit at
+  `PositionOf(unit)`: its history's position that many ticks ago, or its present position when the
+  history does not reach back that far (it joined or jumped since). The caster stays where it is now:
+  its own inputs reach the server in order before its cast, so where it stands now is where it stood on
+  its own screen (a self-including Ally circle must not test it where it was). Liveness and membership
+  stay the present's: a unit that died or left since is never hit. The spatial grid holds present
+  positions, so a rewound query widens the box it visits by `LagCompensation.MaxStepPerTick` (1 m, so
+  60 m/s) for every tick rewound. Never rewound: a queued cast (its wind-up is the dodge window and its
+  footprint was fixed at its start), a creature's cast, and item use.
+- **Position history.** Each character and creature in an instance holds a `PositionHistory`
+  (`CharacterEntity.History`, `Creature.History`; never on `IUnit`): a ring of 18 entries keyed by world
+  tick (`WorldTicks.Completed`), the 15-tick cap and a margin. `MapInstance` records every member once
+  a tick, in its Step 4b, after every move of the tick and before the broadcast, so an entry is the
+  position the broadcast stamped with that tick carries. An unchanged position writes nothing, so a unit
+  standing still keeps its older entries, and a lookup is the newest entry at or before the tick. The
+  rings are pooled per instance: one is rented, empty, as a unit joins and returned as it leaves, so a
+  unit entering an instance (every transfer, a teleport or a town return into the same instance
+  included, leaves and joins again) starts with none. A jump inside the instance clears it: a revive
+  (`CombatService.RevivePlayer`) and a creature's teleport (`CrowdLocomotion.Teleport`,
+  `WaypointLocomotion.Teleport`), so a rewind never returns a position from before a jump. Until the
+  next Step 4b writes an entry, a rewound query uses the present position. Recording and lookups
+  allocate nothing (#880). An instance built without the world's tick count (tests) keeps no history
+  and rewinds nothing.
+- **Dodge wait (the target's screen).** A telegraph reaches a player half a round trip late, and their
+  step out of it reaches the server half a round trip after they make it, so a player out of the
+  footprint on their own screen when the countdown ended could still be hit. When a queued hostile
+  circle or cone fires (a creature's wind-up, or a player's telegraph in PvP), it is tested as before,
+  and every unit that is not a player is hit on the spot. Each player it hits is held instead
+  (`IAbilityArena.TryDeferHit`, while the cast system sets `DodgeFootprint` around the `Prepare`) for
+  that player's one-way delay, `min(LagCompensation.OneWayTicks(RoundTripTime), MaxDodgeWaitTicks)`:
+  half the connection's round trip in whole ticks, rounded, at most 6 (about 100 ms). The held hits
+  (`PendingHits`, one list per instance) are resolved at the start of the cast system's update on the
+  tick they are due, after that tick's inputs, and never on the tick the cast fired. A hit lands, through
+  the same `AbilityEffect.Apply` as an immediate one (damage, threat, kill credit), only if the player
+  is still alive, still a target of the ability, and still inside the footprint where they stand now;
+  otherwise it is a dodge and does nothing. The wait only removes hits: a player outside the footprint
+  when it fired was never held, even if they step in. The caster dying during the wait does not cancel
+  its hits (the cast fired); a caster or a target leaving the instance drops them (`CancelCasts`). The
+  fired broadcast goes out at fire. Nothing waits for an Ally cast (a heal or a buff is not a threat to
+  step out of), a projectile (its flight is its own dodge window), an instant cast, a creature target, or
+  a player whose one-way delay rounds to 0 ticks (no round trip measured, or one under about 17 ms).
 
 ---
 
@@ -193,6 +253,14 @@ tick it sweeps its whole step as a segment:
 - the units whose body the segment touches are taken nearest first. Without `Pierce` it ends on the
   first qualifying unit, stopping at the point of its step nearest that unit's centre. With `Pierce`
   it hits each unit once and flies on.
+- a player's projectile sweeps the units where that player sees them beside it (#1082). The client
+  draws projectiles where the server has them, with no delay, but other units its render delay plus one
+  way of the round trip behind, so the sweep is rewound for the whole flight by its cast's
+  `CastView.ProjectileRewindTicks`: the instant rewind (§4) less the caster's one-way delay (half its
+  `RoundTripTime`, in whole ticks), never below 0, fixed when the cast is taken. The caster is exempt
+  as for an instant cast, and the stop point is taken at the unit's rewound position
+  (`IHitQuery.PositionOf`). A round trip the client inflates only shortens this rewind, never lengthens
+  it past the cap. A creature's projectile, and a queued one, sweep the present.
 
 It ends at `Reach`, at a wall (a caster off the navmesh ends it on its first tick), or on a first hit.
 It never homes and has no target.
@@ -214,6 +282,11 @@ It never homes and has no target.
   caster's position when the cast started (`AbilityAim.Origin`, stamped by the cast system). The shape scripts
   fire with it and the start broadcast carries it, so a telegraph is never corrected: a creature pushed during
   its wind-up still fires where it began.
+- **The countdown's deadline (#1082).** The start carries `WorldTick` (`SUnitStartCastPacket` field 7), the
+  world tick the cast was taken on, an item's start included. Through the ping's anchor a client turns it
+  into server time and ends the cast bar and the telegraph's countdown at that time plus `CastTime`, not at
+  the packet's arrival plus it, so the screen the dodge wait judges a target by (§4) shows the real
+  deadline.
 - **Damage** arrives as the usual damage packets; `SCharacterDamagePacket.AbilityId` is filled (#521
   item 8), and both carry `Result`, a `HitResult` saying whether the hit crit, was blocked, or was
   dodged (sent with 0 damage) (#506).

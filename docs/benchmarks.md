@@ -3695,7 +3695,8 @@ with the committed figure, in every build (Debug and Release, see below) and for
 - **Detection floor.** `town-idle`, `town-walk` and `many-instances` read 0 since `75a16697` (#875: none of them
   allocates on the tick thread since server packets are built in per-thread messages; the file was regenerated at
   `2ca42aff` for `town-social`'s first entry, #972, at `ae2ed357` for #973's chat and party fixes, and at `2e947609`
-  and `249898c3` for #973's closing cleanup, and `forest-combat`'s figure lowered by #980 and #973 between), so the 256 B floor decides in every scenario:
+  and `249898c3` for #973's closing cleanup, `forest-combat`'s figure lowered by #980 and #973 between, and at `afcd87ea` for
+  `forest-combat` alone, whose fighters cast lag-compensated since #1082), so the 256 B floor decides in every scenario:
   the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
   allocated every tick, anywhere on the measured path, fails every steady scenario (the smallest, 24 B, is 1,440 B
   per window).
@@ -3705,14 +3706,16 @@ with the committed figure, in every build (Debug and Release, see below) and for
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (13,905 B per window since #973's closing cleanup: quest markers are worked out
+  `forest-combat` is the largest figure (14,528 B per window since #1082, whose fighters name a view tick on every cast and
+  report a 60 ms round trip, so the rewound hits and the dodge wait run in the gate and the seeded fight goes differently,
+  [the forest-combat scenario](#the-forest-combat-scenario); 13,905 B from #973's closing cleanup: quest markers are worked out
   again only when what a marker reads changes, not for every kill credit, 64 B, a pickup's despawn makes no list,
   72 B, and a marker run and an equip allocate nothing of their own, 97 B, all measured in Release and Debug alike; 14,138 B from #973 building each party roster once, which its one
   level-up of the minute sends, [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15); 14,176 B from
   #980, which shared the aura updates and reused their entries,
   [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
-  10,357 B before), and at that size the 256 B floor decides for it too (1% is 139 B): it fails above 14,161 B, a little
+  10,357 B before), and at that size the 256 B floor decides for it too (1% is 145 B): it fails above 14,784 B, a little
   over 4 B per tick for the whole fight, so one 24 B object every five ticks fails it. Its Debug run reads the committed
   figure again since #981 (#973): from #972 it read 68 B above Release, because each item destroy in the measured
   minute paid 48 B in unoptimised code for the two boxes `Enum.HasFlag` made in `InventoryMove.DecideDestroy`.
@@ -4152,6 +4155,15 @@ fights. Since #972 it also does, every step, in this order:
   quarter of a warrior's health to a little over half a wizard's, so most of it lands. The heal goes through the
   combat service as a hit does, with heal threat on every creature fighting the healed (#961).
 
+**Lag compensation (#1082).** Every cast, the basic and the heal, names the tick the fighter was drawing
+(`CCastAbilityPacket.ViewTick`), `LoopFighter.ViewLagTicks` behind the world's: 10 ticks, about 170 ms, a real
+client's interpolation delay and one way of its round trip. Every fighter's connection reports a 60 ms round trip
+(`ScenarioConnection.ScenarioRoundTrip`), a one-way delay of 2 ticks. So a fighter's instant hits are judged where the
+creatures stood 10 ticks before, its projectiles sweep the creatures as they stood 8 ticks before, and the creatures'
+telegraphed hits on it wait 2 ticks for it to step out: the gate measures both halves. In the measured minute that is
+about 10,600 rewound hit queries and 13 held hits, all of which landed: the fighters stand still in melee as they
+cast, so none steps out in the wait, and the dodge itself is `DodgeWaitShould`'s.
+
 **Death.** Level 1 characters die to packs. A dead fighter sends nothing (the input handler drops a dead character's
 input); a client would respawn in town and walk back in, which the harness cannot do. After 10 s (600 ticks) it is
 revived at the forest's entry through the instance's own `ICombatService.RevivePlayer` (the dead flag cleared, a
@@ -4169,9 +4181,19 @@ scenario's check (`Verify`) requires, over the measured ticks, besides every fig
 creatures, heals landed, kill credit, a completion, pickups and items destroyed. `ForestCombatScenarioShould` runs the
 scenario twice in one process and requires the same outcome (every count above) and the same bytes per window, and
 kills and deaths in it; the second run's creatures carry higher ids (the process-wide object id counter), which
-changes neither.
+changes neither. Since #1082 the fight goes differently: the rewinds and the waits move hits by a tick or more, and
+a seeded fight follows them. Over the whole run it kills 102 creatures, with 2 deaths, 21 heals cast (20 landed), 42
+quest accepts, 105 kill credits and 30 completions, 189 drops picked up and 101 bag slots destroyed; the counts above
+are from before.
 
-**Gate.** Committed at **14,138 B per window** (19.6 B per player per tick, 236 B per tick) since #973, 38 B under the
+**Gate.** Committed at **14,528 B per window** (20.2 B per player per tick, 242 B per tick) since #1082, the fight
+above with its fighters lag-compensated, 623 B over the 13,905 B committed from #973's closing cleanup
+([the allocation gate](#the-allocation-gate)). The new paths allocate nothing per use: the rewound queries' pooled
+hit lists grow once, as plain queries' do, and a held hit, its resolution and the position histories allocate
+nothing. About 85 B of the rise is two per-cast objects that each gained a field (a projectile's running script
+carries its `CastView`, a queued cast its footprint), and the rest is a different fight (more quest progress sent,
+more hits landed). The 13,905 B were 233 B under the **14,138 B** (19.6 B per player per tick, 236 B per tick)
+committed since #973, 38 B under the
 14,176 B committed since #980: the fight's one level-up, of a whole party at one tick, sends its roster three times
 (one per member levelling), and each roster no longer builds three lists and nine entries, 760 B, 2,280 B over the
 run's 60 windows ([a social town, quieter](#results--a-social-town-quieter-973-2026-10-15)). The 14,176 B were 116 B
@@ -4221,9 +4243,13 @@ summary.
 | Debug, then | 14,360 |
 | Aura updates shared, their entries reused (#980, PGO on) | 14,176 |
 | Debug, then | 14,244 |
-| Each party roster built once: the level-up's roster (#973, PGO on), now | 14,138 |
+| Each party roster built once: the level-up's roster (#973, PGO on) | 14,138 |
 | Debug, then | 14,206 |
-| Bit tests instead of `HasFlag` on the tick (#981); Debug, now | 14,138 |
+| Bit tests instead of `HasFlag` on the tick (#981); Debug, then | 14,138 |
+| Quest markers, a pickup's despawn, a marker run and an equip (#973's closing cleanup, PGO on) | 13,905 |
+| Debug, then | 13,905 |
+| Lag-compensated fighters: a view tick and a 60 ms round trip (#1082, PGO on), now | 14,528 |
+| Debug, now | 14,528 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
