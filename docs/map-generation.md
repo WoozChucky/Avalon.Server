@@ -315,30 +315,51 @@ reached on the baked navmesh. The tool writes LF line ends, and `.gitattributes`
 
 Glimmerdell's four squares (`town_sw_01`, `town_se_01`, `town_nw_01`, `town_ne_01`, map 1) are generated too, since the
 town beautification (2026-10-01), and drawn from the medieval village kit since 2026-10-17 (see "Decor and building
-recipes"): `tools/Avalon.ChunkGen/TownPieces.cs` holds the approved layout as data, chunk-local: each building a recipe
-placed with `TownBuilding.Place`, each prop a kit or `avalon_*` model with a collision box around its bounds, the walls
-and the paving decor over the wall and floor boxes. The collision is a small shape model (`TownSquare.cs`: boxes, twelve-sided cylinders and rings, gabled roof blocks, and the
-wall boxes by name; the fountain's basin is a ring with the water disc inside it). Each building part and prop is its own obj object named `<Building>_<part>` with a `usemtl` line
-(`stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`, or `collision` for a part decor draws; the
-walls `stone`, the floor untagged, see "Decor and building recipes"); the
-server's bake reads only `v` and `f` lines (`ChunkObjParserShould`), the client colours the materials. The floor
-is y -0.05 to 0.05, and the walls are 0.5 m thick and 2 m high, the inner ones opened at 12-18.
+recipes"): `tools/Avalon.ChunkGen/TownPieces.cs` holds the approved layout as data, chunk-local. Each building is a
+recipe placed with `TownBuilding.Place`; each prop is a kit or `avalon_*` model with a collision box around its bounds,
+or, where parts of it stand overhead, with shapes of its real parts (the well, the lamp posts and the stalls, below);
+wooden fences close the yards of the two houses and the smithy's wood pile, and an iron railing stands beside the bank;
+stone curbs line the red-brick roads; the walls and the paving are decor over the wall and floor boxes. The collision
+is a small shape model (`TownSquare.cs`: boxes, twelve-sided cylinders and rings, gabled roof blocks, and the wall
+boxes by name; the fountain's basin is a ring with the water disc inside it). Each building part and prop is its own
+obj object named `<Building>_<part>` with a `usemtl` line. In every generated square that line is `collision`, for
+the walls and the floor too, because decor draws all of it; the format's other names (`stone`, `wood`, `roof`,
+`cloth`, `cloth_2`, `plaster`, `metal`, `water`) are for a shape the client colours itself, which no generated square
+has today. The server's bake reads only `v` and `f` lines (`ChunkObjParserShould`). The floor is y -0.05 to 0.05, and
+the walls are 0.5 m thick and 2 m high, the inner ones opened at 12-18.
 
     dotnet run --project tools/Avalon.ChunkGen -- town [--maps <Maps directory>]
 
 stages, validates (`ChunkCatalogSeeder.ReadCatalogAsync`), bakes the four squares together and writes them, as the
 forest command does; a square breaking a layout rule is refused before anything is written (`TownRules`: nothing within
-2 m of a wall, the doorway lanes and the arrival-to-portal corridor clear, 2.5 m of headroom under every roof, walkable
-risers of at most 0.3 m). `TownPiecesShould` fails when the committed files differ from a fresh run, when a solid piece
-lets a walk in on the baked navmesh or has a top a path from the arrival point can end on (Recast climbs any step of
-0.8 m or less and rounds a top up to a 0.2 m voxel, so a top at or under 1.0 m above the ground beside it would be
-walked over), or when a solid piece's top is under 1.05 m (every bench, crate, barrel, counter, the well ring and the
-cart reach 1.05 m, owner decision; the collision box stands that high even where the model, a bench say, is lower).
-Roof tops and building interiors are navmesh islands nothing reaches, as the
-forest's blocker tops are. `TownNpcPlacementShould` checks the seven NPC spots against
-the same data. The market's middle stays open for the walking benchmarks, whose 8 m loop about world (45, 10)
-(`TownNavmesh.LoopCentre` in `tests/Avalon.World.Testing`) needs nothing solid 7-9 m from it, and the arrival square's
-for the idle benchmark's grid of players about the entry spawn.
+2 m of a wall, the doorway lanes and the arrival-to-portal corridor clear, 2.5 m of headroom under every flat roof,
+walkable risers of at most 0.3 m). The headroom rule judges a slab whose base stands 2 m up or more (an awning, a
+balcony, the gate's lintel, the well's, a lamp's lantern and a stall's roof slab); a sloped kit roof is a gable block
+resting on its building and is not judged. Its eaves come down to 2.34 m on a one-storey building, so a player can
+stand under the outer ~0.2 m of it: accepted (owner decision, 2026-10-17), while every flat roof keeps 2.5 m.
+`TownPiecesShould` fails when the committed files differ from a fresh run, when a solid piece lets a walk in on the
+baked navmesh or has a top a path from the arrival point can end on (Recast climbs any step of 0.8 m or less and rounds
+a top up to a 0.2 m voxel, so a top at or under 1.0 m above the ground beside it would be walked over), or when a solid
+piece's top is under 1.05 m (every bench, crate, barrel, counter, fence section, the well's rim, a lamp post's base and
+the cart reach 1.05 m, owner decision; the collision box stands that high even where the model, a bench or a 0.81 m
+wooden fence say, is lower). Roof tops and building interiors are navmesh islands nothing reaches, as the forest's
+blocker tops are. `TownNpcPlacementShould` checks the seven NPC spots against the same data. The market's middle stays
+open for the walking benchmarks, whose 8 m loop about world (45, 10) (`TownNavmesh.LoopCentre` in
+`tests/Avalon.World.Testing`) needs nothing solid 7-9 m from it, and the ground round the arrival point stays open for
+the idle benchmark's grid of players about the entry spawn.
+
+A prop with parts overhead gets shapes of those parts, so no box reaches past what is drawn at head height: the well's
+rim (1.05 m up), its two posts and its roof as a slab at 2.5-2.8 m (1.9 m wide where the art's is 1.6, so the rim's
+corners lie within the tolerance of it); a lamp post's base (raised to 1.05 m), its post and its lantern arm as a slab
+at 2.75-3.16 m; a stall's counter (1.1 m up, its front), its four posts and its cloth roof as a slab at 2.9-3.4 m, the
+booth behind the counter open beneath it. A post thinner than the navmesh's 0.3 m voxel still stops a walk: Recast
+marks every cell a face crosses, and the agent radius does the rest. Each 2 m fence section is a prop with its own
+box: a wooden section (`Prop_WoodenFence_Single`, then `_Extension1` and `_Extension2` in turn) stands 0.81 m, its box
+1.05 m; an iron railing section (`Prop_MetalFence_Simple` and `_Ornament` in turn) its own 2.87 m. The curbs
+(`Prop_ExteriorBorder_Straight1` and `_Straight2`, `_Corner` where a road turns outward, 0.134 m high) are dressing,
+laid by `SquareBuilder.Curbs` on the open side of every road tile's edge and left out where one would meet a wall, a
+solid piece at body height or another curb, so they run only past open ground. Nothing of a curb is baked: a player
+walks over it on the floor's navmesh.
 
 The town is laid out for the client's camera, which is fixed (owner decision, 2026-10-02) at yaw 45° and 60° below
 horizontal, south-west of what it looks at: a player sees the −X and −Z sides of everything, and the south-west of each
@@ -346,13 +367,13 @@ square is the bottom of the screen. So tall buildings stand on a square's far (h
 toward −X or −Z, and an NPC stands on that side, clear of its roof. A kit building puts its gable end on that side,
 so its door wall is not under a roof slope, and the ground south-west of every NPC is kept low (the sight check below
 treats a kit roof as a box up to its ridge). Two checks hold it: each building's open face (its door, a counter)
-carries a `Front`, which `TownPiecesShould` requires to be −X or −Z; and
-`TownNpcPlacementShould` casts a line from each NPC's head toward the camera and fails on any piece, wall or solid
-decor item's box in the way (a roof over the NPC counts: under a 2.9 m stall roof a head shows only within about
-0.6 m of the roof's camera-side edge). The two angles are mirrored from the client's `IsometricCameraComponent`. The
-four other `town_*` chunks (`town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are listed by the tool and never touched. A geometry change
-here needs a restart (instances bake once), a re-export of the navmesh vectors (`tools/Avalon.Exporter -- navmesh`),
-and a re-vendor in the client (`scripts/vendor-chunks.ps1`, and `scripts/regen-proto.ps1` for the vectors).
+carries a `Front`, which `TownPiecesShould` requires to be −X or −Z; and `TownNpcPlacementShould` casts a line from each
+NPC's head toward the camera and fails on any piece, wall or solid decor item's box in the way (a roof over the NPC
+counts: under a 2.9 m stall roof a head shows only within about 0.6 m of the roof's camera-side edge). The two angles
+are mirrored from the client's `IsometricCameraComponent`. The four other `town_*` chunks (`town_corner_01`,
+`town_house_01`, `town_path_01`, `town_square_01`) are listed by the tool and never touched. A geometry change here
+needs a restart (instances bake once), a re-export of the navmesh vectors (`tools/Avalon.Exporter -- navmesh`), and a
+re-vendor in the client (`scripts/vendor-chunks.ps1`, and `scripts/regen-proto.ps1` for the vectors).
 
 ### Decor and building recipes
 
@@ -411,10 +432,16 @@ item is solid unless it is flat ground or thin hanging dressing (`DecorRules.Dre
 box turned by its yaw and moved to its position (`DecorRules.WorldBounds`), must lie within 0.15 m
 (`DecorRules.Tolerance`) of the union of its building's non-walkable proxies, or, for an item placed under the
 building `Walls` (the square's own wall sections), of the square's wall boxes: no drawn wall to walk through. A solid
-item whose building has no non-walkable proxy is refused. The reverse holds on the camera's side: no non-walkable
-proxy of a building that has solid decor may reach more than 0.15 m past that decor's −X or −Z extent, and a building
-with a `collision` proxy but no solid decor is refused outright: no invisible wall. Each refusal names the square,
-the building and the model or part.
+item whose building has no non-walkable proxy is refused. The reverse holds proxy by proxy: every `collision` proxy,
+which the client does not draw, must have solid decor on it, and one standing at body height (its base below 1.9 m,
+`DecorRules.BodyHeight`) must have its −X and −Z faces, the camera's side, drawn by the solid decor overlapping it at
+body height, whatever building that decor was placed under: a line 0.15 m inside each face, less 0.15 m at either
+end, must lie within that decor's footprints, so no proxy reaches more than 0.15 m past the art drawn over it: no
+invisible wall. A recipe's body proxy therefore stands 0.227-0.242 m beyond its wall line, the kit's corner pieces
+standing 0.377 m out and its walls' outer faces 0.092 m: the recipes use 0.235 (`BODY_MARGIN` in the recipe
+generator, which writes the gate's pillars with it too). A square drawn as decor is drawn whole: with `WallsAsDecor`
+every wall box is covered by its `Walls` sections, and with `Paved` its `Paving` tiles cover the floor to its edges.
+Each refusal names the square, the building and the model or part.
 
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:
