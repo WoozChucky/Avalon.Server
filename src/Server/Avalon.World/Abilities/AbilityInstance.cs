@@ -19,4 +19,10 @@ public class AbilityInstance
 
     /// <summary>The cast's id (#648), unique within the instance: every broadcast of this cast carries it.</summary>
     public uint CastId { get; init; }
+
+    /// <summary>
+    /// The footprint the cast's start broadcast carried (#648), the one its script fires on; null when it could not be
+    /// resolved. A circle's or a cone's is the dodge wait's when it fires (#1082).
+    /// </summary>
+    public AbilityFootprint? Footprint { get; init; }
 }

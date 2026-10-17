@@ -84,6 +84,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly InterestRange _interest;
     private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
+    private readonly PendingHits _pendingHits;
     private readonly ItemUseCasts _itemUses;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
@@ -336,8 +337,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // The cast system gets `this` as the IAbilityArena every ability script is built with
         // (#164): scripts route damage through CombatService.ApplyDamage. CombatService must be
         // assigned BEFORE this so any first-tick cast resolves through a non-null service.
-        _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
+        var castSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>(), this);
+        _abilityCastSystem = castSystem;
+        // The dodge wait's hits (#1082): added here as a telegraph fires, resolved and dropped by the cast system.
+        _pendingHits = castSystem.PendingHits;
 
         // Item cast bars, numbered with the cast system's own ids.
         _itemUses = new ItemUseCasts(this, _abilityCastSystem.TakeCastId, loggerFactory.CreateLogger<ItemUseCasts>());
@@ -914,6 +918,33 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         get => _hits.RewindExempt;
         set => _hits.RewindExempt = value;
+    }
+
+    // The footprint of the telegraph the cast system is firing now (#1082); see IAbilityArena.DodgeFootprint.
+    private AbilityFootprint? _dodgeFootprint;
+
+    AbilityFootprint? IAbilityArena.DodgeFootprint
+    {
+        get => _dodgeFootprint;
+        set => _dodgeFootprint = value;
+    }
+
+    /// <summary>
+    /// A telegraph's hit on a player, judged by that player's screen (#1082): held for the player's one-way delay, read from
+    /// their connection's round trip and capped, then landed only if they are still inside. No wait (no round trip measured,
+    /// no world tick count in tests, or a delay under half a tick), no hold: the hit lands now, as before.
+    /// </summary>
+    bool IAbilityArena.TryDeferHit(IUnit caster, IAbility ability, IUnit target)
+    {
+        if (_dodgeFootprint is not { } footprint || target is not ICharacter character || _worldTicks is null)
+            return false;
+
+        int wait = Math.Min(LagCompensation.OneWayTicks(RoundTripOf(character.Guid)), LagCompensation.MaxDodgeWaitTicks);
+        if (wait <= 0)
+            return false;
+
+        _pendingHits.Add(new PendingHit(caster, ability, character, footprint, _worldTicks.Completed + wait));
+        return true;
     }
 
     /// <summary>

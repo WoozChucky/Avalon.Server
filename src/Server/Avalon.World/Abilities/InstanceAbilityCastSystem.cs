@@ -1,6 +1,8 @@
 using Avalon.Combat;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Abilities;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -12,6 +14,7 @@ using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Creatures;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Abilities;
@@ -39,6 +42,10 @@ public interface IAbilityCastSystem
     /// </summary>
     bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default);
 
+    /// <summary>
+    /// One tick: the dodge wait's hits that are due land, or are dodged (#1082), then the queued casts run down, fire or
+    /// are interrupted, then the running scripts tick.
+    /// </summary>
     void Update(TimeSpan deltaTime, List<IWorldObject> objects);
 
     /// <summary>
@@ -52,7 +59,8 @@ public interface IAbilityCastSystem
     /// Interrupts every queued cast of <paramref name="caster" />, as moving does: its timers reset,
     /// <c>Casting</c> clears, the interrupt is sent, nothing fires and nothing is refunded. For a caster
     /// leaving the instance (#164): an instance nobody is in is not ticked, so its queue would never
-    /// clear the cast, and the caster could cast nothing anywhere else.
+    /// clear the cast, and the caster could cast nothing anywhere else. Every dodge-wait hit with the unit as its caster
+    /// or its target is dropped too (#1082): a caster who is gone credits nothing here, a target who is gone takes nothing.
     /// </summary>
     void CancelCasts(IUnit caster);
 
@@ -95,7 +103,18 @@ public class InstanceAbilityCastSystem(
     private readonly List<AbilityInstance> _dequeued = [];
     private readonly List<AbilityInstance> _cancelled = [];
     private readonly AbilityScriptActivator _scriptActivator = new();
+    private readonly PendingHits _pendingHits = new(factory.CreateLogger<PendingHits>());
+
+    // The world's tick count the dodge wait's hits are due by (#1082), the instance's own; none in a cast system built
+    // without one (tests), where no hit ever waits.
+    private readonly WorldTicks? _worldTicks = serviceProvider.GetService<WorldTicks>();
     private uint _lastCastId;
+
+    /// <summary>
+    /// The dodge wait's hits (#1082): the instance adds to them (<see cref="IAbilityArena.TryDeferHit" />), this resolves
+    /// them each tick and drops a leaving unit's.
+    /// </summary>
+    internal PendingHits PendingHits => _pendingHits;
 
     public bool QueueAbility(IUnit caster, AbilityAim aim, IAbility ability, bool free = false)
     {
@@ -121,6 +140,7 @@ public class InstanceAbilityCastSystem(
         // uses the same value, so a gear change mid-cast changes neither.
         float haste = HasteOf(caster);
         uint castId = TakeCastId();
+        AbilityFootprint? footprint = FootprintOf(caster, aim, ability);
         _abilityQueue.Add(new AbilityInstance
         {
             Caster = caster,
@@ -129,6 +149,7 @@ public class InstanceAbilityCastSystem(
             CastStartPosition = caster.Position,
             HastePct = haste,
             CastId = castId,
+            Footprint = footprint,
         });
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
@@ -141,7 +162,7 @@ public class InstanceAbilityCastSystem(
 
         CombatLog.CastQueued(_logger, ability.AbilityId, caster.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
 
-        arena.BroadcastUnitStartCast(caster, ability, castId, FootprintOf(caster, aim, ability));
+        arena.BroadcastUnitStartCast(caster, ability, castId, footprint);
         return true;
     }
 
@@ -165,7 +186,7 @@ public class InstanceAbilityCastSystem(
             AbilityCost.Pay(caster, ability.Metadata);
         }
 
-        Fire(caster, ability, script, HasteOf(caster), TakeCastId(), view);
+        Fire(caster, ability, script, HasteOf(caster), TakeCastId(), view, null);
         return true;
     }
 
@@ -177,6 +198,10 @@ public class InstanceAbilityCastSystem(
         // ended on the tick it was first seen. Updates go out only on broadcast ticks, so that can be
         // a few ticks later.
         SweepFinished(keepUnsent: true);
+
+        // #1082: the dodge wait's hits due now, first, so each is judged after the inputs its target sent this tick (step
+        // 2), and before anything fires: a hit is never due on the tick its cast fired.
+        _pendingHits.Resolve(_worldTicks?.Completed ?? 0, arena);
 
         AdvanceQueue(deltaTime);
         SendInterrupts();
@@ -242,8 +267,12 @@ public class InstanceAbilityCastSystem(
             }
 
             // A queued cast is never rewound (#1082): its wind-up is the dodge window, and its footprint was fixed at
-            // its start.
-            Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId, default);
+            // its start. A circle or a cone judges the players it hits by their own screens, through the dodge wait; a
+            // projectile's flight is its own dodge window.
+            AbilityFootprint? dodge = cast.Footprint is { Shape: AbilityShape.Circle or AbilityShape.Cone } footprint
+                ? footprint
+                : null;
+            Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId, default, dodge);
         }
 
         foreach (AbilityInstance cast in _dequeued)
@@ -340,6 +369,9 @@ public class InstanceAbilityCastSystem(
 
     public void CancelCasts(IUnit caster)
     {
+        // #1082: first, as it cannot throw, so no failing send below can leave a hit for a unit that is gone.
+        _pendingHits.Drop(caster);
+
         // Collected first: nothing is removed from the queue while it is enumerated. Into a list of this call's own,
         // kept between calls: it runs for every character and creature that leaves, most of them casting nothing.
         _cancelled.Clear();
@@ -495,9 +527,12 @@ public class InstanceAbilityCastSystem(
     /// The cooldown, set once (#627), so a later gear change never rescales a running one; the finish-cast
     /// broadcast; the effect. A script still running keeps ticking. Its <c>Prepare</c> runs with the arena's hit queries
     /// rewound by <paramref name="view" /> (#1082), its caster exempt (tested where it stands now), the values found
-    /// before put back after, so a cast fired inside another cast's hit returns the outer one to its own.
+    /// before put back after, so a cast fired inside another cast's hit returns the outer one to its own. A queued circle
+    /// or cone fires with its <paramref name="dodge" /> footprint set on the arena (#1082), so the players it hits wait out
+    /// their delay; every other cast with none. It is put back after as the rewind is.
     /// </summary>
-    private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct, uint castId, CastView view)
+    private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct, uint castId, CastView view,
+        AbilityFootprint? dodge)
     {
         if (caster is not CharacterEntity { GodMode: true })
             ability.CooldownTimer = CooldownOf(caster, ability, hastePct);
@@ -509,11 +544,13 @@ public class InstanceAbilityCastSystem(
         bool running;
         int outerRewind = arena.HitRewindTicks;
         IUnit? outerExempt = arena.HitRewindExempt;
+        AbilityFootprint? outerDodge = arena.DodgeFootprint;
         try
         {
             arena.CastInFlight = castId;
             arena.HitRewindTicks = view.HitRewindTicks;
             arena.HitRewindExempt = caster;
+            arena.DodgeFootprint = dodge;
             script.Prepare();
             running = script.State is not SpellState.Finished;
         }
@@ -529,6 +566,7 @@ public class InstanceAbilityCastSystem(
             arena.CastInFlight = 0;
             arena.HitRewindTicks = outerRewind;
             arena.HitRewindExempt = outerExempt;
+            arena.DodgeFootprint = outerDodge;
         }
 
         if (running)

@@ -53,6 +53,21 @@ public interface IAbilityArena
     /// </summary>
     IUnit? HitRewindExempt { get; set; }
 
+    /// <summary>
+    /// The footprint of the telegraphed cast being fired (#1082): set by the cast system only around a queued circle's or
+    /// cone's <c>Prepare</c>, null otherwise, and put back after as the rewind is. While set, a player it hits is judged by
+    /// that player's screen (<see cref="TryDeferHit" />).
+    /// </summary>
+    AbilityFootprint? DodgeFootprint { get; set; }
+
+    /// <summary>
+    /// Holds <paramref name="ability" />'s hit on <paramref name="target" /> for the dodge wait (#1082), answering whether it
+    /// did. True only while <see cref="DodgeFootprint" /> is set, for a character target with a one-way delay of at least a
+    /// tick (at most <see cref="LagCompensation.MaxDodgeWaitTicks" />): the hit is then applied once the delay has passed,
+    /// if the target is still alive and inside the footprint. False, to be applied now, for any other.
+    /// </summary>
+    bool TryDeferHit(IUnit caster, IAbility ability, IUnit target);
+
     IMapNavigator GetNavigatorForPosition(Vector3 position);
 
     /// <summary>
