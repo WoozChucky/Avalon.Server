@@ -283,8 +283,17 @@ public class InstanceAbilityCastSystem(
                 continue;
             }
 
+            // #1082: a player's projectile sweeps the units where that player sees them beside it, rewound by its cast's
+            // projectile view for the whole flight, its caster exempt (tested where it stands now). The values found
+            // before are put back after, as Fire does, so a cast fired inside the update returns them to the outer one.
+            // A creature's or a queued cast's view rewinds nothing.
+            int outerRewind = arena.HitRewindTicks;
+            IUnit? outerExempt = arena.HitRewindExempt;
             try
             {
+                arena.HitRewindTicks = active.View.ProjectileRewindTicks;
+                arena.HitRewindExempt = active.Caster;
+
                 // A finished script is never ticked again, so nothing it does is applied twice. Its state is its
                 // own code too, and read inside the containment.
                 if (script.State is not SpellState.Finished)
@@ -297,6 +306,11 @@ public class InstanceAbilityCastSystem(
                 _failed.Add(active);
                 Failed(active.Caster, active.Ability, e, "Update", active.CastId);
                 continue;
+            }
+            finally
+            {
+                arena.HitRewindTicks = outerRewind;
+                arena.HitRewindExempt = outerExempt;
             }
 
             // A script must carry a guid from Prepare on. One without (its Prepare set none, or its Update took it

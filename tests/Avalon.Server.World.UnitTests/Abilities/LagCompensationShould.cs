@@ -3,6 +3,9 @@ using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.State;
+using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Combat;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.World.Abilities;
@@ -10,6 +13,8 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Enums;
+using NSubstitute;
+using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
@@ -23,6 +28,7 @@ public class LagCompensationShould
 {
     private const uint ConeId = 200;
     private const uint SelfHealId = 201;
+    private const uint ProjectileId = 202;
     private const long Start = 1_000;
 
     /// <summary>The cast's apex is the caster at the origin, facing +Z; the creature stands 6 m along it at the start.</summary>
@@ -109,6 +115,88 @@ public class LagCompensationShould
         handler.Execute(healer.Connection, new CCastAbilityPacket { AbilityId = SelfHealId, ViewTick = Start });
 
         Assert.True(healer.Character.CurrentHealth > 50, $"the caster has {healer.Character.CurrentHealth} health");
+    }
+
+    /// <summary>
+    /// A player's projectile sweeps the units where that player saw them beside it (#1082): its own rewind, the cast's 12
+    /// ticks less the caster's 2-tick one way (a 60 ms round trip), so 10. A creature walks diagonally across the lane,
+    /// 0.4 m a tick sideways and 0.1 m along it; the shot naming tick <see cref="Start" /> meets it on its fourth step,
+    /// where it stood 10 ticks before, and stops at the point of that step nearest that position (it was 4 m to the side
+    /// and 1 m further along by then). Rewound by the cast's whole 12 ticks it would miss, and naming no tick it passes
+    /// behind the creature.
+    /// </summary>
+    [Theory]
+    [InlineData(Start, true)]
+    [InlineData(0L, false)]
+    public void Sweep_a_projectile_against_a_moving_creature_where_the_caster_saw_it(long viewTick, bool hit)
+    {
+        var ticks = new WorldTicks(Start);
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, worldTicks: ticks);
+        MapInstanceClient archer = Warrior(instance, 1082_131);
+        archer.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(ProjectileId, reach: 20f, speed: 60f))]);
+        archer.Connection.RoundTripTime.Returns(TimeSpan.FromMilliseconds(60).Ticks);
+        (Creature walker, CombatResolutionShould.CountingWoundScript wounds) = AddCreature(instance, 1082_931);
+
+        // Ticks 1000 to 1011 before the cast, taken on tick 1012; one step of 1 m a tick, on ticks 1012 to 1031.
+        while (ticks.Completed < Start + 12)
+            Walk(instance, ticks, walker);
+        handler.Execute(archer.Connection, new CCastAbilityPacket
+        {
+            AbilityId = ProjectileId,
+            GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 20f },
+            ViewTick = viewTick,
+        });
+        for (int i = 0; i < 24; i++)
+            Walk(instance, ticks, walker);
+
+        Assert.Equal(hit ? 1 : 0, wounds.Hits);
+        if (hit)
+        {
+            // The fourth step runs from 3 m to 4 m; the creature stood at (0, 3.5) ten ticks before it.
+            ObjectState last = LastProjectileState(archer);
+            Assert.Equal(0f, last.Position!.X, 2);
+            Assert.Equal(3.5f, last.Position.Z, 2);
+        }
+    }
+
+    /// <summary>
+    /// One tick of the projectile test's creature: it stands on its diagonal path, at (0, 3.5) on tick 1005 (where the
+    /// fourth step of the shot, on tick 1015, sees it 10 ticks back), then the instance ticks.
+    /// </summary>
+    private static void Walk(MapInstance instance, WorldTicks ticks, Creature creature)
+    {
+        float t = ticks.Completed - (Start + 5);
+        creature.Position = new Vector3(0.4f * t, 0f, 3.5f + 0.1f * t);
+        Tick(instance, ticks);
+    }
+
+    /// <summary>The last state <paramref name="client" /> was sent for a projectile with a position: where it stopped.</summary>
+    private static ObjectState LastProjectileState(MapInstanceClient client)
+    {
+        ObjectState? last = null;
+        foreach (OutboundPacket packet in client.Sent)
+        {
+            List<ObjectState>? states = packet.Header.Type switch
+            {
+                NetworkPacketType.SMSG_WORLD_STATE_ADD => Decode<SInstanceStateAddPacket>(packet).Adds,
+                NetworkPacketType.SMSG_WORLD_STATE_UPDATE => Decode<SInstanceStateUpdatePacket>(packet).Updates,
+                _ => null,
+            };
+            foreach (ObjectState state in states ?? [])
+            {
+                if (new ObjectGuid(state.Guid).Type == ObjectType.SpellProjectile && state.Position is not null)
+                    last = state;
+            }
+        }
+
+        Assert.NotNull(last);
+        return last;
+    }
+
+    private static T Decode<T>(OutboundPacket packet)
+    {
+        using var stream = new MemoryStream(packet.PayloadMemory.ToArray());
+        return Serializer.Deserialize<T>(stream);
     }
 
     /// <summary>

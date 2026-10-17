@@ -81,8 +81,9 @@ public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, Abil
 
             if (!meta.Pierce)
             {
-                // It stops where it met the unit: the point of its step nearest the unit's centre.
-                Vector3 hitPoint = HitShapes.ClosestPointOnSegment(_ground, end, unit.Position);
+                // It stops where it met the unit: the point of its step nearest the unit's centre, where the sweep
+                // tested it (rewound for a player's projectile, #1082).
+                Vector3 hitPoint = HitShapes.ClosestPointOnSegment(_ground, end, arena.Hits.PositionOf(unit));
                 MoveTo(hitPoint, HitShapes.Distance2D(_ground, hitPoint));
                 Finish();
                 return;
