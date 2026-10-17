@@ -9,6 +9,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
+using Avalon.World.Public.Enums;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Abilities;
@@ -21,6 +22,7 @@ namespace Avalon.Server.World.UnitTests.Abilities;
 public class LagCompensationShould
 {
     private const uint ConeId = 200;
+    private const uint SelfHealId = 201;
     private const long Start = 1_000;
 
     /// <summary>The cast's apex is the caster at the origin, facing +Z; the creature stands 6 m along it at the start.</summary>
@@ -77,6 +79,36 @@ public class LagCompensationShould
 
         Assert.Equal(0, deadWounds.Hits);
         Assert.Equal(1, aliveWounds.Hits);
+    }
+
+    /// <summary>
+    /// The caster is judged where it stands now, never rewound (#1082): its own inputs reach the server in order before
+    /// its cast. A caster that walked 2.4 m in the 12 ticks it names is still inside its own 1 m heal circle.
+    /// </summary>
+    [Fact]
+    public void Keep_the_caster_where_it_stands_when_it_is_its_own_target()
+    {
+        var ticks = new WorldTicks(Start);
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, worldTicks: ticks);
+        MapInstanceClient healer = Warrior(instance, 1082_121);
+        AbilityTemplate selfHeal = AbilityTestData.Circle(SelfHealId, radius: 1f);
+        selfHeal.Affects = AbilityAffects.Ally;
+        selfHeal.Effects = SpellEffect.Heal;
+        selfHeal.EffectValue = 40;
+        healer.Character.Spells.Load([AbilityTestData.Game(selfHeal)]);
+        healer.Character.Health = 100;
+        healer.Character.CurrentHealth = 50;
+
+        Tick(instance, ticks);
+        for (int i = 1; i <= 12; i++)
+        {
+            healer.Character.Position = new Vector3(0.2f * i, 0f, 0f);
+            Tick(instance, ticks);
+        }
+
+        handler.Execute(healer.Connection, new CCastAbilityPacket { AbilityId = SelfHealId, ViewTick = Start });
+
+        Assert.True(healer.Character.CurrentHealth > 50, $"the caster has {healer.Character.CurrentHealth} health");
     }
 
     /// <summary>

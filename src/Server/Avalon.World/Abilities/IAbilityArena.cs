@@ -45,6 +45,14 @@ public interface IAbilityArena
     /// </summary>
     int HitRewindTicks { get; set; }
 
+    /// <summary>
+    /// The one unit <see cref="Hits" /> tests at its present position under a rewind (#1082): the caster of the cast being
+    /// fired, whose own inputs reach the server in order before its cast, so where it stands now is where it stood on its
+    /// own screen (a self-including Ally circle must not test it where it was ticks ago). Set and put back with
+    /// <see cref="HitRewindTicks" />, as a pair.
+    /// </summary>
+    IUnit? HitRewindExempt { get; set; }
+
     IMapNavigator GetNavigatorForPosition(Vector3 position);
 
     /// <summary>

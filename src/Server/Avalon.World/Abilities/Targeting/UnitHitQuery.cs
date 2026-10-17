@@ -39,9 +39,10 @@ namespace Avalon.World.Abilities.Targeting;
 /// <b>Rewind (#1082).</b> While <see cref="RewindTicks" /> is above 0, every candidate is tested, and the hits sorted, at
 /// <see cref="PositionOf" />: where its history (<see cref="PositionHistory" />) puts it that many ticks before the
 /// world's current one, or its present position when the history does not reach back that far (it joined or jumped
-/// since). Liveness stays the present's. The grid holds present positions, so the box a rewound query visits, and the
-/// cell entries it leaves out on the grid's copy of their X/Z, are widened by the furthest a unit may have moved since,
-/// <see cref="LagCompensation.MaxStepPerTick" /> a tick. A query built without the world's tick count is never rewound.
+/// since), except <see cref="RewindExempt" />, the caster, which stays where it is now. Liveness stays the present's.
+/// The grid holds present positions, so the box a rewound query visits, and the cell entries it leaves out on the grid's
+/// copy of their X/Z, are widened by the furthest a unit may have moved since, <see cref="LagCompensation.MaxStepPerTick" />
+/// a tick. A query built without the world's tick count is never rewound.
 /// </para>
 /// </remarks>
 public sealed class UnitHitQuery(
@@ -74,6 +75,12 @@ public sealed class UnitHitQuery(
     /// instant cast, which sets it through <c>IAbilityArena.HitRewindTicks</c> and puts the value it found back after.
     /// </summary>
     internal int RewindTicks { get; set; }
+
+    /// <summary>
+    /// The one unit a rewound query tests where it stands now (#1082): the caster of the cast being fired, set and put back
+    /// with <see cref="RewindTicks" /> through <c>IAbilityArena.HitRewindExempt</c>.
+    /// </summary>
+    internal IUnit? RewindExempt { get; set; }
 
     /// <summary>
     /// What the queries since this one was built did, by shape (circle, cone, segment): for measuring the grid alone
@@ -118,7 +125,7 @@ public sealed class UnitHitQuery(
 
     /// <summary>The rewind the queries asked now use (#1082): inactive at 0 ticks, or with no tick count.</summary>
     private Rewind CurrentRewind() =>
-        RewindTicks > 0 && _ticks is not null ? new Rewind(_ticks.Completed - RewindTicks, true) : default;
+        RewindTicks > 0 && _ticks is not null ? new Rewind(_ticks.Completed - RewindTicks, true, RewindExempt) : default;
 
     private List<IUnit> Collect(Vector3 origin, in Shape shape)
     {
@@ -269,13 +276,14 @@ public sealed class UnitHitQuery(
 
     /// <summary>
     /// The tick a query reads the units' histories at (#1082), when <see cref="Active" />; inactive, every unit is where
-    /// it is now. A struct, so a query carries it into the grid visitor and the sort without allocating.
+    /// it is now, and so is <see cref="Exempt" />, the caster, always. A struct, so a query carries it into the grid
+    /// visitor and the sort without allocating.
     /// </summary>
-    private readonly record struct Rewind(long Tick, bool Active)
+    private readonly record struct Rewind(long Tick, bool Active, IUnit? Exempt)
     {
         public Vector3 PositionOf(IUnit unit)
         {
-            if (!Active)
+            if (!Active || ReferenceEquals(unit, Exempt))
                 return unit.Position;
 
             PositionHistory? history = unit switch

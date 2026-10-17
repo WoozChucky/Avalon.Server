@@ -910,6 +910,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         set => _hits.RewindTicks = value;
     }
 
+    IUnit? IAbilityArena.HitRewindExempt
+    {
+        get => _hits.RewindExempt;
+        set => _hits.RewindExempt = value;
+    }
+
     /// <summary>
     /// Sends a hit to everyone who hears it (#532). A creature script's broadcast, made during the hit's
     /// OnHit, is marked with how the hit went (#506); any other is None.

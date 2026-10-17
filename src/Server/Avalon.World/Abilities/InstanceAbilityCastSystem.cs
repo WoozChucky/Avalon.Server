@@ -480,8 +480,8 @@ public class InstanceAbilityCastSystem(
     /// <summary>
     /// The cooldown, set once (#627), so a later gear change never rescales a running one; the finish-cast
     /// broadcast; the effect. A script still running keeps ticking. Its <c>Prepare</c> runs with the arena's hit queries
-    /// rewound by <paramref name="view" /> (#1082), the value found before put back after, so a cast fired inside another
-    /// cast's hit returns the outer one to its own.
+    /// rewound by <paramref name="view" /> (#1082), its caster exempt (tested where it stands now), the values found
+    /// before put back after, so a cast fired inside another cast's hit returns the outer one to its own.
     /// </summary>
     private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct, uint castId, CastView view)
     {
@@ -494,10 +494,12 @@ public class InstanceAbilityCastSystem(
         // read once it has prepared.
         bool running;
         int outerRewind = arena.HitRewindTicks;
+        IUnit? outerExempt = arena.HitRewindExempt;
         try
         {
             arena.CastInFlight = castId;
             arena.HitRewindTicks = view.HitRewindTicks;
+            arena.HitRewindExempt = caster;
             script.Prepare();
             running = script.State is not SpellState.Finished;
         }
@@ -512,6 +514,7 @@ public class InstanceAbilityCastSystem(
         {
             arena.CastInFlight = 0;
             arena.HitRewindTicks = outerRewind;
+            arena.HitRewindExempt = outerExempt;
         }
 
         if (running)
