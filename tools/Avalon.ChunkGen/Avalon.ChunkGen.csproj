@@ -15,4 +15,9 @@
     <ProjectReference Include="..\..\src\Server\Avalon.World.Generation\Avalon.World.Generation.csproj"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The art kit's model boxes (KitBounds.Load), measured from the kit by the "kit-bounds" command; the kit itself stays out of the repository. -->
+    <None Include="Kit\kit-bounds.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
 </Project>
