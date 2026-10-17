@@ -124,17 +124,17 @@ public static class NavmeshVectors
                 Ray(-5f, 15f, 15f, 15f, "starts outside the town's west edge", y: 0f),
 
                 // The kit-built town's buildings and props: a lean-to a unit walks under, the gate arch's
-                // opening, a fence section too tall to climb, a curb drawn but not baked, a counter.
+                // opening, a fence section too tall to climb, a curb a walk crosses, a counter.
                 Ray(15f, 37f, 21f, 37f, "east under the hunter's lodge's awning, stopping short of its west wall"),
                 Ray(15f, 35f, 15f, 45f, "north under the gate arch to the portal"),
                 Ray(46f, 36f, 52f, 36f, "east into house B's yard fence: a fence section stops a walk"),
-                Ray(8f, 17f, 16f, 17f, "east over the curb onto the arrival road: a curb is drawn, not baked"),
+                Ray(8f, 17f, 16f, 17f, "east over the curb onto the arrival road: nothing stops the walk"),
                 Ray(45f, 15f, 58f, 15f, "east across the market into the armourer's counter"),
             ],
             [
                 Ground(15f, 15f, "open floor, south-west quadrant"),
                 Ground(45f, 43.5f, "on the well's rim: no polygon under the point, only beside it, so the height asked is given back"),
-                Ground(11.65f, 17f, "on a curb beside the arrival road: drawn, not baked, so the floor's height"),
+                Ground(11.65f, 17f, "on a curb beside the arrival road: the floor's height"),
                 // Sampled from a metre up, as a player standing there is, under a lintel and a lean-to.
                 Ground(15f, 42f, "under the gate arch's lintel, sampled from a metre up: the floor", y: 1f),
                 Ground(17.3f, 37f, "under the hunter's lodge's awning, sampled from a metre up: the floor", y: 1f),

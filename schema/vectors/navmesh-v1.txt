@@ -144,11 +144,11 @@ ray -5 0 15 15 0 15 -> nostartpoly -5 0 15 0 # starts outside the town's west ed
 ray 15 0.15 37 21 0.15 37 -> clamped 17.75 0.15 37 0.45833334 # east under the hunter's lodge's awning, stopping short of its west wall
 ray 15 0.15 35 15 0.15 45 -> reached 15 0.15 45 3.4028235E+38 # north under the gate arch to the portal
 ray 46 0.15 36 52 0.15 36 -> clamped 47.56316 0.15 36 0.2605264 # east into house B's yard fence: a fence section stops a walk
-ray 8 0.15 17 16 0.15 17 -> reached 16 0.15 17 3.4028235E+38 # east over the curb onto the arrival road: a curb is drawn, not baked
+ray 8 0.15 17 16 0.15 17 -> reached 16 0.15 17 3.4028235E+38 # east over the curb onto the arrival road: nothing stops the walk
 ray 45 0.15 15 58 0.15 15 -> clamped 52.982143 0.15 15 0.614011 # east across the market into the armourer's counter
 ground 15 3 15 -> 0.15 # open floor, south-west quadrant
 ground 45 3 43.5 -> 3 # on the well's rim: no polygon under the point, only beside it, so the height asked is given back
-ground 11.65 3 17 -> 0.15 # on a curb beside the arrival road: drawn, not baked, so the floor's height
+ground 11.65 3 17 -> 0.15 # on a curb beside the arrival road: the floor's height
 ground 15 1 42 -> 0.15 # under the gate arch's lintel, sampled from a metre up: the floor
 ground 17.3 1 37 -> 0.15 # under the hunter's lodge's awning, sampled from a metre up: the floor
 ground 15 7 42 -> 6.35 # on top of the gate arch: the island on its flat top
