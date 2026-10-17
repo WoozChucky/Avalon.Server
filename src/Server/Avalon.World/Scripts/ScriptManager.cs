@@ -1,6 +1,7 @@
 using System.Reflection;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
+using Avalon.World.Doodads;
 using Avalon.World.Items;
 using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,7 @@ public interface IScriptManager
     Type? GetQuestScript(string name);
     Type? GetItemScript(string name);
     Type? GetAuraScript(string name);
+    Type? GetDoodadScript(string name);
 
     /// <summary>The names an AI script can be given in a creature template, sorted. <c>[ChainedScript]</c> types are not among them.</summary>
     IReadOnlyList<string> AiScriptNames { get; }
@@ -30,6 +32,9 @@ public interface IScriptManager
 
     /// <summary>The names an aura template's ScriptName can give, sorted.</summary>
     IReadOnlyList<string> AuraScriptNames { get; }
+
+    /// <summary>The names a doodad template's ScriptName can give, sorted.</summary>
+    IReadOnlyList<string> DoodadScriptNames { get; }
 
     /// <summary>
     /// Registers a generation of AI scripts compiled at runtime (the hot reloader's), by name, in place of any built-in
@@ -63,6 +68,7 @@ public class ScriptManager : IScriptManager
     private volatile IReadOnlyDictionary<string, Type> _questScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
     private volatile IReadOnlyDictionary<string, Type> _itemScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
     private volatile IReadOnlyDictionary<string, Type> _auraScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
+    private volatile IReadOnlyDictionary<string, Type> _doodadScripts = new Dictionary<string, Type>(StringComparer.Ordinal);
     private readonly object _registration = new();
 
     public ScriptManager(ILoggerFactory loggerFactory)
@@ -110,6 +116,12 @@ public class ScriptManager : IScriptManager
         _logger.LogInformation("Loaded {Count} aura scripts", auraScripts.Count);
 
         _auraScripts = auraScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
+
+        List<Type> doodadScripts = FindScriptTypes<DoodadScript>();
+
+        _logger.LogInformation("Loaded {Count} doodad scripts", doodadScripts.Count);
+
+        _doodadScripts = doodadScripts.ToDictionary(t => t.Name, t => t, StringComparer.Ordinal);
     }
 
     public IReadOnlyList<string> AiScriptNames => Sorted(_aiScripts);
@@ -121,6 +133,8 @@ public class ScriptManager : IScriptManager
     public IReadOnlyList<string> ItemScriptNames => Sorted(_itemScripts);
 
     public IReadOnlyList<string> AuraScriptNames => Sorted(_auraScripts);
+
+    public IReadOnlyList<string> DoodadScriptNames => Sorted(_doodadScripts);
 
     public void RegisterHotReloaded(IEnumerable<Type> aiScriptTypes)
     {
@@ -186,6 +200,9 @@ public class ScriptManager : IScriptManager
 
     public Type? GetAuraScript(string name) =>
         _auraScripts.TryGetValue(name, out Type? scriptType) ? scriptType : null;
+
+    public Type? GetDoodadScript(string name) =>
+        _doodadScripts.TryGetValue(name, out Type? scriptType) ? scriptType : null;
 
     /// <summary>
     /// The concrete <typeparamref name="TBaseType" /> subclasses of the built-in assemblies: every one loaded but those

@@ -7,6 +7,7 @@ using Avalon.Domain.World;
 using Avalon.World.Abilities;
 using Avalon.World.Auras;
 using Avalon.World.Dialogue;
+using Avalon.World.Doodads;
 using Avalon.World.Localization;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
@@ -37,7 +38,8 @@ public class StaticData(
     ICombatDataRepository? combatDataRepository = null,
     IQuestRepository? questRepository = null,
     IScriptManager? scriptManager = null,
-    IAuraTemplateRepository? auraTemplateRepository = null)
+    IAuraTemplateRepository? auraTemplateRepository = null,
+    IDoodadTemplateRepository? doodadTemplateRepository = null)
 {
     private readonly ConcurrentQueue<(StaticDataPatch Patch, TaskCompletionSource Done)> _pending = new();
 
@@ -59,6 +61,7 @@ public class StaticData(
     private volatile CombatPatch? _combat;
     private volatile QuestsPatch? _quests;
     private volatile AurasPatch? _auras;
+    private volatile DoodadsPatch? _doodads;
 
     /// <summary>
     /// Reads the database and builds a whole patch for one area. Runs on the thread pool and
@@ -158,6 +161,23 @@ public class StaticData(
                 return new QuestsPatch(new QuestCatalog(quests, creatures, items, nodes, findScript, loggerFactory));
             }
 
+            case ReloadArea.Doodads:
+            {
+                // Validated against the loot tables, auras and quests read here, never the ones applied, so the doodads
+                // and what they name are one generation. The loot and aura catalogs are thrown away, so they log
+                // nothing: their own areas report their refusals. No repository (tests) is an empty catalog.
+                IReadOnlyCollection<DoodadTemplate> doodads = doodadTemplateRepository is null
+                    ? Array.Empty<DoodadTemplate>()
+                    : await doodadTemplateRepository.GetAllAsync(ct);
+                var loot = new LootCatalog(await lootTableRepository.GetAllAsync(ct), NullLoggerFactory.Instance);
+                AuraCatalog auras = await ReadAurasAsync(NullLoggerFactory.Instance, ct);
+                IReadOnlyCollection<QuestTemplate> quests = questRepository is null
+                    ? Array.Empty<QuestTemplate>()
+                    : await questRepository.GetAllAsync(ct);
+                Func<string, Type?> findScript = scriptManager is null ? static _ => null : scriptManager.GetDoodadScript;
+                return new DoodadsPatch(new DoodadCatalog(doodads, loot, auras.Templates, quests, findScript, loggerFactory));
+            }
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(area), area, null);
         }
@@ -203,6 +223,9 @@ public class StaticData(
                 break;
             case AurasPatch p:
                 _auras = p;
+                break;
+            case DoodadsPatch p:
+                _doodads = p;
                 break;
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
@@ -365,4 +388,10 @@ public class StaticData(
     /// first load.
     /// </summary>
     public AuraCatalog Auras => _auras?.Catalog ?? AuraCatalog.Empty;
+
+    /// <summary>
+    /// Doodad templates. Read when an instance build places doodads and on the tick when one is used; one reference, so
+    /// one generation. Empty before the first load.
+    /// </summary>
+    public DoodadCatalog Doodads => _doodads?.Catalog ?? DoodadCatalog.Empty;
 }

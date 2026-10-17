@@ -44,9 +44,10 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 | `item-catalog` | `schema/items/item-catalog-v1.json` | the item template rows — **needs a World database** |
 | `ability-catalog` | `schema/abilities/ability-catalog-v1.json` | every ability row a client names and draws, creatures' included (#163) — **needs a World database** |
 | `aura-catalog` | `schema/auras/aura-catalog-v1.json` | every aura's name, icon, kind, timing, stacking and stat modifiers — **needs a World database** |
+| `doodad-catalog` | `schema/doodads/doodad-catalog-v1.json` | every doodad's model kit and key, clips, interaction time and range, solidity and spent look, nothing of what a use does (no gates, loot, gold, restore, radius or aura outcomes) — **needs a World database** |
 | `quest-catalog` | `schema/quests/quest-catalog-v1.json` | every quest's enUS title, stages, objectives and rewards, for tooling (#714) — **needs a World database** |
 
-`item-catalog`, `ability-catalog`, `aura-catalog` and `quest-catalog` read their World connection string only from the environment
+`item-catalog`, `ability-catalog`, `aura-catalog`, `doodad-catalog` and `quest-catalog` read their World connection string only from the environment
 (`Database__World__ConnectionString`) or from user-secrets for `src/Server/Avalon.Database.World`,
 the sources the `dotnet ef` design-time factories use (#557). None reads an `appsettings` file,
 so running one from a folder that holds one cannot point it at that file's database. Without a

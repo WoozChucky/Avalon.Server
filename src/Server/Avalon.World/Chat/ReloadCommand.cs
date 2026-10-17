@@ -10,7 +10,7 @@ namespace Avalon.World.Chat;
 /// </summary>
 public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<ReloadCommand> logger) : ICommand
 {
-    private const string Usage = "Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|combat|quests|auras|all>";
+    private const string Usage = "Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|combat|quests|auras|doodads|all>";
 
     private const string MapsRefusal =
         "Maps and chunk layouts cannot be reloaded: live instances have already baked a navmesh " +
@@ -79,6 +79,7 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
             ReloadArea.Combat => line + " Affects the next hit; a character's stats change at its next select, gear change or level-up.",
             ReloadArea.Quests => line + " Affects what is offered and credited from the next tick; characters keep the quests they hold.",
             ReloadArea.Auras => line + " Affects auras applied from now on; an aura already on a unit keeps what it was applied with.",
+            ReloadArea.Doodads => line + " Affects instances built from now on; doodads already placed keep their template.",
             _ => line
         };
     }
