@@ -158,7 +158,7 @@ public sealed class CrowdLocomotion : IPlayerAwareLocomotion
         _routeEnds.Remove(creature.Guid);
 
         // A jump, not a walk: a query rewound to before it must not find the creature anywhere it stood (#1082).
-        (creature as Creature)?.History?.Invalidate();
+        (creature as Creature)?.Jump();
         creature.Position = position;
         ComeToRest(creature);
     }

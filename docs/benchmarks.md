@@ -4248,8 +4248,10 @@ summary.
 | Bit tests instead of `HasFlag` on the tick (#981); Debug, then | 14,138 |
 | Quest markers, a pickup's despawn, a marker run and an equip (#973's closing cleanup, PGO on) | 13,905 |
 | Debug, then | 13,905 |
-| Lag-compensated fighters: a view tick and a 60 ms round trip (#1082, PGO on), now | 14,528 |
-| Debug, now | 14,528 |
+| Lag-compensated fighters: a view tick and a 60 ms round trip (#1082, PGO on) | 14,528 |
+| Debug, then | 14,528 |
+| Only moved units recorded, rewound drift bounded by recorded steps (#1082, PGO on), now; not regenerated | 14,536 |
+| Debug, now | 14,536 |
 
 No tick-time change is claimed for the first two steps: tick time was not measured like for like. For the third, it
 was, and none was measurable ([shared broadcasts](#results--shared-broadcasts-875-2026-10-10)).
@@ -4533,6 +4535,53 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- candidate-ratio 1 3
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*InterestVisibilityBenchmarks*" "*SpatialIndexBenchmarks*" --job short --warmupCount 5 --iterationCount 8 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*ForestTickBenchmarks*' --inProcess --warmupCount 5 --iterationCount 8 --affinity 4
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*TickPhaseBenchmarks*' --inProcess --job short --warmupCount 10 --iterationCount 8
+```
+
+### Results — recording only moved units, and rewound queries' drift (#1082, 2026-10-17)
+
+Lag compensation (#1082, [spell system](spell-system.md)) keeps each unit's positions by world tick and judges a player's
+instant hits and projectiles against them. As first written its Step 4b walked every character and creature of an
+instance every tick to record them, the one step reading every creature every tick, which undid the saving of #979 for
+the waiting ones; and a rewound hit query widened its grid box by a fixed 1 m for every tick rewound (60 m/s, about 8
+times a running unit), so a projectile's step of a tick visited and read far more than a present one, and the
+nearest-first sort read each hit's history again on every comparison. Since then the position setters list a unit as
+it moves (`SpatialGrid.Moved`), once a tick, and Step 4b records that list alone (`SpatialGrid.RecordMoved`); each move
+also measures its step from where its unit was last recorded, and a rewound query widens its box by the sum of the
+largest step of each tick of its window, plus the largest move since the last record (`SpatialGrid.RewindDrift`);
+each candidate's rewound position is read once and its hit carries its distance into the sort.
+
+**Timings were not measured** (the owner's rule for this machine); exact counts, the `hit-candidates` harness's fight
+with a temporary probe on Step 4b and on the rewound queries, not committed, over the 3,600 measured ticks of the four
+forests (14,400 instance ticks):
+
+| | Before | After |
+|---|---:|---:|
+| Step 4b: members read a tick, per instance | 203.3 | 2.0 |
+| Step 4b: `PositionHistory.Record` calls a tick, per instance | 203.3 | 2.0 |
+| A rewound query's widening, on average | 8.03 m | 0.44 m |
+
+Per query, rewound (a player's instant hits and its projectiles' steps) and not (the creatures' casts, a queued cast's
+telegraph): grid entries visited, units read and tested, hits.
+
+| Shape | Queries, rewound | Visited, before / after | Read, before / after | Hits | Queries, present | Visited | Read | Hits |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Circle | 20 | 19.45 / 14.35 | 10.25 / 5.65 | 3.20 | 32 | 11.72 | 3.84 | 3.03 |
+| Cone | 125 | 16.15 / 14.06 | 9.64 / 4.77 | 2.43 | 183 | 13.49 | 4.68 | 2.81 |
+| Segment (a projectile's step) | 10,441 | 13.34 / 9.16 | 5.79 / 0.52 | 0.16 | 1,766 | 11.90 | 0.24 | 0.16 |
+
+A rewound projectile step now reads 0.52 units where it read 5.79 (a present one reads 0.24), and every query of all
+shapes 0.60 where it read 5.03. The present queries' counts are unchanged, as are the hits, the fight (102 kills, 2
+deaths, 21 heals, 105 kill credits, 189 pickups) and the bytes and packets on every connection, over the grid as by
+full scan.
+
+**The allocation gate**: `forest-combat` reads 14,536 B per window in Release and Debug, 8 B over the committed
+14,528 B and inside its 256 B floor, so `perf/scenario-allocations.json` is not regenerated; the others are unchanged.
+The 8 B are a rewound query's list of sort keys, one per instance, which grows to the most hits of a rewound query
+once in a fresh world, as the hit lists do; created with room for 256 keys, the run reads 14,528 B again. Recording and
+the drift allocate nothing: the moved list is as long as the grid's entries and grows with them, on a join only.
+
+```bash
+dotnet run -c Release --project tools/Avalon.Benchmarking -- hit-candidates
 ```
 
 ### Results — hit queries over a spatial grid (#982, 2026-10-15)

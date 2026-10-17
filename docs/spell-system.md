@@ -189,22 +189,36 @@ refused: its cost and cooldown are spent all the same.
   its own inputs reach the server in order before its cast, so where it stands now is where it stood on
   its own screen (a self-including Ally circle must not test it where it was). Liveness and membership
   stay the present's: a unit that died or left since is never hit. The spatial grid holds present
-  positions, so a rewound query widens the box it visits by `LagCompensation.MaxStepPerTick` (1 m, so
-  60 m/s) for every tick rewound. Never rewound: a queued cast (its wind-up is the dodge window and its
+  positions, so a rewound query widens the box it visits by how far a unit can have moved since the tick
+  it reads (`SpatialGrid.RewindDrift`): each move measures, on X and on Z, how far the unit is from where
+  its history was last recorded, the grid keeps the largest such step of each recorded tick for the last
+  18 ticks, and the box grows by the sum of those of the window plus the largest move since the last
+  record. A unit's displacement over the window is at most the sum of its own steps, so none is missed
+  however fast it moved, and a window in which little moved costs little more than the present (in
+  `forest-combat`, 0.44 m on average, where a fixed 1 m a tick gave 8 m). A jumped unit is tested at its
+  present position, so a jump adds nothing; a step that is not finite makes the query scan every member.
+  Each candidate's rewound position is read once, and its hit carries its distance from the origin into
+  the nearest-first sort. Never rewound: a queued cast (its wind-up is the dodge window and its
   footprint was fixed at its start), a creature's cast, and item use.
 - **Position history.** Each character and creature in an instance holds a `PositionHistory`
   (`CharacterEntity.History`, `Creature.History`; never on `IUnit`): a ring of 18 entries keyed by world
-  tick (`WorldTicks.Completed`), the 15-tick cap and a margin. `MapInstance` records every member once
-  a tick, in its Step 4b, after every move of the tick and before the broadcast, so an entry is the
-  position the broadcast stamped with that tick carries. An unchanged position writes nothing, so a unit
-  standing still keeps its older entries, and a lookup is the newest entry at or before the tick. The
-  rings are pooled per instance: one is rented, empty, as a unit joins and returned as it leaves, so a
+  tick (`WorldTicks.Completed`), the 15-tick cap and a margin. `MapInstance` records, in its Step 4b,
+  after every move of the tick and before the broadcast, every member that moved since the last record,
+  so an entry is the position the broadcast stamped with that tick carries. The units are listed as they
+  move: the concrete position setters' call into the spatial grid (`SpatialGrid.Moved`) adds the unit
+  to a preallocated list once per tick, and the step (`SpatialGrid.RecordMoved`) records that list and
+  reads no other unit (most of a forest's creatures are waiting, #979; `forest-combat` records 2 units a
+  tick of 203). An unchanged position writes nothing, so a unit standing still keeps its older entries,
+  and a lookup is the newest entry at or before the tick. The rings are pooled per instance: one is
+  rented as a unit joins, seeded with its position at the current tick, and returned as it leaves, so a
   unit entering an instance (every transfer, a teleport or a town return into the same instance
-  included, leaves and joins again) starts with none. A jump inside the instance clears it: a revive
-  (`CombatService.RevivePlayer`) and a creature's teleport (`CrowdLocomotion.Teleport`,
-  `WaypointLocomotion.Teleport`), so a rewind never returns a position from before a jump. Until the
-  next Step 4b writes an entry, a rewound query uses the present position. Recording and lookups
-  allocate nothing (#880). An instance built without the world's tick count (tests) keeps no history
+  included, leaves and joins again) starts with that entry alone, and one that never moves is found
+  where it joined. A jump inside the instance clears it: a revive (`CombatService.RevivePlayer`) and a
+  creature's teleport (`CrowdLocomotion.Teleport`, `WaypointLocomotion.Teleport`) call the entity's
+  `Jump()` before writing the position, which empties the history and lists the unit, so the next Step
+  4b reseeds it where it landed (even where it stood) and a rewind never returns a position from before
+  a jump. Until then, a rewound query uses the present position. Recording and lookups allocate nothing
+  (#880), and Step 4b is timed as its own phase (`historyTicks`, [tick profiling](tick-profiling.md)). An instance built without the world's tick count (tests) keeps no history
   and rewinds nothing.
 - **Dodge wait (the target's screen).** A telegraph reaches a player half a round trip late, and their
   step out of it reaches the server half a round trip after they make it, so a player out of the

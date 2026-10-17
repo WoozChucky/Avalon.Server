@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Abilities.Targeting;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Creatures;
 using Avalon.World.Entities;
@@ -75,6 +76,14 @@ internal interface ISpatialVisitor
 /// bound again lazily after any character linked, unlinked or moved, which answer most of those with a few comparisons;
 /// past them, each cell's count of characters lets the probe walk only the cells around the creature that hold one.
 /// </para>
+/// <para>
+/// <b>Moves for the position histories (#1082).</b> The same setter call lists the entity among the entries moved since
+/// the instance last recorded the histories (<see cref="RecordMoved" />, its Step 4b), once however often it moved, so
+/// that step reads the units that moved and no other (most of a forest's creatures are waiting, #979). Each move also
+/// measures how far the entity is, on X and on Z, from where its history was last recorded; the largest of each tick is
+/// kept by tick (<see cref="RewindDrift" />), which bounds how far a rewound hit query's units can be from where the grid
+/// has them.
+/// </para>
 /// </remarks>
 internal sealed class SpatialGrid
 {
@@ -121,6 +130,17 @@ internal sealed class SpatialGrid
     // The largest body radius of any entity this grid has indexed (#982), for the hit query's box: 0 until one joins.
     private float _largestBodyRadius;
 
+    // The slots moved since the last RecordMoved, packed, each entry holding its place here plus one (#1082). As long as
+    // the entries, grown with them on a join only, and never holding a slot twice, so a move never grows it.
+    private int[] _moved = new int[InitialCapacity];
+    private int _movedCount;
+
+    // The largest step (on X or on Z, from an entity's recorded X/Z) of any move since the last RecordMoved (#1082).
+    private float _pendingStep;
+
+    // The largest step of each recorded tick, by tick (#1082): the rewind cap's ticks and the history's margin.
+    private readonly (long Tick, float Step)[] _steps = new (long Tick, float Step)[PositionHistory.Capacity];
+
     private SpatialGrid(float originX, float originZ, float cellSize, int columns, int rows)
     {
         _originX = originX;
@@ -133,6 +153,8 @@ internal sealed class SpatialGrid
         _heads = new int[_unplaced + 1];
         Array.Fill(_heads, Unlinked);
         _characterCounts = new int[_unplaced + 1];
+        for (int i = 0; i < _steps.Length; i++)
+            _steps[i].Tick = long.MinValue;
     }
 
     /// <summary>
@@ -199,6 +221,8 @@ internal sealed class SpatialGrid
         entry.RawGuid = obj.Guid.RawValue;
         entry.Object = obj;
         entry.Kind = kind;
+        entry.RecordedX = position.x;   // where the instance seeds its history as it joins (#1082)
+        entry.RecordedZ = position.z;
         Link(slot, CellOf(position));
         if (kind == SpatialKind.Character)
         {
@@ -242,7 +266,10 @@ internal sealed class SpatialGrid
 
     /// <summary>
     /// The entity in <paramref name="slot" /> was moved to <paramref name="position" />: its X and Z are written, and it
-    /// is relinked only when its cell changed. Called by the concrete position setters, on every write.
+    /// is relinked only when its cell changed. Called by the concrete position setters, on every write. It is listed for
+    /// the next <see cref="RecordMoved" />, and its step from where its history was last recorded counts towards this
+    /// tick's drift, unless it jumped (<see cref="Jumped" />) since: then its steps are measured from where it landed
+    /// (#1082).
     /// </summary>
     public void Moved(int slot, Vector3 position)
     {
@@ -258,6 +285,121 @@ internal sealed class SpatialGrid
             Unlink(slot);
             Link(slot, cell);
         }
+
+        if (entry.Jumped)
+        {
+            entry.RecordedX = position.x;
+            entry.RecordedZ = position.z;
+            entry.Jumped = false;
+        }
+        else
+        {
+            // MathF.Max keeps a NaN, as the sums do, so a step that is not finite makes a rewound query scan every member.
+            float step = MathF.Max(MathF.Abs(position.x - entry.RecordedX), MathF.Abs(position.z - entry.RecordedZ));
+            _pendingStep = MathF.Max(_pendingStep, step);
+        }
+
+        ListMoved(ref entry, slot);
+    }
+
+    /// <summary>
+    /// The entity in <paramref name="slot" /> is about to jump (#1082): a teleport or a revive, whose history has just
+    /// been emptied. It is listed for the next <see cref="RecordMoved" />, which seeds the history where it stands then,
+    /// even where it stood before, and its next move is measured from where it lands rather than counted as drift: a
+    /// rewound query finds no position of it from before the jump, so it tests its present one.
+    /// </summary>
+    public void Jumped(int slot)
+    {
+        ref Entry entry = ref _entries[slot];
+        entry.Jumped = true;
+        ListMoved(ref entry, slot);
+    }
+
+    /// <summary>
+    /// Step 4b of the instance's tick (#1082): records every entity moved (or jumped) since the last call into its
+    /// position history at <paramref name="tick" /> (<see cref="PositionHistory.Record" />), and keeps the largest step of
+    /// those moves as <paramref name="tick" />'s. Returns how many it recorded. Reads no entity that did not move, and
+    /// allocates nothing.
+    /// </summary>
+    /// <remarks>
+    /// A tick recorded twice (a world tick that threw is not counted, so the next one carries its number) adds its second
+    /// largest step to the first: the history's entry for the tick is the later position, which may be both steps away
+    /// from the one before.
+    /// </remarks>
+    public int RecordMoved(long tick)
+    {
+        Entry[] entries = _entries;
+        int count = _movedCount;
+        for (int i = 0; i < count; i++)
+        {
+            ref Entry entry = ref entries[_moved[i]];
+            entry.MovedIndex = 0;
+            entry.Jumped = false;
+            entry.RecordedX = entry.X;
+            entry.RecordedZ = entry.Z;
+
+            IWorldObject obj = entry.Object!;
+            PositionHistory? history = obj switch
+            {
+                Creature creature => creature.History,
+                CharacterEntity character => character.History,
+                _ => null,
+            };
+            history?.Record(tick, obj.Position);
+        }
+
+        _movedCount = 0;
+
+        ref (long Tick, float Step) recorded = ref _steps[StepIndex(tick)];
+        if (recorded.Tick == tick)
+        {
+            recorded.Step += _pendingStep;
+        }
+        else
+        {
+            recorded.Tick = tick;
+            recorded.Step = _pendingStep;
+        }
+
+        _pendingStep = 0f;
+        return count;
+    }
+
+    /// <summary>
+    /// How far, on X or on Z, any entity in a cell can stand now from where its position history puts it at
+    /// <paramref name="tick" /> (#1082): the largest steps recorded on each tick after it up to <paramref name="now" /> (a
+    /// tick with none recorded adds 0), plus the largest of the moves since the last record. An entity's displacement over
+    /// those ticks is at most the sum of its steps, each at most its tick's largest; a jumped entity has no position from
+    /// before its jump, so its rewound position is its present one. Infinite for a window longer than the ticks kept, and
+    /// NaN after a step that was not finite: either way a hit query scans every member.
+    /// </summary>
+    public float RewindDrift(long tick, long now)
+    {
+        if (now - tick > _steps.Length)
+            return float.PositiveInfinity;
+
+        float drift = _pendingStep;
+        for (long t = tick + 1; t <= now; t++)
+        {
+            ref readonly (long Tick, float Step) recorded = ref _steps[StepIndex(t)];
+            if (recorded.Tick == t)
+                drift += recorded.Step;
+        }
+
+        return drift;
+    }
+
+    // A tick's place in _steps; world ticks are never negative.
+    private int StepIndex(long tick) => (int)(tick % _steps.Length);
+
+    // Lists an entry for the next RecordMoved, once (#1082).
+    private void ListMoved(ref Entry entry, int slot)
+    {
+        if (entry.MovedIndex != 0)
+            return;
+
+        _moved[_movedCount++] = slot;
+        entry.MovedIndex = _movedCount;
     }
 
     /// <summary>
@@ -674,13 +816,26 @@ internal sealed class SpatialGrid
         }
 
         if (_used == _entries.Length)
+        {
             Array.Resize(ref _entries, _entries.Length * 2);
+            Array.Resize(ref _moved, _entries.Length);   // on a join only, as the entries grow
+        }
+
         return _used++;
     }
 
     private void Release(int slot)
     {
         Unlink(slot);
+        if (_entries[slot].MovedIndex != 0)
+        {
+            // The last moved slot takes this one's place in the moved list (#1082).
+            int index = _entries[slot].MovedIndex - 1;
+            int last = _moved[--_movedCount];
+            _moved[index] = last;
+            _entries[last].MovedIndex = index + 1;
+        }
+
         if (_entries[slot].Kind == SpatialKind.Character)
         {
             // The last character's slot takes this one's place in the packed list.
@@ -752,6 +907,16 @@ internal sealed class SpatialGrid
 
         // A character's place in _characterSlots.
         public int CharacterIndex;
+
+        // Where the instance last recorded the entity's position history, on X and Z, for a move's step (#1082).
+        public float RecordedX;
+        public float RecordedZ;
+
+        // Its place in _moved plus one; 0 while it has not moved since the last RecordMoved (#1082).
+        public int MovedIndex;
         public SpatialKind Kind;
+
+        // A jump since the last RecordMoved: the next move is measured from where it lands (#1082).
+        public bool Jumped;
     }
 }

@@ -21,6 +21,7 @@ internal struct InstanceTickProfile
     public long StateEncodingTicks;
     public long AuraTicks;
     public long EnqueueTicks;
+    public long HistoryTicks;
     public long CandidateChecks;
     public long VisiblePairs;
     public long DirtyEntities;

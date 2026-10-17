@@ -532,6 +532,19 @@ public partial class CharacterEntity : ICharacter
     public PositionHistory? History { get; internal set; }
 
     /// <summary>
+    /// A jump, not a walk (#1082): a teleport or a revive. Called before the new position is written, it empties the
+    /// history, so a query rewound to before the jump never finds the character anywhere it stood, and has its instance's
+    /// grid list it for the next Step 4b, which seeds the history where it lands (even where it already stood) without
+    /// counting the jump as a step any unit may have moved.
+    /// </summary>
+    internal void Jump()
+    {
+        History?.Invalidate();
+        if (_spatial.Grid is { } grid)
+            grid.Jumped(_spatial.Slot);
+    }
+
+    /// <summary>
     /// Where the instance this character is in indexes it (#982): set while it is a member and cleared when it leaves, so
     /// <see cref="Position" /> keeps that index current. The grid's alone; World-side, never on ICharacter.
     /// </summary>

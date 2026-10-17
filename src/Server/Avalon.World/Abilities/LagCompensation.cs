@@ -16,12 +16,6 @@ public static class LagCompensation
     /// <summary>The longest a telegraph's hit on a player waits for that player's late input: about 100 ms.</summary>
     public const int MaxDodgeWaitTicks = 6;
 
-    /// <summary>
-    /// The furthest, in metres, a rewound hit query allows any unit to have moved in one tick (60 m/s): the box of grid
-    /// cells it visits, which hold present positions, is widened by this for every tick rewound.
-    /// </summary>
-    public const float MaxStepPerTick = 1f;
-
     // A world tick in TimeSpan ticks, in double so a round trip converts without integer truncation.
     private const double TicksPerWorldTick = (double)TimeSpan.TicksPerSecond / WorldTicks.PerSecond;
 

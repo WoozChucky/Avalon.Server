@@ -33,7 +33,7 @@ public sealed class TickTraceReaderShould : IDisposable
                 Marker + 6, Marker + 7, Marker + 8, Marker + 9, Marker + 10, Marker + 11, Marker + 12, Marker + 13,
                 Marker + 14, Marker + 15, Marker + 16, Marker + 17, Marker + 18, Marker + 19, Marker + 20, Marker + 21,
                 Marker + 22, Marker + 23, Marker + 24, Marker + 25, Marker + 26, Marker + 27, Marker + 28, Marker + 29,
-                Marker + 30);
+                Marker + 30, Marker + 31);
             WorldTickTrace.Log.WorldTick(Marker, Marker + 1, Marker + 2, Marker + 3, Marker + 4);
             WorldTickTrace.Log.InstanceBatch(Marker, Marker + 1, Marker + 2, Marker + 3, Marker + 4);
         });

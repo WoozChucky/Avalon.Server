@@ -6,6 +6,7 @@ using Avalon.World.Abilities.Targeting;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Units;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -118,6 +119,47 @@ public class PositionHistoryShould
         Assert.False(history.TryGet(1_004, out _));
         Assert.True(history.TryGet(1_005, out Vector3 now));
         Assert.Equal(home, now);
+    }
+
+    /// <summary>
+    /// The instance records a unit only on a tick it moved (#1082), so a unit's history is seeded as it joins: one that
+    /// stood still since joining, for longer than the ring holds, then moved is found where it joined by a query rewound
+    /// to before the move, never at the position it moved to.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Find_a_unit_where_it_joined_until_its_first_move(bool creature)
+    {
+        var ticks = new WorldTicks(1_000);
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), worldTicks: ticks);
+        var joined = new Vector3(4f, 0f, 4f);
+        CharacterEntity character = Inventory.TestCharacters.New(916_111);
+        character.Position = creature ? Vector3.zero : joined;
+        Join(instance, character);
+        var boar = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 916_911),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = joined,
+            Level = 1,
+            Health = 100,
+            CurrentHealth = 100,
+        };
+        if (creature)
+            instance.AddCreature(boar);
+        IUnit unit = creature ? boar : character;
+
+        for (int i = 0; i < 2 * PositionHistory.Capacity; i++)
+            Tick(instance, ticks);
+        unit.Position = new Vector3(9f, 0f, 4f);
+        Tick(instance, ticks);   // tick 1036, the first it moved on
+
+        PositionHistory history = Assert.IsType<PositionHistory>(creature ? boar.History : character.History);
+        Assert.True(history.TryGet(1_035, out Vector3 before));
+        Assert.Equal(joined, before);
+        Assert.True(history.TryGet(1_036, out Vector3 after));
+        Assert.Equal(new Vector3(9f, 0f, 4f), after);
     }
 
     private static void Tick(MapInstance instance, WorldTicks ticks)

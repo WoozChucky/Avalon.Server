@@ -635,7 +635,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
         _characters[joining.Guid] = joining;
         if (joining is CharacterEntity joiningEntity)
-            joiningEntity.History = RentHistory(joiningEntity.History);
+            joiningEntity.History = RentHistory(joiningEntity.History, joiningEntity.Position);
         _members.Add(joining, SpatialKind.Character);
         _auras.Roster.Join(joining);
         _connections[joining.Guid] = connection;
@@ -779,7 +779,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
         _creatures[creature.Guid] = creature;
         if (creature is Creature joining)
-            joining.History = RentHistory(joining.History);
+            joining.History = RentHistory(joining.History, joining.Position);
         _members.Add(creature, SpatialKind.Creature);
         if (_scheduleCreatures)
             _scheduler.Joined(creature);
@@ -1402,10 +1402,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         UpdateCreatures(deltaTime);
         _tickProfile.CreatureTicks += _tickProfile.Elapsed(profileStart);
 
-        // Step 4b: every member's position history (#1082). After every move of the tick and before the broadcast, so
-        // each entry is the position the broadcast stamped with this tick carries. No tick count (tests), no history.
+        // Step 4b: the position history of every member that moved this tick (#1082). After every move of the tick and
+        // before the broadcast, so each entry is the position the broadcast stamped with this tick carries. No tick count
+        // (tests), no history.
+        profileStart = _tickProfile.Timestamp();
         if (_worldTicks is not null)
             RecordPositions(_worldTicks.Completed);
+        _tickProfile.HistoryTicks += _tickProfile.Elapsed(profileStart);
 
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks.
         profileStart = _tickProfile.Timestamp();
@@ -1423,31 +1426,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Step 4b of <see cref="Update" />: records where every member stands at the end of world tick
-    /// <paramref name="tick" /> (#1082). A unit that did not move writes nothing (<see cref="PositionHistory.Record" />).
-    /// The dictionaries are walked with their struct enumerators, so the step allocates nothing.
+    /// Step 4b of <see cref="Update" />: records where every member that moved since the last record stands at the end of
+    /// world tick <paramref name="tick" /> (#1082). The grid lists them as their position setters run
+    /// (<see cref="SpatialGrid.RecordMoved" />), so a unit that did not move is not read: most of a forest's creatures are
+    /// waiting (#979). One that never moves keeps the entry it was seeded with as it joined (<see cref="RentHistory" />).
     /// </summary>
-    private void RecordPositions(long tick)
-    {
-        foreach (ICharacter character in _characters.Values)
-        {
-            if (character is CharacterEntity { History: { } history } entity)
-                history.Record(tick, entity.Position);
-        }
-
-        foreach (ICreature creature in _creatures.Values)
-        {
-            if (creature is Creature { History: { } history } unit)
-                history.Record(tick, unit.Position);
-        }
-    }
+    private void RecordPositions(long tick) => _members.RecordMoved(tick);
 
     /// <summary>
-    /// The history a unit joining this instance records into (#1082): the one it holds, emptied (a unit added again
-    /// without leaving, or out of an instance let go with it inside), or one from the pool. None in an instance with no
-    /// world tick count (tests), which records nothing.
+    /// The history a unit joining this instance at <paramref name="position" /> records into (#1082): the one it holds,
+    /// emptied (a unit added again without leaving, or out of an instance let go with it inside), or one from the pool,
+    /// seeded with <paramref name="position" /> at the world's current tick. Step 4b records a unit only on a tick it
+    /// moved, so without the seed one that stood still since joining would have no entry from before its first move. None
+    /// in an instance with no world tick count (tests), which records nothing.
     /// </summary>
-    private PositionHistory? RentHistory(PositionHistory? held)
+    private PositionHistory? RentHistory(PositionHistory? held, Vector3 position)
     {
         if (_worldTicks is null)
             return held;
@@ -1460,6 +1453,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         history.Clear();
+        history.Record(_worldTicks.Completed, position);
         return history;
     }
 

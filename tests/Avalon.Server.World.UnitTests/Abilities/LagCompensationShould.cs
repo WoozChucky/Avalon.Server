@@ -49,18 +49,21 @@ public class LagCompensationShould
     /// <summary>
     /// A creature walks sideways out of a narrow cone for 12 ticks. A cone cast at where it stood at the start, naming
     /// that tick, hits it; the same cast naming no tick is judged on the present, where the creature has left the cone.
+    /// A creature running 3 m a tick, 36 m out by the cast, is still found where it stood: the grid box a rewound query
+    /// visits is widened by the steps the instance recorded, however long, not by a fixed speed.
     /// </summary>
     [Theory]
-    [InlineData(Start, true)]
-    [InlineData(0L, false)]
-    public void Hit_a_moving_creature_where_the_caster_saw_it(long viewTick, bool hit)
+    [InlineData(Start, 0.2f, true)]
+    [InlineData(0L, 0.2f, false)]
+    [InlineData(Start, 3f, true)]
+    public void Hit_a_moving_creature_where_the_caster_saw_it(long viewTick, float step, bool hit)
     {
         var ticks = new WorldTicks(Start);
         using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, worldTicks: ticks);
         MapInstanceClient warrior = Warrior(instance, 1082_101);
         (Creature walker, CombatResolutionShould.CountingWoundScript wounds) = AddCreature(instance, 1082_901);
 
-        WalkOut(instance, ticks, walker);
+        WalkOut(instance, ticks, step, walker);
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = ConeId, ViewTick = viewTick });
 
         Assert.Equal(hit ? 1 : 0, wounds.Hits);
@@ -79,7 +82,7 @@ public class LagCompensationShould
         (Creature dead, CombatResolutionShould.CountingWoundScript deadWounds) = AddCreature(instance, 1082_911);
         (Creature alive, CombatResolutionShould.CountingWoundScript aliveWounds) = AddCreature(instance, 1082_912);
 
-        WalkOut(instance, ticks, dead, alive);
+        WalkOut(instance, ticks, 0.2f, dead, alive);
         dead.CurrentHealth = 0;
         handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = ConeId, ViewTick = Start });
 
@@ -201,15 +204,16 @@ public class LagCompensationShould
 
     /// <summary>
     /// One tick with every creature at <see cref="s_seen" /> (tick <see cref="Start" />), then 12 ticks of each walking
-    /// 0.2 m a tick along +X, out of the cone: at the cast (tick 1013) they stand 2.4 m to the side.
+    /// <paramref name="step" /> a tick along +X, out of the cone: at the cast (tick 1013), at 0.2 m a tick, they stand
+    /// 2.4 m to the side.
     /// </summary>
-    private static void WalkOut(MapInstance instance, WorldTicks ticks, params Creature[] creatures)
+    private static void WalkOut(MapInstance instance, WorldTicks ticks, float step, params Creature[] creatures)
     {
         Tick(instance, ticks);
         for (int i = 1; i <= 12; i++)
         {
             foreach (Creature creature in creatures)
-                creature.Position = s_seen + new Vector3(0.2f * i, 0f, 0f);
+                creature.Position = s_seen + new Vector3(step * i, 0f, 0f);
             Tick(instance, ticks);
         }
     }

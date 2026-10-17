@@ -19,14 +19,14 @@ public static class TickDump
     /// <summary>The columns every file starts with: the writing thread and the event's time in ms from the session start.</summary>
     public static IReadOnlyList<string> Leading { get; } = ["thread", "ts_ms"];
 
-    /// <summary>Event 1, <c>InstanceTick</c>, version 1.</summary>
+    /// <summary>Event 1, <c>InstanceTick</c>, version 2.</summary>
     public static IReadOnlyList<string> InstanceColumns { get; } =
     [
         "tickId", "instanceLow", "instanceHigh", "mapType", "startTimestamp", "durationTicks", "frequency", "completed",
         "broadcast", "players", "creatures", "projectiles", "inputTicks", "combatTicks", "creatureTicks", "dirtyTicks",
         "visibilityTicks", "trackingTicks", "statePreparationTicks", "stateEncodingTicks", "auraTicks", "enqueueTicks",
         "candidateChecks", "visiblePairs", "dirtyEntities", "added", "updated", "removed", "statePackets", "stateBytes",
-        "mapPackets",
+        "mapPackets", "historyTicks",
     ];
 
     /// <summary>Event 2, <c>WorldTick</c>, version 1.</summary>
@@ -41,8 +41,9 @@ public static class TickDump
     public static int Run(string trace, string outDir, TextWriter log)
     {
         using var source = new EventPipeEventSource(trace);
-        // The field count of each version: InstanceTick and WorldTick each appended one field in version 1 (#976).
-        using var instances = new File(Path.Combine(outDir, "instance.csv"), InstanceColumns, [30, 31]);
+        // The field count of each version: InstanceTick and WorldTick each appended one field in version 1 (#976), and
+        // InstanceTick another in version 2 (#1082).
+        using var instances = new File(Path.Combine(outDir, "instance.csv"), InstanceColumns, [30, 31, 32]);
         using var worlds = new File(Path.Combine(outDir, "world.csv"), WorldColumns, [4, 5]);
         using var batches = new File(Path.Combine(outDir, "batch.csv"), BatchColumns, [5]);
         var unknown = new SortedDictionary<string, int>(StringComparer.Ordinal);
