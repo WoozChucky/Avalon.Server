@@ -7,8 +7,9 @@ namespace Avalon.ChunkGen;
 /// writes the forest pieces, "town" Glimmerdell's four squares. Every piece is first written into a temporary copy of
 /// Maps/, read back through the World server's own catalog reader (ChunkCatalogSeeder.ReadCatalogAsync) and baked with
 /// its own ChunkLayoutNavmeshBuilder, each set piece with its members at their cells and the town with its four squares
-/// together; only when all of that passes are the files copied into Maps/Chunks. Any failure before that exits 1 and
-/// writes nothing to Maps/. "kit-bounds" measures the art kit's glTF files into Kit/kit-bounds.json (KitBounds).
+/// together; only when all of that passes are the files copied into Maps/Chunks, and each town square's decor file
+/// into Maps/Decor (which the seeder never reads). Any failure before that exits 1 and writes nothing to Maps/.
+/// "kit-bounds" measures the art kit's glTF files into Kit/kit-bounds.json (KitBounds).
 /// </summary>
 public static class ChunkGenCli
 {
@@ -30,7 +31,7 @@ public static class ChunkGenCli
 
         string staging = Path.Combine(Path.GetTempPath(), $"avalon-chunkgen-{Guid.NewGuid():N}");
         string maps;
-        IReadOnlyList<(string Name, string Obj, string Json)> files;
+        IReadOnlyList<(string Name, string Obj, string Json, string? Decor)> files;
         try
         {
             maps = mapsArgument is null
@@ -64,11 +65,7 @@ public static class ChunkGenCli
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 File.Copy(file, target);
             }
-            foreach ((string name, string obj, string json) in files)
-            {
-                await File.WriteAllTextAsync(Path.Combine(stagedMaps, "Chunks", name + ".obj"), obj);
-                await File.WriteAllTextAsync(Path.Combine(stagedMaps, "Chunks", name + ".json"), json);
-            }
+            await WriteAsync(stagedMaps, files);
 
             await ChunkCatalogSeeder.ReadCatalogAsync(stagedMaps);
             foreach (List<(string Name, int CellX, int CellZ)> bake in bakes)
@@ -89,11 +86,7 @@ public static class ChunkGenCli
         string chunks = Path.Combine(maps, "Chunks");
         try
         {
-            foreach ((string name, string obj, string json) in files)
-            {
-                await File.WriteAllTextAsync(Path.Combine(chunks, name + ".obj"), obj);
-                await File.WriteAllTextAsync(Path.Combine(chunks, name + ".json"), json);
-            }
+            await WriteAsync(maps, files);
         }
         catch (Exception ex)
         {
@@ -102,6 +95,8 @@ public static class ChunkGenCli
         }
 
         await output.WriteLineAsync($"validated, baked and wrote {files.Count} chunks to {chunks}");
+        int decor = files.Count(f => f.Decor is not null);
+        if (decor > 0) await output.WriteLineAsync($"wrote {decor} decor files to {Path.Combine(maps, "Decor")}");
 
         // Listed, never deleted: a file with the command's prefix that the tool did not write is hand-authored (the four
         // older town chunks, forest_boss_01) or left over from a renamed piece.
@@ -116,6 +111,19 @@ public static class ChunkGenCli
         }
 
         return 0;
+    }
+
+    /// <summary>Each chunk's .obj and .json into Maps/Chunks, and its decor file, when it has one, into Maps/Decor.</summary>
+    private static async Task WriteAsync(string maps, IReadOnlyList<(string Name, string Obj, string Json, string? Decor)> files)
+    {
+        foreach ((string name, string obj, string json, string? decor) in files)
+        {
+            await File.WriteAllTextAsync(Path.Combine(maps, "Chunks", name + ".obj"), obj);
+            await File.WriteAllTextAsync(Path.Combine(maps, "Chunks", name + ".json"), json);
+            if (decor is null) continue;
+            Directory.CreateDirectory(Path.Combine(maps, "Decor"));
+            await File.WriteAllTextAsync(Path.Combine(maps, "Decor", name + ".json"), decor);
+        }
     }
 
     /// <summary>

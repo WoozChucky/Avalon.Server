@@ -24,3 +24,5 @@ src/Server/Avalon.Server.World/Maps/**/*.obj text eol=lf
 src/Server/Avalon.Server.World/Maps/**/*.json text eol=lf
 # The art kit's bounds table, written by the same tool's "kit-bounds" command: LF for the same reason.
 tools/Avalon.ChunkGen/Kit/*.json text eol=lf
+# The building recipes are read by the same tool and written by hand or by an export script: LF on every platform too.
+tools/Avalon.ChunkGen/Recipes/*.json text eol=lf

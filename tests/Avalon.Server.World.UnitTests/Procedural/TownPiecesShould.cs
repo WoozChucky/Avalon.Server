@@ -20,10 +20,11 @@ public class TownPiecesShould
     [Fact]
     public void Match_the_committed_files()
     {
-        foreach ((string name, string obj, string json) in ChunkFiles.For(TownPieces.Squares()))
+        foreach ((string name, string obj, string json, string? decor) in ChunkFiles.For(TownPieces.Squares()))
         {
             Assert.Equal(obj, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".obj"))));
             Assert.Equal(json, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".json"))));
+            Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
         }
     }
 

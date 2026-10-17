@@ -36,15 +36,18 @@ public static class ObjWriter
     }
 
     /// <summary>
-    /// Today's floor and walls first (the floor untagged, the walls stone), then every piece as its own object, named
-    /// building_part with _1, _2, ... on a name the square repeats (the posts).
+    /// Today's floor and walls first (the floor untagged, or collision when the square is paved; the walls stone, or
+    /// collision when decor draws them), then every piece as its own object, named building_part with _1, _2, ... on a
+    /// name the square repeats (the posts).
     /// </summary>
     public static string Write(TownSquare square)
     {
         var obj = new ObjBuilder();
-        obj.Box("Floor", null, 0f, TownSquare.CellSize, TownSquare.FloorBottom, TownSquare.FloorTop, 0f, TownSquare.CellSize);
+        string? floor = square.Paved ? Materials.Name(Material.Collision) : null;
+        obj.Box("Floor", floor, 0f, TownSquare.CellSize, TownSquare.FloorBottom, TownSquare.FloorTop, 0f, TownSquare.CellSize);
+        string walls = Materials.Name(square.WallsAsDecor ? Material.Collision : Material.Stone);
         foreach (WallSegment wall in square.Walls)
-            obj.Box(wall.Name, Materials.Name(Material.Stone), wall.MinX, wall.MaxX, 0f, WallSegment.Height, wall.MinZ, wall.MaxZ);
+            obj.Box(wall.Name, walls, wall.MinX, wall.MaxX, 0f, WallSegment.Height, wall.MinZ, wall.MaxZ);
 
         var counts = square.Pieces.GroupBy(p => p.ObjectName, StringComparer.Ordinal).ToDictionary(g => g.Key, _ => 0, StringComparer.Ordinal);
         var repeated = square.Pieces.GroupBy(p => p.ObjectName, StringComparer.Ordinal).Where(g => g.Count() > 1).Select(g => g.Key)

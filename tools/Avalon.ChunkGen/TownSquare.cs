@@ -3,8 +3,11 @@ using Avalon.Database.World.Seeding;
 
 namespace Avalon.ChunkGen;
 
-/// <summary>The named materials a town shape is tagged with ("usemtl"); the client colours them, the server ignores them.</summary>
-public enum Material { Stone, Wood, Roof, Cloth, Cloth2, Plaster, Metal, Water }
+/// <summary>
+/// The named materials a town shape is tagged with ("usemtl"); the client colours them, the server ignores them.
+/// <see cref="Collision" /> marks a proxy the client does not draw, because decor (Maps/Decor) draws it instead.
+/// </summary>
+public enum Material { Stone, Wood, Roof, Cloth, Cloth2, Plaster, Metal, Water, Collision }
 
 public static class Materials
 {
@@ -18,8 +21,24 @@ public static class Materials
         Material.Plaster => "plaster",
         Material.Metal => "metal",
         Material.Water => "water",
+        Material.Collision => "collision",
         _ => throw new ArgumentOutOfRangeException(nameof(material), material, "unknown material"),
     };
+
+    /// <summary>The material a "usemtl" name stands for, or false for a name no material has.</summary>
+    public static bool TryParse(string name, out Material material)
+    {
+        foreach (Material candidate in Enum.GetValues<Material>())
+        {
+            if (Name(candidate) == name)
+            {
+                material = candidate;
+                return true;
+            }
+        }
+        material = default;
+        return false;
+    }
 }
 
 /// <summary>The side of a building its open face is on: a porch, a counter, a lean-to, the steps.</summary>
@@ -172,6 +191,15 @@ public sealed record TownSquare(
     public const float CellSize = ChunkPiece.CellSize;
     public const float FloorBottom = -0.05f;
     public const float FloorTop = 0.05f;
+
+    /// <summary>What the client draws on this square from the art kit (Maps/Decor/&lt;name&gt;.json), chunk-local.</summary>
+    public IReadOnlyList<DecorItem> Decor { get; init; } = [];
+
+    /// <summary>Decor draws the square's walls, so their boxes are written as <see cref="Material.Collision" />.</summary>
+    public bool WallsAsDecor { get; init; }
+
+    /// <summary>Decor paves the square's ground, so the floor box is written as <see cref="Material.Collision" />.</summary>
+    public bool Paved { get; init; }
 
     /// <summary>The square's south-west corner in world metres.</summary>
     public (float X, float Z) Origin => (GridX * CellSize, GridZ * CellSize);

@@ -65,11 +65,13 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Shared/Avalon.Domain/World/MapChunkPlacement.cs` | DB entity joining MapTemplate → predefined chunk placements |
 | `src/Shared/Avalon.Domain/World/ProceduralMapConfig.cs` | DB entity for procedural map RNG config |
 | `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata (see "The chunk format"). The forest pieces and Glimmerdell's four squares are written by `tools/Avalon.ChunkGen`; the rest (`forest_boss_01`, `town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are committed as they are and no tool writes them |
+| `src/Server/Avalon.Server.World/Maps/Decor/<chunkName>.json` | What the client draws on a generated town square from the art kit (see "Decor and building recipes"). Written by `tools/Avalon.ChunkGen` beside the chunks, outside `Maps/Chunks/` because the seeder reads every `*.json` there as chunk metadata; the server never reads it |
 | `src/Server/Avalon.Server.World/Maps/TownLayouts/<MapTemplateId>.json` | Town layouts: which chunk sits on which grid cell, edited directly (see "Creating a town"). ChunkGen writes the squares' geometry, not this file |
 | `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/chunk-groups.json` | Set pieces per pool (see "Chunk groups (set pieces)"), edited by hand |
 | `src/Server/Avalon.Server.World/Maps/spawn-tables.json` + `ProceduralMaps/<mapId>.json` | Spawn tables and procedural map configs with their depth bands (see "Spawn tables and procedural map configs"), edited by hand |
-| `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json` (see "Generated forest chunks" and "Generated town squares") |
+| `tools/Avalon.ChunkGen/` | Generates the forest pieces' and the town squares' `.obj` + `.json`, and the squares' decor files (see "Generated forest chunks" and "Generated town squares") |
+| `tools/Avalon.ChunkGen/Recipes/<id>.json`, `tools/Avalon.ChunkGen/Kit/kit-bounds.json` | Building recipes (kit pieces plus collision proxies) and the art kit's bounds table (see "Decor and building recipes") |
 | `tools/Avalon.Exporter/` | Exports the known-answer vectors the client vendors, among them `schema/vectors/navmesh-v1.txt` (`-- navmesh`) and `schema/vectors/rotation-v1.txt` (`-- rotation`) |
 | `src/Server/Avalon.Database.World/Seeding/ChunkCatalogSeeder.cs` | Seeds chunk templates, town layouts, pools, chunk groups, spawn tables and procedural map configs from `Maps/`; run by the World server on start |
 
@@ -77,7 +79,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 
 | Path | Purpose |
 |---|---|
-| `scripts/vendor-chunks.ps1` | Copies every `Maps/Chunks/*.obj` into `devproject/chunks/`, converts each to a `.gltf` beside it (one primitive per `usemtl` group, coloured from the script's palette: `stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`), and writes `CHUNK-MANIFEST` (the server revision it copied from, plus a SHA-256 per file). The chunk `.json` files are not vendored. An unknown material name or an OBJ directive other than `o`, `v`, `f`, `usemtl` fails the script |
+| `scripts/vendor-chunks.ps1` | Copies every `Maps/Chunks/*.obj` into `devproject/chunks/`, converts each to a `.gltf` beside it (one primitive per `usemtl` group, coloured from the script's palette: `stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`), and writes `CHUNK-MANIFEST` (the server revision it copied from, plus a SHA-256 per file). The chunk `.json` files are not vendored. An unknown material name or an OBJ directive other than `o`, `v`, `f`, `usemtl` fails the script. The `collision` material (draw nothing) and the decor files (`Maps/Decor/*.json`) arrive with the client issue for the kit-built town |
 | `scripts/regen-proto.ps1` | Vendors the server's schema set; among it `schema/vectors/navmesh-v1.txt` → `gamenet/schema/navmesh/navmesh-v1.txt` and `rotation-v1.txt` → `gamenet/schema/chunks/rotation-v1.txt` |
 | `game/src/MapCompositionSystem.cpp` | Draws the server's layout from `SChunkLayoutPacket`: one entity per primitive of each chunk's `.gltf`, placed with the mirrored rotation, plus markers for the entry and the portals |
 | `common/include/common/scene/ChunkRotation.h` | `chunkLocalToWorld`, the client's mirror of `ChunkRotation.LocalToWorld` |
@@ -315,7 +317,8 @@ Glimmerdell's four squares (`town_sw_01`, `town_se_01`, `town_nw_01`, `town_ne_0
 town beautification (2026-10-01): `tools/Avalon.ChunkGen/TownPieces.cs` holds the approved layout as data, chunk-local,
 over a small shape model (`TownSquare.cs`: boxes, twelve-sided cylinders and rings, gabled roof blocks, and the
 wall boxes by name; the fountain's basin is a ring with the water disc inside it). Each building part and prop is its own obj object named `<Building>_<part>` with a `usemtl` line
-(`stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`; the walls `stone`, the floor untagged); the
+(`stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`, or `collision` for a part decor draws; the
+walls `stone`, the floor untagged, see "Decor and building recipes"); the
 server's bake reads only `v` and `f` lines (`ChunkObjParserShould`), the client colours the materials. The floor
 is y -0.05 to 0.05, and the walls are 0.5 m thick and 2 m high, the inner ones opened at 12-18.
 
@@ -343,6 +346,62 @@ edge). The two angles are mirrored from the client's `IsometricCameraComponent`.
 (`town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are listed by the tool and never touched. A geometry change
 here needs a restart (instances bake once), a re-export of the navmesh vectors (`tools/Avalon.Exporter -- navmesh`),
 and a re-vendor in the client (`scripts/vendor-chunks.ps1`, and `scripts/regen-proto.ps1` for the vectors).
+
+### Decor and building recipes
+
+A town square is two layers. The chunk `.obj` is the collision proxy: the simple shapes above, which the server and the
+client bake. The decor file, `Maps/Decor/<chunkName>.json`, lists what the client draws instead: art-kit models
+(Medieval Village MegaKit, CC0) and `avalon_*` custom props, each at a chunk-local position (metres from the square's
+south-west corner, `+X` east, `+Z` north, `y` up) and a yaw of 0, 90, 180 or 270 degrees, clockwise seen from above as
+`ChunkRotation` turns a chunk, so the client places items through the same `chunkLocalToWorld` it places the chunk with:
+
+```json
+{
+  "chunk": "town_ne_01",
+  "kit": "medieval-village-megakit-standard",
+  "items": [
+    { "model": "Wall_Plaster_Door_Round", "x": 22, "y": 0, "z": 19, "yaw": 270 }
+  ]
+}
+```
+
+ChunkGen writes one for every generated square (`"items": []` when it has none), staged and checked with the chunks
+and written only when they are, items sorted by model, then x, z, y and yaw, numbers with at most 3 decimals, LF line
+ends; `TownPiecesShould` compares them with a fresh run as it does the chunks. The seeder never reads `Maps/Decor/`.
+A proxy part that decor draws is written `usemtl collision`, which the client does not draw: every proxy of a placed
+building, the square's walls when `TownSquare.WallsAsDecor` is set, and the floor when `TownSquare.Paved` is.
+
+A building is a recipe, `tools/Avalon.ChunkGen/Recipes/<id>.json` (copied next to the tool's assembly and read by
+`BuildingRecipe.Load`), its coordinates relative to the building's anchor:
+
+```json
+{
+  "id": "inn",
+  "pieces": [ { "model": "Wall_Plaster_Straight", "x": 1, "y": 0, "z": 0, "yaw": 0 } ],
+  "proxies": [
+    { "kind": "box", "part": "body", "minX": 0, "maxX": 6, "minZ": 0, "maxZ": 4, "y0": 0, "top": 3.12, "front": "NegX" },
+    { "kind": "gable", "part": "roof", "minX": -0.2, "maxX": 6.2, "minZ": -0.2, "maxZ": 4.2, "eaves": 3.12, "ridge": 5 }
+  ]
+}
+```
+
+A proxy's `kind` is `box` (`minX`, `maxX`, `minZ`, `maxZ`, `y0`, `top`, optional `walkable`), `gable` (the box's
+extents, `eaves`, `ridge`), `cylinder` (`x`, `z`, `radius`, `y0`, `top`) or `ring` (the cylinder's fields and
+`innerRadius`), each with a `part`, an optional `material` and an optional `front` (`NegX`, `PosX`, `NegZ`, `PosZ`); an
+unknown or missing field is refused. `TownBuilding.Place(recipe, building, anchorX, anchorZ, rotation)` turns the
+recipe about its anchor by `rotation` quarter turns in `ChunkRotation`'s sense (a box's or gable's extents swap on an
+odd turn, the front turns NegX, PosZ, PosX, NegZ), adds 90 to every yaw per turn, names the proxies after `building`
+and makes them `collision`. It refuses a model the kit's bounds table does not have, a yaw that is not a quarter turn,
+and a recipe without exactly one front.
+
+The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
+be checked against the art without the kit, which stays out of the repository:
+
+    dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>]
+
+measures every `*.gltf` directly in the kit directory (and the custom props' directory) from its accessors' bounds
+through the node transforms, and rewrites the table; a model in both directories, an empty directory or a file it
+cannot measure leaves the table as it was.
 
 ## Chunk groups (set pieces)
 

@@ -25,7 +25,7 @@ public class ForestPiecesShould
     [Fact]
     public void Match_the_committed_files()
     {
-        foreach ((string name, string obj, string json) in ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()))
+        foreach ((string name, string obj, string json, _) in ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()))
         {
             Assert.Equal(obj, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".obj"))));
             Assert.Equal(json, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".json"))));
