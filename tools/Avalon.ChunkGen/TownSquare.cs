@@ -223,9 +223,9 @@ public sealed record TownSquare(
             IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
             foreach (DecorItem item in Decor)
             {
-                item.Check($"{Name}: {item.Building}", kit);
+                item.Check(DecorRules.Where(Name, item.Building), kit);
                 if (!WithinCell(item.X) || !WithinCell(item.Z))
-                    throw new InvalidOperationException($"{Name}: {item.Building}: {item.Model} at ({item.X}, {item.Z}) lies outside the 0-30 m cell");
+                    throw new InvalidOperationException($"{DecorRules.Where(Name, item.Building)}: {item.Model} at ({item.X}, {item.Z}) lies outside the 0-30 m cell");
             }
         }
 

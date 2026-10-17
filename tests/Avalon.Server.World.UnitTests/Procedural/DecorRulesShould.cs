@@ -10,27 +10,33 @@ namespace Avalon.Server.World.UnitTests.Procedural;
 public class DecorRulesShould
 {
     /// <summary>
-    /// One building, a 4 x 4 m body at X 20-24 (or from <paramref name="bodyMinX" />), Z 5-9, its -X and -Z faces drawn
-    /// by plaster walls 0.4 m thick, plus the item under test.
+    /// One building, a 4 x 4 m body at X 20-24 (or from <paramref name="bodyMinX" />), Z 5-9, drawn by plaster walls
+    /// 0.4 m thick: its -X face by walls turned a quarter (yaw 90), its -Z face by unturned walls starting 0.1 m east of
+    /// it, so only the turned walls draw the -X face and a turn the wrong way leaves it bare. The square has a wall along
+    /// Z = 0. Then the item under test, placed under <paramref name="building" />.
     /// </summary>
     [Theory]
-    [InlineData("a wall inside the body", "Wall_Plaster_Straight", 22f, 7f, 20f, null)]
-    [InlineData("a wall 0.5 m past the body's -X face", "Wall_Plaster_Straight", 20.5f, 7f, 20f, "Wall_Plaster_Straight")]
-    [InlineData("a vine 0.3 m past it, dressing", "Prop_Vine1", 20.483f, 7f, 20f, null)]
-    [InlineData("a floor tile far outside, ground", "Floor_Brick", 5f, 25f, 20f, null)]
-    [InlineData("the body 0.5 m past every wall on its -X side", "Wall_Plaster_Straight", 22f, 7f, 19.5f, "Inn/body")]
-    public void Refuse_solid_decor_outside_its_buildings_proxy(string label, string model, float x, float z, float bodyMinX, string? refusal)
+    [InlineData("a wall inside the body", "Inn", "Wall_Plaster_Straight", 22f, 7f, 20f, null)]
+    [InlineData("a wall 0.5 m past the body's -X face", "Inn", "Wall_Plaster_Straight", 20.5f, 7f, 20f, "Wall_Plaster_Straight")]
+    [InlineData("a vine 0.3 m past it, dressing", "Inn", "Prop_Vine1", 20.483f, 7f, 20f, null)]
+    [InlineData("a floor tile far outside, ground", "Inn", "Floor_Brick", 5f, 25f, 20f, null)]
+    [InlineData("the body 0.5 m past every wall on its -X side", "Inn", "Wall_Plaster_Straight", 22f, 7f, 19.5f, "Inn/body")]
+    [InlineData("a wall section on the square's wall", DecorRules.Walls, "avalon_wall_straight_2m", 15f, 0f, 20f, null)]
+    [InlineData("a wall section a metre off it", DecorRules.Walls, "avalon_wall_straight_2m", 15f, 1f, 20f, "the square's walls")]
+    [InlineData("a wall of a building with no proxy", "Shed", "Wall_Plaster_Straight", 10f, 20f, 20f, "Shed has no non-walkable proxy")]
+    public void Refuse_solid_decor_outside_its_buildings_proxy(
+        string label, string building, string model, float x, float z, float bodyMinX, string? refusal)
     {
-        var square = new TownSquare("town_test", 0, 0, [], [],
+        var square = new TownSquare("town_test", 0, 0, [], [new WallSegment("Wall_S", 0f, 30f, -0.25f, 0.25f)],
             [new BoxPiece("Inn", "body", Material.Collision, bodyMinX, 24f, 5f, 9f, 0f, 3.12f)], false, false, [])
         {
             Decor =
             [
-                new DecorItem("Inn", "Wall_Plaster_Straight", 21f, 0f, 5.314f, 0),
-                new DecorItem("Inn", "Wall_Plaster_Straight", 23f, 0f, 5.314f, 0),
+                new DecorItem("Inn", "Wall_Plaster_Straight", 21.1f, 0f, 5.314f, 0),
+                new DecorItem("Inn", "Wall_Plaster_Straight", 23.1f, 0f, 5.314f, 0),
                 new DecorItem("Inn", "Wall_Plaster_Straight", 20.314f, 0f, 6f, 90),
                 new DecorItem("Inn", "Wall_Plaster_Straight", 20.314f, 0f, 8f, 90),
-                new DecorItem("Inn", model, x, 0f, z, 0),
+                new DecorItem(building, model, x, 0f, z, 0),
             ],
         };
 

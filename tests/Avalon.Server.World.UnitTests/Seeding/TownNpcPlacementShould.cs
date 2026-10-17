@@ -192,7 +192,7 @@ public class TownNpcPlacementShould
     [Theory]
     [InlineData(1ul, 16.9f, 22.85f, 0f, 0f)]   // Uriel, in front of the town hall's door
     [InlineData(2ul, 16.4f, 37.2f, 0f, 30f)]   // Borin Stoutbeard, in front of the hunter's lodge's awning
-    [InlineData(12ul, 52.5f, 16.3f, 30f, 0f)]  // Garrick Emberforge, in front of the smithy's lean-to
+    [InlineData(12ul, 51f, 16.6f, 30f, 0f)]    // Garrick Emberforge, in front of the smithy's lean-to
     [InlineData(13ul, 52.4f, 15f, 30f, 0f)]    // Hilde Brassbuckle, in front of the armourer's counter
     [InlineData(14ul, 37f, 21f, 30f, 0f)]      // Tobin Marrowfield, in front of the general-goods counter
     [InlineData(11ul, 38f, 44.6f, 30f, 30f)]   // Marta Ledgerwell, in front of the bank's doors

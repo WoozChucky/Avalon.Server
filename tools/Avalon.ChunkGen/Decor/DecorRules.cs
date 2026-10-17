@@ -4,17 +4,25 @@ namespace Avalon.ChunkGen;
 /// What a player sees and what they collide with agree (spec of 2026-10-17). Every solid decor item's footprint, its
 /// model's box from the bounds table turned by its yaw, lies within <see cref="Tolerance" /> of its building's
 /// non-walkable proxies (a <see cref="Walls" /> item: of the square's wall boxes), so nothing drawn stands where a
-/// player can walk. And no proxy of a building with solid decor, or of one drawn as <see cref="Material.Collision" />,
-/// reaches more than <see cref="Tolerance" /> past that decor on its -X or -Z side, the side the fixed camera sees, so
-/// no invisible wall shows. Flat ground tiles and thin hanging dressing (<see cref="DressingPrefixes" />) are not solid
-/// and are not checked.
+/// player can walk. And every <see cref="Material.Collision" /> proxy, which the client does not draw, has solid decor
+/// on it, and one standing at body height (below <see cref="BodyHeight" />) reaches no more than
+/// <see cref="Tolerance" /> past the decor drawn over its -X and -Z faces, the sides the fixed camera sees, so no
+/// invisible wall shows. A square whose walls or floor decor draws (<see cref="TownSquare.WallsAsDecor" />,
+/// <see cref="TownSquare.Paved" />) has every wall box covered by its wall sections and the whole floor tiled. Flat
+/// ground tiles and thin hanging dressing (<see cref="DressingPrefixes" />) are not solid.
 /// </summary>
 public static class DecorRules
 {
     public const float Tolerance = 0.15f;
 
+    /// <summary>A proxy whose base is below this is one a player walks into; decor below it is what they see there.</summary>
+    public const float BodyHeight = 1.9f;
+
     /// <summary>The building a square's own wall sections are placed under: they are checked against its wall boxes.</summary>
     public const string Walls = "Walls";
+
+    /// <summary>The building a square's ground tiles are placed under: they tile its floor.</summary>
+    public const string Paving = "Paving";
 
     /// <summary>Model name prefixes of what is flat on the ground or hangs thin on a wall, never collided with.</summary>
     public static readonly string[] DressingPrefixes = ["Prop_Vine", "WindowShutters_", "Window_", "Floor_", "Prop_ExteriorBorder_", "HoleCover_"];
@@ -48,24 +56,28 @@ public static class DecorRules
         return true;
     }
 
+    /// <summary>"square: building" for a refusal, or the square alone when the item or piece has no building.</summary>
+    public static string Where(string square, string building) => building.Length > 0 ? $"{square}: {building}" : square;
+
     /// <summary>
     /// Refuses (InvalidOperationException naming the square, the building and the model or part) a solid item outside
-    /// its proxies or walls, a solid item of a building with no non-walkable proxy, and a proxy reaching past its decor
-    /// on the camera's side, including a collision proxy whose building has no solid decor at all.
+    /// its proxies or walls, a solid item of a building with no non-walkable proxy, a collision proxy with no solid
+    /// decor on it, a body-height collision proxy reaching past its decor on the camera's side, a wall box its sections
+    /// leave bare and a floor its tiles leave bare.
     /// </summary>
     public static void Check(TownSquare square)
     {
-        var decorOf = new Dictionary<string, List<Rect>>(StringComparer.Ordinal);
+        List<Drawn> solid = [];
         foreach (DecorItem item in square.Decor)
         {
             if (!IsSolid(item)) continue;
-            (float minX, float maxX, _, _, float minZ, float maxZ) = WorldBounds(item);
+            (float minX, float maxX, float minY, float maxY, float minZ, float maxZ) = WorldBounds(item);
             var footprint = new Rect(minX, maxX, minZ, maxZ);
-            string what = $"{square.Name}: {item.Building}: {item.Model} at ({item.X}, {item.Z})";
+            string what = $"{Where(square.Name, item.Building)}: {item.Model} at ({item.X}, {item.Z})";
 
             List<Rect> proxies = item.Building == Walls
-                ? [.. square.Walls.Select(w => new Rect(w.MinX, w.MaxX, w.MinZ, w.MaxZ).Grown(Tolerance))]
-                : [.. Solids(square, item.Building).Select(p => Rect.Of(p).Grown(Tolerance))];
+                ? [.. square.Walls.Select(w => Rect.Of(w).Grown(Tolerance))]
+                : [.. square.Pieces.Where(p => !p.Walkable && p.Building == item.Building).Select(p => Rect.Of(p).Grown(Tolerance))];
             if (proxies.Count == 0)
             {
                 throw new InvalidOperationException(item.Building == Walls
@@ -79,49 +91,67 @@ public static class DecorRules
                     $"{what} reaches more than {Tolerance} m outside {against}: a player would walk through what they see");
             }
 
-            if (item.Building == Walls) continue;
-            if (!decorOf.TryGetValue(item.Building, out List<Rect>? drawn))
-                decorOf[item.Building] = drawn = [];
-            drawn.Add(footprint);
+            solid.Add(new Drawn(item, footprint, minY, maxY));
         }
 
-        foreach (string building in square.Pieces.Select(p => p.Building).Distinct(StringComparer.Ordinal))
+        if (square.WallsAsDecor)
         {
-            bool drawnAsCollision = Solids(square, building).Any(p => p.Material == Material.Collision);
-            if (!decorOf.TryGetValue(building, out List<Rect>? drawn))
+            List<Rect> sections = [.. solid.Where(d => d.Item.Building == Walls).Select(d => d.Footprint)];
+            foreach (WallSegment wall in square.Walls)
             {
-                if (drawnAsCollision)
-                {
-                    TownPiece invisible = Solids(square, building).First(p => p.Material == Material.Collision);
-                    throw new InvalidOperationException(
-                        $"{square.Name}: {building}/{invisible.Part} is collision, which the client does not draw, but {building} has no solid decor: an invisible wall");
-                }
-                continue;
+                if (!Covered(Rect.Of(wall), sections))
+                    throw new InvalidOperationException($"{square.Name}: {wall.Name} is drawn as decor, but its wall sections leave part of it bare");
             }
+        }
 
-            float decorMinX = drawn.Min(r => r.MinX), decorMinZ = drawn.Min(r => r.MinZ);
-            foreach (TownPiece piece in Solids(square, building))
+        if (square.Paved)
+        {
+            List<Rect> tiles = [.. square.Decor.Where(d => d.Building == Paving).Select(d =>
             {
-                (float minX, _, float minZ, _) = piece.Bounds;
-                if (minX < decorMinX - Tolerance)
-                    throw new InvalidOperationException(PastDecor(square, piece, decorMinX - minX, "-X"));
-                if (minZ < decorMinZ - Tolerance)
-                    throw new InvalidOperationException(PastDecor(square, piece, decorMinZ - minZ, "-Z"));
+                (float minX, float maxX, _, _, float minZ, float maxZ) = WorldBounds(d);
+                return new Rect(minX, maxX, minZ, maxZ);
+            })];
+            if (!Covered(new Rect(0f, TownSquare.CellSize, 0f, TownSquare.CellSize), tiles))
+                throw new InvalidOperationException($"{square.Name} is paved, but its {Paving} tiles leave part of the floor bare");
+        }
+
+        foreach (TownPiece piece in square.Pieces)
+        {
+            if (piece.Walkable || piece.Material != Material.Collision) continue;
+            var proxy = Rect.Of(piece);
+            List<Drawn> over = [.. solid.Where(d => d.Footprint.Overlaps(proxy))];
+            if (over.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    $"{Where(square.Name, piece.Building)}/{piece.Part} is collision, which the client does not draw, but no solid decor stands on it: an invisible wall");
             }
+            if (piece.Y0 >= BodyHeight) continue;
+
+            // What is drawn where a player walks into the proxy: decor overlapping it between its base and body height.
+            float from = Math.Max(0f, piece.Y0), to = Math.Min(BodyHeight, piece.Top);
+            List<Rect> drawn = [.. over.Where(d => d.MinY < to && d.MaxY > from).Select(d => d.Footprint)];
+            (float faceZ0, float faceZ1) = Inset(proxy.MinZ, proxy.MaxZ);
+            (float faceX0, float faceX1) = Inset(proxy.MinX, proxy.MaxX);
+            float x = Math.Min(proxy.MinX + Tolerance, (proxy.MinX + proxy.MaxX) / 2f);
+            float z = Math.Min(proxy.MinZ + Tolerance, (proxy.MinZ + proxy.MaxZ) / 2f);
+            if (!Covered(new Rect(x, x, faceZ0, faceZ1), drawn))
+                throw new InvalidOperationException(PastDecor(square, piece, "-X"));
+            if (!Covered(new Rect(faceX0, faceX1, z, z), drawn))
+                throw new InvalidOperationException(PastDecor(square, piece, "-Z"));
         }
     }
 
-    private static string PastDecor(TownSquare square, TownPiece piece, float by, string side) =>
-        $"{square.Name}: {piece.Building}/{piece.Part} reaches {by:0.00} m past {piece.Building}'s decor on its {side} side " +
-        $"(over {Tolerance} m): an invisible wall on the camera's side";
+    /// <summary>A face's span less the tolerance at each end (the proxy may overreach its decor that much along it too); its middle when shorter.</summary>
+    private static (float From, float To) Inset(float min, float max) =>
+        max - min > 2 * Tolerance ? (min + Tolerance, max - Tolerance) : ((min + max) / 2f, (min + max) / 2f);
 
-    /// <summary>A building's pieces a player collides with: everything but its walkable decks and steps.</summary>
-    private static IEnumerable<TownPiece> Solids(TownSquare square, string building) =>
-        square.Pieces.Where(p => !p.Walkable && p.Building == building);
+    private static string PastDecor(TownSquare square, TownPiece piece, string side) =>
+        $"{Where(square.Name, piece.Building)}/{piece.Part} reaches more than {Tolerance} m past the decor drawn over its {side} face " +
+        "at body height: an invisible wall on the camera's side";
 
     /// <summary>
-    /// Whether the boxes cover the area. The boxes' edges cut the area into cells no edge crosses, so each box holds a
-    /// whole cell or none of it, and testing each cell's centre is exact.
+    /// Whether the boxes cover the area (a line or a point when it has no width). The boxes' edges cut the area into
+    /// cells no edge crosses, so each box holds a whole cell or none of it, and testing each cell's centre is exact.
     /// </summary>
     private static bool Covered(Rect area, List<Rect> boxes)
     {
@@ -149,6 +179,9 @@ public static class DecorRules
         return centres;
     }
 
+    /// <summary>A solid decor item, its footprint and its height span.</summary>
+    private readonly record struct Drawn(DecorItem Item, Rect Footprint, float MinY, float MaxY);
+
     private readonly record struct Rect(float MinX, float MaxX, float MinZ, float MaxZ)
     {
         public static Rect Of(TownPiece piece)
@@ -157,6 +190,11 @@ public static class DecorRules
             return new Rect(minX, maxX, minZ, maxZ);
         }
 
+        public static Rect Of(WallSegment wall) => new(wall.MinX, wall.MaxX, wall.MinZ, wall.MaxZ);
+
         public Rect Grown(float by) => new(MinX - by, MaxX + by, MinZ - by, MaxZ + by);
+
+        /// <summary>Whether the two share any area.</summary>
+        public bool Overlaps(Rect other) => MinX < other.MaxX && MaxX > other.MinX && MinZ < other.MaxZ && MaxZ > other.MinZ;
     }
 }

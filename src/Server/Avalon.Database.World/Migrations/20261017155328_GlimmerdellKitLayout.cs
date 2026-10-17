@@ -43,7 +43,7 @@ namespace Avalon.Database.World.Migrations
                 keyColumn: "Id",
                 keyValue: 5,
                 columns: new[] { "Facing", "OffsetX", "OffsetZ" },
-                values: new object[] { 260f, 37.5f, 1.3f });
+                values: new object[] { 255f, 36f, 1.6f });
 
             migrationBuilder.UpdateData(
                 table: "MapCreatureSpawns",

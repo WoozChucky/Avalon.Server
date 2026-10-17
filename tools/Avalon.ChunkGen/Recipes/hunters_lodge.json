@@ -244,10 +244,10 @@
     {
       "kind": "box",
       "part": "body",
-      "minX": -4.3,
-      "maxX": 4.3,
-      "minZ": -3.3,
-      "maxZ": 3.3,
+      "minX": -4.235,
+      "maxX": 4.235,
+      "minZ": -3.235,
+      "maxZ": 3.235,
       "y0": 0.0,
       "top": 3.12,
       "front": "NegX"

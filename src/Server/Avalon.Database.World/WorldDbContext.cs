@@ -2153,11 +2153,11 @@ public class WorldDbContext : DbContext
             {
                 Id = 5,
                 MapTemplateId = 1,
-                CreatureTemplateId = 12,     // Garrick Emberforge, (52.5, 16.3) in front of the smithy's lean-to
-                OffsetX = 37.5f,
+                CreatureTemplateId = 12,     // Garrick Emberforge, (51, 16.6) in front of the smithy's lean-to
+                OffsetX = 36f,
                 OffsetY = 0f,
-                OffsetZ = 1.3f,
-                Facing = 260f
+                OffsetZ = 1.6f,
+                Facing = 255f
             },
             new MapCreatureSpawn
             {

@@ -99,7 +99,7 @@ public class TownPiecesShould
         Assert.Contains("House A", buildings);
         Assert.Contains("House B", buildings);
         Assert.Contains("Well", buildings);
-        Assert.Equal(69, TownPieces.Squares().Sum(s => s.Pieces.Count));
+        Assert.Equal(122, TownPieces.Squares().Sum(s => s.Pieces.Count));
     }
 
     /// <summary>
@@ -150,10 +150,10 @@ public class TownPiecesShould
     /// <summary>
     /// Recast climbs any step of 0.8 m or less (floor(0.9 / 0.2) voxels) and a span top rounds up to a 0.2 m voxel, so a
     /// top at or under 1.0 m above the ground beside it would be a step the navmesh walks over. Every solid piece,
-    /// floating ones included (the cart's bed, the stacked crate), must stop a walk at its edge: a walkable ray from
-    /// 1.5 m west of its footprint toward its centre never enters it (owner decision 8 raised every low prop to 1.05 m
-    /// and put the cart's shaft on the floor). A ray that starts inside another solid stops where it starts and proves
-    /// nothing, which is accepted: a prop wedged against a building is solid by its neighbour.
+    /// floating ones included (the fountain's water and upper bowl), must stop a walk at its edge: a walkable ray from
+    /// 1.5 m west of its footprint toward its centre never enters it (owner decision 8 raised every low prop to 1.05 m;
+    /// a lamp post's or a stall's 0.14-0.2 m post stops it too). A ray that starts inside another solid stops where it
+    /// starts and proves nothing, which is accepted: a prop wedged against a building is solid by its neighbour.
     /// </summary>
     [Fact]
     public void Stop_a_walk_at_the_edge_of_every_solid_piece()

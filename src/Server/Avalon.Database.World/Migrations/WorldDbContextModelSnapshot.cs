@@ -7153,11 +7153,11 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 5,
                             CreatureTemplateId = 12m,
-                            Facing = 260f,
+                            Facing = 255f,
                             MapTemplateId = 1,
-                            OffsetX = 37.5f,
+                            OffsetX = 36f,
                             OffsetY = 0f,
-                            OffsetZ = 1.3f
+                            OffsetZ = 1.6f
                         },
                         new
                         {
