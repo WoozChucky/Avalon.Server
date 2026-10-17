@@ -86,7 +86,11 @@ public static class TownBuilding
         _ => (anchorX - z, anchorZ + x),
     };
 
-    private static (float MinX, float MaxX, float MinZ, float MaxZ) Footprint(
+    /// <summary>
+    /// An axis-aligned footprint turned about the anchor as <see cref="Place" /> turns a recipe, and its bounds again;
+    /// also how <see cref="DecorRules.WorldBounds" /> turns a model's box by its yaw.
+    /// </summary>
+    internal static (float MinX, float MaxX, float MinZ, float MaxZ) Footprint(
         float minX, float maxX, float minZ, float maxZ, float anchorX, float anchorZ, int rotation)
     {
         (float ax, float az) = Turn(minX, minZ, anchorX, anchorZ, rotation);

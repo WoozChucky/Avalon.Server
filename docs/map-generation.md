@@ -340,9 +340,10 @@ horizontal, south-west of what it looks at: a player sees the −X and −Z side
 square is the bottom of the screen. So tall buildings stand on a square's far (high X/Z) edges with their open face
 toward −X or −Z, and an NPC stands on that side, clear of its roof. Two checks hold it: each building's open face
 (porch, counter, lean-to, steps) carries a `Front`, which `TownPiecesShould` requires to be −X or −Z; and
-`TownNpcPlacementShould` casts a line from each NPC's head toward the camera and fails on any piece or wall in the way
-(a roof over the NPC counts: under a 2.9 m stall roof a head shows only within about 0.6 m of the roof's camera-side
-edge). The two angles are mirrored from the client's `IsometricCameraComponent`. The four other `town_*` chunks
+`TownNpcPlacementShould` casts a line from each NPC's head toward the camera and fails on any piece, wall or solid
+decor item's box in the way (a roof over the NPC counts: under a 2.9 m stall roof a head shows only within about
+0.6 m of the roof's camera-side edge). The two angles are mirrored from the client's `IsometricCameraComponent`. The
+four other `town_*` chunks
 (`town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are listed by the tool and never touched. A geometry change
 here needs a restart (instances bake once), a re-export of the navmesh vectors (`tools/Avalon.Exporter -- navmesh`),
 and a re-vendor in the client (`scripts/vendor-chunks.ps1`, and `scripts/regen-proto.ps1` for the vectors).
@@ -397,6 +398,17 @@ ridge runs along its longer extent, so it turns with the extents; a square gable
 is turned, so `Place` refuses a square gable: make one axis longer. It also refuses a model the kit's bounds table does
 not have, a yaw that is not a quarter turn, and a recipe without exactly one front. `TownSquare.Validate` checks decor
 set on a square the same way, and that each item stands inside the 0-30 m cell.
+
+What a player sees and what they collide with must agree, so `TownSquare.Validate` then runs `DecorRules`. A decor
+item is solid unless it is flat ground or thin hanging dressing (`DecorRules.DressingPrefixes`: `Prop_Vine`,
+`WindowShutters_`, `Window_`, `Floor_`, `Prop_ExteriorBorder_`, `HoleCover_`). A solid item's footprint, its model's
+box turned by its yaw and moved to its position (`DecorRules.WorldBounds`), must lie within 0.15 m
+(`DecorRules.Tolerance`) of the union of its building's non-walkable proxies, or, for an item placed under the
+building `Walls` (the square's own wall sections), of the square's wall boxes: no drawn wall to walk through. A solid
+item whose building has no non-walkable proxy is refused. The reverse holds on the camera's side: no non-walkable
+proxy of a building that has solid decor may reach more than 0.15 m past that decor's −X or −Z extent, and a building
+with a `collision` proxy but no solid decor is refused outright: no invisible wall. Each refusal names the square,
+the building and the model or part.
 
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:

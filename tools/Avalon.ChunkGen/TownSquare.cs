@@ -193,7 +193,7 @@ public sealed record TownSquare(
     /// Refuses what the bake could not place: a piece outside the 0-30 m cell (a roof's overhang included), a bound that
     /// is not a number, a top not above its base, a wall not named "Wall...", a piece named like a wall (the placement
     /// tests read wall boxes by that prefix), a decor item <see cref="DecorItem.Check" /> refuses or standing outside the
-    /// cell, and then every rule in <see cref="TownRules" />.
+    /// cell, then every rule in <see cref="TownRules" />, then the decor's in <see cref="DecorRules" />.
     /// </summary>
     public void Validate()
     {
@@ -230,6 +230,7 @@ public sealed record TownSquare(
         }
 
         TownRules.Check(this);
+        DecorRules.Check(this);
     }
 
     /// <summary>NaN is outside.</summary>

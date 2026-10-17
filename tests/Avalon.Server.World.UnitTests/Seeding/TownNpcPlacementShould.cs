@@ -366,11 +366,28 @@ public class TownNpcPlacementShould
     /// <summary>The town's squares, built once: <see cref="SolidAt" /> is asked about every step of every sight line.</summary>
     private static readonly IReadOnlyList<TownSquare> s_squares = TownPieces.Squares();
 
-    /// <summary>Whether a world point lies inside a solid piece or a wall of the town.</summary>
+    /// <summary>A solid decor item's box, square-local (DecorRules.WorldBounds), with what a hit on it reports.</summary>
+    private sealed record DecorBox(string Hit, float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ);
+
+    /// <summary>
+    /// Each square's solid decor boxes, by the square's index in <see cref="s_squares" />, built once: a balcony, an
+    /// overhang or a chimney can hide an NPC where the proxy does not.
+    /// </summary>
+    private static readonly DecorBox[][] s_decorBoxes =
+    [
+        .. s_squares.Select(square => square.Decor.Where(DecorRules.IsSolid).Select(item =>
+        {
+            (float minX, float maxX, float minY, float maxY, float minZ, float maxZ) = DecorRules.WorldBounds(item);
+            return new DecorBox($"{square.Name} decor {item.Model}", minX, maxX, minY, maxY, minZ, maxZ);
+        }).ToArray()),
+    ];
+
+    /// <summary>Whether a world point lies inside a solid piece, a wall or a solid decor item of the town.</summary>
     private static string? SolidAt(float x, float y, float z)
     {
-        foreach (TownSquare square in s_squares)
+        for (int i = 0; i < s_squares.Count; i++)
         {
+            TownSquare square = s_squares[i];
             float lx = x - square.Origin.X, lz = z - square.Origin.Z;
             if (lx < 0f || lx > TownSquare.CellSize || lz < 0f || lz > TownSquare.CellSize)
                 continue;
@@ -388,6 +405,12 @@ public class TownNpcPlacementShould
                 if (y <= top)
                     return $"{square.Name} {piece.Building}/{piece.Part}";
             }
+
+            foreach (DecorBox box in s_decorBoxes[i])
+            {
+                if (lx >= box.MinX && lx <= box.MaxX && lz >= box.MinZ && lz <= box.MaxZ && y >= box.MinY && y <= box.MaxY)
+                    return box.Hit;
+            }
         }
         return null;
     }
@@ -402,8 +425,9 @@ public class TownNpcPlacementShould
 
     /// <summary>
     /// The camera sees every NPC: from every zoom, and with the player anywhere that keeps the NPC well in frame, the
-    /// line from its head to the camera's eye crosses no piece and no wall. A roof over the NPC, a building between it
-    /// and the camera, or a stall it stands behind each fails here by name and by where the player stood.
+    /// line from its head to the camera's eye crosses no piece, no wall and no solid decor item. A roof over the NPC, a
+    /// building between it and the camera, a balcony, or a stall it stands behind each fails here by name and by where
+    /// the player stood.
     /// </summary>
     [Fact]
     public void Stand_every_npc_where_the_camera_sees_it()
