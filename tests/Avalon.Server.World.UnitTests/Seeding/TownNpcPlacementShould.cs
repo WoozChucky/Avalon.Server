@@ -345,9 +345,9 @@ public class TownNpcPlacementShould
         }
     }
 
-    /// <summary>The client's fixed camera (owner decision, 2026-10-02): yaw 45, 60 degrees below horizontal.</summary>
+    /// <summary>The client's fixed camera (owner decisions, 2026-10-02 and 2026-10-17): yaw 45, 50 degrees below horizontal.</summary>
     private const float CameraYawDeg = 45f;
-    private const float CameraPitchDeg = 60f;
+    private const float CameraPitchDeg = 50f;
 
     /// <summary>
     /// The client's perspective rig: it looks at a pivot this far above the player, from a zoom distance between these

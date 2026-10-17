@@ -361,8 +361,8 @@ laid by `SquareBuilder.Curbs` on the open side of every road tile's edge and lef
 solid piece at body height or another curb, so they run only past open ground. Nothing of a curb is baked: a player
 walks over it on the floor's navmesh.
 
-The town is laid out for the client's camera, which is fixed (owner decision, 2026-10-02) at yaw 45° and 60° below
-horizontal, south-west of what it looks at: a player sees the −X and −Z sides of everything, and the south-west of each
+The town is laid out for the client's camera, which is fixed (owner decisions, 2026-10-02 and 2026-10-17) at yaw 45° and 50°
+below horizontal, south-west of what it looks at: a player sees the −X and −Z sides of everything, and the south-west of each
 square is the bottom of the screen. So tall buildings stand on a square's far (high X/Z) edges with their open face
 toward −X or −Z, and an NPC stands on that side, clear of its roof. A kit building puts its gable end on that side,
 so its door wall is not under a roof slope, and the ground south-west of every NPC is kept low (the sight check below

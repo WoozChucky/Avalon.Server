@@ -121,7 +121,7 @@ chunk town_sw_01 0 0 0
 chunk town_se_01 1 0 0
 chunk town_nw_01 0 1 0
 chunk town_ne_01 1 1 0
-mesh tiles 49 polys 259 verts 657
+mesh tiles 49 polys 258 verts 655
 ray 15 0.15 15 16 0.15 15 -> reached 16 0.15 15 3.4028235E+38 # open floor, one metre
 ray 15 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # open floor, the length of a tile and then some
 ray 45 0.15 45 35 0.15 35 -> clamped 45 0.15 45 0 # diagonal, north-east quadrant, starting within the agent radius of the well's north post: no step
