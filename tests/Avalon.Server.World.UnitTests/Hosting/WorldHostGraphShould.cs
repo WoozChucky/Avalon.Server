@@ -109,6 +109,9 @@ public class WorldHostGraphShould
             Assert.NotNull(host.Services.GetRequiredService<PvpToggle>());
             Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PvpCommand);
 
+            // Doodad gates. MapInstance reads them with GetService, so only this proves production registers them.
+            Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Doodads.DoodadVisibility>());
+
             // Parties (2026-09-30). World, MapInstance and EnterMapHandler take it optionally (WorldServer requires it,
             // pinned below), so only this proves production supplies one.
             Assert.NotNull(host.Services.GetRequiredService<Avalon.World.Parties.PartyService>());

@@ -51,8 +51,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-using WorldDoodadState = Avalon.World.Doodads.DoodadState;
-
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
@@ -75,6 +73,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     // The doodads whose state changed since the last broadcast, each once (Doodad.ChangeQueued), marked dirty for it.
     private readonly List<Doodad> _changedDoodads = new(8);
+
+    // Who may see and use a doodad, asked by each view decision of a doodad with rules (CharacterCharacterGameState).
+    private readonly DoodadVisibility _doodadVisibility;
 
     // Off only for a test that compares the views over the index against the full scan (DecideViewsByFullScan).
     private bool _viewsOverIndex = true;
@@ -374,6 +375,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // Vendor quest gates (#432). Falls back, so an instance built without it (tests) still
         // ticks; production registers it.
         _quests = serviceProvider.GetService<IQuestProgress>() ?? NoQuestProgress.Instance;
+
+        // Doodad gates: the container's one set of rules, and a set of its own for an instance built without (tests).
+        _doodadVisibility = serviceProvider.GetService<DoodadVisibility>() ?? new DoodadVisibility();
     }
 
     /// <summary>
@@ -1843,15 +1847,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private void DecideView(CharacterEntity entity, List<IWorldObject> objectAbilities)
     {
         CharacterCharacterGameState view = entity.CharacterGameState;
+
+        // The doodads go by the viewer's own rules (its quest gates), read against the catalog of this tick; an instance
+        // without doodads lists none and reads nothing.
+        DoodadViewInputs doodads = _doodads.Count == 0
+            ? default
+            : new DoodadViewInputs(_doodads, entity, _world.Data?.Quests ?? QuestCatalog.Empty, _doodadVisibility);
         if (_viewsOverIndex)
         {
-            view.UpdateProfiled(entity.Guid, entity.Position, _interest, _members, objectAbilities, _frameDirtyFields,
-                ref _tickProfile);
+            view.UpdateProfiled(entity.Guid, entity.Position, _interest, _members, objectAbilities, doodads,
+                _frameDirtyFields, ref _tickProfile);
         }
         else
         {
             view.UpdateProfiled(entity.Guid, entity.Position, _interest, _creatures, _characters, objectAbilities,
-                _frameDirtyFields, ref _tickProfile);
+                doodads, _frameDirtyFields, ref _tickProfile);
         }
     }
 
@@ -2214,7 +2224,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 if (!_doodads.TryGet(guid, out Doodad? addedDoodad) || !addedDoodad.Visible)
                     return null;
                 return ObjectStateWriter.From(addedDoodad, GameEntityFields.All,
-                    CanInteractWith(addedDoodad), _statePool);
+                    CanInteractFor(addedDoodad, recipientGuid), _statePool);
 
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", guid.Type);
@@ -2271,7 +2281,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 }
 
                 return ObjectStateWriter.From(updatedDoodad, updatedObject.Fields,
-                    CanInteractWith(updatedDoodad), _statePool);
+                    CanInteractFor(updatedDoodad, recipientGuid), _statePool);
 
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
@@ -2281,17 +2291,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Whether a recipient's client should offer to use <paramref name="doodad" />: a click doodad that is ready, or is
-    /// never spent. No recipient's quest gates are asked here, so a doodad with a usable gate or a view rule is answered
-    /// no for everyone, failing closed: a prompt is withheld rather than offered to a player the doodad would refuse.
+    /// Whether the recipient's client should offer to use <paramref name="doodad" />: the answer its view's decision on
+    /// this tick holds (<see cref="CharacterCharacterGameState.CanInteractWith" />), its own and no other recipient's,
+    /// and no for a recipient that is not a character with a view, failing closed.
     /// </summary>
-    private static bool CanInteractWith(Doodad doodad)
-    {
-        DoodadTemplateView template = doodad.Template;
-        return template.Interaction == DoodadInteraction.Click
-               && (template.UseLimit == DoodadUseLimit.Unlimited || doodad.State == WorldDoodadState.Ready)
-               && doodad.UsableGate is null && !doodad.HasViewRule;
-    }
+    private bool CanInteractFor(Doodad doodad, ObjectGuid recipientGuid) =>
+        _characters.TryGetValue(recipientGuid, out ICharacter? recipient) && recipient is CharacterEntity viewer
+        && viewer.CharacterGameState.CanInteractWith(doodad);
 
     public void BroadcastAttackAnimation(IUnit attacker, IAbility? spell)
     {

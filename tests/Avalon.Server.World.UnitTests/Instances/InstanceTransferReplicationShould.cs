@@ -233,13 +233,14 @@ public class InstanceTransferReplicationShould
 
     /// <summary>
     /// A real World whose registry builds exactly two real instances: the town (map 1), with a portal to
-    /// the forest at the origin, and the forest (map 2).
+    /// the forest at the origin, and the forest (map 2). The town reads the data of the world given to CreateAsync, if one
+    /// is, so a test can give its instance reference data of its own.
     /// </summary>
-    private sealed record Maps(Avalon.World.World World, MapInstance Town, MapInstance Forest, IChunkLibrary Chunks)
+    internal sealed record Maps(Avalon.World.World World, MapInstance Town, MapInstance Forest, IChunkLibrary Chunks)
     {
-        public static async Task<Maps> CreateAsync()
+        public static async Task<Maps> CreateAsync(Avalon.World.IWorld? townWorld = null)
         {
-            MapInstance town = TestMapInstances.Build(NewWorld(), mapType: MapType.Town);
+            MapInstance town = TestMapInstances.Build(townWorld ?? NewWorld(), mapType: MapType.Town);
             town.AddPortal(new PortalInstance(new ObjectGuid(ObjectType.Portal, 1), Vector3.zero, 5f, ForestMap, 1));
             MapInstance forest = TestMapInstances.Build(NewWorld());
 

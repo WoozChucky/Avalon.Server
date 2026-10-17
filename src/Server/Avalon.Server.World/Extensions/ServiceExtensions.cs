@@ -17,6 +17,7 @@ using Avalon.World.Characters;
 using Avalon.World.Chat;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.GameAuth;
 using Avalon.World.Inventory;
@@ -198,6 +199,9 @@ public static class ServiceExtensions
         services.AddSingleton<ItemUseTools>();
         services.AddSingleton<ItemUseService>();
         services.AddSingleton<AuraScripts>();
+
+        // Doodads: who may see and use each one, asked by every instance's view decisions.
+        services.AddSingleton<DoodadVisibility>();
 
         // Combat (Phase D): V1 uses default CombatConfig values. EncounterRegistry +
         // CombatService are constructed per MapInstance, not registered as singletons.
