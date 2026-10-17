@@ -99,13 +99,33 @@ public class TownPiecesShould
         Assert.Contains("House A", buildings);
         Assert.Contains("House B", buildings);
         Assert.Contains("Well", buildings);
-        Assert.Equal(122, TownPieces.Squares().Sum(s => s.Pieces.Count));
+        Assert.Contains("Torches", buildings);
+        Assert.Contains("Braziers", buildings);
+        Assert.DoesNotContain("Lamp posts", buildings);
+        Assert.Equal(115, TownPieces.Squares().Sum(s => s.Pieces.Count));
     }
 
     /// <summary>
     /// The client's camera is fixed at yaw 45 (owner decision, 2026-10-02), south-west of what it looks at: a front on
     /// the +X or +Z side shows the player a back wall, with the porch and its NPC behind the building.
     /// </summary>
+    /// <summary>
+    /// The red-brick roads are the routes a player runs along: no free-standing piece they would bump into (below body
+    /// height, not part of a building) stands on one. Buildings stay where they are, the gate arch over its road included.
+    /// </summary>
+    [Fact]
+    public void Keep_every_road_clear_of_props()
+    {
+        string[] onRoads =
+        [
+            .. TownPieces.Squares().SelectMany(s => s.Pieces
+                .Where(p => !p.Walkable && !p.PartOfBuilding && p.Y0 < DecorRules.BodyHeight &&
+                            TownSquare.OverlapsRoad(p.Bounds.MinX, p.Bounds.MaxX, p.Bounds.MinZ, p.Bounds.MaxZ, s.Exits))
+                .Select(p => $"{s.Name} {p.Building}/{p.Part}")),
+        ];
+        Assert.True(onRoads.Length == 0, "on a road: " + string.Join(", ", onRoads));
+    }
+
     [Fact]
     public void Face_every_building_front_towards_the_camera()
     {

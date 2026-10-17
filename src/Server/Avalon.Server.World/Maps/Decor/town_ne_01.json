@@ -267,10 +267,10 @@
     { "model": "Prop_ExteriorBorder_Straight1", "x": 18, "y": 0.05, "z": 13, "yaw": 90 },
     { "model": "Prop_ExteriorBorder_Straight2", "x": 3, "y": 0.05, "z": 12, "yaw": 180 },
     { "model": "Prop_ExteriorBorder_Straight2", "x": 7, "y": 0.05, "z": 12, "yaw": 180 },
-    { "model": "Prop_ExteriorBorder_Straight2", "x": 11, "y": 0.05, "z": 12, "yaw": 180 },
     { "model": "Prop_ExteriorBorder_Straight2", "x": 12, "y": 0.05, "z": 3, "yaw": 270 },
     { "model": "Prop_ExteriorBorder_Straight2", "x": 12, "y": 0.05, "z": 7, "yaw": 270 },
     { "model": "Prop_ExteriorBorder_Straight2", "x": 15, "y": 0.05, "z": 18, "yaw": 0 },
+    { "model": "Prop_ExteriorBorder_Straight2", "x": 18, "y": 0.05, "z": 11, "yaw": 90 },
     { "model": "Prop_MetalFence_Ornament", "x": 14.25, "y": 0, "z": 22, "yaw": 90 },
     { "model": "Prop_MetalFence_Ornament", "x": 14.25, "y": 0, "z": 26, "yaw": 90 },
     { "model": "Prop_MetalFence_Simple", "x": 13.25, "y": 0, "z": 19, "yaw": 0 },
@@ -488,9 +488,10 @@
     { "model": "Window_Wide_Round1", "x": 25.5, "y": 0, "z": 3.5, "yaw": 180 },
     { "model": "avalon_barrel", "x": 19.5, "y": 0, "z": 5, "yaw": 0 },
     { "model": "avalon_barrel", "x": 19.5, "y": 0, "z": 6, "yaw": 0 },
-    { "model": "avalon_bench", "x": 18, "y": 0, "z": 10, "yaw": 270 },
-    { "model": "avalon_lamp_post", "x": 11.5, "y": 0, "z": 16.5, "yaw": 0 },
-    { "model": "avalon_lamp_post", "x": 18.5, "y": 0, "z": 3.5, "yaw": 0 },
+    { "model": "avalon_bench", "x": 9.6, "y": 0, "z": 6.5, "yaw": 270 },
+    { "model": "avalon_brazier", "x": 6.5, "y": 0, "z": 10.6, "yaw": 0 },
+    { "model": "avalon_torch", "x": 11.2, "y": 0, "z": 11.2, "yaw": 0 },
+    { "model": "avalon_torch", "x": 18.5, "y": 0, "z": 3.5, "yaw": 0 },
     { "model": "avalon_wall_straight_2m", "x": 0, "y": 0, "z": 1, "yaw": 90 },
     { "model": "avalon_wall_straight_2m", "x": 0, "y": 0, "z": 3, "yaw": 90 },
     { "model": "avalon_wall_straight_2m", "x": 0, "y": 0, "z": 5, "yaw": 90 },
@@ -545,6 +546,6 @@
     { "model": "avalon_wall_straight_2m", "x": 30, "y": 0, "z": 25, "yaw": 90 },
     { "model": "avalon_wall_straight_2m", "x": 30, "y": 0, "z": 27, "yaw": 90 },
     { "model": "avalon_wall_straight_2m", "x": 30, "y": 0, "z": 29, "yaw": 90 },
-    { "model": "avalon_well", "x": 15, "y": 0, "z": 13.5, "yaw": 0 }
+    { "model": "avalon_well", "x": 6.5, "y": 0, "z": 6.5, "yaw": 0 }
   ]
 }

@@ -65,7 +65,7 @@ public static class TownPieces
         };
     }
 
-    /// <summary>South-west: the town hall, the fountain with its benches, lamp posts, the notice board, a house.</summary>
+    /// <summary>South-west: the town hall, the fountain with its benches, torches and a brazier, the notice board, a house.</summary>
     private static void Arrival(SquareBuilder s)
     {
         // In the square's north-east corner, turned so its door and balcony face west (the camera's side) and Uriel
@@ -76,10 +76,12 @@ public static class TownPieces
         s.Prop("avalon_bench", "Benches", "bench W", 10.25f, 7.5f, 90);
         s.Prop("avalon_bench", "Benches", "bench E", 19.75f, 7.5f, 270);
         s.Prop("avalon_bench", "Benches", "bench S", 15f, 3.65f, 0);
-        s.LampPost("lamp post 1", 10.5f, 20.5f);
-        s.LampPost("lamp post 2", 10.5f, 10f);
-        s.LampPost("lamp post 3", 20.5f, 12.5f);
-        s.LampPost("lamp post 4", 25.5f, 12.5f);
+        // Torches at the roads' edges, off the red brick: the north road's west side and the east road's south side.
+        s.Torch("torch 1", 10.5f, 20.5f);
+        s.Torch("torch 2", 10.5f, 10f);
+        s.Torch("torch 3", 20.5f, 11f);
+        s.Torch("torch 4", 25.5f, 11f);
+        s.Brazier("brazier", 6f, 5f);
         s.Prop("avalon_notice_board", "Notice board", "board", 9f, 24f, 90);
         // A house in the south-east corner, south of the east doorway lane: south-west of every NPC is kept low, so
         // the camera sees each one over it.
@@ -90,7 +92,7 @@ public static class TownPieces
         s.WoodenFence("Fence (house A)", "north", 18.2f, 6.4f, alongZ: false, sections: 1);
     }
 
-    /// <summary>North-west: the gate on the road to the portal, the watchtower, the hunter's lodge, a cart, crates.</summary>
+    /// <summary>North-west: the gate on the road to the portal, the watchtower, the hunter's lodge, a cart, crates, fires.</summary>
     private static void Portal(SquareBuilder s)
     {
         // The road from the arrival point runs north through the gate (its lintel 3.12 m up over X 12-18) to the portal.
@@ -101,10 +103,12 @@ public static class TownPieces
         s.Prop("Prop_Wagon", "Cart", "wagon", 5f, 17f, 0);
         s.Prop("Prop_Crate", "Crates (lodge)", "crate 1", 8.5f, 15.5f, 0);
         s.Prop("Prop_Crate", "Crates (lodge)", "crate 2", 9.7f, 15.5f, 90);
-        s.LampPost("lamp post 1", 11f, 18f);
-        s.LampPost("lamp post 2", 19f, 18f);
-        s.LampPost("lamp post 3", 11f, 5f);
-        s.Prop("avalon_bench", "Benches", "bench lodge", 23f, 14f, 0);
+        s.Torch("torch 1", 11f, 18f);
+        s.Torch("torch 2", 19f, 18.6f);
+        s.Torch("torch 3", 11f, 5f);
+        s.Brazier("brazier", 7f, 9f);
+        // South of the east road, before the lodge.
+        s.Prop("avalon_bench", "Benches", "bench lodge", 23.5f, 10.4f, 0);
     }
 
     /// <summary>
@@ -121,13 +125,14 @@ public static class TownPieces
         // side) over the anvil, its tools at its sides; its wood pile fenced between its west wall and the road.
         s.Building("smithy", "Smithy", 23.6f, 22.8f, 0);
         s.Prop("avalon_anvil", "Smithy", "anvil", 25.3f, 17.8f, 0);
-        s.Prop("avalon_quench_trough", "Smithy", "quench trough", 17f, 21.5f, 90);
+        s.Prop("avalon_quench_trough", "Smithy", "quench trough", 20.5f, 20f, 0);
         s.Prop("avalon_wood_pile", "Smithy", "wood pile", 19.3f, 24.5f, 0);
         s.WoodenFence("Fence (smithy)", "west", 18.2f, 23.47f, alongZ: true, sections: 1);
         s.WoodenFence("Fence (smithy)", "south", 18.25f, 23.47f, alongZ: false, sections: 1);
         s.WoodenFence("Fence (smithy)", "north", 18.25f, 25.53f, alongZ: false, sections: 1);
-        s.Prop("avalon_barrel", "Barrels (smithy)", "barrel 1", 14.5f, 22f, 0);
-        s.Prop("avalon_barrel", "Barrels (smithy)", "barrel 2", 14.5f, 23f, 0);
+        // East of the north road, against the wood pile's fence.
+        s.Prop("avalon_barrel", "Barrels (smithy)", "barrel 1", 19f, 21.2f, 0);
+        s.Prop("avalon_barrel", "Barrels (smithy)", "barrel 2", 19f, 22.2f, 0);
         // Counters to the west and to the south, each merchant in front of it on the camera's side.
         s.Stall("avalon_stall_armourer", "Armourer's stall", 25.5f, 15f, 270, Facing.NegX);
         s.Prop("Prop_Crate", "Crates (armourer)", "crate 1", 26f, 5f, 0);
@@ -136,11 +141,13 @@ public static class TownPieces
         s.Prop("Prop_Crate", "Crates (general goods)", "crate 1", 10.5f, 25f, 0);
         s.Prop("avalon_barrel", "Barrels (general goods)", "barrel", 10.5f, 23.3f, 0);
         s.Prop("avalon_bench", "Benches", "bench market", 5f, 10f, 90);
-        s.LampPost("lamp post 1", 4.5f, 19.5f);
-        s.LampPost("lamp post 2", 14f, 20.5f);
+        s.Torch("torch 1", 4.5f, 19.5f);
+        s.Torch("torch 2", 11.5f, 20.5f);
+        // By the forge, more than 9 m from the walkers' loop.
+        s.Brazier("brazier", 24f, 19.5f);
     }
 
-    /// <summary>North-east: the bank with its railing, the inn, a house with its yard, the well.</summary>
+    /// <summary>North-east: the bank with its railing, the inn, a house with its yard, the well in the open south-west.</summary>
     private static void BankAndInn(SquareBuilder s)
     {
         s.Building("bank", "Bank", 8f, 21.5f, 0);
@@ -153,13 +160,16 @@ public static class TownPieces
         s.WoodenFence("Fence (house B)", "west", 18.2f, 4.2f, alongZ: true, sections: 2);
         s.WoodenFence("Fence (house B)", "south", 18.2f, 4.2f, alongZ: false, sections: 2);
         s.WoodenFence("Fence (house B)", "north", 18.2f, 8.3f, alongZ: false, sections: 2);
-        s.Well(15f, 13.5f);
-        s.Prop("avalon_bench", "Benches", "bench well", 18f, 10f, 270);
+        // In the open ground south of the west road and west of the south road, clear of both.
+        s.Well(6.5f, 6.5f);
+        s.Prop("avalon_bench", "Benches", "bench well", 9.6f, 6.5f, 270);
+        s.Brazier("brazier", 6.5f, 10.6f);
         s.Prop("Prop_Crate", "Crates (house B)", "crate 1", 19.5f, 7.2f, 0);
         s.Prop("avalon_barrel", "Barrels (house B)", "barrel 1", 19.5f, 5f, 0);
         s.Prop("avalon_barrel", "Barrels (house B)", "barrel 2", 19.5f, 6f, 0);
-        s.LampPost("lamp post 1", 11.5f, 16.5f);
-        s.LampPost("lamp post 2", 18.5f, 3.5f);
+        // The corner where the two roads meet, off both.
+        s.Torch("torch 1", 11.2f, 11.2f);
+        s.Torch("torch 2", 18.5f, 3.5f);
     }
 
     /// <summary>Collects one square's collision pieces and its decor.</summary>
@@ -174,7 +184,7 @@ public static class TownPieces
         public void Building(string recipe, string name, float x, float z, int rotation)
         {
             (IReadOnlyList<TownPiece> proxies, IReadOnlyList<DecorItem> decor) = TownBuilding.Place(BuildingRecipe.Load(recipe), name, x, z, rotation);
-            Pieces.AddRange(proxies);
+            Pieces.AddRange(proxies.Select(p => p with { PartOfBuilding = true }));
             Decor.AddRange(decor);
         }
 
@@ -199,6 +209,30 @@ public static class TownPieces
             Pieces.Add(new CylinderPiece(LampPosts, $"{part} base", Material.Collision, x, z, 0.22f, 0f, MinSolidTop));
             Pieces.Add(new CylinderPiece(LampPosts, $"{part} post", Material.Collision, x, z, 0.07f, 0f, 3.5f));
             Pieces.Add(new BoxPiece(LampPosts, $"{part} lantern", Material.Collision, x - 0.15f, x + 0.15f, z, z + 0.6f, 2.75f, 3.16f));
+        }
+
+        /// <summary>
+        /// A standing torch (avalon_torch): its stone foot raised to <see cref="MinSolidTop" />, and the pole to the top of
+        /// its fire cup (2.2 m; the cup has no piece of its own, which would be an overhead with no headroom under it).
+        /// The client burns a flame at the cup's light.
+        /// </summary>
+        public void Torch(string part, float x, float z)
+        {
+            const string Torches = "Torches";
+            Decor.Add(new DecorItem(Torches, "avalon_torch", x, 0f, z, 0));
+            Pieces.Add(new CylinderPiece(Torches, $"{part} foot", Material.Collision, x, z, 0.18f, 0f, MinSolidTop));
+            Pieces.Add(new CylinderPiece(Torches, $"{part} pole", Material.Collision, x, z, 0.06f, 0f, 2.2f));
+        }
+
+        /// <summary>
+        /// A brazier (avalon_brazier): the iron bowl on its legs as one cylinder, raised to <see cref="MinSolidTop" />.
+        /// The client burns a flame at its light.
+        /// </summary>
+        public void Brazier(string part, float x, float z)
+        {
+            const string Braziers = "Braziers";
+            Decor.Add(new DecorItem(Braziers, "avalon_brazier", x, 0f, z, 0));
+            Pieces.Add(new CylinderPiece(Braziers, $"{part} bowl", Material.Collision, x, z, 0.4f, 0f, MinSolidTop));
         }
 
         /// <summary>
@@ -276,7 +310,7 @@ public static class TownPieces
         {
             const string CurbsBuilding = "Curbs";
             int n = (int)(TownSquare.CellSize / Tile);
-            bool Road(int i, int j) => OnRoad(Tile * i + Tile / 2, Tile * j + Tile / 2, exits);
+            bool Road(int i, int j) => TownSquare.OnRoad(Tile * i + Tile / 2, Tile * j + Tile / 2, exits);
             bool Open(int i, int j) => i >= 0 && j >= 0 && i < n && j < n && !Road(i, j);
 
             List<(float MinX, float MaxX, float MinZ, float MaxZ)> laid = [];
@@ -339,19 +373,10 @@ public static class TownPieces
             {
                 for (float z = Tile / 2; z < TownSquare.CellSize; z += Tile)
                 {
-                    string model = OnRoad(x, z, exits) ? "Floor_RedBrick" : "Floor_UnevenBrick";
+                    string model = TownSquare.OnRoad(x, z, exits) ? "Floor_RedBrick" : "Floor_UnevenBrick";
                     Decor.Add(new DecorItem(DecorRules.Paving, model, x, TownSquare.FloorTop, z, 0));
                 }
             }
-        }
-
-        private static bool OnRoad(float x, float z, IReadOnlyList<Side> exits)
-        {
-            const float Centre = TownSquare.CellSize / 2;
-            bool alongX = z > TownRules.DoorwayFrom && z < TownRules.DoorwayTo;
-            bool alongZ = x > TownRules.DoorwayFrom && x < TownRules.DoorwayTo;
-            return (alongZ && ((exits.Contains(Side.N) && z > Centre - 3) || (exits.Contains(Side.S) && z < Centre + 3)))
-                || (alongX && ((exits.Contains(Side.E) && x > Centre - 3) || (exits.Contains(Side.W) && x < Centre + 3)));
         }
 
         /// <summary>Draws every wall box as 2 m kit-textured wall sections along it.</summary>

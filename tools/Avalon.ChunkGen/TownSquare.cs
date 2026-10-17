@@ -41,6 +41,12 @@ public abstract record TownPiece(string Building, string Part, Material Material
     /// </summary>
     public Facing Front { get; init; } = Facing.None;
 
+    /// <summary>
+    /// True on the proxies a building recipe placed (<see cref="TownBuilding.Place" />), false on a free-standing prop:
+    /// the roads are kept clear of props, and a building is where it is.
+    /// </summary>
+    public bool PartOfBuilding { get; init; }
+
     /// <summary>The footprint's axis-aligned bounds on X/Z.</summary>
     public abstract (float MinX, float MaxX, float MinZ, float MaxZ) Bounds { get; }
 
@@ -188,6 +194,23 @@ public sealed record TownSquare(
 
     /// <summary>The square's south-west corner in world metres.</summary>
     public (float X, float Z) Origin => (GridX * CellSize, GridZ * CellSize);
+
+    /// <summary>
+    /// The red-brick road: a 6 m band from each exit's doorway (<see cref="TownRules.DoorwayFrom" /> to
+    /// <see cref="TownRules.DoorwayTo" />) to 3 m past the square's centre, where the arms meet.
+    /// </summary>
+    public static bool OnRoad(float x, float z, IReadOnlyList<Side> exits) =>
+        OverlapsRoad(x, x, z, z, exits);
+
+    /// <summary>Whether a footprint reaches into the red-brick road (<see cref="OnRoad" />) anywhere.</summary>
+    public static bool OverlapsRoad(float minX, float maxX, float minZ, float maxZ, IReadOnlyList<Side> exits)
+    {
+        const float Centre = CellSize / 2;
+        bool acrossZ = maxX > TownRules.DoorwayFrom && minX < TownRules.DoorwayTo;   // within the N/S arms' width
+        bool acrossX = maxZ > TownRules.DoorwayFrom && minZ < TownRules.DoorwayTo;   // within the E/W arms' width
+        return (acrossZ && ((exits.Contains(Side.N) && maxZ > Centre - 3) || (exits.Contains(Side.S) && minZ < Centre + 3)))
+            || (acrossX && ((exits.Contains(Side.E) && maxX > Centre - 3) || (exits.Contains(Side.W) && minX < Centre + 3)));
+    }
 
     /// <summary>
     /// Refuses what the bake could not place: a piece outside the 0-30 m cell (a roof's overhang included), a bound that
