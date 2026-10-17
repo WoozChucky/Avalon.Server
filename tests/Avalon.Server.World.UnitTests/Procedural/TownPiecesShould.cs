@@ -99,7 +99,7 @@ public class TownPiecesShould
         Assert.Contains("House A", buildings);
         Assert.Contains("House B", buildings);
         Assert.Contains("Well", buildings);
-        Assert.Equal(112, TownPieces.Squares().Sum(s => s.Pieces.Count));
+        Assert.Equal(69, TownPieces.Squares().Sum(s => s.Pieces.Count));
     }
 
     /// <summary>
@@ -111,18 +111,18 @@ public class TownPiecesShould
     {
         List<(string Square, TownPiece Piece)> fronts =
             [.. TownPieces.Squares().SelectMany(s => s.Pieces.Where(p => p.Front != Facing.None).Select(p => (s.Name, p)))];
-        Assert.Equal(7, fronts.Count);
+        Assert.Equal(11, fronts.Count);
         Assert.All(fronts, f => Assert.True(f.Piece.Front is Facing.NegX or Facing.NegZ,
             $"{f.Square}: {f.Piece.Building}'s front faces {f.Piece.Front}, away from the camera"));
     }
 
-    /// <summary>Owner decision 2: the two stalls are told apart by their cloth.</summary>
+    /// <summary>Owner decision 2: the two stalls are told apart by their cloth, red and blue (their kit-textured models).</summary>
     [Fact]
     public void Give_each_stall_its_own_cloth()
     {
-        List<TownPiece> market = [.. TownPieces.Squares().Single(s => s.Name == "town_se_01").Pieces];
-        Assert.Equal(Material.Cloth, market.Single(p => p.Building == "Armourer's stall" && p.Part == "roof").Material);
-        Assert.Equal(Material.Cloth2, market.Single(p => p.Building == "General-goods stall" && p.Part == "awning").Material);
+        List<DecorItem> market = [.. TownPieces.Squares().Single(s => s.Name == "town_se_01").Decor];
+        Assert.Equal("avalon_stall_armourer", market.Single(d => d.Building == "Armourer's stall").Model);
+        Assert.Equal("avalon_stall_goods", market.Single(d => d.Building == "General-goods stall").Model);
     }
 
     [Fact]

@@ -577,12 +577,12 @@
     {
       "kind": "gable",
       "part": "roof",
-      "minX": -4.98,
-      "maxX": 4.98,
-      "minZ": -6.01,
-      "maxZ": 6.01,
+      "minX": -4.976,
+      "maxX": 4.976,
+      "minZ": -5.852,
+      "maxZ": 6.007,
       "eaves": 5.46,
-      "ridge": 12.24
+      "ridge": 12.241
     }
   ]
 }

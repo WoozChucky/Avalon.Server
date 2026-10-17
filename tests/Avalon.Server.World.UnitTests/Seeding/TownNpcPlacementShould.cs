@@ -21,9 +21,9 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// north-west, the market south-east and the bank and inn north-east, with inner walls at X = 30 and Z = 30 opened at
 /// 12-18 and 42-48. The seeded NPCs are checked against the real layout and wall geometry, read from the Maps folder
 /// copied into the test output, so a geometry or seed change that puts an NPC in a wall or a doorway fails here.
-/// Each NPC stands in front of its own building, on the side the client's fixed camera sees and clear of its roof: on
-/// a porch step, in front of a counter or the smithy's lean-to, on the bank's step, at least 1 m from any solid and
-/// within 3 m of its building (TownPieces).
+/// Each NPC stands in front of its own building, on the side the client's fixed camera sees and clear of its roof: in
+/// front of its door (beyond an awning or a balcony) or of a stall's counter, at least 1 m from any solid and within
+/// 3 m of its building (TownPieces).
 /// </summary>
 public class TownNpcPlacementShould
 {
@@ -190,13 +190,13 @@ public class TownNpcPlacementShould
 
     /// <summary>Template, world X and Z, and the south-west corner of the square it belongs in.</summary>
     [Theory]
-    [InlineData(1ul, 16.6f, 23f, 0f, 0f)]      // Uriel, in front of the town hall's porch
-    [InlineData(2ul, 16.9f, 37f, 0f, 30f)]     // Borin Stoutbeard, in front of the hunter's lodge porch
-    [InlineData(12ul, 39f, 18.2f, 30f, 0f)]    // Garrick Emberforge, in front of the smithy's lean-to
-    [InlineData(13ul, 53.9f, 15f, 30f, 0f)]    // Hilde Brassbuckle, in front of the armourer's counter
-    [InlineData(14ul, 51.5f, 22.2f, 30f, 0f)]  // Tobin Marrowfield, in front of the general-goods counter
-    [InlineData(11ul, 36.8f, 49.4f, 30f, 30f)] // Marta Ledgerwell, the bank's lower step
-    [InlineData(3ul, 50f, 47.2f, 30f, 30f)]    // Innkeeper, in front of the inn's porch
+    [InlineData(1ul, 16.9f, 22.85f, 0f, 0f)]   // Uriel, in front of the town hall's door
+    [InlineData(2ul, 16.4f, 37.2f, 0f, 30f)]   // Borin Stoutbeard, in front of the hunter's lodge's awning
+    [InlineData(12ul, 52.5f, 16.3f, 30f, 0f)]  // Garrick Emberforge, in front of the smithy's lean-to
+    [InlineData(13ul, 52.4f, 15f, 30f, 0f)]    // Hilde Brassbuckle, in front of the armourer's counter
+    [InlineData(14ul, 37f, 21f, 30f, 0f)]      // Tobin Marrowfield, in front of the general-goods counter
+    [InlineData(11ul, 38f, 44.6f, 30f, 30f)]   // Marta Ledgerwell, in front of the bank's doors
+    [InlineData(3ul, 50.5f, 42.2f, 30f, 30f)]  // Innkeeper, in front of the inn's awning
     public void Stand_each_npc_where_the_spec_puts_it(ulong template, float x, float z, float squareX, float squareZ)
     {
         MapCreatureSpawn spawn = SpawnOf(SeededSpawns(), template);

@@ -198,13 +198,6 @@
       "yaw": 270
     },
     {
-      "model": "Prop_Support",
-      "x": -4.0,
-      "y": -0.02,
-      "z": -2.9,
-      "yaw": 270
-    },
-    {
       "model": "Roof_Wooden_2x1",
       "x": -4.0,
       "y": 2.9,
@@ -212,31 +205,10 @@
       "yaw": 270
     },
     {
-      "model": "Prop_Support",
-      "x": -4.0,
-      "y": -0.02,
-      "z": -0.9,
-      "yaw": 270
-    },
-    {
       "model": "Roof_Wooden_2x1",
       "x": -4.0,
       "y": 2.9,
       "z": 2.0,
-      "yaw": 270
-    },
-    {
-      "model": "Prop_Support",
-      "x": -4.0,
-      "y": -0.02,
-      "z": 1.1,
-      "yaw": 270
-    },
-    {
-      "model": "Prop_Support",
-      "x": -4.0,
-      "y": -0.02,
-      "z": 2.9,
       "yaw": 270
     },
     {
@@ -293,11 +265,11 @@
     {
       "kind": "gable",
       "part": "roof",
-      "minX": -4.85,
-      "maxX": 4.85,
-      "minZ": -4.13,
-      "maxZ": 4.13,
-      "eaves": 2.34,
+      "minX": -4.829,
+      "maxX": 4.854,
+      "minZ": -4.125,
+      "maxZ": 4.125,
+      "eaves": 2.338,
       "ridge": 8.01
     },
     {

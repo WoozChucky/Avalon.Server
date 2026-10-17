@@ -7113,51 +7113,51 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 1,
                             CreatureTemplateId = 1m,
-                            Facing = 191f,
+                            Facing = 194f,
                             MapTemplateId = 1,
-                            OffsetX = 1.6f,
+                            OffsetX = 1.9f,
                             OffsetY = 0f,
-                            OffsetZ = 8f
+                            OffsetZ = 7.85f
                         },
                         new
                         {
                             Id = 2,
                             CreatureTemplateId = 2m,
-                            Facing = 270f,
+                            Facing = 262f,
                             MapTemplateId = 1,
-                            OffsetX = 1.9f,
+                            OffsetX = 1.4f,
                             OffsetY = 0f,
-                            OffsetZ = 22f
+                            OffsetZ = 22.2f
                         },
                         new
                         {
                             Id = 3,
                             CreatureTemplateId = 3m,
-                            Facing = 246f,
+                            Facing = 297f,
                             MapTemplateId = 1,
-                            OffsetX = 35f,
+                            OffsetX = 35.5f,
                             OffsetY = 0f,
-                            OffsetZ = 32.2f
+                            OffsetZ = 27.2f
                         },
                         new
                         {
                             Id = 4,
                             CreatureTemplateId = 11m,
-                            Facing = 118f,
+                            Facing = 87f,
                             MapTemplateId = 1,
-                            OffsetX = 21.8f,
+                            OffsetX = 23f,
                             OffsetY = 0f,
-                            OffsetZ = 34.4f
+                            OffsetZ = 29.6f
                         },
                         new
                         {
                             Id = 5,
                             CreatureTemplateId = 12m,
-                            Facing = 118f,
+                            Facing = 260f,
                             MapTemplateId = 1,
-                            OffsetX = 24f,
+                            OffsetX = 37.5f,
                             OffsetY = 0f,
-                            OffsetZ = 3.2f
+                            OffsetZ = 1.3f
                         },
                         new
                         {
@@ -7165,7 +7165,7 @@ namespace Avalon.Database.World.Migrations
                             CreatureTemplateId = 13m,
                             Facing = 270f,
                             MapTemplateId = 1,
-                            OffsetX = 38.9f,
+                            OffsetX = 37.4f,
                             OffsetY = 0f,
                             OffsetZ = 0f
                         },
@@ -7173,11 +7173,11 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 7,
                             CreatureTemplateId = 14m,
-                            Facing = 222f,
+                            Facing = 127f,
                             MapTemplateId = 1,
-                            OffsetX = 36.5f,
+                            OffsetX = 22f,
                             OffsetY = 0f,
-                            OffsetZ = 7.2f
+                            OffsetZ = 6f
                         });
                 });
 

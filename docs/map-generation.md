@@ -314,8 +314,10 @@ reached on the baked navmesh. The tool writes LF line ends, and `.gitattributes`
 ## Generated town squares
 
 Glimmerdell's four squares (`town_sw_01`, `town_se_01`, `town_nw_01`, `town_ne_01`, map 1) are generated too, since the
-town beautification (2026-10-01): `tools/Avalon.ChunkGen/TownPieces.cs` holds the approved layout as data, chunk-local,
-over a small shape model (`TownSquare.cs`: boxes, twelve-sided cylinders and rings, gabled roof blocks, and the
+town beautification (2026-10-01), and drawn from the medieval village kit since 2026-10-17 (see "Decor and building
+recipes"): `tools/Avalon.ChunkGen/TownPieces.cs` holds the approved layout as data, chunk-local: each building a recipe
+placed with `TownBuilding.Place`, each prop a kit or `avalon_*` model with a collision box around its bounds, the walls
+and the paving decor over the wall and floor boxes. The collision is a small shape model (`TownSquare.cs`: boxes, twelve-sided cylinders and rings, gabled roof blocks, and the
 wall boxes by name; the fountain's basin is a ring with the water disc inside it). Each building part and prop is its own obj object named `<Building>_<part>` with a `usemtl` line
 (`stone`, `wood`, `roof`, `cloth`, `cloth_2`, `plaster`, `metal`, `water`, or `collision` for a part decor draws; the
 walls `stone`, the floor untagged, see "Decor and building recipes"); the
@@ -331,20 +333,24 @@ risers of at most 0.3 m). `TownPiecesShould` fails when the committed files diff
 lets a walk in on the baked navmesh or has a top a path from the arrival point can end on (Recast climbs any step of
 0.8 m or less and rounds a top up to a 0.2 m voxel, so a top at or under 1.0 m above the ground beside it would be
 walked over), or when a solid piece's top is under 1.05 m (every bench, crate, barrel, counter, the well ring and the
-cart's shaft reach 1.05 m, owner decision). Roof tops and building interiors are navmesh islands nothing reaches, as the
+cart reach 1.05 m, owner decision; the collision box stands that high even where the model, a bench say, is lower).
+Roof tops and building interiors are navmesh islands nothing reaches, as the
 forest's blocker tops are. `TownNpcPlacementShould` checks the seven NPC spots against
-the same data.
+the same data. The market's middle stays open for the walking benchmarks, whose 8 m loop about world (45, 10)
+(`TownNavmesh.LoopCentre` in `tests/Avalon.World.Testing`) needs nothing solid 7-9 m from it, and the arrival square's
+for the idle benchmark's grid of players about the entry spawn.
 
 The town is laid out for the client's camera, which is fixed (owner decision, 2026-10-02) at yaw 45° and 60° below
 horizontal, south-west of what it looks at: a player sees the −X and −Z sides of everything, and the south-west of each
 square is the bottom of the screen. So tall buildings stand on a square's far (high X/Z) edges with their open face
-toward −X or −Z, and an NPC stands on that side, clear of its roof. Two checks hold it: each building's open face
-(porch, counter, lean-to, steps) carries a `Front`, which `TownPiecesShould` requires to be −X or −Z; and
+toward −X or −Z, and an NPC stands on that side, clear of its roof. A kit building puts its gable end on that side,
+so its door wall is not under a roof slope, and the ground south-west of every NPC is kept low (the sight check below
+treats a kit roof as a box up to its ridge). Two checks hold it: each building's open face (its door, a counter)
+carries a `Front`, which `TownPiecesShould` requires to be −X or −Z; and
 `TownNpcPlacementShould` casts a line from each NPC's head toward the camera and fails on any piece, wall or solid
 decor item's box in the way (a roof over the NPC counts: under a 2.9 m stall roof a head shows only within about
 0.6 m of the roof's camera-side edge). The two angles are mirrored from the client's `IsometricCameraComponent`. The
-four other `town_*` chunks
-(`town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are listed by the tool and never touched. A geometry change
+four other `town_*` chunks (`town_corner_01`, `town_house_01`, `town_path_01`, `town_square_01`) are listed by the tool and never touched. A geometry change
 here needs a restart (instances bake once), a re-export of the navmesh vectors (`tools/Avalon.Exporter -- navmesh`),
 and a re-vendor in the client (`scripts/vendor-chunks.ps1`, and `scripts/regen-proto.ps1` for the vectors).
 

@@ -234,11 +234,11 @@
     {
       "kind": "gable",
       "part": "roof",
-      "minX": -4.13,
-      "maxX": 4.13,
-      "minZ": -4.85,
-      "maxZ": 4.85,
-      "eaves": 2.34,
+      "minX": -4.125,
+      "maxX": 4.125,
+      "minZ": -4.829,
+      "maxZ": 4.854,
+      "eaves": 2.338,
       "ridge": 8.01
     },
     {
