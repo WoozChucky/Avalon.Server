@@ -158,6 +158,7 @@ message CCastAbilityPacket {
    uint32 AbilityId = 1;
    optional uint64 TargetGuid = 2;
    Vector3Dto GroundPos = 3;
+   int64 ViewTick = 4;
 }
 message CCharacterCreatePacket {
    optional string Name = 1;
@@ -1188,6 +1189,7 @@ message SUnitStartCastPacket {
    uint32 CastId = 4;
    AbilityFootprintDto Footprint = 5;
    uint64 ItemTemplateId = 6;
+   int64 WorldTick = 7;
 }
 message SVendorListPacket {
    uint64 VendorGuid = 1;

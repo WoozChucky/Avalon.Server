@@ -19,6 +19,7 @@ variant absent
   field 1 AbilityId : uint = 0
   field 2 TargetGuid : ulong? = null
   field 3 GroundPos : Vector3Dto = null
+  field 4 ViewTick : long = 0
   bytes 0
 
 variant empty
@@ -28,6 +29,7 @@ variant empty
     field 1 X : float = 0 (0x00000000)
     field 2 Y : float = 0 (0x00000000)
     field 3 Z : float = 0 (0x00000000)
+  field 4 ViewTick : long = 0
   bytes 4
     10 00 1a 00
 
@@ -38,9 +40,10 @@ variant populated
     field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
     field 2 Y : float = -2.25 (0xc0100000)
     field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
-  bytes 22
+  field 4 ViewTick : long = 19
+  bytes 24
     08 07 10 ac 02 1a 0f 0d b0 0f a1 b3 15 00 00 10
-    c0 1d b0 0f a1 b3
+    c0 1d b0 0f a1 b3 20 13
 
 variant maxima
   field 1 AbilityId : uint = 4294967295
@@ -49,10 +52,11 @@ variant maxima
     field 1 X : float = 3.40282347E+38 (0x7f7fffff)
     field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
     field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
-  bytes 34
+  field 4 ViewTick : long = 9223372036854775807
+  bytes 44
     08 ff ff ff ff 0f 10 ff ff ff ff ff ff ff ff ff
     01 1a 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff
-    7f 7f
+    7f 7f 20 ff ff ff ff ff ff ff ff 7f
 
 variant minima
   field 1 AbilityId : uint = 0
@@ -61,9 +65,10 @@ variant minima
     field 1 X : float = -3.40282347E+38 (0xff7fffff)
     field 2 Y : float = -3.40282347E+38 (0xff7fffff)
     field 3 Z : float = -3.40282347E+38 (0xff7fffff)
-  bytes 19
+  field 4 ViewTick : long = -9223372036854775808
+  bytes 30
     10 00 1a 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff
-    ff 7f ff
+    ff 7f ff 20 80 80 80 80 80 80 80 80 80 01
 
 variant varint-edges
   field 1 AbilityId : uint = 2097151
@@ -72,9 +77,10 @@ variant varint-edges
     field 1 X : float = 1.17549435E-38 (0x00800000)
     field 2 Y : float = 1.17549435E-38 (0x00800000)
     field 3 Z : float = 1.17549435E-38 (0x00800000)
-  bytes 27
+  field 4 ViewTick : long = 2097151
+  bytes 31
     08 ff ff 7f 10 80 80 80 80 01 1a 0f 0d 00 00 80
-    00 15 00 00 80 00 1d 00 00 80 00
+    00 15 00 00 80 00 1d 00 00 80 00 20 ff ff 7f
 
 variant float-specials
   field 1 AbilityId : uint = 7
@@ -83,6 +89,7 @@ variant float-specials
     field 1 X : float = NaN (0x7fc00001)
     field 2 Y : float = Infinity (0x7f800000)
     field 3 Z : float = -Infinity (0xff800000)
-  bytes 22
+  field 4 ViewTick : long = 19
+  bytes 24
     08 07 10 ac 02 1a 0f 0d 01 00 c0 7f 15 00 00 80
-    7f 1d 00 00 80 ff
+    7f 1d 00 00 80 ff 20 13

@@ -41,20 +41,30 @@ public class SUnitStartCastPacket : Packet
     /// </summary>
     [ProtoMember(6)] public ulong ItemTemplateId { get; set; }
 
+    /// <summary>
+    /// The world tick the cast was taken on (#1082), the same count the state broadcast names
+    /// (<c>SInstanceStateUpdatePacket.WorldTick</c>): with the time-sync ping's anchor (<c>SPingPacket.WorldTick</c>) it
+    /// gives the start's server time, so a client ends the cast bar and the telegraph's countdown at that time plus
+    /// <see cref="CastTime" />, not at the packet's arrival plus it. Every start carries it, an item's included. 0 for
+    /// the world's first tick, and from a server before #1082.
+    /// </summary>
+    [ProtoMember(7)] public long WorldTick { get; set; }
+
     /// <summary>An item's cast bar: no ability, no footprint.</summary>
     public static OutboundPacket CreateForItem(ObjectGuid caster, float castTime, ulong itemTemplateId, uint castId,
-        PacketEncoder encoder)
+        long worldTick, PacketEncoder encoder)
     {
         SUnitStartCastPacket message = PacketEncoder.Scratch<SUnitStartCastPacket>();
         message.Caster = caster.RawValue;
         message.CastTime = castTime;
         message.CastId = castId;
         message.ItemTemplateId = itemTemplateId;
+        message.WorldTick = worldTick;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 
     public static OutboundPacket Create(ObjectGuid caster, float castTime, uint abilityId, uint castId,
-        AbilityFootprintDto? footprint, PacketEncoder encoder)
+        AbilityFootprintDto? footprint, long worldTick, PacketEncoder encoder)
     {
         SUnitStartCastPacket message = PacketEncoder.Scratch<SUnitStartCastPacket>();
         message.Caster = caster.RawValue;
@@ -62,6 +72,7 @@ public class SUnitStartCastPacket : Packet
         message.AbilityId = abilityId;
         message.CastId = castId;
         message.Footprint = footprint;
+        message.WorldTick = worldTick;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }

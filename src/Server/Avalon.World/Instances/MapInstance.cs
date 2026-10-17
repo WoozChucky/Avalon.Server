@@ -150,8 +150,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private bool _shareStateEntries;
 
     /// <summary>
-    /// The world's tick count (#1066), from the container: every add and update names the tick that built it. Null in an
-    /// instance built without one (tests), whose packets carry tick 0.
+    /// The world's tick count (#1066), from the container: every add and update names the tick that built it, and every
+    /// cast start the tick it was taken on (#1082). Null in an instance built without one (tests), whose packets carry
+    /// tick 0.
     /// </summary>
     private readonly WorldTicks? _worldTicks;
 
@@ -894,8 +895,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (start.Payload is null)
             {
                 // #627: the time the cast system just set, haste included, so every cast bar ends when the cast does.
+                // #1082: the tick the cast was taken on, so a client ends it at that tick's server time plus CastTime.
                 start = SUnitStartCastPacket.Create(caster.Guid, ability.CastTimeTimer,
-                    ability.AbilityId.Value, castId, dto, PacketEncoder.Shared);
+                    ability.AbilityId.Value, castId, dto, _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
             }
 
             connection.Send(start.Share());
@@ -2161,8 +2163,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
             if (start.Payload is null)
             {
+                // #1082: the tick the bar started on, as an ability's start carries it.
                 start = SUnitStartCastPacket.CreateForItem(caster.Guid, castTimeSeconds, item.Value, castId,
-                    PacketEncoder.Shared);
+                    _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
             }
 
             connection.Send(start.Share());

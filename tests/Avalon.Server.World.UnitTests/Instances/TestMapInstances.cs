@@ -39,8 +39,10 @@ internal static class TestMapInstances
     /// <param name="random">Every combat roll (#506); the instance's own no-proc fallback when omitted.</param>
     /// <param name="time">The container's clock; the system clock when omitted.</param>
     /// <param name="auraScripts">Runs the auras' scripts; none runs when omitted.</param>
+    /// <param name="worldTicks">The world's tick count the instance stamps its broadcasts with (#1066, #1082); none when omitted, so tick 0.</param>
     public static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal,
-        IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, AuraScripts? auraScripts = null)
+        IWorld? world = null, ICombatRandom? random = null, TimeProvider? time = null, AuraScripts? auraScripts = null,
+        WorldTicks? worldTicks = null)
     {
         IScriptManager scripts = Substitute.For<IScriptManager>();
         foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) })
@@ -52,7 +54,7 @@ internal static class TestMapInstances
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         world ??= MapInstanceClients.NewWorld();
         MapInstance instance = Build(world, scripts, navigator, mapType: mapType, time: time, random: random,
-            auraScripts: auraScripts);
+            auraScripts: auraScripts, worldTicks: worldTicks);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
         // The handler and the instance share the container's clock, as in production.
         handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig(),
