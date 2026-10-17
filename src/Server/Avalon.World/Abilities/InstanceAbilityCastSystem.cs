@@ -34,8 +34,10 @@ public interface IAbilityCastSystem
     /// has not finished (a projectile). False, with nothing spent, when the script cannot be built or
     /// the cost cannot be paid.
     /// A <paramref name="free" /> cast (an item's, item use) neither checks nor pays the cost.
+    /// <paramref name="view" /> is how far its hits are rewound (#1082): a player's cast through the instance's
+    /// <c>IPlayerCastHost</c>; the default, none, for every other.
     /// </summary>
-    bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false);
+    bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default);
 
     void Update(TimeSpan deltaTime, List<IWorldObject> objects);
 
@@ -143,7 +145,7 @@ public class InstanceAbilityCastSystem(
         return true;
     }
 
-    public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false)
+    public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability, bool free = false, CastView view = default)
     {
         bool pays = !free && !IsFree(caster);
         if (pays && AbilityCost.Check(caster, ability.Metadata) is var cost and not CostCheck.Payable)
@@ -163,7 +165,7 @@ public class InstanceAbilityCastSystem(
             AbilityCost.Pay(caster, ability.Metadata);
         }
 
-        Fire(caster, ability, script, HasteOf(caster), TakeCastId());
+        Fire(caster, ability, script, HasteOf(caster), TakeCastId(), view);
         return true;
     }
 
@@ -239,7 +241,9 @@ public class InstanceAbilityCastSystem(
                 continue;
             }
 
-            Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId);
+            // A queued cast is never rewound (#1082): its wind-up is the dodge window, and its footprint was fixed at
+            // its start.
+            Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId, default);
         }
 
         foreach (AbilityInstance cast in _dequeued)
@@ -475,9 +479,11 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>
     /// The cooldown, set once (#627), so a later gear change never rescales a running one; the finish-cast
-    /// broadcast; the effect. A script still running keeps ticking.
+    /// broadcast; the effect. A script still running keeps ticking. Its <c>Prepare</c> runs with the arena's hit queries
+    /// rewound by <paramref name="view" /> (#1082), the value found before put back after, so a cast fired inside another
+    /// cast's hit returns the outer one to its own.
     /// </summary>
-    private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct, uint castId)
+    private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct, uint castId, CastView view)
     {
         if (caster is not CharacterEntity { GodMode: true })
             ability.CooldownTimer = CooldownOf(caster, ability, hastePct);
@@ -487,9 +493,11 @@ public class InstanceAbilityCastSystem(
         // object, and the cast is interrupted. What it spent stays spent. So is a script whose state cannot be
         // read once it has prepared.
         bool running;
+        int outerRewind = arena.HitRewindTicks;
         try
         {
             arena.CastInFlight = castId;
+            arena.HitRewindTicks = view.HitRewindTicks;
             script.Prepare();
             running = script.State is not SpellState.Finished;
         }
@@ -503,11 +511,12 @@ public class InstanceAbilityCastSystem(
         finally
         {
             arena.CastInFlight = 0;
+            arena.HitRewindTicks = outerRewind;
         }
 
         if (running)
         {
-            _activeAbilities.Add(new ActiveScript(caster, ability, script, castId));
+            _activeAbilities.Add(new ActiveScript(caster, ability, script, castId, view));
         }
 
         CombatLog.AbilityFired(_logger, ability.AbilityId, caster.Guid);
@@ -567,13 +576,17 @@ public class InstanceAbilityCastSystem(
         }
     }
 
-    /// <summary>A running script and who cast it, with the caster's own ability and the cast's id for the interrupt.</summary>
-    private sealed class ActiveScript(IUnit caster, IAbility ability, AbilityScript script, uint castId)
+    /// <summary>
+    /// A running script and who cast it, with the caster's own ability and the cast's id for the interrupt, and how far
+    /// the cast's hits are rewound (#1082), fixed when it was taken.
+    /// </summary>
+    private sealed class ActiveScript(IUnit caster, IAbility ability, AbilityScript script, uint castId, CastView view)
     {
         public IUnit Caster { get; } = caster;
         public IAbility Ability { get; } = ability;
         public AbilityScript Script { get; } = script;
         public uint CastId { get; } = castId;
+        public CastView View { get; } = view;
 
         /// <summary>Set by the sweep for finished scripts, for the removal that follows it in the same call.</summary>
         public bool Leaving { get; set; }

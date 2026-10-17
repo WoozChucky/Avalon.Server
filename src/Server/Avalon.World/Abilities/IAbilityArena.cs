@@ -38,6 +38,13 @@ public interface IAbilityArena
     /// <summary>The instance's living units by shape.</summary>
     IHitQuery Hits { get; }
 
+    /// <summary>
+    /// How many world ticks <see cref="Hits" /> is rewound (#1082): 0, the present, except while the cast system fires a
+    /// player's instant cast, when it is that cast's <see cref="CastView.HitRewindTicks" />. The cast system saves the
+    /// value it finds and puts it back after, so a cast fired inside another's hit keeps the outer one's once it returns.
+    /// </summary>
+    int HitRewindTicks { get; set; }
+
     IMapNavigator GetNavigatorForPosition(Vector3 position);
 
     /// <summary>

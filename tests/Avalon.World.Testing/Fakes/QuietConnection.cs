@@ -43,7 +43,7 @@ public sealed class QuietConnection(CharacterEntity character) : IWorldConnectio
     public bool IsConnected => throw new NotSupportedException();
     public bool IsClosing => throw new NotSupportedException();
     public long Latency => throw new NotSupportedException();
-    public long RoundTripTime => throw new NotSupportedException();
+    public long RoundTripTime => 0;
     public long CurrentPacketArrivedTicks => throw new NotSupportedException();
     public bool InGame => throw new NotSupportedException();
     public bool InMap => throw new NotSupportedException();

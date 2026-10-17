@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Hosting.Networking;
+using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -33,6 +35,14 @@ namespace Avalon.World.Abilities.Targeting;
 /// queries follow, a query asked while another's result is being walked (a hit that leads to another cast) included. A
 /// query nobody recycles (a test's) keeps every list it handed out.
 /// </para>
+/// <para>
+/// <b>Rewind (#1082).</b> While <see cref="RewindTicks" /> is above 0, every candidate is tested, and the hits sorted, at
+/// <see cref="PositionOf" />: where its history (<see cref="PositionHistory" />) puts it that many ticks before the
+/// world's current one, or its present position when the history does not reach back that far (it joined or jumped
+/// since). Liveness stays the present's. The grid holds present positions, so the box a rewound query visits, and the
+/// cell entries it leaves out on the grid's copy of their X/Z, are widened by the furthest a unit may have moved since,
+/// <see cref="LagCompensation.MaxStepPerTick" /> a tick. A query built without the world's tick count is never rewound.
+/// </para>
 /// </remarks>
 public sealed class UnitHitQuery(
     Dictionary<ObjectGuid, ICharacter> characters,
@@ -40,20 +50,30 @@ public sealed class UnitHitQuery(
 {
     private readonly List<List<IUnit>> _lists = [];
     private readonly NearestFirst _nearestFirst = new();
+    private readonly WorldTicks? _ticks;
     private int _handedOut;
     private SpatialGrid? _members;
 
     /// <summary>
     /// A query over <paramref name="members" />, the instance's spatial grid, which holds exactly the entities of
-    /// <paramref name="characters" /> and <paramref name="creatures" /> (#982).
+    /// <paramref name="characters" /> and <paramref name="creatures" /> (#982), rewound against <paramref name="ticks" />,
+    /// the world's tick count the units' histories are keyed by (#1082); never rewound without one.
     /// </summary>
     internal UnitHitQuery(
         Dictionary<ObjectGuid, ICharacter> characters,
         Dictionary<ObjectGuid, ICreature> creatures,
-        SpatialGrid members) : this(characters, creatures)
+        SpatialGrid members,
+        WorldTicks? ticks) : this(characters, creatures)
     {
         _members = members;
+        _ticks = ticks;
     }
+
+    /// <summary>
+    /// How many ticks the queries are rewound (#1082): 0, the present, except while the cast system fires a player's
+    /// instant cast, which sets it through <c>IAbilityArena.HitRewindTicks</c> and puts the value it found back after.
+    /// </summary>
+    internal int RewindTicks { get; set; }
 
     /// <summary>
     /// What the queries since this one was built did, by shape (circle, cone, segment): for measuring the grid alone
@@ -69,6 +89,8 @@ public sealed class UnitHitQuery(
 
     public IReadOnlyList<IUnit> OnSegment(Vector3 from, Vector3 to) =>
         Collect(from, new Shape(ShapeKind.Segment, from, to, 0f, 0f));
+
+    public Vector3 PositionOf(IUnit unit) => CurrentRewind().PositionOf(unit);
 
     /// <summary>
     /// A character is dead while <c>IsDead</c>. A creature has no dead flag: it is dead at 0 health,
@@ -94,15 +116,22 @@ public sealed class UnitHitQuery(
     /// </summary>
     internal void ScanEveryMember() => _members = null;
 
+    /// <summary>The rewind the queries asked now use (#1082): inactive at 0 ticks, or with no tick count.</summary>
+    private Rewind CurrentRewind() =>
+        RewindTicks > 0 && _ticks is not null ? new Rewind(_ticks.Completed - RewindTicks, true) : default;
+
     private List<IUnit> Collect(Vector3 origin, in Shape shape)
     {
         List<IUnit> hits = NextList();
         int members = characters.Count + creatures.Count;
         int visited, examined;
+        Rewind rewind = CurrentRewind();
 
-        if (_members is not null && shape.TryBound(_members.LargestBodyRadius, out HitBox box))
+        // #1082: a rewound unit may stand up to MaxStepPerTick a tick from where the grid has it now.
+        float drift = rewind.Active ? RewindTicks * LagCompensation.MaxStepPerTick : 0f;
+        if (_members is not null && shape.TryBound(_members.LargestBodyRadius + drift, out HitBox box))
         {
-            var candidates = new HitCandidates(shape, box, hits, _members.LargestBodyRadius);
+            var candidates = new HitCandidates(shape, box, hits, _members.LargestBodyRadius, rewind);
             _members.VisitBox(box.MinX, box.MinZ, box.MaxX, box.MaxZ, ref candidates);
             visited = candidates.Visited;
             examined = candidates.Examined;
@@ -111,13 +140,13 @@ public sealed class UnitHitQuery(
         {
             foreach (ICharacter character in characters.Values)
             {
-                if (IsAlive(character) && shape.Overlaps(character))
+                if (IsAlive(character) && shape.Overlaps(rewind.PositionOf(character), character.BodyRadius))
                     hits.Add(character);
             }
 
             foreach (ICreature creature in creatures.Values)
             {
-                if (IsAlive(creature) && shape.Overlaps(creature))
+                if (IsAlive(creature) && shape.Overlaps(rewind.PositionOf(creature), creature.BodyRadius))
                     hits.Add(creature);
             }
 
@@ -132,6 +161,7 @@ public sealed class UnitHitQuery(
         counts.Hits += hits.Count;
 
         _nearestFirst.Origin = origin;
+        _nearestFirst.Rewind = rewind;
         hits.Sort(_nearestFirst.Comparison);
 
         return hits;
@@ -167,11 +197,12 @@ public sealed class UnitHitQuery(
         private const double AbsoluteMargin = 1.0 / 1024.0;
         private const double CoordinateMargin = 1.0 / (1L << 40);
 
-        public bool Overlaps(IUnit unit) => Kind switch
+        /// <summary>Whether a body of <paramref name="bodyRadius" /> at <paramref name="position" /> overlaps the shape.</summary>
+        public bool Overlaps(Vector3 position, float bodyRadius) => Kind switch
         {
-            ShapeKind.Circle => HitShapes.CircleOverlaps(A, Size, unit.Position, unit.BodyRadius),
-            ShapeKind.Cone => HitShapes.ConeOverlaps(A, B, Size, Arc, unit.Position, unit.BodyRadius),
-            _ => HitShapes.SegmentOverlaps(A, B, unit.Position, unit.BodyRadius),
+            ShapeKind.Circle => HitShapes.CircleOverlaps(A, Size, position, bodyRadius),
+            ShapeKind.Cone => HitShapes.ConeOverlaps(A, B, Size, Arc, position, bodyRadius),
+            _ => HitShapes.SegmentOverlaps(A, B, position, bodyRadius),
         };
 
         /// <summary>
@@ -237,12 +268,35 @@ public sealed class UnitHitQuery(
     private readonly record struct HitBox(float MinX, float MinZ, float MaxX, float MaxZ);
 
     /// <summary>
+    /// The tick a query reads the units' histories at (#1082), when <see cref="Active" />; inactive, every unit is where
+    /// it is now. A struct, so a query carries it into the grid visitor and the sort without allocating.
+    /// </summary>
+    private readonly record struct Rewind(long Tick, bool Active)
+    {
+        public Vector3 PositionOf(IUnit unit)
+        {
+            if (!Active)
+                return unit.Position;
+
+            PositionHistory? history = unit switch
+            {
+                CharacterEntity character => character.History,
+                Creature creature => creature.History,
+                _ => null,
+            };
+
+            return history is not null && history.TryGet(Tick, out Vector3 then) ? then : unit.Position;
+        }
+    }
+
+    /// <summary>
     /// The grid's candidates for one query (#982). A cell's entry outside the box is left on the grid's copy of its X/Z,
     /// which is the entity's own, without the unit being read: no unit there can overlap the shape. Every other candidate,
     /// a cell's entry within the box, an entry in no cell or one not indexed, is tested on the unit as a full scan tests
-    /// it.
+    /// it, at its rewound position under a rewind (#1082), whose box is widened to match.
     /// </summary>
-    private struct HitCandidates(Shape shape, HitBox box, List<IUnit> hits, float largestBodyRadius) : ISpatialVisitor
+    private struct HitCandidates(Shape shape, HitBox box, List<IUnit> hits, float largestBodyRadius, Rewind rewind)
+        : ISpatialVisitor
     {
         public int Visited;
         public int Examined;
@@ -269,7 +323,7 @@ public sealed class UnitHitQuery(
         {
             Examined++;
             var unit = (IUnit)obj;
-            if (IsAlive(unit) && shape.Overlaps(unit))
+            if (IsAlive(unit) && shape.Overlaps(rewind.PositionOf(unit), unit.BodyRadius))
                 hits.Add(unit);
         }
 
@@ -291,9 +345,9 @@ public sealed class UnitHitQuery(
     }
 
     /// <summary>
-    /// Nearest the origin first, on X/Z; ties broken by raw guid, so the order never depends on the dictionaries' or the
-    /// grid's. Its <see cref="Comparison" /> is made once: a sort by an <c>IComparer</c> makes a delegate of its
-    /// <c>Compare</c> on every call.
+    /// Nearest the origin first, on X/Z, at the positions the query tested (rewound under a rewind, #1082); ties broken by
+    /// raw guid, so the order never depends on the dictionaries' or the grid's. Its <see cref="Comparison" /> is made
+    /// once: a sort by an <c>IComparer</c> makes a delegate of its <c>Compare</c> on every call.
     /// </summary>
     private sealed class NearestFirst
     {
@@ -301,11 +355,14 @@ public sealed class UnitHitQuery(
 
         public Vector3 Origin { get; set; }
 
+        public Rewind Rewind { get; set; }
+
         public Comparison<IUnit> Comparison { get; }
 
         private int Compare(IUnit a, IUnit b)
         {
-            int byDistance = HitShapes.Distance2D(Origin, a.Position).CompareTo(HitShapes.Distance2D(Origin, b.Position));
+            int byDistance = HitShapes.Distance2D(Origin, Rewind.PositionOf(a))
+                .CompareTo(HitShapes.Distance2D(Origin, Rewind.PositionOf(b)));
             return byDistance != 0 ? byDistance : a.Guid.RawValue.CompareTo(b.Guid.RawValue);
         }
     }

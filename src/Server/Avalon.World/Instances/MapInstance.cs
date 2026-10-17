@@ -53,7 +53,7 @@ using Microsoft.Extensions.Options;
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
-    IItemUseHost, IItemCastAudience, IAuraHost, IDisposable
+    IItemUseHost, IItemCastAudience, IAuraHost, IPlayerCastHost, IDisposable
 {
     private InstanceTickProfile _tickProfile;
 
@@ -330,8 +330,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraUpdates = new SharedAuraUpdates(_auraWire, _replicationEncoder);
 
         // Shape scripts ask this for the living units their shape overlaps (#164), found in the cells of the grid around
-        // the shape (#982).
-        _hits = new UnitHitQuery(_characters, _creatures, _members);
+        // the shape (#982), rewound against the world's tick count for a player's instant cast (#1082).
+        _hits = new UnitHitQuery(_characters, _creatures, _members, _worldTicks);
 
         // The cast system gets `this` as the IAbilityArena every ability script is built with
         // (#164): scripts route damage through CombatService.ApplyDamage. CombatService must be
@@ -872,6 +872,43 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public bool RunInstantAbility(IUnit caster, AbilityAim aim, IAbility ability) =>
         _abilityCastSystem.RunInstant(caster, aim, ability);
+
+    /// <summary>
+    /// A player's instant cast, judged by that player's screen (#1082): its hits are rewound from this tick to the one the
+    /// client named, within the cap, and a projectile's sweep by that less the caster's one-way delay, never below 0. The
+    /// round trip is read only when there is a rewind to shorten. No world tick count (tests), no rewind.
+    /// </summary>
+    bool IPlayerCastHost.RunInstantAbility(ICharacter caster, AbilityAim aim, IAbility ability, long viewTick)
+    {
+        CastView view = default;
+        if (_worldTicks is not null)
+        {
+            int rewind = LagCompensation.RewindTicks(viewTick, _worldTicks.Completed);
+            if (rewind > 0)
+            {
+                int oneWay = LagCompensation.OneWayTicks(RoundTripOf(caster.Guid));
+                view = new CastView(rewind, Math.Max(0, rewind - oneWay));
+            }
+        }
+
+        return _abilityCastSystem.RunInstant(caster, aim, ability, view: view);
+    }
+
+    /// <summary>
+    /// The last round trip of <paramref name="guid" />'s connection, in UTC ticks (<c>IWorldConnection.RoundTripTime</c>),
+    /// for lag compensation (#1082); 0 for a unit with no connection here, or a round trip not above 0 (none measured
+    /// yet). Advisory, as the round trip is: it may only shorten a rewind, never lengthen one past the cap.
+    /// </summary>
+    private long RoundTripOf(ObjectGuid guid) =>
+        _connections.TryGetValue(guid, out IWorldConnection? connection) && connection.RoundTripTime > 0
+            ? connection.RoundTripTime
+            : 0;
+
+    int IAbilityArena.HitRewindTicks
+    {
+        get => _hits.RewindTicks;
+        set => _hits.RewindTicks = value;
+    }
 
     /// <summary>
     /// Sends a hit to everyone who hears it (#532). A creature script's broadcast, made during the hit's

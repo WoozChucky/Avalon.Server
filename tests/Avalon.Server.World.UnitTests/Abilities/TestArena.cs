@@ -35,6 +35,7 @@ internal sealed class TestArena : IAbilityArena
 
     public MapType MapType { get; }
     public IHitQuery Hits { get; }
+    public int HitRewindTicks { get; set; }
     public ICombatService CombatService { get; } = Substitute.For<ICombatService>();
     public IMapNavigator Navigator { get; } = Substitute.For<IMapNavigator>();
     public List<(Vector3 Origin, Vector3? Direction, Vector3? Centre)> Fired { get; } = [];

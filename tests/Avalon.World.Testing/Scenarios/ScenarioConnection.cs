@@ -138,7 +138,7 @@ public sealed class ScenarioConnection : IWorldConnection, IDisposable
     public long SelectStartedTicks => throw new NotSupportedException();
     public bool IsClosing => throw new NotSupportedException();
     public long Latency => throw new NotSupportedException();
-    public long RoundTripTime => throw new NotSupportedException();
+    public long RoundTripTime => 0;
     public long CurrentPacketArrivedTicks => throw new NotSupportedException();
     /// <summary>The account's locale, which the quest texts are worded in: a world connection's default.</summary>
     public AccountLocale Locale { get; set; } = AccountLocale.enUS;
