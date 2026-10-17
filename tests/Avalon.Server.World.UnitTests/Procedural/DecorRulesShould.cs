@@ -13,7 +13,8 @@ public class DecorRulesShould
     /// One building, a 4 x 4 m body at X 20-24 (or from <paramref name="bodyMinX" />), Z 5-9, drawn by plaster walls
     /// 0.4 m thick: its -X face by walls turned a quarter (yaw 90), its -Z face by unturned walls starting 0.1 m east of
     /// it, so only the turned walls draw the -X face and a turn the wrong way leaves it bare. The square has a wall along
-    /// Z = 0. Then the item under test, placed under <paramref name="building" />.
+    /// Z = 0, or, when <paramref name="wallsAsDecor" />, a 2.2 m wall at X 14-16.2 that decor draws. Then the item under
+    /// test, placed under <paramref name="building" />.
     /// </summary>
     [Theory]
     [InlineData("a wall inside the body", "Inn", "Wall_Plaster_Straight", 22f, 7f, 20f, null)]
@@ -24,12 +25,15 @@ public class DecorRulesShould
     [InlineData("a wall section on the square's wall", DecorRules.Walls, "avalon_wall_straight_2m", 15f, 0f, 20f, null)]
     [InlineData("a wall section a metre off it", DecorRules.Walls, "avalon_wall_straight_2m", 15f, 1f, 20f, "the square's walls")]
     [InlineData("a wall of a building with no proxy", "Shed", "Wall_Plaster_Straight", 10f, 20f, 20f, "Shed has no non-walkable proxy")]
+    [InlineData("a drawn wall its one 2 m section leaves 0.2 m bare", DecorRules.Walls, "avalon_wall_straight_2m", 15f, 0f, 20f, "leave part of it bare", true)]
     public void Refuse_solid_decor_outside_its_buildings_proxy(
-        string label, string building, string model, float x, float z, float bodyMinX, string? refusal)
+        string label, string building, string model, float x, float z, float bodyMinX, string? refusal, bool wallsAsDecor = false)
     {
-        var square = new TownSquare("town_test", 0, 0, [], [new WallSegment("Wall_S", 0f, 30f, -0.25f, 0.25f)],
+        WallSegment wall = wallsAsDecor ? new WallSegment("Wall_S", 14f, 16.2f, -0.25f, 0.25f) : new WallSegment("Wall_S", 0f, 30f, -0.25f, 0.25f);
+        var square = new TownSquare("town_test", 0, 0, [], [wall],
             [new BoxPiece("Inn", "body", Material.Collision, bodyMinX, 24f, 5f, 9f, 0f, 3.12f)], false, false, [])
         {
+            WallsAsDecor = wallsAsDecor,
             Decor =
             [
                 new DecorItem("Inn", "Wall_Plaster_Straight", 21.1f, 0f, 5.314f, 0),
