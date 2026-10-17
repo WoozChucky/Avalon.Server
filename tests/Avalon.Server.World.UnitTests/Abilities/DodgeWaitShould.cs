@@ -12,6 +12,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Enums;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -95,6 +96,37 @@ public class DodgeWaitShould
         RunToFire(instance, ticks, nova);
 
         Assert.Equal(1, wounds.Hits);
+    }
+
+    /// <summary>
+    /// Only hostile casts wait: a player's telegraphed heal circle heals an ally on the tick it fires, so stepping out in
+    /// what would have been the wait loses nothing.
+    /// </summary>
+    [Fact]
+    public void Heal_an_ally_on_the_fire_tick()
+    {
+        var ticks = new WorldTicks(Start);
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, worldTicks: ticks);
+        MapInstanceClient healer = Player(instance, 1082_531, Vector3.zero);
+        AbilityTemplate row = Nova();
+        row.Affects = AbilityAffects.Ally;
+        row.Effects = SpellEffect.Heal;
+        row.EffectValue = 40;
+        GameAbility heal = AbilityTestData.Game(row);
+        healer.Character.Spells.Load([heal]);
+        MapInstanceClient ally = Player(instance, 1082_532, s_inside);
+        ally.Character.CurrentHealth = 50;
+
+        handler.Execute(healer.Connection, new CCastAbilityPacket { AbilityId = NovaId });
+        Assert.True(heal.Casting);
+        RunToFire(instance, ticks, heal);
+        uint healed = ally.Character.CurrentHealth;
+        ally.Character.Position = s_outside;
+        for (int tick = 0; tick < Wait + 4; tick++)
+            Tick(instance, ticks);
+
+        Assert.True(healed > 50u, $"the ally has {healed} health on the fire tick");
+        Assert.Equal(healed, ally.Character.CurrentHealth);
     }
 
     /// <summary>A player who leaves the instance in the wait takes nothing, and the pending hit goes with them.</summary>

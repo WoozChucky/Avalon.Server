@@ -54,9 +54,9 @@ public interface IAbilityArena
     IUnit? HitRewindExempt { get; set; }
 
     /// <summary>
-    /// The footprint of the telegraphed cast being fired (#1082): set by the cast system only around a queued circle's or
-    /// cone's <c>Prepare</c>, null otherwise, and put back after as the rewind is. While set, a player it hits is judged by
-    /// that player's screen (<see cref="TryDeferHit" />).
+    /// The footprint of the telegraphed cast being fired (#1082): set by the cast system only around a queued hostile
+    /// circle's or cone's <c>Prepare</c>, null otherwise, and put back after as the rewind is. While set, a player it hits
+    /// is judged by that player's screen (<see cref="TryDeferHit" />).
     /// </summary>
     AbilityFootprint? DodgeFootprint { get; set; }
 

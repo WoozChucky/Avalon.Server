@@ -267,9 +267,12 @@ public class InstanceAbilityCastSystem(
             }
 
             // A queued cast is never rewound (#1082): its wind-up is the dodge window, and its footprint was fixed at
-            // its start. A circle or a cone judges the players it hits by their own screens, through the dodge wait; a
-            // projectile's flight is its own dodge window.
-            AbilityFootprint? dodge = cast.Footprint is { Shape: AbilityShape.Circle or AbilityShape.Cone } footprint
+            // its start. A hostile circle or cone judges the players it hits by their own screens, through the dodge wait; a
+            // projectile's flight is its own dodge window. An Ally cast waits for nobody: a heal or a buff is not a threat
+            // to step out of, so every ally, its caster included, is hit as it fires. A hostile cast never targets its
+            // caster, so the caster needs no exemption of its own.
+            AbilityFootprint? dodge = ability.Metadata.Affects != AbilityAffects.Ally
+                                      && cast.Footprint is { Shape: AbilityShape.Circle or AbilityShape.Cone } footprint
                 ? footprint
                 : null;
             Fire(cast.Caster, ability, cast.Script, cast.HastePct, cast.CastId, default, dodge);
@@ -527,9 +530,9 @@ public class InstanceAbilityCastSystem(
     /// The cooldown, set once (#627), so a later gear change never rescales a running one; the finish-cast
     /// broadcast; the effect. A script still running keeps ticking. Its <c>Prepare</c> runs with the arena's hit queries
     /// rewound by <paramref name="view" /> (#1082), its caster exempt (tested where it stands now), the values found
-    /// before put back after, so a cast fired inside another cast's hit returns the outer one to its own. A queued circle
-    /// or cone fires with its <paramref name="dodge" /> footprint set on the arena (#1082), so the players it hits wait out
-    /// their delay; every other cast with none. It is put back after as the rewind is.
+    /// before put back after, so a cast fired inside another cast's hit returns the outer one to its own. A queued hostile
+    /// circle or cone fires with its <paramref name="dodge" /> footprint set on the arena (#1082), so the players it hits
+    /// wait out their delay; every other cast with none. It is put back after as the rewind is.
     /// </summary>
     private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct, uint castId, CastView view,
         AbilityFootprint? dodge)
