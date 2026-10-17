@@ -4156,8 +4156,9 @@ fights. Since #972 it also does, every step, in this order:
   combat service as a hit does, with heal threat on every creature fighting the healed (#961).
 
 **Lag compensation (#1082).** Every cast, the basic and the heal, names the tick the fighter was drawing
-(`CCastAbilityPacket.ViewTick`), `LoopFighter.ViewLagTicks` behind the world's: 10 ticks, about 170 ms, a real
-client's interpolation delay and one way of its round trip. Every fighter's connection reports a 60 ms round trip
+(`CCastAbilityPacket.ViewTick`), `LoopFighter.ViewLagTicks` behind the world's: 10 ticks, about 167 ms. A real
+client's view lag is its 120 ms render delay plus one way of its round trip, 150 ms (9 ticks) at the scenario's 60 ms,
+and 10 ticks rounds that up with a margin. Every fighter's connection reports a 60 ms round trip
 (`ScenarioConnection.ScenarioRoundTrip`), a one-way delay of 2 ticks. So a fighter's instant hits are judged where the
 creatures stood 10 ticks before, its projectiles sweep the creatures as they stood 8 ticks before, and the creatures'
 telegraphed hits on it wait 2 ticks for it to step out: the gate measures both halves. In the measured minute that is
@@ -4171,20 +4172,20 @@ quarter of its health, the revive broadcast). So each forest keeps three fighter
 
 **What one run does.** Every run, on every machine, fights the same fight (the layouts, placement, combat and loot
 rolls and the fighters' turns are seeded, item instance ids are handed out in order, and every timer reads the
-world's clock). Over the 4,200 ticks since #972: 105 creatures killed (93 in the measured minute), 2 deaths, 18 heals
-cast and landed (16 in the minute), 36 quest accepts, 93 kill credits (78) and 24 completions (all 24 in the minute),
-198 drops picked up (180) and 106 bag slots destroyed (85, the first 21 in the first steps, from the filled bags), and
-no drop given up. Before #972 the run killed 71 (60 in the minute) with 9 deaths: the healers keep their parties alive,
+world's clock). Over the 4,200 ticks since #1082, whose rewinds and waits move hits by a tick or more, which a seeded
+fight follows: 102 creatures killed, 2 deaths, 21 heals cast (20 landed), 42 quest accepts, 105 kill credits and 30
+completions, 189 drops picked up and 101 bag slots destroyed (the measured minute's shares not recounted). The
+measured-minute figures and the level-up tick below are from #973, before #1082: over the run then, 105 creatures
+killed (93 in the measured minute), 2 deaths, 18 heals cast and landed (16 in the minute), 36 quest accepts, 93 kill
+credits (78) and 24 completions (all 24 in the minute), 198 drops picked up (180) and 106 bag slots destroyed (85, the
+first 21 in the first steps, from the filled bags), and no drop given up. Before #972 the run killed 71 (60 in the minute) with 9 deaths: the healers keep their parties alive,
 and fighters walking to their drops meet more creatures. Experience is shared; one party's three members reach level 2
 together near the end of the measured minute (tick 3,422 of 3,600, counted at #973), and no other character does. The
 scenario's check (`Verify`) requires, over the measured ticks, besides every fighter casting and every forest losing
 creatures, heals landed, kill credit, a completion, pickups and items destroyed. `ForestCombatScenarioShould` runs the
 scenario twice in one process and requires the same outcome (every count above) and the same bytes per window, and
 kills and deaths in it; the second run's creatures carry higher ids (the process-wide object id counter), which
-changes neither. Since #1082 the fight goes differently: the rewinds and the waits move hits by a tick or more, and
-a seeded fight follows them. Over the whole run it kills 102 creatures, with 2 deaths, 21 heals cast (20 landed), 42
-quest accepts, 105 kill credits and 30 completions, 189 drops picked up and 101 bag slots destroyed; the counts above
-are from before.
+changes neither.
 
 **Gate.** Committed at **14,528 B per window** (20.2 B per player per tick, 242 B per tick) since #1082, the fight
 above with its fighters lag-compensated, 623 B over the 13,905 B committed from #973's closing cleanup
