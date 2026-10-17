@@ -44,6 +44,9 @@ namespace Avalon.World.Testing.Scenarios;
 /// </remarks>
 public sealed class ScenarioConnection : IWorldConnection, IDisposable
 {
+    /// <summary>Every scenario connection's round trip (<see cref="RoundTripTime" />): 60 ms, in UTC ticks (#1082).</summary>
+    public const long ScenarioRoundTrip = 60 * TimeSpan.TicksPerMillisecond;
+
     // Key generation is setup cost, not tick cost: one client key pair for the whole process. Each connection runs its
     // own agreement and key derivation over its own server key pair, so no two share cipher state.
     private static readonly Lazy<byte[]> s_clientPublicKey = new(() =>
@@ -138,7 +141,11 @@ public sealed class ScenarioConnection : IWorldConnection, IDisposable
     public long SelectStartedTicks => throw new NotSupportedException();
     public bool IsClosing => throw new NotSupportedException();
     public long Latency => throw new NotSupportedException();
-    public long RoundTripTime => 0;
+    /// <summary>
+    /// A fixed 60 ms, in UTC ticks, as a nearby player measures (#1082): the dodge wait holds a telegraph's hit on the player
+    /// for its one-way 2 ticks, and a rewound projectile is shortened by them, so the scenario runs both.
+    /// </summary>
+    public long RoundTripTime => ScenarioRoundTrip;
     public long CurrentPacketArrivedTicks => throw new NotSupportedException();
     /// <summary>The account's locale, which the quest texts are worded in: a world connection's default.</summary>
     public AccountLocale Locale { get; set; } = AccountLocale.enUS;
