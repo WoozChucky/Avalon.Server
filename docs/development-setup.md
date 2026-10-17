@@ -1,6 +1,6 @@
 # Development setup
 
-Every command for building, testing, running and publishing the servers, the EF Core design-time rules, the chunk generator, and the REST API signing key. `CLAUDE.md`, at the repository root, keeps the short list.
+Every command for building, testing, running and publishing the servers, the EF Core design-time rules, the chunk generator, the REST API signing key, and line endings. `CLAUDE.md`, at the repository root, keeps the short list.
 
 ## Commands
 
@@ -190,6 +190,16 @@ helm install ... --set-file authentication.signingKey=./jwt-es256.pem --set-file
 **Rotating the signing key** signs nobody out: (1) make a new key pair and add its public key to `ValidationKeys`, under a new key id, in every process (the chart's `authentication.validationKeys`, shared by every release), and deploy; (2) give identity the new `SigningKey` and `SigningKeyId`, and deploy; (3) after 16 minutes, the token lifetime and its clock skew, remove the old public key everywhere and deploy. With a chart-managed Secret, `helm upgrade` restarts the pods (a checksum annotation); with `existingSecret` the chart cannot see a change to the Secret, so run `kubectl rollout restart deployment/<release>-avalon-api` (the chart's fullname) for every release whose keys changed. Swapping the key without those steps refuses every token signed with the old one: clients get a 401 and refresh, since refresh tokens are database rows. Changing `GameAuth:HostKey` voids the game-auth records in flight, which live minutes: pick a quiet moment.
 
 `docker-compose.yml` runs only Redis and Postgres, so it needs no key. EF design-time commands (`dotnet ef migrations ...` with `--startup-project src/Server/Avalon.Api`) need no key either: they build each context through its `IDesignTimeDbContextFactory` and never run the API host's registrations. Tests never read one: `ApiTestHost` (`tests/Avalon.Api.Testing`) and the other API tests make their own keys in code.
+
+## Line endings
+
+Every text file is LF, in the index and in the working copy, on every platform (#1086): `.gitattributes` says `* text=auto eol=lf`, which overrides `core.autocrlf`, so a Windows checkout is LF too. Only `*.cmd` and `*.bat` are CRLF. `.editorconfig` sets `end_of_line = lf`, and the formatter (IDE0055, an error in every build) holds a `.cs` file to it, so a file an editor saves with CRLF fails the build: keep editors on LF (Rider, Visual Studio and VS Code follow `.editorconfig`). The tools that write committed files (`Avalon.Exporter`, `Avalon.ChunkGen`, the balance files, the scenario allocation baseline) write LF on every platform, so a regeneration on Windows is an empty diff. `vendor/DotRecast` is a submodule, with its own line endings.
+
+A Windows clone made before this change still has CRLF working copies. Re-check it out once after pulling it (commit or stash local changes first), or make a fresh clone:
+
+```bash
+git rm --cached -r -q . && git reset --hard
+```
 
 ## CI and dev builds
 

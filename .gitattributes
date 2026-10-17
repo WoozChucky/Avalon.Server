@@ -1,28 +1,16 @@
-# Generated wire schema and its vendored dependency are LF so that regenerating on any
-# platform produces a byte-identical file.
-*.proto text eol=lf
-schema/*.json text eol=lf
-schema/corpus/*.txt text eol=lf
-schema/crypto/*.txt text eol=lf
-schema/vectors/*.txt text eol=lf
-schema/items/*.json text eol=lf
-schema/quests/*.json text eol=lf
-schema/abilities/*.json text eol=lf
-schema/auras/*.json text eol=lf
-schema/protobuf-net/NOTICE text eol=lf
+# Every text file is LF, in the index and in the working copy, on every platform (#1086). This overrides
+# core.autocrlf, so a Windows checkout is LF too and .editorconfig's end_of_line = lf agrees with what is on disk.
+# Several files depend on it: the generated wire schema (*.proto, schema/**), the balance files and the golden CSV
+# (balance/*.json, tests/Avalon.Balance.UnitTests/Golden/*.csv), the chunk catalog (src/Server/Avalon.Server.World/Maps/**)
+# and ChunkGen's Kit/ and Recipes/ JSON are written by tools or compared byte for byte by tests, so a regeneration on
+# any machine must be an empty diff; the CI scripts (tools/ci/*.sh) run under bash, where a CR breaks them.
+* text=auto eol=lf
 
-# CI scripts run under bash on Linux runners and locally in Git Bash; a CR breaks them.
-tools/ci/*.sh text eol=lf
+# Windows command scripts stay CRLF.
+*.cmd text eol=crlf
+*.bat text eol=crlf
 
-# The balance files and the golden CSV are compared byte for byte by tests: LF on every platform.
-balance/*.json text eol=lf
-tests/Avalon.Balance.UnitTests/Golden/*.csv text eol=lf
-
-# The chunk catalog is written by tools/Avalon.ChunkGen with LF line ends and checked against a fresh run byte for
-# byte: LF on every platform, so a regeneration on any machine is an empty diff.
-src/Server/Avalon.Server.World/Maps/**/*.obj text eol=lf
-src/Server/Avalon.Server.World/Maps/**/*.json text eol=lf
-# The art kit's bounds table, written by the same tool's "kit-bounds" command: LF for the same reason.
-tools/Avalon.ChunkGen/Kit/*.json text eol=lf
-# The building recipes are read by the same tool and written by hand or by an export script: LF on every platform too.
-tools/Avalon.ChunkGen/Recipes/*.json text eol=lf
+# Binaries: never converted, never diffed as text.
+*.ico binary
+*.pfx binary
+*.snk binary
