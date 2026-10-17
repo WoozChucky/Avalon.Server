@@ -1,0 +1,476 @@
+{
+  "id": "watchtower",
+  "pieces": [
+    {
+      "model": "Wall_UnevenBrick_Door_Round",
+      "x": -1.0,
+      "y": 0.0,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Door_4_Round",
+      "x": -0.49,
+      "y": 0.0,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 1.0,
+      "y": 0.0,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -2.0,
+      "y": 0.0,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -2.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -1.0,
+      "y": 0.0,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 1.0,
+      "y": 0.0,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 2.0,
+      "y": 0.0,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 2.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -2.0,
+      "y": 0.0,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 2.0,
+      "y": 0.0,
+      "z": 2.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 2.0,
+      "y": 0.0,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -2.0,
+      "y": 0.0,
+      "z": -2.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -1.0,
+      "y": 3.12,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Thin_Round",
+      "x": 1.0,
+      "y": 3.12,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Thin_Round1",
+      "x": 1.0,
+      "y": 3.12,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Thin_Round",
+      "x": -2.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Thin_Round1",
+      "x": -2.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -2.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -1.0,
+      "y": 3.12,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 1.0,
+      "y": 3.12,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 2.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 2.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -2.0,
+      "y": 3.12,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 2.0,
+      "y": 3.12,
+      "z": 2.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 2.0,
+      "y": 3.12,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -2.0,
+      "y": 3.12,
+      "z": -2.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -1.0,
+      "y": 3.12,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 1.0,
+      "y": 3.12,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -2.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -2.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -1.0,
+      "y": 3.12,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 1.0,
+      "y": 3.12,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 2.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 2.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Wide_Round",
+      "x": -1.0,
+      "y": 6.24,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": -1.0,
+      "y": 6.24,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Wide_Round",
+      "x": 1.0,
+      "y": 6.24,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": 1.0,
+      "y": 6.24,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Wide_Round",
+      "x": -2.0,
+      "y": 6.24,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": -2.0,
+      "y": 6.24,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Wide_Round",
+      "x": -2.0,
+      "y": 6.24,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": -2.0,
+      "y": 6.24,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Wide_Round",
+      "x": -1.0,
+      "y": 6.24,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": -1.0,
+      "y": 6.24,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Wide_Round",
+      "x": 1.0,
+      "y": 6.24,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": 1.0,
+      "y": 6.24,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Wide_Round",
+      "x": 2.0,
+      "y": 6.24,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": 2.0,
+      "y": 6.24,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_UnevenBrick_Window_Wide_Round",
+      "x": 2.0,
+      "y": 6.24,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": 2.0,
+      "y": 6.24,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -2.0,
+      "y": 6.24,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 2.0,
+      "y": 6.24,
+      "z": 2.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 2.0,
+      "y": 6.24,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -2.0,
+      "y": 6.24,
+      "z": -2.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -1.0,
+      "y": 6.24,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 1.0,
+      "y": 6.24,
+      "z": -2.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -2.0,
+      "y": 6.24,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -2.0,
+      "y": 6.24,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -1.0,
+      "y": 6.24,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 1.0,
+      "y": 6.24,
+      "z": 2.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 2.0,
+      "y": 6.24,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 2.0,
+      "y": 6.24,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Roof_Tower_RoundTiles",
+      "x": 0.0,
+      "y": 9.36,
+      "z": 0.0,
+      "yaw": 0
+    }
+  ],
+  "proxies": [
+    {
+      "kind": "box",
+      "part": "body",
+      "minX": -2.3,
+      "maxX": 2.3,
+      "minZ": -2.3,
+      "maxZ": 2.3,
+      "y0": 0.0,
+      "top": 9.36,
+      "front": "NegZ"
+    },
+    {
+      "kind": "gable",
+      "part": "roof",
+      "minX": -2.83,
+      "maxX": 2.83,
+      "minZ": -2.72,
+      "maxZ": 2.72,
+      "eaves": 8.79,
+      "ridge": 16.15
+    }
+  ]
+}

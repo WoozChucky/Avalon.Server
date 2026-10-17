@@ -1,0 +1,360 @@
+{
+  "id": "gate_arch",
+  "pieces": [
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -1.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -5.0,
+      "y": 0.0,
+      "z": 0.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -3.0,
+      "y": 0.0,
+      "z": 0.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -5.0,
+      "y": 0.0,
+      "z": 1,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -3.0,
+      "y": 0.0,
+      "z": 1,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -3.0,
+      "y": 0.0,
+      "z": -1,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -5.0,
+      "y": 0.0,
+      "z": -1,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -5.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -3.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -5.0,
+      "y": 3.12,
+      "z": 1,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -3.0,
+      "y": 3.12,
+      "z": 1,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -3.0,
+      "y": 3.12,
+      "z": -1,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -5.0,
+      "y": 3.12,
+      "z": -1,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 4.0,
+      "y": 0.0,
+      "z": -1.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 0.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 5.0,
+      "y": 0.0,
+      "z": 0.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 1,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 5.0,
+      "y": 0.0,
+      "z": 1,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 5.0,
+      "y": 0.0,
+      "z": -1,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 3.0,
+      "y": 0.0,
+      "z": -1,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 4.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 4.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 3.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 5.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 3.0,
+      "y": 3.12,
+      "z": 1,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 5.0,
+      "y": 3.12,
+      "z": 1,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 5.0,
+      "y": 3.12,
+      "z": -1,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 3.0,
+      "y": 3.12,
+      "z": -1,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -2.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": -2.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 0
+    },
+    {
+      "model": "Floor_UnevenBrick",
+      "x": -2.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 0.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 0.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 0
+    },
+    {
+      "model": "Floor_UnevenBrick",
+      "x": 0.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 2.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_UnevenBrick_Straight",
+      "x": 2.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 0
+    },
+    {
+      "model": "Floor_UnevenBrick",
+      "x": 2.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 0
+    },
+    {
+      "model": "Floor_UnevenBrick",
+      "x": -4.0,
+      "y": 6.24,
+      "z": 0.0,
+      "yaw": 0
+    },
+    {
+      "model": "Floor_UnevenBrick",
+      "x": -2.0,
+      "y": 6.24,
+      "z": 0.0,
+      "yaw": 0
+    },
+    {
+      "model": "Floor_UnevenBrick",
+      "x": 0.0,
+      "y": 6.24,
+      "z": 0.0,
+      "yaw": 0
+    },
+    {
+      "model": "Floor_UnevenBrick",
+      "x": 2.0,
+      "y": 6.24,
+      "z": 0.0,
+      "yaw": 0
+    },
+    {
+      "model": "Floor_UnevenBrick",
+      "x": 4.0,
+      "y": 6.24,
+      "z": 0.0,
+      "yaw": 0
+    }
+  ],
+  "proxies": [
+    {
+      "kind": "box",
+      "part": "pillar W",
+      "minX": -5.3,
+      "maxX": -2.7,
+      "minZ": -1.3,
+      "maxZ": 1.3,
+      "y0": 0.0,
+      "top": 6.24
+    },
+    {
+      "kind": "box",
+      "part": "pillar E",
+      "minX": 2.7,
+      "maxX": 5.3,
+      "minZ": -1.3,
+      "maxZ": 1.3,
+      "y0": 0.0,
+      "top": 6.24
+    },
+    {
+      "kind": "box",
+      "part": "lintel",
+      "minX": -3.0,
+      "maxX": 3.0,
+      "minZ": -1.3,
+      "maxZ": 1.3,
+      "y0": 3.12,
+      "top": 6.24,
+      "front": "NegZ"
+    }
+  ]
+}

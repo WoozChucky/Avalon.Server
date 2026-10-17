@@ -1,0 +1,314 @@
+{
+  "id": "hunters_lodge",
+  "pieces": [
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": -3.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Window_Thin_Round",
+      "x": -1.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Thin_Round1",
+      "x": -1.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Thin_Round_Open",
+      "x": -1.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Window_Thin_Round",
+      "x": 1.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Thin_Round1",
+      "x": 1.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Thin_Round_Open",
+      "x": 1.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 3.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Round",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -2.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -2.0,
+      "yaw": 270
+    },
+    {
+      "model": "WindowShutters_Wide_Round_Open",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -2.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Door_Round",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 0.0,
+      "yaw": 270
+    },
+    {
+      "model": "Door_1_Round",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -0.51,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Round",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 2.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 2.0,
+      "yaw": 270
+    },
+    {
+      "model": "WindowShutters_Wide_Round_Open",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 2.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": -3.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": -1.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 1.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 4.0,
+      "y": 0.0,
+      "z": -2.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 0.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 2.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": 4.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Roof_Wooden_2x1",
+      "x": -4.0,
+      "y": 2.9,
+      "z": -2.0,
+      "yaw": 270
+    },
+    {
+      "model": "Prop_Support",
+      "x": -4.0,
+      "y": -0.02,
+      "z": -2.9,
+      "yaw": 270
+    },
+    {
+      "model": "Roof_Wooden_2x1",
+      "x": -4.0,
+      "y": 2.9,
+      "z": 0.0,
+      "yaw": 270
+    },
+    {
+      "model": "Prop_Support",
+      "x": -4.0,
+      "y": -0.02,
+      "z": -0.9,
+      "yaw": 270
+    },
+    {
+      "model": "Roof_Wooden_2x1",
+      "x": -4.0,
+      "y": 2.9,
+      "z": 2.0,
+      "yaw": 270
+    },
+    {
+      "model": "Prop_Support",
+      "x": -4.0,
+      "y": -0.02,
+      "z": 1.1,
+      "yaw": 270
+    },
+    {
+      "model": "Prop_Support",
+      "x": -4.0,
+      "y": -0.02,
+      "z": 2.9,
+      "yaw": 270
+    },
+    {
+      "model": "Roof_RoundTiles_6x8",
+      "x": 0.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 90
+    },
+    {
+      "model": "Roof_Front_Brick6",
+      "x": 4.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 90
+    },
+    {
+      "model": "Roof_Front_Brick6",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 0.0,
+      "yaw": 270
+    },
+    {
+      "model": "Prop_Chimney",
+      "x": 2.5,
+      "y": 4.757,
+      "z": 1.0,
+      "yaw": 0
+    }
+  ],
+  "proxies": [
+    {
+      "kind": "box",
+      "part": "body",
+      "minX": -4.3,
+      "maxX": 4.3,
+      "minZ": -3.3,
+      "maxZ": 3.3,
+      "y0": 0.0,
+      "top": 3.12,
+      "front": "NegX"
+    },
+    {
+      "kind": "box",
+      "part": "awning",
+      "minX": -5.55,
+      "maxX": -4.0,
+      "minZ": -3.0,
+      "maxZ": 3.0,
+      "y0": 2.74,
+      "top": 3.99
+    },
+    {
+      "kind": "gable",
+      "part": "roof",
+      "minX": -4.85,
+      "maxX": 4.85,
+      "minZ": -4.13,
+      "maxZ": 4.13,
+      "eaves": 2.34,
+      "ridge": 8.01
+    },
+    {
+      "kind": "box",
+      "part": "chimney",
+      "minX": 2.0,
+      "maxX": 3.0,
+      "minZ": 0.5,
+      "maxZ": 1.5,
+      "y0": 4.757,
+      "top": 7.937
+    }
+  ]
+}

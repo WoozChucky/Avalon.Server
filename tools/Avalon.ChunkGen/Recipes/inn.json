@@ -1,0 +1,790 @@
+{
+  "id": "inn",
+  "pieces": [
+    {
+      "model": "Wall_Plaster_Window_Wide_Flat",
+      "x": -3.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Flat1",
+      "x": -3.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Wide_Flat_Open",
+      "x": -3.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Door_Round",
+      "x": -1.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Door_2_Round",
+      "x": -0.49,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Flat",
+      "x": 1.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Flat1",
+      "x": 1.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Wide_Flat_Open",
+      "x": 1.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Flat",
+      "x": 3.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Flat1",
+      "x": 3.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Wide_Flat_Open",
+      "x": 3.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -5.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Flat",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Wide_Flat1",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 270
+    },
+    {
+      "model": "WindowShutters_Wide_Flat_Open",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Flat",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Wide_Flat1",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "WindowShutters_Wide_Flat_Open",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Flat",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 5.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Wide_Flat1",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 5.0,
+      "yaw": 270
+    },
+    {
+      "model": "WindowShutters_Wide_Flat_Open",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 5.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -3.0,
+      "y": 0.0,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": -1.0,
+      "y": 0.0,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 1.0,
+      "y": 0.0,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 3.0,
+      "y": 0.0,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 4.0,
+      "y": 0.0,
+      "z": -5.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 4.0,
+      "y": 0.0,
+      "z": -3.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 4.0,
+      "y": 0.0,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 3.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_Straight",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 5.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -4.0,
+      "y": 0.0,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 4.0,
+      "y": 0.0,
+      "z": 6.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": 4.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Brick",
+      "x": -4.0,
+      "y": 0.0,
+      "z": -6.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Round",
+      "x": -3.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": -3.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Wide_Round_Open",
+      "x": -3.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Round",
+      "x": -1.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": -1.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Wide_Round_Open",
+      "x": -1.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Round",
+      "x": 1.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": 1.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Wide_Round_Open",
+      "x": 1.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Window_Wide_Round",
+      "x": 3.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Window_Wide_Round1",
+      "x": 3.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "WindowShutters_Wide_Round_Open",
+      "x": 3.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_Plaster_Window_Thin_Round",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -5.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Thin_Round1",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -5.0,
+      "yaw": 270
+    },
+    {
+      "model": "WindowShutters_Thin_Round_Open",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -5.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Window_Thin_Round",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Thin_Round1",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "WindowShutters_Thin_Round_Open",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_Window_Thin_Round",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Window_Thin_Round1",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 3.0,
+      "yaw": 270
+    },
+    {
+      "model": "WindowShutters_Thin_Round_Open",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 5.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": -3.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": -1.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 1.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 3.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 4.0,
+      "y": 3.12,
+      "z": -5.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 4.0,
+      "y": 3.12,
+      "z": -3.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 4.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 4.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 4.0,
+      "y": 3.12,
+      "z": 3.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_Plaster_WoodGrid",
+      "x": 4.0,
+      "y": 3.12,
+      "z": 5.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": 4.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 90
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": 4.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Corner_Exterior_Wood",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -3.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -1.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 1.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 3.0,
+      "y": 3.12,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -5.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -4.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 3.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -4.0,
+      "y": 3.12,
+      "z": 5.0,
+      "yaw": 270
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -3.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": -1.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 1.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 3.0,
+      "y": 3.12,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 4.0,
+      "y": 3.12,
+      "z": -5.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 4.0,
+      "y": 3.12,
+      "z": -3.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 4.0,
+      "y": 3.12,
+      "z": -1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 4.0,
+      "y": 3.12,
+      "z": 1.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 4.0,
+      "y": 3.12,
+      "z": 3.0,
+      "yaw": 90
+    },
+    {
+      "model": "Wall_BottomCover",
+      "x": 4.0,
+      "y": 3.12,
+      "z": 5.0,
+      "yaw": 90
+    },
+    {
+      "model": "Roof_Wooden_2x1",
+      "x": -3.0,
+      "y": 2.9,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Prop_Support",
+      "x": -2.1,
+      "y": -0.02,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Roof_Wooden_2x1",
+      "x": -1.0,
+      "y": 2.9,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Prop_Support",
+      "x": -0.1,
+      "y": -0.02,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Roof_Wooden_2x1",
+      "x": 1.0,
+      "y": 2.9,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Prop_Support",
+      "x": 1.9,
+      "y": -0.02,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Prop_Support",
+      "x": 0.1,
+      "y": -0.02,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Roof_RoundTiles_8x12",
+      "x": 0.0,
+      "y": 6.24,
+      "z": 0.0,
+      "yaw": 0
+    },
+    {
+      "model": "Roof_Front_Brick8",
+      "x": 0.0,
+      "y": 6.24,
+      "z": 6.0,
+      "yaw": 0
+    },
+    {
+      "model": "Roof_Front_Brick8",
+      "x": 0.0,
+      "y": 6.24,
+      "z": -6.0,
+      "yaw": 180
+    },
+    {
+      "model": "Prop_Chimney",
+      "x": 2.4,
+      "y": 7.093,
+      "z": 3.5,
+      "yaw": 0
+    }
+  ],
+  "proxies": [
+    {
+      "kind": "box",
+      "part": "body",
+      "minX": -4.3,
+      "maxX": 4.3,
+      "minZ": -6.3,
+      "maxZ": 6.3,
+      "y0": 0.0,
+      "top": 6.24,
+      "front": "NegZ"
+    },
+    {
+      "kind": "box",
+      "part": "awning",
+      "minX": -4.0,
+      "maxX": 2.0,
+      "minZ": -7.55,
+      "maxZ": -6.0,
+      "y0": 2.74,
+      "top": 3.99
+    },
+    {
+      "kind": "gable",
+      "part": "roof",
+      "minX": -4.98,
+      "maxX": 4.98,
+      "minZ": -7.12,
+      "maxZ": 7.12,
+      "eaves": 5.46,
+      "ridge": 12.24
+    },
+    {
+      "kind": "box",
+      "part": "chimney",
+      "minX": 1.9,
+      "maxX": 2.9,
+      "minZ": 3.0,
+      "maxZ": 4.0,
+      "y0": 7.093,
+      "top": 10.273
+    }
+  ]
+}
