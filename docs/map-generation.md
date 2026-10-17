@@ -317,7 +317,7 @@ Glimmerdell's four squares (`town_sw_01`, `town_se_01`, `town_nw_01`, `town_ne_0
 town beautification (2026-10-01), and drawn from the medieval village kit since 2026-10-17 (see "Decor and building
 recipes"): `tools/Avalon.ChunkGen/TownPieces.cs` holds the approved layout as data, chunk-local. Each building is a
 recipe placed with `TownBuilding.Place`; each prop is a kit or `avalon_*` model with a collision box around its bounds,
-or, where parts of it stand overhead, with shapes of its real parts (the well, the lamp posts and the stalls, below);
+or, where parts of it stand overhead, with shapes of its real parts (the well, the torches and the stalls, below);
 wooden fences close the yards of the two houses and the smithy's wood pile, and an iron railing stands beside the bank;
 stone curbs line the red-brick roads; the walls and the paving are decor over the wall and floor boxes. The collision
 is a small shape model (`TownSquare.cs`: boxes, twelve-sided cylinders and rings, gabled roof blocks, and the wall
@@ -334,24 +334,30 @@ stages, validates (`ChunkCatalogSeeder.ReadCatalogAsync`), bakes the four square
 forest command does; a square breaking a layout rule is refused before anything is written (`TownRules`: nothing within
 2 m of a wall, the doorway lanes and the arrival-to-portal corridor clear, 2.5 m of headroom under every flat roof,
 walkable risers of at most 0.3 m). The headroom rule judges a slab whose base stands 2 m up or more (an awning, a
-balcony, the gate's lintel, the well's, a lamp's lantern and a stall's roof slab); a sloped kit roof is a gable block
+balcony, the gate's lintel, the well's and a stall's roof slab); a sloped kit roof is a gable block
 resting on its building and is not judged. Its eaves come down to 2.34 m on a one-storey building, so a player can
 stand under the outer ~0.2 m of it: accepted (owner decision, 2026-10-17), while every flat roof keeps 2.5 m.
 `TownPiecesShould` fails when the committed files differ from a fresh run, when a solid piece lets a walk in on the
 baked navmesh or has a top a path from the arrival point can end on (Recast climbs any step of 0.8 m or less and rounds
 a top up to a 0.2 m voxel, so a top at or under 1.0 m above the ground beside it would be walked over), or when a solid
-piece's top is under 1.05 m (every bench, crate, barrel, counter, fence section, the well's rim, a lamp post's base and
+piece's top is under 1.05 m (every bench, crate, barrel, counter, fence section, the well's rim, a torch's foot, a brazier and
 the cart reach 1.05 m, owner decision; the collision box stands that high even where the model, a bench or a 0.81 m
 wooden fence say, is lower). Roof tops and building interiors are navmesh islands nothing reaches, as the forest's
-blocker tops are. `TownNpcPlacementShould` checks the seven NPC spots against the same data. The market's middle stays
+blocker tops are. It also fails when a free-standing piece a player would bump into (below body height, not part of
+a building) reaches into a red-brick road (`TownSquare.OverlapsRoad`, owner decision 2026-10-18): the roads are the
+routes through the town, and the props stand in the open ground beside them. Buildings are where they are, the bank's
+and the inn's bodies reaching into the north-east square's roads and the gate arch over its own. `TownNpcPlacementShould`
+checks the seven NPC spots against the same data. The market's middle stays
 open for the walking benchmarks, whose 8 m loop about world (45, 10) (`TownNavmesh.LoopCentre` in
 `tests/Avalon.World.Testing`) needs nothing solid 7-9 m from it, and the ground round the arrival point stays open for
 the idle benchmark's grid of players about the entry spawn.
 
 A prop with parts overhead gets shapes of those parts, so no box reaches past what is drawn at head height: the well's
 rim (1.05 m up), its two posts and its roof as a slab at 2.5-2.8 m (1.9 m wide where the art's is 1.6, so the rim's
-corners lie within the tolerance of it); a lamp post's base (raised to 1.05 m), its post and its lantern arm as a slab
-at 2.75-3.16 m; a stall's counter (1.1 m up, its front), its four posts and its cloth roof as a slab at 2.9-3.4 m, the
+corners lie within the tolerance of it); a torch's stone foot (raised to 1.05 m) and its pole to the top of its fire cup
+at 2.2 m (the cup has no shape of its own: an overhead 2 m up would have no headroom under it), and a brazier's bowl
+on its legs as one cylinder raised to 1.05 m. The town is lit by fire, not lamps: `avalon_torch` and `avalon_brazier`
+carry a warm light tagged `extras.flame`, where the client burns a flame and flickers the light; a stall's counter (1.1 m up, its front), its four posts and its cloth roof as a slab at 2.9-3.4 m, the
 booth behind the counter open beneath it. A post thinner than the navmesh's 0.3 m voxel still stops a walk: Recast
 marks every cell a face crosses, and the agent radius does the rest. Each 2 m fence section is a prop with its own
 box: a wooden section (`Prop_WoodenFence_Single`, then `_Extension1` and `_Extension2` in turn) stands 0.81 m, its box
