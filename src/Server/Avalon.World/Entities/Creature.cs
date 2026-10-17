@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
+using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
 using Avalon.World.Creatures;
 using Avalon.World.Instances;
@@ -253,6 +254,13 @@ public class Creature : ICreature
     internal ref CreatureSchedule Schedule => ref _schedule;
 
     private CreatureSchedule _schedule;
+
+    /// <summary>
+    /// The creature's recent positions by world tick, for lag compensation (#1082): rented from the instance's pool as the
+    /// creature joins it and returned as it leaves; null outside an instance, and in one with no world tick count (tests).
+    /// World-side, never on ICreature. Public to read for the test assembly (see <see cref="PositionHistory" />).
+    /// </summary>
+    public PositionHistory? History { get; internal set; }
 
     /// <summary>
     /// Where the instance this creature is in indexes it (#982): set while it is a member and cleared when it leaves, so

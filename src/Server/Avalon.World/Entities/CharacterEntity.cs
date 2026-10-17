@@ -5,6 +5,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.State;
 using Avalon.World.Abilities;
+using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.Combat;
@@ -522,6 +523,13 @@ public partial class CharacterEntity : ICharacter
                 grid.Moved(_spatial.Slot, value);
         }
     }
+
+    /// <summary>
+    /// The character's recent positions by world tick, for lag compensation (#1082): rented from the instance's pool as the
+    /// character joins it and returned as it leaves; null outside an instance, and in one with no world tick count (tests).
+    /// World-side, never on ICharacter. Public to read for the test assembly (see <see cref="PositionHistory" />).
+    /// </summary>
+    public PositionHistory? History { get; internal set; }
 
     /// <summary>
     /// Where the instance this character is in indexes it (#982): set while it is a member and cleared when it leaves, so

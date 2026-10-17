@@ -156,6 +156,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private readonly WorldTicks? _worldTicks;
 
+    /// <summary>
+    /// The members' position histories (#1082) not in use: one is rented as a unit joins and returned as it leaves, so a
+    /// ring is allocated once per pooled history and a unit coming and going allocates nothing once the pool has grown to
+    /// the most members this instance has held. Tick thread only, as membership is.
+    /// </summary>
+    private readonly Stack<PositionHistory> _histories = new();
+
+    // The histories this instance has made. The pool's room is grown to it as each is made, so a return (a corpse
+    // removed on the tick) never grows the stack.
+    private int _historiesMade;
+
     // The tick this tick's adds and updates carry, read once as the broadcast begins.
     private long _stateTick;
 
@@ -613,8 +624,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         ICharacter joining = connection.Character!;
         if (_characters.TryGetValue(joining.Guid, out ICharacter? replaced) && !ReferenceEquals(replaced, joining))
+        {
             _members.Remove(replaced);
+            if (replaced is CharacterEntity replacedEntity)
+                replacedEntity.History = ReturnHistory(replacedEntity.History);
+        }
         _characters[joining.Guid] = joining;
+        if (joining is CharacterEntity joiningEntity)
+            joiningEntity.History = RentHistory(joiningEntity.History);
         _members.Add(joining, SpatialKind.Character);
         _auras.Roster.Join(joining);
         _connections[joining.Guid] = connection;
@@ -690,7 +707,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
         // hook that threw ahead of them used to leave a despawned character live in the instance.
         if (_characters.Remove(guid, out ICharacter? removed))
+        {
             _members.Remove(removed);
+            if (removed is CharacterEntity removedEntity)
+                removedEntity.History = ReturnHistory(removedEntity.History);
+        }
         _auras.Roster.Leave(character);
         _connections.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
@@ -747,8 +768,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public void AddCreature(ICreature creature)
     {
         if (_creatures.TryGetValue(creature.Guid, out ICreature? replaced) && !ReferenceEquals(replaced, creature))
+        {
             _members.Remove(replaced);
+            if (replaced is Creature replacedCreature)
+                replacedCreature.History = ReturnHistory(replacedCreature.History);
+        }
         _creatures[creature.Guid] = creature;
+        if (creature is Creature joining)
+            joining.History = RentHistory(joining.History);
         _members.Add(creature, SpatialKind.Creature);
         if (_scheduleCreatures)
             _scheduler.Joined(creature);
@@ -802,7 +829,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public void RemoveCreature(ICreature creature)
     {
         if (_creatures.Remove(creature.Guid, out ICreature? removed))
+        {
             _members.Remove(removed);
+            if (removed is Creature removedCreature)
+                removedCreature.History = ReturnHistory(removedCreature.History);
+        }
         _scheduler.Left(creature);
         _auras.Roster.Leave(creature);
 
@@ -1297,6 +1328,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         UpdateCreatures(deltaTime);
         _tickProfile.CreatureTicks += _tickProfile.Elapsed(profileStart);
 
+        // Step 4b: every member's position history (#1082). After every move of the tick and before the broadcast, so
+        // each entry is the position the broadcast stamped with this tick carries. No tick count (tests), no history.
+        if (_worldTicks is not null)
+            RecordPositions(_worldTicks.Completed);
+
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks.
         profileStart = _tickProfile.Timestamp();
         SnapshotDirtyFields(_objectAbilities);
@@ -1310,6 +1346,55 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Step 5b and 6: visibility, then the state broadcast, per character.
         BroadcastState(_objectAbilities);
+    }
+
+    /// <summary>
+    /// Step 4b of <see cref="Update" />: records where every member stands at the end of world tick
+    /// <paramref name="tick" /> (#1082). A unit that did not move writes nothing (<see cref="PositionHistory.Record" />).
+    /// The dictionaries are walked with their struct enumerators, so the step allocates nothing.
+    /// </summary>
+    private void RecordPositions(long tick)
+    {
+        foreach (ICharacter character in _characters.Values)
+        {
+            if (character is CharacterEntity { History: { } history } entity)
+                history.Record(tick, entity.Position);
+        }
+
+        foreach (ICreature creature in _creatures.Values)
+        {
+            if (creature is Creature { History: { } history } unit)
+                history.Record(tick, unit.Position);
+        }
+    }
+
+    /// <summary>
+    /// The history a unit joining this instance records into (#1082): the one it holds, emptied (a unit added again
+    /// without leaving, or out of an instance let go with it inside), or one from the pool. None in an instance with no
+    /// world tick count (tests), which records nothing.
+    /// </summary>
+    private PositionHistory? RentHistory(PositionHistory? held)
+    {
+        if (_worldTicks is null)
+            return held;
+
+        PositionHistory? history = held;
+        if (history is null && !_histories.TryPop(out history))
+        {
+            history = new PositionHistory();
+            _histories.EnsureCapacity(++_historiesMade);
+        }
+
+        history.Clear();
+        return history;
+    }
+
+    /// <summary>Returns a leaving unit's history to the pool (#1082); null, for the unit to hold.</summary>
+    private PositionHistory? ReturnHistory(PositionHistory? history)
+    {
+        if (history is not null)
+            _histories.Push(history);
+        return null;
     }
 
     /// <summary>
