@@ -150,6 +150,3 @@ public class DoodadCatalogShould
         Assert.Equal([GoodId, BadId], catalog.Templates.Select(t => t.Id.Value));
     }
 }
-
-/// <summary>A doodad script the catalog's lookup resolves by name.</summary>
-public sealed class TestDoodadScript : DoodadScript;

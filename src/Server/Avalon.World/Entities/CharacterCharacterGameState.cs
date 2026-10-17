@@ -367,6 +367,8 @@ public class CharacterCharacterGameState
         DoodadAnswer before = held;
         bool known = decided || (gatesMoved && _answersAside.TryGetValue(raw, out before));
 
+        // Answer never throws (a script's CanSee is contained in it, the gate's answer standing), so the entry added above
+        // always ends up holding an answer at the doodad's current version, and the answers put aside stay whole.
         held = visibility.Answer(doodad, viewer, quests);
         if (held.Visible && known && before.Visible && before.CanInteract != held.CanInteract
             && _doodadTrackingSystem.IsTracked(doodad.Guid))

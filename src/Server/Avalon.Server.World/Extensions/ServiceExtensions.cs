@@ -200,8 +200,10 @@ public static class ServiceExtensions
         services.AddSingleton<ItemUseService>();
         services.AddSingleton<AuraScripts>();
 
-        // Doodads: who may see and use each one, asked by every instance's view decisions.
-        services.AddSingleton<DoodadVisibility>();
+        // Doodads: their scripts, built once per type, and who may see and use each one, asked by every instance's view
+        // decisions (with the scripts, so a CanSee is never silently skipped).
+        services.AddSingleton<DoodadScripts>();
+        services.AddSingleton(sp => new DoodadVisibility(sp.GetRequiredService<DoodadScripts>()));
 
         // Combat (Phase D): V1 uses default CombatConfig values. EncounterRegistry +
         // CombatService are constructed per MapInstance, not registered as singletons.

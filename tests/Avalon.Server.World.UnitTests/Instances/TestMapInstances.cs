@@ -7,6 +7,7 @@ using Avalon.World;
 using Avalon.World.Auras;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Combat;
+using Avalon.World.Doodads;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Loot;
@@ -85,13 +86,14 @@ internal static class TestMapInstances
     /// <param name="encoder">What the instance encodes its world-state and aura packets with; the process's own when omitted.</param>
     /// <param name="layout">The instance's layout; one 30 m chunk at the origin when omitted.</param>
     /// <param name="worldTicks">The world's tick count its state packets name (#1066); none when omitted, so tick 0.</param>
+    /// <param name="doodadVisibility">Who may see and use each doodad; the instance's own, which asks no script, when omitted.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
         MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null,
         PartyId? ownerPartyId = null, MapTemplateId? templateId = null, PartyService? parties = null,
         QuestService? quests = null, ILootRoller? lootRoller = null, ILootAllocator? lootAllocator = null,
         AuraScripts? auraScripts = null, PacketEncoder? encoder = null, ChunkLayout? layout = null,
-        WorldTicks? worldTicks = null)
+        WorldTicks? worldTicks = null, DoodadVisibility? doodadVisibility = null)
     {
         IServiceProvider serviceProvider = Substitute.For<IServiceProvider>();
         if (random is not null)
@@ -136,6 +138,10 @@ internal static class TestMapInstances
         if (worldTicks is not null)
         {
             serviceProvider.GetService(typeof(WorldTicks)).Returns(worldTicks);
+        }
+        if (doodadVisibility is not null)
+        {
+            serviceProvider.GetService(typeof(DoodadVisibility)).Returns(doodadVisibility);
         }
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);

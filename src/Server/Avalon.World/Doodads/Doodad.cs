@@ -83,7 +83,13 @@ public sealed class Doodad : IWorldObject
     public DoodadGate? UsableGate { get; }
 
     /// <summary>Whether some viewers may not see it, so a view decision must ask its rules rather than assume it seen.</summary>
-    public bool HasViewRule => VisibleGate is not null || Template.ScriptCanSee;
+    public bool HasViewRule => VisibleGate is not null || AsksScript;
+
+    /// <summary>
+    /// Whether its script decides who sees it (<see cref="DoodadTemplateView.ScriptCanSee" />): never for a solid one,
+    /// which everyone sees, however its template was built.
+    /// </summary>
+    public bool AsksScript => Template.ScriptCanSee && !Template.Solid;
 
     /// <summary>False once despawned: dropped from every view, and described to no one.</summary>
     public bool Visible => State != DoodadState.Despawned;
@@ -92,8 +98,9 @@ public sealed class Doodad : IWorldObject
     internal bool ChangeQueued { get; set; }
 
     /// <summary>
-    /// Raises <see cref="ViewVersion" /> alone, for a rule only a script knows changed: every viewer asks again at its
-    /// next view decision.
+    /// Raises <see cref="ViewVersion" /> alone, for a rule only a script knows changed (IDoodadContext.RefreshVisibility):
+    /// every viewer asks its rules again, the script's CanSee included, at its next view decision, and none before. Tick
+    /// thread only.
     /// </summary>
     internal void RefreshVisibility() => ViewVersion++;
 

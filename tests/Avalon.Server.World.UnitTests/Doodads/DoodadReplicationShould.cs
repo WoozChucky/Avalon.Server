@@ -12,6 +12,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Loot;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Maps;
@@ -19,6 +20,7 @@ using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
@@ -47,19 +49,51 @@ public class DoodadReplicationShould
     // reaches its count of 2.
     private static readonly DoodadGate s_onObjective = new(Quest, DoodadGateCondition.OnObjective, Objective);
 
+    /// <summary>
+    /// A's quest log lets the gate through and B's does not; the script rows decide by the viewer's name. A script is
+    /// asked only on first sight and after the viewer's quests or the doodad moved, never on a steady view, and a throw
+    /// from it leaves the gate's answer, held like any other.
+    /// </summary>
     [Theory]
     [InlineData("template gate")]
     [InlineData("spawn gate")]
+    [InlineData("script hides what the gate shows")]
+    [InlineData("script shows what the gate hides")]
+    [InlineData("script refresh")]
+    [InlineData("script throws")]
+    [InlineData("solid ignores the script")]
     public async Task Send_a_doodad_only_to_the_viewers_its_rules_allow(string rule)
     {
+        const uint IdA = 104_001, IdB = 104_002;
+        var scriptLog = new TestLog();
+        var catalogLog = new TestLog();
         StaticData data = await Data();
-        TransferMaps maps = await TransferMaps.CreateAsync(NewWorld(data));
+        var scripts = new DoodadScripts(new ServiceCollection().BuildServiceProvider(), TimeProvider.System,
+            new Logger<DoodadScripts>(scriptLog));
+        TransferMaps maps = await TransferMaps.CreateAsync(NewWorld(data), new DoodadVisibility(scripts));
         MapInstance town = maps.Town;
-        Doodad doodad = rule == "template gate"
-            ? Place(town, 1, Template(visible: s_onObjective))
-            : Place(town, 1, Template(), visibleGate: s_onObjective);
-        MapInstanceClient a = JoinAt(town, 104_001, Vector3.zero);
-        MapInstanceClient b = JoinAt(town, 104_002, new Vector3(20f, 0f, 0f));
+
+        bool shown = true;
+        RuledDoodadScript.Asked = 0;
+        RuledDoodadScript.Rule = rule switch
+        {
+            "script hides what the gate shows" => ctx => ctx.ViewerName == TestCharacters.NameFor(IdA) ? null : false,
+            "script shows what the gate hides" => ctx => ctx.ViewerName == TestCharacters.NameFor(IdB) ? true : null,
+            "script refresh" => _ => shown ? null : false,
+            "script throws" => _ => throw new InvalidOperationException("CanSee"),
+            _ => _ => false,
+        };
+        Doodad doodad = rule switch
+        {
+            "template gate" => Place(town, 1, Template(visible: s_onObjective)),
+            "spawn gate" => Place(town, 1, Template(), visibleGate: s_onObjective),
+            "script hides what the gate shows" or "script refresh" => Place(town, 1, Scripted(catalogLog)),
+            "script shows what the gate hides" or "script throws" => Place(town, 1, Scripted(catalogLog, gated: true)),
+            _ => Place(town, 1, Scripted(catalogLog, solid: true)),
+        };
+        bool bSees = rule is "script shows what the gate hides" or "script refresh" or "solid ignores the script";
+        MapInstanceClient a = JoinAt(town, IdA, Vector3.zero);
+        MapInstanceClient b = JoinAt(town, IdB, new Vector3(20f, 0f, 0f));
         ActiveQuest held = OnTheObjective(a.Character);
 
         Ticks(town, 30);
@@ -67,23 +101,58 @@ public class DoodadReplicationShould
         ObjectState added = Assert.Single(a.Added(), s => s.Guid == doodad.Guid.RawValue);
         Assert.Equal(doodad.Template.Id.Value, added.DoodadTemplateId);
         Assert.Equal(WireDoodadState.Ready, added.DoodadState);
-        Assert.DoesNotContain(b.Added(), s => s.Guid == doodad.Guid.RawValue);
+        Assert.Equal(bSees, b.Added().Any(s => s.Guid == doodad.Guid.RawValue));
 
-        // The objective's count reached: the gate closes for A at its next decision, and B was never told.
-        a.Character.Quests.SetProgress(held, Objective, 2);
-        Ticks(town, 6);
+        if (rule is "template gate" or "spawn gate")
+        {
+            // The objective's count reached: the gate closes for A at its next decision, and B was never told.
+            a.Character.Quests.SetProgress(held, Objective, 2);
+            Ticks(town, 6);
 
-        Assert.Contains(doodad.Guid.RawValue, a.Removed());
-        Assert.DoesNotContain(b.Added(), s => s.Guid == doodad.Guid.RawValue);
+            Assert.Contains(doodad.Guid.RawValue, a.Removed());
+            Assert.DoesNotContain(b.Added(), s => s.Guid == doodad.Guid.RawValue);
 
-        // A move into the same instance starts A's view over: its gate still closed, it is not told again.
-        a.Sent.Clear();
-        maps.World.TransferPlayer(a.Connection, town);
+            // A move into the same instance starts A's view over: its gate still closed, it is not told again.
+            a.Sent.Clear();
+            maps.World.TransferPlayer(a.Connection, town);
+            Ticks(town, 30);
+
+            Assert.Single(a.Added(), s => s.Guid == a.Character.Guid.RawValue);
+            Assert.DoesNotContain(a.Added(), s => s.Guid == doodad.Guid.RawValue);
+            Assert.DoesNotContain(b.Added(), s => s.Guid == doodad.Guid.RawValue);
+            return;
+        }
+
+        if (rule == "solid ignores the script")
+        {
+            // A solid doodad is never hidden: the catalog said so once, and its script is never asked.
+            Assert.Single(catalogLog.Entries, e => e.Level == LogLevel.Warning);
+            Assert.Equal(0, RuledDoodadScript.Asked);
+            return;
+        }
+
+        // Asked once per viewer, on first sight; a throw was logged once, the second left out within the interval.
+        Assert.Equal(2, RuledDoodadScript.Asked);
+        Assert.Equal(rule == "script throws" ? 1 : 0, scriptLog.Errors.Count());
+
+        // A steady view asks nothing, even when what the script would answer changed.
+        RuledDoodadScript.Asked = 0;
+        shown = false;
         Ticks(town, 30);
 
-        Assert.Single(a.Added(), s => s.Guid == a.Character.Guid.RawValue);
-        Assert.DoesNotContain(a.Added(), s => s.Guid == doodad.Guid.RawValue);
-        Assert.DoesNotContain(b.Added(), s => s.Guid == doodad.Guid.RawValue);
+        Assert.Equal(0, RuledDoodadScript.Asked);
+        Assert.DoesNotContain(doodad.Guid.RawValue, a.Removed());
+
+        if (rule == "script refresh")
+        {
+            // Told its rule changed, each viewer asks the script again at its next decision, and both lose the doodad.
+            Refresh(doodad);
+            Ticks(town, 6);
+
+            Assert.Equal(2, RuledDoodadScript.Asked);
+            Assert.Contains(doodad.Guid.RawValue, a.Removed());
+            Assert.Contains(doodad.Guid.RawValue, b.Removed());
+        }
     }
 
     [Fact]
@@ -181,6 +250,54 @@ public class DoodadReplicationShould
         new DoodadTemplateId(104), "Glimmer", "props-kit", "Crate", null, null, null, null,
         DoodadInteraction.Click, 0, 5f, 0f, DoodadUseLimit.OncePerInstance, DoodadSpentLook.ShowUsed, null, null,
         null, 0, 0, 0, DoodadCollision.None, 0f, 0f, 0f, visible, usable, [], 0, ScriptCanSee: false);
+
+    /// <summary>
+    /// A template naming <see cref="RuledDoodadScript" />, read through the catalog, which decides whether its CanSee is
+    /// asked; gated by quest 900's objective, or solid, when asked.
+    /// </summary>
+    private static DoodadTemplateView Scripted(TestLog log, bool gated = false, bool solid = false)
+    {
+        var row = new DoodadTemplate
+        {
+            Id = new DoodadTemplateId(105),
+            Name = "Ruled",
+            ModelKit = "props-kit",
+            ModelKey = "Crate",
+            Interaction = DoodadInteraction.Click,
+            InteractionRange = 5f,
+            UseLimit = DoodadUseLimit.OncePerInstance,
+            SpentLook = DoodadSpentLook.ShowUsed,
+            ScriptName = nameof(RuledDoodadScript),
+        };
+        if (gated)
+        {
+            row.VisibleQuestId = Quest;
+            row.VisibleCondition = DoodadGateCondition.OnObjective;
+            row.VisibleObjectiveId = Objective;
+        }
+
+        if (solid)
+        {
+            row.Collision = DoodadCollision.Box;
+            row.CollisionHalfX = row.CollisionHalfZ = 0.5f;
+            row.CollisionHeight = 1.2f;
+        }
+
+        var quest = new QuestTemplate
+        {
+            Id = new QuestTemplateId(Quest),
+            Objectives = [new QuestObjective { Id = Objective, QuestId = new QuestTemplateId(Quest), Count = 2 }],
+        };
+        var catalog = new DoodadCatalog([row], new LootCatalog([], NullLoggerFactory.Instance), [], [quest],
+            name => name == nameof(RuledDoodadScript) ? typeof(RuledDoodadScript) : null, log);
+        Assert.True(catalog.TryGet(row.Id, out DoodadTemplateView? template));
+        return template;
+    }
+
+    /// <summary>A script's word that its rule changed, as IDoodadContext.RefreshVisibility gives it on the tick.</summary>
+    private static void Refresh(Doodad doodad) =>
+        (typeof(Doodad).GetMethod("RefreshVisibility", BindingFlags.Instance | BindingFlags.NonPublic)
+         ?? throw new MissingMethodException(nameof(Doodad), "RefreshVisibility")).Invoke(doodad, null);
 
     /// <summary>A doodad 10 m from the origin, unless placed elsewhere, as an instance build places it.</summary>
     private static Doodad Place(MapInstance instance, uint id, DoodadTemplateView template, Vector3? position = null,

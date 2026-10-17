@@ -18,6 +18,10 @@ public sealed record DoodadOutcomeView(AuraId AuraId, uint Weight);
 /// A doodad template that passed validation: its data, its gates, its script resolved and its outcomes summed. Built
 /// once per load and immutable afterwards.
 /// </summary>
+/// <param name="ScriptCanSee">
+/// Whether its script declares its own CanSee (DoodadScripts.OverridesCanSee), so a view decision asks it; always false
+/// for a solid template.
+/// </param>
 public sealed record DoodadTemplateView(
     DoodadTemplateId Id, string Name, string ModelKit, string ModelKey, string? UsedModelKey,
     string? ReadyClip, string? UseClip, string? UsedClip,
@@ -88,7 +92,16 @@ public sealed class DoodadCatalog
                 continue;
             }
 
-            _templates[id] = View(template, scriptType);
+            bool scriptCanSee = scriptType is not null && DoodadScripts.OverridesCanSee(scriptType);
+            if (scriptCanSee && template.Collision != DoodadCollision.None)
+            {
+                // A solid doodad is never hidden, so a script cannot hide one either.
+                logger.LogWarning("Doodad {DoodadTemplateId} '{Name}' is solid: its script {Script}'s CanSee is ignored, " +
+                                  "and everyone sees it", id, template.Name, scriptType!.Name);
+                scriptCanSee = false;
+            }
+
+            _templates[id] = View(template, scriptType, scriptCanSee);
         }
 
         Refused = refused;
@@ -268,7 +281,7 @@ public sealed class DoodadCatalog
     private static DoodadGate? Gate(uint? questId, DoodadGateCondition? condition, uint? objectiveId) =>
         questId is { } quest && condition is { } kind ? new DoodadGate(quest, kind, objectiveId) : null;
 
-    private static DoodadTemplateView View(DoodadTemplate t, Type? scriptType)
+    private static DoodadTemplateView View(DoodadTemplate t, Type? scriptType, bool scriptCanSee)
     {
         DoodadOutcomeView[] outcomes = t.AuraOutcomes.OrderBy(o => o.AuraId.Value)
             .Select(o => new DoodadOutcomeView(o.AuraId, o.Weight)).ToArray();
@@ -276,7 +289,6 @@ public sealed class DoodadCatalog
         foreach (DoodadOutcomeView outcome in outcomes)
             total += outcome.Weight;
 
-        // ScriptCanSee is false until the doodad runtime gives DoodadScript its CanSee hook.
         return new DoodadTemplateView(
             t.Id, t.Name, t.ModelKit, t.ModelKey, t.UsedModelKey, t.ReadyClip, t.UseClip, t.UsedClip,
             t.Interaction, t.InteractionTimeMs, t.InteractionRange, t.AreaRadius,
@@ -285,6 +297,6 @@ public sealed class DoodadCatalog
             t.Collision, t.CollisionHalfX, t.CollisionHalfZ, t.CollisionHeight,
             Gate(t.VisibleQuestId, t.VisibleCondition, t.VisibleObjectiveId),
             Gate(t.UsableQuestId, t.UsableCondition, t.UsableObjectiveId),
-            outcomes, total, ScriptCanSee: false);
+            outcomes, total, scriptCanSee);
     }
 }

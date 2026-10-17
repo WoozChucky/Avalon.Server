@@ -33,8 +33,12 @@ public static class DoodadGates
         };
     }
 
-    // Walked by index rather than through QuestView.Objective, whose LINQ allocates on every call.
-    private static bool OnObjective(QuestLog log, QuestCatalog quests, uint questId, uint? objectiveId)
+    /// <summary>
+    /// The OnObjective rule: the quest held, not ready to turn in, its current stage holding the objective, and the
+    /// objective's count below the catalog's. A script's view context asks it too. Walked by index rather than through
+    /// QuestView.Objective, whose LINQ allocates on every call.
+    /// </summary>
+    internal static bool OnObjective(QuestLog log, QuestCatalog quests, uint questId, uint? objectiveId)
     {
         if (objectiveId is not { } objective
             || log.Get(questId) is not { State: CharacterQuestState.Active } held

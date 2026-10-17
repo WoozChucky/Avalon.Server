@@ -7,11 +7,18 @@ namespace Avalon.World.Doodads;
 /// <summary>
 /// Whether one viewer may see a doodad, and whether it may use it: the rules a view decision asks of a doodad that has
 /// any (<see cref="AsksRules" />), and only when the viewer's quests or the doodad moved since it last asked
-/// (CharacterCharacterGameState). A singleton of the container, tick thread only. Data gates only for now; the doodad
-/// script's own say is the doodad runtime's. World-side: what a client is told exists is never a script's to grant.
+/// (CharacterCharacterGameState). The data gates first, then the doodad script's say (<see cref="DoodadScript.CanSee" />)
+/// for a template whose script declares one. A singleton of the container, tick thread only: it keeps the one view
+/// context every script is asked through. World-side: what a client is told exists is never a script's to grant beyond
+/// its own doodad, and never for a solid one.
 /// </summary>
-public sealed class DoodadVisibility
+/// <param name="scripts">The doodad scripts asked; none is asked without them, as in a test that places no scripted doodad.</param>
+public sealed class DoodadVisibility(DoodadScripts? scripts = null)
 {
+    private const string CanSeeHook = nameof(DoodadScript.CanSee);
+
+    private readonly DoodadViewContext _view = new();
+
     /// <summary>
     /// Whether an answer about <paramref name="doodad" /> can differ between viewers: a visibility gate, a script that
     /// decides who sees it, or a usability gate. A doodad without one is seen by everyone in range, and usable by
@@ -31,19 +38,27 @@ public sealed class DoodadVisibility
     }
 
     /// <summary>
-    /// Whether <paramref name="viewer" /> may be told <paramref name="doodad" /> exists: not despawned, and let through by
-    /// its visibility gate.
+    /// Whether <paramref name="viewer" /> may be told <paramref name="doodad" /> exists: not despawned; then its
+    /// visibility gate's answer, unless its script's <see cref="DoodadScript.CanSee" /> overrides it. A script that throws
+    /// is logged, at most once per ThrottledErrorLog.Interval, and the gate's answer stands; nothing escapes.
     /// </summary>
-    public bool IsVisibleTo(Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
-        doodad.Visible && DoodadGates.Allows(doodad.VisibleGate, viewer.Quests, quests);
+    public bool IsVisibleTo(Doodad doodad, CharacterEntity viewer, QuestCatalog quests)
+    {
+        if (!doodad.Visible)
+            return false;
+
+        bool data = DoodadGates.Allows(doodad.VisibleGate, viewer.Quests, quests);
+        return doodad.AsksScript && scripts?.For(doodad.Template) is { } script
+            ? AskScript(script, doodad, viewer, quests, data)
+            : data;
+    }
 
     /// <summary>
-    /// Whether <paramref name="viewer" />'s client should offer to use <paramref name="doodad" />: <see cref="Usable" />,
-    /// let through by its usability gate, and visible to it. A doodad hidden from a viewer is never usable by it.
+    /// Whether <paramref name="viewer" />'s client should offer to use <paramref name="doodad" />: visible to it,
+    /// <see cref="Usable" /> and let through by its usability gate. A doodad hidden from a viewer is never usable by it.
     /// </summary>
     public bool CanInteract(Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
-        Usable(doodad) && DoodadGates.Allows(doodad.UsableGate, viewer.Quests, quests)
-                       && IsVisibleTo(doodad, viewer, quests);
+        Interactable(IsVisibleTo(doodad, viewer, quests), doodad, viewer, quests);
 
     /// <summary>
     /// <see cref="IsVisibleTo" /> and <see cref="CanInteract" /> together, at the doodad's current
@@ -52,7 +67,28 @@ public sealed class DoodadVisibility
     internal DoodadAnswer Answer(Doodad doodad, CharacterEntity viewer, QuestCatalog quests)
     {
         bool visible = IsVisibleTo(doodad, viewer, quests);
-        bool canInteract = visible && Usable(doodad) && DoodadGates.Allows(doodad.UsableGate, viewer.Quests, quests);
-        return new DoodadAnswer(visible, canInteract, doodad.ViewVersion);
+        return new DoodadAnswer(visible, Interactable(visible, doodad, viewer, quests), doodad.ViewVersion);
+    }
+
+    // The one statement of "can use": what the client is offered and what an interact is let through by never differ.
+    private static bool Interactable(bool visible, Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
+        visible && Usable(doodad) && DoodadGates.Allows(doodad.UsableGate, viewer.Quests, quests);
+
+    private bool AskScript(DoodadScript script, Doodad doodad, CharacterEntity viewer, QuestCatalog quests, bool data)
+    {
+        _view.Open(doodad, viewer, quests, data);
+        try
+        {
+            return script.CanSee(_view) ?? data;
+        }
+        catch (Exception e)
+        {
+            scripts!.Failed(script.GetType(), CanSeeHook, e);
+            return data;
+        }
+        finally
+        {
+            _view.Close();
+        }
     }
 }
