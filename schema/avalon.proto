@@ -397,6 +397,11 @@ enum DisconnectReason {
    DisconnectReason_Deactivated = 8;
    DisconnectReason_SlowConnection = 9;
 }
+enum DoodadState {
+   DoodadState_Unknown = 0;
+   DoodadState_Ready = 1;
+   DoodadState_Used = 2;
+}
 enum GameAdmissionResult {
    GameAdmissionResult_Accepted = 0;
    GameAdmissionResult_InvalidRequest = 1;
@@ -684,6 +689,8 @@ message ObjectState {
    optional CharacterClass Class = 23;
    optional CharacterGender Gender = 24;
    optional uint32 DisplayId = 25;
+   optional uint32 DoodadTemplateId = 26;
+   optional DoodadState DoodadState = 27;
 }
 enum PartyExperienceMode {
    PartyExperienceMode_Unknown = 0;

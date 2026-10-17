@@ -14,6 +14,9 @@ public enum ObjectType
 
     /// <summary>A drop lying on the ground after a kill (issue #460). Never persisted.</summary>
     Loot,
+
+    /// <summary>An interactable world object placed in an instance (a chest, a shrine, a quest object). Never persisted.</summary>
+    Doodad,
 }
 
 /// <summary>

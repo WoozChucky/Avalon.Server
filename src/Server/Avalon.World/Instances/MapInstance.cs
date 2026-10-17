@@ -23,6 +23,7 @@ using Avalon.World.Combat;
 using Avalon.World.Configuration;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Items;
 using Avalon.World.Loot;
@@ -50,6 +51,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+using WorldDoodadState = Avalon.World.Doodads.DoodadState;
+
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
@@ -65,6 +68,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     // The characters and creatures above by where they stand (#982): who can be in a client's view is looked for in the
     // cells around it. Holds exactly the dictionaries' entities: every change to either changes it too.
     private readonly SpatialGrid _members;
+
+    // The doodads placed here, by where they stand, in the cells of the grid above. Filled as the instance is built and
+    // never again: doodads do not move.
+    private readonly DoodadIndex _doodads;
+
+    // The doodads whose state changed since the last broadcast, each once (Doodad.ChangeQueued), marked dirty for it.
+    private readonly List<Doodad> _changedDoodads = new(8);
 
     // Off only for a test that compares the views over the index against the full scan (DecideViewsByFullScan).
     private bool _viewsOverIndex = true;
@@ -255,6 +265,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _members = SpatialGrid.For(layout);
+        _doodads = DoodadIndex.For(layout);
         _scheduler = new CreatureScheduler(_creatures, this, _members);
         _world = world;
         InstanceId = Guid.NewGuid();
@@ -418,6 +429,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public Vector3 EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;
+
+    /// <summary>The doodads placed here. World-side, not on IMapInstance. Read-only once the instance is published.</summary>
+    public DoodadIndex Doodads => _doodads;
 
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
 
@@ -767,6 +781,32 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     creature.Guid, character.Guid, InstanceId);
             }
         }
+    }
+
+    /// <summary>
+    /// Places a doodad here. Build time only, off the tick, before the instance is published: the index is never written
+    /// once a tick can read it. Its guid must be a doodad's, which is what routes its description.
+    /// </summary>
+    public void AddDoodad(Doodad doodad)
+    {
+        if (doodad.Guid.Type != ObjectType.Doodad)
+            throw new ArgumentException($"A doodad's guid must be of type Doodad, not {doodad.Guid.Type}.", nameof(doodad));
+
+        _doodads.Add(doodad);
+    }
+
+    /// <summary>
+    /// Tick thread only: <paramref name="doodad" />'s state changed, so every client that sees it is owed an update of its
+    /// state and of whether it can use it, on the next broadcast. Queued once however often it changes before then;
+    /// nothing walks the doodads that did not change.
+    /// </summary>
+    internal void DoodadChanged(Doodad doodad)
+    {
+        if (doodad.ChangeQueued)
+            return;
+
+        doodad.ChangeQueued = true;
+        _changedDoodads.Add(doodad);
     }
 
     public void AddCreature(ICreature creature)
@@ -1673,6 +1713,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                         _frameDirtyFields[ability.Guid] = dirty;
                 }
             }
+
+            // Only the doodads that changed since the last broadcast (DoodadChanged), each marked once.
+            for (int i = 0; i < _changedDoodads.Count; i++)
+            {
+                Doodad doodad = _changedDoodads[i];
+                doodad.ChangeQueued = false;
+                _frameDirtyFields[doodad.Guid] = GameEntityFields.DoodadState | GameEntityFields.CanInteract;
+            }
+
+            _changedDoodads.Clear();
         }
     }
 
@@ -1990,14 +2040,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private void AppendUpdate((ObjectGuid Guid, GameEntityFields Fields) updated, ObjectGuid recipientGuid)
     {
-        if (updated.Guid != recipientGuid && _stateUpdates.TryAppendShared(updated.Guid, updated.Fields))
+        // A doodad's entry holds the recipient's own answer to whether it can use it, so it is never shared.
+        bool own = updated.Guid == recipientGuid || updated.Guid.Type == ObjectType.Doodad;
+        if (!own && _stateUpdates.TryAppendShared(updated.Guid, updated.Fields))
             return;
 
         long describeStart = _tickProfile.Timestamp();
         ObjectState? state = DescribeUpdatedObject(updated, recipientGuid);
         NoteDescribed(describeStart);
 
-        if (updated.Guid == recipientGuid)
+        if (own)
         {
             if (state is not null)
                 _stateUpdates.AppendOwn(state);
@@ -2017,14 +2069,16 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// </summary>
     private void AppendAdd(ObjectGuid added, ObjectGuid recipientGuid)
     {
-        if (added != recipientGuid && _stateAdds.TryAppendShared(added, GameEntityFields.All))
+        // A doodad's entry holds the recipient's own answer to whether it can use it, so it is never shared.
+        bool own = added == recipientGuid || added.Type == ObjectType.Doodad;
+        if (!own && _stateAdds.TryAppendShared(added, GameEntityFields.All))
             return;
 
         long describeStart = _tickProfile.Timestamp();
         ObjectState? state = DescribeNewObject(added, recipientGuid);
         NoteDescribed(describeStart);
 
-        if (added == recipientGuid)
+        if (own)
         {
             if (state is not null)
                 _stateAdds.AppendOwn(state);
@@ -2155,6 +2209,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 IWorldObject? addedAbility = _abilityCastSystem.GetAbility(guid);
                 return addedAbility is null ? null : ObjectStateWriter.From(addedAbility, _statePool);
 
+            case ObjectType.Doodad:
+                // A despawned doodad is never described: it is removed from every view instead.
+                if (!_doodads.TryGet(guid, out Doodad? addedDoodad) || !addedDoodad.Visible)
+                    return null;
+                return ObjectStateWriter.From(addedDoodad, GameEntityFields.All,
+                    CanInteractWith(addedDoodad), _statePool);
+
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", guid.Type);
                 return null;
@@ -2200,11 +2261,36 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                     ? null
                     : ObjectStateWriter.From(updatedAbility, updatedObject.Fields, _statePool);
 
+            case ObjectType.Doodad:
+                // Its state and the recipient's answer are all that change: a mark of neither has nothing to say, and a
+                // despawned doodad is removed rather than described.
+                if ((updatedObject.Fields & (GameEntityFields.DoodadState | GameEntityFields.CanInteract)) == 0
+                    || !_doodads.TryGet(updatedObject.Guid, out Doodad? updatedDoodad) || !updatedDoodad.Visible)
+                {
+                    return null;
+                }
+
+                return ObjectStateWriter.From(updatedDoodad, updatedObject.Fields,
+                    CanInteractWith(updatedDoodad), _statePool);
+
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
                     updatedObject.Guid.Type);
                 return null;
         }
+    }
+
+    /// <summary>
+    /// Whether a recipient's client should offer to use <paramref name="doodad" />: a click doodad that is ready, or is
+    /// never spent. No recipient's quest gates are asked here, so a doodad with a usable gate or a view rule is answered
+    /// no for everyone, failing closed: a prompt is withheld rather than offered to a player the doodad would refuse.
+    /// </summary>
+    private static bool CanInteractWith(Doodad doodad)
+    {
+        DoodadTemplateView template = doodad.Template;
+        return template.Interaction == DoodadInteraction.Click
+               && (template.UseLimit == DoodadUseLimit.Unlimited || doodad.State == WorldDoodadState.Ready)
+               && doodad.UsableGate is null && !doodad.HasViewRule;
     }
 
     public void BroadcastAttackAnimation(IUnit attacker, IAbility? spell)
