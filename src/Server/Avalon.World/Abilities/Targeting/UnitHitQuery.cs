@@ -363,6 +363,7 @@ public sealed class UnitHitQuery(
             if (x < box.MinX || x > box.MaxX || z < box.MinZ || z > box.MaxZ)
             {
                 AssertWithinLargest(obj);
+                AssertRewoundOutside(obj);
                 return;
             }
 
@@ -394,6 +395,28 @@ public sealed class UnitHitQuery(
                 throw new InvalidOperationException(
                     $"{obj.Guid} has a body radius of {radius} m, above the {largestBodyRadius} m its spatial grid " +
                     "widens a hit query's box by: a body radius changed after its unit joined the grid (#982).");
+            }
+        }
+
+        /// <summary>
+        /// Debug builds only: under a rewind, throws when a unit left out on its present position overlaps the shape where
+        /// it stood on the rewound tick, as one that moved farther than the drift the box was widened by would
+        /// (<see cref="SpatialGrid.RewindDrift" />): the drift must bound every move since that tick.
+        /// </summary>
+        [Conditional("DEBUG")]
+        private readonly void AssertRewoundOutside(IWorldObject obj)
+        {
+            if (!rewind.Active)
+                return;
+
+            var unit = (IUnit)obj;
+            Vector3 then = rewind.PositionOf(unit);
+            if (shape.Overlaps(then, unit.BodyRadius))
+            {
+                throw new InvalidOperationException(
+                    $"{obj.Guid} overlaps a rewound hit query's shape at {then}, where it stood on tick {rewind.Tick}, " +
+                    "but its present position is outside the box the rewind drift widened: the drift is not an upper " +
+                    "bound of its moves since (#1082).");
             }
         }
     }

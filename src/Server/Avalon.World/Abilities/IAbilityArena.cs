@@ -58,6 +58,13 @@ public interface IAbilityArena
     /// circle's or cone's <c>Prepare</c>, null otherwise, and put back after as the rewind is. While set, a player it hits
     /// is judged by that player's screen (<see cref="TryDeferHit" />).
     /// </summary>
+    /// <remarks>
+    /// It is the footprint the cast system resolves from the ability's row, its aim and its origin
+    /// (<see cref="AbilityFootprint" />), not the area the script hits: the two are the same only because the shipped
+    /// circle and cone scripts fire with that same footprint. A script that hit elsewhere through
+    /// <see cref="AbilityEffect.ApplyToAll" /> would have each player it holds judged against this footprint when the hit
+    /// falls due, and one outside it would be a silent dodge.
+    /// </remarks>
     AbilityFootprint? DodgeFootprint { get; set; }
 
     /// <summary>

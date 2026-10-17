@@ -13,6 +13,7 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
 using NSubstitute;
 using ProtoBuf;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
@@ -70,24 +71,36 @@ public class LagCompensationShould
     }
 
     /// <summary>
-    /// Rewind moves positions only: a creature that died after the tick the caster saw is not hit where it stood, while
-    /// one that walked the same way alive is.
+    /// Rewind moves positions only: the rewound hit query does not find a creature that died after the tick the caster saw
+    /// where it stood, while it finds one that walked the same way alive.
     /// </summary>
     [Fact]
     public void Never_hit_a_creature_that_died_after_the_tick_the_caster_saw()
     {
         var ticks = new WorldTicks(Start);
-        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, worldTicks: ticks);
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler _, worldTicks: ticks);
         MapInstanceClient warrior = Warrior(instance, 1082_111);
-        (Creature dead, CombatResolutionShould.CountingWoundScript deadWounds) = AddCreature(instance, 1082_911);
-        (Creature alive, CombatResolutionShould.CountingWoundScript aliveWounds) = AddCreature(instance, 1082_912);
+        (Creature dead, _) = AddCreature(instance, 1082_911);
+        (Creature alive, _) = AddCreature(instance, 1082_912);
 
         WalkOut(instance, ticks, 0.2f, dead, alive);
         dead.CurrentHealth = 0;
-        handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = ConeId, ViewTick = Start });
+        var arena = (IAbilityArena)instance;
+        arena.HitRewindTicks = LagCompensation.RewindTicks(Start, ticks.Completed);
+        arena.HitRewindExempt = warrior.Character;
+        try
+        {
+            IReadOnlyList<IUnit> hit =
+                instance.Hits.InCone(Vector3.zero, new Vector3(0f, 0f, 1f), reach: 10f, arcDegrees: 10f);
 
-        Assert.Equal(0, deadWounds.Hits);
-        Assert.Equal(1, aliveWounds.Hits);
+            Assert.DoesNotContain(dead, hit);
+            Assert.Contains(alive, hit);
+        }
+        finally
+        {
+            arena.HitRewindTicks = 0;
+            arena.HitRewindExempt = null;
+        }
     }
 
     /// <summary>

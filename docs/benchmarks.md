@@ -3695,23 +3695,24 @@ with the committed figure, in every build (Debug and Release, see below) and for
 - **Detection floor.** `town-idle`, `town-walk` and `many-instances` read 0 since `75a16697` (#875: none of them
   allocates on the tick thread since server packets are built in per-thread messages; the file was regenerated at
   `2ca42aff` for `town-social`'s first entry, #972, at `ae2ed357` for #973's chat and party fixes, and at `2e947609`
-  and `249898c3` for #973's closing cleanup, `forest-combat`'s figure lowered by #980 and #973 between, and at `afcd87ea` for
-  `forest-combat` alone, whose fighters cast lag-compensated since #1082), so the 256 B floor decides in every scenario:
-  the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole scenario. Any one object
-  allocated every tick, anywhere on the measured path, fails every steady scenario (the smallest, 24 B, is 1,440 B
-  per window).
+  and `249898c3` for #973's closing cleanup, `forest-combat`'s figure lowered by #980 and #973 between, and at
+  `afcd87ea` for `forest-combat` alone, whose fighters cast lag-compensated since #1082), so the 256 B floor decides
+  in every scenario: the gate fails on a rise of more than **256 B per window**, about 4 B per tick for the whole
+  scenario. Any one object allocated every tick, anywhere on the measured path, fails every steady scenario (the
+  smallest, 24 B, is 1,440 B per window).
   `town-social` reads 728 B per window since #973 (3,904 B from #972), all of it its events' own, one of each kind a
   window ([a social town, quieter](#results--a-social-town-quieter-973-2026-10-15)): the floor decides for it too (1% is
   7 B), so it fails above 984 B, and one more 40 B enumerator on each of its seven events (280 B) fails it. Its Debug
   run reads the same 728 B (104 B above Release from #972 to #973, see [a social town](#results--a-social-town-972-2026-10-14)).
   Before #875 the floors were 0.5 B per player per tick in the moving scenarios, and 40 and 19 B under the 5% band
   before #852.
-  `forest-combat` is the largest figure (14,528 B per window since #1082, whose fighters name a view tick on every cast and
-  report a 60 ms round trip, so the rewound hits and the dodge wait run in the gate and the seeded fight goes differently,
-  [the forest-combat scenario](#the-forest-combat-scenario); 13,905 B from #973's closing cleanup: quest markers are worked out
-  again only when what a marker reads changes, not for every kill credit, 64 B, a pickup's despawn makes no list,
-  72 B, and a marker run and an equip allocate nothing of their own, 97 B, all measured in Release and Debug alike; 14,138 B from #973 building each party roster once, which its one
-  level-up of the minute sends, [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15); 14,176 B from
+  `forest-combat` is the largest figure (14,528 B per window since #1082, whose fighters name a view tick on every
+  cast and report a 60 ms round trip, so the rewound hits and the dodge wait run in the gate and the seeded fight goes
+  differently, [the forest-combat scenario](#the-forest-combat-scenario); 13,905 B from #973's closing cleanup: quest
+  markers are worked out again only when what a marker reads changes, not for every kill credit, 64 B, a pickup's
+  despawn makes no list, 72 B, and a marker run and an equip allocate nothing of their own, 97 B, all measured in
+  Release and Debug alike; 14,138 B from #973 building each party roster once, which its one level-up of the minute
+  sends, [a social town, quieter](#results--a-social-town-quieter-973-2026-10-15); 14,176 B from
   #980, which shared the aura updates and reused their entries,
   [shared state and aura encoding](#results--shared-state-and-aura-encoding-980-2026-10-14); 14,292 B from #972,
   which gave the fight a healer, a kill quest and loot, [a fuller fight](#results--a-fuller-fight-972-2026-10-14);
@@ -4157,13 +4158,15 @@ fights. Since #972 it also does, every step, in this order:
 
 **Lag compensation (#1082).** Every cast, the basic and the heal, names the tick the fighter was drawing
 (`CCastAbilityPacket.ViewTick`), `LoopFighter.ViewLagTicks` behind the world's: 10 ticks, about 167 ms. A real
-client's view lag is its 120 ms render delay plus one way of its round trip, 150 ms (9 ticks) at the scenario's 60 ms,
-and 10 ticks rounds that up with a margin. Every fighter's connection reports a 60 ms round trip
-(`ScenarioConnection.ScenarioRoundTrip`), a one-way delay of 2 ticks. So a fighter's instant hits are judged where the
-creatures stood 10 ticks before, its projectiles sweep the creatures as they stood 8 ticks before, and the creatures'
-telegraphed hits on it wait 2 ticks for it to step out: the gate measures both halves. In the measured minute that is
-about 10,600 rewound hit queries and 13 held hits, all of which landed: the fighters stand still in melee as they
-cast, so none steps out in the wait, and the dodge itself is `DodgeWaitShould`'s.
+client's cast reaches the server its 120 ms render delay plus a whole round trip after the tick it names (one way for
+the state to reach it, one way for the cast to come back): 180 ms, about 11 ticks, at the scenario's 60 ms. 10 ticks
+is a tick short of that, which changes nothing the gate measures: the hits are rewound by many ticks either way, along
+the same path. Every fighter's connection reports a 60 ms round trip (`ScenarioConnection.ScenarioRoundTrip`), a
+one-way delay of 2 ticks. So a fighter's instant hits are judged where the creatures stood 10 ticks before, its
+projectiles sweep the creatures as they stood 8 ticks before, and the creatures' telegraphed hits on it wait 2 ticks
+for it to step out: the gate measures both halves. In the measured minute that is about 10,600 rewound hit queries and
+13 held hits, all of which landed: the fighters stand still in melee as they cast, so none steps out in the wait, and
+the dodge itself is `DodgeWaitShould`'s.
 
 **Death.** Level 1 characters die to packs. A dead fighter sends nothing (the input handler drops a dead character's
 input); a client would respawn in town and walk back in, which the harness cannot do. After 10 s (600 ticks) it is
@@ -4171,21 +4174,21 @@ revived at the forest's entry through the instance's own `ICombatService.ReviveP
 quarter of its health, the revive broadcast). So each forest keeps three fighters for the whole run.
 
 **What one run does.** Every run, on every machine, fights the same fight (the layouts, placement, combat and loot
-rolls and the fighters' turns are seeded, item instance ids are handed out in order, and every timer reads the
-world's clock). Over the 4,200 ticks since #1082, whose rewinds and waits move hits by a tick or more, which a seeded
-fight follows: 102 creatures killed, 2 deaths, 21 heals cast (20 landed), 42 quest accepts, 105 kill credits and 30
-completions, 189 drops picked up and 101 bag slots destroyed (the measured minute's shares not recounted). The
+rolls and the fighters' turns are seeded, item instance ids are handed out in order, and every timer reads the world's
+clock). #1082's rewinds and waits move some hits by a tick or more, and the seeded fight follows them; since then the
+run's 4,200 ticks give 102 creatures killed, 2 deaths, 21 heals cast (20 landed), 42 quest accepts, 105 kill credits
+and 30 completions, 189 drops picked up and 101 bag slots destroyed (the measured minute's shares not recounted). The
 measured-minute figures and the level-up tick below are from #973, before #1082: over the run then, 105 creatures
 killed (93 in the measured minute), 2 deaths, 18 heals cast and landed (16 in the minute), 36 quest accepts, 93 kill
 credits (78) and 24 completions (all 24 in the minute), 198 drops picked up (180) and 106 bag slots destroyed (85, the
-first 21 in the first steps, from the filled bags), and no drop given up. Before #972 the run killed 71 (60 in the minute) with 9 deaths: the healers keep their parties alive,
-and fighters walking to their drops meet more creatures. Experience is shared; one party's three members reach level 2
-together near the end of the measured minute (tick 3,422 of 3,600, counted at #973), and no other character does. The
-scenario's check (`Verify`) requires, over the measured ticks, besides every fighter casting and every forest losing
-creatures, heals landed, kill credit, a completion, pickups and items destroyed. `ForestCombatScenarioShould` runs the
-scenario twice in one process and requires the same outcome (every count above) and the same bytes per window, and
-kills and deaths in it; the second run's creatures carry higher ids (the process-wide object id counter), which
-changes neither.
+first 21 in the first steps, from the filled bags), and no drop given up. Before #972 the run killed 71 (60 in the
+minute) with 9 deaths: the healers keep their parties alive, and fighters walking to their drops meet more creatures.
+Experience is shared; one party's three members reach level 2 together near the end of the measured minute (tick 3,422
+of 3,600, counted at #973), and no other character does. The scenario's check (`Verify`) requires, over the measured
+ticks, besides every fighter casting and every forest losing creatures, heals landed, kill credit, a completion,
+pickups and items destroyed. `ForestCombatScenarioShould` runs the scenario twice in one process and requires the same
+outcome (every count above) and the same bytes per window, and kills and deaths in it; the second run's creatures
+carry higher ids (the process-wide object id counter), which changes neither.
 
 **Gate.** Committed at **14,528 B per window** (20.2 B per player per tick, 242 B per tick) since #1082, the fight
 above with its fighters lag-compensated, 623 B over the 13,905 B committed from #973's closing cleanup
@@ -4540,15 +4543,15 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter '*TickPhas
 
 ### Results — recording only moved units, and rewound queries' drift (#1082, 2026-10-17)
 
-Lag compensation (#1082, [spell system](spell-system.md)) keeps each unit's positions by world tick and judges a player's
-instant hits and projectiles against them. As first written its Step 4b walked every character and creature of an
-instance every tick to record them, the one step reading every creature every tick, which undid the saving of #979 for
-the waiting ones; and a rewound hit query widened its grid box by a fixed 1 m for every tick rewound (60 m/s, about 8
-times a running unit), so a projectile's step of a tick visited and read far more than a present one, and the
+Lag compensation (#1082, [spell system](spell-system.md)) keeps each unit's positions by world tick and judges a
+player's instant hits and projectiles against them. As first written its Step 4b walked every character and creature
+of an instance every tick to record them, the one step reading every creature every tick, which undid the saving of
+#979 for the waiting ones; and a rewound hit query widened its grid box by a fixed 1 m for every tick rewound (60 m/s,
+about 8 times a running unit), so a projectile's step of a tick visited and read far more than a present one, and the
 nearest-first sort read each hit's history again on every comparison. Since then the position setters list a unit as
-it moves (`SpatialGrid.Moved`), once a tick, and Step 4b records that list alone (`SpatialGrid.RecordMoved`); each move
-also measures its step from where its unit was last recorded, and a rewound query widens its box by the sum of the
-largest step of each tick of its window, plus the largest move since the last record (`SpatialGrid.RewindDrift`);
+it moves (`SpatialGrid.Moved`), once a tick, and Step 4b records that list alone (`SpatialGrid.RecordMoved`); each
+move also measures its step from where its unit was last recorded, and a rewound query widens its box by the sum of
+the largest step of each tick of its window, plus the largest move since the last record (`SpatialGrid.RewindDrift`);
 each candidate's rewound position is read once and its hit carries its distance into the sort.
 
 **Timings were not measured** (the owner's rule for this machine); exact counts, the `hit-candidates` harness's fight

@@ -105,7 +105,9 @@ public sealed class LoopFighter
 
     /// <summary>
     /// How far behind the world's tick a fighter says it was drawing when it casts (<c>CCastAbilityPacket.ViewTick</c>,
-    /// #1082): 10 ticks, about 170 ms, a real client's view lag (its interpolation delay and one way of the round trip).
+    /// #1082): 10 ticks, about 167 ms. A real client's cast reaches the server its render delay plus a whole round trip
+    /// after the tick it names (one way for the state to reach it, one way for the cast to come back): 120 ms plus the
+    /// scenario's 60 ms, about 11 ticks. A tick short of that changes nothing the scenario measures (docs/benchmarks.md).
     /// </summary>
     public const int ViewLagTicks = 10;
 

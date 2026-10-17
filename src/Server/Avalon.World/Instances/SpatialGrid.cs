@@ -278,11 +278,20 @@ internal sealed class SpatialGrid
     /// is relinked only when its cell changed. Called by the concrete position setters, on every write. It is listed for
     /// the next <see cref="RecordMoved" />, and its step from where its history was last recorded counts towards this
     /// tick's drift, unless it jumped (<see cref="Jumped" />) since: then its steps are measured from where it landed
-    /// (#1082).
+    /// (#1082). A write that leaves X and Z where they were lists nothing: Crowd locomotion writes every agent every tick,
+    /// standing ones included, and Step 4b would read them all. A change of height alone is not recorded either: every
+    /// hit test reads X/Z.
     /// </summary>
     public void Moved(int slot, Vector3 position)
     {
         ref Entry entry = ref _entries[slot];
+
+        // #1082: the drift stays an upper bound. The step from the recorded X/Z is the one the write that put the entry
+        // here measured, already in _pendingStep if it came after the last record, and 0 if the record took it. A jumped
+        // entry is listed already, but its landing is taken here, so it goes on as before. NaN never equals: such a write
+        // is listed, as before.
+        bool unchanged = !entry.Jumped && position.x == entry.X && position.z == entry.Z;
+
         entry.X = position.x;
         entry.Z = position.z;
         if (entry.Kind == SpatialKind.Character)
@@ -294,6 +303,9 @@ internal sealed class SpatialGrid
             Unlink(slot);
             Link(slot, cell);
         }
+
+        if (unchanged)
+            return;
 
         if (entry.Jumped)
         {

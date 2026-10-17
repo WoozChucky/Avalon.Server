@@ -374,7 +374,8 @@ left off the wire. Two cast packets name the same count since #1082, both `int64
 (field 7), the tick a cast was taken on, so a client ends its cast bar and telegraph countdown at that tick's server
 time plus `CastTime`; and, from the client, `CCastAbilityPacket.ViewTick` (field 4), the tick its render clock was
 drawing other units at when the player cast (0, not sent, rewinds nothing), the tick a player's instant cast's hits
-are judged at (a projectile's sweep: that tick plus the caster's one-way delay), clamped to 15 ticks behind its own (below, and [spell-system.md](spell-system.md) §4).
+are judged at (a projectile's sweep: that tick plus the caster's one-way delay), clamped to 15 ticks behind its own
+(below, and [spell-system.md](spell-system.md) §4).
 
 **What a client must do.** Echo `ServerTimestamp` unchanged, answer each ping once, and send no other pong: a pong
 that echoes anything else uses up that ping's one answer, and the true echo sent after it is dropped. Answer every
@@ -422,20 +423,20 @@ until that minute ends. No metric counts any of them.
   minute on, and one that never answers reads 0.
 
 **How lag compensation uses it (#1082): never as a bound.** Lag compensation (rules in
-[spell-system.md](spell-system.md) §4) has three uses that a reading could touch, two of which read `RoundTripTime`, and each
-is safe against a reading that is guessed, raised, lowered or stale, because the reading only moves a value inside a
-fixed cap:
+[spell-system.md](spell-system.md) §4) has three uses that a reading could touch, two of which read `RoundTripTime`,
+and each is safe against a reading that is guessed, raised, lowered or stale, because the reading only moves a value
+inside a fixed cap:
 
 - *The view tick is the client's word, capped.* A player's instant cast is rewound to `CCastAbilityPacket.ViewTick`,
-  at most 15 world ticks (250 ms) behind the present. The round trip is not read for it at all: tightening the cap with the
-  round trip was considered and rejected, since a client can raise its reading. A client may always claim the whole
-  cap, and that is accepted.
+  at most 15 world ticks (250 ms) behind the present. The round trip is not read for it at all: tightening the cap
+  with the round trip was considered and rejected, since a client can raise its reading. A client may always claim the
+  whole cap, and that is accepted.
 - *A projectile's rewind is shortened by one way of the round trip* (half of it, in whole world ticks), never below 0. A
   raised reading only shortens the client's own rewind; a lowered one at most gives back the view tick's rewind, still
   inside the cap.
 - *The dodge wait holds a telegraph's hit on a player for one way of their round trip*, at most 6 world ticks (about
-  100 ms). A raised reading buys at most those 6 world ticks to step out; a reading of 0 (none measured, or the client never answers)
-  holds nothing, so the hit lands at once, as before.
+  100 ms). A raised reading buys at most those 6 world ticks to step out; a reading of 0 (none measured, or the client
+  never answers) holds nothing, so the hit lands at once, as before.
 
 Anything else that would trust latency (cheat heuristics, matchmaking) needs more than this. An age for the reading and
 a ping identifier the client cannot predict would close staleness and guessing, and no more. A client could still raise
