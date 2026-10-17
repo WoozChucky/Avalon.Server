@@ -635,7 +635,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
         _characters[joining.Guid] = joining;
         if (joining is CharacterEntity joiningEntity)
-            joiningEntity.History = RentHistory(joiningEntity.History, joiningEntity.Position);
+            joiningEntity.History = RentHistory(joiningEntity.History);
         _members.Add(joining, SpatialKind.Character);
         _auras.Roster.Join(joining);
         _connections[joining.Guid] = connection;
@@ -779,7 +779,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
         _creatures[creature.Guid] = creature;
         if (creature is Creature joining)
-            joining.History = RentHistory(joining.History, joining.Position);
+            joining.History = RentHistory(joining.History);
         _members.Add(creature, SpatialKind.Creature);
         if (_scheduleCreatures)
             _scheduler.Joined(creature);
@@ -1429,18 +1429,20 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// Step 4b of <see cref="Update" />: records where every member that moved since the last record stands at the end of
     /// world tick <paramref name="tick" /> (#1082). The grid lists them as their position setters run
     /// (<see cref="SpatialGrid.RecordMoved" />), so a unit that did not move is not read: most of a forest's creatures are
-    /// waiting (#979). One that never moves keeps the entry it was seeded with as it joined (<see cref="RentHistory" />).
+    /// waiting (#979). A unit that joined since is listed too, so its first record seeds its history, and one that never
+    /// moves keeps that entry.
     /// </summary>
     private void RecordPositions(long tick) => _members.RecordMoved(tick);
 
     /// <summary>
-    /// The history a unit joining this instance at <paramref name="position" /> records into (#1082): the one it holds,
-    /// emptied (a unit added again without leaving, or out of an instance let go with it inside), or one from the pool,
-    /// seeded with <paramref name="position" /> at the world's current tick. Step 4b records a unit only on a tick it
-    /// moved, so without the seed one that stood still since joining would have no entry from before its first move. None
-    /// in an instance with no world tick count (tests), which records nothing.
+    /// The history a unit joining this instance records into (#1082): the one it holds, emptied (a unit added again
+    /// without leaving, or out of an instance let go with it inside), or one from the pool, empty. The grid lists the
+    /// joining unit as jumped (<see cref="SpatialGrid.Add" />), so the next Step 4b seeds it wherever the unit stands then:
+    /// a map arrival writes its spawn after the add, and a seed taken here would hold the coordinates of the map it left.
+    /// Until then a rewound query uses the unit's present position. None in an instance with no world tick count (tests),
+    /// which records nothing.
     /// </summary>
-    private PositionHistory? RentHistory(PositionHistory? held, Vector3 position)
+    private PositionHistory? RentHistory(PositionHistory? held)
     {
         if (_worldTicks is null)
             return held;
@@ -1453,7 +1455,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         history.Clear();
-        history.Record(_worldTicks.Completed, position);
         return history;
     }
 

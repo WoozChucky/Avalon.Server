@@ -210,10 +210,14 @@ refused: its cost and cooldown are spent all the same.
   reads no other unit (most of a forest's creatures are waiting, #979; `forest-combat` records 2 units a
   tick of 203). An unchanged position writes nothing, so a unit standing still keeps its older entries,
   and a lookup is the newest entry at or before the tick. The rings are pooled per instance: one is
-  rented as a unit joins, seeded with its position at the current tick, and returned as it leaves, so a
-  unit entering an instance (every transfer, a teleport or a town return into the same instance
-  included, leaves and joins again) starts with that entry alone, and one that never moves is found
-  where it joined. A jump inside the instance clears it: a revive (`CombatService.RevivePlayer`) and a
+  rented, empty, as a unit joins and returned as it leaves, so a unit entering an instance (every
+  transfer, a teleport or a town return into the same instance included, leaves and joins again)
+  starts afresh. A join is a jump: `SpatialGrid.Add` lists the unit as jumped, so the first Step 4b
+  after it seeds the ring wherever the unit stands then, and one that never moves is found there. A map
+  arrival adds the character with the coordinates of the map it left and only then writes its spawn
+  (`EnterMapHandler`, `MapTeleport`, `TownReturn`), so a seed taken at the add would put it on another
+  map for a query rewound to that tick; a spawn written before that Step 4b is not a step either, so it
+  never widens the destination's rewound queries. A jump inside the instance clears it: a revive (`CombatService.RevivePlayer`) and a
   creature's teleport (`CrowdLocomotion.Teleport`, `WaypointLocomotion.Teleport`) call the entity's
   `Jump()` before writing the position, which empties the history and lists the unit, so the next Step
   4b reseeds it where it landed (even where it stood) and a rewind never returns a position from before

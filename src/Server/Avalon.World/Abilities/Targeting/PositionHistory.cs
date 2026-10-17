@@ -10,11 +10,11 @@ namespace Avalon.World.Abilities.Targeting;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The instance seeds the history as the unit joins and records it on each tick the unit moved (<c>MapInstance</c>, step
-/// 4b, over the moves its spatial grid listed), and an entry is written only when the position changed, so a unit
-/// standing still keeps its older entries and the lookup is "the newest entry at or before the tick".
-/// <see cref="Capacity" /> entries cover the rewind cap of 15 ticks with room to spare: a unit that moves every tick
-/// writes one entry a tick, and one that moves less often reaches further back.
+/// The instance seeds the history on its first record after the unit joins and records it on each tick the unit moved
+/// (<c>MapInstance</c>, step 4b, over the moves its spatial grid listed), and an entry is written only when the position
+/// changed, so a unit standing still keeps its older entries and the lookup is "the newest entry at or before the
+/// tick". <see cref="Capacity" /> entries cover the rewind cap of 15 ticks with room to spare: a unit that moves every
+/// tick writes one entry a tick, and one that moves less often reaches further back.
 /// </para>
 /// <para>
 /// One preallocated ring, written in place: a record or a lookup allocates nothing (#880). The instance rents one per

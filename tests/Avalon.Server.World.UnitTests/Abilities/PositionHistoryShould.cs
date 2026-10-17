@@ -1,3 +1,4 @@
+using System.Reflection;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Hosting.Networking;
@@ -122,9 +123,9 @@ public class PositionHistoryShould
     }
 
     /// <summary>
-    /// The instance records a unit only on a tick it moved (#1082), so a unit's history is seeded as it joins: one that
-    /// stood still since joining, for longer than the ring holds, then moved is found where it joined by a query rewound
-    /// to before the move, never at the position it moved to.
+    /// The instance records a unit only on a tick it moved (#1082), so a unit's history is seeded by the first Step 4b
+    /// after it joins: one that stood still since joining, for longer than the ring holds, then moved is found where it
+    /// joined by a query rewound to before the move, never at the position it moved to.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -160,6 +161,56 @@ public class PositionHistoryShould
         Assert.Equal(joined, before);
         Assert.True(history.TryGet(1_036, out Vector3 after));
         Assert.Equal(new Vector3(9f, 0f, 4f), after);
+    }
+
+    /// <summary>
+    /// A map arrival adds the character to its new instance while it still has the coordinates of the map it left, and
+    /// only then writes its spawn (#1082). Arriving in an instance that has already ticked this world tick, a query
+    /// rewound to that tick never tests it at the coordinates of the other map, and the jump from there to the spawn is
+    /// not a step any unit of the instance may have moved: its rewound hit queries are not widened by it.
+    /// </summary>
+    [Fact]
+    public void Never_rewind_an_arrival_to_the_map_it_left()
+    {
+        var ticks = new WorldTicks(1_000);
+        using MapInstance from = TestMapInstances.Build(NewWorld(), worldTicks: ticks);
+        using MapInstance to = TestMapInstances.Build(NewWorld(), worldTicks: ticks);
+        var departure = new Vector3(300f, 0f, 300f);
+        var spawn = new Vector3(2f, 0f, 2f);
+        CharacterEntity traveller = Inventory.TestCharacters.New(916_121);
+        traveller.Position = departure;
+        MapInstanceClient client = Join(from, traveller);
+        Join(to, 916_122);   // still, at the origin: the destination ticks
+        for (int i = 0; i < 5; i++)
+        {
+            from.Update(TimeSpan.FromSeconds(1d / 60d));
+            Tick(to, ticks);
+        }
+
+        // Tick 1005: the destination has ticked; then the arrival, as the arrival sites make it: the add, then the spawn.
+        to.Update(TimeSpan.FromSeconds(1d / 60d));
+        from.RemoveCharacter(client.Connection);
+        traveller.InstanceId = to.InstanceId;
+        to.AddCharacter(client.Connection);
+        traveller.Position = spawn;
+        ticks.Advance();
+        to.Update(TimeSpan.FromSeconds(1d / 60d));   // tick 1006
+
+        Assert.Equal(0f, RewindDrift(to, 1_000, 1_006));
+        PositionHistory history = Assert.IsType<PositionHistory>(traveller.History);
+        Assert.False(history.TryGet(1_005, out Vector3 rewound) && rewound.Equals(departure),
+            $"rewound to tick 1005 at {rewound}");
+    }
+
+    /// <summary>
+    /// <paramref name="instance" />'s spatial grid's bound on how far a unit may stand from its rewound position, over the
+    /// ticks after <paramref name="tick" /> up to <paramref name="now" /> (<c>SpatialGrid.RewindDrift</c>, internal).
+    /// </summary>
+    private static float RewindDrift(MapInstance instance, long tick, long now)
+    {
+        object grid = typeof(MapInstance).GetField("_members", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(instance)!;
+        return (float)grid.GetType().GetMethod("RewindDrift")!.Invoke(grid, [tick, now])!;
     }
 
     private static void Tick(MapInstance instance, WorldTicks ticks)

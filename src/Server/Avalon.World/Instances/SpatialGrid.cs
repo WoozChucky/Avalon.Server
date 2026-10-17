@@ -195,6 +195,13 @@ internal sealed class SpatialGrid
     /// instance's grid is indexed by this one from now on (that grid keeps it, unindexed, until it is removed there).
     /// May grow the entries: an instance's creatures join as it is built, off the tick.
     /// </summary>
+    /// <remarks>
+    /// A join is a jump (#1082): the member is listed as jumped (<see cref="Jumped" />), so the next
+    /// <see cref="RecordMoved" /> seeds its position history wherever it stands then, and a position written before it is
+    /// not a step. A map arrival adds the character with the coordinates of the map it left and only then writes its
+    /// spawn; that write must neither be recorded as a move from another map's coordinates nor widen every rewound query.
+    /// One already here is listed the same way, as its instance has just emptied its history.
+    /// </remarks>
     public void Add(IWorldObject obj, SpatialKind kind)
     {
         ref SpatialHandle handle = ref HandleOf(obj);
@@ -207,7 +214,10 @@ internal sealed class SpatialGrid
         }
 
         if (ReferenceEquals(handle.Grid, this))
+        {
+            Jumped(handle.Slot);
             return;
+        }
 
         // Kept by this grid unindexed while another indexed it: indexed here from now on.
         RemoveReference(Unindexed(kind), obj);
@@ -221,8 +231,6 @@ internal sealed class SpatialGrid
         entry.RawGuid = obj.Guid.RawValue;
         entry.Object = obj;
         entry.Kind = kind;
-        entry.RecordedX = position.x;   // where the instance seeds its history as it joins (#1082)
-        entry.RecordedZ = position.z;
         Link(slot, CellOf(position));
         if (kind == SpatialKind.Character)
         {
@@ -234,6 +242,7 @@ internal sealed class SpatialGrid
 
         handle.Grid = this;
         handle.Slot = slot;
+        Jumped(slot);   // seeded by the next RecordMoved, wherever it stands then (#1082)
 
         // A NaN radius overlaps nothing, so it is left out; an infinite one makes every hit query scan in full.
         if (obj is IUnit unit && unit.BodyRadius > _largestBodyRadius)
