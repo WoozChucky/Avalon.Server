@@ -28,14 +28,20 @@ public class TownBuildingShould
         Assert.Equal((front, Material.Collision, "Inn"), (box.Front, box.Material, box.Building));
     }
 
-    [Fact]
-    public void Refuse_a_model_the_bounds_table_does_not_have()
+    /// <summary>
+    /// A model the bounds table does not have; and a square gable, whose ridge runs along X however the recipe turns
+    /// (GablePiece.RidgeAlongX), so the roof would not turn with the building.
+    /// </summary>
+    [Theory]
+    [InlineData("Wall_Nope", 0f, "Wall_Nope")]
+    [InlineData("Wall_Plaster_Straight", 4f, "Inn/roof")]
+    public void Refuse_what_it_cannot_place(string model, float gableDepth, string expected)
     {
-        var recipe = new BuildingRecipe("test",
-            [new DecorItem("", "Wall_Nope", 0f, 0f, 0f, 0)],
-            [new BoxPiece("", "body", Material.Plaster, 0f, 4f, 0f, 2f, 0f, 3f) { Front = Facing.NegX }]);
+        List<TownPiece> proxies = [new BoxPiece("", "body", Material.Plaster, 0f, 4f, 0f, 2f, 0f, 3f) { Front = Facing.NegX }];
+        if (gableDepth > 0f) proxies.Add(new GablePiece("", "roof", Material.Roof, 0f, 4f, 0f, gableDepth, 3f, 5f));
+        var recipe = new BuildingRecipe("test", [new DecorItem("", model, 0f, 0f, 0f, 0)], proxies);
 
-        InvalidOperationException refusal = Assert.Throws<InvalidOperationException>(() => TownBuilding.Place(recipe, "Inn", 10f, 20f, 0));
-        Assert.Contains("Wall_Nope", refusal.Message, StringComparison.Ordinal);
+        InvalidOperationException refusal = Assert.Throws<InvalidOperationException>(() => TownBuilding.Place(recipe, "Inn", 10f, 20f, 1));
+        Assert.Contains(expected, refusal.Message, StringComparison.Ordinal);
     }
 }

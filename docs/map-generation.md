@@ -367,7 +367,8 @@ south-west corner, `+X` east, `+Z` north, `y` up) and a yaw of 0, 90, 180 or 270
 
 ChunkGen writes one for every generated square (`"items": []` when it has none), staged and checked with the chunks
 and written only when they are, items sorted by model, then x, z, y and yaw, numbers with at most 3 decimals, LF line
-ends; `TownPiecesShould` compares them with a fresh run as it does the chunks. The seeder never reads `Maps/Decor/`.
+ends; `TownPiecesShould` compares them with a fresh run as it does the chunks, and a decor file with the command's
+prefix that the run did not write is listed, never deleted, as the chunks are. The seeder never reads `Maps/Decor/`.
 A proxy part that decor draws is written `usemtl collision`, which the client does not draw: every proxy of a placed
 building, the square's walls when `TownSquare.WallsAsDecor` is set, and the floor when `TownSquare.Paved` is.
 
@@ -387,12 +388,15 @@ A building is a recipe, `tools/Avalon.ChunkGen/Recipes/<id>.json` (copied next t
 
 A proxy's `kind` is `box` (`minX`, `maxX`, `minZ`, `maxZ`, `y0`, `top`, optional `walkable`), `gable` (the box's
 extents, `eaves`, `ridge`), `cylinder` (`x`, `z`, `radius`, `y0`, `top`) or `ring` (the cylinder's fields and
-`innerRadius`), each with a `part`, an optional `material` and an optional `front` (`NegX`, `PosX`, `NegZ`, `PosZ`); an
-unknown or missing field is refused. `TownBuilding.Place(recipe, building, anchorX, anchorZ, rotation)` turns the
-recipe about its anchor by `rotation` quarter turns in `ChunkRotation`'s sense (a box's or gable's extents swap on an
-odd turn, the front turns NegX, PosZ, PosX, NegZ), adds 90 to every yaw per turn, names the proxies after `building`
-and makes them `collision`. It refuses a model the kit's bounds table does not have, a yaw that is not a quarter turn,
-and a recipe without exactly one front.
+`innerRadius`), each with a `part`, an optional `material` (only `collision`, which every proxy is written with
+anyway) and an optional `front` (`NegX`, `PosX`, `NegZ`, `PosZ`); an unknown or missing field is refused.
+`TownBuilding.Place(recipe, building, anchorX, anchorZ, rotation)` turns the recipe about its anchor by `rotation`
+quarter turns in `ChunkRotation`'s sense (a box's or gable's extents swap on an odd turn, the front turns NegX, PosZ,
+PosX, NegZ), adds 90 to every yaw per turn, names the proxies after `building` and makes them `collision`. A gable's
+ridge runs along its longer extent, so it turns with the extents; a square gable's ridge runs along X whichever way it
+is turned, so `Place` refuses a square gable: make one axis longer. It also refuses a model the kit's bounds table does
+not have, a yaw that is not a quarter turn, and a recipe without exactly one front. `TownSquare.Validate` checks decor
+set on a square the same way, and that each item stands inside the 0-30 m cell.
 
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:

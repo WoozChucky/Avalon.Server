@@ -24,21 +24,6 @@ public static class Materials
         Material.Collision => "collision",
         _ => throw new ArgumentOutOfRangeException(nameof(material), material, "unknown material"),
     };
-
-    /// <summary>The material a "usemtl" name stands for, or false for a name no material has.</summary>
-    public static bool TryParse(string name, out Material material)
-    {
-        foreach (Material candidate in Enum.GetValues<Material>())
-        {
-            if (Name(candidate) == name)
-            {
-                material = candidate;
-                return true;
-            }
-        }
-        material = default;
-        return false;
-    }
 }
 
 /// <summary>The side of a building its open face is on: a porch, a counter, a lean-to, the steps.</summary>
@@ -207,7 +192,8 @@ public sealed record TownSquare(
     /// <summary>
     /// Refuses what the bake could not place: a piece outside the 0-30 m cell (a roof's overhang included), a bound that
     /// is not a number, a top not above its base, a wall not named "Wall...", a piece named like a wall (the placement
-    /// tests read wall boxes by that prefix), and then every rule in <see cref="TownRules" />.
+    /// tests read wall boxes by that prefix), a decor item <see cref="DecorItem.Check" /> refuses or standing outside the
+    /// cell, and then every rule in <see cref="TownRules" />.
     /// </summary>
     public void Validate()
     {
@@ -230,6 +216,17 @@ public sealed record TownSquare(
                 throw new InvalidOperationException($"{Name}: {piece.Building}/{piece.Part} has no rim ({ring.InnerRadius} inside {ring.Radius})");
             if (piece.ObjectName.StartsWith("Wall", StringComparison.Ordinal))
                 throw new InvalidOperationException($"{Name}: {piece.Building}/{piece.Part} would be named like a wall ({piece.ObjectName})");
+        }
+
+        if (Decor.Count > 0)
+        {
+            IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
+            foreach (DecorItem item in Decor)
+            {
+                item.Check($"{Name}: {item.Building}", kit);
+                if (!WithinCell(item.X) || !WithinCell(item.Z))
+                    throw new InvalidOperationException($"{Name}: {item.Building}: {item.Model} at ({item.X}, {item.Z}) lies outside the 0-30 m cell");
+            }
         }
 
         TownRules.Check(this);

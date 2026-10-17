@@ -19,7 +19,7 @@
     <!-- The art kit's model boxes (KitBounds.Load), measured from the kit by the "kit-bounds" command; the kit itself stays out of the repository. -->
     <None Include="Kit\kit-bounds.json" CopyToOutputDirectory="PreserveNewest"/>
     <!-- One building per file (BuildingRecipe.Load): kit pieces and collision proxies, relative to the building's anchor. -->
-    <None Include="Recipes\**\*.json" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="Recipes\*.json" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 
 </Project>

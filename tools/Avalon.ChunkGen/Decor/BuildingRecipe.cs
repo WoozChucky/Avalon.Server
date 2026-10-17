@@ -21,8 +21,9 @@ public sealed record BuildingRecipe(string Id, IReadOnlyList<DecorItem> Pieces, 
     /// <summary>
     /// Reads Recipes/&lt;id&gt;.json, copied next to the assembly at build time:
     /// <c>{ "id", "pieces": [ { "model", "x", "y", "z", "yaw" } ], "proxies": [ { "kind", "part", ...the shape's fields } ] }</c>.
-    /// A missing or unknown field, an id that is not the file's, a kind, material or front it does not know, or a
-    /// "walkable" on anything but a box is refused (InvalidDataException).
+    /// A missing or unknown field, an id that is not the file's, a kind or front it does not know, a material other
+    /// than "collision" (the only one a proxy is written with), or a "walkable" on anything but a box is refused
+    /// (InvalidDataException).
     /// </summary>
     public static BuildingRecipe Load(string id)
     {
@@ -57,18 +58,21 @@ public sealed record BuildingRecipe(string Id, IReadOnlyList<DecorItem> Pieces, 
         Only(proxy, path, [.. common, .. fields]);
 
         string part = ReadString(proxy, "part", path);
-        Material material = Material.Collision;
-        if (proxy.TryGetProperty("material", out _) && !Materials.TryParse(ReadString(proxy, "material", path), out material))
-            throw new InvalidDataException($"{path}: proxy '{part}' has a material no town shape uses");
+        if (proxy.TryGetProperty("material", out _) && ReadString(proxy, "material", path) != Materials.Name(Material.Collision))
+        {
+            throw new InvalidDataException(
+                $"{path}: proxy '{part}' has material '{ReadString(proxy, "material", path)}', but a recipe's proxies are only " +
+                "ever collision (decor draws the building): leave it out or write \"collision\"");
+        }
 
         float N(string field) => ReadNumber(proxy, field, path);
         TownPiece piece = kind switch
         {
-            "box" => new BoxPiece(string.Empty, part, material, N("minX"), N("maxX"), N("minZ"), N("maxZ"), N("y0"), N("top"),
+            "box" => new BoxPiece(string.Empty, part, Material.Collision, N("minX"), N("maxX"), N("minZ"), N("maxZ"), N("y0"), N("top"),
                 proxy.TryGetProperty("walkable", out JsonElement walkable) ? ReadBool(walkable, "walkable", path) : false),
-            "gable" => new GablePiece(string.Empty, part, material, N("minX"), N("maxX"), N("minZ"), N("maxZ"), N("eaves"), N("ridge")),
-            "cylinder" => new CylinderPiece(string.Empty, part, material, N("x"), N("z"), N("radius"), N("y0"), N("top")),
-            _ => new RingPiece(string.Empty, part, material, N("x"), N("z"), N("radius"), N("innerRadius"), N("y0"), N("top")),
+            "gable" => new GablePiece(string.Empty, part, Material.Collision, N("minX"), N("maxX"), N("minZ"), N("maxZ"), N("eaves"), N("ridge")),
+            "cylinder" => new CylinderPiece(string.Empty, part, Material.Collision, N("x"), N("z"), N("radius"), N("y0"), N("top")),
+            _ => new RingPiece(string.Empty, part, Material.Collision, N("x"), N("z"), N("radius"), N("innerRadius"), N("y0"), N("top")),
         };
 
         if (!proxy.TryGetProperty("front", out _)) return piece;

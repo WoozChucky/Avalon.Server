@@ -9,8 +9,10 @@ public static class TownBuilding
     /// (<paramref name="anchorX" />, <paramref name="anchorZ" />). Every proxy comes back as
     /// <see cref="Material.Collision" /> under <paramref name="building" />, a box's or gable's extents swapped on an odd
     /// turn and its <see cref="TownPiece.Front" /> turned with it (NegX, PosZ, PosX, NegZ); every piece's yaw grows by
-    /// 90 per turn. A rotation outside 0-3 is refused (ArgumentOutOfRangeException); a model the kit's bounds table does
-    /// not have, a yaw other than 0, 90, 180 or 270, or a recipe without exactly one front (InvalidOperationException).
+    /// 90 per turn. A gable's ridge runs along its longer extent, so it turns with the extents; a square gable, whose
+    /// ridge always runs along X, would not turn and is refused. A rotation outside 0-3 is refused
+    /// (ArgumentOutOfRangeException); a piece <see cref="DecorItem.Check" /> refuses, a square gable, or a recipe without
+    /// exactly one front (InvalidOperationException).
     /// </summary>
     public static (IReadOnlyList<TownPiece> Proxies, IReadOnlyList<DecorItem> Decor) Place(
         BuildingRecipe recipe, string building, float anchorX, float anchorZ, int rotation)
@@ -26,10 +28,7 @@ public static class TownBuilding
         List<DecorItem> decor = [];
         foreach (DecorItem piece in recipe.Pieces)
         {
-            if (!kit.ContainsKey(piece.Model))
-                throw new InvalidOperationException($"recipe {recipe.Id}: the kit's bounds table has no model '{piece.Model}'");
-            if (!DecorItem.IsYaw(piece.Yaw))
-                throw new InvalidOperationException($"recipe {recipe.Id}: {piece.Model} has yaw {piece.Yaw}, not 0, 90, 180 or 270");
+            piece.Check($"recipe {recipe.Id}", kit);
             (float x, float z) = Turn(piece.X, piece.Z, anchorX, anchorZ, rotation);
             decor.Add(piece with { Building = building, X = x, Z = z, Yaw = (piece.Yaw + 90 * rotation) % 360 });
         }
@@ -37,6 +36,11 @@ public static class TownBuilding
         List<TownPiece> proxies = [];
         foreach (TownPiece proxy in recipe.Proxies)
         {
+            if (proxy is GablePiece square && square.MaxX - square.MinX == square.MaxZ - square.MinZ)
+            {
+                throw new InvalidOperationException(
+                    $"recipe {recipe.Id}: {building}/{proxy.Part} is a square gable, whose ridge runs along X whichever way it turns; make one axis longer");
+            }
             TownPiece turned;
             switch (proxy)
             {

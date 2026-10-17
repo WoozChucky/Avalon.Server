@@ -8,5 +8,17 @@ namespace Avalon.ChunkGen;
 /// </summary>
 public sealed record DecorItem(string Building, string Model, float X, float Y, float Z, int Yaw)
 {
-    public static bool IsYaw(int yaw) => yaw is 0 or 90 or 180 or 270;
+    /// <summary>
+    /// Refuses (InvalidOperationException, prefixed with <paramref name="where" />) a model the kit's bounds table does
+    /// not have, a yaw other than 0, 90, 180 or 270, or a coordinate that is not a number.
+    /// </summary>
+    public void Check(string where, IReadOnlyDictionary<string, ModelBounds> kit)
+    {
+        if (!kit.ContainsKey(Model))
+            throw new InvalidOperationException($"{where}: the kit's bounds table has no model '{Model}'");
+        if (Yaw is not (0 or 90 or 180 or 270))
+            throw new InvalidOperationException($"{where}: {Model} has yaw {Yaw}, not 0, 90, 180 or 270");
+        if (!float.IsFinite(X) || !float.IsFinite(Y) || !float.IsFinite(Z))
+            throw new InvalidOperationException($"{where}: {Model} stands at ({X}, {Y}, {Z}), not a position");
+    }
 }
