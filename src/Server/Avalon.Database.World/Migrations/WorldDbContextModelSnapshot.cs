@@ -4130,7 +4130,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_DoodadTemplates_AreaRadius", "\"AreaRadius\" >= 0 AND \"AreaRadius\" <= 30");
 
-                            t.HasCheckConstraint("CK_DoodadTemplates_Collision", "(\"Collision\" = 0) OR (\"Collision\" = 1 AND \"CollisionHalfX\" > 0 AND \"CollisionHalfX\" < 'Infinity' AND \"CollisionHalfZ\" > 0 AND \"CollisionHalfZ\" < 'Infinity' AND \"CollisionHeight\" >= 1.05 AND \"CollisionHeight\" < 'Infinity')");
+                            t.HasCheckConstraint("CK_DoodadTemplates_Collision", "(\"Collision\" = 0) OR (\"Collision\" = 1 AND \"CollisionHalfX\" > 0 AND \"CollisionHalfX\" < 'Infinity' AND \"CollisionHalfZ\" > 0 AND \"CollisionHalfZ\" < 'Infinity' AND \"CollisionHeight\" >= 1.049 AND \"CollisionHeight\" < 'Infinity')");
 
                             t.HasCheckConstraint("CK_DoodadTemplates_Gold", "\"MinGold\" >= 0 AND \"MinGold\" <= \"MaxGold\"");
 

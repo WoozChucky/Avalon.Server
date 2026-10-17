@@ -3179,13 +3179,15 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_DoodadTemplates_Interaction", "\"Interaction\" IN (0, 1)");
             t.HasCheckConstraint("CK_DoodadTemplates_UseLimit", "\"UseLimit\" IN (1, 2)");
             t.HasCheckConstraint("CK_DoodadTemplates_SpentLook", "\"SpentLook\" IN (1, 2)");
-            // A solid doodad's box is finite, has room in both directions, and stands at least 1.05 m tall.
+            // A solid doodad's box is finite, has room in both directions, and stands at least 1.05 m tall. The bound
+            // is 1.049, not 1.05: the column is a float, and both databases compare it as a double, where a stored
+            // 1.05f reads 1.0499999523 and would fail ">= 1.05". The catalog keeps the exact ">= 1.05f" rule.
             t.HasCheckConstraint("CK_DoodadTemplates_Collision",
                 "(\"Collision\" = 0)" +
                 " OR (\"Collision\" = 1" +
                 " AND \"CollisionHalfX\" > 0 AND \"CollisionHalfX\" < 'Infinity'" +
                 " AND \"CollisionHalfZ\" > 0 AND \"CollisionHalfZ\" < 'Infinity'" +
-                " AND \"CollisionHeight\" >= 1.05 AND \"CollisionHeight\" < 'Infinity')");
+                " AND \"CollisionHeight\" >= 1.049 AND \"CollisionHeight\" < 'Infinity')");
             t.HasCheckConstraint("CK_DoodadTemplates_Range", "\"InteractionRange\" > 0 AND \"InteractionRange\" <= 10");
             t.HasCheckConstraint("CK_DoodadTemplates_AreaRadius", "\"AreaRadius\" >= 0 AND \"AreaRadius\" <= 30");
             t.HasCheckConstraint("CK_DoodadTemplates_Gold", "\"MinGold\" >= 0 AND \"MinGold\" <= \"MaxGold\"");

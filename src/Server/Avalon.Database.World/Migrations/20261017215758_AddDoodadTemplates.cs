@@ -49,7 +49,7 @@ namespace Avalon.Database.World.Migrations
                 {
                     table.PrimaryKey("PK_DoodadTemplates", x => x.Id);
                     table.CheckConstraint("CK_DoodadTemplates_AreaRadius", "\"AreaRadius\" >= 0 AND \"AreaRadius\" <= 30");
-                    table.CheckConstraint("CK_DoodadTemplates_Collision", "(\"Collision\" = 0) OR (\"Collision\" = 1 AND \"CollisionHalfX\" > 0 AND \"CollisionHalfX\" < 'Infinity' AND \"CollisionHalfZ\" > 0 AND \"CollisionHalfZ\" < 'Infinity' AND \"CollisionHeight\" >= 1.05 AND \"CollisionHeight\" < 'Infinity')");
+                    table.CheckConstraint("CK_DoodadTemplates_Collision", "(\"Collision\" = 0) OR (\"Collision\" = 1 AND \"CollisionHalfX\" > 0 AND \"CollisionHalfX\" < 'Infinity' AND \"CollisionHalfZ\" > 0 AND \"CollisionHalfZ\" < 'Infinity' AND \"CollisionHeight\" >= 1.049 AND \"CollisionHeight\" < 'Infinity')");
                     table.CheckConstraint("CK_DoodadTemplates_Gold", "\"MinGold\" >= 0 AND \"MinGold\" <= \"MaxGold\"");
                     table.CheckConstraint("CK_DoodadTemplates_Interaction", "\"Interaction\" IN (0, 1)");
                     table.CheckConstraint("CK_DoodadTemplates_Range", "\"InteractionRange\" > 0 AND \"InteractionRange\" <= 10");

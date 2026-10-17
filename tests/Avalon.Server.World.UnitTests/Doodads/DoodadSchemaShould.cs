@@ -53,6 +53,18 @@ public class DoodadSchemaShould
         Assert.Equal((4u, 3u), (outcome.AuraId.Value, outcome.Weight));
     }
 
+    [Fact]
+    public async Task Accept_a_box_exactly_1_05_m_tall()
+    {
+        using var database = SqliteDatabase.World();
+        await using WorldDbContext context = database.CreateDbContext();
+        DoodadTemplate template = Chest();
+        (template.Collision, template.CollisionHalfX, template.CollisionHalfZ, template.CollisionHeight) = (DoodadCollision.Box, 0.5f, 0.5f, 1.05f);
+        context.DoodadTemplates.Add(template);
+
+        await context.SaveChangesAsync();
+    }
+
     [Theory]
     [InlineData("interaction 2")]
     [InlineData("use limit 0")]
