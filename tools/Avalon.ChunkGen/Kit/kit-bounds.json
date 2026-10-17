@@ -174,5 +174,17 @@
   "Window_Thin_Flat1": { "minX": -0.405, "maxX": 0.383, "minY": 0.975, "maxY": 2.533, "minZ": -0.267, "maxZ": 0.169 },
   "Window_Thin_Round1": { "minX": -0.444, "maxX": 0.444, "minY": 1.016, "maxY": 2.621, "minZ": -0.252, "maxZ": 0.092 },
   "Window_Wide_Flat1": { "minX": -0.804, "maxX": 0.804, "minY": 0.944, "maxY": 2.524, "minZ": -0.267, "maxZ": 0.417 },
-  "Window_Wide_Round1": { "minX": -0.682, "maxX": 0.682, "minY": 1.016, "maxY": 2.742, "minZ": -0.252, "maxZ": 0.277 }
+  "Window_Wide_Round1": { "minX": -0.682, "maxX": 0.682, "minY": 1.016, "maxY": 2.742, "minZ": -0.252, "maxZ": 0.277 },
+  "avalon_anvil": { "minX": -0.4, "maxX": 0.55, "minY": 0, "maxY": 0.85, "minZ": -0.25, "maxZ": 0.25 },
+  "avalon_barrel": { "minX": -0.4, "maxX": 0.4, "minY": 0, "maxY": 1.05, "minZ": -0.39, "maxZ": 0.39 },
+  "avalon_bench": { "minX": -0.9, "maxX": 0.9, "minY": 0, "maxY": 0.9, "minZ": -0.25, "maxZ": 0.22 },
+  "avalon_fountain": { "minX": -2.25, "maxX": 2.25, "minY": 0, "maxY": 2.2, "minZ": -2.25, "maxZ": 2.25 },
+  "avalon_lamp_post": { "minX": -0.22, "maxX": 0.22, "minY": 0, "maxY": 3.5, "minZ": -0.22, "maxZ": 0.6 },
+  "avalon_notice_board": { "minX": -1.05, "maxX": 1.05, "minY": 0, "maxY": 2.3, "minZ": -0.15, "maxZ": 0.15 },
+  "avalon_quench_trough": { "minX": -0.75, "maxX": 0.75, "minY": 0, "maxY": 0.7, "minZ": -0.3, "maxZ": 0.3 },
+  "avalon_stall_armourer": { "minX": -1.55, "maxX": 1.55, "minY": 0, "maxY": 3.4, "minZ": -1.9, "maxZ": 1.95 },
+  "avalon_stall_goods": { "minX": -1.55, "maxX": 1.55, "minY": 0, "maxY": 3.4, "minZ": -1.9, "maxZ": 1.95 },
+  "avalon_wall_straight_2m": { "minX": -1, "maxX": 1, "minY": 0, "maxY": 2, "minZ": -0.28, "maxZ": 0.28 },
+  "avalon_well": { "minX": -1.05, "maxX": 1.05, "minY": 0, "maxY": 2.8, "minZ": -1.6, "maxZ": 1.6 },
+  "avalon_wood_pile": { "minX": -1, "maxX": 1, "minY": 0.01, "maxY": 0.85, "minZ": -0.54, "maxZ": 0.54 }
 }
