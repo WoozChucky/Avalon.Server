@@ -1,4 +1,5 @@
 using Avalon.World.Abilities.Targeting;
+using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Units;
@@ -32,10 +33,18 @@ internal sealed class PendingHits(ILogger logger)
     /// <summary>
     /// Lands every hit due by <paramref name="nowTick" /> on a target still alive, still a target of its ability and still
     /// inside its footprint where it stands now, through <see cref="AbilityEffect.Apply" />, as an immediate hit would; any
-    /// other due hit is a dodge and does nothing. A caster that died in the wait still lands its hits: the cast fired. Each
-    /// hit leaves the list before it is applied, and each is contained, so a hit that throws, or a hit that leads to another
-    /// being added or dropped, cannot apply one twice or cost the others theirs.
+    /// other due hit is a dodge and does nothing. A creature caster that died or turned for home in the wait lands nothing,
+    /// as its queued casts and projectiles do not (#163): its death or its turn already took it out of the encounter, and
+    /// the hit would put its corpse back in, or pull its walk home back into the fight (#614). A player caster who died in
+    /// the wait still lands its hits: the cast fired. Each hit leaves the list before it is applied, and each is contained,
+    /// so a hit that throws, or a hit that leads to another being added or dropped, cannot apply one twice or cost the
+    /// others theirs.
     /// </summary>
+    /// <remarks>
+    /// Nothing here checks that the caster or the target is still in the instance: every path out of it calls
+    /// <c>CancelCasts</c>, which drops the leaving unit's hits (<see cref="Drop" />) before it is gone. A new leave path
+    /// that skipped it would land a held hit on, or from, a unit no longer here.
+    /// </remarks>
     public void Resolve(long nowTick, IAbilityArena arena)
     {
         int i = 0;
@@ -51,6 +60,12 @@ internal sealed class PendingHits(ILogger logger)
             // The last hit takes its place and is looked at next.
             RemoveAt(i);
 
+            if (InstanceAbilityCastSystem.IsAbandonedByCreature(hit.Caster))
+            {
+                CombatLog.HeldHitDroppedCreatureGone(logger, hit.Ability.AbilityId, hit.Caster.Guid);
+                continue;
+            }
+
             ICharacter target = hit.Target;
             if (target.IsDead
                 || !AbilityEffect.Qualifies(arena, hit.Caster, hit.Ability, target)
@@ -65,8 +80,7 @@ internal sealed class PendingHits(ILogger logger)
             }
             catch (Exception e)
             {
-                logger.LogError(e, "A pending hit threw and was dropped ability={AbilityId} caster={CasterId} target={TargetId}",
-                    hit.Ability.AbilityId, hit.Caster.Guid, target.Guid);
+                CombatLog.HeldHitFailed(logger, e, hit.Ability.AbilityId, hit.Caster.Guid, target.Guid);
             }
         }
     }

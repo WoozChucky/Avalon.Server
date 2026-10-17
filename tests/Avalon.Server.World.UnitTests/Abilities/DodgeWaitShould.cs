@@ -12,7 +12,12 @@ using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
+using Avalon.World.Scripts.Creatures;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
@@ -38,18 +43,21 @@ public class DodgeWaitShould
         StepsOut,
         StepsIn,
         CasterDies,
+        CasterTurnsForHome,
     }
 
     /// <summary>
     /// A creature's 3 m telegraphed circle fires on a player. The player's action in the wait decides: staying in takes the
     /// hit once, on the due tick, never on the fire tick; stepping out before it is a dodge; standing outside at the fire
-    /// and stepping in is never a hit. A caster that dies in the wait still lands it: the cast already fired.
+    /// and stepping in is never a hit. A creature that dies or turns for home in the wait lands nothing, as its queued casts
+    /// and projectiles do not (#163): its corpse or its walk home would otherwise be pulled back into the fight.
     /// </summary>
     [Theory]
     [InlineData(During.Stays, Wait)]
     [InlineData(During.StepsOut, 0)]
     [InlineData(During.StepsIn, 0)]
-    [InlineData(During.CasterDies, Wait)]
+    [InlineData(During.CasterDies, 0)]
+    [InlineData(During.CasterTurnsForHome, 0)]
     public void Hit_a_player_only_if_still_inside_when_the_wait_ends(During action, int hitOnTickAfterFire)
     {
         var ticks = new WorldTicks(Start);
@@ -67,6 +75,8 @@ public class DodgeWaitShould
                 player.Character.Position = s_inside;
             if (tick == 1 && action == During.CasterDies)
                 caster.CurrentHealth = 0;
+            if (tick == 1 && action == During.CasterTurnsForHome)
+                TurnForHome(caster, player.Character);
             if (tick == Wait - 1 && action == During.StepsOut)
                 player.Character.Position = s_outside;
 
@@ -187,6 +197,23 @@ public class DodgeWaitShould
         player.Character.CurrentHealth = 100;
         player.Connection.RoundTripTime.Returns(TimeSpan.FromMilliseconds(120).Ticks);
         return player;
+    }
+
+    /// <summary>
+    /// Turns <paramref name="creature" /> for home (#610) through its combat script's own calls: it takes
+    /// <paramref name="target" /> on, is drawn 5 m from where that began, and loses it, so it is still walking home
+    /// when the hit falls due.
+    /// </summary>
+    private static void TurnForHome(Creature creature, ICharacter target)
+    {
+        ISimulationContext ctx = Substitute.For<ISimulationContext>();
+        ctx.MeleeSlots.Returns(Substitute.For<IMeleeSlots>());
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx);
+        creature.Script = script;
+        script.OnEnteredRange(target);
+        creature.Position = new Vector3(5f, 0f, 0f);
+        script.OnCharacterLeft(target);
+        Assert.Equal(CreatureCombatScript.CombatState.Returning, script.State);
     }
 
     private static (Creature, CombatResolutionShould.CountingWoundScript) AddCreature(MapInstance instance, uint id,

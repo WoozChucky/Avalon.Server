@@ -511,8 +511,11 @@ public class InstanceAbilityCastSystem(
         _ => false,
     };
 
-    /// <summary>A creature caster that died, or that its combat script is walking home (#163, #610).</summary>
-    private static bool IsAbandonedByCreature(IUnit caster) =>
+    /// <summary>
+    /// A creature caster that died, or that its combat script is walking home (#163, #610): its queued casts, its
+    /// projectiles and its held hits (<see cref="Abilities.PendingHits" />, #1082) land nothing.
+    /// </summary>
+    internal static bool IsAbandonedByCreature(IUnit caster) =>
         caster is ICreature creature
         && (creature.CurrentHealth == 0 || creature.Script is IReturningHome { IsReturningHome: true });
 
