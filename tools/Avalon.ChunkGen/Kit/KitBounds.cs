@@ -15,9 +15,10 @@ public sealed record ModelBounds(float MinX, float MaxX, float MinY, float MaxY,
 /// </summary>
 public static class KitBounds
 {
-    private static readonly JsonSerializerOptions s_options = new(JsonSerializerDefaults.Web);
+    /// <summary>Every bound is required: a model missing one is refused rather than read as 0.</summary>
+    private static readonly JsonSerializerOptions s_options = new(JsonSerializerDefaults.Web) { RespectRequiredConstructorParameters = true };
 
-    /// <summary>The committed table, copied next to the assembly at build time.</summary>
+    /// <summary>The committed table, copied next to the assembly at build time. A model missing a bound is refused (JsonException).</summary>
     public static IReadOnlyDictionary<string, ModelBounds> Load()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Kit", "kit-bounds.json");
@@ -28,9 +29,22 @@ public static class KitBounds
 
     /// <summary>
     /// The box of every primitive's POSITION accessor (its min and max, which glTF requires) carried through the node
-    /// transforms of the file's scene and joined. No vertex data is read.
+    /// transforms of the file's scene and joined. No vertex data is read. A file that is not such a glTF is refused
+    /// (InvalidDataException naming it).
     /// </summary>
     public static ModelBounds Measure(string gltfPath)
+    {
+        try
+        {
+            return MeasureDocument(gltfPath);
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException or FormatException)
+        {
+            throw new InvalidDataException($"{gltfPath} is not a glTF the tool can measure: {ex.Message}", ex);
+        }
+    }
+
+    private static ModelBounds MeasureDocument(string gltfPath)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(gltfPath));
         JsonElement root = document.RootElement;
@@ -49,7 +63,8 @@ public static class KitBounds
     }
 
     /// <summary>
-    /// The table as committed: one model per line, keys in ordinal order, values rounded to 3 decimals, LF line ends.
+    /// The table as committed: one model per line, keys JSON-escaped in ordinal order, values rounded to 3 decimals, LF
+    /// line ends. A bound that is not a finite number is refused (ArgumentException naming the model).
     /// </summary>
     public static string Write(IReadOnlyDictionary<string, ModelBounds> table)
     {
@@ -59,7 +74,9 @@ public static class KitBounds
         for (int i = 0; i < names.Length; i++)
         {
             ModelBounds b = table[names[i]];
-            sb.Append("  \"").Append(names[i]).Append("\": { ")
+            if (!new[] { b.MinX, b.MaxX, b.MinY, b.MaxY, b.MinZ, b.MaxZ }.All(float.IsFinite))
+                throw new ArgumentException($"{names[i]} has a bound that is not a finite number: {b}", nameof(table));
+            sb.Append("  \"").Append(JsonEncodedText.Encode(names[i])).Append("\": { ")
               .Append("\"minX\": ").Append(F(b.MinX)).Append(", \"maxX\": ").Append(F(b.MaxX))
               .Append(", \"minY\": ").Append(F(b.MinY)).Append(", \"maxY\": ").Append(F(b.MaxY))
               .Append(", \"minZ\": ").Append(F(b.MinZ)).Append(", \"maxZ\": ").Append(F(b.MaxZ)).Append(" }")

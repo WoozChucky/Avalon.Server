@@ -35,7 +35,7 @@ public static class ChunkGenCli
         try
         {
             maps = mapsArgument is null
-                ? Path.Combine(RepositoryRoot.Find(), "src", "Server", "Avalon.Server.World", "Maps")
+                ? Path.Combine(RepositoryRoot.Find("Pass --maps <dir> instead."), "src", "Server", "Avalon.Server.World", "Maps")
                 : Path.GetFullPath(mapsArgument);
 
             // Each bake: the chunks placed together at their cells (a single piece alone; a set piece's or the town's members together).
@@ -162,7 +162,9 @@ public static class ChunkGenCli
         int count;
         try
         {
-            path = Path.Combine(RepositoryRoot.Find(), "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
+            path = Path.Combine(
+                RepositoryRoot.Find("kit-bounds rewrites the repository's tools/Avalon.ChunkGen/Kit/kit-bounds.json: run it from a build inside the repository."),
+                "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
             var table = new Dictionary<string, ModelBounds>(StringComparer.Ordinal);
             foreach (string directory in new[] { options["--kit"], options.GetValueOrDefault("--props") }.OfType<string>())
             {

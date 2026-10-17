@@ -20,7 +20,8 @@ public sealed class KitBoundsShould : IDisposable
     [Fact]
     public void Measure_a_model_through_its_node_transform()
     {
-        // A quarter turn about +Y (x' = z, z' = -x), then a move of (1, 0, 2).
+        // A quarter turn about +Y (x' = z, z' = -x), then a move of (1, 0, 2). The box is not symmetric in Z, so a turn
+        // the other way (x' = -z) lands elsewhere.
         const string Gltf = """
             {
               "asset": { "version": "2.0" },
@@ -28,7 +29,7 @@ public sealed class KitBoundsShould : IDisposable
               "scenes": [{ "nodes": [0] }],
               "nodes": [{ "mesh": 0, "translation": [1, 0, 2], "rotation": [0, 0.70710678, 0, 0.70710678] }],
               "meshes": [{ "primitives": [{ "attributes": { "POSITION": 0 } }] }],
-              "accessors": [{ "componentType": 5126, "count": 8, "type": "VEC3", "min": [-1, 0, -0.5], "max": [1, 3, 0.5] }]
+              "accessors": [{ "componentType": 5126, "count": 8, "type": "VEC3", "min": [-1, 0, -0.5], "max": [1, 3, 1.5] }]
             }
             """;
         string path = Path.Combine(_directory, "Turned.gltf");
@@ -37,7 +38,7 @@ public sealed class KitBoundsShould : IDisposable
         ModelBounds bounds = KitBounds.Measure(path);
 
         Assert.Equal(0.5f, bounds.MinX, 1e-4f);
-        Assert.Equal(1.5f, bounds.MaxX, 1e-4f);
+        Assert.Equal(2.5f, bounds.MaxX, 1e-4f);
         Assert.Equal(0f, bounds.MinY, 1e-4f);
         Assert.Equal(3f, bounds.MaxY, 1e-4f);
         Assert.Equal(1f, bounds.MinZ, 1e-4f);
