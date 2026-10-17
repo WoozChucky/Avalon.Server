@@ -7,30 +7,35 @@ namespace Avalon.ChunkGen;
 /// writes the forest pieces, "town" Glimmerdell's four squares. Every piece is first written into a temporary copy of
 /// Maps/, read back through the World server's own catalog reader (ChunkCatalogSeeder.ReadCatalogAsync) and baked with
 /// its own ChunkLayoutNavmeshBuilder, each set piece with its members at their cells and the town with its four squares
-/// together; only when all of that passes are the files copied into Maps/Chunks. Any failure before that exits 1 and
-/// writes nothing to Maps/.
+/// together; only when all of that passes are the files copied into Maps/Chunks, and each town square's decor file
+/// into Maps/Decor (which the seeder never reads). Any failure before that exits 1 and writes nothing to Maps/.
+/// "kit-bounds" measures the art kit's glTF files into Kit/kit-bounds.json (KitBounds).
 /// </summary>
 public static class ChunkGenCli
 {
-    public const string Usage = "usage: Avalon.ChunkGen forest|town [--maps <Maps directory>]";
+    public const string Usage =
+        "usage: Avalon.ChunkGen forest|town [--maps <Maps directory>] | kit-bounds --kit <glTF directory> [--props <glTF directory>]";
 
     public static async Task<int> RunAsync(
         string[] args, Func<IReadOnlyList<ChunkPiece>> singles, Func<IReadOnlyList<ChunkGroupPiece>> groups,
         Func<IReadOnlyList<TownSquare>> town, TextWriter output, TextWriter error)
     {
-        if (!TryParse(args, out string? command, out string? mapsArgument))
+        if (!TryParse(args, out string? command, out IReadOnlyDictionary<string, string> options))
         {
             await error.WriteLineAsync(Usage);
             return 1;
         }
+        if (command == "kit-bounds") return await WriteKitBoundsAsync(options, output, error);
+
+        string? mapsArgument = options.GetValueOrDefault("--maps");
 
         string staging = Path.Combine(Path.GetTempPath(), $"avalon-chunkgen-{Guid.NewGuid():N}");
         string maps;
-        IReadOnlyList<(string Name, string Obj, string Json)> files;
+        IReadOnlyList<(string Name, string Obj, string Json, string? Decor)> files;
         try
         {
             maps = mapsArgument is null
-                ? Path.Combine(RepositoryRoot.Find(), "src", "Server", "Avalon.Server.World", "Maps")
+                ? Path.Combine(RepositoryRoot.Find("Pass --maps <dir> instead."), "src", "Server", "Avalon.Server.World", "Maps")
                 : Path.GetFullPath(mapsArgument);
 
             // Each bake: the chunks placed together at their cells (a single piece alone; a set piece's or the town's members together).
@@ -60,11 +65,7 @@ public static class ChunkGenCli
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 File.Copy(file, target);
             }
-            foreach ((string name, string obj, string json) in files)
-            {
-                await File.WriteAllTextAsync(Path.Combine(stagedMaps, "Chunks", name + ".obj"), obj);
-                await File.WriteAllTextAsync(Path.Combine(stagedMaps, "Chunks", name + ".json"), json);
-            }
+            await WriteAsync(stagedMaps, files);
 
             await ChunkCatalogSeeder.ReadCatalogAsync(stagedMaps);
             foreach (List<(string Name, int CellX, int CellZ)> bake in bakes)
@@ -85,33 +86,52 @@ public static class ChunkGenCli
         string chunks = Path.Combine(maps, "Chunks");
         try
         {
-            foreach ((string name, string obj, string json) in files)
-            {
-                await File.WriteAllTextAsync(Path.Combine(chunks, name + ".obj"), obj);
-                await File.WriteAllTextAsync(Path.Combine(chunks, name + ".json"), json);
-            }
+            await WriteAsync(maps, files);
         }
         catch (Exception ex)
         {
-            await error.WriteLineAsync($"writing {chunks} failed part way, rerun after fixing: {ex.GetType().Name}: {ex.Message}");
+            await error.WriteLineAsync($"writing {maps} failed part way, rerun after fixing: {ex.GetType().Name}: {ex.Message}");
             return 1;
         }
 
         await output.WriteLineAsync($"validated, baked and wrote {files.Count} chunks to {chunks}");
+        int decor = files.Count(f => f.Decor is not null);
+        if (decor > 0) await output.WriteLineAsync($"wrote {decor} decor files to {Path.Combine(maps, "Decor")}");
 
         // Listed, never deleted: a file with the command's prefix that the tool did not write is hand-authored (the four
-        // older town chunks, forest_boss_01) or left over from a renamed piece.
+        // older town chunks, forest_boss_01) or left over from a renamed piece, in Maps/Chunks and in Maps/Decor.
         var written = files.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
-        foreach (string file in Directory.EnumerateFiles(chunks, command + "_*")
-                     .Select(Path.GetFileName).OfType<string>()
-                     .Where(f => f.EndsWith(".obj", StringComparison.Ordinal) || f.EndsWith(".json", StringComparison.Ordinal))
-                     .Where(f => !written.Contains(Path.GetFileNameWithoutExtension(f)))
-                     .Order(StringComparer.Ordinal))
-        {
+        foreach (string file in NotWritten(chunks, command!, written, ".obj", ".json"))
             await output.WriteLineAsync($"not generated by ChunkGen: {file}");
+        string decorDirectory = Path.Combine(maps, "Decor");
+        if (Directory.Exists(decorDirectory))
+        {
+            foreach (string file in NotWritten(decorDirectory, command!, written, ".json"))
+                await output.WriteLineAsync($"not generated by ChunkGen: Decor/{file}");
         }
 
         return 0;
+    }
+
+    /// <summary>The file names in <paramref name="directory" /> with the command's prefix and one of the extensions that the run did not write.</summary>
+    private static IEnumerable<string> NotWritten(string directory, string command, HashSet<string> written, params string[] extensions) =>
+        Directory.EnumerateFiles(directory, command + "_*")
+            .Select(Path.GetFileName).OfType<string>()
+            .Where(f => extensions.Any(e => f.EndsWith(e, StringComparison.Ordinal)))
+            .Where(f => !written.Contains(Path.GetFileNameWithoutExtension(f)))
+            .Order(StringComparer.Ordinal);
+
+    /// <summary>Each chunk's .obj and .json into Maps/Chunks, and its decor file, when it has one, into Maps/Decor.</summary>
+    private static async Task WriteAsync(string maps, IReadOnlyList<(string Name, string Obj, string Json, string? Decor)> files)
+    {
+        foreach ((string name, string obj, string json, string? decor) in files)
+        {
+            await File.WriteAllTextAsync(Path.Combine(maps, "Chunks", name + ".obj"), obj);
+            await File.WriteAllTextAsync(Path.Combine(maps, "Chunks", name + ".json"), json);
+            if (decor is null) continue;
+            Directory.CreateDirectory(Path.Combine(maps, "Decor"));
+            await File.WriteAllTextAsync(Path.Combine(maps, "Decor", name + ".json"), decor);
+        }
     }
 
     /// <summary>
@@ -130,23 +150,80 @@ public static class ChunkGenCli
         }
     }
 
-    /// <summary>Exactly "forest" or "town", optionally followed by "--maps &lt;dir&gt;"; anything else is refused.</summary>
-    private static bool TryParse(string[] args, out string? command, out string? maps)
+    /// <summary>
+    /// Measures every *.gltf directly in the kit directory and the optional props directory and rewrites
+    /// Kit/kit-bounds.json. A name found in both, an empty directory or a file that cannot be measured exits 1 and
+    /// leaves the table as it was.
+    /// </summary>
+    private static async Task<int> WriteKitBoundsAsync(IReadOnlyDictionary<string, string> options, TextWriter output, TextWriter error)
     {
-        command = null;
-        maps = null;
-        if (args is [("forest" or "town") and var only])
+        string path;
+        string json;
+        int count;
+        try
         {
-            command = only;
-            return true;
+            path = Path.Combine(
+                RepositoryRoot.Find("kit-bounds rewrites the repository's tools/Avalon.ChunkGen/Kit/kit-bounds.json: run it from a build inside the repository."),
+                "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
+            var table = new Dictionary<string, ModelBounds>(StringComparer.Ordinal);
+            foreach (string directory in new[] { options["--kit"], options.GetValueOrDefault("--props") }.OfType<string>())
+            {
+                string[] models = [.. Directory.EnumerateFiles(Path.GetFullPath(directory), "*.gltf").Order(StringComparer.Ordinal)];
+                if (models.Length == 0) throw new InvalidOperationException($"no .gltf files in {directory}");
+                foreach (string model in models)
+                {
+                    string name = Path.GetFileNameWithoutExtension(model);
+                    if (!table.TryAdd(name, KitBounds.Measure(model))) throw new InvalidOperationException($"{name} is in both directories");
+                }
+            }
+            json = KitBounds.Write(table);
+            count = table.Count;
         }
-        if (args is [("forest" or "town") and var first, "--maps", { Length: > 0 } dir] && !dir.StartsWith("--", StringComparison.Ordinal))
+        catch (Exception ex)
         {
-            command = first;
-            maps = dir;
-            return true;
+            await error.WriteLineAsync($"nothing written: {ex.GetType().Name}: {ex.Message}");
+            return 1;
         }
 
-        return false;
+        try
+        {
+            await File.WriteAllTextAsync(path, json);
+        }
+        catch (Exception ex)
+        {
+            await error.WriteLineAsync($"writing {path} failed, rerun after fixing: {ex.GetType().Name}: {ex.Message}");
+            return 1;
+        }
+
+        await output.WriteLineAsync($"measured {count} models into {path}");
+        return 0;
+    }
+
+    /// <summary>
+    /// "forest" or "town", optionally followed by "--maps &lt;dir&gt;", or "kit-bounds --kit &lt;dir&gt;" optionally with
+    /// "--props &lt;dir&gt;", the options in any order and each at most once; anything else is refused.
+    /// </summary>
+    private static bool TryParse(string[] args, out string? command, out IReadOnlyDictionary<string, string> options)
+    {
+        command = null;
+        var parsed = new Dictionary<string, string>(StringComparer.Ordinal);
+        options = parsed;
+        string[] allowed = args switch
+        {
+            [("forest" or "town"), ..] => ["--maps"],
+            ["kit-bounds", ..] => ["--kit", "--props"],
+            _ => [],
+        };
+        if (allowed.Length == 0 || args.Length % 2 == 0) return false;
+        for (int i = 1; i < args.Length; i += 2)
+        {
+            string value = args[i + 1];
+            if (!allowed.Contains(args[i]) || value.Length == 0 || value.StartsWith("--", StringComparison.Ordinal) || !parsed.TryAdd(args[i], value))
+                return false;
+        }
+        if (args[0] == "kit-bounds" && !parsed.ContainsKey("--kit")) return false;
+
+        command = args[0];
+        return true;
     }
 }

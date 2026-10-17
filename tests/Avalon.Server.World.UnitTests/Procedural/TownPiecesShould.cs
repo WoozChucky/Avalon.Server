@@ -20,10 +20,11 @@ public class TownPiecesShould
     [Fact]
     public void Match_the_committed_files()
     {
-        foreach ((string name, string obj, string json) in ChunkFiles.For(TownPieces.Squares()))
+        foreach ((string name, string obj, string json, string? decor) in ChunkFiles.For(TownPieces.Squares()))
         {
             Assert.Equal(obj, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".obj"))));
             Assert.Equal(json, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".json"))));
+            Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
         }
     }
 
@@ -98,7 +99,7 @@ public class TownPiecesShould
         Assert.Contains("House A", buildings);
         Assert.Contains("House B", buildings);
         Assert.Contains("Well", buildings);
-        Assert.Equal(112, TownPieces.Squares().Sum(s => s.Pieces.Count));
+        Assert.Equal(122, TownPieces.Squares().Sum(s => s.Pieces.Count));
     }
 
     /// <summary>
@@ -110,18 +111,18 @@ public class TownPiecesShould
     {
         List<(string Square, TownPiece Piece)> fronts =
             [.. TownPieces.Squares().SelectMany(s => s.Pieces.Where(p => p.Front != Facing.None).Select(p => (s.Name, p)))];
-        Assert.Equal(7, fronts.Count);
+        Assert.Equal(11, fronts.Count);
         Assert.All(fronts, f => Assert.True(f.Piece.Front is Facing.NegX or Facing.NegZ,
             $"{f.Square}: {f.Piece.Building}'s front faces {f.Piece.Front}, away from the camera"));
     }
 
-    /// <summary>Owner decision 2: the two stalls are told apart by their cloth.</summary>
+    /// <summary>Owner decision 2: the two stalls are told apart by their cloth, red and blue (their kit-textured models).</summary>
     [Fact]
     public void Give_each_stall_its_own_cloth()
     {
-        List<TownPiece> market = [.. TownPieces.Squares().Single(s => s.Name == "town_se_01").Pieces];
-        Assert.Equal(Material.Cloth, market.Single(p => p.Building == "Armourer's stall" && p.Part == "roof").Material);
-        Assert.Equal(Material.Cloth2, market.Single(p => p.Building == "General-goods stall" && p.Part == "awning").Material);
+        List<DecorItem> market = [.. TownPieces.Squares().Single(s => s.Name == "town_se_01").Decor];
+        Assert.Equal("avalon_stall_armourer", market.Single(d => d.Building == "Armourer's stall").Model);
+        Assert.Equal("avalon_stall_goods", market.Single(d => d.Building == "General-goods stall").Model);
     }
 
     [Fact]
@@ -149,10 +150,10 @@ public class TownPiecesShould
     /// <summary>
     /// Recast climbs any step of 0.8 m or less (floor(0.9 / 0.2) voxels) and a span top rounds up to a 0.2 m voxel, so a
     /// top at or under 1.0 m above the ground beside it would be a step the navmesh walks over. Every solid piece,
-    /// floating ones included (the cart's bed, the stacked crate), must stop a walk at its edge: a walkable ray from
-    /// 1.5 m west of its footprint toward its centre never enters it (owner decision 8 raised every low prop to 1.05 m
-    /// and put the cart's shaft on the floor). A ray that starts inside another solid stops where it starts and proves
-    /// nothing, which is accepted: a prop wedged against a building is solid by its neighbour.
+    /// floating ones included (the fountain's water and upper bowl), must stop a walk at its edge: a walkable ray from
+    /// 1.5 m west of its footprint toward its centre never enters it (owner decision 8 raised every low prop to 1.05 m;
+    /// a lamp post's or a stall's 0.14-0.2 m post stops it too). A ray that starts inside another solid stops where it
+    /// starts and proves nothing, which is accepted: a prop wedged against a building is solid by its neighbour.
     /// </summary>
     [Fact]
     public void Stop_a_walk_at_the_edge_of_every_solid_piece()

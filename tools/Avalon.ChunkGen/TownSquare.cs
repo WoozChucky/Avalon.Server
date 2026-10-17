@@ -3,8 +3,11 @@ using Avalon.Database.World.Seeding;
 
 namespace Avalon.ChunkGen;
 
-/// <summary>The named materials a town shape is tagged with ("usemtl"); the client colours them, the server ignores them.</summary>
-public enum Material { Stone, Wood, Roof, Cloth, Cloth2, Plaster, Metal, Water }
+/// <summary>
+/// The named materials a town shape is tagged with ("usemtl"); the client colours them, the server ignores them.
+/// <see cref="Collision" /> marks a proxy the client does not draw, because decor (Maps/Decor) draws it instead.
+/// </summary>
+public enum Material { Stone, Wood, Roof, Cloth, Cloth2, Plaster, Metal, Water, Collision }
 
 public static class Materials
 {
@@ -18,6 +21,7 @@ public static class Materials
         Material.Plaster => "plaster",
         Material.Metal => "metal",
         Material.Water => "water",
+        Material.Collision => "collision",
         _ => throw new ArgumentOutOfRangeException(nameof(material), material, "unknown material"),
     };
 }
@@ -173,13 +177,23 @@ public sealed record TownSquare(
     public const float FloorBottom = -0.05f;
     public const float FloorTop = 0.05f;
 
+    /// <summary>What the client draws on this square from the art kit (Maps/Decor/&lt;name&gt;.json), chunk-local.</summary>
+    public IReadOnlyList<DecorItem> Decor { get; init; } = [];
+
+    /// <summary>Decor draws the square's walls, so their boxes are written as <see cref="Material.Collision" />.</summary>
+    public bool WallsAsDecor { get; init; }
+
+    /// <summary>Decor paves the square's ground, so the floor box is written as <see cref="Material.Collision" />.</summary>
+    public bool Paved { get; init; }
+
     /// <summary>The square's south-west corner in world metres.</summary>
     public (float X, float Z) Origin => (GridX * CellSize, GridZ * CellSize);
 
     /// <summary>
     /// Refuses what the bake could not place: a piece outside the 0-30 m cell (a roof's overhang included), a bound that
     /// is not a number, a top not above its base, a wall not named "Wall...", a piece named like a wall (the placement
-    /// tests read wall boxes by that prefix), and then every rule in <see cref="TownRules" />.
+    /// tests read wall boxes by that prefix), a decor item <see cref="DecorItem.Check" /> refuses or standing outside the
+    /// cell, then every rule in <see cref="TownRules" />, then the decor's in <see cref="DecorRules" />.
     /// </summary>
     public void Validate()
     {
@@ -204,7 +218,19 @@ public sealed record TownSquare(
                 throw new InvalidOperationException($"{Name}: {piece.Building}/{piece.Part} would be named like a wall ({piece.ObjectName})");
         }
 
+        if (Decor.Count > 0)
+        {
+            IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
+            foreach (DecorItem item in Decor)
+            {
+                item.Check(DecorRules.Where(Name, item.Building), kit);
+                if (!WithinCell(item.X) || !WithinCell(item.Z))
+                    throw new InvalidOperationException($"{DecorRules.Where(Name, item.Building)}: {item.Model} at ({item.X}, {item.Z}) lies outside the 0-30 m cell");
+            }
+        }
+
         TownRules.Check(this);
+        DecorRules.Check(this);
     }
 
     /// <summary>NaN is outside.</summary>

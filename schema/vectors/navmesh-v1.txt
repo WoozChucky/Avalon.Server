@@ -49,14 +49,14 @@
 # HEIGHT COVERAGE IS BOUNDED BY THE CHUNK LIBRARY, and that is a real gap rather than an
 # oversight. Every chunk floor the server ships is a flat slab: a town floor's top face is at
 # local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical. The town squares
-# carry buildings and props besides (solids the bake cuts around; every prop's top is over
-# 1 m, above the 0.9 m climb, so each stops a walk) and walkable risers of 0.1-0.3 m
-# (porch decks, the bank's steps), which quantise into the same 0.2 m voxel as the floor
-# beside them. The 'forest-floors' layout puts the two floor heights beside each other -- the
+# carry buildings and props besides (solids the bake cuts around; every solid's top is at
+# least 1.05 m, above the 0.9 m climb, so each stops a walk) and, since the kit rebuild, no
+# walkable riser at all: the stone curbs along its roads are drawn by the client and never
+# baked. The 'forest-floors' layout puts the two floor heights beside each other -- the
 # largest vertical variation two floors can produce -- and its ground rows all come back at
 # one height, because 5 cm is a quarter of the bake's 0.2 cell height and both floors quantise
 # to the same voxel. So these vectors pin SampleGroundHeight at a single height on open
-# ground, and the town's deck and step rows at whatever voxel the bake gives a riser.
+# ground (the curb row included), and at one flat top: the gate arch's.
 # Building interiors and roof tops bake as navmesh islands that nothing reaches (the
 # forest's blocker tops do too); a ground query over one answers the island's height.
 #
@@ -71,12 +71,15 @@
 # composed from this chunk library has one. It is not a thinner query set that would catch
 # it: it is uncatchable from a layout, until the library gains real relief.
 #
-# A RAY CAN CLAMP ON A TILE CORNER RATHER THAN ON THE GEOMETRY, and one row here does. Tiles
-# are 32 * 0.3 = 9.6 wide from the geometry's own minimum, so the town's seams fall at 9.35,
-# 18.95 and 28.55, and a ray along x = z from an integer start runs straight at the point
-# where four of them meet. The town's "45 degrees" row stops at 28.55 and not at the wall's
-# eroded face at 28.85, which the head-on row above it gives. That row is KEPT: the barrier
-# is a polygon edge on the seam and it survives perturbing the ray's direction.
+# A RAY CAN CLAMP ON A TILE CORNER RATHER THAN ON THE GEOMETRY. Tiles are 32 * 0.3 = 9.6
+# wide from the geometry's own minimum, so the town's seams fall at 9.35, 18.95, 28.55, 38.15
+# and 47.75, and a ray along x = z from an integer start runs straight at the point where
+# four of them meet. Until the kit rebuild one row here did: the "45 degrees" row into the
+# corner of the x = 30 and z = 0 walls, run from the arrival square, stopped at 28.55 and
+# not at the wall's eroded face at 28.85, a polygon edge on the seam that survived perturbing
+# the ray's direction. A house now stands where it started, so it runs from the market's
+# open ground instead, on the far side of that wall, and stops at the eroded face at 30.95
+# as the head-on rows do: no row here clamps on a seam.
 #
 # What is excluded is the case that does NOT survive. Thirty-five rays along x = z through
 # that corner were run, over five start points and seven endpoints; from the start (2, 2),
@@ -97,12 +100,13 @@
 # Recast implementations can legitimately fall either side of one.
 #
 # So none of the sweep's rays is vendored: no row in this file runs through that corner. The
-# three rows that do lie on x = z all start past it -- at 25 and 45 on the town, and at 15
-# on a layout whose own grid starts elsewhere -- and the straight seam crossings are all
+# two rows that do lie on x = z keep off every corner -- the town's starts at 45 within the
+# agent radius of the well and never moves, and the other starts at 15 on a layout whose own
+# grid starts elsewhere -- and the straight seam crossings and the shallow diagonal are all
 # off-corner for the same reason.
 #
 # Clamps at 28.55 in that sweep are NOT this: that is the second corner, where the town's
-# two walls also meet, and it is the row this file keeps because it survives perturbation.
+# two walls also meet, the seam clamp the old "45 degrees" row showed.
 #
 # THE SWEEP IS NOT COMMITTED and was run out of band. To redo it, add rays along x = z to
 # the town layout's list in NavmeshVectors.cs and export to a scratch --out; nothing else
@@ -117,37 +121,37 @@ chunk town_sw_01 0 0 0
 chunk town_se_01 1 0 0
 chunk town_nw_01 0 1 0
 chunk town_ne_01 1 1 0
-mesh tiles 49 polys 313 verts 756
+mesh tiles 49 polys 259 verts 657
 ray 15 0.15 15 16 0.15 15 -> reached 16 0.15 15 3.4028235E+38 # open floor, one metre
 ray 15 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # open floor, the length of a tile and then some
-ray 45 0.15 45 35 0.15 35 -> clamped 45 0.15 45 0 # diagonal, north-east quadrant, starting on the well's rim
+ray 45 0.15 45 35 0.15 35 -> clamped 45 0.15 45 0 # diagonal, north-east quadrant, starting within the agent radius of the well's north post: no step
 ray 5 0.15 15 15 0.15 15 -> reached 15 0.15 15 3.4028235E+38 # crosses the x = 9.35 tile seam
 ray 5 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # crosses the x = 9.35 and 18.95 tile seams
 ray 5 0.15 17.95 25 0.15 17.95 -> reached 25 0.15 17.95 3.4028235E+38 # crosses two seams a metre below the z = 18.95 one
 ray 6 0.15 3 6 0.15 25 -> reached 6 0.15 25 3.4028235E+38 # the same, on z -- a transposed tile index lands elsewhere
-ray 3 0.15 38 19 0.15 52 -> reached 19 0.15 52 3.4028235E+38 # shallow diagonal across the seams on both axes
-ray 25 0.15 3 35 0.15 3 -> clamped 28.623215 0.15 3 0.3623215 # head-on into the x = 30 wall
-ray 20 0.15 3 40 0.15 3 -> clamped 28.623215 0.15 3 0.43116075 # the same line from twice the distance
-ray 26 0.15 4 36 0.15 -6 -> clamped 28.567242 0.15 1.4327576 0.25672424 # 45 degrees into the corner where the x = 30 and z = 0 walls meet
-ray 25 0.15 5 25 0.15 35 -> clamped 25 0.15 5 0 # starts within the agent radius of the bench at (24, 5.25): no step
+ray 42 0.15 37 24 0.15 49 -> reached 24 0.15 49 3.4028235E+38 # shallow diagonal across the seams on both axes, through the x = 30 doorway
+ray 35 0.15 5 25 0.15 5 -> clamped 30.95 0.15 5 0.4049999 # head-on into the x = 30 wall, west across the market's open ground
+ray 40 0.15 5 20 0.15 5 -> clamped 30.95 0.15 5 0.45249993 # the same line from twice the distance
+ray 34 0.15 4.5 24 0.15 -5.5 -> clamped 30.95 0.15 1.4500008 0.30499992 # 45 degrees toward the corner where the x = 30 and z = 0 walls meet, half a metre north of it
+ray 15 0.15 3 15 0.15 12 -> clamped 15 0.15 3 0 # starts within the agent radius of the bench south of the fountain: no step
 ray 28.9 0.15 25 35 0.15 25 -> clamped 28.9 0.15 25 0 # flush against the x = 30 wall, pointing into it
-ray 25 0.15 28.9 25 0.15 5 -> clamped 25 0.15 27.650002 0.052301176 # flush against the z = 30 wall, south until the town hall
+ray 25 0.15 28.9 25 0.15 5 -> clamped 25 0.15 26.75 0.08995814 # flush against the z = 30 wall, south until the town hall
 ray 15 0.15 25 15 0.15 35 -> reached 15 0.15 35 3.4028235E+38 # through the z = 30 doorway at x = 15
 ray 25 0.15 45 35 0.15 45 -> reached 35 0.15 45 3.4028235E+38 # through the x = 30 doorway at z = 45
-ray 15 0.15 25 45 0.15 25 -> clamped 17.52 0.15 25 0.08400001 # at the doorways' centre line, east, stopped at the edge of the town hall's porch step
+ray 15 0.15 25 45 0.15 25 -> clamped 17.808 0.15 25 0.093600005 # at the doorways' centre line, east, stopped short of the town hall's west wall
 ray 9000 0 9000 9001 0 9000 -> nostartpoly 9000 0 9000 0 # starts off the mesh entirely
 ray -5 0 15 15 0 15 -> nostartpoly -5 0 15 0 # starts outside the town's west edge
-ray 15 0.15 23 25 0.15 23 -> clamped 19.364 0.15 23 0.43640006 # east onto the town hall's porch, stopping short of its body
+ray 15 0.15 37 21 0.15 37 -> clamped 17.75 0.15 37 0.45833334 # east under the hunter's lodge's awning, stopping short of its west wall
 ray 15 0.15 35 15 0.15 45 -> reached 15 0.15 45 3.4028235E+38 # north under the gate arch to the portal
-ray 50 0.15 45 50 0.15 50 -> reached 50 0.15 50 3.4028235E+38 # north onto the inn's porch step and deck
-ray 15 0.15 3 15 0.15 12 -> clamped 15 0.15 3 0 # starts within the agent radius of the bench south of the fountain: no step
-ray 45 0.15 20 58 0.15 15 -> clamped 54.35 0.15 16.403847 0.7192306 # east across the market toward the armourer's stall
+ray 46 0.15 36 52 0.15 36 -> clamped 47.56316 0.15 36 0.2605264 # east into house B's yard fence: a fence section stops a walk
+ray 8 0.15 17 16 0.15 17 -> reached 16 0.15 17 3.4028235E+38 # east over the curb onto the arrival road: nothing stops the walk
+ray 45 0.15 15 58 0.15 15 -> clamped 52.982143 0.15 15 0.614011 # east across the market into the armourer's counter
 ground 15 3 15 -> 0.15 # open floor, south-west quadrant
-ground 45 3 45 -> 3 # on the well's rim: no polygon under the point, only beside it, so the height asked is given back
-ground 50 1 50 -> 0.3065219 # on the inn's porch deck
-ground 36.8 3 49.4 -> 0.34833357 # on the bank's lower step
-ground 19 1 23 -> 0.31666708 # on the town hall's porch deck
-ground 21.5 7 20 -> 6.8131576 # inside the town hall: the island on its roof
+ground 45 3 43.5 -> 3 # on the well's rim: no polygon under the point, only beside it, so the height asked is given back
+ground 11.65 3 17 -> 0.15 # on a curb beside the arrival road: the floor's height
+ground 15 1 42 -> 0.15 # under the gate arch's lintel, sampled from a metre up: the floor
+ground 17.3 1 37 -> 0.15 # under the hunter's lodge's awning, sampled from a metre up: the floor
+ground 15 7 42 -> 6.35 # on top of the gate arch: the island on its flat top
 ground 9.35 3 9.35 -> 0.15 # on the tile corner at 9.35, open floor
 ground 28 3 8 -> 0.15 # two metres from the x = 30 wall
 ground 15 3 30 -> 0.15 # in the z = 30 doorway

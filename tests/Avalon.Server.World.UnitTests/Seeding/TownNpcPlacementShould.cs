@@ -21,9 +21,9 @@ namespace Avalon.Server.World.UnitTests.Seeding;
 /// north-west, the market south-east and the bank and inn north-east, with inner walls at X = 30 and Z = 30 opened at
 /// 12-18 and 42-48. The seeded NPCs are checked against the real layout and wall geometry, read from the Maps folder
 /// copied into the test output, so a geometry or seed change that puts an NPC in a wall or a doorway fails here.
-/// Each NPC stands in front of its own building, on the side the client's fixed camera sees and clear of its roof: on
-/// a porch step, in front of a counter or the smithy's lean-to, on the bank's step, at least 1 m from any solid and
-/// within 3 m of its building (TownPieces).
+/// Each NPC stands in front of its own building, on the side the client's fixed camera sees and clear of its roof: in
+/// front of its door (beyond an awning or a balcony) or of a stall's counter, at least 1 m from any solid and within
+/// 3 m of its building (TownPieces).
 /// </summary>
 public class TownNpcPlacementShould
 {
@@ -190,13 +190,13 @@ public class TownNpcPlacementShould
 
     /// <summary>Template, world X and Z, and the south-west corner of the square it belongs in.</summary>
     [Theory]
-    [InlineData(1ul, 16.6f, 23f, 0f, 0f)]      // Uriel, in front of the town hall's porch
-    [InlineData(2ul, 16.9f, 37f, 0f, 30f)]     // Borin Stoutbeard, in front of the hunter's lodge porch
-    [InlineData(12ul, 39f, 18.2f, 30f, 0f)]    // Garrick Emberforge, in front of the smithy's lean-to
-    [InlineData(13ul, 53.9f, 15f, 30f, 0f)]    // Hilde Brassbuckle, in front of the armourer's counter
-    [InlineData(14ul, 51.5f, 22.2f, 30f, 0f)]  // Tobin Marrowfield, in front of the general-goods counter
-    [InlineData(11ul, 36.8f, 49.4f, 30f, 30f)] // Marta Ledgerwell, the bank's lower step
-    [InlineData(3ul, 50f, 47.2f, 30f, 30f)]    // Innkeeper, in front of the inn's porch
+    [InlineData(1ul, 16.9f, 22.85f, 0f, 0f)]   // Uriel, in front of the town hall's door
+    [InlineData(2ul, 16.4f, 37.2f, 0f, 30f)]   // Borin Stoutbeard, in front of the hunter's lodge's awning
+    [InlineData(12ul, 51f, 16.6f, 30f, 0f)]    // Garrick Emberforge, in front of the smithy's lean-to
+    [InlineData(13ul, 52.4f, 15f, 30f, 0f)]    // Hilde Brassbuckle, in front of the armourer's counter
+    [InlineData(14ul, 37f, 21f, 30f, 0f)]      // Tobin Marrowfield, in front of the general-goods counter
+    [InlineData(11ul, 38f, 44.6f, 30f, 30f)]   // Marta Ledgerwell, in front of the bank's doors
+    [InlineData(3ul, 50.5f, 42.2f, 30f, 30f)]  // Innkeeper, in front of the inn's awning
     public void Stand_each_npc_where_the_spec_puts_it(ulong template, float x, float z, float squareX, float squareZ)
     {
         MapCreatureSpawn spawn = SpawnOf(SeededSpawns(), template);
@@ -366,11 +366,28 @@ public class TownNpcPlacementShould
     /// <summary>The town's squares, built once: <see cref="SolidAt" /> is asked about every step of every sight line.</summary>
     private static readonly IReadOnlyList<TownSquare> s_squares = TownPieces.Squares();
 
-    /// <summary>Whether a world point lies inside a solid piece or a wall of the town.</summary>
+    /// <summary>A solid decor item's box, square-local (DecorRules.WorldBounds), with what a hit on it reports.</summary>
+    private sealed record DecorBox(string Hit, float MinX, float MaxX, float MinY, float MaxY, float MinZ, float MaxZ);
+
+    /// <summary>
+    /// Each square's solid decor boxes, by the square's index in <see cref="s_squares" />, built once: a balcony, an
+    /// overhang or a chimney can hide an NPC where the proxy does not.
+    /// </summary>
+    private static readonly DecorBox[][] s_decorBoxes =
+    [
+        .. s_squares.Select(square => square.Decor.Where(DecorRules.IsSolid).Select(item =>
+        {
+            (float minX, float maxX, float minY, float maxY, float minZ, float maxZ) = DecorRules.WorldBounds(item);
+            return new DecorBox($"{square.Name} decor {item.Model}", minX, maxX, minY, maxY, minZ, maxZ);
+        }).ToArray()),
+    ];
+
+    /// <summary>Whether a world point lies inside a solid piece, a wall or a solid decor item of the town.</summary>
     private static string? SolidAt(float x, float y, float z)
     {
-        foreach (TownSquare square in s_squares)
+        for (int i = 0; i < s_squares.Count; i++)
         {
+            TownSquare square = s_squares[i];
             float lx = x - square.Origin.X, lz = z - square.Origin.Z;
             if (lx < 0f || lx > TownSquare.CellSize || lz < 0f || lz > TownSquare.CellSize)
                 continue;
@@ -388,6 +405,12 @@ public class TownNpcPlacementShould
                 if (y <= top)
                     return $"{square.Name} {piece.Building}/{piece.Part}";
             }
+
+            foreach (DecorBox box in s_decorBoxes[i])
+            {
+                if (lx >= box.MinX && lx <= box.MaxX && lz >= box.MinZ && lz <= box.MaxZ && y >= box.MinY && y <= box.MaxY)
+                    return box.Hit;
+            }
         }
         return null;
     }
@@ -402,8 +425,9 @@ public class TownNpcPlacementShould
 
     /// <summary>
     /// The camera sees every NPC: from every zoom, and with the player anywhere that keeps the NPC well in frame, the
-    /// line from its head to the camera's eye crosses no piece and no wall. A roof over the NPC, a building between it
-    /// and the camera, or a stall it stands behind each fails here by name and by where the player stood.
+    /// line from its head to the camera's eye crosses no piece, no wall and no solid decor item. A roof over the NPC, a
+    /// building between it and the camera, a balcony, or a stall it stands behind each fails here by name and by where
+    /// the player stood.
     /// </summary>
     [Fact]
     public void Stand_every_npc_where_the_camera_sees_it()

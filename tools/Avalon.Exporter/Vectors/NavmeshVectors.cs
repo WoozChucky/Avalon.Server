@@ -77,19 +77,20 @@ public static class NavmeshVectors
     private static readonly IReadOnlyList<LayoutSpec> s_layouts =
     [
         // The live town: four chunks, unrotated, walled apart along x = 30 and z = 30 with doorways
-        // at 12..18 and 42..48, and since the town beautification built up with solid buildings and
-        // props (tools/Avalon.ChunkGen/TownPieces.cs). The one layout a player has actually stood in.
+        // at 12..18 and 42..48, and since 2026-10-17 built from the medieval village kit: each building
+        // and prop a set of collision proxies the bake cuts around, the art drawn over them by the client
+        // (tools/Avalon.ChunkGen/TownPieces.cs). The one layout a player has actually stood in.
         new("town", 30f,
             [
                 Ray(15f, 15f, 16f, 15f, "open floor, one metre"),
                 Ray(15f, 15f, 25f, 15f, "open floor, the length of a tile and then some"),
-                Ray(45f, 45f, 35f, 35f, "diagonal, north-east quadrant, starting on the well's rim"),
+                Ray(45f, 45f, 35f, 35f, "diagonal, north-east quadrant, starting within the agent radius of the well's north post: no step"),
 
                 // Tile world size is 32 * 0.3 = 9.6, and the grid starts at the geometry's own
                 // minimum, so the seams fall at -0.25 + k * 9.6: 9.35, 18.95, 28.55. Agent values
                 // handed to a tile header in VOXELS rather than world units are observable only
                 // across a seam, so these cross one, two and several of them. They run on the arrival square's
-                // open floor, south of the town hall and west of the fountain, clear of the buildings.
+                // open floor, between the lamp posts west of the arrival point and the town hall, clear of the buildings.
                 Ray(5f, 15f, 15f, 15f, "crosses the x = 9.35 tile seam"),
                 Ray(5f, 15f, 25f, 15f, "crosses the x = 9.35 and 18.95 tile seams"),
                 Ray(5f, 17.95f, 25f, 17.95f, "crosses two seams a metre below the z = 18.95 one"),
@@ -98,47 +99,47 @@ public static class NavmeshVectors
                 // A SHALLOW diagonal, not a 45-degree one. A ray along x = z from an integer start
                 // passes exactly through the point where four tiles meet, and Detour cannot step a
                 // raycast through a vertex: it clamps there, on a knife edge that two Recast
-                // implementations may fall on either side of. This crosses two seams on each axis
-                // without ever coming within a metre of a tile corner, on the portal square's open
-                // ground west of the arch and north of the cart.
-                Ray(3f, 38f, 19f, 52f, "shallow diagonal across the seams on both axes"),
+                // implementations may fall on either side of. This crosses two seams on each axis,
+                // and a chunk seam through the x = 30 doorway at z = 45, without coming within a metre
+                // of a tile corner or within two of any solid, from the north-east square's road to the
+                // portal square's open ground east of the arch.
+                Ray(42f, 37f, 24f, 49f, "shallow diagonal across the seams on both axes, through the x = 30 doorway"),
 
-                // Into walls, from several angles and distances. The navmesh is eroded by the agent
-                // radius before a polygon reaches a wall, so these clamp short of the wall's face.
-                Ray(25f, 3f, 35f, 3f, "head-on into the x = 30 wall"),
-                Ray(20f, 3f, 40f, 3f, "the same line from twice the distance"),
-                Ray(26f, 4f, 36f, -6f, "45 degrees into the corner where the x = 30 and z = 0 walls meet"),
-                Ray(25f, 5f, 25f, 35f, "starts within the agent radius of the bench at (24, 5.25): no step"),
+                // Into walls, from several angles and distances, each from open ground. The navmesh is
+                // eroded by the agent radius before a polygon reaches a wall, so these clamp short of the
+                // wall's face.
+                Ray(35f, 5f, 25f, 5f, "head-on into the x = 30 wall, west across the market's open ground"),
+                Ray(40f, 5f, 20f, 5f, "the same line from twice the distance"),
+                Ray(34f, 4.5f, 24f, -5.5f, "45 degrees toward the corner where the x = 30 and z = 0 walls meet, half a metre north of it"),
+                Ray(15f, 3f, 15f, 12f, "starts within the agent radius of the bench south of the fountain: no step"),
                 Ray(28.9f, 25f, 35f, 25f, "flush against the x = 30 wall, pointing into it"),
                 Ray(25f, 28.9f, 25f, 5f, "flush against the z = 30 wall, south until the town hall"),
 
                 // The doorways: 12..18 and 42..48 are open, so these cross a chunk seam and arrive.
                 Ray(15f, 25f, 15f, 35f, "through the z = 30 doorway at x = 15"),
                 Ray(25f, 45f, 35f, 45f, "through the x = 30 doorway at z = 45"),
-                Ray(15f, 25f, 45f, 25f, "at the doorways' centre line, east, stopped at the edge of the town hall's porch step"),
+                Ray(15f, 25f, 45f, 25f, "at the doorways' centre line, east, stopped short of the town hall's west wall"),
 
                 Ray(9000f, 9000f, 9001f, 9000f, "starts off the mesh entirely", y: 0f),
                 Ray(-5f, 15f, 15f, 15f, "starts outside the town's west edge", y: 0f),
 
-                // The buildings and props of the town beautification: a solid facade, a porch deck
-                // reached over its step, the gate arch's opening, and a prop too tall to climb.
-                Ray(15f, 23f, 25f, 23f, "east onto the town hall's porch, stopping short of its body"),
+                // The kit-built town's buildings and props: a lean-to a unit walks under, the gate arch's
+                // opening, a fence section too tall to climb, a curb a walk crosses, a counter.
+                Ray(15f, 37f, 21f, 37f, "east under the hunter's lodge's awning, stopping short of its west wall"),
                 Ray(15f, 35f, 15f, 45f, "north under the gate arch to the portal"),
-                Ray(50f, 45f, 50f, 50f, "north onto the inn's porch step and deck"),
-                Ray(15f, 3f, 15f, 12f, "starts within the agent radius of the bench south of the fountain: no step"),
-                Ray(45f, 20f, 58f, 15f, "east across the market toward the armourer's stall"),
+                Ray(46f, 36f, 52f, 36f, "east into house B's yard fence: a fence section stops a walk"),
+                Ray(8f, 17f, 16f, 17f, "east over the curb onto the arrival road: nothing stops the walk"),
+                Ray(45f, 15f, 58f, 15f, "east across the market into the armourer's counter"),
             ],
             [
                 Ground(15f, 15f, "open floor, south-west quadrant"),
-                Ground(45f, 45f, "on the well's rim: no polygon under the point, only beside it, so the height asked is given back"),
-                // The decks sit under porch roofs whose tops are walkable islands; sampled from a metre
-                // up, as a player standing on them is, so the deck is the nearest polygon.
-                Ground(50f, 50f, "on the inn's porch deck", y: 1f),
-                Ground(36.8f, 49.4f, "on the bank's lower step"),
-                Ground(19f, 23f, "on the town hall's porch deck", y: 1f),
-                // Sampled from above the eaves: the building's floor inside is an island too, and from lower
-                // down it is the nearer polygon.
-                Ground(21.5f, 20f, "inside the town hall: the island on its roof", y: 7f),
+                Ground(45f, 43.5f, "on the well's rim: no polygon under the point, only beside it, so the height asked is given back"),
+                Ground(11.65f, 17f, "on a curb beside the arrival road: the floor's height"),
+                // Sampled from a metre up, as a player standing there is, under a lintel and a lean-to.
+                Ground(15f, 42f, "under the gate arch's lintel, sampled from a metre up: the floor", y: 1f),
+                Ground(17.3f, 37f, "under the hunter's lodge's awning, sampled from a metre up: the floor", y: 1f),
+                // Sampled from above it: the gate arch's flat top is an island nothing reaches.
+                Ground(15f, 42f, "on top of the gate arch: the island on its flat top", y: 7f),
                 Ground(9.35f, 9.35f, "on the tile corner at 9.35, open floor"),
                 Ground(28f, 8f, "two metres from the x = 30 wall"),
                 Ground(15f, 30f, "in the z = 30 doorway"),
@@ -491,14 +492,14 @@ public static class NavmeshVectors
         # HEIGHT COVERAGE IS BOUNDED BY THE CHUNK LIBRARY, and that is a real gap rather than an
         # oversight. Every chunk floor the server ships is a flat slab: a town floor's top face is at
         # local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical. The town squares
-        # carry buildings and props besides (solids the bake cuts around; every prop's top is over
-        # 1 m, above the 0.9 m climb, so each stops a walk) and walkable risers of 0.1-0.3 m
-        # (porch decks, the bank's steps), which quantise into the same 0.2 m voxel as the floor
-        # beside them. The 'forest-floors' layout puts the two floor heights beside each other -- the
+        # carry buildings and props besides (solids the bake cuts around; every solid's top is at
+        # least 1.05 m, above the 0.9 m climb, so each stops a walk) and, since the kit rebuild, no
+        # walkable riser at all: the stone curbs along its roads are drawn by the client and never
+        # baked. The 'forest-floors' layout puts the two floor heights beside each other -- the
         # largest vertical variation two floors can produce -- and its ground rows all come back at
         # one height, because 5 cm is a quarter of the bake's 0.2 cell height and both floors quantise
         # to the same voxel. So these vectors pin SampleGroundHeight at a single height on open
-        # ground, and the town's deck and step rows at whatever voxel the bake gives a riser.
+        # ground (the curb row included), and at one flat top: the gate arch's.
         # Building interiors and roof tops bake as navmesh islands that nothing reaches (the
         # forest's blocker tops do too); a ground query over one answers the island's height.
         #
@@ -513,12 +514,15 @@ public static class NavmeshVectors
         # composed from this chunk library has one. It is not a thinner query set that would catch
         # it: it is uncatchable from a layout, until the library gains real relief.
         #
-        # A RAY CAN CLAMP ON A TILE CORNER RATHER THAN ON THE GEOMETRY, and one row here does. Tiles
-        # are 32 * 0.3 = 9.6 wide from the geometry's own minimum, so the town's seams fall at 9.35,
-        # 18.95 and 28.55, and a ray along x = z from an integer start runs straight at the point
-        # where four of them meet. The town's "45 degrees" row stops at 28.55 and not at the wall's
-        # eroded face at 28.85, which the head-on row above it gives. That row is KEPT: the barrier
-        # is a polygon edge on the seam and it survives perturbing the ray's direction.
+        # A RAY CAN CLAMP ON A TILE CORNER RATHER THAN ON THE GEOMETRY. Tiles are 32 * 0.3 = 9.6
+        # wide from the geometry's own minimum, so the town's seams fall at 9.35, 18.95, 28.55, 38.15
+        # and 47.75, and a ray along x = z from an integer start runs straight at the point where
+        # four of them meet. Until the kit rebuild one row here did: the "45 degrees" row into the
+        # corner of the x = 30 and z = 0 walls, run from the arrival square, stopped at 28.55 and
+        # not at the wall's eroded face at 28.85, a polygon edge on the seam that survived perturbing
+        # the ray's direction. A house now stands where it started, so it runs from the market's
+        # open ground instead, on the far side of that wall, and stops at the eroded face at 30.95
+        # as the head-on rows do: no row here clamps on a seam.
         #
         # What is excluded is the case that does NOT survive. Thirty-five rays along x = z through
         # that corner were run, over five start points and seven endpoints; from the start (2, 2),
@@ -539,12 +543,13 @@ public static class NavmeshVectors
         # Recast implementations can legitimately fall either side of one.
         #
         # So none of the sweep's rays is vendored: no row in this file runs through that corner. The
-        # three rows that do lie on x = z all start past it -- at 25 and 45 on the town, and at 15
-        # on a layout whose own grid starts elsewhere -- and the straight seam crossings are all
+        # two rows that do lie on x = z keep off every corner -- the town's starts at 45 within the
+        # agent radius of the well and never moves, and the other starts at 15 on a layout whose own
+        # grid starts elsewhere -- and the straight seam crossings and the shallow diagonal are all
         # off-corner for the same reason.
         #
         # Clamps at 28.55 in that sweep are NOT this: that is the second corner, where the town's
-        # two walls also meet, and it is the row this file keeps because it survives perturbation.
+        # two walls also meet, the seam clamp the old "45 degrees" row showed.
         #
         # THE SWEEP IS NOT COMMITTED and was run out of band. To redo it, add rays along x = z to
         # the town layout's list in NavmeshVectors.cs and export to a scratch --out; nothing else
