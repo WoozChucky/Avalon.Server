@@ -38,6 +38,43 @@ public interface IAbilityArena
     /// <summary>The instance's living units by shape.</summary>
     IHitQuery Hits { get; }
 
+    /// <summary>
+    /// How many world ticks <see cref="Hits" /> is rewound (#1082): 0, the present, except while the cast system fires a
+    /// player's instant cast, when it is that cast's <see cref="CastView.HitRewindTicks" />. The cast system saves the
+    /// value it finds and puts it back after, so a cast fired inside another's hit keeps the outer one's once it returns.
+    /// </summary>
+    int HitRewindTicks { get; set; }
+
+    /// <summary>
+    /// The one unit <see cref="Hits" /> tests at its present position under a rewind (#1082): the caster of the cast being
+    /// fired, whose own inputs reach the server in order before its cast, so where it stands now is where it stood on its
+    /// own screen (a self-including Ally circle must not test it where it was ticks ago). Set and put back with
+    /// <see cref="HitRewindTicks" />, as a pair.
+    /// </summary>
+    IUnit? HitRewindExempt { get; set; }
+
+    /// <summary>
+    /// The footprint of the telegraphed cast being fired (#1082): set by the cast system only around a queued hostile
+    /// circle's or cone's <c>Prepare</c>, null otherwise, and put back after as the rewind is. While set, a player it hits
+    /// is judged by that player's screen (<see cref="TryDeferHit" />).
+    /// </summary>
+    /// <remarks>
+    /// It is the footprint the cast system resolves from the ability's row, its aim and its origin
+    /// (<see cref="AbilityFootprint" />), not the area the script hits: the two are the same only because the shipped
+    /// circle and cone scripts fire with that same footprint. A script that hit elsewhere through
+    /// <see cref="AbilityEffect.ApplyToAll" /> would have each player it holds judged against this footprint when the hit
+    /// falls due, and one outside it would be a silent dodge.
+    /// </remarks>
+    AbilityFootprint? DodgeFootprint { get; set; }
+
+    /// <summary>
+    /// Holds <paramref name="ability" />'s hit on <paramref name="target" /> for the dodge wait (#1082), answering whether it
+    /// did. True only while <see cref="DodgeFootprint" /> is set, for a character target with a one-way delay of at least a
+    /// tick (at most <see cref="LagCompensation.MaxDodgeWaitTicks" />): the hit is then applied once the delay has passed,
+    /// if the target is still alive and inside the footprint. False, to be applied now, for any other.
+    /// </summary>
+    bool TryDeferHit(IUnit caster, IAbility ability, IUnit target);
+
     IMapNavigator GetNavigatorForPosition(Vector3 position);
 
     /// <summary>

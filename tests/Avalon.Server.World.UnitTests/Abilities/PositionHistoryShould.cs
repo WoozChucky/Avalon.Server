@@ -1,0 +1,223 @@
+using System.Reflection;
+using Avalon.Common;
+using Avalon.Common.Mathematics;
+using Avalon.Hosting.Networking;
+using Avalon.Server.World.UnitTests.Instances;
+using Avalon.World.Abilities.Targeting;
+using Avalon.World.Entities;
+using Avalon.World.Instances;
+using Avalon.World.Public.Maps;
+using Avalon.World.Public.Units;
+using NSubstitute;
+using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
+
+namespace Avalon.Server.World.UnitTests.Abilities;
+
+/// <summary>
+/// A unit's recent positions by world tick (#1082): a rewound query finds where the unit stood at the tick a client saw,
+/// and never a position from before a jump.
+/// </summary>
+public class PositionHistoryShould
+{
+    public enum Story
+    {
+        /// <summary>Seeded at tick 100 at x 1, moved to x 2 at tick 110.</summary>
+        SeededThenMoved,
+
+        /// <summary>At x = tick on every tick from 100 to 130.</summary>
+        MovedEveryTick,
+
+        /// <summary>Seeded at tick 100 at x 1, the same position recorded every tick to 130, then x 2 at 131.</summary>
+        StoodStillThenMoved,
+
+        /// <summary>At x 1 and then x 2, both recorded on tick 100.</summary>
+        TwiceInOneTick,
+
+        /// <summary>Seeded at tick 100 at x 1, x 2 at tick 110, then a jump, then x 3 at tick 120.</summary>
+        Jumped,
+    }
+
+    [Theory]
+    [InlineData(Story.SeededThenMoved, 105L, 1f)]
+    [InlineData(Story.SeededThenMoved, 110L, 2f)]
+    [InlineData(Story.SeededThenMoved, 99L, null)]
+    [InlineData(Story.MovedEveryTick, 130L - 15L, 115f)]          // the rewind cap, inside the 18 entries
+    [InlineData(Story.StoodStillThenMoved, 105L, 1f)]             // a still unit keeps its seed past 18 ticks
+    [InlineData(Story.TwiceInOneTick, 100L, 2f)]                  // the last position of the tick
+    [InlineData(Story.Jumped, 110L, null)]                        // nothing from before the jump survives
+    [InlineData(Story.Jumped, 120L, 3f)]
+    public void Answer_the_newest_position_at_or_before_a_tick(Story story, long tick, float? expectedX)
+    {
+        var history = new PositionHistory();
+        switch (story)
+        {
+            case Story.SeededThenMoved:
+                history.Record(100, At(1f));
+                history.Record(110, At(2f));
+                break;
+            case Story.MovedEveryTick:
+                for (long t = 100; t <= 130; t++)
+                    history.Record(t, At(t));
+                break;
+            case Story.StoodStillThenMoved:
+                for (long t = 100; t <= 130; t++)
+                    history.Record(t, At(1f));
+                history.Record(131, At(2f));
+                break;
+            case Story.TwiceInOneTick:
+                history.Record(100, At(1f));
+                history.Record(100, At(2f));
+                break;
+            case Story.Jumped:
+                history.Record(100, At(1f));
+                history.Record(110, At(2f));
+                history.Invalidate();
+                history.Record(120, At(3f));
+                break;
+        }
+
+        bool found = history.TryGet(tick, out Vector3 position);
+
+        Assert.Equal(expectedX is not null, found);
+        if (expectedX is { } x)
+            Assert.Equal(At(x), position);
+    }
+
+    /// <summary>
+    /// A creature teleported mid-walk (a leash return) has no position from before the teleport: a query rewound to a
+    /// tick before it finds nothing, so it uses the creature's present position, never one it was teleported off.
+    /// </summary>
+    [Fact]
+    public void Forget_a_creatures_walk_once_it_is_teleported()
+    {
+        var ticks = new WorldTicks(1_000);
+        IMapNavigator navigator = Substitute.For<IMapNavigator>();
+        navigator.FindPath(default, default).ReturnsForAnyArgs(ci => new List<Vector3> { ci.ArgAt<Vector3>(1) });
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), navigator: navigator, worldTicks: ticks);
+        Join(instance, 916_101);   // an instance with no one in it does not tick
+        var boar = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 916_901),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = new Vector3(0f, 0f, 3f),
+            Speed = 6f,
+            Level = 1,
+            Health = 100,
+            CurrentHealth = 100,
+        };
+        instance.AddCreature(boar);
+        instance.Locomotion.MoveTo(boar, new Vector3(20f, 0f, 3f));
+        for (int i = 0; i < 5; i++)
+            Tick(instance, ticks);
+        PositionHistory history = Assert.IsType<PositionHistory>(boar.History);
+        Assert.True(history.TryGet(1_003, out Vector3 walking));
+        Assert.NotEqual(new Vector3(0f, 0f, 3f), walking);   // it was walking
+
+        var home = new Vector3(-10f, 0f, 3f);
+        instance.Locomotion.Teleport(boar, home);
+        Tick(instance, ticks);   // tick 1005
+
+        Assert.False(history.TryGet(1_004, out _));
+        Assert.True(history.TryGet(1_005, out Vector3 now));
+        Assert.Equal(home, now);
+    }
+
+    /// <summary>
+    /// The instance records a unit only on a tick it moved (#1082), so a unit's history is seeded by the first Step 4b
+    /// after it joins: one that stood still since joining, for longer than the ring holds, then moved is found where it
+    /// joined by a query rewound to before the move, never at the position it moved to.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Find_a_unit_where_it_joined_until_its_first_move(bool creature)
+    {
+        var ticks = new WorldTicks(1_000);
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), worldTicks: ticks);
+        var joined = new Vector3(4f, 0f, 4f);
+        CharacterEntity character = Inventory.TestCharacters.New(916_111);
+        character.Position = creature ? Vector3.zero : joined;
+        Join(instance, character);
+        var boar = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 916_911),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = joined,
+            Level = 1,
+            Health = 100,
+            CurrentHealth = 100,
+        };
+        if (creature)
+            instance.AddCreature(boar);
+        IUnit unit = creature ? boar : character;
+
+        for (int i = 0; i < 2 * PositionHistory.Capacity; i++)
+            Tick(instance, ticks);
+        unit.Position = new Vector3(9f, 0f, 4f);
+        Tick(instance, ticks);   // tick 1036, the first it moved on
+
+        PositionHistory history = Assert.IsType<PositionHistory>(creature ? boar.History : character.History);
+        Assert.True(history.TryGet(1_035, out Vector3 before));
+        Assert.Equal(joined, before);
+        Assert.True(history.TryGet(1_036, out Vector3 after));
+        Assert.Equal(new Vector3(9f, 0f, 4f), after);
+    }
+
+    /// <summary>
+    /// A map arrival adds the character to its new instance while it still has the coordinates of the map it left, and
+    /// only then writes its spawn (#1082). Arriving in an instance that has already ticked this world tick, a query
+    /// rewound to that tick never tests it at the coordinates of the other map, and the jump from there to the spawn is
+    /// not a step any unit of the instance may have moved: its rewound hit queries are not widened by it.
+    /// </summary>
+    [Fact]
+    public void Never_rewind_an_arrival_to_the_map_it_left()
+    {
+        var ticks = new WorldTicks(1_000);
+        using MapInstance from = TestMapInstances.Build(NewWorld(), worldTicks: ticks);
+        using MapInstance to = TestMapInstances.Build(NewWorld(), worldTicks: ticks);
+        var departure = new Vector3(300f, 0f, 300f);
+        var spawn = new Vector3(2f, 0f, 2f);
+        CharacterEntity traveller = Inventory.TestCharacters.New(916_121);
+        traveller.Position = departure;
+        MapInstanceClient client = Join(from, traveller);
+        Join(to, 916_122);   // still, at the origin: the destination ticks
+        for (int i = 0; i < 5; i++)
+        {
+            from.Update(TimeSpan.FromSeconds(1d / 60d));
+            Tick(to, ticks);
+        }
+
+        // Tick 1005: the destination has ticked; then the arrival, as the arrival sites make it: the add, then the spawn.
+        to.Update(TimeSpan.FromSeconds(1d / 60d));
+        from.RemoveCharacter(client.Connection);
+        traveller.InstanceId = to.InstanceId;
+        to.AddCharacter(client.Connection);
+        traveller.Position = spawn;
+        ticks.Advance();
+        to.Update(TimeSpan.FromSeconds(1d / 60d));   // tick 1006
+
+        Assert.Equal(0f, RewindDrift(to, 1_000, 1_006));
+        PositionHistory history = Assert.IsType<PositionHistory>(traveller.History);
+        Assert.False(history.TryGet(1_005, out Vector3 rewound) && rewound.Equals(departure),
+            $"rewound to tick 1005 at {rewound}");
+    }
+
+    /// <summary>
+    /// <paramref name="instance" />'s spatial grid's bound on how far a unit may stand from its rewound position, over the
+    /// ticks after <paramref name="tick" /> up to <paramref name="now" /> (<c>SpatialGrid.RewindDrift</c>, internal).
+    /// </summary>
+    private static float RewindDrift(MapInstance instance, long tick, long now)
+    {
+        object grid = typeof(MapInstance).GetField("_members", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(instance)!;
+        return (float)grid.GetType().GetMethod("RewindDrift")!.Invoke(grid, [tick, now])!;
+    }
+
+    private static void Tick(MapInstance instance, WorldTicks ticks)
+    {
+        instance.Update(TimeSpan.FromSeconds(1d / 60d));
+        ticks.Advance();
+    }
+
+    private static Vector3 At(float x) => new(x, 0f, 0f);
+}

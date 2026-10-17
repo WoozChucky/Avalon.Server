@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
@@ -36,7 +37,7 @@ public class MapInstanceItemUseShould
     [Fact]
     public void Send_the_start_and_finish_naming_the_item_and_complete_on_its_tick()
     {
-        using MapInstance instance = TestMapInstances.Build(NewWorld());
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), worldTicks: new WorldTicks(500));
         MapInstanceClient client = Join(instance, 7);
         var ends = new List<string>();
         uint castId = instance.ItemUses.TakeCastId();
@@ -55,7 +56,8 @@ public class MapInstanceItemUseShould
         instance.Update(TimeSpan.FromSeconds(3.1));
 
         SUnitStartCastPacket start = Assert.Single(client.Read<SUnitStartCastPacket>(NetworkPacketType.SMSG_UNIT_START_CAST));
-        Assert.Equal((3ul, 0u, castId, 3f), (start.ItemTemplateId, start.AbilityId, start.CastId, start.CastTime));
+        Assert.Equal((3ul, 0u, castId, 3f, 500L),
+            (start.ItemTemplateId, start.AbilityId, start.CastId, start.CastTime, start.WorldTick));
         SUnitFinishCastPacket finish = Assert.Single(client.Read<SUnitFinishCastPacket>(NetworkPacketType.SMSG_UNIT_FINISH_CAST));
         Assert.Equal((3ul, castId), (finish.ItemTemplateId, finish.CastId));
         Assert.Equal(["completed"], ends);

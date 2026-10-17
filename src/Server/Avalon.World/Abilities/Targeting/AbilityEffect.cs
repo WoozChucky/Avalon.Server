@@ -41,7 +41,11 @@ public static class AbilityEffect
         arena.ApplyAbilityAura(caster, unit, ability);
     }
 
-    /// <summary>Applies to each qualifying candidate once, in the order given. Returns how many it affected.</summary>
+    /// <summary>
+    /// Applies to each qualifying candidate once, in the order given, except one the arena holds for the dodge wait
+    /// (<see cref="IAbilityArena.TryDeferHit" />, #1082), which is applied, or dodged, later. Returns how many it affected,
+    /// those held included.
+    /// </summary>
     public static int ApplyToAll(IAbilityArena arena, IUnit caster, IAbility ability, IReadOnlyList<IUnit> candidates)
     {
         int affected = 0;
@@ -53,8 +57,11 @@ public static class AbilityEffect
             if (!Qualifies(arena, caster, ability, unit))
                 continue;
 
-            Apply(arena, caster, ability, unit);
             affected++;
+            if (arena.TryDeferHit(caster, ability, unit))
+                continue;
+
+            Apply(arena, caster, ability, unit);
         }
 
         return affected;

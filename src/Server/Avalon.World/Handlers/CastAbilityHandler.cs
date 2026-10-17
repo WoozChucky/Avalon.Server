@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.World;
+using Avalon.World.Abilities;
 using Avalon.World.Entities;
 using Avalon.World.Items;
 using Avalon.World.Public;
@@ -146,9 +147,13 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             return;
         }
 
+        // #1082: an instant cast is judged by the caster's screen, at the tick the client says it was drawing; a queued
+        // cast never is (its wind-up is the dodge window).
         bool accepted = meta.CastTime > 0
             ? context.QueueAbility(caster, aim, ability)
-            : context.RunInstantAbility(caster, aim, ability);
+            : context is IPlayerCastHost players
+                ? players.RunInstantAbility(caster, aim, ability, packet.ViewTick)
+                : context.RunInstantAbility(caster, aim, ability);
 
         if (!accepted)
         {

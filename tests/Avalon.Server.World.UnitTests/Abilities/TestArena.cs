@@ -35,6 +35,12 @@ internal sealed class TestArena : IAbilityArena
 
     public MapType MapType { get; }
     public IHitQuery Hits { get; }
+    public int HitRewindTicks { get; set; }
+    public IUnit? HitRewindExempt { get; set; }
+    public AbilityFootprint? DodgeFootprint { get; set; }
+
+    /// <summary>Never holds a hit: every hit lands as it is made.</summary>
+    public bool TryDeferHit(IUnit caster, IAbility ability, IUnit target) => false;
     public ICombatService CombatService { get; } = Substitute.For<ICombatService>();
     public IMapNavigator Navigator { get; } = Substitute.For<IMapNavigator>();
     public List<(Vector3 Origin, Vector3? Direction, Vector3? Centre)> Fired { get; } = [];

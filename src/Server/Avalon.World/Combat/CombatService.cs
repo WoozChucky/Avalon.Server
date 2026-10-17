@@ -678,6 +678,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // (mirrors the ordering inside CharacterEntity.Revive()).
         character.IsDead = false;
         character.CurrentHealth = reviveHp;
+
+        // Revived where it is put, a jump from where it died: a query rewound to before it finds no position (#1082).
+        (character as CharacterEntity)?.Jump();
         character.Position = position;
 
         _context?.BroadcastUnitRevive(character, position, reviveHp);

@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
@@ -42,6 +43,13 @@ namespace Avalon.World.Testing.Scenarios;
 /// what it fights, or it would chase it for ever), a Cursor ability aimed at the creature's position, a Movement
 /// ability along the facing, turned to the creature by the input's yaw. A cast is handled in the same map update as
 /// the tick's input, so inside the input's dispatch (<see cref="ScenarioConnection.UpdateMap" />), not one of its own.
+/// </para>
+/// <para>
+/// <b>Lag compensation.</b> Every cast names the tick the fighter was drawing, <see cref="ViewLagTicks" /> behind the
+/// world's (<c>CCastAbilityPacket.ViewTick</c>), and its connection reports a 60 ms round trip
+/// (<see cref="ScenarioConnection.ScenarioRoundTrip" />), as a real client's would (#1082): its instant hits are judged
+/// against where the creatures stood that many ticks ago, its projectiles' sweeps a one-way delay less, and the
+/// creatures' telegraphed hits on it wait its one-way delay for it to step out, so the allocation gate measures both.
 /// </para>
 /// <para>
 /// <b>Healing.</b> A healer first looks after its party (<see cref="Enter" />): when Mending Circle
@@ -95,6 +103,14 @@ public sealed class LoopFighter
     /// <summary>... or this share of a short reach.</summary>
     private const float ReachMarginShare = 0.2f;
 
+    /// <summary>
+    /// How far behind the world's tick a fighter says it was drawing when it casts (<c>CCastAbilityPacket.ViewTick</c>,
+    /// #1082): 10 ticks, about 167 ms. A real client's cast reaches the server its render delay plus a whole round trip
+    /// after the tick it names (one way for the state to reach it, one way for the cast to come back): 120 ms plus the
+    /// scenario's 60 ms, about 11 ticks. A tick short of that changes nothing the scenario measures (docs/benchmarks.md).
+    /// </summary>
+    public const int ViewLagTicks = 10;
+
     /// <summary>A healer's heal: Mending Circle, an ally circle at the aim point (4 m, 15 m reach, 8 s, 25 mana).</summary>
     public const uint HealAbility = 232u;
 
@@ -128,6 +144,7 @@ public sealed class LoopFighter
     private readonly PlayerInputHandler _input;
     private readonly CastAbilityHandler _cast;
     private readonly TimeProvider _clock;
+    private readonly WorldTicks _ticks;
     private readonly double _gcdMs;
     private readonly Random _rng;
     private readonly IAbility _ability;
@@ -174,7 +191,7 @@ public sealed class LoopFighter
     {
         ArgumentNullException.ThrowIfNull(handlers);
         ArgumentNullException.ThrowIfNull(character);
-        (_input, _cast, _clock, _gcdMs) = (handlers.Input, handlers.Cast, handlers.Clock, handlers.GcdMs);
+        (_input, _cast, _clock, _ticks, _gcdMs) = (handlers.Input, handlers.Cast, handlers.Clock, handlers.Ticks, handlers.GcdMs);
         (_abandon, _quests) = (handlers.QuestAbandon, handlers.Quests);
         (_pickup, _destroy) = (handlers.LootPickup, handlers.ItemDestroy);
         _rng = new Random(seed);
@@ -242,7 +259,7 @@ public sealed class LoopFighter
             new QuestAbandonHandler(quests, NullLogger<QuestAbandonHandler>.Instance),
             new LootPickupHandler(NullLogger<LootPickupHandler>.Instance, world.Host, economy, world.Clock, quests),
             new ItemDestroyHandler(NullLogger<ItemDestroyHandler>.Instance, world.Host, economy),
-            quests, world.Clock, combat.GcdMs);
+            quests, world.Clock, world.Scheduler.Ticks, combat.GcdMs);
     }
 
     /// <summary>The class's basic ability: no cost, a 0.8 s cooldown.</summary>
@@ -317,6 +334,7 @@ public sealed class LoopFighter
             _aimPoint.X = at.x;
             _aimPoint.Y = at.y;
             _aimPoint.Z = at.z;
+            _castPacket.ViewTick = ViewTick();
             DateTime before = character.LastCastStartTime;
             _cast.Execute(connection, _castPacket);
             if (character.LastCastStartTime != before)
@@ -547,9 +565,10 @@ public sealed class LoopFighter
         _healPoint.X = at.x;
         _healPoint.Y = at.y;
         _healPoint.Z = at.z;
+        _healPacket!.ViewTick = ViewTick();
         DateTime before = character.LastCastStartTime;
         uint health = hurt.CurrentHealth;
-        _cast.Execute(connection, _healPacket!);
+        _cast.Execute(connection, _healPacket);
         if (character.LastCastStartTime == before)
             return false;
 
@@ -602,6 +621,12 @@ public sealed class LoopFighter
         ability.CooldownTimer <= 0
         && (_clock.GetUtcNow().UtcDateTime - character.LastCastStartTime).TotalMilliseconds >= _gcdMs;
 
+    /// <summary>
+    /// The tick a cast sent now says the fighter was drawing (#1082): <see cref="ViewLagTicks" /> behind the world's tick,
+    /// read as the cast is sent, as a client reads its render clock.
+    /// </summary>
+    private long ViewTick() => _ticks.Completed - ViewLagTicks;
+
     /// <summary>The yaw, 0 to 360 degrees, that faces along (<paramref name="dx" />, <paramref name="dz" />).</summary>
     private static float Yaw(float dx, float dz)
     {
@@ -610,10 +635,10 @@ public sealed class LoopFighter
     }
 }
 
-/// <summary>The packet handlers, services and clock every <see cref="LoopFighter" /> of a world shares.</summary>
+/// <summary>The packet handlers, services, clock and tick count every <see cref="LoopFighter" /> of a world shares.</summary>
 public sealed record FighterHandlers(PlayerInputHandler Input, CastAbilityHandler Cast, QuestAbandonHandler QuestAbandon,
     LootPickupHandler LootPickup, ItemDestroyHandler ItemDestroy,
-    QuestService Quests, TimeProvider Clock, double GcdMs);
+    QuestService Quests, TimeProvider Clock, WorldTicks Ticks, double GcdMs);
 
 /// <summary>
 /// A forest as its fighters see it: the instance, its entry, and its creatures as the forest was built with them, which

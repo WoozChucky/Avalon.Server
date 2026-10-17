@@ -53,7 +53,7 @@ using Microsoft.Extensions.Options;
 namespace Avalon.World.Instances;
 
 public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, ICombatOutcomes,
-    IItemUseHost, IItemCastAudience, IAuraHost, IDisposable
+    IItemUseHost, IItemCastAudience, IAuraHost, IPlayerCastHost, IDisposable
 {
     private InstanceTickProfile _tickProfile;
 
@@ -84,6 +84,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly InterestRange _interest;
     private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
+    private readonly PendingHits _pendingHits;
     private readonly ItemUseCasts _itemUses;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
@@ -150,10 +151,22 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private bool _shareStateEntries;
 
     /// <summary>
-    /// The world's tick count (#1066), from the container: every add and update names the tick that built it. Null in an
-    /// instance built without one (tests), whose packets carry tick 0.
+    /// The world's tick count (#1066), from the container: every add and update names the tick that built it, and every
+    /// cast start the tick it was taken on (#1082). Null in an instance built without one (tests), whose packets carry
+    /// tick 0.
     /// </summary>
     private readonly WorldTicks? _worldTicks;
+
+    /// <summary>
+    /// The members' position histories (#1082) not in use: one is rented as a unit joins and returned as it leaves, so a
+    /// ring is allocated once per pooled history and a unit coming and going allocates nothing once the pool has grown to
+    /// the most members this instance has held. Tick thread only, as membership is.
+    /// </summary>
+    private readonly Stack<PositionHistory> _histories = new();
+
+    // The histories this instance has made. The pool's room is grown to it as each is made, so a return (a corpse
+    // removed on the tick) never grows the stack.
+    private int _historiesMade;
 
     // The tick this tick's adds and updates carry, read once as the broadcast begins.
     private long _stateTick;
@@ -318,14 +331,17 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _auraUpdates = new SharedAuraUpdates(_auraWire, _replicationEncoder);
 
         // Shape scripts ask this for the living units their shape overlaps (#164), found in the cells of the grid around
-        // the shape (#982).
-        _hits = new UnitHitQuery(_characters, _creatures, _members);
+        // the shape (#982), rewound against the world's tick count for a player's instant cast (#1082).
+        _hits = new UnitHitQuery(_characters, _creatures, _members, _worldTicks);
 
         // The cast system gets `this` as the IAbilityArena every ability script is built with
         // (#164): scripts route damage through CombatService.ApplyDamage. CombatService must be
         // assigned BEFORE this so any first-tick cast resolves through a non-null service.
-        _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
+        var castSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>(), this);
+        _abilityCastSystem = castSystem;
+        // The dodge wait's hits (#1082): added here as a telegraph fires, resolved and dropped by the cast system.
+        _pendingHits = castSystem.PendingHits;
 
         // Item cast bars, numbered with the cast system's own ids.
         _itemUses = new ItemUseCasts(this, _abilityCastSystem.TakeCastId, loggerFactory.CreateLogger<ItemUseCasts>());
@@ -612,8 +628,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         ICharacter joining = connection.Character!;
         if (_characters.TryGetValue(joining.Guid, out ICharacter? replaced) && !ReferenceEquals(replaced, joining))
+        {
             _members.Remove(replaced);
+            if (replaced is CharacterEntity replacedEntity)
+                replacedEntity.History = ReturnHistory(replacedEntity.History);
+        }
         _characters[joining.Guid] = joining;
+        if (joining is CharacterEntity joiningEntity)
+            joiningEntity.History = RentHistory(joiningEntity.History);
         _members.Add(joining, SpatialKind.Character);
         _auras.Roster.Join(joining);
         _connections[joining.Guid] = connection;
@@ -689,7 +711,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
         // hook that threw ahead of them used to leave a despawned character live in the instance.
         if (_characters.Remove(guid, out ICharacter? removed))
+        {
             _members.Remove(removed);
+            if (removed is CharacterEntity removedEntity)
+                removedEntity.History = ReturnHistory(removedEntity.History);
+        }
         _auras.Roster.Leave(character);
         _connections.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
@@ -746,8 +772,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public void AddCreature(ICreature creature)
     {
         if (_creatures.TryGetValue(creature.Guid, out ICreature? replaced) && !ReferenceEquals(replaced, creature))
+        {
             _members.Remove(replaced);
+            if (replaced is Creature replacedCreature)
+                replacedCreature.History = ReturnHistory(replacedCreature.History);
+        }
         _creatures[creature.Guid] = creature;
+        if (creature is Creature joining)
+            joining.History = RentHistory(joining.History);
         _members.Add(creature, SpatialKind.Creature);
         if (_scheduleCreatures)
             _scheduler.Joined(creature);
@@ -801,7 +833,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public void RemoveCreature(ICreature creature)
     {
         if (_creatures.Remove(creature.Guid, out ICreature? removed))
+        {
             _members.Remove(removed);
+            if (removed is Creature removedCreature)
+                removedCreature.History = ReturnHistory(removedCreature.History);
+        }
         _scheduler.Left(creature);
         _auras.Roster.Leave(creature);
 
@@ -840,6 +876,76 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public bool RunInstantAbility(IUnit caster, AbilityAim aim, IAbility ability) =>
         _abilityCastSystem.RunInstant(caster, aim, ability);
+
+    /// <summary>
+    /// A player's instant cast, judged by that player's screen (#1082): its hits are rewound from this tick to the one the
+    /// client named, within the cap, and a projectile's sweep by that less the caster's one-way delay, never below 0. The
+    /// round trip is read only when there is a rewind to shorten. No world tick count (tests), no rewind.
+    /// </summary>
+    bool IPlayerCastHost.RunInstantAbility(ICharacter caster, AbilityAim aim, IAbility ability, long viewTick)
+    {
+        CastView view = default;
+        if (_worldTicks is not null)
+        {
+            int rewind = LagCompensation.RewindTicks(viewTick, _worldTicks.Completed);
+            if (rewind > 0)
+            {
+                int oneWay = LagCompensation.OneWayTicks(RoundTripOf(caster.Guid));
+                view = new CastView(rewind, Math.Max(0, rewind - oneWay));
+            }
+        }
+
+        return _abilityCastSystem.RunInstant(caster, aim, ability, view: view);
+    }
+
+    /// <summary>
+    /// The last round trip of <paramref name="guid" />'s connection, in UTC ticks (<c>IWorldConnection.RoundTripTime</c>),
+    /// for lag compensation (#1082); 0 for a unit with no connection here, or a round trip not above 0 (none measured
+    /// yet). Advisory, as the round trip is: it may only shorten a rewind, never lengthen one past the cap.
+    /// </summary>
+    private long RoundTripOf(ObjectGuid guid) =>
+        _connections.TryGetValue(guid, out IWorldConnection? connection) && connection.RoundTripTime > 0
+            ? connection.RoundTripTime
+            : 0;
+
+    int IAbilityArena.HitRewindTicks
+    {
+        get => _hits.RewindTicks;
+        set => _hits.RewindTicks = value;
+    }
+
+    IUnit? IAbilityArena.HitRewindExempt
+    {
+        get => _hits.RewindExempt;
+        set => _hits.RewindExempt = value;
+    }
+
+    // The footprint of the telegraph the cast system is firing now (#1082); see IAbilityArena.DodgeFootprint.
+    private AbilityFootprint? _dodgeFootprint;
+
+    AbilityFootprint? IAbilityArena.DodgeFootprint
+    {
+        get => _dodgeFootprint;
+        set => _dodgeFootprint = value;
+    }
+
+    /// <summary>
+    /// A telegraph's hit on a player, judged by that player's screen (#1082): held for the player's one-way delay, read from
+    /// their connection's round trip and capped, then landed only if they are still inside. No wait (no round trip measured,
+    /// no world tick count in tests, or a delay under half a tick), no hold: the hit lands now, as before.
+    /// </summary>
+    bool IAbilityArena.TryDeferHit(IUnit caster, IAbility ability, IUnit target)
+    {
+        if (_dodgeFootprint is not { } footprint || target is not ICharacter character || _worldTicks is null)
+            return false;
+
+        int wait = Math.Min(LagCompensation.OneWayTicks(RoundTripOf(character.Guid)), LagCompensation.MaxDodgeWaitTicks);
+        if (wait <= 0)
+            return false;
+
+        _pendingHits.Add(new PendingHit(caster, ability, character, footprint, _worldTicks.Completed + wait));
+        return true;
+    }
 
     /// <summary>
     /// Sends a hit to everyone who hears it (#532). A creature script's broadcast, made during the hit's
@@ -894,8 +1000,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (start.Payload is null)
             {
                 // #627: the time the cast system just set, haste included, so every cast bar ends when the cast does.
+                // #1082: the tick the cast was taken on, so a client ends it at that tick's server time plus CastTime.
                 start = SUnitStartCastPacket.Create(caster.Guid, ability.CastTimeTimer,
-                    ability.AbilityId.Value, castId, dto, PacketEncoder.Shared);
+                    ability.AbilityId.Value, castId, dto, _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
             }
 
             connection.Send(start.Share());
@@ -1295,6 +1402,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         UpdateCreatures(deltaTime);
         _tickProfile.CreatureTicks += _tickProfile.Elapsed(profileStart);
 
+        // Step 4b: the position history of every member that moved this tick (#1082). After every move of the tick and
+        // before the broadcast, so each entry is the position the broadcast stamped with this tick carries. No tick count
+        // (tests), no history.
+        profileStart = _tickProfile.Timestamp();
+        if (_worldTicks is not null)
+            RecordPositions(_worldTicks.Completed);
+        _tickProfile.HistoryTicks += _tickProfile.Elapsed(profileStart);
+
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks.
         profileStart = _tickProfile.Timestamp();
         SnapshotDirtyFields(_objectAbilities);
@@ -1308,6 +1423,47 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Step 5b and 6: visibility, then the state broadcast, per character.
         BroadcastState(_objectAbilities);
+    }
+
+    /// <summary>
+    /// Step 4b of <see cref="Update" />: records where every member that moved since the last record stands at the end of
+    /// world tick <paramref name="tick" /> (#1082). The grid lists them as their position setters run
+    /// (<see cref="SpatialGrid.RecordMoved" />), so a unit that did not move is not read: most of a forest's creatures are
+    /// waiting (#979). A unit that joined since is listed too, so its first record seeds its history, and one that never
+    /// moves keeps that entry.
+    /// </summary>
+    private void RecordPositions(long tick) => _members.RecordMoved(tick);
+
+    /// <summary>
+    /// The history a unit joining this instance records into (#1082): the one it holds, emptied (a unit added again
+    /// without leaving, or out of an instance let go with it inside), or one from the pool, empty. The grid lists the
+    /// joining unit as jumped (<see cref="SpatialGrid.Add" />), so the next Step 4b seeds it wherever the unit stands then:
+    /// a map arrival writes its spawn after the add, and a seed taken here would hold the coordinates of the map it left.
+    /// Until then a rewound query uses the unit's present position. None in an instance with no world tick count (tests),
+    /// which records nothing.
+    /// </summary>
+    private PositionHistory? RentHistory(PositionHistory? held)
+    {
+        if (_worldTicks is null)
+            return held;
+
+        PositionHistory? history = held;
+        if (history is null && !_histories.TryPop(out history))
+        {
+            history = new PositionHistory();
+            _histories.EnsureCapacity(++_historiesMade);
+        }
+
+        history.Clear();
+        return history;
+    }
+
+    /// <summary>Returns a leaving unit's history to the pool (#1082); null, for the unit to hold.</summary>
+    private PositionHistory? ReturnHistory(PositionHistory? history)
+    {
+        if (history is not null)
+            _histories.Push(history);
+        return null;
     }
 
     /// <summary>
@@ -2161,8 +2317,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (!Hears(guid, connection, caster.Guid, null, caster.Position, null)) continue;
             if (start.Payload is null)
             {
+                // #1082: the tick the bar started on, as an ability's start carries it.
                 start = SUnitStartCastPacket.CreateForItem(caster.Guid, castTimeSeconds, item.Value, castId,
-                    PacketEncoder.Shared);
+                    _worldTicks?.Completed ?? 0, PacketEncoder.Shared);
             }
 
             connection.Send(start.Share());

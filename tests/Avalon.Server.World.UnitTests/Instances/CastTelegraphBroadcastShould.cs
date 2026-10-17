@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
+using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
@@ -29,7 +30,8 @@ public class CastTelegraphBroadcastShould
     [Fact]
     public void Tell_a_watcher_where_a_cast_will_land_and_clear_it_on_the_same_casts_finish()
     {
-        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler,
+            worldTicks: new WorldTicks(500));
         MapInstanceClient wizard = Join(instance, 648_101);
         MapInstanceClient watcher = Join(instance, 648_102);
         wizard.Character.Spells.Load(
@@ -40,6 +42,7 @@ public class CastTelegraphBroadcastShould
 
         SUnitStartCastPacket start = Assert.Single(watcher.Read<SUnitStartCastPacket>(NetworkPacketType.SMSG_UNIT_START_CAST));
         Assert.NotEqual(0u, start.CastId);
+        Assert.Equal(500, start.WorldTick);   // #1082: the tick the cast was taken on, as the state broadcast names it
         AbilityFootprintDto telegraph = start.Footprint!;
         Assert.Equal(AbilityShape.Circle, telegraph.Shape);
         Assert.Equal(8f, telegraph.Centre!.Z, 3);   // clamped to the reach, not the 20 m it was aimed at

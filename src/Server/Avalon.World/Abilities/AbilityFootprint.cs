@@ -54,6 +54,19 @@ public readonly record struct AbilityFootprint(
 
     public AbilityFootprintDto ToDto() => AbilityFootprintDto.Create(Shape, Origin, Direction, Centre, Radius, Reach, ArcDegrees);
 
+    /// <summary>
+    /// Whether a body of <paramref name="bodyRadius" /> at <paramref name="position" /> overlaps this circle or cone, by the
+    /// shape test the hit query makes (<see cref="HitShapes" />): the dodge wait's test of a player where they stand when
+    /// its hit is due (#1082). False for a projectile's lane, which never waits.
+    /// </summary>
+    public bool Overlaps(Vector3 position, float bodyRadius) => Shape switch
+    {
+        AbilityShape.Circle => Centre is { } centre && HitShapes.CircleOverlaps(centre, Radius, position, bodyRadius),
+        AbilityShape.Cone => Direction is { } direction
+                             && HitShapes.ConeOverlaps(Origin, direction, Reach, ArcDegrees, position, bodyRadius),
+        _ => false,
+    };
+
     /// <summary>The aim point clamped to Reach, stopped where the walkable ray does: a blast cannot land behind a wall.</summary>
     private static Vector3 AimPointCentre(AbilityAim aim, Vector3 origin, float reach, IMapNavigator navigator)
     {

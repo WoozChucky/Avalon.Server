@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
+using Avalon.World.Abilities.Targeting;
 using Avalon.World.Auras;
 using Avalon.World.Creatures;
 using Avalon.World.Instances;
@@ -253,6 +254,26 @@ public class Creature : ICreature
     internal ref CreatureSchedule Schedule => ref _schedule;
 
     private CreatureSchedule _schedule;
+
+    /// <summary>
+    /// The creature's recent positions by world tick, for lag compensation (#1082): rented from the instance's pool as the
+    /// creature joins it and returned as it leaves; null outside an instance, and in one with no world tick count (tests).
+    /// World-side, never on ICreature. Public to read for the test assembly (see <see cref="PositionHistory" />).
+    /// </summary>
+    public PositionHistory? History { get; internal set; }
+
+    /// <summary>
+    /// A jump, not a walk (#1082): a teleport (a leash return). Called before the new position is written, it empties
+    /// the history, so a query rewound to before the jump never finds the creature anywhere it stood, and has its
+    /// instance's grid list it for the next Step 4b, which seeds the history where it lands (even where it already stood)
+    /// without counting the jump as a step any unit may have moved.
+    /// </summary>
+    internal void Jump()
+    {
+        History?.Invalidate();
+        if (_spatial.Grid is { } grid)
+            grid.Jumped(_spatial.Slot);
+    }
 
     /// <summary>
     /// Where the instance this creature is in indexes it (#982): set while it is a member and cleared when it leaves, so

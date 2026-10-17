@@ -122,7 +122,8 @@ state replication.
 An item with `useCastTimeMs` shows a cast bar before its effect runs. It uses the ability cast packets:
 
 - `SMSG_UNIT_START_CAST` (`SUnitStartCastPacket`): `Caster` 1, `CastTime` 2 (seconds), `AbilityId` 3 = 0,
-  `CastId` 4, no `Footprint`, `ItemTemplateId` 6 = the item.
+  `CastId` 4, no `Footprint`, `ItemTemplateId` 6 = the item, `WorldTick` 7 = the world tick the bar started on
+  (#1082: end the bar at that tick's server time plus `CastTime`, as for an ability).
 - `SMSG_UNIT_FINISH_CAST` (`SUnitFinishCastPacket`) when it completes, or `SMSG_INTERRUPTED_CAST`
   (`SCharacterInterruptedCastPacket`) when it ends early, each with the same `CastId` (3) and `ItemTemplateId` (4),
   `AbilityId` 0.

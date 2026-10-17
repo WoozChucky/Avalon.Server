@@ -44,8 +44,9 @@ public sealed class WorldTickTrace : EventSource
 
     private WorldTickTrace() { }
 
-    // Version 1 appended mapPackets; fields are only ever appended, so a reader by position keeps working.
-    [Event(1, Level = EventLevel.Informational, Version = 1)]
+    // Version 1 appended mapPackets, version 2 historyTicks (#1082); fields are only ever appended, so a reader by
+    // position keeps working.
+    [Event(1, Level = EventLevel.Informational, Version = 2)]
     public void InstanceTick(
         long tickId,
         long instanceLow,
@@ -77,7 +78,8 @@ public sealed class WorldTickTrace : EventSource
         long removed,
         long statePackets,
         long stateBytes,
-        long mapPackets)
+        long mapPackets,
+        long historyTicks)
     {
         if (IsEnabled())
         {
@@ -87,7 +89,7 @@ public sealed class WorldTickTrace : EventSource
                 broadcast, players, creatures, projectiles, inputTicks, combatTicks, creatureTicks, dirtyTicks,
                 visibilityTicks, trackingTicks, statePreparationTicks, stateEncodingTicks, auraTicks, enqueueTicks,
                 candidateChecks, visiblePairs, dirtyEntities, added, updated, removed, statePackets, stateBytes,
-                mapPackets,
+                mapPackets, historyTicks,
             });
         }
     }
@@ -120,10 +122,10 @@ public sealed class WorldTickTrace : EventSource
             profile.VisibilityTicks, profile.TrackingTicks, profile.StatePreparationTicks, profile.StateEncodingTicks,
             profile.AuraTicks, profile.EnqueueTicks, profile.CandidateChecks, profile.VisiblePairs,
             profile.DirtyEntities, profile.Added, profile.Updated, profile.Removed, profile.StatePackets, profile.StateBytes,
-            profile.MapPackets);
+            profile.MapPackets, profile.HistoryTicks);
     }
 
-    // Numeric payloads only (InstanceTick's 31 longs the most). Avoid WriteEvent(params object[]) boxing/arrays on the tick.
+    // Numeric payloads only (InstanceTick's 32 longs the most). Avoid WriteEvent(params object[]) boxing/arrays on the tick.
     [NonEvent]
     private unsafe void WriteValues(int eventId, ReadOnlySpan<long> values)
     {

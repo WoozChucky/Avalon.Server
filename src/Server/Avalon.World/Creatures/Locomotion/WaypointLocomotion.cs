@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.World.Entities;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
@@ -98,6 +99,8 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
         if (_agents.TryGetValue(creature.Guid, out Agent? agent))
             agent.ClearRoute();
 
+        // A jump, not a walk: a query rewound to before it must not find the creature anywhere it stood (#1082).
+        (creature as Creature)?.Jump();
         creature.Position = position;
         ComeToRest(creature);
     }
