@@ -8,10 +8,11 @@ using Avalon.World.Testing.Scenarios;
 namespace Avalon.Server.World.UnitTests.Procedural;
 
 /// <summary>
-/// The forest's generated pieces (forest content pass): what is committed is what the tool writes, every slot and exit
-/// is clear of blockers, every doodad slot stands off the paths, and the baked navmesh lets a creature stand on every
-/// slot and walk from every exit to every slot (doodad slots included), across a set piece's open inner edges too, with
-/// the largest seeded solid doodad's box baked at every doodad_large slot.
+/// The forest's generated pieces (forest content pass): what is committed is what the tool writes, decor included,
+/// every slot and exit is clear of blockers, every doodad slot stands off the paths, and the baked navmesh lets a
+/// creature stand on every slot and walk from every exit to every slot (doodad slots included), across a set piece's
+/// open inner edges too, with the largest seeded solid doodad's box baked at every doodad_large slot. The committed
+/// decor keeps the forest decor rules, and every path meets its neighbour's at the exit whatever the rotation.
 /// </summary>
 public class ForestPiecesShould
 {
@@ -39,11 +40,147 @@ public class ForestPiecesShould
     [Fact]
     public void Match_the_committed_files()
     {
-        foreach ((string name, string obj, string json, _) in ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()))
+        foreach ((string name, string obj, string json, string? decor) in ChunkFiles.For(ForestPieces.Singles(), ForestPieces.Groups()))
         {
             Assert.Equal(obj, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".obj"))));
             Assert.Equal(json, Lf(File.ReadAllText(Path.Combine(Maps, "Chunks", name + ".json"))));
+            Assert.Equal(decor, Lf(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json"))));
         }
+    }
+
+    /// <summary>
+    /// The decor files as committed (a set piece's four put back together in its frame): solid models stand on
+    /// blockers and every blocker has one, the paths reach every exit's midpoint and the hub, and cover keeps off them.
+    /// </summary>
+    [Fact]
+    public void Keep_the_forest_decor_rules_in_every_committed_decor_file()
+    {
+        IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
+        foreach (ChunkPiece piece in ForestPieces.Singles())
+            ForestDecorRules.Check(piece, CommittedDecor(piece.Name), kit);
+        foreach (ChunkGroupPiece group in ForestPieces.Groups())
+        {
+            List<DecorItem> frame =
+            [
+                .. group.Members().SelectMany(m => CommittedDecor(m.Piece.Name)
+                    .Select(d => d with { X = d.X + m.CellX * ChunkPiece.CellSize, Z = d.Z + m.CellZ * ChunkPiece.CellSize })),
+            ];
+            ForestDecorRules.Check(group, frame, kit);
+        }
+    }
+
+    /// <summary>
+    /// Review focus 1, paths that do not meet: in every chunk the tool writes and in each of the four rotations, a dirt
+    /// segment of the committed decor ends on each exit's side, its end's two corners on the rotated side, centred on its
+    /// midpoint and the fixed width apart, so it meets the neighbour's whichever way either chunk is turned.
+    /// </summary>
+    [Fact]
+    public void End_every_path_on_its_exit_midpoint_at_the_fixed_width_in_every_rotation()
+    {
+        const float Cell = ChunkPiece.CellSize;
+        foreach (ChunkPiece piece in Pieces())
+        {
+            List<DecorItem> segments = [.. CommittedDecor(piece.Name).Where(d => d.Model == ForestPaths.Segment)];
+            foreach (Side side in piece.Exits)
+            {
+                (float midX, float midZ) = side switch
+                {
+                    Side.N => (Cell / 2f, Cell),
+                    Side.S => (Cell / 2f, 0f),
+                    Side.E => (Cell, Cell / 2f),
+                    _ => (0f, Cell / 2f),
+                };
+                for (byte rotation = 0; rotation < 4; rotation++)
+                {
+                    Vector3 mid = ChunkRotation.LocalToWorld(midX, 0f, midZ, rotation, Cell, Vector3.zero);
+                    bool onX = MathF.Abs(mid.x) < 0.01f || MathF.Abs(mid.x - Cell) < 0.01f;
+                    bool met = segments.SelectMany(EndCorners).Any(end =>
+                    {
+                        Vector3 a = ChunkRotation.LocalToWorld(end.A.X, 0f, end.A.Z, rotation, Cell, Vector3.zero);
+                        Vector3 b = ChunkRotation.LocalToWorld(end.B.X, 0f, end.B.Z, rotation, Cell, Vector3.zero);
+                        bool onSide = onX ? MathF.Abs(a.x - mid.x) < 0.01f && MathF.Abs(b.x - mid.x) < 0.01f
+                                          : MathF.Abs(a.z - mid.z) < 0.01f && MathF.Abs(b.z - mid.z) < 0.01f;
+                        float width = MathF.Sqrt((a.x - b.x) * (a.x - b.x) + (a.z - b.z) * (a.z - b.z));
+                        float off = MathF.Sqrt(((a.x + b.x) / 2f - mid.x) * ((a.x + b.x) / 2f - mid.x) + ((a.z + b.z) / 2f - mid.z) * ((a.z + b.z) / 2f - mid.z));
+                        return onSide && off < 0.01f && MathF.Abs(width - ForestPaths.Width) < 0.01f;
+                    });
+                    Assert.True(met, $"{piece.Name}: no path ends on its {side} exit's midpoint at {ForestPaths.Width} m in rotation {rotation}");
+                }
+            }
+        }
+    }
+
+    /// <summary>The corners of each end of a dirt segment: the end of its centre line, half the strip's width (scaled) to either side.</summary>
+    private static IEnumerable<((float X, float Z) A, (float X, float Z) B)> EndCorners(DecorItem segment)
+    {
+        double yaw = segment.Yaw * Math.PI / 180.0;
+        float fx = (float)Math.Sin(yaw), fz = (float)Math.Cos(yaw);
+        float half = ForestPaths.SegmentLength / 2f * segment.Scale, across = ForestPaths.Width / 2f * segment.Scale;
+        foreach (float sign in new[] { -1f, 1f })
+        {
+            float ex = segment.X + sign * fx * half, ez = segment.Z + sign * fz * half;
+            yield return ((ex + fz * across, ez - fx * across), (ex - fz * across, ez + fx * across));
+        }
+    }
+
+    /// <summary>
+    /// Each forest decor rule refuses the decor that breaks it, so the rules over the committed files prove something:
+    /// a fresh dressing of the glade with one thing broken.
+    /// </summary>
+    [Theory]
+    [InlineData("a tree off its blocker", "stands on no blocker")]
+    [InlineData("a trunk with no tree", "an invisible wall")]
+    [InlineData("grass on the strip", "stands on the path strip")]
+    [InlineData("a path end off its exit", "no path strip ends at the N exit's midpoint")]
+    [InlineData("a wider strip", "would not be 2.8 m wide")]
+    [InlineData("a fern in a throat", "hide the way out")]
+    public void Refuse_decor_that_breaks_a_forest_decor_rule(string broken, string refusal)
+    {
+        ChunkPiece glade = ForestPieces.Singles().Single(p => p.Name == "forest_glade_01");
+        List<DecorItem> decor = [.. ForestDresser.Dress(glade)];
+        IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
+        ForestDecorRules.Check(glade, decor, kit);   // as dressed, it passes
+
+        CylinderBlocker trunk = glade.Blockers.OfType<CylinderBlocker>().First(b => b.Dressing == Dressing.Trunk);
+        int tree = decor.FindIndex(d => d.Model != ForestPaths.Segment && MathF.Abs(d.X - trunk.X) < 0.01f && MathF.Abs(d.Z - trunk.Z) < 0.01f);
+        int north = decor.FindIndex(d => d.Model == ForestPaths.Segment && d.Yaw == 180 && MathF.Abs(d.X - 15f) < 0.01f && MathF.Abs(d.Z - 29f) < 0.01f);
+        switch (broken)
+        {
+            case "a tree off its blocker":
+                decor[tree] = decor[tree] with { X = 15f, Z = 15f };
+                break;
+            case "a trunk with no tree":
+                decor.RemoveAt(tree);
+                break;
+            case "grass on the strip":
+                decor.Add(new DecorItem("", "Grass_Common_Short", 15f, 0f, 22f, 0));
+                break;
+            case "a path end off its exit":
+                decor[north] = decor[north] with { X = 15.5f };
+                break;
+            case "a wider strip":
+                decor[north] = decor[north] with { Scale = 1.2f };
+                break;
+            case "a fern in a throat":
+                decor.Add(new DecorItem("", "Fern_1", 26f, 0f, 19f, 0));
+                break;
+        }
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => ForestDecorRules.Check(glade, decor, kit));
+        Assert.Contains("forest_glade_01", error.Message, StringComparison.Ordinal);
+        Assert.Contains(refusal, error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A committed decor file's items (Maps/Decor/&lt;name&gt;.json), as the client reads them.</summary>
+    private static List<DecorItem> CommittedDecor(string name)
+    {
+        using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(Maps, "Decor", name + ".json")));
+        return
+        [
+            .. document.RootElement.GetProperty("items").EnumerateArray().Select(i => new DecorItem("", i.GetProperty("model").GetString()!,
+                i.GetProperty("x").GetSingle(), i.GetProperty("y").GetSingle(), i.GetProperty("z").GetSingle(), i.GetProperty("yaw").GetInt32(),
+                i.TryGetProperty("scale", out JsonElement scale) ? scale.GetSingle() : 1f)),
+        ];
     }
 
     [Fact]

@@ -13,7 +13,7 @@ using Avalon.ChunkGen;
 // Every piece is first written into a temporary copy of Maps/, read back through the World server's own catalog
 // reader (ChunkCatalogSeeder.ReadCatalogAsync) and baked with its own ChunkLayoutNavmeshBuilder, each set piece with
 // its members at their cells and the town with its four squares together; only when all of that passes are the files
-// copied into Maps/Chunks, with each town square's decor file into Maps/Decor (ChunkGenCli). Committed output is
+// copied into Maps/Chunks, with each decor file into Maps/Decor (ChunkGenCli). Committed output is
 // checked against a fresh run by ForestPiecesShould and TownPiecesShould, so edit the piece files and rerun this rather
 // than editing the output. chunk-pools.json and chunk-groups.json are edited by hand.
 

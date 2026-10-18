@@ -1,12 +1,15 @@
 namespace Avalon.ChunkGen;
 
 /// <summary>
-/// The text of every file a run writes: each chunk's .obj and .json, and for a town square its decor file
-/// (Maps/Decor/&lt;name&gt;.json, null for a forest piece, which has none).
+/// The text of every file a run writes: each chunk's .obj and .json, and its decor file (Maps/Decor/&lt;name&gt;.json),
+/// a town square's or a dressed forest piece's.
 /// </summary>
 public static class ChunkFiles
 {
-    /// <summary>Each piece's .obj and .json text; throws (InvalidOperationException) on a piece that fails its own checks.</summary>
+    /// <summary>
+    /// Each piece's .obj and .json text, undressed (no decor file); throws (InvalidOperationException) on a piece that
+    /// fails its own checks.
+    /// </summary>
     public static IReadOnlyList<(string Name, string Obj, string Json, string? Decor)> For(IEnumerable<ChunkPiece> pieces) =>
         pieces.Select(p =>
         {
@@ -27,10 +30,38 @@ public static class ChunkFiles
         }).ToList();
 
     /// <summary>
-    /// Every file a run writes (ChunkGenCli): the single pieces, then each set piece's four members; throws
-    /// (InvalidOperationException) on a piece or set piece that fails its own checks.
+    /// Every file a forest run writes (ChunkGenCli): the single pieces, then each set piece's four members, each with
+    /// its decor (ForestDresser), a set piece's dressed in its frame and split into its members. Throws
+    /// (InvalidOperationException) on a piece or set piece that fails its own checks or whose decor breaks a forest
+    /// decor rule (ForestDecorRules).
     /// </summary>
     public static IReadOnlyList<(string Name, string Obj, string Json, string? Decor)> For(
-        IEnumerable<ChunkPiece> singles, IEnumerable<ChunkGroupPiece> groups) =>
-        For([.. singles, .. groups.SelectMany(g => g.Members().Select(m => m.Piece))]);
+        IEnumerable<ChunkPiece> singles, IEnumerable<ChunkGroupPiece> groups)
+    {
+        IReadOnlyDictionary<string, ModelBounds> kit = KitBounds.Load();
+        List<(string Name, string Obj, string Json, string? Decor)> files = [];
+        foreach (ChunkPiece piece in singles)
+        {
+            piece.Validate();
+            IReadOnlyList<DecorItem> decor = ForestDresser.Dress(piece);
+            ForestDecorRules.Check(piece, decor, kit);
+            files.Add((piece.Name, ObjWriter.Write(piece), ChunkJsonWriter.Write(piece.ToMeta()),
+                DecorJsonWriter.Write(piece.Name, decor, DecorJsonWriter.ForestKit)));
+        }
+
+        foreach (ChunkGroupPiece group in groups)
+        {
+            List<ChunkPiece> members = [.. group.Members().Select(m => m.Piece)];
+            members.ForEach(m => m.Validate());
+            IReadOnlyList<DecorItem> decor = ForestDresser.Dress(group);
+            ForestDecorRules.Check(group, decor, kit);
+            IReadOnlyDictionary<string, IReadOnlyList<DecorItem>> split = ForestDresser.Members(group, decor);
+            foreach (ChunkPiece member in members)
+            {
+                files.Add((member.Name, ObjWriter.Write(member), ChunkJsonWriter.Write(member.ToMeta()),
+                    DecorJsonWriter.Write(member.Name, split[member.Name], DecorJsonWriter.ForestKit)));
+            }
+        }
+        return files;
+    }
 }

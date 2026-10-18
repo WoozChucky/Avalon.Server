@@ -7,8 +7,9 @@ namespace Avalon.ChunkGen;
 /// writes the forest pieces, "town" Glimmerdell's four squares. Every piece is first written into a temporary copy of
 /// Maps/, read back through the World server's own catalog reader (ChunkCatalogSeeder.ReadCatalogAsync) and baked with
 /// its own ChunkLayoutNavmeshBuilder, each set piece with its members at their cells and the town with its four squares
-/// together; only when all of that passes are the files copied into Maps/Chunks, and each town square's decor file
-/// into Maps/Decor (which the seeder never reads). Any failure before that exits 1 and writes nothing to Maps/.
+/// together; only when all of that passes are the files copied into Maps/Chunks, and each town square's and forest
+/// piece's decor file into Maps/Decor (which the seeder never reads). Any failure before that exits 1 and writes
+/// nothing to Maps/.
 /// "kit-bounds" measures the art kit's glTF files into Kit/kit-bounds.json (KitBounds), and copies the custom forest
 /// models' footprints into Kit/forest-footprints.json (ForestFootprints).
 /// </summary>
