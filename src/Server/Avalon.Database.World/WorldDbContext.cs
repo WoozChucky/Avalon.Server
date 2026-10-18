@@ -2051,6 +2051,30 @@ public class WorldDbContext : DbContext
             // Part of the key, but a value from the band file: never generated (EF would make it an identity column).
             d.Property(x => x.MinDepth).ValueGeneratedNever();
         });
+
+        // Doodad rules (doodads), written like the depth bands by ChunkCatalogSeeder, Sequence their place in the file
+        // from 1. No foreign key to DoodadTemplates: the seeder checks each template on every start, and the world skips
+        // a rule whose template its catalog lacks. Each gate's quest and condition are both set or both null.
+        builder.OwnsMany(b => b.DoodadRules, r =>
+        {
+            r.ToTable("ProceduralDoodadRules", t =>
+            {
+                t.HasCheckConstraint("CK_ProceduralDoodadRules_Count",
+                    "\"MinCount\" >= 0 AND \"MinCount\" <= \"MaxCount\" AND \"MaxCount\" <= 50");
+                t.HasCheckConstraint("CK_ProceduralDoodadRules_Spacing", Finite("MinSpacing"));
+                t.HasCheckConstraint("CK_ProceduralDoodadRules_VisibleGate",
+                    "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+                t.HasCheckConstraint("CK_ProceduralDoodadRules_UsableGate",
+                    "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
+            });
+            r.WithOwner().HasForeignKey("MapTemplateId");
+            r.HasKey("MapTemplateId", nameof(ProceduralDoodadRule.Sequence));
+            r.Property(x => x.Sequence).ValueGeneratedNever();
+            r.Property(x => x.DoodadTemplateId)
+                .HasConversion(v => v.Value, v => new DoodadTemplateId(v))
+                .IsRequired();
+            r.Property(x => x.SlotTag).IsRequired().HasMaxLength(64);
+        });
     }
 
     private static void Configure(EntityTypeBuilder<MapChunkPlacement> builder)

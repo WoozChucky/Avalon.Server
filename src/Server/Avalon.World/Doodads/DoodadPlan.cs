@@ -1,0 +1,39 @@
+// A plan's records are kept together, beside the plan that holds them.
+#pragma warning disable MA0048
+
+using Avalon.Common.Mathematics;
+using Avalon.World.ChunkLayouts;
+
+namespace Avalon.World.Doodads;
+
+/// <summary>
+/// A doodad to place, before it has a spot: its template, whether its map must have it, and the spawn's own gates (a
+/// rule's), which replace the template's when set. What a required rule is short of, at the fallback.
+/// </summary>
+public sealed record DoodadSpawn(DoodadTemplateView Template, bool Required = false, DoodadGate? VisibleGate = null,
+    DoodadGate? UsableGate = null);
+
+/// <summary>
+/// A doodad the plan put at a chunk doodad slot: where it stands (the slot's world position, its height the slot's
+/// until the placement snaps a walk-through one to the ground) and the yaw it faces. AtSlot is false only for a spot the
+/// fallback found on open navmesh.
+/// </summary>
+public sealed record PlannedDoodad(DoodadTemplateView Template, Vector3 Position, float YawDegrees, bool AtSlot,
+    bool Required = false, DoodadGate? VisibleGate = null, DoodadGate? UsableGate = null)
+{
+    /// <summary>The same doodad without its spot, for the fallback.</summary>
+    public DoodadSpawn Spawn => new(Template, Required, VisibleGate, UsableGate);
+}
+
+/// <summary>
+/// What an instance build places of its procedural doodads, decided before the navmesh bake from the layout, its map's
+/// rules and the catalog alone, so the same seed always gives the same plan: the doodads at slots, in the order they are
+/// placed, the required ones no slot was left for (placed on open navmesh once the mesh is baked), and the solid doodads'
+/// boxes for the bake to cut out.
+/// </summary>
+public sealed record DoodadPlan(IReadOnlyList<PlannedDoodad> Placed, IReadOnlyList<DoodadSpawn> RequiredShort,
+    IReadOnlyList<DoodadObstacle> Obstacles)
+{
+    /// <summary>Nothing to place: a town, or a map without doodad rules.</summary>
+    public static DoodadPlan Empty { get; } = new([], [], []);
+}

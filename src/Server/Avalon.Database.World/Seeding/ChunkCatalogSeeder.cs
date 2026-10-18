@@ -472,10 +472,90 @@ public static class ChunkCatalogSeeder
             foreach (string tag in slotTags.Where(t => !entryTags.Contains(t)))
                 throw new InvalidDataException($"{path}: pool '{map.ChunkPool}' has '{tag}' slots but spawn table '{map.SpawnTable}' has no '{tag}' entry");
 
+            CheckDoodadRules(path, map, chunkNames.Distinct(StringComparer.Ordinal).Select(n => metas[n]).ToList());
             maps.Add((path, map));
         }
 
         return maps;
+    }
+
+    /// <summary>The most doodads one rule may place in a run.</summary>
+    private const int MaxDoodadsPerRule = 50;
+
+    /// <summary>
+    /// A map's doodad rules, against its pool's chunks and set pieces: each names a tag some doodad slot there carries, a
+    /// count range of at most 50, a finite spacing of 0 or more, a depth range that is not reversed, and gates whose
+    /// condition is a DoodadGateCondition by name (an objective with OnObjective and with nothing else). A required rule
+    /// may not want more doodads than the pool has slots of its tag that its depth range can reach: a chunk can stand at
+    /// any depth but the entry's, 0, which only an entry-capable chunk takes. Whether the template exists and is solid is
+    /// checked against the database.
+    /// </summary>
+    private static void CheckDoodadRules(string path, ProceduralMapDto map, IReadOnlyList<ChunkMetaDto> chunks)
+    {
+        if (map.DoodadRules is not { } rules) return;
+
+        for (int i = 0; i < rules.Count; i++)
+        {
+            DoodadRuleDto rule = rules[i];
+            string name = $"doodad rule {i + 1} (template {rule.DoodadTemplateId})";
+            if (string.IsNullOrWhiteSpace(rule.SlotTag))
+                throw new InvalidDataException($"{path}: {name} has no slotTag");
+            if (rule.Min > rule.Max || rule.Max > MaxDoodadsPerRule)
+                throw new InvalidDataException($"{path}: {name} has count {rule.Min}-{rule.Max}; it must be 0-{MaxDoodadsPerRule}, min at most max");
+            if (!(rule.MinSpacing >= 0f) || float.IsInfinity(rule.MinSpacing))
+            {
+                throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
+                    $"{path}: {name} has minSpacing {rule.MinSpacing}; it must be finite and 0 or more"));
+            }
+
+            if (rule.MinDepth is { } from && rule.MaxDepth is { } to && from > to)
+                throw new InvalidDataException($"{path}: {name} has minDepth {from} above maxDepth {to}");
+            CheckDoodadGate(path, name, "visibleGate", rule.VisibleGate);
+            CheckDoodadGate(path, name, "usableGate", rule.UsableGate);
+
+            if (SlotsTagged(chunks, rule.SlotTag) == 0)
+                throw new InvalidDataException($"{path}: {name} names slot tag '{rule.SlotTag}', which no doodad slot in pool '{map.ChunkPool}' carries");
+
+            if (!rule.Required) continue;
+            int reachable = SlotsTagged(rule.MaxDepth == 0 ? chunks.Where(IsEntryCapable) : chunks, rule.SlotTag);
+            if (rule.Max > reachable)
+            {
+                throw new InvalidDataException(
+                    $"{path}: required {name} wants up to {rule.Max} doodads, but pool '{map.ChunkPool}' has only {reachable} '{rule.SlotTag}' slots its depth range reaches");
+            }
+        }
+    }
+
+    private static int SlotsTagged(IEnumerable<ChunkMetaDto> chunks, string tag) =>
+        chunks.Sum(c => (c.DoodadSlots ?? []).Count(d => string.Equals(d.Tag, tag, StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>What ProceduralLayoutGenerator may put at the entry: a chunk with an entry spawn slot and a back portal.</summary>
+    private static bool IsEntryCapable(ChunkMetaDto chunk) =>
+        chunk.SpawnSlots.Any(s => string.Equals(s.Tag, "entry", StringComparison.OrdinalIgnoreCase))
+        && chunk.PortalSlots.Any(p => string.Equals(p.Role, nameof(PortalRole.Back), StringComparison.OrdinalIgnoreCase));
+
+    private static void CheckDoodadGate(string path, string rule, string field, DoodadGateDto? gate)
+    {
+        if (gate is null) return;
+
+        if (DoodadGateConditionByName(gate.Condition) is not { } condition)
+            throw new InvalidDataException($"{path}: {rule} {field} has condition '{gate.Condition}', which is not a doodad gate condition");
+        if (condition == DoodadGateCondition.OnObjective && gate.ObjectiveId is null)
+            throw new InvalidDataException($"{path}: {rule} {field} is OnObjective but names no objectiveId");
+        if (condition != DoodadGateCondition.OnObjective && gate.ObjectiveId is not null)
+            throw new InvalidDataException($"{path}: {rule} {field} is {condition} but names objectiveId {gate.ObjectiveId}; only OnObjective names one");
+    }
+
+    /// <summary>A DoodadGateCondition by its name, ignoring case; never by number, so "2" or "99" is no condition.</summary>
+    private static DoodadGateCondition? DoodadGateConditionByName(string? name)
+    {
+        foreach (DoodadGateCondition condition in Enum.GetValues<DoodadGateCondition>())
+        {
+            if (string.Equals(condition.ToString(), name, StringComparison.OrdinalIgnoreCase))
+                return condition;
+        }
+
+        return null;
     }
 
     /// <summary>The checks that need the database, made before the transaction opens, so a refusal writes nothing.</summary>
@@ -505,6 +585,8 @@ public static class ChunkCatalogSeeder
             }
         }
 
+        await ValidateDoodadRulesAsync(db, files, ct);
+
         if (files.SpawnTables is null) return;
         string tablesPath = Path.Combine(mapsRoot, "spawn-tables.json");
         var creatures = (await db.CreatureTemplates.AsNoTracking().ToListAsync(ct)).Select(t => t.Id.Value).ToHashSet();
@@ -512,6 +594,34 @@ public static class ChunkCatalogSeeder
         {
             foreach (SpawnTableEntryDto entry in entries.Where(e => !creatures.Contains(e.CreatureId)))
                 throw new InvalidDataException($"{tablesPath}: spawn table '{name}' names creature template {entry.CreatureId}, which does not exist");
+        }
+    }
+
+    /// <summary>
+    /// Each doodad rule's template exists, and a solid one (Collision not 0) is neither required, since a required doodad
+    /// may stand on open navmesh its box was never baked into, nor gated, since a solid doodad is never hidden.
+    /// </summary>
+    private static async Task ValidateDoodadRulesAsync(WorldDbContext db, ChunkCatalogFiles files, CancellationToken ct)
+    {
+        if (!files.ProceduralMaps.Any(m => m.Map.DoodadRules is { Count: > 0 })) return;
+
+        var collisions = (await db.DoodadTemplates.AsNoTracking().ToListAsync(ct))
+            .ToDictionary(t => t.Id.Value, t => t.Collision);
+        foreach ((string path, ProceduralMapDto map) in files.ProceduralMaps)
+        {
+            List<DoodadRuleDto> rules = map.DoodadRules ?? [];
+            for (int i = 0; i < rules.Count; i++)
+            {
+                DoodadRuleDto rule = rules[i];
+                string name = $"doodad rule {i + 1}";
+                if (!collisions.TryGetValue(rule.DoodadTemplateId, out DoodadCollision collision))
+                    throw new InvalidDataException($"{path}: {name} names doodad template {rule.DoodadTemplateId}, which does not exist");
+                if (collision == DoodadCollision.None) continue;
+                if (rule.Required)
+                    throw new InvalidDataException($"{path}: required {name} names doodad template {rule.DoodadTemplateId}, which is solid");
+                if (rule.VisibleGate is not null || rule.UsableGate is not null)
+                    throw new InvalidDataException($"{path}: {name} gates doodad template {rule.DoodadTemplateId}, which is solid and never hidden");
+            }
         }
     }
 
@@ -555,8 +665,9 @@ public static class ChunkCatalogSeeder
     }
 
     /// <summary>
-    /// Configs are matched by MapTemplateId (map 2's existing row is updated in place) and their depth bands replaced;
-    /// the pool and spawn table are resolved by name. A config in the database with no file is left alone.
+    /// Configs are matched by MapTemplateId (map 2's existing row is updated in place) and their depth bands and doodad
+    /// rules replaced, each rule's Sequence its place in the file from 1; the pool and spawn table are resolved by name. A
+    /// config in the database with no file is left alone.
     /// </summary>
     private static async Task UpsertProceduralMapsAsync(WorldDbContext db, IReadOnlyList<(string Path, ProceduralMapDto Map)> maps,
         CancellationToken ct)
@@ -574,9 +685,11 @@ public static class ChunkCatalogSeeder
                 config = new ProceduralMapConfig { MapTemplateId = id };
                 db.ProceduralMapConfigs.Add(config);
             }
-            else if (config.DepthBands.Count > 0)
+            else if (config.DepthBands.Count > 0 || config.DoodadRules.Count > 0)
             {
+                // Saved before the new rows are added: a band or a rule keeps its key (MinDepth, Sequence) across starts.
                 config.DepthBands.Clear();
+                config.DoodadRules.Clear();
                 await db.SaveChangesAsync(ct);
             }
 
@@ -596,6 +709,24 @@ public static class ChunkCatalogSeeder
                 MaxDepth = b.MaxDepth,
                 MinLevel = b.MinLevel,
                 MaxLevel = b.MaxLevel,
+            }));
+            config.DoodadRules.AddRange((map.DoodadRules ?? []).Select((r, i) => new ProceduralDoodadRule
+            {
+                Sequence = i + 1,
+                DoodadTemplateId = new DoodadTemplateId(r.DoodadTemplateId),
+                SlotTag = r.SlotTag,
+                MinCount = r.Min,
+                MaxCount = r.Max,
+                Required = r.Required,
+                MinSpacing = r.MinSpacing,
+                MinDepth = r.MinDepth,
+                MaxDepth = r.MaxDepth,
+                VisibleQuestId = r.VisibleGate?.QuestId,
+                VisibleCondition = DoodadGateConditionByName(r.VisibleGate?.Condition),
+                VisibleObjectiveId = r.VisibleGate?.ObjectiveId,
+                UsableQuestId = r.UsableGate?.QuestId,
+                UsableCondition = DoodadGateConditionByName(r.UsableGate?.Condition),
+                UsableObjectiveId = r.UsableGate?.ObjectiveId,
             }));
         }
 

@@ -329,12 +329,14 @@ off the paths and clear of the rest, with a `doodad_large` slot further away bec
 | From | `doodad` | `doodad_large` |
 |---|---|---|
 | any blocker | 2.5 m | 4 m |
-| a path: the segment from an exit's throat centre to the piece centre (15, 15) | 4 m | 5 m |
+| a path: in a single piece, the segment from an exit's throat centre to the piece centre (15, 15); in a set piece, checked in its 60 x 60 m frame, the segments from each outer exit's throat centre to the frame centre (30, 30) and between every two outer exits | 4 m | 5 m |
 | any spawn slot | 3 m | 4 m |
 | the chunk's edge | 2 m | 2 m |
 
 and never inside an exit's throat (10 m wide, 6 m deep, centred on its side); every doodad slot stands on the baked
-navmesh floor. Each yaw is the quarter turn that best faces the piece's centre (a set piece's, for its members).
+navmesh floor, and is a reachability target too: a walk over the piece's (or the set piece's) navmesh reaches it from
+the first exit, as it reaches every exit and spawn slot. Each yaw is the quarter turn that best faces the piece's centre
+(a set piece's, for its members).
 
 ## Generated town squares
 
@@ -539,17 +541,29 @@ Like chunks, town layouts, pools and chunk groups, a procedural map's data is fi
 - `Maps/spawn-tables.json`: `{ "<table name>": [ { "tag", "creatureId", "weight", "min", "max" } ] }`. A table is
   matched by name (its id is kept; a new one gets the highest id + 1) and its entries are replaced.
 - `Maps/ProceduralMaps/<mapId>.json`: every `ProceduralMapConfig` field, the pool (`chunkPool`) and spawn table
-  (`spawnTable`) by name, `depthBands`, and the optional `minSetPieceStep` (0 when left out). Matched by
-  `mapTemplateId` (the file's name); its bands are replaced.
+  (`spawnTable`) by name, `depthBands`, the optional `minSetPieceStep` (0 when left out) and the optional `doodadRules`
+  (none when left out). Matched by `mapTemplateId` (the file's name); its bands and doodad rules are replaced, each rule
+  stored as a `ProceduralDoodadRules` row keyed by its place in the file from 1 (`Sequence`).
+- A doodad rule is `{ "doodadTemplateId", "slotTag", "min", "max", "required", "minSpacing", "minDepth"?, "maxDepth"?,
+  "visibleGate"?, "usableGate"? }`, a gate `{ "questId", "condition", "objectiveId"? }` with the condition a
+  `DoodadGateCondition` by name (`notStarted`, `onObjective`, `completed`, `notCompleted`). See
+  [doodads](doodads.md#placement) for how the rules are planned and placed.
 
 Before writing anything the seeder refuses, naming the file, JSON it cannot read, a map file that leaves out a required
 field (every number and flag but `forwardPortalTargetMapId` and `minSetPieceStep`), a map whose `MapTemplate` is missing
 or not `Normal`, a back or forward portal target that is no `MapTemplate`, a depth band whose `maxLevel` is above the
 highest `CreatureBaseStats` level (10 today), a pool or spawn table the files do not name, a group with a blank name,
-a `creatureId` with no `CreatureTemplates` row, and a spawn table whose tags do not match the
-slot tags its pool's chunks (set pieces included) use, checked both ways: every entry tag is a slot tag (or
+a `creatureId` with no `CreatureTemplates` row, a doodad rule the world could not honour (below), and a spawn table
+whose tags do not match the slot tags its pool's chunks (set pieces included) use, checked both ways: every entry tag is a slot tag (or
 `leader_pack` beside `leader` slots), and every slot tag but `entry` and `empty` has an entry. Rows with no file are
-left alone. A change to these files takes a World server restart. Trade-offs: the balance simulator reads `HasData`
+left alone. A doodad rule is refused for a template with no `DoodadTemplates` row, a slot tag no doodad slot of the
+pool (set pieces included) carries, `min` above `max` or `max` above 50, a `minSpacing` that is not a finite 0 or more
+(the file may write `"NaN"`, refused by name), `minDepth` above `maxDepth`, a gate condition that is no condition name
+(or an `objectiveId` with any condition but `onObjective`, or none with it), a gate on a solid template, and, for a
+required rule, a solid template or a `max` above the pool's slots of its tag that its depth range reaches (the slots of
+every chunk and set piece, the entry-capable chunks alone for a range ending at depth 0).
+`CommittedForestDoodadsShould` proves the committed forest places every required doodad at a slot for seeds 0 to 999.
+A change to these files takes a World server restart. Trade-offs: the balance simulator reads `HasData`
 only, so it never sees these rows; the REST API's layout preview and observability read the database, so they show the
 files as of the last World server start (a fresh database shows the old migration values until one has started); and
 `SeedIntegrityShould` cannot see them, so `ChunkCatalogSeederShould` and `CommittedForestGenerationShould` (which seed

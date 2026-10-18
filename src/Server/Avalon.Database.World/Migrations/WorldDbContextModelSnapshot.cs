@@ -8648,7 +8648,78 @@ namespace Avalon.Database.World.Migrations
                                 .HasForeignKey("MapTemplateId");
                         });
 
+                    b.OwnsMany("Avalon.Domain.World.ProceduralDoodadRule", "DoodadRules", b1 =>
+                        {
+                            b1.Property<int>("MapTemplateId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("Sequence")
+                                .HasColumnType("integer");
+
+                            b1.Property<long>("DoodadTemplateId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<byte>("MaxCount")
+                                .HasColumnType("smallint");
+
+                            b1.Property<int?>("MaxDepth")
+                                .HasColumnType("integer");
+
+                            b1.Property<byte>("MinCount")
+                                .HasColumnType("smallint");
+
+                            b1.Property<int?>("MinDepth")
+                                .HasColumnType("integer");
+
+                            b1.Property<float>("MinSpacing")
+                                .HasColumnType("real");
+
+                            b1.Property<bool>("Required")
+                                .HasColumnType("boolean");
+
+                            b1.Property<string>("SlotTag")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)");
+
+                            b1.Property<byte?>("UsableCondition")
+                                .HasColumnType("smallint");
+
+                            b1.Property<long?>("UsableObjectiveId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<long?>("UsableQuestId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<byte?>("VisibleCondition")
+                                .HasColumnType("smallint");
+
+                            b1.Property<long?>("VisibleObjectiveId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<long?>("VisibleQuestId")
+                                .HasColumnType("bigint");
+
+                            b1.HasKey("MapTemplateId", "Sequence");
+
+                            b1.ToTable("ProceduralDoodadRules", null, t =>
+                                {
+                                    t.HasCheckConstraint("CK_ProceduralDoodadRules_Count", "\"MinCount\" >= 0 AND \"MinCount\" <= \"MaxCount\" AND \"MaxCount\" <= 50");
+
+                                    t.HasCheckConstraint("CK_ProceduralDoodadRules_Spacing", "\"MinSpacing\" >= 0 AND \"MinSpacing\" < 'Infinity'");
+
+                                    t.HasCheckConstraint("CK_ProceduralDoodadRules_UsableGate", "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
+
+                                    t.HasCheckConstraint("CK_ProceduralDoodadRules_VisibleGate", "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+                                });
+
+                            b1.WithOwner()
+                                .HasForeignKey("MapTemplateId");
+                        });
+
                     b.Navigation("DepthBands");
+
+                    b.Navigation("DoodadRules");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.QuestItemDrop", b =>

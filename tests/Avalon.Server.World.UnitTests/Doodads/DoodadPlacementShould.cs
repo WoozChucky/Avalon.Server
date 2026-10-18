@@ -1,0 +1,250 @@
+using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Instances;
+using Avalon.Server.World.UnitTests.Loot;
+using Avalon.Server.World.UnitTests.Quests;
+using Avalon.World;
+using Avalon.World.ChunkLayouts;
+using Avalon.World.Doodads;
+using Avalon.World.Instances;
+using Avalon.World.Maps.Navigation;
+using Avalon.World.Testing.Scenarios;
+using DotRecast.Core.Numerics;
+using DotRecast.Detour;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
+using static Avalon.Server.World.UnitTests.Quests.QuestTestData;
+
+namespace Avalon.Server.World.UnitTests.Doodads;
+
+/// <summary>
+/// A procedural map's doodads, planned from its rules over the slots of a layout of committed forest pieces and placed on
+/// its baked navmesh: a rule that strays from its tag, depth, count or spacing puts a doodad where no one authored one,
+/// and a required doodad that is not placed leaves its quest uncompletable.
+/// </summary>
+public class DoodadPlacementShould
+{
+    private const uint Barrel = 1, Shrine = 2, Strongbox = 3, Gated = 4;
+    private const uint GateQuest = 1, GateObjective = 101;
+
+    // The entry chunk at (0, 0), then single pieces carrying two 'doodad' slots and one 'doodad_large' each, at depths
+    // 1 to 3: (0, 1) at 1, (0, 2) and (1, 1) at 2, (0, 3) at 3.
+    private static readonly (string Name, short X, short Z, int Depth)[] s_pieces =
+    [
+        ("forest_entry_01", 0, 0, 0), ("forest_glade_01", 0, 1, 1), ("forest_rocks_01", 0, 2, 2),
+        ("forest_thicket_01", 1, 1, 2), ("forest_ruin_01", 0, 3, 3),
+    ];
+
+    private static readonly Lazy<(ChunkLayout Layout, DtNavMesh NavMesh)> s_baked = new(Bake, isThreadSafe: true);
+
+    private static ScenarioReferenceData Reference => ScenarioReferenceData.Shared;
+
+    [Fact]
+    public void Keep_rules_to_their_tags_depths_counts_and_spacing()
+    {
+        ProceduralMapConfig config = Config(
+            Rule(1, Barrel, "doodad", 2, 2, spacing: 25f),
+            Rule(2, Shrine, "doodad_large", 1, 1, minDepth: 2));
+        DoodadPlacementService service = Service(out _);
+        DoodadCatalog catalog = Catalog();
+        ChunkLayout baked = s_baked.Value.Layout;
+
+        for (int seed = 0; seed < 200; seed++)
+        {
+            ChunkLayout layout = baked with { Seed = seed };
+            DoodadPlan plan = service.Plan(layout, config, catalog, Reference.Chunks);
+
+            var barrels = plan.Placed.Where(p => p.Template.Id.Value == Barrel).ToList();
+            Assert.Equal(2, barrels.Count);
+            Assert.All(barrels, b => Assert.Contains(Slot(layout, b), s => s.Tag == "doodad"));
+            Assert.True(FlatDistance(barrels[0].Position, barrels[1].Position) >= 25f, $"seed {seed}: barrels too close");
+
+            PlannedDoodad shrine = Assert.Single(plan.Placed, p => p.Template.Id.Value == Shrine);
+            Assert.Contains(Slot(layout, shrine), s => s.Tag == "doodad_large" && s.Depth >= 2);
+
+            Assert.All(plan.Placed, p => Assert.True(p.AtSlot && FlatDistance(p.Position, layout.EntrySpawnWorldPos) >= 15f));
+            Assert.Empty(plan.RequiredShort);
+
+            DoodadPlan again = service.Plan(layout, config, catalog, Reference.Chunks);
+            Assert.Equal(plan.Placed, again.Placed);
+        }
+    }
+
+    [Fact]
+    public async Task Fall_back_to_open_navmesh_when_no_slot_fits_a_required_rule()
+    {
+        (ChunkLayout layout, DtNavMesh navMesh) = s_baked.Value;
+        ProceduralMapConfig config = Config(Rule(1, Strongbox, "nowhere", 1, 1, required: true));
+        DoodadPlacementService service = Service(out TestLog log);
+
+        DoodadPlan plan = service.Plan(layout, config, Catalog(), Reference.Chunks);
+        Assert.Empty(plan.Placed);
+        Assert.Equal(Strongbox, Assert.Single(plan.RequiredShort).Template.Id.Value);
+
+        MapInstance instance = Instance(layout, navMesh, MapInstanceClients.NewWorld());
+        await service.PlaceAsync(instance, layout, plan, new MapTemplateId(2), CancellationToken.None);
+
+        Doodad strongbox = Assert.Single(instance.Doodads.All);
+        Assert.Empty(log.Errors);
+        var navigator = new MapNavigator(NullLoggerFactory.Instance);
+        navigator.LoadFromNavMesh(navMesh);
+        Assert.Equal(NavmeshGroundKind.Under, navigator.FindGround(strongbox.Position, out _));
+
+        var query = new DtNavMeshQuery(navMesh);
+        var at = new RcVec3f(strongbox.Position.x, strongbox.Position.y, strongbox.Position.z);
+        query.FindNearestPoly(at, new RcVec3f(0.5f, 2f, 0.5f), new DtQueryDefaultFilter(), out long poly, out _, out _);
+        query.FindDistanceToWall(poly, at, 5f, new DtQueryDefaultFilter(), out float toWall, out _, out _);
+        Assert.True(toWall >= 1.5f, $"the strongbox stands {toWall} m from a wall");
+        Assert.True(FlatDistance(strongbox.Position, layout.EntrySpawnWorldPos) >= 15f);
+        Assert.True(FlatDistance(strongbox.Position, layout.Portals.Single(p => p.Role == PortalRole.Back).WorldPos) >= 8f);
+    }
+
+    /// <summary>
+    /// A spawn's gate replaces its template's, but one naming a quest the world does not hold is dropped and the
+    /// template's stands, and one on a solid template is dropped, so a solid doodad is never hidden: each dropped gate is
+    /// one Warning. The template's script's OnSpawn runs on each doodad before it is added.
+    /// </summary>
+    [Fact]
+    public async Task Place_each_doodad_with_the_gates_it_may_keep_and_its_scripts_OnSpawn()
+    {
+        (ChunkLayout layout, DtNavMesh navMesh) = s_baked.Value;
+        DoodadCatalog catalog = Catalog();
+        StaticData data = (await QuestTestWorld.CreateAsync([Quest(GateQuest).WithStage(0, Kill(GateObjective, Boar, 1))])).Data;
+        var onObjective = new DoodadGate(GateQuest, DoodadGateCondition.OnObjective, GateObjective);
+        var unknownQuest = new DoodadGate(99, DoodadGateCondition.Completed, null);
+        Vector3[] spots = layout.Chunks.Where(c => c.Depth > 0).Take(3).Select(c => c.WorldPos + new Vector3(15f, 1f, 15f)).ToArray();
+        var plan = new DoodadPlan(
+        [
+            new PlannedDoodad(Template(catalog, Barrel), spots[0], 90f, AtSlot: true, VisibleGate: onObjective),
+            new PlannedDoodad(Template(catalog, Gated), spots[1], 0f, AtSlot: true, UsableGate: unknownQuest),
+            new PlannedDoodad(Template(catalog, Shrine), spots[2], 180f, AtSlot: true, VisibleGate: onObjective),
+        ], [], []);
+        DoodadPlacementService service = Service(out TestLog log);
+        MapInstance instance = Instance(layout, navMesh, MapInstanceClients.NewWorld(data));
+
+        await service.PlaceAsync(instance, layout, plan, new MapTemplateId(2), CancellationToken.None);
+
+        Assert.Equal(3, instance.Doodads.Count);
+        Doodad barrel = instance.Doodads.All[0], gated = instance.Doodads.All[1], shrine = instance.Doodads.All[2];
+        Assert.Equal(onObjective, barrel.VisibleGate);
+        Assert.Equal(Template(catalog, Gated).Usable, gated.UsableGate);
+        Assert.Null(shrine.VisibleGate);
+        Assert.Equal(spots[2], shrine.Position);   // a solid doodad keeps its slot's height
+        Assert.Equal(2, log.Entries.Count(e => e.Level == LogLevel.Warning));
+        Assert.Equal((DoodadState.Ready, DoodadState.Used), (barrel.State, gated.State));
+    }
+
+    private static DoodadPlacementService Service(out TestLog log)
+    {
+        log = new TestLog();
+        var time = new FakeTimeProvider();
+        var scripts = new DoodadScripts(new ServiceCollection().BuildServiceProvider(), time, new Logger<DoodadScripts>(log));
+        return new DoodadPlacementService(scripts, time, log);
+    }
+
+    private static ProceduralMapConfig Config(params ProceduralDoodadRule[] rules) => new()
+    {
+        MapTemplateId = new MapTemplateId(2),
+        ChunkPoolId = Reference.ForestConfig.ChunkPoolId,
+        SpawnTableId = Reference.ForestConfig.SpawnTableId,
+        DoodadRules = [.. rules],
+    };
+
+    private static ProceduralDoodadRule Rule(int sequence, uint template, string tag, byte min, byte max,
+        float spacing = 0f, int? minDepth = null, bool required = false)
+    {
+        return new ProceduralDoodadRule
+        {
+            Sequence = sequence,
+            DoodadTemplateId = new DoodadTemplateId(template),
+            SlotTag = tag,
+            MinCount = min,
+            MaxCount = max,
+            Required = required,
+            MinSpacing = spacing,
+            MinDepth = minDepth,
+        };
+    }
+
+    /// <summary>Barrel, strongbox and the scripted gated crate walk-through; the shrine solid.</summary>
+    private static DoodadCatalog Catalog()
+    {
+        DoodadTemplate Row(uint id, string name) => new()
+        {
+            Id = new DoodadTemplateId(id),
+            Name = name,
+            ModelKit = "props-kit",
+            ModelKey = name,
+            Interaction = DoodadInteraction.Click,
+            InteractionRange = 5f,
+            UseLimit = DoodadUseLimit.OncePerInstance,
+            SpentLook = DoodadSpentLook.ShowUsed,
+        };
+
+        DoodadTemplate shrine = Row(Shrine, "Shrine");
+        shrine.Collision = DoodadCollision.Box;
+        shrine.CollisionHalfX = 0.6f;
+        shrine.CollisionHalfZ = 0.6f;
+        shrine.CollisionHeight = 1.4f;
+        DoodadTemplate gated = Row(Gated, "Crate");
+        gated.ScriptName = nameof(SpentOnSpawnDoodadScript);
+        gated.UsableQuestId = GateQuest;
+        gated.UsableCondition = DoodadGateCondition.Completed;
+
+        return new DoodadCatalog([Row(Barrel, "Barrel"), shrine, Row(Strongbox, "Strongbox"), gated],
+            LootTestData.Catalog(), [], [Quest(GateQuest).WithStage(0, Kill(GateObjective, Boar, 1))],
+            name => name == nameof(SpentOnSpawnDoodadScript) ? typeof(SpentOnSpawnDoodadScript) : null,
+            NullLoggerFactory.Instance);
+    }
+
+    private static DoodadTemplateView Template(DoodadCatalog catalog, uint id) =>
+        catalog.TryGet(new DoodadTemplateId(id), out DoodadTemplateView? template) ? template : throw new KeyNotFoundException($"doodad {id}");
+
+    private static MapInstance Instance(ChunkLayout layout, DtNavMesh navMesh, IWorld world)
+    {
+        var navigator = new MapNavigator(NullLoggerFactory.Instance);
+        navigator.LoadFromNavMesh(navMesh);
+        return TestMapInstances.Build(world, navigator: navigator, layout: layout, templateId: new MapTemplateId(2));
+    }
+
+    /// <summary>The doodad slots of the layout a planned doodad stands at, with their tags and their chunk's depth.</summary>
+    private static IEnumerable<(string Tag, int Depth)> Slot(ChunkLayout layout, PlannedDoodad planned) =>
+        from chunk in layout.Chunks
+        from slot in Reference.Chunks.GetById(chunk.TemplateId).DoodadSlots
+        let world = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, chunk.Rotation, layout.CellSize, chunk.WorldPos)
+        where FlatDistance(world, planned.Position) < 0.01f
+        select (slot.Tag, chunk.Depth);
+
+    private static float FlatDistance(Vector3 a, Vector3 b) => MathF.Sqrt((a.x - b.x) * (a.x - b.x) + (a.z - b.z) * (a.z - b.z));
+
+    private static (ChunkLayout, DtNavMesh) Bake()
+    {
+        IReadOnlyList<ChunkPoolMember> pool = Reference.Chunks.GetByPool(Reference.ForestConfig.ChunkPoolId);
+        const float Cell = 30f;
+        var chunks = s_pieces.Select(p => new PlacedChunk(
+            pool.Single(m => m.Template.Name == p.Name).Template.Id, p.X, p.Z, 0, new Vector3(p.X * Cell, 0f, p.Z * Cell), p.Depth)).ToList();
+        ChunkTemplate entry = pool.Single(m => m.Template.Name == "forest_entry_01").Template;
+        ChunkSpawnSlot entrySlot = entry.SpawnSlots.Single(s => s.Tag == "entry");
+        ChunkPortalSlot back = entry.PortalSlots.Single(p => p.Role == PortalRole.Back);
+        var layout = new ChunkLayout(0, chunks, chunks[0], null,
+            [new PortalPlacement(PortalRole.Back, new Vector3(back.LocalX, back.LocalY, back.LocalZ), 1)],
+            new Vector3(entrySlot.LocalX, entrySlot.LocalY, entrySlot.LocalZ), Cell);
+
+        DtNavMesh navMesh = ChunkLayoutNavmeshBuilder.ForTesting(NullLoggerFactory.Instance, Reference.Chunks,
+            Path.GetDirectoryName(TownNavmesh.ContentRoot)!).BuildAsync(layout, CancellationToken.None).GetAwaiter().GetResult();
+        return (layout, navMesh);
+    }
+}
+
+/// <summary>Spends its doodad as it is placed: what OnSpawn may do, off the tick, before the instance is published.</summary>
+public sealed class SpentOnSpawnDoodadScript : DoodadScript
+{
+    public override void OnSpawn(IDoodadContext ctx) => ctx.SetState(DoodadState.Used);
+
+    public override void OnUse(IDoodadUseContext ctx)
+    {
+    }
+}

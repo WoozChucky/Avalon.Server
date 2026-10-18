@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
+using Avalon.World.Doodads;
 using Avalon.World.Instances;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
@@ -81,6 +82,8 @@ public class ChunkLayoutInstanceFactoryShould
 
         ICreaturePlacementService creaturePlace = Substitute.For<ICreaturePlacementService>();
         IPortalPlacementService portalPlace = Substitute.For<IPortalPlacementService>();
+        IDoodadPlacementService doodadPlace = Substitute.For<IDoodadPlacementService>();
+        doodadPlace.Plan(layout, layout.Config, Arg.Any<DoodadCatalog>(), Arg.Any<IChunkLibrary>()).Returns(DoodadPlan.Empty);
         IServiceProvider sp = BuildServiceProvider();
 
         var factory = new ChunkLayoutInstanceFactory(
@@ -89,6 +92,7 @@ public class ChunkLayoutInstanceFactoryShould
             navBuilder,
             creaturePlace,
             portalPlace,
+            doodadPlace,
             sp);
 
         MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: null, CancellationToken.None);
@@ -106,6 +110,10 @@ public class ChunkLayoutInstanceFactoryShould
             instance, layout, template.Id, Arg.Any<CancellationToken>());
 
         portalPlace.Received(1).Place(instance, layout, null);
+
+        // Doodads are planned before the bake and placed on the built instance, for every layout kind (a town's plan
+        // is empty until its fixed spawns join it).
+        await doodadPlace.Received(1).PlaceAsync(instance, layout, DoodadPlan.Empty, template.Id, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -140,6 +148,8 @@ public class ChunkLayoutInstanceFactoryShould
 
         ICreaturePlacementService creaturePlace = Substitute.For<ICreaturePlacementService>();
         IPortalPlacementService portalPlace = Substitute.For<IPortalPlacementService>();
+        IDoodadPlacementService doodadPlace = Substitute.For<IDoodadPlacementService>();
+        doodadPlace.Plan(layout, layout.Config, Arg.Any<DoodadCatalog>(), Arg.Any<IChunkLibrary>()).Returns(DoodadPlan.Empty);
         IServiceProvider sp = BuildServiceProvider();
 
         var factory = new ChunkLayoutInstanceFactory(
@@ -148,6 +158,7 @@ public class ChunkLayoutInstanceFactoryShould
             navBuilder,
             creaturePlace,
             portalPlace,
+            doodadPlace,
             sp);
 
         MapInstance instance = await factory.BuildAsync(template, ownerCharacterId: 99u, CancellationToken.None);
@@ -163,5 +174,11 @@ public class ChunkLayoutInstanceFactoryShould
             instance, layout, template.Id, Arg.Any<CancellationToken>());
 
         portalPlace.Received(1).Place(instance, layout, cfg);
+        Received.InOrder(() =>
+        {
+            doodadPlace.Plan(layout, cfg, Arg.Any<DoodadCatalog>(), Arg.Any<IChunkLibrary>());
+            navBuilder.BuildAsync(layout, Arg.Any<CancellationToken>());
+            doodadPlace.PlaceAsync(instance, layout, DoodadPlan.Empty, template.Id, Arg.Any<CancellationToken>());
+        });
     }
 }

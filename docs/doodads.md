@@ -10,7 +10,7 @@ This page is the authority on the subsystem. Other pages cover their own side of
 - [tick profiling](tick-profiling.md): how doodads count in `candidateChecks` and `visiblePairs`;
 - [tooling](tooling.md): the `doodad-catalog` export.
 
-Slice S1, the framework and the wire, seeds and places no doodad. Every rule below is live, but no instance holds a doodad yet.
+Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement"); no doodad template is seeded yet.
 
 ## Templates and catalog
 
@@ -73,7 +73,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
   - **Fixed at spawn:** its template, position and yaw (`Orientation.y`), and its effective gates. The spawn's own gate wins when the spawn sets one, and the template's applies otherwise. A solid template keeps no gate, even one the spawn passes.
   - **Never moves.** Its `IWorldObject` setters throw.
   - **State** is `Ready`, `Used` or `Despawned`. It is per instance and is set on the tick only. Every change raises `ViewVersion`.
-  - `MapInstance.AddDoodad` files it in the instance's `DoodadIndex`, at build time only, and refuses a guid of another type.
+  - `MapInstance.AddDoodad` files it in the instance's `DoodadIndex`, at build time only, and refuses a guid of another type. The registry seals the index as it publishes the instance (`DoodadIndex.Seal`), and every add after that throws, since the tick reads the cell lists without a lock (`InstanceRegistryShould.Leave_A_Finished_Build_Out_Of_The_Registry_Until_It_Is_Published`).
 - **`DoodadIndex`** is a grid on X/Z over the cells of the instance's spatial grid (`GridCells`, the one layout both are built on), written at build time only.
   - `Visit` hands a struct visitor exactly the doodads within a reach on X/Z, and allocates nothing.
   - A doodad whose X or Z is not finite is in `All` but in no cell.
@@ -181,7 +181,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
   - `DoodadScriptConstructibilityShould` builds every shipped and seeded script that way, and refuses one that asks for the world.
   - Never rename or delete a doodad script on grep evidence alone.
 - **Hooks**:
-  - `OnSpawn(IDoodadContext)`: at placement, off the tick, in the instance build. In S1 nothing calls it, because placement arrives with S2.
+  - `OnSpawn(IDoodadContext)`: at placement, off the tick, in the instance build, before the doodad is added (`DoodadPlacementService`). A throw is logged through the scripts' throttle, and the doodad is still placed.
   - `CanUse(IDoodadUseContext)`: read only, and asked at the interact and again at cast completion. It returns null to allow the use, or a line to refuse it.
   - `OnUse(IDoodadUseContext)`: abstract.
   - `OnDespawn` and `OnRespawn`.
@@ -226,7 +226,21 @@ The stock scripts are in `Avalon.World/Doodads/Scripts/`, and `StockDoodadScript
 
 ## Placement
 
-S2 (procedural placement in the forest: chunk doodad slots, seeded rules, required rules and the navmesh obstacles of solid doodads) and S3 (fixed town spawns and the quest doodads) fill this section. S1 places nothing: `MapInstance.AddDoodad` exists, and no build calls it yet.
+A procedural map's doodads come from its doodad rules (`ProceduralDoodadRule`, written by `ChunkCatalogSeeder` from `Maps/ProceduralMaps/<mapId>.json`; see [map generation](map-generation.md#spawn-tables-and-procedural-map-configs)) and the doodad slots of its pieces (`ChunkTemplate.DoodadSlots`). `ChunkLayoutInstanceFactory` runs `IDoodadPlacementService` (`DoodadPlacementService`) in two steps of the off-tick build. S3 adds the town's fixed spawns and the quest doodads.
+
+- **Plan**, before the navmesh bake, from the layout, the rules and the catalog alone. It is deterministic for a seed: one `Random(layout.Seed ^ DoodadSeedSalt)` (`0x0D00DAD5`).
+  1. The candidates are every doodad slot of the layout in world space (`ChunkRotation.LocalToWorld`), in chunk order and each chunk's slots in file order, with yaw `(slot.Yaw + 90 * chunk.Rotation) % 360` and the chunk's depth. A slot within 15 m (X/Z) of the entry spawn or 8 m of a portal is dropped.
+  2. The rules run required first, then by `Sequence`. A rule whose template the catalog lacks is skipped with a Warning.
+  3. Each rule draws its count (`MinCount` to `MaxCount`), takes the candidates not yet taken with its tag (ignoring case) and a depth within `MinDepth` to `MaxDepth`, shuffles them (Fisher-Yates), and takes them in order until it has its count, skipping one nearer than `MinSpacing` to a doodad of the same template, or nearer than 2 m to any doodad planned.
+  4. A required rule left short adds what it lacks to `RequiredShort`, for the fallback.
+  5. `DoodadPlan.Obstacles`, the solid doodads' boxes for the bake to cut out, is empty until the navmesh obstacles arrive.
+- **Place**, after the bake and the creatures, on the instance being built, before it is published. Each doodad is contained on its own: one that throws is logged and skipped, and the others are placed.
+  1. A walk-through doodad is snapped to the navmesh under its slot (`FindGround`; its nearest point when just beside the mesh, as a creature's slot is). With no mesh within reach, a required one moves to the fallback and an optional one is skipped with a Warning.
+  2. A solid doodad keeps its slot's height, unsnapped.
+  3. **The fallback**: each required doodad short of a slot is tried at up to 64 random open navmesh points (`MapNavigator.TryFindOpenPoint`: `FindRandomPoint`, polygons drawn by area, kept only with no wall within 1.5 m, `FindDistanceToWall`), from a random stream of its own. A point is taken at 15 m or more from the entry, 8 m from every portal and 2 m from every doodad placed, facing yaw 0. After 64 tries an Error names the map, the seed and the template. A solid template is never placed off its slot, since its box was never baked into the navmesh: an Error, and it is not placed. The seeder refuses a required rule on a solid template, so this only follows a reload.
+  4. Each doodad gets its gates: the rule's, when set, replace the template's. A gate on a solid template is dropped with one Warning per spawn, so a solid doodad is never hidden. A gate naming a quest the world's quest catalog does not hold, or an objective that is not that quest's, is dropped with a Warning, and the template's gate stands.
+  5. Then its script's `OnSpawn` runs in spawn mode (`DoodadUseContext.Begin` with no host), and `MapInstance.AddDoodad` files it.
+- Nothing of this runs on the tick. `DoodadPlacementShould` pins the plan's tags, depths, counts and spacing, the fallback and the gates, and `CommittedForestDoodadsShould` proves the committed forest places every required doodad at a slot for seeds 0 to 999.
 
 ## What a doodad-unaware client does
 

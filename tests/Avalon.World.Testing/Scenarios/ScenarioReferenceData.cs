@@ -156,7 +156,8 @@ public sealed class ScenarioReferenceData
             repositories.GetRequiredService<ICombatDataRepository>(),
             repositories.GetRequiredService<IQuestRepository>(),
             scripts,
-            repositories.GetRequiredService<IAuraTemplateRepository>());
+            repositories.GetRequiredService<IAuraTemplateRepository>(),
+            repositories.GetRequiredService<IDoodadTemplateRepository>());
         data.LoadAsync().GetAwaiter().GetResult();
 
         var chunks = new ChunkLibrary(NullLoggerFactory.Instance, repositories.GetRequiredService<IServiceScopeFactory>());

@@ -510,6 +510,8 @@ public class InstanceRegistry : IInstanceRegistry, IPartyInstanceRegistry
             instance.JoinBroadcastSchedule(slot, phase);
         }
 
+        // Before anything ticks it: the tick reads its doodads without a lock, so no build step adds one after this.
+        instance.MarkPublished();
         _instances[instance.InstanceId] = instance;
         _tickOrder.Add(instance);
         _tickSnapshotStale = true;

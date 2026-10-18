@@ -34,3 +34,9 @@ public record ChunkLayout(
     ProceduralMapConfig? Config = null,
     string? ConfigVersion = null,
     int MainPathLength = 0);
+
+/// <summary>
+/// A solid doodad's box as the navmesh bake cuts it out: its world X/Z bounds, the ground it stands on and its top. Planned
+/// with the doodads, before the bake (DoodadPlan.Obstacles).
+/// </summary>
+public readonly record struct DoodadObstacle(float MinX, float MaxX, float MinZ, float MaxZ, float BaseY, float TopY);

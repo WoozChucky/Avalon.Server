@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Maps;
+using DotRecast.Core;
 using DotRecast.Core.Numerics;
 using DotRecast.Detour;
 using Microsoft.Extensions.Logging;
@@ -410,6 +411,30 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
         ground = new Vector3(nearestPt.X, nearestPt.Y, nearestPt.Z);
         return NavmeshGroundKind.Nearest;
+    }
+
+    /// <summary>
+    /// A random point on the navmesh, polygons drawn by area from <paramref name="random" />, kept only when no wall is
+    /// within <paramref name="wallClearance" /> of it; false, <paramref name="point" /> zero, with no mesh, when the draw
+    /// fails or the point stands nearer a wall. One draw per call: a caller wanting a point tries again. For the
+    /// off-tick instance build (a required doodad's fallback), which owns the navigator's query until it is published.
+    /// </summary>
+    public bool TryFindOpenPoint(Random random, float wallClearance, out Vector3 point)
+    {
+        point = Vector3.zero;
+        if (_navMesh == null) return false;
+
+        ReusingNavMeshQuery query = _query!;
+        DtStatus status = query.FindRandomPoint(_queryFilter, new RcRand(random), out long polyRef, out RcVec3f found);
+        if (status.Failed() || polyRef == 0)
+            return false;
+
+        status = query.FindDistanceToWall(polyRef, found, wallClearance, _queryFilter, out float toWall, out _, out _);
+        if (status.Failed() || toWall < wallClearance)
+            return false;
+
+        point = ToVector3(found);
+        return true;
     }
 
     private static void CheckStatus(DtStatus status)
