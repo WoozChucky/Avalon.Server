@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -28,9 +29,12 @@ public static class KitBounds
     }
 
     /// <summary>
-    /// The box of every primitive's POSITION accessor (its min and max, which glTF requires) carried through the node
-    /// transforms of the file's scene and joined. No vertex data is read. A file that is not such a glTF is refused
-    /// (InvalidDataException naming it).
+    /// The box of every primitive's POSITION vertices carried through the node transforms of the file's scene and
+    /// joined. The box is measured from the vertices themselves (float VEC3, from the buffer the accessor's bufferView
+    /// points into: a file beside the glTF or a base64 data URI), not from the accessor's min and max, which some kit
+    /// exports leave stale (the nature kit's Fern_1 and Plant_1_Big state boxes several times their meshes); an accessor
+    /// with no bufferView holds no data, so its min and max are its box. A file that is not such a glTF, or whose
+    /// positions are not float VEC3 or are sparse, is refused (InvalidDataException naming it).
     /// </summary>
     public static ModelBounds Measure(string gltfPath)
     {
@@ -38,7 +42,8 @@ public static class KitBounds
         {
             return MeasureDocument(gltfPath);
         }
-        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException or FormatException)
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException or FormatException
+                                       or IOException or UnauthorizedAccessException)
         {
             throw new InvalidDataException($"{gltfPath} is not a glTF the tool can measure: {ex.Message}", ex);
         }
@@ -55,8 +60,9 @@ public static class KitBounds
         var min = new Vector3(float.PositiveInfinity);
         var max = new Vector3(float.NegativeInfinity);
         JsonElement nodes = root.GetProperty("nodes");
+        var buffers = new Dictionary<int, byte[]>();
         foreach (JsonElement node in scenes[scene].GetProperty("nodes").EnumerateArray())
-            Visit(root, nodes[node.GetInt32()], Matrix4x4.Identity, ref min, ref max);
+            Visit(root, gltfPath, buffers, nodes[node.GetInt32()], Matrix4x4.Identity, ref min, ref max);
 
         if (min.X > max.X) throw new InvalidDataException($"{gltfPath} draws no mesh");
         return new ModelBounds(min.X, max.X, min.Y, max.Y, min.Z, max.Z);
@@ -86,7 +92,8 @@ public static class KitBounds
         return sb.ToString();
     }
 
-    private static void Visit(JsonElement root, JsonElement node, Matrix4x4 parent, ref Vector3 min, ref Vector3 max)
+    private static void Visit(
+        JsonElement root, string gltfPath, Dictionary<int, byte[]> buffers, JsonElement node, Matrix4x4 parent, ref Vector3 min, ref Vector3 max)
     {
         Matrix4x4 world = Local(node) * parent;
         if (node.TryGetProperty("mesh", out JsonElement mesh))
@@ -95,8 +102,7 @@ public static class KitBounds
             foreach (JsonElement primitive in root.GetProperty("meshes")[mesh.GetInt32()].GetProperty("primitives").EnumerateArray())
             {
                 JsonElement accessor = accessors[primitive.GetProperty("attributes").GetProperty("POSITION").GetInt32()];
-                Vector3 lo = Vec3(accessor.GetProperty("min"));
-                Vector3 hi = Vec3(accessor.GetProperty("max"));
+                (Vector3 lo, Vector3 hi) = PositionBox(root, gltfPath, buffers, accessor);
                 for (int corner = 0; corner < 8; corner++)
                 {
                     var point = new Vector3((corner & 1) == 0 ? lo.X : hi.X, (corner & 2) == 0 ? lo.Y : hi.Y, (corner & 4) == 0 ? lo.Z : hi.Z);
@@ -111,7 +117,7 @@ public static class KitBounds
         {
             JsonElement nodes = root.GetProperty("nodes");
             foreach (JsonElement child in children.EnumerateArray())
-                Visit(root, nodes[child.GetInt32()], world, ref min, ref max);
+                Visit(root, gltfPath, buffers, nodes[child.GetInt32()], world, ref min, ref max);
         }
     }
 
@@ -133,6 +139,49 @@ public static class KitBounds
             : Matrix4x4.Identity;
         Matrix4x4 translation = node.TryGetProperty("translation", out JsonElement t) ? Matrix4x4.CreateTranslation(Vec3(t)) : Matrix4x4.Identity;
         return scale * rotation * translation;
+    }
+
+    /// <summary>A POSITION accessor's box in its mesh's space, from its vertices (see <see cref="Measure" />).</summary>
+    private static (Vector3 Min, Vector3 Max) PositionBox(JsonElement root, string gltfPath, Dictionary<int, byte[]> buffers, JsonElement accessor)
+    {
+        if (!accessor.TryGetProperty("bufferView", out JsonElement viewIndex))
+            return (Vec3(accessor.GetProperty("min")), Vec3(accessor.GetProperty("max")));
+        if (accessor.TryGetProperty("sparse", out _))
+            throw new InvalidDataException($"{gltfPath} has a sparse POSITION accessor");
+        if (accessor.GetProperty("componentType").GetInt32() != 5126 || accessor.GetProperty("type").GetString() != "VEC3")
+            throw new InvalidDataException($"{gltfPath} has POSITION data that is not float VEC3");
+
+        JsonElement view = root.GetProperty("bufferViews")[viewIndex.GetInt32()];
+        int bufferIndex = view.GetProperty("buffer").GetInt32();
+        if (!buffers.TryGetValue(bufferIndex, out byte[]? data))
+        {
+            string uri = root.GetProperty("buffers")[bufferIndex].GetProperty("uri").GetString()
+                ?? throw new InvalidDataException($"{gltfPath} has a buffer without a uri");
+            int comma = uri.IndexOf(',', StringComparison.Ordinal);
+            data = uri.StartsWith("data:", StringComparison.Ordinal) && comma > 0
+                ? Convert.FromBase64String(uri[(comma + 1)..])
+                : File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(gltfPath)!, Uri.UnescapeDataString(uri)));
+            buffers[bufferIndex] = data;
+        }
+
+        int offset = (view.TryGetProperty("byteOffset", out JsonElement vo) ? vo.GetInt32() : 0)
+            + (accessor.TryGetProperty("byteOffset", out JsonElement ao) ? ao.GetInt32() : 0);
+        int stride = view.TryGetProperty("byteStride", out JsonElement st) ? st.GetInt32() : 12;
+        int count = accessor.GetProperty("count").GetInt32();
+        if (count <= 0 || offset + (count - 1) * stride + 12 > data.Length)
+            throw new InvalidDataException($"{gltfPath} has POSITION data outside its buffer");
+
+        var min = new Vector3(float.PositiveInfinity);
+        var max = new Vector3(float.NegativeInfinity);
+        for (int i = 0; i < count; i++)
+        {
+            ReadOnlySpan<byte> v = data.AsSpan(offset + i * stride, 12);
+            var p = new Vector3(BinaryPrimitives.ReadSingleLittleEndian(v), BinaryPrimitives.ReadSingleLittleEndian(v[4..]),
+                BinaryPrimitives.ReadSingleLittleEndian(v[8..]));
+            min = Vector3.Min(min, p);
+            max = Vector3.Max(max, p);
+        }
+        return (min, max);
     }
 
     private static Vector3 Vec3(JsonElement array) => new(array[0].GetSingle(), array[1].GetSingle(), array[2].GetSingle());

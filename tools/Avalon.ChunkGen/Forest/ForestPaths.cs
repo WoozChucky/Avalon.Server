@@ -2,11 +2,12 @@ namespace Avalon.ChunkGen;
 
 /// <summary>
 /// A forest piece's paths: a worn dirt strip from the midpoint of every exit side to the piece's meeting point, laid
-/// as <see cref="Segment" /> pieces butted end to end and ending under a <see cref="Hub" /> there. Every strip is
+/// as <see cref="Segment" /> pieces end to end and ending under a <see cref="Hub" /> there. Every strip is
 /// <see cref="Width" /> wide and its first segment runs straight in from the side, so it meets its neighbour's at
 /// the shared edge whatever either chunk's rotation. After the first segment a path wanders a little, bending at most
-/// <see cref="MaxBend" /> degrees a segment, so the gap and the overlap at a bend stay a few centimetres; consecutive
-/// segments alternate between two heights (<see cref="Lift" />), so an overlap never draws two strips at one height.
+/// <see cref="MaxBend" /> degrees a segment; each segment starts <see cref="Overlap" /> back over the one before, which
+/// covers the wedge a bend opens at the outer edge, and consecutive segments alternate between two heights
+/// (<see cref="Lift" />), so the overlap never draws two strips at one height.
 /// </summary>
 public static class ForestPaths
 {
@@ -35,6 +36,15 @@ public static class ForestPaths
     /// <summary>The height every other segment is raised by, above its neighbours and below the hub's top.</summary>
     public const float Lift = 0.002f;
 
+    /// <summary>
+    /// How far each segment starts back over the one before it: at least half the width times sin <see cref="MaxBend" />
+    /// (0.146 m), the depth of the wedge a bend opens at the strip's outer edge.
+    /// </summary>
+    public const float Overlap = 0.2f;
+
+    /// <summary>How far a path advances a segment.</summary>
+    public const float Advance = SegmentLength - Overlap;
+
     /// <summary>The ends of a segment's centre line, its origin ± half its length along its yaw, scaled.</summary>
     public static ((float X, float Z) A, (float X, float Z) B) Ends(DecorItem segment)
     {
@@ -45,10 +55,11 @@ public static class ForestPaths
 
     /// <summary>
     /// The path from <paramref name="exit" /> to the frame's meeting point: the first segment straight in from the
-    /// exit's midpoint, then each turned by a whole degree, at most <see cref="MaxBend" />, to end nearest a waypoint
-    /// beside the straight line's middle (<see cref="Wander" /> off it, drawn from <paramref name="rng" />), then the
-    /// meeting point, until an end lies within <see cref="HubReach" /> of it. A path that cannot get there is refused
-    /// (InvalidOperationException naming the frame and the exit).
+    /// exit's midpoint, then each starting <see cref="Overlap" /> back over the last, turned by a whole degree, at most
+    /// <see cref="MaxBend" />, to end nearest a waypoint beside the straight line's middle (<see cref="Wander" /> off it,
+    /// drawn from <paramref name="rng" />), then the meeting point, until an end lies within <see cref="HubReach" /> of
+    /// it. Consecutive segments alternate heights, a path starting at <paramref name="parity" />'s. A path that cannot
+    /// get there is refused (InvalidOperationException naming the frame and the exit).
     /// </summary>
     internal static List<DecorItem> Lay(ForestFrame frame, ForestExit exit, int parity, Random rng)
     {
@@ -63,25 +74,31 @@ public static class ForestPaths
         float x = exit.X, z = exit.Z;
         int yaw = exit.InwardYaw;
         bool passedWaypoint = false;
-        int limit = (int)(length / SegmentLength) * 2 + 8;
+        int limit = (int)(length / Advance) * 2 + 8;
         for (int step = 0; step < limit; step++)
         {
+            // (x, z) is the last segment's end; the next starts Overlap back from it along its own yaw.
+            float back = 0f;
             if (step > 0)
             {
                 (float targetX, float targetZ) = passedWaypoint ? (meetX, meetZ) : (wayX, wayZ);
                 yaw = Steer(x, z, yaw, targetX, targetZ);
+                back = Overlap;
             }
             (float fx, float fz) = Yaw.Forward(yaw);
-            segments.Add(new DecorItem("", Segment, x + fx * SegmentLength / 2f, (step + parity) % 2 * Lift, z + fz * SegmentLength / 2f, Yaw.Normal(yaw)));
-            x += fx * SegmentLength;
-            z += fz * SegmentLength;
+            float startX = x - fx * back, startZ = z - fz * back;
+            segments.Add(new DecorItem("", Segment, startX + fx * SegmentLength / 2f, (step + parity) % 2 * Lift,
+                startZ + fz * SegmentLength / 2f, Yaw.Normal(yaw)));
+            x = startX + fx * SegmentLength;
+            z = startZ + fz * SegmentLength;
             if (!passedWaypoint && Distance(x, z, wayX, wayZ) <= SegmentLength * 1.5f) passedWaypoint = true;
             if (Distance(x, z, meetX, meetZ) <= HubReach) return segments;
         }
-        throw new InvalidOperationException($"{frame.Name}: the path from the {exit.Side} exit does not reach the meeting point ({meetX}, {meetZ})");
+        throw new InvalidOperationException(
+            $"{frame.Name}: the path from the {exit.Side} exit does not reach the meeting point ({ForestText.N(meetX)}, {ForestText.N(meetZ)})");
     }
 
-    /// <summary>The whole-degree yaw within <see cref="MaxBend" /> of <paramref name="yaw" /> whose segment ends nearest the target; the smaller turn on a tie.</summary>
+    /// <summary>The whole-degree yaw within <see cref="MaxBend" /> of <paramref name="yaw" /> whose next segment ends nearest the target; the smaller turn on a tie.</summary>
     private static int Steer(float x, float z, int yaw, float targetX, float targetZ)
     {
         int best = yaw;
@@ -91,7 +108,7 @@ public static class ForestPaths
             foreach (int candidate in turn == 0 ? [yaw] : new[] { yaw - turn, yaw + turn })
             {
                 (float fx, float fz) = Yaw.Forward(candidate);
-                float d = Distance(x + fx * SegmentLength, z + fz * SegmentLength, targetX, targetZ);
+                float d = Distance(x + fx * Advance, z + fz * Advance, targetX, targetZ);
                 if (d < bestDistance)
                 {
                     bestDistance = d;

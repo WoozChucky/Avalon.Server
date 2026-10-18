@@ -369,7 +369,7 @@ recipes") with the kit `stylized-nature-megakit-standard`: the Stylized Nature M
 stepping stones, and the custom `avalon_*` forest models (rocks, logs, ruins, the dirt path), at any whole-degree yaw
 and a scale. `ForestDresser` writes it, a set piece's in its 60 x 60 m frame, split into its members by the cell each
 item stands in, as its slots are. It is deterministic: one `Random` seeded from the FNV-1a hash of the piece's name,
-whole-degree yaws turned through a table of sines rounded to 9 decimals, positions rounded to centimetres, so a run on
+whole-degree yaws turned through a table of sines rounded to 9 decimals, positions written with at most 3 decimals, so a run on
 any machine writes the same bytes. Its densities are named constants in `ForestDresser`.
 
 **Blockers carry what draws them.** Every forest blocker has a `Dressing` role, set in `ForestPieces.cs`:
@@ -399,17 +399,21 @@ draw, and the floor `usemtl forest_floor`, which the client gives its ground loo
 
 **Paths.** `ForestPaths` lays a worn dirt strip from the midpoint of every exit's side to the piece's meeting point
 (its centre, or its set piece's frame's centre, unless `DressingHints` sets one): `avalon_path_dirt_2m` segments, 2 m
-long and 2.8 m wide (`ForestPaths.Width`, the same for every piece), butted end to end, the first running straight in
-from the side, so a path always meets its neighbour's at the shared edge whatever either chunk's rotation. After the
-first segment a path wanders up to 1 m off the straight line, bending at most 6 degrees a segment, and ends within
-1.6 m of the meeting point, under an `avalon_path_dirt_hub` patch there. Every other segment is raised 2 mm, so the
-wedge where two meet at a bend never draws two strips at one height (the hub's top is above both). About every other
-segment carries a `RockPath_*` stepping stone.
+long and 2.8 m wide (`ForestPaths.Width`, the same for every piece), end to end, the first running straight in from
+the side, so a path always meets its neighbour's at the shared edge whatever either chunk's rotation. After the first
+segment a path wanders up to 1 m off the straight line, bending at most 6 degrees a segment (`ForestPaths.MaxBend`),
+and ends within 1.6 m of the meeting point, under an `avalon_path_dirt_hub` patch there. Each segment after the first
+starts 0.2 m back over the one before (`ForestPaths.Overlap`, more than half the width times sin 6°, 0.146 m), which
+covers the wedge a bend opens at the strip's outer edge; every other segment is raised 2 mm, so that overlap never
+draws two strips at one height (the hub's top is above both). About every other segment carries a `RockPath_*`
+stepping stone.
 
 **Undergrowth and ground cover.** Along every edge, outside the exits' throats, a 3.5 m band of ferns, bushes, tall
 plants and tall grass; on the open floor, off the strip and the blockers and clear of the doodad slots (1.5 m, 3 m from
 a `doodad_large`), grass in clumps (most), ferns, clover, plants, pebbles, a few small bushes and very few flowers, and
-mushrooms at the feet of trees, drums and logs. The kit's red-leaved `Bush_Common` is used once a frame at most, and a
+mushrooms at the feet of trees, drums and logs. Off a blocker, cover is scaled down to be drawn no taller than 1.2 m,
+so what a player walks through on open floor reads as small; bushes and tall plants at full size stand only on a drum
+or a rock box. The kit's red-leaved `Bush_Common` is used once a frame at most, and a
 `TwistedTree` only in an old wood (`TreeMix.Old`), once a frame at most. The piece's `DressingHints.Trees` picks the
 tree mix: `Mixed`, `Broadleaf`, `Pine` or `Old`.
 
@@ -423,11 +427,18 @@ part or exit:
   where a player walks;
 - a blocker with no solid part within it: no invisible wall;
 - an exit with no 2.8 m strip ending on its side's midpoint and running straight in, a strip that breaks off before
-  the hub, a segment at another scale, outside the frame or on no exit's path, and anything but one hub;
+  the hub (each segment must start 0.2 m back from the last one's end, within 0.01 m), a segment at another scale,
+  outside the frame or on no exit's path, and anything but one hub;
+- a segment that bends more than 6 degrees from the one before it, or lies at its height; two segments that overlap at
+  one height outside the hub (two paths' strips drawn over each other would z-fight);
 - a blocker reaching onto a strip; ground cover within 2 m of a strip's centre line or 3 m of the hub (stepping stones
   only stand on the strip, within 0.9 m of its centre line, or on the hub);
 - inside an exit's throat, ground cover other than grass or cover drawn no taller than 0.6 m: nothing hides the way out,
-  though grass beside the strip at the edge is fine.
+  though grass beside the strip at the edge is fine;
+- walk-through cover drawn taller than 1.2 m (its model's top times its scale) that does not stand within a blocker.
+
+The bushes on the corners a rock box's rocks leave bare, and how much of the box the rocks cover, are the dresser's
+habit, not a checked rule: the rules ask only that each blocker has something solid on it.
 
 `ForestPiecesShould` also turns every chunk the tool writes through the four rotations (`ChunkRotation`) and checks
 that a strip ends on each exit's rotated side, centred on its midpoint and 2.8 m wide.
@@ -649,8 +660,10 @@ be checked against the art without the kit, which stays out of the repository:
 measures every `*.gltf` directly in the kit directory (and the custom props' directory; the props kit's: Fantasy
 Props MegaKit, CC0, whose `Chest_Wood`, `Barrel` and `Crate_Metal` the forest's doodads wear; the nature kit's:
 Stylized Nature MegaKit, Standard, CC0, the forest's trees, plants, rocks and stepping stones; and the custom forest
-models', the `avalon_*` rocks, logs, ruins and dirt paths) from its accessors' bounds through the node transforms, and
-rewrites the table. With `--forest-props` it also copies that directory's `footprints.json` (the solid parts each custom
+models', the `avalon_*` rocks, logs, ruins and dirt paths) from its vertices through the node transforms, and
+rewrites the table. The vertices are read from each POSITION accessor's buffer, not from the accessor's min and max,
+which some kit exports leave stale: the nature kit's `Fern_1` and `Plant_1_Big` state boxes up to three times their
+meshes. With `--forest-props` it also copies that directory's `footprints.json` (the solid parts each custom
 forest model is measured with in Blender) into `tools/Avalon.ChunkGen/Kit/forest-footprints.json`, which the forest
 dresser and its rules read. A model in two of the directories, an empty directory, a file it cannot measure, or a
 footprints file that does not list exactly the models beside it leaves both tables as they were. The committed table

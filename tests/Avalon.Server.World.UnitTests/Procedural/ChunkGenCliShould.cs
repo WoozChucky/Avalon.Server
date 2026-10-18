@@ -85,6 +85,42 @@ public sealed class ChunkGenCliShould : IDisposable
         }
     }
 
+    /// <summary>
+    /// The custom forest models' footprints.json is copied with the bounds: missing, or listing other models than the
+    /// directory holds, it is refused and neither committed table changes (both are the repository's own, so a run
+    /// that wrote them anyway is undone).
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("""{ "avalon_other": { "walkThrough": true } }""")]
+    public async Task Refuse_a_missing_or_mismatched_footprints_file_and_keep_both_tables(string? footprints)
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"avalon-kit-bounds-cli-{Guid.NewGuid():N}");
+        string kitDirectory = Path.Combine(TownNavmesh.RepositoryRoot, "tools", "Avalon.ChunkGen", "Kit");
+        string[] tables = [Path.Combine(kitDirectory, "kit-bounds.json"), Path.Combine(kitDirectory, "forest-footprints.json")];
+        string[] before = [.. tables.Select(File.ReadAllText)];
+        try
+        {
+            string kit = WriteModels(root, "kit", "Wall");
+            string forestProps = WriteModels(root, "forest-props", "avalon_log");
+            if (footprints is not null) File.WriteAllText(Path.Combine(forestProps, ForestFootprints.ArtFile), footprints);
+
+            int code = await ChunkGenCli.RunAsync(["kit-bounds", "--kit", kit, "--forest-props", forestProps], () => [], () => [], () => [], _output, _error);
+
+            Assert.Equal(1, code);
+            Assert.StartsWith("nothing written: InvalidOperationException: ", _error.ToString(), StringComparison.Ordinal);
+            Assert.Equal(before, tables.Select(File.ReadAllText));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            for (int i = 0; i < tables.Length; i++)
+            {
+                if (File.ReadAllText(tables[i]) != before[i]) File.WriteAllText(tables[i], before[i]);
+            }
+        }
+    }
+
     private static string WriteModels(string root, string folder, params string[] names)
     {
         const string Gltf = """

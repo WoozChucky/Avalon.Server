@@ -17,8 +17,8 @@ namespace Avalon.ChunkGen;
 /// and flowers, and mushrooms at the feet of trees and logs.</item>
 /// </list>
 /// Deterministic: one <see cref="Random" /> seeded from the FNV-1a hash of the piece's name, whole-degree yaws turned
-/// through <see cref="Yaw" />, positions rounded to centimetres, so a rerun on any machine writes the same file
-/// (DecorJsonWriter sorts it). Densities are per 100 m² of the frame; they are tuned against renders.
+/// through <see cref="Yaw" />, positions written with at most 3 decimals (DecorJsonWriter, which also sorts them), so a
+/// rerun on any machine writes the same file. Densities are per 100 m² of the frame; they are tuned against renders.
 /// </summary>
 public static class ForestDresser
 {
@@ -230,7 +230,7 @@ public static class ForestDresser
     internal static IReadOnlyList<DecorItem> Dress(ForestFrame frame)
     {
         Blocker? undressed = frame.Blockers.FirstOrDefault(b => b.Dressing == Dressing.None);
-        if (undressed is not null) throw new InvalidOperationException($"{frame.Name}: blocker {undressed} has no dressing");
+        if (undressed is not null) throw new InvalidOperationException($"{frame.Name}: blocker {ForestText.Of(undressed)} has no dressing");
 
         var scene = new Scene(frame, new Random(StableSeed(frame.Name)));
         scene.LayPaths();
@@ -302,7 +302,7 @@ public static class ForestDresser
             switch (blocker.Dressing, blocker)
             {
                 case (Dressing.Trunk, CylinderBlocker trunk):
-                    TreePlacement tree = trunk.Tree ?? throw new InvalidOperationException($"{frame.Name}: trunk {trunk} names no tree");
+                    TreePlacement tree = trunk.Tree ?? throw new InvalidOperationException($"{frame.Name}: trunk {ForestText.Of(trunk)} names no tree");
                     AddTree(tree.Species, tree.Scale, trunk.X, trunk.Z);
                     Foot(trunk.X, trunk.Z, trunk.Radius);
                     break;
@@ -319,7 +319,7 @@ public static class ForestDresser
                     DressPillar(pillar);
                     break;
                 default:
-                    throw new InvalidOperationException($"{frame.Name}: blocker {blocker} is {blocker.Dressing}, which the dresser cannot draw on this shape without a prop");
+                    throw new InvalidOperationException($"{frame.Name}: blocker {ForestText.Of(blocker)} is a shape the dresser cannot draw {blocker.Dressing} on without a prop");
             }
         }
 
@@ -421,7 +421,7 @@ public static class ForestDresser
                     covered[i] |= InRock(Kit[best.Model], best.X, best.Z, best.Yaw, best.Scale, lattice[i]);
                 rocks++;
             }
-            if (rocks == 0) throw new InvalidOperationException($"{frame.Name}: no rock fits blocker {blocker}");
+            if (rocks == 0) throw new InvalidOperationException($"{frame.Name}: no rock fits blocker {ForestText.Of(blocker)}");
 
             // What the rocks leave bare (a box's corners, mostly): a tree among the rocks in a big one, undergrowth on the rest.
             bool tree = (maxX - minX) * (maxZ - minZ) >= RockTreeArea && rng.NextDouble() < RockTreeChance;
@@ -692,13 +692,17 @@ public static class ForestDresser
         /// <summary>
         /// Places a walk-through item when its spot is open: inside the frame, off the strip and the hub, outside every
         /// blocker (unless <paramref name="onBlockers" />), clear of the doodad slots and of other cover, and inside an
-        /// exit's throat only when it is grass or low.
+        /// exit's throat only when it is grass or low; off a blocker, its scale is cut so it is drawn no taller than
+        /// ForestDecorRules.WalkThroughCap.
         /// </summary>
         private bool TryCover(string model, float x, float z, float scale, float radius, bool big = false, bool onBlockers = false)
         {
             x = Round(x);
             z = Round(z);
             if (!Open(x, z, radius, big, onBlockers)) return false;
+            // Off a blocker, cover reads as small: no taller than the rules' cap, drawn.
+            if (!frame.Blockers.Any(b => b.DistanceTo(x, z) == 0f))
+                scale = Math.Min(scale, MathF.Floor(ForestDecorRules.WalkThroughCap / Kit[model].MaxY * 100f) / 100f);
             if (frame.Exits.Any(e => e.InThroat(x, z)) && !ForestDecorRules.MayStandInThroat(model, scale, Kit)) return false;
             Items.Add(new DecorItem("", model, x, 0f, z, rng.Next(360), scale));
             _cover.Add((x, z, radius));

@@ -134,6 +134,9 @@ public class ForestPiecesShould
     [InlineData("a path end off its exit", "no path strip ends at the N exit's midpoint")]
     [InlineData("a wider strip", "would not be 2.8 m wide")]
     [InlineData("a fern in a throat", "hide the way out")]
+    [InlineData("a sharp bend", "more than 6: the strip would open a gap")]
+    [InlineData("two strips at one height", "overlap at one height outside the hub")]
+    [InlineData("tall cover on open floor", "walk-through cover there stays under 1.2 m")]
     public void Refuse_decor_that_breaks_a_forest_decor_rule(string broken, string refusal)
     {
         ChunkPiece glade = ForestPieces.Singles().Single(p => p.Name == "forest_glade_01");
@@ -164,12 +167,31 @@ public class ForestPiecesShould
             case "a fern in a throat":
                 decor.Add(new DecorItem("", "Fern_1", 26f, 0f, 19f, 0));
                 break;
+            case "a sharp bend":
+            {
+                // The north path's second segment turned 20 degrees about its start, which still overlaps the first's end.
+                int second = decor.FindIndex(d => d.Model == ForestPaths.Segment && MathF.Abs(d.X - 15f) < 0.3f && MathF.Abs(d.Z - 27.2f) < 0.1f);
+                DecorItem old = decor[second];
+                (float startX, float startZ) = (old.X - Forward(old.Yaw).X, old.Z - Forward(old.Yaw).Z);
+                int yaw = (old.Yaw + 20) % 360;
+                decor[second] = old with { X = startX + Forward(yaw).X, Z = startZ + Forward(yaw).Z, Yaw = yaw };
+                break;
+            }
+            case "two strips at one height":
+                decor.Add(decor.Where(d => d.Model == ForestPaths.Segment).MinBy(d => MathF.Abs(d.X - 15f) + MathF.Abs(d.Z - 23f))!);
+                break;
+            case "tall cover on open floor":
+                decor.Add(new DecorItem("", "Plant_1_Big", 20f, 0f, 20f, 0));
+                break;
         }
 
         InvalidOperationException error = Assert.Throws<InvalidOperationException>(() => ForestDecorRules.Check(glade, decor, kit));
         Assert.Contains("forest_glade_01", error.Message, StringComparison.Ordinal);
         Assert.Contains(refusal, error.Message, StringComparison.Ordinal);
     }
+
+    /// <summary>The direction a model's +Z points at a yaw, clockwise seen from above.</summary>
+    private static (float X, float Z) Forward(int yaw) => ((float)Math.Sin(yaw * Math.PI / 180.0), (float)Math.Cos(yaw * Math.PI / 180.0));
 
     /// <summary>A committed decor file's items (Maps/Decor/&lt;name&gt;.json), as the client reads them.</summary>
     private static List<DecorItem> CommittedDecor(string name)

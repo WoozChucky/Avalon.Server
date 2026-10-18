@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Avalon.ChunkGen;
 
 /// <summary>
@@ -74,4 +76,17 @@ internal static class Yaw
 
     /// <summary>The direction a model's +Z points at the yaw.</summary>
     public static (float X, float Z) Forward(int degrees) => Turn(0f, 1f, degrees);
+}
+
+/// <summary>Numbers and blockers in the forest's refusals, written in the invariant culture whatever the machine's.</summary>
+internal static class ForestText
+{
+    public static string N(float value) => value.ToString("0.###", CultureInfo.InvariantCulture);
+
+    public static string Of(Blocker blocker) => blocker switch
+    {
+        BoxBlocker b => $"{blocker.Dressing} box ({N(b.MinX)}-{N(b.MaxX)}, {N(b.MinZ)}-{N(b.MaxZ)})",
+        CylinderBlocker c => $"{blocker.Dressing} cylinder at ({N(c.X)}, {N(c.Z)}) r {N(c.Radius)}",
+        _ => blocker.Dressing.ToString(),
+    };
 }
