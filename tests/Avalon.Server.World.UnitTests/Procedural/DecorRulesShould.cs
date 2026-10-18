@@ -59,13 +59,15 @@ public class DecorRulesShould
 
     /// <summary>
     /// A forest decor file may turn an item by any whole degree and scale it; a town square keeps quarter turns. A
-    /// scale is refused unless in (0, 4], and one of 1 is not written, so a town file stays as it was.
+    /// scale is refused unless in [0.001, 4] (none that 3 decimals would write as 0), and one of 1 is not written, so a
+    /// town file stays as it was.
     /// </summary>
     [Theory]
     [InlineData(DecorYaw.AnyDegree, 37, 1.4f, null)]
     [InlineData(DecorYaw.QuarterTurns, 37, 1f, "yaw 37")]
     [InlineData(DecorYaw.AnyDegree, 360, 1f, "yaw 360")]
     [InlineData(DecorYaw.AnyDegree, 0, 0f, "scale 0")]
+    [InlineData(DecorYaw.AnyDegree, 0, 0.0004f, "scale")]
     [InlineData(DecorYaw.AnyDegree, 0, 5f, "scale 5")]
     [InlineData(DecorYaw.AnyDegree, 0, float.NaN, "scale NaN")]
     public void Check_an_items_yaw_by_its_files_rule_and_its_scale(DecorYaw rule, int yaw, float scale, string? refusal)

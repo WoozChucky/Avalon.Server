@@ -12,10 +12,13 @@ public sealed record DecorItem(string Building, string Model, float X, float Y, 
     /// <summary>The largest scale an item may carry.</summary>
     public const float MaxScale = 4f;
 
+    /// <summary>The smallest scale an item may carry: below it, the file's 3 decimals would write 0.</summary>
+    public const float MinScale = 0.0005f;
+
     /// <summary>
     /// Refuses (InvalidOperationException, prefixed with <paramref name="where" />) a model the kit's bounds table does
     /// not have, a yaw the file's <paramref name="rule" /> does not allow, a coordinate that is not a number, or a
-    /// scale that is not a number in (0, <see cref="MaxScale" />].
+    /// scale that is not a number from <see cref="MinScale" /> (written 0.001) to <see cref="MaxScale" />.
     /// </summary>
     public void Check(string where, IReadOnlyDictionary<string, ModelBounds> kit, DecorYaw rule)
     {
@@ -27,8 +30,8 @@ public sealed record DecorItem(string Building, string Model, float X, float Y, 
             throw new InvalidOperationException($"{where}: {Model} has yaw {Yaw}, not 0-359");
         if (!float.IsFinite(X) || !float.IsFinite(Y) || !float.IsFinite(Z))
             throw new InvalidOperationException($"{where}: {Model} stands at ({X}, {Y}, {Z}), not a position");
-        if (!(Scale > 0f && Scale <= MaxScale))
-            throw new InvalidOperationException($"{where}: {Model} has scale {Scale}, not in (0, {MaxScale}]");
+        if (!(Scale >= MinScale && Scale <= MaxScale))
+            throw new InvalidOperationException($"{where}: {Model} has scale {Scale}, not in [0.001, {MaxScale}]");
     }
 }
 
