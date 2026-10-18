@@ -14,6 +14,7 @@ using Avalon.World.Auras;
 using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
+using Avalon.World.Doodads;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
@@ -103,6 +104,7 @@ public sealed class ScenarioWorld : IDisposable
     private readonly CombatFormula _formula;
     private readonly CreaturePlacementService? _placement;
     private readonly PortalPlacementService _portals = new();
+    private readonly DoodadPlacementService? _doodads;
     private readonly ServiceProvider _services;
     private readonly PartyService? _parties;
     private readonly QuestService? _quests;
@@ -173,6 +175,8 @@ public sealed class ScenarioWorld : IDisposable
 
             _placement = new CreaturePlacementService(new CreatureSpawner(_errorLog, _world), reference.Chunks,
                 reference.SpawnTables, reference.AuthoredSpawns, reference.Scripts, _services, _errorLog);
+            _doodads = new DoodadPlacementService(
+                new DoodadScripts(_services, Clock, new Logger<DoodadScripts>(_errorLog)), Clock, _errorLog);
         }
     }
 
@@ -362,9 +366,12 @@ public sealed class ScenarioWorld : IDisposable
     /// finished build is published on the tick. A town is requested as one more town of its map (every existing one
     /// counted full), any other map type as a new owner's instance, so each call adds one. Given
     /// <paramref name="layout" />, the instance has that layout instead of the town's, over the same navmesh: for a
-    /// measurement of what depends on the layout's extent alone (its spatial index, #982).
+    /// measurement of what depends on the layout's extent alone (its spatial index, #982). <paramref name="build" /> runs on
+    /// the built instance before it is published, as an instance build's placement does: the only time a doodad may be
+    /// added (<see cref="MapInstance.AddDoodad" />).
     /// </summary>
-    public MapInstance AddInstance(MapType mapType = MapType.Town, ushort templateId = 1, ChunkLayout? layout = null)
+    public MapInstance AddInstance(MapType mapType = MapType.Town, ushort templateId = 1, ChunkLayout? layout = null,
+        Action<MapInstance>? build = null)
     {
         var id = new MapTemplateId(templateId);
         if (!_templates.Exists(t => t.Id == id))
@@ -376,6 +383,7 @@ public sealed class ScenarioWorld : IDisposable
         navigator.LoadFromNavMesh(TownNavmesh.Shared);
         var instance = new MapInstance(NullLoggerFactory.Instance, _services, _world, id, owner, layout ?? TownNavmesh.Layout(),
             navigator, seed: 0, mapType: mapType);
+        build?.Invoke(instance);
 
         // maxPlayers 0 counts every town of the map full, so the registry starts a build rather than handing back one.
         Task<IMapInstance> request = owner is { } character
@@ -421,7 +429,7 @@ public sealed class ScenarioWorld : IDisposable
 
         var cached = new CachedForest(forest);
         var factory = new ChunkLayoutInstanceFactory(_errorLog, new ChunkLayoutSourceResolver(cached, cached), cached,
-            _placement!, _portals, _services);
+            _placement!, _portals, _doodads!, _services);
         MapInstance instance = factory.BuildAsync(template, owner, CancellationToken.None, party).GetAwaiter().GetResult();
 
         // The factory and the placement contain a failure to one creature and log it to the error log; here it ends the
@@ -774,16 +782,19 @@ public sealed class ScenarioWorld : IDisposable
 
     /// <summary>
     /// One seed's forest as <see cref="ChunkLayoutInstanceFactory" /> asks for it: the cached layout as the procedural
-    /// source's, the cached navmesh as the bake's, so a build generates and bakes nothing.
+    /// source's, the cached navmesh as the bake's, so a build generates and bakes nothing. The factory hands the bake
+    /// the source's layout with its doodad plan's boxes set on it, so the bake takes the cached layout with exactly the
+    /// boxes the cached navmesh was baked with, and refuses any other.
     /// </summary>
     private sealed class CachedForest(ForestLayout forest) : IChunkLayoutSource, IChunkLayoutNavmeshBuilder
     {
         public Task<ChunkLayout> BuildAsync(MapTemplate template, CancellationToken ct) => Task.FromResult(forest.Layout);
 
         public Task<DtNavMesh> BuildAsync(ChunkLayout layout, CancellationToken ct) =>
-            ReferenceEquals(layout, forest.Layout)
+            (layout with { Obstacles = forest.Layout.Obstacles }).Equals(forest.Layout)
+            && (layout.Obstacles ?? []).SequenceEqual(forest.Obstacles)
                 ? Task.FromResult(forest.NavMesh)
-                : throw new InvalidOperationException("Only the cached forest's own layout is baked");
+                : throw new InvalidOperationException("Only the cached forest's own layout, with its own doodads' boxes, is baked");
     }
 
     /// <summary>Only the map templates the scenario has built instances of: the registry reads them as a build starts.</summary>

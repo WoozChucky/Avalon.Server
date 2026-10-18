@@ -7,6 +7,13 @@ public enum Side { N, E, S, W }
 /// <summary>A spawn slot in chunk-local metres. Written with localY 1, as the forest's authored slots are; it only centres the ground search.</summary>
 public sealed record Slot(string Tag, float X, float Z);
 
+/// <summary>
+/// A doodad slot in chunk-local metres, its yaw a quarter turn in degrees. Written with localY 0 (ChunkPiece.DoodadSlotY),
+/// on the floor: a solid doodad keeps its slot's height, so its box and model stand on the ground.
+/// Tags: <c>doodad</c> (walk-through doodads) and <c>doodad_large</c> (may hold a solid one).
+/// </summary>
+public sealed record DoodadSlot(string Tag, float X, float Z, int Yaw);
+
 /// <summary>A solid standing on the floor, up to <see cref="ChunkPiece.BlockerHeight" />: it cuts the navmesh, and walkable rays stop at it.</summary>
 public abstract record Blocker
 {
@@ -49,18 +56,24 @@ public sealed record CylinderBlocker(float X, float Z, float Radius) : Blocker
 
 /// <summary>
 /// One generated 1x1 chunk: a flat 30 x 30 m floor (the forest's slab, y -0.2 to 0), blockers on it, exits at the centre
-/// of the named sides (logical only: forest floors have no walls), spawn slots and catalog tags.
+/// of the named sides (logical only: forest floors have no walls), spawn slots, doodad slots and catalog tags.
 /// </summary>
 public sealed record ChunkPiece(
     string Name, IReadOnlyList<Side> Exits, IReadOnlyList<Blocker> Blockers, IReadOnlyList<Slot> Slots, IReadOnlyList<string> Tags)
 {
+    /// <summary>The piece's doodad slots, none unless listed.</summary>
+    public IReadOnlyList<DoodadSlot> DoodadSlots { get; init; } = [];
+
     public const float CellSize = 30f;
     public const float BlockerHeight = 3f;
     public const float FloorThickness = 0.2f;
 
+    /// <summary>The height a doodad slot is written at: the floor's top (ObjWriter). A spawn slot is written 1 m up.</summary>
+    public const float DoodadSlotY = 0f;
+
     /// <summary>
     /// Refuses a blocker or a slot that does not lie within the piece's 0-30 m cell (its edges included): the bake and the
-    /// spawner would place it in a neighbouring chunk's ground.
+    /// spawner would place it in a neighbouring chunk's ground. A doodad slot also needs a tag and a quarter-turn yaw.
     /// </summary>
     public void Validate()
     {
@@ -75,6 +88,14 @@ public sealed record ChunkPiece(
         {
             if (!WithinCell(slot.X) || !WithinCell(slot.Z))
                 throw new InvalidOperationException($"{Name}: slot {slot} lies outside the 0-30 m cell");
+        }
+
+        foreach (DoodadSlot slot in DoodadSlots)
+        {
+            if (!WithinCell(slot.X) || !WithinCell(slot.Z))
+                throw new InvalidOperationException($"{Name}: doodad slot {slot} lies outside the 0-30 m cell");
+            if (string.IsNullOrWhiteSpace(slot.Tag) || slot.Yaw is not (0 or 90 or 180 or 270))
+                throw new InvalidOperationException($"{Name}: doodad slot {slot} needs a tag and a yaw of 0, 90, 180 or 270");
         }
     }
 
@@ -97,5 +118,6 @@ public sealed record ChunkPiece(
         },
         Slots.Select(s => new SpawnSlotDto(s.Tag, s.X, 1f, s.Z)).ToList(),
         [],
-        [.. Tags]);
+        [.. Tags],
+        DoodadSlots.Select(s => new DoodadSlotDto(s.Tag, s.X, DoodadSlotY, s.Z, s.Yaw)).ToList());
 }

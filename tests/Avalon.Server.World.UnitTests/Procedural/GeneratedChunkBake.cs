@@ -11,11 +11,13 @@ namespace Avalon.Server.World.UnitTests.Procedural;
 
 /// <summary>
 /// Bakes generated chunk geometry the way ChunkLayoutNavmeshBuilder does (unrotated, cell 30, the shared build
-/// settings), from obj text rather than the working directory, which other tests change.
+/// settings, solid doodads' boxes after every chunk), from obj text rather than the working directory, which other tests
+/// change.
 /// </summary>
 internal static class GeneratedChunkBake
 {
-    public static MapNavigator Bake(IEnumerable<(string Obj, int GridX, int GridZ)> chunks)
+    public static MapNavigator Bake(IEnumerable<(string Obj, int GridX, int GridZ)> chunks,
+        IEnumerable<DoodadObstacle>? obstacles = null)
     {
         var sb = new StringBuilder();
         int offset = 0;
@@ -45,6 +47,9 @@ internal static class GeneratedChunkBake
 
             offset += count;
         }
+
+        foreach (DoodadObstacle box in obstacles ?? [])
+            offset += DoodadObstacleGeometry.Append(sb, box, offset);
 
         string path = Path.Combine(Path.GetTempPath(), $"avalon-generated-chunks-{Guid.NewGuid():N}.obj");
         File.WriteAllText(path, sb.ToString());

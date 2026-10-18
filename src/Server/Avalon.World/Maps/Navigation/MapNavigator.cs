@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Maps;
+using DotRecast.Core;
 using DotRecast.Core.Numerics;
 using DotRecast.Detour;
 using Microsoft.Extensions.Logging;
@@ -410,6 +411,62 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator, IGroundNavigato
 
         ground = new Vector3(nearestPt.X, nearestPt.Y, nearestPt.Z);
         return NavmeshGroundKind.Nearest;
+    }
+
+    /// <summary>
+    /// How far from its start <see cref="TryFindOpenPoint" /> walks the navmesh: farther than any layout reaches, so
+    /// every polygon connected to the start is a candidate. Detour asks for a finite radius.
+    /// </summary>
+    private const float OpenPointReach = 100_000f;
+
+    /// <summary>
+    /// The polygon under <paramref name="from" /> (or nearest it) and the point on it, where
+    /// <see cref="TryFindOpenPoint" /> starts its walk: found once for a caller that draws many points from one start.
+    /// False, both zero, with no mesh or no polygon near <paramref name="from" />. For the off-tick instance build, which
+    /// owns the navigator's query until it is published.
+    /// </summary>
+    public bool TryFindOpenPointStart(Vector3 from, out long startRef, out Vector3 startAt)
+    {
+        startRef = 0;
+        startAt = Vector3.zero;
+        if (_navMesh == null) return false;
+
+        DtStatus status = _standingSearch.FindNearestPoly(_query!, new RcVec3f(from.x, from.y, from.z), _queryFilter,
+            out long poly, out RcVec3f at, out _);
+        if (status.Failed() || poly == 0)
+            return false;
+
+        startRef = poly;
+        startAt = ToVector3(at);
+        return true;
+    }
+
+    /// <summary>
+    /// A random point on the navmesh connected to <paramref name="startRef" /> (found by
+    /// <see cref="TryFindOpenPointStart" />), polygons drawn by area from <paramref name="random" />, kept only when no
+    /// wall is within <paramref name="wallClearance" /> of it. Only the polygons a walk from the start reaches are drawn
+    /// from, so never an island (a blocker's flat top, a pocket of ground walled in). False, <paramref name="point" />
+    /// zero, with no mesh, when the draw fails or the point stands nearer a wall. One draw per call, each walking every
+    /// connected polygon: a caller wanting a point tries again. For the off-tick instance build (a required doodad's
+    /// fallback), which owns the navigator's query until it is published.
+    /// </summary>
+    public bool TryFindOpenPoint(IRcRand random, long startRef, Vector3 startAt, float wallClearance, out Vector3 point)
+    {
+        point = Vector3.zero;
+        if (_navMesh == null || startRef == 0) return false;
+
+        ReusingNavMeshQuery query = _query!;
+        DtStatus status = query.FindRandomPointAroundCircle(startRef, new RcVec3f(startAt.x, startAt.y, startAt.z),
+            OpenPointReach, _queryFilter, random, out long polyRef, out RcVec3f found);
+        if (status.Failed() || polyRef == 0)
+            return false;
+
+        status = query.FindDistanceToWall(polyRef, found, wallClearance, _queryFilter, out float toWall, out _, out _);
+        if (status.Failed() || toWall < wallClearance)
+            return false;
+
+        point = ToVector3(found);
+        return true;
     }
 
     private static void CheckStatus(DtStatus status)

@@ -177,6 +177,7 @@ public static class ServiceExtensions
         services.AddSingleton<IChunkLayoutNavmeshBuilder, ChunkLayoutNavmeshBuilder>();
         services.AddSingleton<ICreaturePlacementService, CreaturePlacementService>();
         services.AddSingleton<IPortalPlacementService, PortalPlacementService>();
+        services.AddSingleton<IDoodadPlacementService, DoodadPlacementService>();
         services.AddSingleton<IChunkLayoutInstanceFactory, ChunkLayoutInstanceFactory>();
         // Scripting
         services.AddSingleton<IScriptCompiler, ScriptCompiler>();

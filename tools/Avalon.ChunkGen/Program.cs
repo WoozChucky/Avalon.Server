@@ -5,7 +5,8 @@ using Avalon.ChunkGen;
 //   dotnet run --project tools/Avalon.ChunkGen -- forest [--maps <Maps directory>]   the forest pieces (ForestPieces.cs)
 //   dotnet run --project tools/Avalon.ChunkGen -- town   [--maps <Maps directory>]   Glimmerdell's four squares (TownPieces.cs)
 //   dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>]
-//                                                   the art kit's model boxes into Kit/kit-bounds.json (KitBounds.cs)
+//                                                   [--props-kit <glTF directory>]
+//                                                   the art kits' model boxes into Kit/kit-bounds.json (KitBounds.cs)
 //
 // Every piece is first written into a temporary copy of Maps/, read back through the World server's own catalog
 // reader (ChunkCatalogSeeder.ReadCatalogAsync) and baked with its own ChunkLayoutNavmeshBuilder, each set piece with

@@ -25,14 +25,30 @@ public sealed record DepthBandDto(int MinDepth, int? MaxDepth, ushort MinLevel, 
 
 /// <summary>
 /// One procedural map's config, Maps/ProceduralMaps/&lt;mapId&gt;.json; its pool and spawn table by name. Every number and
-/// flag but forwardPortalTargetMapId (null: no forward portal) and minSetPieceStep (left out: no limit) is required, so a
-/// field left out is refused rather than read as 0 or false.
+/// flag but forwardPortalTargetMapId (null: no forward portal), minSetPieceStep (left out: no limit) and doodadRules (left
+/// out: none) is required, so a field left out is refused rather than read as 0 or false.
 /// </summary>
 public sealed record ProceduralMapDto(
     [property: JsonRequired] ushort MapTemplateId, string ChunkPool, string SpawnTable, [property: JsonRequired] ushort MainPathMin,
     [property: JsonRequired] ushort MainPathMax, [property: JsonRequired] float BranchChance, [property: JsonRequired] byte BranchMaxDepth,
     [property: JsonRequired] bool HasBoss, [property: JsonRequired] ushort BackPortalTargetMapId, ushort? ForwardPortalTargetMapId,
-    List<DepthBandDto>? DepthBands, ushort? MinSetPieceStep = null);
+    List<DepthBandDto>? DepthBands, ushort? MinSetPieceStep = null, List<DoodadRuleDto>? DoodadRules = null);
+
+/// <summary>
+/// A doodad rule in Maps/ProceduralMaps/&lt;mapId&gt;.json (see ProceduralDoodadRule): its template, slot tag, count range,
+/// whether it is required, its spacing and depth range, and the spawn's own gates. Every field but the depth range and the
+/// gates is required. MinSpacing also reads "NaN" and "Infinity", so the seeder refuses them by name rather than as JSON it
+/// cannot read.
+/// </summary>
+public sealed record DoodadRuleDto(
+    [property: JsonRequired] uint DoodadTemplateId, string SlotTag, [property: JsonRequired] byte Min, [property: JsonRequired] byte Max,
+    [property: JsonRequired] bool Required,
+    [property: JsonRequired, JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)] float MinSpacing,
+    int? MinDepth, int? MaxDepth,
+    DoodadGateDto? VisibleGate = null, DoodadGateDto? UsableGate = null);
+
+/// <summary>A doodad rule's gate: a quest, a DoodadGateCondition by name, and the objective an OnObjective gate names.</summary>
+public sealed record DoodadGateDto([property: JsonRequired] uint QuestId, string Condition, uint? ObjectiveId);
 
 /// <summary>One set piece in Maps/chunk-groups.json.</summary>
 public sealed record GroupDto(string Name, List<GroupMemberDto> Members);
@@ -40,7 +56,7 @@ public sealed record GroupDto(string Name, List<GroupMemberDto> Members);
 /// <summary>A set piece's member chunk and its cell in the piece's own frame (0,0 = south-west).</summary>
 public sealed record GroupMemberDto(string Chunk, int CellX, int CellZ);
 
-/// <summary>One chunk's metadata file, Maps/Chunks/&lt;name&gt;.json.</summary>
+/// <summary>One chunk's metadata file, Maps/Chunks/&lt;name&gt;.json; doodadSlots may be left out (a chunk with none).</summary>
 public sealed record ChunkMetaDto(
     string Name,
     string AssetKey,
@@ -50,11 +66,22 @@ public sealed record ChunkMetaDto(
     Dictionary<string, string[]> Exits,
     List<SpawnSlotDto> SpawnSlots,
     List<PortalSlotDto> PortalSlots,
-    string[] Tags);
+    string[] Tags,
+    List<DoodadSlotDto>? DoodadSlots = null);
 
 public sealed record SpawnSlotDto(string Tag, float LocalX, float LocalY, float LocalZ);
 
 public sealed record PortalSlotDto(string Role, float LocalX, float LocalY, float LocalZ);
+
+/// <summary>
+/// A doodad slot: a tag procedural doodad rules name, chunk-local metres, and a yaw of 0, 90, 180 or 270 degrees. The
+/// position also reads "NaN" and "Infinity", so the seeder refuses them by name rather than as JSON it cannot read.
+/// </summary>
+public sealed record DoodadSlotDto(string Tag,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)] float LocalX,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)] float LocalY,
+    [property: JsonNumberHandling(JsonNumberHandling.AllowNamedFloatingPointLiterals)] float LocalZ,
+    int Yaw);
 
 /// <summary>One town layout, Maps/TownLayouts/*.json.</summary>
 public sealed record TownLayoutDto(int MapTemplateId, string MapName, float CellSize, List<TownChunkPlacementDto> Chunks);

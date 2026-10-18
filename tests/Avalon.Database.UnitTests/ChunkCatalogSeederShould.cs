@@ -30,6 +30,11 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         ChunkTemplate path = await db.ChunkTemplates.SingleAsync(t => t.Name == "forest_path_01");
         Assert.Equal("Chunks/forest_path_01.obj", path.GeometryFile);
         Assert.Equal(["path", "forest"], path.Tags);
+        Assert.Empty(path.DoodadSlots);
+        await using WorldDbContext read = database.CreateDbContext();   // the slots as stored, not as tracked
+        ChunkTemplate thicket = await read.ChunkTemplates.SingleAsync(t => t.Name == "forest_thicket_01");
+        Assert.Equal(["doodad", "doodad", "doodad_large"], thicket.DoodadSlots.Select(s => s.Tag).Order(StringComparer.Ordinal));
+        Assert.All(thicket.DoodadSlots, s => Assert.Equal(0f, s.LocalY));   // on the floor
 
         ChunkPool forest = await db.ChunkPools.Include(p => p.Memberships).SingleAsync(p => p.Name == "forest_pool");
         Assert.Equal(17, forest.Memberships.Count);
@@ -422,7 +427,7 @@ public sealed class ChunkCatalogSeederShould : IDisposable
     }
 
     [Fact]
-    public async Task Write_a_maps_depth_bands_and_replace_them_on_the_next_start()
+    public async Task Write_a_maps_depth_bands_and_doodad_rules_and_replace_them_on_the_next_start()
     {
         string root = CopyOfCommittedMaps();
         File.WriteAllText(Path.Combine(root, "ProceduralMaps", "2.json"), """
@@ -430,9 +435,14 @@ public sealed class ChunkCatalogSeederShould : IDisposable
               "mainPathMin": 4, "mainPathMax": 7, "branchChance": 0.4, "branchMaxDepth": 2, "hasBoss": true,
               "backPortalTargetMapId": 1, "forwardPortalTargetMapId": null,
               "depthBands": [ { "minDepth": 1, "maxDepth": 3, "minLevel": 1, "maxLevel": 3 },
-                              { "minDepth": 4, "maxDepth": null, "minLevel": 3, "maxLevel": 6 } ] }
+                              { "minDepth": 4, "maxDepth": null, "minLevel": 3, "maxLevel": 6 } ],
+              "doodadRules": [
+                { "doodadTemplateId": 902, "slotTag": "doodad_large", "min": 0, "max": 2, "required": false, "minSpacing": 40 },
+                { "doodadTemplateId": 901, "slotTag": "doodad", "min": 1, "max": 1, "required": true, "minSpacing": 0,
+                  "minDepth": 8, "visibleGate": { "questId": 7, "condition": "onObjective", "objectiveId": 701 } } ] }
             """);
         using var database = SqliteDatabase.World();
+        await AddDoodadTemplatesAsync(database);
         await using (WorldDbContext first = database.CreateDbContext())
             await ChunkCatalogSeeder.SeedAsync(first, root);
         await using (WorldDbContext second = database.CreateDbContext())
@@ -441,7 +451,102 @@ public sealed class ChunkCatalogSeederShould : IDisposable
         await using WorldDbContext read = database.CreateDbContext();
         ProceduralMapConfig config = await read.ProceduralMapConfigs.SingleAsync(c => c.MapTemplateId == new MapTemplateId(2));
         Assert.Equal([1, 4], config.DepthBands.Select(b => b.MinDepth).Order());
+        var rules = config.DoodadRules.OrderBy(r => r.Sequence).ToList();
+        Assert.Equal([(1, 902u, "doodad_large", false, 40f), (2, 901u, "doodad", true, 0f)],
+            rules.Select(r => (r.Sequence, r.DoodadTemplateId.Value, r.SlotTag, r.Required, r.MinSpacing)));
+        Assert.Equal((8, (int?)null, 7u, DoodadGateCondition.OnObjective, 701u),
+            (rules[1].MinDepth!.Value, rules[1].MaxDepth, rules[1].VisibleQuestId!.Value, rules[1].VisibleCondition!.Value,
+                rules[1].VisibleObjectiveId!.Value));
+        Assert.Null(rules[0].VisibleQuestId);
     }
+
+    /// <summary>
+    /// A doodad rule the world could not honour is refused, naming the file: a template that does not exist, a tag no
+    /// doodad slot of the pool carries, a count range reversed or above 50, a spacing that is not a finite 0 or more, a
+    /// reversed or negative depth range, a gate condition that is no condition, a solid template at a slot other than
+    /// doodad_large, a required rule on a solid template or wanting more doodads than the pool has slots, and a gate on a
+    /// solid template.
+    /// </summary>
+    [Theory]
+    [InlineData("unknown template", "doodad template 99, which does not exist")]
+    [InlineData("tag no slot carries", "'nowhere', which no doodad slot")]
+    [InlineData("min above max", "count 3-2")]
+    [InlineData("max above 50", "count 0-51")]
+    [InlineData("spacing NaN", "minSpacing NaN")]
+    [InlineData("spacing negative", "minSpacing -1")]
+    [InlineData("depths reversed", "minDepth 5 above maxDepth 2")]
+    [InlineData("min depth negative", "minDepth -1")]
+    [InlineData("max depth negative", "maxDepth -2")]
+    [InlineData("unknown condition", "condition 'sometimes'")]
+    [InlineData("solid template at a small slot", "which is solid, at 'doodad' slots")]
+    [InlineData("required solid template", "names doodad template 902, which is solid")]
+    [InlineData("required beyond the slots", "has only")]
+    [InlineData("gate on solid template", "which is solid and never hidden")]
+    public async Task Refuse_a_doodad_rule_the_catalog_cannot_honour(string row, string fault)
+    {
+        string rule = row switch
+        {
+            "unknown template" => Rule(99),
+            "tag no slot carries" => Rule(901, tag: "nowhere"),
+            "min above max" => Rule(901, min: 3, max: 2),
+            "max above 50" => Rule(901, max: 51),
+            "spacing NaN" => Rule(901, spacing: "\"NaN\""),
+            "spacing negative" => Rule(901, spacing: "-1"),
+            "depths reversed" => Rule(901, extra: "\"minDepth\": 5, \"maxDepth\": 2"),
+            "min depth negative" => Rule(901, extra: "\"minDepth\": -1"),
+            "max depth negative" => Rule(901, extra: "\"maxDepth\": -2"),
+            "unknown condition" => Rule(901, extra: "\"usableGate\": { \"questId\": 7, \"condition\": \"sometimes\" }"),
+            "solid template at a small slot" => Rule(902),
+            "required solid template" => Rule(902, tag: "doodad_large", required: true),
+            "required beyond the slots" => Rule(901, max: 50, required: true),
+            _ => Rule(902, tag: "doodad_large", extra: "\"visibleGate\": { \"questId\": 7, \"condition\": \"completed\" }"),
+        };
+        string root = CopyOfCommittedMaps();
+        string path = Path.Combine(root, "ProceduralMaps", "2.json");
+        JsonObject map = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        map["doodadRules"] = JsonNode.Parse($"[ {rule} ]");
+        File.WriteAllText(path, map.ToJsonString());
+        using var database = SqliteDatabase.World();
+        await AddDoodadTemplatesAsync(database);
+        await using WorldDbContext db = database.CreateDbContext();
+
+        InvalidDataException error = await Assert.ThrowsAsync<InvalidDataException>(() => ChunkCatalogSeeder.SeedAsync(db, root));
+        Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
+        Assert.Contains(fault, error.Message, StringComparison.Ordinal);
+        Assert.Equal(0, await db.ChunkTemplates.CountAsync());
+        Assert.Equal(0, await db.ProceduralMapConfigs.CountAsync());
+    }
+
+    private static string Rule(uint template, string tag = "doodad", int min = 0, int max = 1, bool required = false,
+        string spacing = "0", string? extra = null) =>
+        $$"""{ "doodadTemplateId": {{template}}, "slotTag": "{{tag}}", "min": {{min}}, "max": {{max}}, "required": {{(required ? "true" : "false")}}, "minSpacing": {{spacing}}{{(extra is null ? "" : ", " + extra)}} }""";
+
+    /// <summary>
+    /// Doodad template 901, a walk-through crate, and 902, a solid shrine: what the rules above name, beside the seeded
+    /// forest doodads the committed 2.json names.
+    /// </summary>
+    private static async Task AddDoodadTemplatesAsync(SqliteDatabase<WorldDbContext> database)
+    {
+        await using WorldDbContext db = database.CreateDbContext();
+        db.DoodadTemplates.AddRange(DoodadRow(901, "Crate", DoodadCollision.None), DoodadRow(902, "Shrine", DoodadCollision.Box));
+        await db.SaveChangesAsync();
+    }
+
+    private static DoodadTemplate DoodadRow(uint id, string name, DoodadCollision collision) => new()
+    {
+        Id = new DoodadTemplateId(id),
+        Name = name,
+        ModelKit = "props-kit",
+        ModelKey = name,
+        Interaction = DoodadInteraction.Click,
+        InteractionRange = 5f,
+        UseLimit = DoodadUseLimit.OncePerInstance,
+        SpentLook = DoodadSpentLook.ShowUsed,
+        Collision = collision,
+        CollisionHalfX = collision == DoodadCollision.None ? 0f : 0.6f,
+        CollisionHalfZ = collision == DoodadCollision.None ? 0f : 0.6f,
+        CollisionHeight = collision == DoodadCollision.None ? 0f : 1.4f,
+    };
 
     /// <summary>Review Focus 4: every bad edit refuses the whole catalog before anything is written.</summary>
     [Theory]
@@ -494,6 +599,46 @@ public sealed class ChunkCatalogSeederShould : IDisposable
 
         InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
         Assert.Contains("'rare' slots", error.Message);
+    }
+
+    /// <summary>
+    /// A doodad slot with a blank tag, a yaw that is not a quarter turn, a position outside the chunk's own cell (its
+    /// edges included) or a height that is not finite is refused, naming the file and the fault.
+    /// </summary>
+    [Theory]
+    [InlineData("doodad", 5f, "0", 5f, 45, "has yaw 45")]
+    [InlineData("doodad", 5f, "0", 5f, 360, "has yaw 360")]
+    [InlineData("doodad", 5f, "0", 5f, -90, "has yaw -90")]
+    [InlineData(" ", 5f, "0", 5f, 90, "has no tag")]
+    [InlineData("doodad", -1f, "0", 5f, 90, "lies outside the chunk")]
+    [InlineData("doodad", 5f, "0", 30.5f, 90, "lies outside the chunk")]
+    [InlineData("doodad", 5f, "\"NaN\"", 5f, 90, "has localY NaN")]
+    [InlineData("doodad", 5f, "\"-Infinity\"", 5f, 90, "has localY -Infinity")]
+    public async Task Refuse_a_bad_doodad_slot_naming_the_file_and_the_fault(string tag, float x, string y, float z, int yaw, string fault)
+    {
+        string root = CopyOfCommittedMaps();
+        string path = WriteDoodadSlot(root, tag, x, y, z, yaw);
+
+        InvalidDataException error = await RefuseProceduralDataAndWriteNothing(root);
+        Assert.StartsWith(path + ":", error.Message, StringComparison.Ordinal);
+        Assert.Contains(fault, error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>Gives the copy's forest_path_01 (a hand-made chunk with no doodad slots) one doodad slot; returns its file.</summary>
+    private static string WriteDoodadSlot(string root, string tag, float x, string y, float z, int yaw)
+    {
+        string path = Path.Combine(root, "Chunks", "forest_path_01.json");
+        JsonObject chunk = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        chunk["doodadSlots"] = new JsonArray(new JsonObject
+        {
+            ["tag"] = tag,
+            ["localX"] = x,
+            ["localY"] = JsonNode.Parse(y),
+            ["localZ"] = z,
+            ["yaw"] = yaw,
+        });
+        File.WriteAllText(path, chunk.ToJsonString());
+        return path;
     }
 
     /// <summary>Owner rule: a leader_pack entry is rolled at a leader slot, so it is refused when the pool has none.</summary>

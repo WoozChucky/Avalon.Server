@@ -14,7 +14,7 @@ namespace Avalon.ChunkGen;
 public static class ChunkGenCli
 {
     public const string Usage =
-        "usage: Avalon.ChunkGen forest|town [--maps <Maps directory>] | kit-bounds --kit <glTF directory> [--props <glTF directory>]";
+        "usage: Avalon.ChunkGen forest|town [--maps <Maps directory>] | kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>]";
 
     public static async Task<int> RunAsync(
         string[] args, Func<IReadOnlyList<ChunkPiece>> singles, Func<IReadOnlyList<ChunkGroupPiece>> groups,
@@ -151,9 +151,9 @@ public static class ChunkGenCli
     }
 
     /// <summary>
-    /// Measures every *.gltf directly in the kit directory and the optional props directory and rewrites
-    /// Kit/kit-bounds.json. A name found in both, an empty directory or a file that cannot be measured exits 1 and
-    /// leaves the table as it was.
+    /// Measures every *.gltf directly in the kit directory, the optional custom props directory and the optional props
+    /// kit directory, and rewrites Kit/kit-bounds.json. A name found in two of them, an empty directory or a file that
+    /// cannot be measured exits 1 and leaves the table as it was.
     /// </summary>
     private static async Task<int> WriteKitBoundsAsync(IReadOnlyDictionary<string, string> options, TextWriter output, TextWriter error)
     {
@@ -166,14 +166,14 @@ public static class ChunkGenCli
                 RepositoryRoot.Find("kit-bounds rewrites the repository's tools/Avalon.ChunkGen/Kit/kit-bounds.json: run it from a build inside the repository."),
                 "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
             var table = new Dictionary<string, ModelBounds>(StringComparer.Ordinal);
-            foreach (string directory in new[] { options["--kit"], options.GetValueOrDefault("--props") }.OfType<string>())
+            foreach (string directory in new[] { options["--kit"], options.GetValueOrDefault("--props"), options.GetValueOrDefault("--props-kit") }.OfType<string>())
             {
                 string[] models = [.. Directory.EnumerateFiles(Path.GetFullPath(directory), "*.gltf").Order(StringComparer.Ordinal)];
                 if (models.Length == 0) throw new InvalidOperationException($"no .gltf files in {directory}");
                 foreach (string model in models)
                 {
                     string name = Path.GetFileNameWithoutExtension(model);
-                    if (!table.TryAdd(name, KitBounds.Measure(model))) throw new InvalidOperationException($"{name} is in both directories");
+                    if (!table.TryAdd(name, KitBounds.Measure(model))) throw new InvalidOperationException($"{name} is in two directories");
                 }
             }
             json = KitBounds.Write(table);
@@ -201,7 +201,7 @@ public static class ChunkGenCli
 
     /// <summary>
     /// "forest" or "town", optionally followed by "--maps &lt;dir&gt;", or "kit-bounds --kit &lt;dir&gt;" optionally with
-    /// "--props &lt;dir&gt;", the options in any order and each at most once; anything else is refused.
+    /// "--props &lt;dir&gt;" and "--props-kit &lt;dir&gt;", the options in any order and each at most once; anything else is refused.
     /// </summary>
     private static bool TryParse(string[] args, out string? command, out IReadOnlyDictionary<string, string> options)
     {
@@ -211,7 +211,7 @@ public static class ChunkGenCli
         string[] allowed = args switch
         {
             [("forest" or "town"), ..] => ["--maps"],
-            ["kit-bounds", ..] => ["--kit", "--props"],
+            ["kit-bounds", ..] => ["--kit", "--props", "--props-kit"],
             _ => [],
         };
         if (allowed.Length == 0 || args.Length % 2 == 0) return false;

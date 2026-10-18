@@ -37,24 +37,26 @@ public sealed class TownDoodadsScenario : IScenario
     public ScenarioWorld Build()
     {
         var world = new ScenarioWorld();
-        MapInstance town = world.AddInstance(MapType.Town);
 
         var navigator = new MapNavigator(NullLoggerFactory.Instance);
         navigator.LoadFromNavMesh(TownNavmesh.Shared);
         if (navigator.FindGround(TownNavmesh.LoopCentre, out Vector3 centre) != NavmeshGroundKind.Under)
             throw new InvalidOperationException("The loop's centre is off the town's navmesh");
 
-        // Placed before anyone joins, before the first tick reads the index.
+        // Placed as an instance build places them, before the registry publishes the town.
         DoodadTemplateView plain = Template(1, visible: null);
         DoodadTemplateView gated = Template(2, visible: s_gate);
-        for (int i = 0; i < Ungated + Gated; i++)
+        MapInstance town = world.AddInstance(MapType.Town, build: instance =>
         {
-            float angle = i * MathF.Tau / (Ungated + Gated);
-            var position = new Vector3(centre.x + RingRadius * MathF.Cos(angle), centre.y,
-                centre.z + RingRadius * MathF.Sin(angle));
-            town.AddDoodad(new Doodad(new ObjectGuid(ObjectType.Doodad, FirstDoodadId + (uint)i),
-                i % 2 == 0 ? plain : gated, position, angle));
-        }
+            for (int i = 0; i < Ungated + Gated; i++)
+            {
+                float angle = i * MathF.Tau / (Ungated + Gated);
+                var position = new Vector3(centre.x + RingRadius * MathF.Cos(angle), centre.y,
+                    centre.z + RingRadius * MathF.Sin(angle));
+                instance.AddDoodad(new Doodad(new ObjectGuid(ObjectType.Doodad, FirstDoodadId + (uint)i),
+                    i % 2 == 0 ? plain : gated, position, angle));
+            }
+        });
 
         PlayerInputHandler handler = LoopWalker.Handler(world);
         for (int p = 0; p < Players; p++)

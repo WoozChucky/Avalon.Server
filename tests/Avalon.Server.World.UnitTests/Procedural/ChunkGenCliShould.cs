@@ -1,4 +1,5 @@
 using Avalon.ChunkGen;
+using Avalon.World.Testing.Scenarios;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -41,12 +42,62 @@ public sealed class ChunkGenCliShould : IDisposable
     [InlineData("forest", "--map", "x")]
     [InlineData("forest", "--maps", "x", "extra")]
     [InlineData("forest", "extra")]
+    [InlineData("kit-bounds", "--kit", "a", "--props-kit", "b", "--props-kit", "c")]
     public async Task Refuse_arguments_it_does_not_know(params string[] args)
     {
         int code = await ChunkGenCli.RunAsync(args, () => [], () => [], () => [], _output, _error);
 
         Assert.Equal(1, code);
         Assert.Equal(ChunkGenCli.Usage, _error.ToString().Trim());
+    }
+
+    /// <summary>
+    /// The props kit is read with the art kit and the custom props, and a model name found in two of the three
+    /// directories is refused, leaving the committed table as it was. The table is the repository's own, so a run that
+    /// wrote it anyway is undone.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_model_name_the_props_kit_shares_with_the_kit_and_keep_the_table()
+    {
+        string root = Path.Combine(Path.GetTempPath(), $"avalon-kit-bounds-cli-{Guid.NewGuid():N}");
+        string table = Path.Combine(TownNavmesh.RepositoryRoot, "tools", "Avalon.ChunkGen", "Kit", "kit-bounds.json");
+        string before = File.ReadAllText(table);
+        try
+        {
+            string kit = WriteModels(root, "kit", "Wall", "Barrel");
+            string props = WriteModels(root, "props", "avalon_shrine");
+            string propsKit = WriteModels(root, "props-kit", "Barrel");
+
+            int code = await ChunkGenCli.RunAsync(
+                ["kit-bounds", "--kit", kit, "--props", props, "--props-kit", propsKit], () => [], () => [], () => [], _output, _error);
+
+            Assert.Equal(1, code);
+            Assert.StartsWith("nothing written: InvalidOperationException: Barrel ", _error.ToString(), StringComparison.Ordinal);
+            Assert.Equal(before, File.ReadAllText(table));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+            if (File.ReadAllText(table) != before) File.WriteAllText(table, before);
+        }
+    }
+
+    private static string WriteModels(string root, string folder, params string[] names)
+    {
+        const string Gltf = """
+            {
+              "asset": { "version": "2.0" },
+              "scene": 0,
+              "scenes": [{ "nodes": [0] }],
+              "nodes": [{ "mesh": 0 }],
+              "meshes": [{ "primitives": [{ "attributes": { "POSITION": 0 } }] }],
+              "accessors": [{ "componentType": 5126, "count": 8, "type": "VEC3", "min": [-1, 0, -1], "max": [1, 1, 1] }]
+            }
+            """;
+        string directory = Path.Combine(root, folder);
+        Directory.CreateDirectory(directory);
+        foreach (string name in names) File.WriteAllText(Path.Combine(directory, name + ".gltf"), Gltf);
+        return directory;
     }
 
     [Fact]

@@ -2,13 +2,20 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Doodads;
 using DotRecast.Detour;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.World.Testing.Scenarios;
 
-/// <summary>One seed's forest: its layout, the navmesh baked from it, and how long the bake took.</summary>
-public sealed record ForestLayout(int Seed, ChunkLayout Layout, DtNavMesh NavMesh, TimeSpan BakeTime);
+/// <summary>
+/// One seed's forest: its layout as the procedural source generates it, the solid doodads' boxes its doodad plan cuts
+/// out (none when it plans no solid doodad), the navmesh baked from the layout with those boxes, and how long the bake
+/// took.
+/// </summary>
+public sealed record ForestLayout(int Seed, ChunkLayout Layout, IReadOnlyList<DoodadObstacle> Obstacles, DtNavMesh NavMesh,
+    TimeSpan BakeTime);
 
 /// <summary>
 /// The forest's layouts by seed, each generated and baked once per process with the World server's own generator and
@@ -39,13 +46,21 @@ public static class ForestLayouts
 
         RequireEveryLevelSeeded(reference, config, layout, seed);
 
+        // ChunkLayoutInstanceFactory.BuildAsync's doodad plan, from the layout, the rules and the catalog alone, so the
+        // same seed plans the same boxes there: its solid doodads' boxes are baked in as the factory bakes them.
+        var doodads = new DoodadPlacementService(
+            new DoodadScripts(new ServiceCollection().BuildServiceProvider(), TimeProvider.System, NullLogger<DoodadScripts>.Instance),
+            TimeProvider.System, NullLoggerFactory.Instance);
+        IReadOnlyList<DoodadObstacle> obstacles = doodads.Plan(layout, config, reference.Data.Doodads, reference.Chunks).Obstacles;
+        ChunkLayout baked = obstacles.Count > 0 ? layout with { Obstacles = obstacles } : layout;
+
         // The builder reads <content root>/Maps/Chunks/<name>.obj, so it is handed the directory holding Maps.
         var builder = ChunkLayoutNavmeshBuilder.ForTesting(NullLoggerFactory.Instance, reference.Chunks,
             Path.GetDirectoryName(TownNavmesh.ContentRoot)!);
 
         long start = Stopwatch.GetTimestamp();
-        DtNavMesh navMesh = builder.BuildAsync(layout, CancellationToken.None).GetAwaiter().GetResult();
-        return new ForestLayout(seed, layout, navMesh, Stopwatch.GetElapsedTime(start));
+        DtNavMesh navMesh = builder.BuildAsync(baked, CancellationToken.None).GetAwaiter().GetResult();
+        return new ForestLayout(seed, layout, obstacles, navMesh, Stopwatch.GetElapsedTime(start));
     }
 
     /// <summary>

@@ -6,20 +6,20 @@ using Avalon.World.ChunkLayouts;
 namespace Avalon.World.Instances;
 
 /// <summary>
-/// One instance's layout as <c>SMSG_CHUNK_LAYOUT</c> carries it (#883): an entry per chunk, with the chunk's name, and
-/// an entry per portal. Built once, with the instance (so off the tick, where the instance is built), and written
-/// into the packet of every character that arrives, where each arrival built them again, on the tick, in four copies
-/// of one block.
+/// One instance's layout as <c>SMSG_CHUNK_LAYOUT</c> carries it (#883): an entry per chunk, with the chunk's name, an
+/// entry per portal and one per solid doodad's box. Built once, with the instance (so off the tick, where the instance
+/// is built), and written into the packet of every character that arrives, where each arrival built them again, on the
+/// tick, in four copies of one block.
 /// </summary>
 /// <remarks>
 /// <para>
 /// What it is built from does not change while the instance lives: an instance keeps the <see cref="ChunkLayout" /> it
-/// was built from (a town's from its placement rows, a procedural map's from its seed), and the chunk library that
-/// names the chunks is loaded once, with the world. Neither is an area <c>/reload</c> or live template editing
-/// replaces.
+/// was built from (a town's from its placement rows, a procedural map's from its seed, with the boxes its doodad plan
+/// gave it before the bake), and the chunk library that names the chunks is loaded once, with the world. Neither is an
+/// area <c>/reload</c> or live template editing replaces.
 /// </para>
 /// <para>
-/// Nothing changes it once it is built, and nothing outside it holds the two lists: <see cref="Encode" /> hands them
+/// Nothing changes it once it is built, and nothing outside it holds the three lists: <see cref="Encode" /> hands them
 /// to the packet's thread-local message, which holds them while it is written and lets go of them when it is, or
 /// fails to be (<c>PacketEncoder</c> clears the message's own members, never an entry's). It is complete before its
 /// instance's constructor returns, so before the instance is published to the tick, where every arrival reads it.
@@ -33,6 +33,7 @@ internal sealed class MapLayoutEntries
     private readonly ChunkLayout _layout;
     private readonly List<PlacedChunkDto> _chunks;
     private readonly List<PortalPlacementDto> _portals;
+    private readonly List<DoodadObstacleDto> _obstacles;
 
     /// <summary>
     /// The entries of <paramref name="layout" />, in its order, for the instance <paramref name="instanceId" />;
@@ -69,14 +70,31 @@ internal sealed class MapLayoutEntries
             });
         }
 
+        IReadOnlyList<DoodadObstacle> boxes = layout.Obstacles ?? [];
+        var obstacles = new List<DoodadObstacleDto>(boxes.Count);
+        for (int i = 0; i < boxes.Count; i++)
+        {
+            DoodadObstacle box = boxes[i];
+            obstacles.Add(new DoodadObstacleDto
+            {
+                MinX = box.MinX,
+                MaxX = box.MaxX,
+                MinZ = box.MinZ,
+                MaxZ = box.MaxZ,
+                BaseY = box.BaseY,
+                TopY = box.TopY,
+            });
+        }
+
         _instanceId = instanceId;
         _layout = layout;
         _chunks = chunks;
         _portals = portals;
+        _obstacles = obstacles;
     }
 
     /// <summary>The layout's packet, as the layout of map <paramref name="mapId" />.</summary>
     public OutboundPacket Encode(ushort mapId, PacketEncoder encoder) =>
         SChunkLayoutPacket.Create(_layout.Seed, _instanceId, mapId, _layout.CellSize, _chunks, _layout.EntrySpawnWorldPos,
-            _portals, encoder);
+            _portals, _obstacles, encoder);
 }

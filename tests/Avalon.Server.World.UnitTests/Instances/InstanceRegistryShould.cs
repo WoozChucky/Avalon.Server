@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -5,6 +6,7 @@ using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
+using Avalon.World.Doodads;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Public.Combat;
@@ -96,10 +98,14 @@ public class InstanceRegistryShould : IDisposable
         // Still in flight as far as requesters can tell: a second request joins the build rather than starting one.
         Assert.Same(dungeon, _registry.GetOrCreateNormalInstanceAsync(CharacterId, s_dungeonId));
         Assert.Equal(2, _builds.Count);
+        _instances[0].AddDoodad(Crate(1));   // placed as its build places doodads, before it is published
 
         IReadOnlyList<MapInstance> published = _registry.PublishFinished();
 
         Assert.Equal(2, published.Count);
+        // Once published the tick reads its doodads without a lock, so none is added after.
+        Assert.Throws<InvalidOperationException>(() => _instances[0].AddDoodad(Crate(2)));
+        Assert.Single(_instances[0].Doodads.All);
         Assert.True(town.IsCompletedSuccessfully);
         Assert.True(dungeon.IsCompletedSuccessfully);
         Assert.Equal(2, _registry.ActiveInstances.Count);
@@ -334,6 +340,11 @@ public class InstanceRegistryShould : IDisposable
             Assert.Single(_builds);
         }
     }
+
+    private static Doodad Crate(uint id) => new(new ObjectGuid(ObjectType.Doodad, id), new DoodadTemplateView(
+        new DoodadTemplateId(1), "Crate", "props-kit", "Crate", null, null, null, null,
+        DoodadInteraction.Click, 0, 5f, 0f, DoodadUseLimit.OncePerInstance, DoodadSpentLook.ShowUsed, null, null,
+        null, 0, 0, 0, DoodadCollision.None, 0f, 0f, 0f, null, null, [], 0, ScriptCanSee: false), Vector3.zero, 0f);
 
     private void CompleteBuildsAndPublish()
     {

@@ -49,12 +49,19 @@ public sealed class DoodadIndex
 
     public int Count => _all.Count;
 
+    /// <summary>Whether <see cref="Seal" /> closed it: its instance is published, and every <see cref="Add" /> throws.</summary>
+    public bool Sealed { get; private set; }
+
     /// <summary>
     /// Files <paramref name="doodad" /> at its position. Build time only, before the instance is published; a doodad never
-    /// moves, so it is never filed again. Throws for a guid already here.
+    /// moves, so it is never filed again. Throws for a guid already here, and once <see cref="Sealed" />: the tick reads
+    /// the cell lists without a lock.
     /// </summary>
     public void Add(Doodad doodad)
     {
+        if (Sealed)
+            throw new InvalidOperationException($"Doodad {doodad.Guid} cannot be placed: its instance is published, and doodads are placed only as it is built.");
+
         _byGuid.Add(doodad.Guid.RawValue, doodad);
         _all.Add(doodad);
 
@@ -65,6 +72,12 @@ public sealed class DoodadIndex
         int cell = Row(position.z) * _grid.Columns + Column(position.x);
         (_cells[cell] ??= []).Add(doodad);
     }
+
+    /// <summary>
+    /// Closes the index to every further <see cref="Add" />, as its instance is published (on the tick, before its first
+    /// tick reads it). Done once; a second call changes nothing.
+    /// </summary>
+    public void Seal() => Sealed = true;
 
     public bool TryGet(ObjectGuid guid, [NotNullWhen(true)] out Doodad? doodad) =>
         _byGuid.TryGetValue(guid.RawValue, out doodad);

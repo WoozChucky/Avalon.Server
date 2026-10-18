@@ -1343,6 +1343,41 @@ namespace Avalon.Database.World.Migrations
                             Stat = (byte)1,
                             Kind = (byte)2,
                             Value = -25f
+                        },
+                        new
+                        {
+                            AuraId = 8L,
+                            Stat = (byte)9,
+                            Kind = (byte)2,
+                            Value = 10f
+                        },
+                        new
+                        {
+                            AuraId = 9L,
+                            Stat = (byte)2,
+                            Kind = (byte)2,
+                            Value = 10f
+                        },
+                        new
+                        {
+                            AuraId = 9L,
+                            Stat = (byte)3,
+                            Kind = (byte)2,
+                            Value = 10f
+                        },
+                        new
+                        {
+                            AuraId = 10L,
+                            Stat = (byte)8,
+                            Kind = (byte)1,
+                            Value = -15f
+                        },
+                        new
+                        {
+                            AuraId = 10L,
+                            Stat = (byte)1,
+                            Kind = (byte)2,
+                            Value = -10f
                         });
                 });
 
@@ -1528,6 +1563,54 @@ namespace Avalon.Database.World.Migrations
                             Kind = (byte)2,
                             MaxStacks = 1L,
                             Name = "Sundered",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 8L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 120000L,
+                            Icon = "blessed",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Blessed",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 9L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 120000L,
+                            Icon = "emboldened",
+                            Kind = (byte)1,
+                            MaxStacks = 1L,
+                            Name = "Emboldened",
+                            PeriodicBase = 0f,
+                            PeriodicKind = (byte)0,
+                            ScalingCoefficient = 0f,
+                            ScalingStat = (byte)0,
+                            Stacking = (byte)1,
+                            TickIntervalMs = 0L
+                        },
+                        new
+                        {
+                            Id = 10L,
+                            BaseDamageCoefficient = 0f,
+                            DurationMs = 60000L,
+                            Icon = "hexed",
+                            Kind = (byte)2,
+                            MaxStacks = 1L,
+                            Name = "Hexed",
                             PeriodicBase = 0f,
                             PeriodicKind = (byte)0,
                             ScalingCoefficient = 0f,
@@ -4017,6 +4100,26 @@ namespace Avalon.Database.World.Migrations
                         {
                             t.HasCheckConstraint("CK_DoodadAuraOutcomes_Weight", "\"Weight\" >= 1");
                         });
+
+                    b.HasData(
+                        new
+                        {
+                            DoodadTemplateId = 3L,
+                            AuraId = 8L,
+                            Weight = 40L
+                        },
+                        new
+                        {
+                            DoodadTemplateId = 3L,
+                            AuraId = 9L,
+                            Weight = 40L
+                        },
+                        new
+                        {
+                            DoodadTemplateId = 3L,
+                            AuraId = 10L,
+                            Weight = 20L
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.DoodadTemplate", b =>
@@ -4147,6 +4250,100 @@ namespace Avalon.Database.World.Migrations
                             t.HasCheckConstraint("CK_DoodadTemplates_UseLimit", "\"UseLimit\" IN (1, 2)");
 
                             t.HasCheckConstraint("CK_DoodadTemplates_VisibleGate", "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1L,
+                            AreaRadius = 0f,
+                            Collision = (byte)0,
+                            CollisionHalfX = 0f,
+                            CollisionHalfZ = 0f,
+                            CollisionHeight = 0f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 0L,
+                            LootTableId = 12,
+                            MaxGold = 150,
+                            MinGold = 50,
+                            ModelKey = "Chest_Wood",
+                            ModelKit = "props-kit",
+                            Name = "Forest Chest",
+                            ReadyClip = "Chest_Closed",
+                            RestorePct = 0L,
+                            ScriptName = "LootDoodadScript",
+                            SpentLook = (byte)1,
+                            UseClip = "Chest_Open",
+                            UseLimit = (byte)1,
+                            UsedClip = "Chest_Opened"
+                        },
+                        new
+                        {
+                            Id = 2L,
+                            AreaRadius = 0f,
+                            Collision = (byte)0,
+                            CollisionHalfX = 0f,
+                            CollisionHalfZ = 0f,
+                            CollisionHeight = 0f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 0L,
+                            LootTableId = 13,
+                            MaxGold = 20,
+                            MinGold = 0,
+                            ModelKey = "Barrel",
+                            ModelKit = "props-kit",
+                            Name = "Old Barrel",
+                            RestorePct = 0L,
+                            ScriptName = "LootDoodadScript",
+                            SpentLook = (byte)1,
+                            UseLimit = (byte)1,
+                            UsedModelKey = "avalon_barrel_broken"
+                        },
+                        new
+                        {
+                            Id = 3L,
+                            AreaRadius = 10f,
+                            Collision = (byte)1,
+                            CollisionHalfX = 0.8f,
+                            CollisionHalfZ = 0.8f,
+                            CollisionHeight = 2.2f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 0L,
+                            MaxGold = 0,
+                            MinGold = 0,
+                            ModelKey = "avalon_shrine",
+                            ModelKit = "town-kit",
+                            Name = "Wayside Shrine",
+                            RestorePct = 0L,
+                            ScriptName = "ShrineDoodadScript",
+                            SpentLook = (byte)1,
+                            UseLimit = (byte)1,
+                            UsedModelKey = "avalon_shrine_spent"
+                        },
+                        new
+                        {
+                            Id = 4L,
+                            AreaRadius = 10f,
+                            Collision = (byte)1,
+                            CollisionHalfX = 1.05f,
+                            CollisionHalfZ = 1.05f,
+                            CollisionHeight = 1.8f,
+                            Interaction = (byte)1,
+                            InteractionRange = 5f,
+                            InteractionTimeMs = 2000L,
+                            MaxGold = 0,
+                            MinGold = 0,
+                            ModelKey = "avalon_forest_fountain",
+                            ModelKit = "town-kit",
+                            Name = "Mossy Fountain",
+                            RestorePct = 50L,
+                            ScriptName = "FountainDoodadScript",
+                            SpentLook = (byte)1,
+                            UseLimit = (byte)1,
+                            UsedModelKey = "avalon_forest_fountain_dry"
                         });
                 });
 
@@ -6483,6 +6680,16 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 11,
                             Name = "Forest armour"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Name = "Forest chest"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Name = "Forest barrel"
                         });
                 });
 
@@ -7167,6 +7374,78 @@ namespace Avalon.Database.World.Migrations
                             Sequence = 20,
                             Chance = 2f,
                             ItemTemplateId = 31m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 12,
+                            Sequence = 1,
+                            Chance = 60f,
+                            ItemTemplateId = 1m,
+                            MaxCount = 2,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 12,
+                            Sequence = 2,
+                            Chance = 40f,
+                            ItemTemplateId = 2m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 12,
+                            Sequence = 3,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 1
+                        },
+                        new
+                        {
+                            LootTableId = 12,
+                            Sequence = 4,
+                            Chance = 10f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 9
+                        },
+                        new
+                        {
+                            LootTableId = 12,
+                            Sequence = 5,
+                            Chance = 25f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 10
+                        },
+                        new
+                        {
+                            LootTableId = 12,
+                            Sequence = 6,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 11
+                        },
+                        new
+                        {
+                            LootTableId = 13,
+                            Sequence = 1,
+                            Chance = 25f,
+                            ItemTemplateId = 1m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 13,
+                            Sequence = 2,
+                            Chance = 15f,
+                            ItemTemplateId = 2m,
                             MaxCount = 1,
                             MinCount = 1
                         });
@@ -8436,6 +8715,43 @@ namespace Avalon.Database.World.Migrations
 
             modelBuilder.Entity("Avalon.Domain.World.ChunkTemplate", b =>
                 {
+                    b.OwnsMany("Avalon.Domain.World.ChunkDoodadSlot", "DoodadSlots", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<int>("ChunkTemplateId")
+                                .HasColumnType("integer");
+
+                            b1.Property<float>("LocalX")
+                                .HasColumnType("real");
+
+                            b1.Property<float>("LocalY")
+                                .HasColumnType("real");
+
+                            b1.Property<float>("LocalZ")
+                                .HasColumnType("real");
+
+                            b1.Property<string>("Tag")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<int>("Yaw")
+                                .HasColumnType("integer");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ChunkTemplateId");
+
+                            b1.ToTable("ChunkDoodadSlot");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ChunkTemplateId");
+                        });
+
                     b.OwnsMany("Avalon.Domain.World.ChunkPortalSlot", "PortalSlots", b1 =>
                         {
                             b1.Property<int>("Id")
@@ -8502,6 +8818,8 @@ namespace Avalon.Database.World.Migrations
                             b1.WithOwner()
                                 .HasForeignKey("ChunkTemplateId");
                         });
+
+                    b.Navigation("DoodadSlots");
 
                     b.Navigation("PortalSlots");
 
@@ -8609,7 +8927,78 @@ namespace Avalon.Database.World.Migrations
                                 .HasForeignKey("MapTemplateId");
                         });
 
+                    b.OwnsMany("Avalon.Domain.World.ProceduralDoodadRule", "DoodadRules", b1 =>
+                        {
+                            b1.Property<int>("MapTemplateId")
+                                .HasColumnType("integer");
+
+                            b1.Property<int>("Sequence")
+                                .HasColumnType("integer");
+
+                            b1.Property<long>("DoodadTemplateId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<byte>("MaxCount")
+                                .HasColumnType("smallint");
+
+                            b1.Property<int?>("MaxDepth")
+                                .HasColumnType("integer");
+
+                            b1.Property<byte>("MinCount")
+                                .HasColumnType("smallint");
+
+                            b1.Property<int?>("MinDepth")
+                                .HasColumnType("integer");
+
+                            b1.Property<float>("MinSpacing")
+                                .HasColumnType("real");
+
+                            b1.Property<bool>("Required")
+                                .HasColumnType("boolean");
+
+                            b1.Property<string>("SlotTag")
+                                .IsRequired()
+                                .HasMaxLength(64)
+                                .HasColumnType("character varying(64)");
+
+                            b1.Property<byte?>("UsableCondition")
+                                .HasColumnType("smallint");
+
+                            b1.Property<long?>("UsableObjectiveId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<long?>("UsableQuestId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<byte?>("VisibleCondition")
+                                .HasColumnType("smallint");
+
+                            b1.Property<long?>("VisibleObjectiveId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<long?>("VisibleQuestId")
+                                .HasColumnType("bigint");
+
+                            b1.HasKey("MapTemplateId", "Sequence");
+
+                            b1.ToTable("ProceduralDoodadRules", null, t =>
+                                {
+                                    t.HasCheckConstraint("CK_ProceduralDoodadRules_Count", "\"MinCount\" >= 0 AND \"MinCount\" <= \"MaxCount\" AND \"MaxCount\" <= 50");
+
+                                    t.HasCheckConstraint("CK_ProceduralDoodadRules_Spacing", "\"MinSpacing\" >= 0 AND \"MinSpacing\" < 'Infinity'");
+
+                                    t.HasCheckConstraint("CK_ProceduralDoodadRules_UsableGate", "(\"UsableQuestId\" IS NULL) = (\"UsableCondition\" IS NULL)");
+
+                                    t.HasCheckConstraint("CK_ProceduralDoodadRules_VisibleGate", "(\"VisibleQuestId\" IS NULL) = (\"VisibleCondition\" IS NULL)");
+                                });
+
+                            b1.WithOwner()
+                                .HasForeignKey("MapTemplateId");
+                        });
+
                     b.Navigation("DepthBands");
+
+                    b.Navigation("DoodadRules");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.QuestItemDrop", b =>

@@ -37,6 +37,22 @@ public class PortalPlacementDto
     [ProtoMember(4)] public ushort TargetMapId { get; set; }
 }
 
+/// <summary>
+/// A solid doodad's box, as the server's navmesh bake cuts it out: its world X/Z bounds, the height it stands at and its
+/// top. A client bakes the same box into its own navmesh, with the vertices and faces the server writes
+/// (DoodadObstacleGeometry).
+/// </summary>
+[ProtoContract]
+public class DoodadObstacleDto
+{
+    [ProtoMember(1)] public float MinX { get; set; }
+    [ProtoMember(2)] public float MaxX { get; set; }
+    [ProtoMember(3)] public float MinZ { get; set; }
+    [ProtoMember(4)] public float MaxZ { get; set; }
+    [ProtoMember(5)] public float BaseY { get; set; }
+    [ProtoMember(6)] public float TopY { get; set; }
+}
+
 [ProtoContract]
 public class SChunkLayoutPacket : Packet
 {
@@ -55,11 +71,15 @@ public class SChunkLayoutPacket : Packet
     [ProtoMember(6)] public List<PortalPlacementDto> Portals { get; set; } = new();
     [ProtoMember(7)] public ushort MapId { get; set; }
 
+    /// <summary>The solid doodads' boxes, in the order the bake appends them; empty for a map without one.</summary>
+    [ProtoMember(8)] public List<DoodadObstacleDto> Obstacles { get; set; } = new();
+
     /// <summary>
-    /// Encodes an instance's layout. <paramref name="chunks" /> and <paramref name="portals" /> are written as they are
-    /// and not copied, so a caller may hand in the same two lists for every packet of one layout (#883): the message
-    /// holds them only while it is encoded, and neither they nor their entries are changed. They are lists, as every
-    /// other factory takes its entries, so that nothing of the caller's runs once the scratch message is taken (#875).
+    /// Encodes an instance's layout. <paramref name="chunks" />, <paramref name="portals" /> and
+    /// <paramref name="obstacles" /> are written as they are and not copied, so a caller may hand in the same lists for
+    /// every packet of one layout (#883): the message holds them only while it is encoded, and neither they nor their
+    /// entries are changed. They are lists, as every other factory takes its entries, so that nothing of the caller's
+    /// runs once the scratch message is taken (#875).
     /// </summary>
     public static OutboundPacket Create(
         int seed,
@@ -69,6 +89,7 @@ public class SChunkLayoutPacket : Packet
         List<PlacedChunkDto> chunks,
         Vector3 entrySpawn,
         List<PortalPlacementDto> portals,
+        List<DoodadObstacleDto> obstacles,
         PacketEncoder encoder)
     {
         SChunkLayoutPacket message = PacketEncoder.Scratch<SChunkLayoutPacket>();
@@ -79,6 +100,7 @@ public class SChunkLayoutPacket : Packet
         message.Chunks = chunks;
         message.EntrySpawn = Vector3Dto.From(entrySpawn);
         message.Portals = portals;
+        message.Obstacles = obstacles;
         return encoder.Encode(message, PacketType, Flags, Protocol);
     }
 }

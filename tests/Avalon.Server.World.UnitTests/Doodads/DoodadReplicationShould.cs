@@ -75,7 +75,17 @@ public class DoodadReplicationShould
         StaticData data = await Data();
         var scripts = new DoodadScripts(new ServiceCollection().BuildServiceProvider(), TimeProvider.System,
             new Logger<DoodadScripts>(scriptLog));
-        TransferMaps maps = await TransferMaps.CreateAsync(NewWorld(data), new DoodadVisibility(scripts));
+        Doodad doodad = null!;
+        TransferMaps maps = await TransferMaps.CreateAsync(NewWorld(data), new DoodadVisibility(scripts),
+            buildTown: built => doodad = rule switch
+            {
+                "template gate" => Place(built, 1, Template(visible: s_onObjective)),
+                "spawn gate" => Place(built, 1, Template(), visibleGate: s_onObjective),
+                "script hides what the gate shows" or "script refresh" => Place(built, 1, Scripted(catalogLog)),
+                "script shows what the gate hides" or "script throws" or "script shows from a level" =>
+                    Place(built, 1, Scripted(catalogLog, gated: true)),
+                _ => Place(built, 1, Scripted(catalogLog, solid: true)),
+            });
         MapInstance town = maps.Town;
 
         bool shown = true;
@@ -88,15 +98,6 @@ public class DoodadReplicationShould
             "script refresh" => _ => shown ? null : false,
             "script throws" => _ => throw new InvalidOperationException("CanSee"),
             _ => _ => false,
-        };
-        Doodad doodad = rule switch
-        {
-            "template gate" => Place(town, 1, Template(visible: s_onObjective)),
-            "spawn gate" => Place(town, 1, Template(), visibleGate: s_onObjective),
-            "script hides what the gate shows" or "script refresh" => Place(town, 1, Scripted(catalogLog)),
-            "script shows what the gate hides" or "script throws" or "script shows from a level" =>
-                Place(town, 1, Scripted(catalogLog, gated: true)),
-            _ => Place(town, 1, Scripted(catalogLog, solid: true)),
         };
         bool bSees = rule is "script shows what the gate hides" or "script refresh" or "solid ignores the script";
         MapInstanceClient a = JoinAt(town, IdA, Vector3.zero);

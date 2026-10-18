@@ -9,7 +9,7 @@ The world is built from **chunks** — modular 30×30m geometry blocks (cell siz
 - **Town maps** (MapType.Town) — chunk placements are PREDEFINED in the database (`MapChunkPlacement` table). Multi-player shared instances. Same layout every time.
 - **Procedural maps** (MapType.Normal) — chunk placements are GENERATED at runtime by `ProceduralChunkLayoutSource` using a chunk pool + RNG seed + per-map config (`ProceduralMapConfig`). Per-player private instances.
 
-Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell size, optional config + seed). One factory (`ChunkLayoutInstanceFactory`) builds a `MapInstance` from the layout, bakes a navmesh from the stitched chunk geometry via DotRecast, and ships the layout to the client over `SChunkLayoutPacket`. The client bakes its own navmesh from the same chunk `.obj` files for prediction parity.
+Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell size, optional config + seed). One factory (`ChunkLayoutInstanceFactory`) builds a `MapInstance` from the layout, bakes a navmesh from the stitched chunk geometry via DotRecast, and ships the layout to the client over `SChunkLayoutPacket`. The client bakes its own navmesh from the chunk `.obj` files plus the layout's obstacle boxes (its solid doodads', `SChunkLayoutPacket.Obstacles`) for prediction parity; today's client bakes the chunks alone (see [doodads](doodads.md#what-todays-client-does)).
 
 ```
                   MapTemplate (MapType: Town | Normal)
@@ -137,6 +137,17 @@ A chunk is two files in `Maps/Chunks/` with the same name: `<name>.obj` (geometr
   entry chunks), `Forward` advances to the next (typically in boss chunks). The destination is not in the chunk: towns
   take it from the layout placement, procedural maps from `ProceduralMapConfig.BackPortalTargetMapId` /
   `ForwardPortalTargetMapId`.
+- **doodadSlots** (optional, after `portalSlots`; left out when a chunk has none, as in `forest_entry_01` above):
+  `tag` + chunk-local `localX/Y/Z` + `yaw`, a spot a procedural map may place a doodad at (see `docs/doodads.md`).
+  `yaw` is the degrees the doodad faces (`Orientation.y`, 0 along +Z, 90 along +X), a quarter turn: 0, 90, 180 or 270.
+  Tags: `doodad` (a walk-through doodad) and `doodad_large` (may hold a solid one). Doodad slot tags are not spawn-table
+  tags and need no entry there. The seeder refuses a doodad slot with a blank tag, a yaw that is not a quarter turn,
+  a position outside the chunk's own cells on X/Z (their edges included), or a `localY` that is not finite (the file
+  may write `"NaN"` or `"Infinity"`, refused by name). A doodad slot stands on the floor (`localY` 0 in
+  the generated forest, whose floor top is y = 0), where a spawn slot stands 1 m up: a walk-through doodad is snapped to
+  the navmesh as a spawn is, so for it `localY` only centres the ground search, but a solid doodad keeps its slot's
+  height, so its box and model stand where the slot does. Stored in `ChunkDoodadSlot` (owned by `ChunkTemplate`,
+  migration `AddChunkDoodadSlots`).
 - **tags**: free-form, e.g. `["town", "entry"]`, `["forest", "boss"]`.
 
 The `.obj` is in chunk-local space: a 1×1 chunk spans `(0..30, *, 0..30)`, origin at its SW corner, `+X` east, `+Z`
@@ -311,6 +322,71 @@ reached on the baked navmesh. The tool writes LF line ends, and `.gitattributes`
 `Maps/` to LF, so a regeneration on any machine is an empty diff. The tool does not touch `chunk-pools.json` or
 `chunk-groups.json`: add new single pieces to the pool, and new set pieces to the groups file, by hand.
 
+Every generated forest piece also carries doodad slots (`DoodadSlots` on the piece, `Doodad(x, z, yaw)` and
+`LargeDoodad(x, z, yaw)` in `ForestPieces.cs`): each single piece two `doodad` slots and one `doodad_large`, each set-piece
+member one `doodad` slot, and each of the arena's members a `doodad_large` too; a set piece lists them in its 60 x 60 m
+frame and they are split into its members as spawn slots are. Doodad slots are written on the floor, at `localY` 0
+(`ChunkPiece.DoodadSlotY`, the floor's top), and spawn slots 1 m up, at `localY` 1. The hand-made chunks (`forest_entry_01`, `forest_boss_01`,
+the paths, junctions, `forest_clearing_01` and `forest_deadend_01`) have none, and the tool writes `"doodadSlots"` only
+for a piece that has some, so the town squares' files are unchanged by it. `ForestPiecesShould` keeps every doodad slot
+off the paths and clear of the rest, with a `doodad_large` slot further away because it may hold a solid doodad:
+
+| From | `doodad` | `doodad_large` |
+|---|---|---|
+| any blocker | 2.5 m | 4 m |
+| a path: in a single piece, the segment from an exit's throat centre to the piece centre (15, 15); in a set piece, checked in its 60 x 60 m frame, the segments from each outer exit's throat centre to the frame centre (30, 30) and between every two outer exits | 4 m | 5 m |
+| any spawn slot | 3 m | 4 m |
+| the chunk's edge | 2 m | 2 m |
+
+and never inside an exit's throat (10 m wide, 6 m deep, centred on its side); every doodad slot stands on the baked
+navmesh floor, and is a reachability target too: a walk over the piece's (or the set piece's) navmesh reaches it from
+the first exit, as it reaches every exit and spawn slot. Each yaw is the quarter turn that best faces the piece's centre
+(a set piece's, for its members).
+
+### Solid doodads in the bake
+
+A solid doodad (a template with `Collision` other than `None`: the fountain and the shrine) is a wall in the instance's
+navmesh, and the client is sent its box to bake the same wall (see [doodads](doodads.md#placement)).
+
+- **The box.** The doodad plan (`DoodadPlacementService.Plan`, before the bake) gives each solid doodad it puts at a slot
+  one `DoodadObstacle`: the template's `CollisionHalfX` on X and `CollisionHalfZ` on Z around the slot's world position,
+  swapped on an odd quarter turn (yaw 90 or 270), from `BaseY`, the slot's world height (every doodad slot is written on
+  the floor, at local y = 0, and a solid doodad keeps its slot's height), up to `TopY = BaseY + CollisionHeight`. The
+  boxes are in plan order. `ChunkLayoutInstanceFactory` sets them on the layout (`ChunkLayout.Obstacles`) before the bake, so the instance
+  keeps them with its layout.
+- **Quarter turns only.** A slot's yaw is 0, 90, 180 or 270 (the seeder refuses any other), so a box is always
+  axis-aligned and needs no rotation.
+- **Never quest-gated, never off a slot.** A wall in the navmesh is there for everyone, so a solid doodad is never hidden:
+  the catalog refuses a gate on a solid template, a spawn's gate on one is dropped, and the seeder refuses a required
+  rule on one. The fallback, which places a required doodad on open navmesh after the bake, never places a solid one,
+  so every solid doodad standing in an instance has its box in that instance's bake.
+- **A solid doodad that throws as it is placed keeps its box.** The box was planned and baked before placement, so a
+  solid doodad whose `Place` step threw (it is logged and skipped) leaves its box in the navmesh and in the layout
+  packet: a wall with nothing drawn in it. No realistic path throws there: building its script and running `OnSpawn`
+  are contained, and what is left only files the doodad.
+- **The bake.** `ChunkLayoutNavmeshBuilder` appends every box after the last chunk, through
+  `DoodadObstacleGeometry.Append`: 8 vertices, (MinX, BaseY, MinZ), (MaxX, BaseY, MinZ), (MaxX, BaseY, MaxZ),
+  (MinX, BaseY, MaxZ), then the same four at TopY, and 10 triangles with no bottom face, 1-based on those 8 and offset
+  by the vertices already written: the top (5 6 7) (5 7 8), then the sides (1 2 6) (1 6 5), (2 3 7) (2 7 6),
+  (3 4 8) (3 8 7), (4 1 5) (4 5 8), numbers written with the invariant culture. Every solid template stands at least
+  1.05 m tall, above the agent's 0.9 m climb, so a walk stops an agent radius short of the box's sides.
+- **The top winds downward on purpose.** Its normal points down, so the bake marks it unwalkable and no island of
+  navmesh forms on a box's flat top. Copy the faces exactly as written and never re-wind them: a top wound upward
+  bakes walkable, and the `forest-doodad` vector's probe above the box catches it.
+- **A tall box bakes an island inside it.** A box 2.0 m tall or more (the agent's height; the shrine's is 2.2 m)
+  leaves room under its top for the floor inside it to bake, as an enclosed island no walk reaches. It is harmless:
+  nothing stands there, and the fallback never draws from it, since it draws only polygons connected to the entry's.
+- **The wire.** `SChunkLayoutPacket.Obstacles` (field 8, `DoodadObstacleDto` with fields 1-6: `MinX`, `MaxX`, `MinZ`,
+  `MaxZ`, `BaseY`, `TopY`) carries the boxes in the same order; `MapLayoutEntries` builds the list once, with the
+  instance. A client that does not know the field skips it, and bakes no box.
+- **The client mirror.** A client bakes the boxes after its chunks, with exactly these vertices and faces, or its mesh
+  and the server's differ around the doodad. `schema/vectors/navmesh-v1.txt` pins it: its `obstacle <minX> <maxX> <minZ>
+  <maxZ> <baseY> <topY>` lines (after a layout's `chunk` lines) are baked in order, and the `forest-doodad` layout puts
+  one 4 x 4 m box, 1.8 m tall, on `forest_path_01` with a ray that stops at it, a ground probe beside it and one above
+  its centre that finds no ground (a top wound upward would answer with its height). `SolidDoodadNavmeshShould`
+  builds an instance through the factory and proves the walk stops at the box, at yaw 0 and 90, and that the layout
+  packet carries the planned box.
+
 ## Generated town squares
 
 Glimmerdell's four squares (`town_sw_01`, `town_se_01`, `town_nw_01`, `town_ne_01`, map 1) are generated too, since the
@@ -457,11 +533,12 @@ Each refusal names the square, the building and the model or part.
 The bounds table, `tools/Avalon.ChunkGen/Kit/kit-bounds.json`, holds each model's box in its own space, so pieces can
 be checked against the art without the kit, which stays out of the repository:
 
-    dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>]
+    dotnet run --project tools/Avalon.ChunkGen -- kit-bounds --kit <glTF directory> [--props <glTF directory>] [--props-kit <glTF directory>]
 
-measures every `*.gltf` directly in the kit directory (and the custom props' directory) from its accessors' bounds
-through the node transforms, and rewrites the table; a model in both directories, an empty directory or a file it
-cannot measure leaves the table as it was.
+measures every `*.gltf` directly in the kit directory (and the custom props' directory, and the props kit's: Fantasy
+Props MegaKit, CC0, whose `Chest_Wood`, `Barrel` and `Crate_Metal` the forest's doodads wear) from its accessors'
+bounds through the node transforms, and rewrites the table; a model in two of the directories, an empty directory or
+a file it cannot measure leaves the table as it was.
 
 ## Chunk groups (set pieces)
 
@@ -514,17 +591,30 @@ Like chunks, town layouts, pools and chunk groups, a procedural map's data is fi
 - `Maps/spawn-tables.json`: `{ "<table name>": [ { "tag", "creatureId", "weight", "min", "max" } ] }`. A table is
   matched by name (its id is kept; a new one gets the highest id + 1) and its entries are replaced.
 - `Maps/ProceduralMaps/<mapId>.json`: every `ProceduralMapConfig` field, the pool (`chunkPool`) and spawn table
-  (`spawnTable`) by name, `depthBands`, and the optional `minSetPieceStep` (0 when left out). Matched by
-  `mapTemplateId` (the file's name); its bands are replaced.
+  (`spawnTable`) by name, `depthBands`, the optional `minSetPieceStep` (0 when left out) and the optional `doodadRules`
+  (none when left out). Matched by `mapTemplateId` (the file's name); its bands and doodad rules are replaced, each rule
+  stored as a `ProceduralDoodadRules` row keyed by its place in the file from 1 (`Sequence`).
+- A doodad rule is `{ "doodadTemplateId", "slotTag", "min", "max", "required", "minSpacing", "minDepth"?, "maxDepth"?,
+  "visibleGate"?, "usableGate"? }`, a gate `{ "questId", "condition", "objectiveId"? }` with the condition a
+  `DoodadGateCondition` by name (`notStarted`, `onObjective`, `completed`, `notCompleted`). See
+  [doodads](doodads.md#placement) for how the rules are planned and placed.
 
 Before writing anything the seeder refuses, naming the file, JSON it cannot read, a map file that leaves out a required
 field (every number and flag but `forwardPortalTargetMapId` and `minSetPieceStep`), a map whose `MapTemplate` is missing
 or not `Normal`, a back or forward portal target that is no `MapTemplate`, a depth band whose `maxLevel` is above the
 highest `CreatureBaseStats` level (10 today), a pool or spawn table the files do not name, a group with a blank name,
-a `creatureId` with no `CreatureTemplates` row, and a spawn table whose tags do not match the
-slot tags its pool's chunks (set pieces included) use, checked both ways: every entry tag is a slot tag (or
+a `creatureId` with no `CreatureTemplates` row, a doodad rule the world could not honour (below), and a spawn table
+whose tags do not match the slot tags its pool's chunks (set pieces included) use, checked both ways: every entry tag is a slot tag (or
 `leader_pack` beside `leader` slots), and every slot tag but `entry` and `empty` has an entry. Rows with no file are
-left alone. A change to these files takes a World server restart. Trade-offs: the balance simulator reads `HasData`
+left alone. A doodad rule is refused for a template with no `DoodadTemplates` row, a slot tag no doodad slot of the
+pool (set pieces included) carries, `min` above `max` or `max` above 50, a `minSpacing` that is not a finite 0 or more
+(the file may write `"NaN"`, refused by name), `minDepth` above `maxDepth` or either below 0, a gate condition that is
+no condition name (or an `objectiveId` with any condition but `onObjective`, or none with it), a solid template at any
+slot tag but `doodad_large` (the only slot its box fits), a gate on a solid template, and, for a required rule, a
+solid template or a `max` above the pool's slots of its tag that its depth range reaches (the slots of
+every chunk and set piece, the entry-capable chunks alone for a range ending at depth 0).
+`CommittedForestDoodadsShould` proves the committed forest places every required doodad at a slot for seeds 0 to 999.
+A change to these files takes a World server restart. Trade-offs: the balance simulator reads `HasData`
 only, so it never sees these rows; the REST API's layout preview and observability read the database, so they show the
 files as of the last World server start (a fresh database shows the old migration values until one has started); and
 `SeedIntegrityShould` cannot see them, so `ChunkCatalogSeederShould` and `CommittedForestGenerationShould` (which seed
@@ -629,7 +719,7 @@ so the client's reset input sequence is accepted.
 9. **Server `PlayerInputHandler`:** validates seq, integrates the same way (its own `MapNavigator.RaycastWalkable`), updates `entity.Position`, sends `SPlayerStateAckPacket`.
 10. **Client on the ack:** if drift > 1mm, takes the server's position and replays the unacknowledged inputs; above 0.15 m it snaps, below that the correction is smoothed.
 
-Identical bake on both sides (same `.obj` source, same Recast settings) keeps drift sub-mm in practice — so reconciliation rarely fires.
+Identical bake on both sides (the same chunk `.obj` files plus the layout's obstacle boxes, the same Recast settings) keeps drift sub-mm in practice — so reconciliation rarely fires.
 
 ---
 

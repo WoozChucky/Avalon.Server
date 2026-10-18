@@ -1,0 +1,89 @@
+# DoodadObstacleDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message DoodadObstacleDto
+
+variant absent
+  field 1 MinX : float = 0 (0x00000000)
+  field 2 MaxX : float = 0 (0x00000000)
+  field 3 MinZ : float = 0 (0x00000000)
+  field 4 MaxZ : float = 0 (0x00000000)
+  field 5 BaseY : float = 0 (0x00000000)
+  field 6 TopY : float = 0 (0x00000000)
+  bytes 0
+
+variant empty
+  field 1 MinX : float = 0 (0x00000000)
+  field 2 MaxX : float = 0 (0x00000000)
+  field 3 MinZ : float = 0 (0x00000000)
+  field 4 MaxZ : float = 0 (0x00000000)
+  field 5 BaseY : float = 0 (0x00000000)
+  field 6 TopY : float = 0 (0x00000000)
+  bytes 0
+
+variant populated
+  field 1 MinX : float = 1.5 (0x3fc00000)
+  field 2 MaxX : float = -7.50000027E-08 (0xb3a10fb0)
+  field 3 MinZ : float = 1.5 (0x3fc00000)
+  field 4 MaxZ : float = -7.50000027E-08 (0xb3a10fb0)
+  field 5 BaseY : float = -7.50000027E-08 (0xb3a10fb0)
+  field 6 TopY : float = 1.5 (0x3fc00000)
+  bytes 30
+    0d 00 00 c0 3f 15 b0 0f a1 b3 1d 00 00 c0 3f 25
+    b0 0f a1 b3 2d b0 0f a1 b3 35 00 00 c0 3f
+
+variant maxima
+  field 1 MinX : float = 3.40282347E+38 (0x7f7fffff)
+  field 2 MaxX : float = 3.40282347E+38 (0x7f7fffff)
+  field 3 MinZ : float = 3.40282347E+38 (0x7f7fffff)
+  field 4 MaxZ : float = 3.40282347E+38 (0x7f7fffff)
+  field 5 BaseY : float = 3.40282347E+38 (0x7f7fffff)
+  field 6 TopY : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 30
+    0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 25
+    ff ff 7f 7f 2d ff ff 7f 7f 35 ff ff 7f 7f
+
+variant minima
+  field 1 MinX : float = -3.40282347E+38 (0xff7fffff)
+  field 2 MaxX : float = -3.40282347E+38 (0xff7fffff)
+  field 3 MinZ : float = -3.40282347E+38 (0xff7fffff)
+  field 4 MaxZ : float = -3.40282347E+38 (0xff7fffff)
+  field 5 BaseY : float = -3.40282347E+38 (0xff7fffff)
+  field 6 TopY : float = -3.40282347E+38 (0xff7fffff)
+  bytes 30
+    0d ff ff 7f ff 15 ff ff 7f ff 1d ff ff 7f ff 25
+    ff ff 7f ff 2d ff ff 7f ff 35 ff ff 7f ff
+
+variant varint-edges
+  field 1 MinX : float = 1.17549435E-38 (0x00800000)
+  field 2 MaxX : float = 1.17549435E-38 (0x00800000)
+  field 3 MinZ : float = 1.17549435E-38 (0x00800000)
+  field 4 MaxZ : float = 1.17549435E-38 (0x00800000)
+  field 5 BaseY : float = 1.17549435E-38 (0x00800000)
+  field 6 TopY : float = 1.17549435E-38 (0x00800000)
+  bytes 30
+    0d 00 00 80 00 15 00 00 80 00 1d 00 00 80 00 25
+    00 00 80 00 2d 00 00 80 00 35 00 00 80 00
+
+variant float-specials
+  field 1 MinX : float = -0 (0x80000000)
+  field 2 MaxX : float = Infinity (0x7f800000)
+  field 3 MinZ : float = 1.40129846E-45 (0x00000001)
+  field 4 MaxZ : float = -Infinity (0xff800000)
+  field 5 BaseY : float = NaN (0x7fc00001)
+  field 6 TopY : float = 1.17549421E-38 (0x007fffff)
+  bytes 25
+    15 00 00 80 7f 1d 01 00 00 00 25 00 00 80 ff 2d
+    01 00 c0 7f 35 ff ff 7f 00

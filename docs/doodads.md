@@ -10,14 +10,14 @@ This page is the authority on the subsystem. Other pages cover their own side of
 - [tick profiling](tick-profiling.md): how doodads count in `candidateChecks` and `visiblePairs`;
 - [tooling](tooling.md): the `doodad-catalog` export.
 
-Slice S1, the framework and the wire, seeds and places no doodad. Every rule below is live, but no instance holds a doodad yet.
+Slice S1 was the framework and the wire. Slice S2 places procedural doodads from each map's rules (see "Placement") and seeds the forest's set (see "The forest set").
 
 ## Templates and catalog
 
 - **Data** (World DB reference data, migration `AddDoodadTemplates`, configured in `WorldDbContext.Configure(EntityTypeBuilder<DoodadTemplate>)`, read by `DoodadTemplateRepository`):
   - `DoodadTemplates` (`Avalon.Domain/World/DoodadTemplate.cs`) holds:
     - the id and name;
-    - `ModelKit`, `ModelKey`, `UsedModelKey`, `ReadyClip`, `UseClip` and `UsedClip`;
+    - `ModelKit`, `ModelKey`, `UsedModelKey`, `ReadyClip`, `UseClip` and `UsedClip` (`UsedModelKey`, null to keep `ModelKey`, names a model in the same `ModelKit` folder);
     - `Interaction`: None 0 or Click 1;
     - `InteractionTimeMs`: 0 is an instant use;
     - `InteractionRange` (5 m by default) and `AreaRadius`;
@@ -64,7 +64,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
   - `DoodadCatalogShould.Refuse_a_template_that_breaks_a_rule` holds a row for every rule above but the weights' total, each asserting its refusal reason (`DoodadRefusal.Reason`).
 - **Solid and scripted.** A template whose script declares its own `CanSee` (`DoodadScripts.OverridesCanSee`) has `ScriptCanSee` set. For a solid template the flag is forced off, with one Warning per template at load.
 - **Reload** (`/reload doodads`) works forward only. A doodad already placed keeps the template view it was placed from, and the next instance build places from the new catalog. A `/reload quests` moves every viewer's gates (see "Per-viewer views and gates").
-- **Export.** `tools/Avalon.Exporter -- doodad-catalog` writes `schema/doodads/doodad-catalog-v1.json` (empty in S1). It lists only what a client draws: the model kit and keys, the clips, the interaction kind, time and range, solidity and the spent look. It lists no gates, loot, gold, restore, radius or aura outcomes. `DoodadCatalogExportShould.List_only_what_a_client_draws` pins the field names, so nothing in the file can reveal a shrine's outcome. See [tooling](tooling.md).
+- **Export.** `tools/Avalon.Exporter -- doodad-catalog` writes `schema/doodads/doodad-catalog-v1.json` (the forest set, templates 1 to 4). It lists only what a client draws: the model kit and keys (`usedModelKey` resolves in the same `modelKit` folder, as the file's `$comment` says), the clips, the interaction kind, time and range, solidity and the spent look. It lists no gates, loot, gold, restore, radius or aura outcomes. `DoodadCatalogExportShould.List_only_what_a_client_draws` pins the field names, so nothing in the file can reveal a shrine's outcome. See [tooling](tooling.md).
 
 ## The object type and the wire fields
 
@@ -73,7 +73,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
   - **Fixed at spawn:** its template, position and yaw (`Orientation.y`), and its effective gates. The spawn's own gate wins when the spawn sets one, and the template's applies otherwise. A solid template keeps no gate, even one the spawn passes.
   - **Never moves.** Its `IWorldObject` setters throw.
   - **State** is `Ready`, `Used` or `Despawned`. It is per instance and is set on the tick only. Every change raises `ViewVersion`.
-  - `MapInstance.AddDoodad` files it in the instance's `DoodadIndex`, at build time only, and refuses a guid of another type.
+  - `MapInstance.AddDoodad` files it in the instance's `DoodadIndex`, at build time only, and refuses a guid of another type. The registry seals the index as it publishes the instance (`DoodadIndex.Seal`), and every add after that throws, since the tick reads the cell lists without a lock (`InstanceRegistryShould.Leave_A_Finished_Build_Out_Of_The_Registry_Until_It_Is_Published`).
 - **`DoodadIndex`** is a grid on X/Z over the cells of the instance's spatial grid (`GridCells`, the one layout both are built on), written at build time only.
   - `Visit` hands a struct visitor exactly the doodads within a reach on X/Z, and allocates nothing.
   - A doodad whose X or Z is not finite is in `All` but in no cell.
@@ -181,7 +181,7 @@ Slice S1, the framework and the wire, seeds and places no doodad. Every rule bel
   - `DoodadScriptConstructibilityShould` builds every shipped and seeded script that way, and refuses one that asks for the world.
   - Never rename or delete a doodad script on grep evidence alone.
 - **Hooks**:
-  - `OnSpawn(IDoodadContext)`: at placement, off the tick, in the instance build. In S1 nothing calls it, because placement arrives with S2.
+  - `OnSpawn(IDoodadContext)`: at placement, off the tick, in the instance build, before the doodad is added (`DoodadPlacementService`). A throw is logged through the scripts' throttle, and the doodad is still placed.
   - `CanUse(IDoodadUseContext)`: read only, and asked at the interact and again at cast completion. It returns null to allow the use, or a line to refuse it.
   - `OnUse(IDoodadUseContext)`: abstract.
   - `OnDespawn` and `OnRespawn`.
@@ -224,20 +224,56 @@ The stock scripts are in `Avalon.World/Doodads/Scripts/`, and `StockDoodadScript
   - The health goes through the combat service, with the user as the healer, capped at the maximum. Power is capped likewise.
   - **Players only:** creatures never.
 
+## The forest set
+
+Migration `SeedForestDoodads` seeds the first doodads (`WorldDbContext`, `Configure(EntityTypeBuilder<DoodadTemplate>)` and `Configure(EntityTypeBuilder<DoodadAuraOutcome>)`), with what they name: loot tables 12 and 13 and auras 8 to 10. Its inserts run in foreign-key order, the auras and loot tables before the doodads, and the doodads before their outcomes. Every one is clicked, used from 5 m, once per instance (`OncePerInstance`), shows its used look once spent (`ShowUsed`), never respawns and has no gate. `SeedIntegrityShould.Seed_each_forest_doodad_as_designed` pins every column, and `Load_every_seeded_doodad_through_the_catalog_without_refusing_any` loads them as the world does.
+
+| Id | Name | Kit / model / used model | Cast | Radius | Script | What a use does | Collision |
+|---|---|---|---|---|---|---|---|
+| 1 | Forest Chest | `props-kit` / `Chest_Wood` / none (clips `Chest_Closed`, `Chest_Open`, `Chest_Opened`) | instant | 0 | `LootDoodadScript` | table 12, 50 to 150 copper | none |
+| 2 | Old Barrel | `props-kit` / `Barrel` / `avalon_barrel_broken` | instant | 0 | `LootDoodadScript` | table 13, 0 to 20 copper | none |
+| 3 | Wayside Shrine | `town-kit` / `avalon_shrine` / `avalon_shrine_spent` | instant | 10 m | `ShrineDoodadScript` | one of Blessed (weight 40), Emboldened (40) or Hexed (20) | box half extents 0.8 x 0.8 m (1.6 m across), 2.2 m tall |
+| 4 | Mossy Fountain | `town-kit` / `avalon_forest_fountain` / `avalon_forest_fountain_dry` | 2 s | 10 m | `FountainDoodadScript` | 50 % of health and power | box half extents 1.05 x 1.05 m (2.1 m across), 1.8 m tall |
+
+- **The loot tables** are listed under "The seeded loot" in [world simulation](world-simulation.md): table 12 "Forest chest" rolls potions and then the creatures' shared pools, richer than a kill; table 13 "Forest barrel" rolls only potions.
+- **The auras** are listed in [auras](auras.md): 8 Blessed, 9 Emboldened and 10 Hexed, stat auras of 2 minutes, 2 minutes and 1 minute.
+- **A solid box is measured from the model** in the kit's bounds table (`tools/Avalon.ChunkGen/Kit/kit-bounds.json`). Its half extents are half the model's footprint rounded up to 0.05 m, and its height is the model's, rounded up to 0.05 m and never below 1.05 m. The fountain's footprint is round, and a box over its full ±1.2 m would reach 0.5 m past the basin at the corners. So its box is drawn in by the decor tolerance (0.15 m) on each side, to ±1.05 m: its sides stay within the tolerance of the rim. `DoodadCollisionShould` pins the rule for every seeded solid template, checks the box against both the ready and the used model within the tolerance, and checks it fits a `doodad_large` slot, whose 2 m edge clearance (`ForestPiecesShould.EdgeClearance`) is the most a half extent may be.
+- **The forest's rules** (`Maps/ProceduralMaps/2.json`, `doodadRules`), none of them required:
+  1. the chest at a `doodad` slot, 1 to 3 per run, 25 m apart, from depth 2 on;
+  2. the barrel at a `doodad` slot, 2 to 5 per run, 10 m apart;
+  3. the shrine at a `doodad_large` slot, at most one, from depth 3 on;
+  4. the fountain at a `doodad_large` slot, at most one, from depth 1 on.
+- **The scenarios place them too.** The forest scenarios (`ScenarioWorld.NewForestInstance`) build through `ChunkLayoutInstanceFactory`, so they plan and place the forest's doodads. `ForestLayouts` plans each seed's doodads as the factory does and bakes the navmesh with their boxes, and the cached bake refuses a layout whose boxes differ.
+
 ## Placement
 
-S2 (procedural placement in the forest: chunk doodad slots, seeded rules, required rules and the navmesh obstacles of solid doodads) and S3 (fixed town spawns and the quest doodads) fill this section. S1 places nothing: `MapInstance.AddDoodad` exists, and no build calls it yet.
+A procedural map's doodads come from its doodad rules (`ProceduralDoodadRule`, written by `ChunkCatalogSeeder` from `Maps/ProceduralMaps/<mapId>.json`; see [map generation](map-generation.md#spawn-tables-and-procedural-map-configs)) and the doodad slots of its pieces (`ChunkTemplate.DoodadSlots`). `ChunkLayoutInstanceFactory` runs `IDoodadPlacementService` (`DoodadPlacementService`) in two steps of the off-tick build. S3 adds the town's fixed spawns and the quest doodads.
 
-## What a doodad-unaware client does
+- **Plan**, before the navmesh bake, from the layout, the rules and the catalog alone. It is deterministic for a seed, in every process: one `Random(layout.Seed ^ DoodadSeedSalt)` (`0x0D00DAD5`), over slots sorted rather than taken in load order, since a chunk's slots are owned rows that Postgres loads in no guaranteed order.
+  1. The candidates are every doodad slot of the layout in world space (`ChunkRotation.LocalToWorld`), in chunk order and each chunk's slots sorted by tag (ordinal), `LocalX`, `LocalZ`, `Yaw` and `LocalY`, with yaw `(slot.Yaw + 90 * chunk.Rotation) % 360` and the chunk's depth. A slot within 15 m (X/Z) of the entry spawn or 8 m of a portal is dropped.
+  2. The rules run required first, then by `Sequence`. A rule whose template the catalog lacks is skipped: with an Error when the rule is required (its doodad, and so its quest, is missing), otherwise with a Warning.
+  3. Each rule draws its count (`MinCount` to `MaxCount`), takes the candidates not yet taken with its tag (ignoring case) and a depth within `MinDepth` to `MaxDepth`, shuffles them (Fisher-Yates), and takes them in order until it has its count, skipping one nearer than `MinSpacing` to a doodad of the same template, or nearer than 2 m to any doodad planned.
+  4. A required rule left short adds what it lacks to `RequiredShort`, for the fallback.
+  5. `DoodadPlan.Obstacles`: each solid doodad planned yields its world box, in plan order (see [map generation](map-generation.md#solid-doodads-in-the-bake)). The build sets them on the layout (`ChunkLayout.Obstacles`) before the bake, so the bake cuts them out and the layout packet carries them.
+- **Place**, after the bake and the creatures, on the instance being built, before it is published. Each doodad is contained on its own: one that throws is logged and skipped, and the others are placed.
+  1. A walk-through doodad is snapped to the navmesh under its slot (`FindGround`; its nearest point when just beside the mesh, as a creature's slot is). With no mesh within reach, a required one moves to the fallback and an optional one is skipped with a Warning.
+  2. A solid doodad keeps its slot's height, unsnapped. A doodad slot stands on the floor (written at local y 0, where a spawn slot is written 1 m up), so a solid doodad's model and its box in the bake stand on the ground.
+  3. **The fallback**: each required doodad short of a slot is tried at up to 64 random open navmesh points (`MapNavigator.TryFindOpenPoint`: `FindRandomPointAroundCircle` from the entry spawn's polygon, over every polygon connected to it, so never on an island such as a blocker's flat top; polygons drawn by area, kept only with no wall within 1.5 m, `FindDistanceToWall`), from a random stream of its own (one per build, its navmesh draws through one `RcRand`), the entry's polygon found once per doodad rather than per try. A point is taken at 15 m or more from the entry, 8 m from every portal and 2 m from every doodad placed, facing yaw 0. The fallback ignores the rule's depth range and its same-template spacing: it keeps only those clearances. After 64 tries an Error names the map, the seed and the template. A solid template is never placed off its slot, since its box was never baked into the navmesh: an Error, and it is not placed. The seeder refuses a required rule on a solid template, so this only follows a reload.
+  4. Each doodad gets its gates: the rule's, when set, replace the template's. A gate on a solid template is dropped with one Warning per spawn, so a solid doodad is never hidden. A gate naming a quest the world's quest catalog does not hold, or an objective that is not that quest's, is dropped with a Warning, and the template's gate stands.
+  5. Then its script's `OnSpawn` runs in spawn mode (`DoodadUseContext.Begin` with no host), and `MapInstance.AddDoodad` files it.
+- Nothing of this runs on the tick. `DoodadPlacementShould` pins the plan's tags, depths, counts and spacing (the same seed giving the same plan, with each chunk's slots loaded in either order, and different seeds different ones), the fallback (over 200 seeds, each point reachable from the entry) and the gates, `SolidDoodadNavmeshShould` that a solid doodad stops a walk and rides in the layout packet, and `CommittedForestDoodadsShould` proves the committed forest places every required doodad at a slot for seeds 0 to 999.
 
-Today's game client (`C:\dev\vulkan-multithreaded`, inspected read-only at `2ef944d5`) knows nothing of doodads. S1 sends it none, since nothing is seeded or placed. Once doodads are placed, it behaves like this:
+## What today's client does
 
-- **An unknown type is decoded, not refused.** Any type above Portal (5) decodes to `WorldObjectKind::Unknown` (`gamenet/src/ObjectGuid.h:26-33`).
-- **The object is stored but never drawn.** It is kept in the snapshot (`gamenet/src/session/SessionWorldState.cpp:50`) but never given an entity (`game/src/WorldReplicationSystem.cpp:313-319`, `Refuse(... "carries a type this client has no name for")`). The client says so once per instance and counts the rest (`:478-484` and `:497-507`). There is no assert, throw or disconnect.
-- **Gap: an undrawn doodad can still be offered for use.** `InteractCandidate` (`game/src/DialogueSystem.cpp:71-80`) checks only `CanInteract`, the position and the range, not the kind. A doodad this client never drew, with `CanInteract` and within 5 m, still offers "E" and sends `CMSG_INTERACT`. The server runs that interact by its own rules as for any client.
-- **A doodad cast bar shows a placeholder name.** On the user's own HUD it reads "Ability 0" (`game/src/HudSystem.cpp:495-511`), because the start packet has `AbilityId` and `ItemTemplateId` 0 and the client does not read `DoodadTemplateId`.
-- **New fields are skipped.** Unknown protobuf fields are ignored (lite runtime 7.36.2, `gamenet/generated/avalon.pb.h:4`), so `ObjectState` 26 and 27 and the cast packets' `DoodadTemplateId` cost the client nothing.
+The game client (`C:\dev\vulkan-multithreaded`, inspected read-only on `main` at `2aa0595c`) took the S1 wire in WoozChucky/Avalon.Client#402: the schema re-vendored from server main `831e6f41`, and the doodad catalog vendored beside the item, ability and aura catalogs. From S2 the forest places the set above, and the client behaves like this:
+
+- **A doodad is decoded and drawn as a placeholder.** It names `Doodad = 7` (and `Loot = 6`, `gamenet/include/gamenet/session/WorldStateTypes.h:32-35`) and reads `ObjectState` 26 and 27 (`gamenet/src/session/SessionWorldState.cpp:127-135`). A doodad is drawn as a teal placeholder (`game/src/WorldReplicationSystem.cpp:49-50` and `:59`), not its model, under a name-only nameplate: its catalog row's name, or "Doodad <id>" without a row (`game/src/NameplateSystem.cpp:159-166`). A type above Doodad still decodes to Unknown (`gamenet/src/ObjectGuid.h:26-33`) and is refused at spawn, once per instance (`game/src/WorldReplicationSystem.cpp:320-323`), with no assert, throw or disconnect.
+- **Its vendored catalog is empty** (`gamenet/schema/doodads/doodad-catalog-v1.json`, `"doodads": []`), so every forest doodad is named "Doodad 1" to "Doodad 4" today.
+- **E offers only a doodad that has a catalog row**, within that row's `interactionRange` (`game/src/DialogueSystem.cpp:76-87` and `:100-107`), with the prompt "Press E to use ..." (`:552-554`). With the empty catalog, E offers no doodad. A click on a doodad's plate still sends `CMSG_INTERACT` while `CanInteract` is true, row or not, and never makes it the combat target (`:352-372`). The server runs that interact by its own rules, as for any client.
+- **The doodad cast bar is named from the catalog** (`game/src/HudSystem.cpp:502-506`), "Doodad <id>" without a row, and a doodad cast starts no cooldown (`game/src/PlayerCastState.cpp:155-159`).
+- **Re-vendoring the S2 catalog brings the names and E.** Once `doodad-catalog-v1.json` holds templates 1 to 4, the plates and the cast bar read "Forest Chest", "Old Barrel", "Wayside Shrine" and "Mossy Fountain", and E offers each within 5 m. The models, the used look and the clips wait for the rest of #401.
+- **New fields are skipped.** Unknown protobuf fields are ignored (lite runtime 7.36.2, `gamenet/generated/avalon.pb.h:4`).
 - **An unknown quest objective kind still shows.** It is displayed as Unknown and otherwise normally (`gamenet/src/session/SessionQuests.cpp:29-39`). This matters once the quest slice adds the use-doodad kind.
-- **Gap: solid doodads block the server's navmesh but not the client's** (from S2 on). This is an accepted gap until the client draws doodads and bakes them in.
+- **Gap: solid doodads block the server's navmesh but not the client's.** Their boxes reach the client in `SChunkLayoutPacket.Obstacles` (field 8), which its vendored schema does not have yet (`gamenet/schema/avalon.proto:959-967`), so it skips them as an unknown field and its bake (`game/src/ChunkGeometry.cpp`) reads the chunks alone. This is an accepted gap until the client bakes the boxes in.
 
-The client half (drawing doodads by template, the used look and its clips, the cast bar's name, and the interact prompt's kind) goes to an issue on `WoozChucky/Avalon.Client`, filed with the quest slice. The server never waits for it.
+The client work is WoozChucky/Avalon.Client#401, and its Part A was merged in #402. The server never waits for it.

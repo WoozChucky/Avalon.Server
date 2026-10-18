@@ -23,4 +23,7 @@ public class ProceduralMapConfig
 
     /// <summary>Creature levels by depth (forest content pass); empty keeps every template's own level range.</summary>
     public List<ProceduralDepthBand> DepthBands { get; set; } = [];
+
+    /// <summary>The doodads its runs place (doodads); empty places none.</summary>
+    public List<ProceduralDoodadRule> DoodadRules { get; set; } = [];
 }

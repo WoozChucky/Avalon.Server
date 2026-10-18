@@ -115,10 +115,10 @@ public interface IInstanceRegistry
 }
 ```
 
-Both factory methods are async because a build (layout reads, the navmesh bake, construction and creature placement)
-runs off the tick; the finished instance is published on the tick, and the task completes then (#639,
-[world simulation](world-simulation.md)). Party instances come from the World-side `IPartyInstanceRegistry`
-(`GetOrCreatePartyInstanceAsync`), which `InstanceRegistry` also implements.
+Both factory methods are async because a build (layout reads, the doodad plan, the navmesh bake, construction, creature
+placement and doodad placement) runs off the tick; the finished instance is published on the tick, and the task
+completes then (#639, [world simulation](world-simulation.md)). Party instances come from the World-side
+`IPartyInstanceRegistry` (`GetOrCreatePartyInstanceAsync`), which `InstanceRegistry` also implements.
 
 ---
 

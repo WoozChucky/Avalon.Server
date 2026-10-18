@@ -1,4 +1,5 @@
 using Avalon.Domain.World;
+using Avalon.World.Doodads;
 using Avalon.World.Instances;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Parties;
@@ -13,7 +14,7 @@ public interface IChunkLayoutInstanceFactory
     /// <summary>
     /// Builds a <see cref="MapInstance"/> for <paramref name="template"/> by resolving the matching
     /// <see cref="IChunkLayoutSource"/> (predefined for towns, procedural for normals), baking a
-    /// navmesh from the resulting <see cref="ChunkLayout"/>, and applying creature/portal placement.
+    /// navmesh from the resulting <see cref="ChunkLayout"/>, and applying creature, doodad and portal placement.
     /// </summary>
     Task<MapInstance> BuildAsync(MapTemplate template, uint? ownerCharacterId, CancellationToken ct,
         PartyId? ownerPartyId = null);
@@ -27,6 +28,7 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
     private readonly IChunkLayoutNavmeshBuilder _navBuilder;
     private readonly ICreaturePlacementService _creaturePlace;
     private readonly IPortalPlacementService _portalPlace;
+    private readonly IDoodadPlacementService _doodadPlace;
     private readonly IServiceProvider _sp;
 
     public ChunkLayoutInstanceFactory(
@@ -35,6 +37,7 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         IChunkLayoutNavmeshBuilder navBuilder,
         ICreaturePlacementService creaturePlace,
         IPortalPlacementService portalPlace,
+        IDoodadPlacementService doodadPlace,
         IServiceProvider sp)
     {
         _lf = lf;
@@ -43,6 +46,7 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         _navBuilder = navBuilder;
         _creaturePlace = creaturePlace;
         _portalPlace = portalPlace;
+        _doodadPlace = doodadPlace;
         _sp = sp;
     }
 
@@ -51,13 +55,23 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
     {
         IChunkLayoutSource source = _resolver.Resolve(template, out ChunkLayoutSourceKind kind);
         ChunkLayout layout = await source.BuildAsync(template, ct);
+        IWorld world = _sp.GetRequiredService<IWorld>();
+
+        // Before the bake, from the layout alone (the solid doodads' boxes are the bake's to cut out); a town, with no
+        // config, plans none.
+        DoodadPlan doodads = _doodadPlace.Plan(layout, layout.Config, world.Data?.Doodads ?? DoodadCatalog.Empty,
+            _sp.GetRequiredService<IChunkLibrary>());
+
+        // The bake cuts the solid doodads' boxes out, and the instance keeps this layout, so its layout packet carries
+        // them to the client. A layout with none stays the one its source built.
+        if (doodads.Obstacles.Count > 0)
+            layout = layout with { Obstacles = doodads.Obstacles };
 
         DtNavMesh navMesh = await _navBuilder.BuildAsync(layout, ct);
 
         var navigator = new MapNavigator(_lf);
         navigator.LoadFromNavMesh(navMesh);
 
-        IWorld world = _sp.GetRequiredService<IWorld>();
         var instance = new MapInstance(_lf, _sp, world, template.Id, ownerCharacterId, layout, navigator, layout.Seed,
             template.MapType, ownerPartyId: ownerPartyId);
 
@@ -72,6 +86,9 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         // a town, and procedural maps are free to use it too — a map with no MapCreatureSpawn rows
         // places nothing.
         await _creaturePlace.PlaceAuthoredAsync(instance, layout, template.Id, ct);
+
+        // On the baked mesh, before the instance is published: the only time a doodad may be added.
+        await _doodadPlace.PlaceAsync(instance, layout, doodads, template.Id, ct);
 
         // PortalPlacementService tolerates a null config (towns) — portals are read off ChunkLayout.Portals.
         _portalPlace.Place(instance, layout, layout.Config);

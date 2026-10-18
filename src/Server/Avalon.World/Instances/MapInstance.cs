@@ -821,7 +821,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// Places a doodad here. Build time only, off the tick, before the instance is published: the index is never written
-    /// once a tick can read it. Its guid must be a doodad's, which is what routes its description.
+    /// once a tick can read it, and throws once <see cref="MarkPublished" /> sealed it. Its guid must be a doodad's, which is
+    /// what routes its description.
     /// </summary>
     public void AddDoodad(Doodad doodad)
     {
@@ -830,6 +831,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         _doodads.Add(doodad);
     }
+
+    /// <summary>
+    /// The registry publishes the instance (on the tick, before its first tick): from here its doodads are read by the
+    /// tick, so <see cref="AddDoodad" /> is refused.
+    /// </summary>
+    internal void MarkPublished() => _doodads.Seal();
+
+    /// <summary>
+    /// The quests its world holds now (a doodad spawn's gate is checked against them as the instance is built); empty
+    /// before the first load.
+    /// </summary>
+    internal QuestCatalog Quests => _world.Data?.Quests ?? QuestCatalog.Empty;
 
     /// <summary>
     /// Tick thread only: <paramref name="doodad" />'s state changed, so every client that sees it is owed an update of its

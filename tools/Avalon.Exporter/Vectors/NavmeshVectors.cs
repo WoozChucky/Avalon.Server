@@ -60,7 +60,8 @@ public static class NavmeshVectors
         float CellSize,
         IReadOnlyList<RaySpec> Rays,
         IReadOnlyList<GroundSpec> Grounds,
-        IReadOnlyList<ChunkSpec> Chunks);
+        IReadOnlyList<ChunkSpec> Chunks,
+        IReadOnlyList<DoodadObstacle>? Obstacles = null);
 
     /// <summary>Where a town floor's navmesh sits: the slab's top face is at local y = 0.05.</summary>
     private const float TownFloorY = 0.15f;
@@ -223,6 +224,27 @@ public static class NavmeshVectors
                 new("forest_clearing_01", 0, 1, 0),
                 new("forest_path_03", 1, 1, 0),
             ]),
+
+        // One solid doodad's box on a forest path, standing on the floor at a slot's height (every doodad slot is
+        // written at local y = 0): 4 by 4 m, 1.8 m tall, wider than any seeded doodad so that its top would keep
+        // walkable ground after the agent-radius erosion if it were wound upward. The client appends the box after the
+        // chunks, with the vertices and faces DoodadObstacleGeometry writes, and its walk stops where the server's does;
+        // the floor beside the box is untouched, and the probe above its centre finds no ground (the sample height
+        // comes back unchanged), where a top wound the other way would answer with its own height.
+        new("forest-doodad", 30f,
+            [
+                Ray(5f, 15f, 25f, 15f, "east along the path's middle into the box's west face", y: 0.1f),
+            ],
+            [
+                Ground(15f, 11f, "beside the box, 2 m south of its south face: the floor"),
+                Ground(15f, 15f, "above the box's centre: no ground, since its top bakes unwalkable"),
+            ],
+            [
+                new("forest_path_01", 0, 0, 0),
+            ],
+            [
+                new DoodadObstacle(13f, 17f, 13f, 17f, 0f, 1.8f),
+            ]),
     ];
 
     // ---------------------------------------------------------------- running the server's own code
@@ -246,6 +268,12 @@ public static class NavmeshVectors
         {
             text.Append(CultureInfo.InvariantCulture,
                 $"chunk {chunk.Template} {chunk.GridX} {chunk.GridZ} {chunk.Rotation}\n");
+        }
+
+        foreach (DoodadObstacle box in spec.Obstacles ?? [])
+        {
+            text.Append(CultureInfo.InvariantCulture,
+                $"obstacle {F(box.MinX)} {F(box.MaxX)} {F(box.MinZ)} {F(box.MaxZ)} {F(box.BaseY)} {F(box.TopY)}\n");
         }
 
         text.Append(CultureInfo.InvariantCulture, $"mesh tiles {tiles} polys {polys} verts {verts}\n");
@@ -312,7 +340,8 @@ public static class NavmeshVectors
             BossChunk: null,
             Portals: [],
             EntrySpawnWorldPos: Vector3.zero,
-            CellSize: spec.CellSize);
+            CellSize: spec.CellSize,
+            Obstacles: spec.Obstacles);
     }
 
     /// <summary>
@@ -450,6 +479,7 @@ public static class NavmeshVectors
         #   Emitted by  tools/Avalon.Exporter  (Avalon.Server)
         #   Regenerate  dotnet run --project tools/Avalon.Exporter -- navmesh
         #   Source      src/Server/Avalon.World/ChunkLayouts/IChunkLayoutNavmeshBuilder.cs
+        #               src/Server/Avalon.World.Generation/DoodadObstacleGeometry.cs
         #               src/Server/Avalon.World/Maps/Navigation/NavmeshBuildSettings.cs
         #               src/Server/Avalon.World/Maps/Navigation/MapNavigator.cs
         #               src/Server/Avalon.Server.World/Maps/Chunks/*.obj
@@ -467,9 +497,23 @@ public static class NavmeshVectors
         #
         #   layout <name> cell <cellSize>
         #   chunk  <template> <gridX> <gridZ> <rotation>       (repeated; origin = grid * cellSize)
+        #   obstacle <minX> <maxX> <minZ> <maxZ> <baseY> <topY> (repeated, or none; world space)
         #   mesh   tiles <n> polys <n> verts <n>
         #   ray    <fx> <fy> <fz> <tx> <ty> <tz> -> <outcome> <px> <py> <pz> <t>   # label
         #   ground <x> <y> <z> -> <height>                                         # label
+        #
+        # AN OBSTACLE IS A SOLID DOODAD'S BOX, as SChunkLayoutPacket.Obstacles carries it, and it is baked
+        # after every chunk, in the order listed. Each is appended to the combined mesh as 8 vertices,
+        # (minX,baseY,minZ) (maxX,baseY,minZ) (maxX,baseY,maxZ) (minX,baseY,maxZ) and then the same four
+        # at topY, and 10 triangles with no bottom face, 1-based on those 8 and offset by the vertices
+        # already written: the top (5 6 7) (5 7 8), then the sides (1 2 6) (1 6 5) (2 3 7) (2 7 6)
+        # (3 4 8) (3 8 7) (4 1 5) (4 5 8). A box is axis-aligned: a doodad turns by quarter turns only,
+        # and the server swaps its half extents on an odd one before it writes the box.
+        #
+        # THE TOP WINDS DOWNWARD ON PURPOSE. Its normal points down, so the bake marks it unwalkable and
+        # no island of navmesh forms on a box's flat top. Copy the faces exactly as written and never
+        # re-wind them: a top wound upward bakes walkable, and the forest-doodad probe above the box's
+        # centre then answers with the box's height instead of the height it was sampled from.
         #
         # <outcome> IS THE BRANCH, NOT AN INFERENCE FROM THE POSITION. RaycastWalkable returns a bare
         # position and collapses three branches onto it -- no start polygon hands back `from`, a

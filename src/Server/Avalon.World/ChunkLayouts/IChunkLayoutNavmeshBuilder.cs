@@ -56,7 +56,8 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
             NavMeshBuildResult result = builder.Build(geom, NavmeshBuildSettings.Create());
             if (result?.NavMesh is null)
                 throw new NavmeshBuildFailedException($"DotRecast returned null mesh for layout (seed {layout.Seed})");
-            _logger.LogInformation("Navmesh baked for layout seed {Seed} ({ChunkCount} chunks)", layout.Seed, layout.Chunks.Count);
+            _logger.LogInformation("Navmesh baked for layout seed {Seed} ({ChunkCount} chunks, {ObstacleCount} solid doodads)",
+                layout.Seed, layout.Chunks.Count, layout.Obstacles?.Count ?? 0);
             return result.NavMesh;
         }
         finally
@@ -86,6 +87,17 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
             int vCount = AppendTransformed(sb, File.ReadAllText(path), chunk.WorldPos, chunk.Rotation, layout.CellSize, vOffset);
             vOffset += vCount;
         }
+
+        // The solid doodads' boxes, after every chunk, in the plan's order: the client appends them the same way.
+        if (layout.Obstacles is { } obstacles)
+        {
+            for (int i = 0; i < obstacles.Count; i++)
+            {
+                DoodadObstacle box = obstacles[i];
+                vOffset += DoodadObstacleGeometry.Append(sb, box, vOffset);
+            }
+        }
+
         string tempPath = Path.Combine(Path.GetTempPath(), $"avalon-chunklayout-{layout.Seed}-{Guid.NewGuid():N}.obj");
         File.WriteAllText(tempPath, sb.ToString());
         return tempPath;
