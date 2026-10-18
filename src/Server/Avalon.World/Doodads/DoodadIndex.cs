@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Instances;
 
 namespace Avalon.World.Doodads;
 
@@ -17,67 +18,31 @@ public interface IDoodadVisitor
 /// as the instance is built, off the tick, and read-only once it is published, since doodads never move. World-side.
 /// </summary>
 /// <remarks>
-/// The cells are those of the instance's spatial grid: from the lowest chunk corner to the far side of the highest,
-/// coordinates clamped to the edge cells, so a doodad off the layout is in the nearest edge cell. A doodad whose X or Z is
-/// not finite is listed in <see cref="All" /> but in no cell, as no distance finds it within reach.
+/// The cells are those of the instance's spatial grid (<see cref="GridCells" />, which both are built on): from the
+/// lowest chunk corner to the far side of the highest, coordinates clamped to the edge cells, so a doodad off the layout
+/// is in the nearest edge cell. A doodad whose X or Z is not finite is listed in <see cref="All" /> but in no cell, as no
+/// distance finds it within reach.
 /// </remarks>
 public sealed class DoodadIndex
 {
-    // A layout far larger than any generated or authored map gets coarser cells rather than an array of this many.
-    private const int MaxCells = 1 << 16;
-
-    private readonly float _originX;
-    private readonly float _originZ;
-    private readonly float _inverseCellSize;
-    private readonly int _columns;
-    private readonly int _rows;
+    private readonly GridCells _grid;
 
     // Each cell's doodads, the list made by the first doodad in it: a cell without one stays null.
     private readonly List<Doodad>?[] _cells;
     private readonly List<Doodad> _all = [];
     private readonly Dictionary<ulong, Doodad> _byGuid = [];
 
-    private DoodadIndex(float originX, float originZ, float cellSize, int columns, int rows)
+    private DoodadIndex(GridCells grid)
     {
-        _originX = originX;
-        _originZ = originZ;
-        _inverseCellSize = 1f / cellSize;
-        _columns = columns;
-        _rows = rows;
-        _cells = new List<Doodad>?[columns * rows];
+        _grid = grid;
+        _cells = new List<Doodad>?[grid.Count];
     }
 
     /// <summary>
     /// The index over <paramref name="layout" />'s chunks, its cells those of the instance's spatial grid
     /// (<see cref="ChunkLayout.CellSize" />). A layout with no chunk or no usable cell size gets one cell.
     /// </summary>
-    public static DoodadIndex For(ChunkLayout layout)
-    {
-        float cellSize = layout.CellSize;
-        if (layout.Chunks.Count == 0 || !float.IsFinite(cellSize) || cellSize <= 0f)
-            return new DoodadIndex(0f, 0f, 1f, 1, 1);
-
-        float minX = float.MaxValue, minZ = float.MaxValue, maxX = float.MinValue, maxZ = float.MinValue;
-        foreach (PlacedChunk chunk in layout.Chunks)
-        {
-            minX = MathF.Min(minX, chunk.WorldPos.x);
-            minZ = MathF.Min(minZ, chunk.WorldPos.z);
-            maxX = MathF.Max(maxX, chunk.WorldPos.x);
-            maxZ = MathF.Max(maxZ, chunk.WorldPos.z);
-        }
-
-        if (!float.IsFinite(minX) || !float.IsFinite(minZ) || !float.IsFinite(maxX) || !float.IsFinite(maxZ))
-            return new DoodadIndex(0f, 0f, 1f, 1, 1);
-
-        double width = (double)maxX - minX + cellSize;
-        double depth = (double)maxZ - minZ + cellSize;
-        while (Math.Ceiling(width / cellSize) * Math.Ceiling(depth / cellSize) > MaxCells)
-            cellSize *= 2f;
-
-        int columns = Math.Max(1, (int)Math.Ceiling(width / cellSize));
-        int rows = Math.Max(1, (int)Math.Ceiling(depth / cellSize));
-        return new DoodadIndex(minX, minZ, cellSize, columns, rows);
-    }
+    public static DoodadIndex For(ChunkLayout layout) => new(GridCells.For(layout));
 
     /// <summary>Every doodad here, in the order they were added.</summary>
     public IReadOnlyList<Doodad> All => _all;
@@ -97,7 +62,7 @@ public sealed class DoodadIndex
         if (!float.IsFinite(position.x) || !float.IsFinite(position.z))
             return;
 
-        int cell = Row(position.z) * _columns + Column(position.x);
+        int cell = Row(position.z) * _grid.Columns + Column(position.x);
         (_cells[cell] ??= []).Add(doodad);
     }
 
@@ -126,7 +91,7 @@ public sealed class DoodadIndex
         int lastRow = Row(z + widened);
         for (int row = Row(z - widened); row <= lastRow; row++)
         {
-            int rowStart = row * _columns;
+            int rowStart = row * _grid.Columns;
             for (int column = firstColumn; column <= lastColumn; column++)
             {
                 if (_cells[rowStart + column] is not { } doodads)
@@ -145,16 +110,8 @@ public sealed class DoodadIndex
         }
     }
 
-    // Monotonic in X and in Z, as the spatial grid's, which is what lets a query find a cell range from its box's ends.
-    private int Column(float x)
-    {
-        float cell = (x - _originX) * _inverseCellSize;
-        return cell <= 0f ? 0 : cell >= _columns - 1 ? _columns - 1 : (int)cell;
-    }
+    // Monotonic in X and in Z, which is what lets a query find a cell range from its box's ends.
+    private int Column(float x) => _grid.Column(x);
 
-    private int Row(float z)
-    {
-        float cell = (z - _originZ) * _inverseCellSize;
-        return cell <= 0f ? 0 : cell >= _rows - 1 ? _rows - 1 : (int)cell;
-    }
+    private int Row(float z) => _grid.Row(z);
 }
