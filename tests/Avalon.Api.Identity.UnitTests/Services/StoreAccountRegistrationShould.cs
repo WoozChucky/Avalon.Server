@@ -4,7 +4,6 @@ using Avalon.Api.Testing;
 using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
-using Avalon.Server.Auth.UnitTests.Services;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 

@@ -5,7 +5,6 @@ using Avalon.Api.Testing;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
-using Avalon.Server.Auth.UnitTests.Services;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
 using Xunit;
