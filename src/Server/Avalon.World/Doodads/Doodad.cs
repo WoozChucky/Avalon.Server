@@ -53,7 +53,10 @@ public sealed class Doodad : IWorldObject
     /// <summary>Always zero: a doodad never moves.</summary>
     public Vector3 Velocity => Vector3.zero;
 
-    /// <summary>Ready, Used or Despawned. Every change raises <see cref="ViewVersion" />. Tick thread only.</summary>
+    /// <summary>
+    /// Ready, Used or Despawned. Every change raises <see cref="ViewVersion" />, and one to Ready, however it came, clears
+    /// <see cref="RespawnAt" />. Written on the tick, or by its instance's build before publication (OnSpawn).
+    /// </summary>
     public DoodadState State
     {
         get => _state;
@@ -64,10 +67,15 @@ public sealed class Doodad : IWorldObject
 
             _state = value;
             ViewVersion++;
+            if (value == DoodadState.Ready)
+                RespawnAt = null;
         }
     }
 
-    /// <summary>When a spent doodad is ready again; null while it is ready or when it never respawns.</summary>
+    /// <summary>
+    /// When a spent doodad is ready again; null while it is ready, a script having made it so early included, and when
+    /// it never respawns. A respawn scheduled for another time than this one is dropped when it comes up (DoodadRespawns).
+    /// </summary>
     public DateTime? RespawnAt { get; internal set; }
 
     /// <summary>

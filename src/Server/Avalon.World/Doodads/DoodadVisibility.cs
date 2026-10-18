@@ -54,15 +54,10 @@ public sealed class DoodadVisibility(DoodadScripts? scripts = null)
     }
 
     /// <summary>
-    /// Whether <paramref name="viewer" />'s client should offer to use <paramref name="doodad" />: visible to it,
-    /// <see cref="Usable" /> and let through by its usability gate. A doodad hidden from a viewer is never usable by it.
-    /// </summary>
-    public bool CanInteract(Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
-        Interactable(IsVisibleTo(doodad, viewer, quests), doodad, viewer, quests);
-
-    /// <summary>
-    /// <see cref="IsVisibleTo" /> and <see cref="CanInteract" /> together, at the doodad's current
-    /// <see cref="Doodad.ViewVersion" />, each rule asked once: what a view decision holds for the viewer.
+    /// Whether <paramref name="viewer" /> may see <paramref name="doodad" /> (<see cref="IsVisibleTo" />) and whether its
+    /// client should offer to use it (visible to it, <see cref="Usable" /> and let through by its usability gate: a doodad
+    /// hidden from a viewer is never usable by it), at the doodad's current <see cref="Doodad.ViewVersion" />, each rule
+    /// asked once: what a view decision holds for the viewer.
     /// </summary>
     internal DoodadAnswer Answer(Doodad doodad, CharacterEntity viewer, QuestCatalog quests)
     {
@@ -74,8 +69,8 @@ public sealed class DoodadVisibility(DoodadScripts? scripts = null)
     /// Past being seen, why <paramref name="viewer" /> may not use <paramref name="doodad" />: its usability gate refuses
     /// (<see cref="DoodadUseRefusal.NotUsable" />), or its own state does (not <see cref="Usable" />:
     /// <see cref="DoodadUseRefusal.Spent" />); null when it may. The one statement of "can use" past visibility, asked by
-    /// <see cref="CanInteract" />, by a view decision and by an interact's checks (DoodadUseService), so what a client is
-    /// offered and what an interact is let through by never differ.
+    /// a view decision (<see cref="Answer" />) and by an interact's checks (DoodadUseService), so what a client is offered
+    /// and what an interact is let through by never differ.
     /// </summary>
     internal static DoodadUseRefusal? UseRefusal(Doodad doodad, CharacterEntity viewer, QuestCatalog quests) =>
         !DoodadGates.Allows(doodad.UsableGate, viewer.Quests, quests) ? DoodadUseRefusal.NotUsable

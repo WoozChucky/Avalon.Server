@@ -105,7 +105,8 @@ public sealed class DoodadCatalog
         }
 
         Refused = refused;
-        Templates = _templates.Values.ToList();
+        // In id order whatever order the dictionary keeps: the export and every walk of the catalog read it so.
+        Templates = _templates.Values.OrderBy(t => t.Id.Value).ToList();
 
         foreach (DoodadRefusal refusal in Refused)
         {

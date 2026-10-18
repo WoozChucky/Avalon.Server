@@ -51,22 +51,26 @@ public class StockDoodadScriptsShould
     /// <summary>
     /// Countdown: A, B and C form a party, A and B enter its instance, and A leaves the party there, so A uses the chest
     /// in its leave countdown: as for a kill, nobody is eligible, and the party instance's drops are free for all at once.
+    /// Member in countdown: B leaves instead, so A uses it with B in its countdown beside it: B is no longer a member, so
+    /// only A is eligible, as for a kill.
     /// </summary>
     [Theory]
     [InlineData("solo")]
     [InlineData("party")]
     [InlineData("countdown")]
+    [InlineData("member in countdown")]
     public async Task Drop_a_chests_table_at_its_feet_as_a_kill_drops(string mode)
     {
-        bool party = mode == "party", countdown = mode == "countdown";
+        bool party = mode == "party", countdown = mode == "countdown", memberCountdown = mode == "member in countdown";
         var partyId = new PartyId(70);
         PartyTestWorld? parties = null;
-        PartyClient? leaver = null;
-        if (countdown)
+        PartyClient? partyA = null, partyB = null;
+        if (countdown || memberCountdown)
         {
             parties = new PartyTestWorld();
-            leaver = parties.Online(IdA);
-            parties.Form(leaver, parties.Online(IdB), parties.Online(IdC));
+            partyA = parties.Online(IdA);
+            partyB = parties.Online(IdB);
+            parties.Form(partyA, partyB, parties.Online(IdC));
             partyId = parties.Parties.PartyOf(IdA)!.Id;
         }
 
@@ -75,8 +79,8 @@ public class StockDoodadScriptsShould
         using Fixture f = await Fixture.CreateAsync(owner: mode == "solo" ? IdA : null,
             ownerParty: mode == "solo" ? null : partyId, draws: draws, parties: parties?.Parties);
         Doodad chest = f.Place(Template(3, typeof(LootDoodadScript), loot: 1, gold: 5));
-        MapInstanceClient a = f.Join(leaver?.Character ?? TestCharacters.New(IdA, time: f.Time), new Vector3(6f, 0f, 0f));
-        MapInstanceClient b = f.Join(IdB, new Vector3(30f, 0f, 30f));
+        MapInstanceClient a = f.Join(partyA?.Character ?? TestCharacters.New(IdA, time: f.Time), new Vector3(6f, 0f, 0f));
+        MapInstanceClient b = f.Join(partyB?.Character ?? TestCharacters.New(IdB, time: f.Time), new Vector3(30f, 0f, 30f));
         MapInstanceClient stranger = f.Join(IdD, new Vector3(8f, 0f, 0f));
         if (party)
         {
@@ -86,11 +90,12 @@ public class StockDoodadScriptsShould
             SetParty(TestCharacters.New(IdC), partyId);
         }
 
-        if (countdown)
+        if (countdown || memberCountdown)
         {
+            uint leaving = countdown ? IdA : IdB;
             parties!.Instances.Owned[f.Instance.InstanceId] = partyId;
-            Assert.Equal(PartyResult.Ok, parties.Parties.Leave(IdA));
-            Assert.True(parties.Parties.InCountdown(IdA));
+            Assert.Equal(PartyResult.Ok, parties.Parties.Leave(leaving));
+            Assert.True(parties.Parties.InCountdown(leaving));
         }
 
         f.Use(a, chest);
@@ -211,7 +216,8 @@ public class StockDoodadScriptsShould
 
     /// <summary>The party a character is in, written as the party service writes it.</summary>
     private static void SetParty(CharacterEntity character, PartyId party) =>
-        typeof(CharacterEntity).GetProperty(nameof(CharacterEntity.PartyId))!.SetValue(character, party);
+        (typeof(CharacterEntity).GetProperty(nameof(CharacterEntity.PartyId))?.SetMethod
+         ?? throw new MissingMethodException(nameof(CharacterEntity), "set_PartyId")).Invoke(character, [party]);
 
     /// <summary>
     /// An instance on a fake clock over open, flat ground, with the container's loot roller and allocator, the party

@@ -1,4 +1,6 @@
+using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
+using Avalon.Domain.World;
 using Avalon.Hosting;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using Avalon.Server.World.Extensions;
@@ -71,7 +73,10 @@ public class DoodadScriptConstructibilityShould
         }
     }
 
-    /// <summary>The narrowing refuses, not a missing registration: the production container has the world.</summary>
+    /// <summary>
+    /// The narrowing refuses, not a missing registration: the production container has the world. The container's own
+    /// DoodadScripts then hands out no script for a template naming it, so its doodads run without one.
+    /// </summary>
     [Fact]
     public async Task Refuse_a_doodad_script_that_asks_for_the_world()
     {
@@ -83,6 +88,12 @@ public class DoodadScriptConstructibilityShould
             Assert.IsAssignableFrom<DoodadScript>(ActivatorUtilities.CreateInstance(host.Services, typeof(WorldHungryDoodadScript)));
             Assert.Throws<InvalidOperationException>(() =>
                 ActivatorUtilities.CreateInstance(new QuestScriptServices(host.Services), typeof(WorldHungryDoodadScript)));
+
+            var hungry = new DoodadTemplateView(new DoodadTemplateId(1), "Hungry", "props-kit", "Crate", null, null, null,
+                null, DoodadInteraction.Click, 0, 5f, 0f, DoodadUseLimit.OncePerInstance, DoodadSpentLook.ShowUsed, null,
+                typeof(WorldHungryDoodadScript), null, 0, 0, 0, DoodadCollision.None, 0f, 0f, 0f, null, null, [], 0,
+                ScriptCanSee: false);
+            Assert.Null(host.Services.GetRequiredService<DoodadScripts>().For(hungry));
         }
         finally
         {
