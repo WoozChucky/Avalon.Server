@@ -6,6 +6,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auras;
 using Avalon.Network.Packets.Loot;
+using Avalon.Network.Packets.Party;
 using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Auras;
@@ -13,7 +14,9 @@ using Avalon.Server.World.UnitTests.Combat;
 using Avalon.Server.World.UnitTests.Instances;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.Server.World.UnitTests.Parties;
 using Avalon.World;
+using Avalon.World.Auras;
 using Avalon.World.Configuration;
 using Avalon.World.Doodads;
 using Avalon.World.Doodads.Scripts;
@@ -45,29 +48,49 @@ public class StockDoodadScriptsShould
 
     private const uint IdA = 107_001, IdB = 107_002, IdC = 107_003, IdD = 107_004;
 
+    /// <summary>
+    /// Countdown: A, B and C form a party, A and B enter its instance, and A leaves the party there, so A uses the chest
+    /// in its leave countdown: as for a kill, nobody is eligible, and the party instance's drops are free for all at once.
+    /// </summary>
     [Theory]
     [InlineData("solo")]
     [InlineData("party")]
+    [InlineData("countdown")]
     public async Task Drop_a_chests_table_at_its_feet_as_a_kill_drops(string mode)
     {
-        bool party = mode == "party";
+        bool party = mode == "party", countdown = mode == "countdown";
         var partyId = new PartyId(70);
+        PartyTestWorld? parties = null;
+        PartyClient? leaver = null;
+        if (countdown)
+        {
+            parties = new PartyTestWorld();
+            leaver = parties.Online(IdA);
+            parties.Form(leaver, parties.Online(IdB), parties.Online(IdC));
+            partyId = parties.Parties.PartyOf(IdA)!.Id;
+        }
 
         // In the party instance: the first drop goes to the second eligible member, the second to the first.
         ScriptedCombatRandom draws = new ScriptedCombatRandom().Longs(1, 0);
-        using Fixture f = await Fixture.CreateAsync(owner: party ? null : IdA, ownerParty: party ? partyId : null,
-            draws: draws);
+        using Fixture f = await Fixture.CreateAsync(owner: mode == "solo" ? IdA : null,
+            ownerParty: mode == "solo" ? null : partyId, draws: draws, parties: parties?.Parties);
         Doodad chest = f.Place(Template(3, typeof(LootDoodadScript), loot: 1, gold: 5));
-        MapInstanceClient a = f.Join(IdA, new Vector3(6f, 0f, 0f));
+        MapInstanceClient a = f.Join(leaver?.Character ?? TestCharacters.New(IdA, time: f.Time), new Vector3(6f, 0f, 0f));
         MapInstanceClient b = f.Join(IdB, new Vector3(30f, 0f, 30f));
         MapInstanceClient stranger = f.Join(IdD, new Vector3(8f, 0f, 0f));
-        CharacterEntity elsewhere = TestCharacters.New(IdC);
         if (party)
         {
             // B far off counts, as a party member anywhere in the instance; C, in another instance, never does.
             SetParty(a.Character, partyId);
             SetParty(b.Character, partyId);
-            SetParty(elsewhere, partyId);
+            SetParty(TestCharacters.New(IdC), partyId);
+        }
+
+        if (countdown)
+        {
+            parties!.Instances.Owned[f.Instance.InstanceId] = partyId;
+            Assert.Equal(PartyResult.Ok, parties.Parties.Leave(IdA));
+            Assert.True(parties.Parties.InCountdown(IdA));
         }
 
         f.Use(a, chest);
@@ -75,7 +98,8 @@ public class StockDoodadScriptsShould
         Assert.Equal(2, f.Instance.Drops.Count);   // the sword and the pile: Assert.All passes on nothing
         Assert.All(f.Instance.Drops.All, drop =>
         {
-            Assert.Equal(s_now.UtcDateTime + new GameConfiguration().LootGracePeriod, drop.FreeForAllAt);
+            Assert.Equal(s_now.UtcDateTime + (countdown ? TimeSpan.Zero : new GameConfiguration().LootGracePeriod),
+                drop.FreeForAllAt);
             float dx = drop.Position.x - s_doodadAt.x, dz = drop.Position.z - s_doodadAt.z;
             Assert.True(dx * dx + dz * dz <= 1.5f * 1.5f, $"a drop at {drop.Position} is not at the chest's feet");
         });
@@ -87,7 +111,7 @@ public class StockDoodadScriptsShould
         }
         else
         {
-            Assert.All(f.Instance.Drops.All, drop => Assert.Equal(IdA, drop.OwnerCharacterId));
+            Assert.All(f.Instance.Drops.All, drop => Assert.Equal(countdown ? null : IdA, drop.OwnerCharacterId));
         }
 
         foreach (MapInstanceClient client in new[] { a, b, stranger })
@@ -132,8 +156,15 @@ public class StockDoodadScriptsShould
 
         f.Use(atDoodad, shrine);
 
-        Assert.Equal(new AuraId(10), Assert.Single(atDoodad.Character.Auras.All).Template.Id);
-        Assert.Equal(new AuraId(10), Assert.Single(near.Character.Auras.All).Template.Id);
+        foreach (MapInstanceClient reached in new[] { atDoodad, near })
+        {
+            // From nobody: no caster, no ability, no credit.
+            ActiveAura applied = Assert.Single(reached.Character.Auras.All);
+            Assert.Equal(new AuraId(10), applied.Id);
+            Assert.Equal(0ul, applied.CasterGuid.RawValue);
+            Assert.Equal(AuraSource.None, applied.Source);
+        }
+
         Assert.Equal(0, past.Character.Auras.Count);
         Assert.Equal(0, lost.Character.Auras.Count);
         Assert.Equal(0, boar.Auras.Count);
@@ -183,13 +214,13 @@ public class StockDoodadScriptsShould
         typeof(CharacterEntity).GetProperty(nameof(CharacterEntity.PartyId))!.SetValue(character, party);
 
     /// <summary>
-    /// An instance on a fake clock over open, flat ground, with the container's loot roller and allocator, auras 8-10 and
-    /// loot table 1 (one sword), and the use service and interact handler the container would hand it. The shrine's draws
-    /// come from <see cref="ScriptRandom" />.
+    /// An instance on a fake clock over open, flat ground, with the container's loot roller and allocator, the party
+    /// service when given one (its leave countdowns), auras 8-10 and loot table 1 (one sword), and the use service and
+    /// interact handler the container would hand it. The shrine's draws come from <see cref="ScriptRandom" />.
     /// </summary>
     private sealed class Fixture : IDisposable
     {
-        private Fixture(StaticData data, uint? owner, PartyId? ownerParty, ICombatRandom? draws)
+        private Fixture(StaticData data, uint? owner, PartyId? ownerParty, ICombatRandom? draws, PartyService? parties)
         {
             Time = new FakeTimeProvider(s_now);
             IWorld world = MapInstanceClients.NewWorld(data);
@@ -205,6 +236,7 @@ public class StockDoodadScriptsShould
                 .Returns(ci => ci.ArgAt<float>(1));
 
             Instance = TestMapInstances.Build(world, navigator: navigator, time: Time, ownerPartyId: ownerParty,
+                parties: parties,
                 lootRoller: new LootRoller(new LootRandom(new Random(460)), NullLogger<LootRoller>.Instance),
                 lootAllocator: new PartyLootAllocator(Options.Create(new GameConfiguration()), Time,
                     draws ?? CombatRandom.Steady),
@@ -219,13 +251,13 @@ public class StockDoodadScriptsShould
         public InteractHandler Interact { get; }
 
         public static async Task<Fixture> CreateAsync(uint? owner = null, PartyId? ownerParty = null,
-            ICombatRandom? draws = null)
+            ICombatRandom? draws = null, PartyService? parties = null)
         {
             StaticData data = await TestStaticData.LoadAsync(TestStaticData.Repositories(
                 items: () => Items,
                 loot: LootRepositories.Of(() => [Table(1, Item(1, Sword))]),
                 auras: () => [AuraTestData.Fortified(8), AuraTestData.Fortified(9), AuraTestData.Fortified(10)]));
-            return new Fixture(data, owner, ownerParty, draws);
+            return new Fixture(data, owner, ownerParty, draws, parties);
         }
 
         public Doodad Place(DoodadTemplateView template)
@@ -235,9 +267,10 @@ public class StockDoodadScriptsShould
             return doodad;
         }
 
-        public MapInstanceClient Join(uint id, Vector3 position)
+        public MapInstanceClient Join(uint id, Vector3 position) => Join(TestCharacters.New(id, time: Time), position);
+
+        public MapInstanceClient Join(CharacterEntity character, Vector3 position)
         {
-            CharacterEntity character = TestCharacters.New(id, time: Time);
             character.Position = position;
             return MapInstanceClients.Join(Instance, character);
         }

@@ -1255,7 +1255,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// A doodad's drops (doodads, ruling R11), as a kill's: its template's table and copper range rolled now, against the
     /// Loot and Items areas as they are, each drop allocated on its own among the user and the members of its party in
     /// this instance (a party member anywhere here, dead or alive; a character leaves its party, and so this, at the start
-    /// of a leave countdown), placed on the ring around the doodad and told to everyone here in one shared packet. Its
+    /// of a leave countdown; a user in one makes nobody eligible, as a killer in one does), placed on the ring around the doodad and told to everyone here in one shared packet. Its
     /// lists are the instance's <see cref="KillBuffers" />, as a kill's are. Contained, as a kill's drop is: a failure is
     /// logged, and what was stored before it stays (a placement that throws stores nothing). Tick thread.
     /// </summary>
@@ -1270,9 +1270,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _killInProgress = true;
         try
         {
+            // As for a kill: a user in a party leave countdown makes nobody eligible, so a party instance's drops are free
+            // for all at once rather than reserved for one who has left the party.
             List<ICharacter> eligible = buffers.Eligible;
-            eligible.Add(user);
-            if (user.PartyId is { } party)
+            if (!_inCountdown(user.Guid.Id))
+                eligible.Add(user);
+
+            if (eligible.Count > 0 && user.PartyId is { } party)
             {
                 // Through the dictionary's own enumerator: a use allocates no boxed one.
                 foreach (ICharacter character in _characters.Values)
@@ -1287,7 +1291,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
             DoodadTemplateView template = doodad.Template;
             IReadOnlyList<RolledDrop> table = _lootRoller.Roll(template.LootTableId, template.MinGold, template.MaxGold,
-                _world.Data.Loot, _world.Data.ItemTemplates);
+                _world.Data.Loot, _world.Data.ItemTemplates, out bool tableMissing);
+            if (tableMissing)
+            {
+                _logger.LogWarning(
+                    "Doodad template {DoodadTemplateId} names loot table {TableId}, which is missing or was refused; it drops only gold",
+                    template.Id.Value, template.LootTableId!.Value);
+            }
+
             if (table.Count == 0)
                 return 0;
 
@@ -1365,9 +1376,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 into.Add(player);
         }
     }
-
-    uint IDoodadHost.RestoreHealth(IUnit healer, IUnit target, uint amount) =>
-        _combatService.RestoreHealth(healer, target, amount);
 
     /// <summary>
     /// Whom each of one kill's drops is for, by its place in the ring: a table drop is allocated on its own, among the

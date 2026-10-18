@@ -103,15 +103,16 @@ public sealed partial class DoodadUseService(
 
     /// <summary>
     /// A spent doodad's respawn time came (<see cref="DoodadRespawns" />): it is ready again, its script's OnRespawn runs,
-    /// and every client that sees it is told.
+    /// and every client that sees it is told. A doodad already ready is left alone: OnRespawn never runs on one unspent.
     /// </summary>
     internal void Respawned(IDoodadHost host, Doodad doodad)
     {
-        if (doodad.State != DoodadState.Ready)
-        {
-            doodad.State = DoodadState.Ready;
-            host.DoodadChanged(doodad);
-        }
+        // Ready already (a script set it so before its time): it was never spent, or no longer is, so nothing respawns.
+        if (doodad.State == DoodadState.Ready)
+            return;
+
+        doodad.State = DoodadState.Ready;
+        host.DoodadChanged(doodad);
 
         // Ready from here: a script that despawns it again in OnRespawn has its OnDespawn run.
         DoodadState before = DoodadState.Ready;

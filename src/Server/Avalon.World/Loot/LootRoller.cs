@@ -21,10 +21,11 @@ public interface ILootRoller
     /// <summary>
     /// Item stacks from <paramref name="table"/> (none when null) in roll order, then at most one gold pile of
     /// <paramref name="minGold"/> to <paramref name="maxGold"/> copper, always last. Reads the table from
-    /// <paramref name="catalog"/> as it is now; a table it does not hold drops only gold.
+    /// <paramref name="catalog"/> as it is now; a table it does not hold drops only gold, and sets
+    /// <paramref name="tableMissing"/>, so the caller logs it under the template that named it.
     /// </summary>
     IReadOnlyList<RolledDrop> Roll(LootTableId? table, int minGold, int maxGold, LootCatalog catalog,
-        IReadOnlyCollection<ItemTemplate> items);
+        IReadOnlyCollection<ItemTemplate> items, out bool tableMissing);
 }
 
 public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) : ILootRoller
@@ -35,24 +36,32 @@ public sealed class LootRoller(ILootRandom random, ILogger<LootRoller> logger) :
     /// </summary>
     public const int MaxReferenceDepth = 8;
 
-    public IReadOnlyList<RolledDrop> Roll(CreatureTemplate template, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items) =>
-        Roll(template.LootTableId, template.MinGold, template.MaxGold, catalog, items);
+    public IReadOnlyList<RolledDrop> Roll(CreatureTemplate template, LootCatalog catalog, IReadOnlyCollection<ItemTemplate> items)
+    {
+        IReadOnlyList<RolledDrop> drops = Roll(template.LootTableId, template.MinGold, template.MaxGold, catalog, items,
+            out bool tableMissing);
+        if (tableMissing)
+        {
+            logger.LogWarning(
+                "Creature template {TemplateId} names loot table {TableId}, which is missing or was refused; it drops only gold",
+                template.Id.Value, template.LootTableId!.Value);
+        }
+
+        return drops;
+    }
 
     public IReadOnlyList<RolledDrop> Roll(LootTableId? table, int minGold, int maxGold, LootCatalog catalog,
-        IReadOnlyCollection<ItemTemplate> items)
+        IReadOnlyCollection<ItemTemplate> items, out bool tableMissing)
     {
         var drops = new List<RolledDrop>();
+        tableMissing = false;
 
         if (table is { } tableId)
         {
             if (catalog.TryGet(tableId, out LootTableView? view))
-            {
                 RollTable(view, 0, catalog, items, drops);
-            }
             else
-            {
-                logger.LogWarning("Loot table {TableId} is missing or was refused; this roll drops only gold", tableId.Value);
-            }
+                tableMissing = true;
         }
 
         if (RollGold(minGold, maxGold) is { } copper)

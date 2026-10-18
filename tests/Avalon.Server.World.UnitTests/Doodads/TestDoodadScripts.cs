@@ -44,8 +44,8 @@ public sealed class WorldHungryDoodadScript(IWorld world) : DoodadScript
 
 /// <summary>
 /// Counts its uses and respawns, refuses with <see cref="Refusal" /> when set, asks for a respawn after
-/// <see cref="AsksRespawn" /> when set and then throws from OnUse when <see cref="Throws" /> is. Shared by every doodad that names it: only DoodadUseShould uses it, its tests one at a time,
-/// each starting from <see cref="Reset" />.
+/// <see cref="AsksRespawn" /> when set and then throws from OnUse when <see cref="Throws" /> is. Shared by every doodad
+/// that names it: only DoodadUseShould uses it, its tests one at a time, each starting from <see cref="Reset" />.
 /// </summary>
 public sealed class CountingDoodadScript : DoodadScript
 {
